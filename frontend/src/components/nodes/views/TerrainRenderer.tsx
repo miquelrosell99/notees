@@ -106,6 +106,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const lastClickTimeRef = useRef(0);
   const lastClickedNodeRef = useRef<number | null>(null);
   
+  // Selected node IDs ref for render access
+  const selectedNodeIdsRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    selectedNodeIdsRef.current = new Set(selectedNodeIds);
+  }, [selectedNodeIds]);
+  
   // Physics hook
   const physics = useNodePhysics({
     inputNodes,
@@ -428,25 +434,64 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     const { lowR, lowG, lowB, highR, highG, highB } = cssColorsRef.current;
     
-    // Draw contour lines — direct segment drawing, no chaining or splines
+    // Build set of selected node indices for dimming
+    const selIdSet = selectedNodeIdsRef.current;
+    const hasSelection = selIdSet.size > 0;
+    const selectedNodeIndices = new Set<number>();
+    if (hasSelection) {
+      for (let i = 0; i < visibleNodes.length; i++) {
+        if (selIdSet.has(visibleNodes[i].id)) {
+          selectedNodeIndices.add(i);
+        }
+      }
+    }
+    
+    // Draw contour lines — marching squares with selection-aware gradient blending
+    // When nodes are selected, segments blend between dim (non-selected) and bright (selected)
+    // based on the ownership of the 4 cell corners, creating smooth gradient transitions
     ctx.save();
     ctx.lineCap = 'butt';
     ctx.setLineDash(LINE_DASH_NONE);
+    
+    const DIM_OPACITY_FACTOR = 0.25;
+    const MIN_SEG_LEN_SQ = 4; // Skip contour segments shorter than 2px (avoids floating islands)
+    
+    // Reusable segment buffers for gradient buckets: 0%,25%,50%,75%,100% bright
+    // Each buffer stores flat x1,y1,x2,y2 coordinates
+    const segBufs: number[][] = [[], [], [], [], []];
+    
+    // Segment emitter: filters short segments, routes to ctx path or gradient buffer
+    const emitDirect = (x1: number, y1: number, x2: number, y2: number) => {
+      const dx = x2 - x1, dy = y2 - y1;
+      if (dx * dx + dy * dy >= MIN_SEG_LEN_SQ) { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
+    };
+    const emitBucket = (x1: number, y1: number, x2: number, y2: number, bucket: number) => {
+      const dx = x2 - x1, dy = y2 - y1;
+      if (dx * dx + dy * dy >= MIN_SEG_LEN_SQ) { segBufs[bucket].push(x1, y1, x2, y2); }
+    };
     
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
       const level = CONTOUR_LEVELS[li];
       const isMajor = (li + 1) % 5 === 0;
       const isHovered = li === hoveredContourLevelRef.current;
-      const opacity = isHovered ? 0.9 : 0.25 + level * 0.5;
-      const r = Math.round(lowR + (highR - lowR) * level);
-      const g = Math.round(lowG + (highG - lowG) * level);
-      const b = Math.round(lowB + (highB - lowB) * level);
-      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      ctx.lineWidth = isHovered ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+      const baseOpacity = isHovered ? 0.9 : 0.25 + level * 0.5;
+      const baseLineWidth = isHovered ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
       
-      // Single batched path: marching squares segments drawn directly
-      ctx.beginPath();
+      // Bright style (no selection or selected peaks)
+      const brightR = Math.round(lowR + (highR - lowR) * level);
+      const brightG = Math.round(lowG + (highG - lowG) * level);
+      const brightB = Math.round(lowB + (highB - lowB) * level);
+      const dimLW = Math.max(0.5, baseLineWidth * 0.7);
       
+      if (hasSelection) {
+        for (let b = 0; b < 5; b++) segBufs[b].length = 0;
+      } else {
+        ctx.strokeStyle = `rgba(${brightR}, ${brightG}, ${brightB}, ${baseOpacity})`;
+        ctx.lineWidth = baseLineWidth;
+        ctx.beginPath();
+      }
+      
+      // Marching squares grid traversal
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
@@ -459,12 +504,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
                        (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
-          
           if (code === 0 || code === 15) continue;
           
           const px = gx * gs;
           
-          // Inline edge interpolation
+          // Edge interpolation
           const topD = v10 - v00;
           const topT = topD === 0 ? 0.5 : (level - v00) / topD;
           const rightD = v11 - v10;
@@ -474,33 +518,85 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const leftD = v01 - v00;
           const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
           
-          // Edge midpoints
           const topX = px + topT * gs, topY = py;
           const rightX = px + gs, rightY = py + rightT * gs;
           const bottomX = px + bottomT * gs, bottomY = py + gs;
           const leftX = px, leftY = py + leftT * gs;
           
-          // Draw segments directly into the batched path
-          switch (code) {
-            case 1: ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
-            case 2: ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
-            case 3: ctx.moveTo(leftX, leftY); ctx.lineTo(rightX, rightY); break;
-            case 4: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); break;
-            case 5: ctx.moveTo(leftX, leftY); ctx.lineTo(topX, topY); ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
-            case 6: ctx.moveTo(topX, topY); ctx.lineTo(bottomX, bottomY); break;
-            case 7: ctx.moveTo(leftX, leftY); ctx.lineTo(topX, topY); break;
-            case 8: ctx.moveTo(topX, topY); ctx.lineTo(leftX, leftY); break;
-            case 9: ctx.moveTo(topX, topY); ctx.lineTo(bottomX, bottomY); break;
-            case 10: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
-            case 11: ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); break;
-            case 12: ctx.moveTo(leftX, leftY); ctx.lineTo(rightX, rightY); break;
-            case 13: ctx.moveTo(bottomX, bottomY); ctx.lineTo(rightX, rightY); break;
-            case 14: ctx.moveTo(leftX, leftY); ctx.lineTo(bottomX, bottomY); break;
+          if (hasSelection) {
+            // Compute ownership-based gradient bucket from 4 corner owners
+            const o00 = ownerMap[rowOff + gx];
+            const o10 = ownerMap[rowOff + gx + 1];
+            const o01 = ownerMap[nextRowOff + gx];
+            const o11 = ownerMap[nextRowOff + gx + 1];
+            let selCount = 0, validCount = 0;
+            if (o00 >= 0) { validCount++; if (selectedNodeIndices.has(o00)) selCount++; }
+            if (o10 >= 0) { validCount++; if (selectedNodeIndices.has(o10)) selCount++; }
+            if (o01 >= 0) { validCount++; if (selectedNodeIndices.has(o01)) selCount++; }
+            if (o11 >= 0) { validCount++; if (selectedNodeIndices.has(o11)) selCount++; }
+            const bucket = validCount > 0 ? Math.round(selCount / validCount * 4) : 0;
+            
+            switch (code) {
+              case 1: emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
+              case 2: emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
+              case 3: emitBucket(leftX, leftY, rightX, rightY, bucket); break;
+              case 4: emitBucket(topX, topY, rightX, rightY, bucket); break;
+              case 5: emitBucket(leftX, leftY, topX, topY, bucket); emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
+              case 6: emitBucket(topX, topY, bottomX, bottomY, bucket); break;
+              case 7: emitBucket(leftX, leftY, topX, topY, bucket); break;
+              case 8: emitBucket(topX, topY, leftX, leftY, bucket); break;
+              case 9: emitBucket(topX, topY, bottomX, bottomY, bucket); break;
+              case 10: emitBucket(topX, topY, rightX, rightY, bucket); emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
+              case 11: emitBucket(topX, topY, rightX, rightY, bucket); break;
+              case 12: emitBucket(leftX, leftY, rightX, rightY, bucket); break;
+              case 13: emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
+              case 14: emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
+            }
+          } else {
+            // No selection: draw directly into batched path
+            switch (code) {
+              case 1: emitDirect(leftX, leftY, bottomX, bottomY); break;
+              case 2: emitDirect(bottomX, bottomY, rightX, rightY); break;
+              case 3: emitDirect(leftX, leftY, rightX, rightY); break;
+              case 4: emitDirect(topX, topY, rightX, rightY); break;
+              case 5: emitDirect(leftX, leftY, topX, topY); emitDirect(bottomX, bottomY, rightX, rightY); break;
+              case 6: emitDirect(topX, topY, bottomX, bottomY); break;
+              case 7: emitDirect(leftX, leftY, topX, topY); break;
+              case 8: emitDirect(topX, topY, leftX, leftY); break;
+              case 9: emitDirect(topX, topY, bottomX, bottomY); break;
+              case 10: emitDirect(topX, topY, rightX, rightY); emitDirect(leftX, leftY, bottomX, bottomY); break;
+              case 11: emitDirect(topX, topY, rightX, rightY); break;
+              case 12: emitDirect(leftX, leftY, rightX, rightY); break;
+              case 13: emitDirect(bottomX, bottomY, rightX, rightY); break;
+              case 14: emitDirect(leftX, leftY, bottomX, bottomY); break;
+            }
           }
         }
       }
       
-      ctx.stroke();
+      if (hasSelection) {
+        // Draw each gradient bucket with interpolated dim↔bright style
+        for (let b = 0; b < 5; b++) {
+          const buf = segBufs[b];
+          if (buf.length === 0) continue;
+          const frac = b / 4; // 0=fully dim, 1=fully bright
+          const r = Math.round(lowR + (brightR - lowR) * frac);
+          const g = Math.round(lowG + (brightG - lowG) * frac);
+          const bl = Math.round(lowB + (brightB - lowB) * frac);
+          const op = baseOpacity * DIM_OPACITY_FACTOR + (baseOpacity - baseOpacity * DIM_OPACITY_FACTOR) * frac;
+          const lw = dimLW + (baseLineWidth - dimLW) * frac;
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${op})`;
+          ctx.lineWidth = lw;
+          ctx.beginPath();
+          for (let i = 0; i < buf.length; i += 4) {
+            ctx.moveTo(buf[i], buf[i + 1]);
+            ctx.lineTo(buf[i + 2], buf[i + 3]);
+          }
+          ctx.stroke();
+        }
+      } else {
+        ctx.stroke();
+      }
     }
     
     ctx.restore();
@@ -529,6 +625,107 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         ctx.fillStyle = '#ffffff';
         ctx.fillText(displayName, sx, sy + 6);
       }
+    }
+    
+    // ==================== Draw Selected Peak Outlines ====================
+    
+    const selIds = selectedNodeIdsRef.current;
+    if (selIds.size > 0) {
+      ctx.save();
+      
+      const OUTLINE_SAMPLES = 48; // angular samples for shape tracing
+      const OUTLINE_PAD = 8; // px outside plateau edge
+      const MAX_STRETCH = 1.6; // clamp elongation so outline stays near peak
+      
+      for (const node of visibleNodes) {
+        if (!selIds.has(node.id)) continue;
+        
+        const nIdx = idToIdx.get(node.id);
+        if (nIdx === undefined) continue;
+        
+        const sx = node.x * t.scale + t.x;
+        const sy = node.y * t.scale + t.y;
+        if (sx < -200 || sx > w + 200 || sy < -200 || sy > h + 200) continue;
+        
+        const peakSize = terrainPeakRadii.get(node.id) ?? 0;
+        const baseR = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale;
+        const dirs = nodeChildDirs[nIdx];
+        const hasDirs = dirs.length > 0;
+        
+        const nodeColor = getNodeColor(node, currentClassColors, accentColor);
+        
+        // Trace outline path by sampling angles
+        ctx.beginPath();
+        for (let si = 0; si <= OUTLINE_SAMPLES; si++) {
+          const ang = (si / OUTLINE_SAMPLES) * 2 * Math.PI;
+          const cosA = Math.cos(ang);
+          const sinA = Math.sin(ang);
+          
+          // Start with base plateau radius, then apply shape modifiers
+          let r = baseR;
+          
+          // Star-shaped stretch toward child directions (same logic as height map)
+          if (hasDirs) {
+            let maxAlign = 0;
+            for (let d = 0; d < dirs.length; d++) {
+              const dot = cosA * dirs[d].nx + sinA * dirs[d].ny;
+              if (dot > maxAlign) maxAlign = dot;
+            }
+            if (maxAlign > 0.5) {
+              const ramp = (maxAlign - 0.5) * 2;
+              const stretch = 1 + TERRAIN_ANISOTROPY * ramp * ramp;
+              // Clamp stretch to prevent excessive elongation
+              r *= Math.min(Math.sqrt(stretch), MAX_STRETCH);
+            }
+          }
+          
+          // Angular noise (same hash as height map)
+          if (TERRAIN_NOISE_STRENGTH > 0) {
+            const n1 = ihash(node.id, Math.floor(ang * 3 + 100)) * 2 - 1;
+            const n2 = ihash(node.id, Math.floor(ang * 7 + 200)) * 2 - 1;
+            const noise = (n1 * 0.7 + n2 * 0.3) * TERRAIN_NOISE_STRENGTH;
+            r *= 1 / (1 + noise); // inverse because height map multiplies distSq
+          }
+          
+          const px = sx + cosA * (r + OUTLINE_PAD);
+          const py = sy + sinA * (r + OUTLINE_PAD);
+          
+          if (si === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        
+        // Outer colored glow
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = nodeColor;
+        ctx.lineWidth = 4;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        
+        // Inner white ring
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Label for selected nodes (always visible)
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        const displayName = node.displayName.length > 35 
+          ? node.displayName.slice(0, 35) + '...' 
+          : node.displayName;
+        ctx.strokeText(displayName, sx, sy + 6);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(displayName, sx, sy + 6);
+      }
+      
+      ctx.restore();
     }
     
     // ==================== Draw Crosshair Lines ====================

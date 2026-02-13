@@ -22,8 +22,8 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
-import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiFileTree, mdiLinkVariant } from '@mdi/js';
+import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode, PeakSizeMode } from './viewTypes';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiFileTree, mdiLinkVariant, mdiArrowExpandAll, mdiTextBox } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -94,6 +94,7 @@ export function TerrainView({
     linkCountAttraction: false,
     nodeSizeMode: 'mass', // Not used in terrain, but keep for compatibility
     heightMode: 'hierarchy',
+    peakSizeMode: 'links',
     constraintMode: 'physics',
     linkDirection: 'in',
   });
@@ -315,7 +316,7 @@ export function TerrainView({
   // Selected node IDs
   const selectedNodeIds = useMemo(() => selectedNodes.map(s => s.id), [selectedNodes]);
   
-  // Event handlers
+  // Event handlers — click toggles selection, double-click opens node
   const handleNodeClick = useCallback((node: GraphNode, event: { shiftKey: boolean; ctrlKey: boolean }) => {
     if (customNodeClick) {
       customNodeClick(node.id);
@@ -324,19 +325,30 @@ export function TerrainView({
     if (event.shiftKey) {
       addSidebarCard(node.id, node.type);
     } else if (event.ctrlKey) {
+      // Ctrl+click: toggle selection
       setSelectedNodes(prev => {
-        if (prev.find(s => s.id === node.id)) {
+        const exists = prev.find(s => s.id === node.id);
+        if (exists) {
+          return prev.filter(s => s.id !== node.id);
+        } else {
+          return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
+        }
+      });
+    } else {
+      // Regular click: toggle selection (add if not selected, remove if selected)
+      setSelectedNodes(prev => {
+        const exists = prev.find(s => s.id === node.id);
+        if (exists) {
           return prev.filter(s => s.id !== node.id);
         }
         return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
       });
-    } else {
-      openNode(node.id, node.type);
     }
-  }, [customNodeClick, openNode, addSidebarCard]);
+  }, [customNodeClick, addSidebarCard]);
   
   const handleNodeDoubleClick = useCallback((node: GraphNode) => {
     openNode(node.id, node.type);
+    setSelectedNodes([]);
   }, [openNode]);
   
   const handleNodeRightClick = useCallback((node: GraphNode) => {
@@ -350,6 +362,20 @@ export function TerrainView({
       return newSet;
     });
   }, []);
+  
+  const handleSelectionChange = useCallback((nodeIds: number[]) => {
+    if (nodeIds.length === 0) {
+      setSelectedNodes([]);
+    } else {
+      const nodeMap = new Map(nodes.map(n => [n.id, n.name]));
+      const newSelection = nodeIds.map((id, index) => ({
+        id,
+        name: nodeMap.get(id) || 'Untitled',
+        order: index,
+      }));
+      setSelectedNodes(newSelection);
+    }
+  }, [nodes]);
   
   // Selection handlers
   const removeFromSelection = useCallback((nodeId: number) => {
@@ -432,6 +458,23 @@ export function TerrainView({
                     onChange={(value) => setGraphSettings(prev => ({
                       ...prev,
                       heightMode: value as HeightMode
+                    }))}
+                  />
+                </div>
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Peak size"
+                    description="How terrain peak radius is determined"
+                    labelPosition="left"
+                    options={[
+                      { value: 'links', icon: mdiArrowExpandAll, label: 'Links in' },
+                      { value: 'pageSize', icon: mdiTextBox, label: 'Page characters' },
+                    ]}
+                    value={graphSettings.peakSizeMode}
+                    onChange={(value) => setGraphSettings(prev => ({
+                      ...prev,
+                      peakSizeMode: value as PeakSizeMode
                     }))}
                   />
                 </div>
@@ -563,67 +606,71 @@ export function TerrainView({
         />
       </div>
       
-      {/* Search panel (optional) */}
-      {showSearch && selectedNodes.length > 0 && (
-        <div className="node-graph-view__selection-panel">
-          <div className="selection-panel__header">
-            <span className="selection-panel__title">Selected Nodes ({selectedNodes.length})</span>
-            <Button
-              icon={mdiTrashCanOutline}
-              size="sm"
-              variant="ghost"
-              onClick={() => setSelectedNodes([])}
-              title="Clear selection"
+      {/* Top Right: Search and selection */}
+      {showSearch && (
+      <div className="node-graph-view__top-right">
+        <div className="graph-search-panel">
+          <div className="graph-search-input-container">
+            <input
+              type="text"
+              className="graph-search-input"
+              placeholder="Search to add nodes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
             />
-          </div>
-          <ListSortable
-            className="selection-panel__list"
-            items={selectedNodes}
-            getId={(item) => item.id}
-            onReorder={moveSelectionItem}
-            renderItem={(item) => (
-              <div className="selection-item">
-                <span className="selection-item__name">{item.name}</span>
-                <Button
-                  icon={mdiClose}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => removeFromSelection(item.id)}
-                />
+            {searchOpen && searchResults.length > 0 && (
+              <div className="graph-search-results">
+                {searchResults.map((page) => (
+                  <Button
+                    key={page.id}
+                    variant="ghost"
+                    className="graph-search-result"
+                    onClick={() => addToSelection(page)}
+                  >
+                    {page.icon && <span className="result-icon">{page.icon}</span>}
+                    <span className="result-name">{page.name}</span>
+                  </Button>
+                ))}
               </div>
             )}
-          />
-        </div>
-      )}
-      
-      {/* Search input */}
-      {showSearch && (
-        <div className="node-graph-view__search">
-          <input
-            type="text"
-            placeholder="Search nodes..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSearchOpen(e.target.value.length > 0);
-            }}
-            onFocus={() => searchQuery && setSearchOpen(true)}
-            onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
-          />
-          {searchOpen && searchResults.length > 0 && (
-            <div className="search-results">
-              {searchResults.map(result => (
-                <div
-                  key={result.id}
-                  className="search-result"
-                  onClick={() => addToSelection(result)}
-                >
-                  {result.name}
-                </div>
-              ))}
+          </div>
+          
+          {selectedNodes.length > 0 && (
+            <div className="graph-selected-list">
+              <div className="selected-list-header">
+                Selected ({selectedNodes.length})
+                <Button
+                  icon={mdiTrashCanOutline}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedNodes([])}
+                />
+              </div>
+              <ListSortable
+                items={selectedNodes}
+                onReorder={moveSelectionItem}
+                itemClassName="selected-node-item"
+                renderText={(item) => (
+                  <span className="node-name">{item.name}</span>
+                )}
+                renderAction={(item) => (
+                  <Button
+                    icon={mdiClose}
+                    size="xs"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromSelection(item.id);
+                    }}
+                  />
+                )}
+              />
             </div>
           )}
         </div>
+      </div>
       )}
       
       {/* Terrain renderer */}
@@ -640,7 +687,7 @@ export function TerrainView({
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeRightClick={handleNodeRightClick}
-        onSelectionChange={setSelectedNodes as (ids: number[]) => void}
+        onSelectionChange={handleSelectionChange}
       />
     </div>
   );

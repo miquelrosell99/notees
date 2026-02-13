@@ -109,6 +109,7 @@ export function GraphView({
     linkCountAttraction: false,
     nodeSizeMode: 'uniform',
     heightMode: 'hierarchy',
+    peakSizeMode: 'links',
     constraintMode: 'physics',
     linkDirection: 'all',
   });
