@@ -350,8 +350,8 @@ export function BlockPlugin({
   useEffect(() => {
     if (readOnly) return;
 
-    return editor.registerUpdateListener(({ editorState, dirtyElements, tags }) => {
-      if (dirtyElements.size === 0) return;
+    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
       // Skip content saves triggered by external sync (runtime → Lexical)
       // Only save when the user actually edited content
       if (isSyncingRef.current || tags.has('runtime-sync')) return;
@@ -359,7 +359,17 @@ export function BlockPlugin({
       editorState.read(() => {
         const root = $getRoot();
         for (const child of root.getChildren()) {
-          if ($isBlockNode(child) && dirtyElements.has(child.getKey())) {
+          if (!$isBlockNode(child)) continue;
+
+          // A block needs content extraction when it is structurally dirty
+          // (children added/removed, caught by dirtyElements) OR when one
+          // of its leaf children changed in-place (e.g. TextNode format
+          // toggled by FORMAT_TEXT_COMMAND, caught by dirtyLeaves).
+          const blockDirty =
+            dirtyElements.has(child.getKey()) ||
+            child.getChildren().some((c) => dirtyLeaves.has(c.getKey()));
+
+          if (blockDirty) {
             const blockId = child.getBlockId();
             const contentAST = extractBlockContent(child);
             onContentChange?.(blockId, contentAST);
