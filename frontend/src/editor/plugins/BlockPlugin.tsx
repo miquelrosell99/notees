@@ -395,12 +395,17 @@ export function BlockPlugin({
           const textContent = blockNode.getTextContent();
           const isEmptyBlock = textContent === '' || textContent === '\u200B';
           
-          // Allow backspace at start OR if block is empty
-          if (anchor.offset !== 0 && !isEmptyBlock) return;
-
-          // Check if cursor is at the very start of the block (or block is empty)
-          const firstChild = blockNode.getFirstChild();
-          if (!isEmptyBlock && anchorNode !== firstChild && anchorNode.getParent() !== blockNode) return;
+          // Only merge/delete when cursor is at the absolute start of the block
+          if (!isEmptyBlock) {
+            if (anchor.offset !== 0) return;
+            // For text anchors: must be the deepest-first node of the block
+            // For element anchors: must be the block itself at child index 0
+            if (anchor.type === 'text') {
+              if (anchorNode !== blockNode.getFirstDescendant()) return;
+            } else {
+              if (anchorNode !== blockNode) return;
+            }
+          }
 
           const root = $getRoot();
           const children = root.getChildren();
@@ -465,10 +470,14 @@ export function BlockPlugin({
           const blockNode = findParentNodeBlock(anchorNode);
           if (!blockNode) return;
 
-          // Check if at end of block
-          const textContent = blockNode.getTextContent();
+          // Check if cursor is at the absolute end of the block
           const anchor = selection.anchor;
-          if (anchor.offset < textContent.length) return;
+          if (anchor.type === 'text') {
+            const lastDescendant = blockNode.getLastDescendant();
+            if (anchorNode !== lastDescendant || anchor.offset < anchorNode.getTextContentSize()) return;
+          } else {
+            if (anchorNode !== blockNode || anchor.offset < blockNode.getChildrenSize()) return;
+          }
 
           const root = $getRoot();
           const children = root.getChildren();

@@ -189,6 +189,18 @@ export class BlockNode extends ElementNode {
 
   // ─── DOM ──────────────────────────────────────────────────────
 
+  /**
+   * Tell Lexical that managed (text) children start AFTER the bullet wrapper.
+   * Without this, Lexical treats the bullet wrapper as its first child, which
+   * corrupts selection offsets, reconciliation, and character deletion.
+   */
+  getDOMSlot(element: HTMLElement) {
+    const bulletWrapper = element.querySelector('.bullet-wrapper');
+    return bulletWrapper
+      ? super.getDOMSlot(element).withAfter(bulletWrapper)
+      : super.getDOMSlot(element);
+  }
+
   createDOM(_config: EditorConfig): HTMLElement {
     const dom = document.createElement('div');
     dom.classList.add('node-block');
