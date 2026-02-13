@@ -36,8 +36,6 @@ export function PillDecorator({ linkId, refType }: PillDecoratorProps) {
   }, [node, linkId]);
 
   const isPage = node?.is_page ?? true;
-  const prefix = refType === 'class' ? '{{' : '[[';
-  const suffix = refType === 'class' ? '}}' : ']]';
 
   return (
     <span className="node-pill-inner" data-ref-type={refType}>
@@ -47,7 +45,7 @@ export function PillDecorator({ linkId, refType }: PillDecoratorProps) {
         </span>
       )}
       <span className="node-pill-text">
-        {prefix}{displayText}{suffix}
+        {displayText}
       </span>
     </span>
   );
