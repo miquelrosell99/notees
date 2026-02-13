@@ -53,6 +53,14 @@
   z-index: 10;
   display: flex;
   gap: 8px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.node-graph-view:hover .node-graph-view__top-left {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Top right search/selection */
@@ -181,6 +189,14 @@
   bottom: 12px;
   right: 12px;
   z-index: 10;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.node-graph-view:hover .node-graph-view__bottom-right {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Settings panel styles */
