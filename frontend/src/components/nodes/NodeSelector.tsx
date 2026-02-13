@@ -201,11 +201,14 @@ export function NodeSelector({
   }, [isPickerOpen, trigger]);
 
   // Focus search input when picker opens
+  // Include pickerPos in deps because in pill-row mode the picker only renders
+  // after pickerPos is set (one render cycle after isPickerOpen becomes true),
+  // so the ref is null on the first run.
   useEffect(() => {
     if (isPickerOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isPickerOpen]);
+  }, [isPickerOpen, pickerPos, menuPosition]);
 
   const handleAdd = useCallback((node: Node) => {
     if (onChange) {
