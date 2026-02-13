@@ -23,10 +23,16 @@
 .terrain-profile-card {
   position: absolute;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.3) !important;
+  background: rgba(0, 0, 0, 0.25) !important;
   backdrop-filter: blur(4px);
   overflow: hidden;
   z-index: 2;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.terrain-profile-card.terrain-overlay--visible {
+  opacity: 1;
 }
 
 .terrain-profile-card--right {
@@ -41,6 +47,25 @@
   left: 12px;
   right: 68px; /* leave room for right card + gap */
   height: 48px;
+}
+
+.terrain-profile-card--coords {
+  bottom: 12px;
+  right: 12px;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px !important;
+}
+
+.terrain-coords-text {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
 }
 
 .terrain-profile-canvas {
