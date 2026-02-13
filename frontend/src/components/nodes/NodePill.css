@@ -15,7 +15,7 @@
   margin: 0 1px;
   background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
   border-radius: var(--shape-small);
-  border-bottom: 1px dotted var(--color-outline-variant);
+  border-bottom: 1.5px dotted var(--color-outline);
   color: var(--color-on-surface);
   font: inherit;
   line-height: inherit;
@@ -54,7 +54,7 @@
 .node-pill--link.node-pill--class .pill:not([style*="background"]) {
   background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
   color: var(--color-on-surface-variant);
-  border-bottom: 1px dotted var(--color-outline-variant);
+  border-bottom: 1.5px dotted var(--color-outline);
   font-style: italic;
   border-radius: var(--shape-small);
   box-shadow: none;
