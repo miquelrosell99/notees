@@ -29,7 +29,6 @@ import {
   TERRAIN_PEAK_PLATEAU_BONUS,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
-  TERRAIN_MIN_HEIGHT,
   TERRAIN_ANISOTROPY,
   TERRAIN_NOISE_STRENGTH,
   LABEL_FADE_ZOOM_MIN,
@@ -295,7 +294,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       let H = terrainHeights.get(node.id) ?? 0;
       const peakSize = terrainPeakRadii.get(node.id) ?? 0;
       
-      if (H > 0) H = Math.max(H, TERRAIN_MIN_HEIGHT);
       if (H <= 0) { nodeIdx++; continue; }
       nodePeakH[nodeIdx] = H;
       
