@@ -251,6 +251,48 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     };
   }, [editor, updateCaretPosition]);
 
+  // ─── Listen for DOM mutations (indent/outdent, style changes) ───
+
+  useEffect(() => {
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
+
+    // Watch for attribute changes (data-depth, style, class changes on blocks)
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateCaretPosition);
+    });
+
+    observer.observe(rootElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class', 'data-depth'],
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  }, [editor, updateCaretPosition]);
+
+  // ─── Listen for CSS transitions completing ───────────────────
+
+  useEffect(() => {
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
+
+    const onTransitionEnd = (e: TransitionEvent) => {
+      // Only respond to margin-left transitions (indent/outdent)
+      if (e.propertyName === 'margin-left') {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateCaretPosition);
+      }
+    };
+
+    rootElement.addEventListener('transitionend', onTransitionEnd, true);
+
+    return () => {
+      rootElement.removeEventListener('transitionend', onTransitionEnd, true);
+    };
+  }, [editor, updateCaretPosition]);
+
   // ─── Render ──────────────────────────────────────────────────
 
   if (readOnly) return null;
