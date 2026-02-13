@@ -16,6 +16,7 @@ import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence } from '@/utils/nodeSort';
+import { getNodeByUuid } from '@/api/nodes';
 import './ListView.css';
 
 /**
@@ -63,22 +64,27 @@ export function ListView({
   }, [nodes, pagesOnly]);
 
   // Handler for navigation from editor
-  const handleNavigateToNode = useCallback((blockId: string) => {
+  const handleNavigateToNode = useCallback(async (blockId: string) => {
     // Get runtime to resolve blockId to serverId
     const runtime = getNodeGraphRuntime();
     const graphNode = runtime.getNode(blockId);
     
-    if (!graphNode) return;
-    
-    const serverId = graphNode.serverId;
-    if (!serverId) return;
-    
-    // Find node in allNodes or create stub
-    const targetNode = allNodes.find(n => n.id === serverId);
-    if (targetNode) {
-      onNodeClick?.(targetNode);
-    } else {
-      onNodeClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
+    if (graphNode?.serverId) {
+      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+      if (targetNode) {
+        onNodeClick?.(targetNode);
+      } else {
+        onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+      }
+      return;
+    }
+
+    // Node not in runtime — fetch by UUID from API
+    try {
+      const node = await getNodeByUuid(blockId);
+      onNodeClick?.(node);
+    } catch {
+      // Node not found
     }
   }, [allNodes, onNodeClick]);
 

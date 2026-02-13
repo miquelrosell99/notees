@@ -9,6 +9,7 @@ import { useMemo, useCallback, useId, type JSX } from 'react';
 import { BlockEditor } from '../../../editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
+import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './DocumentView.css';
@@ -48,17 +49,24 @@ export function DocumentView({
   }, [nodes, maxDepth]);
 
   // Handler for navigation from editor
-  const handleNavigateToNode = useCallback((linkId: string) => {
+  const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getNodeGraphRuntime();
     const graphNode = runtime.getNode(linkId);
-    if (!graphNode) return;
-    const serverId = graphNode.serverId;
-    if (!serverId) return;
-    const targetNode = allNodes.find(n => n.id === serverId);
-    if (targetNode) {
-      onNodeClick?.(targetNode);
-    } else {
-      onNodeClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
+    if (graphNode?.serverId) {
+      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+      if (targetNode) {
+        onNodeClick?.(targetNode);
+      } else {
+        onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+      }
+      return;
+    }
+    // Node not in runtime — fetch by UUID from API
+    try {
+      const node = await getNodeByUuid(linkId);
+      onNodeClick?.(node);
+    } catch {
+      // Node not found
     }
   }, [allNodes, onNodeClick]);
 
