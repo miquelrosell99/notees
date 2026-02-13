@@ -18,6 +18,8 @@ import {
 import { $createPillNode } from '../nodes/PillNode';
 import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
 import { SlashCommandMenu } from './SlashCommandMenu';
+import { findParentNodeBlock } from '../utils/selectionUtils';
+import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
 
@@ -36,10 +38,13 @@ interface TriggerState {
 export interface TriggerPluginProps {
   /** Called when a link node is selected */
   onLinkSelect?: (linkId: string) => void;
+  /** Called when a class should be added to block's class_ids (not inline) */
+  onAddClass?: (classId: number) => void;
 }
 
 export function TriggerPlugin({
   onLinkSelect,
+  onAddClass,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [trigger, setTrigger] = useState<TriggerState>({
@@ -168,8 +173,41 @@ export function TriggerPlugin({
   if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
     const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
 
-    const handleSuggestionSelect = (node: Node, _keepInline: boolean) => {
-      handleSelect(node.uuid, { node, type: suggestionType });
+    const handleSuggestionSelect = (node: Node, keepInline: boolean) => {
+      // For @ type trigger with plain Enter (not Shift+Enter), add to class_ids instead of inline
+      if (trigger.type === 'type' && !keepInline && onAddClass) {
+        // Remove trigger text without inserting a Pill
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+
+          const anchorNode = selection.anchor.getNode();
+          const rawText = anchorNode.getTextContent();
+          const text = rawText.replace(/\u200B/g, '');
+          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+          const cursorClean = selection.anchor.offset - zwsBefore;
+
+          // Remove trigger text
+          const beforeTrigger = text.slice(0, trigger.triggerOffset);
+          const afterCursor = text.slice(cursorClean);
+          
+          // Just set the text without the trigger, no Pill
+          const newText = beforeTrigger + afterCursor;
+          (anchorNode as any).setTextContent(newText || '\u200B');
+          
+          // Position cursor where trigger was
+          const newOffset = beforeTrigger.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        });
+
+        // Add class to block's class_ids
+        onAddClass(node.id);
+        setTrigger(prev => ({ ...prev, isOpen: false }));
+      } else {
+        // Insert as Pill inline (for Shift+Enter or for link/tag triggers)
+        handleSelect(node.uuid, { node, type: suggestionType });
+      }
     };
 
     const handleSelectDatePage = (pageId: string, _pageName: string) => {

@@ -35,6 +35,7 @@ export function ListView({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
+  onAddClass,
   pageId,
   pageUuid,
   className = '',
@@ -214,6 +215,7 @@ export function ListView({
                   onNavigateToNode={handleNavigateToNode}
                   onOpenInSidebar={handleOpenInSidebar}
                   onContentChange={handleContentChangeBridge}
+                  onAddClass={onAddClass}
                   pageId={pageId}
                   pageUuid={pageUuid}
                   className="node-list-view__editor"
@@ -278,6 +280,7 @@ export function ListView({
         onNavigateToNode={handleNavigateToNode}
         onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
+        onAddClass={onAddClass}
         pageId={pageId}
         pageUuid={pageUuid}
         className="node-list-view__editor"
