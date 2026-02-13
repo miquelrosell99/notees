@@ -241,15 +241,11 @@ export function BlockPlugin({
           // Populate inline content from contentAST
           populateBlockContent(newBlock, projected.contentAST);
 
-          // Insert at correct position
-          const children = root.getChildren();
-          if (i < children.length) {
-            children[i].insertBefore(newBlock);
-          } else {
-            root.append(newBlock);
-          }
+          // Temporarily append — ordering is fixed in PASS 3
+          root.append(newBlock);
 
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
+          existingBlockMap.set(projected.blockId, newBlock);
           
           // If this is the block runtime requested to focus, focus it directly
           if (pendingFocus && projected.blockId === pendingFocus.blockId) {
@@ -268,6 +264,22 @@ export function BlockPlugin({
             }
           }
         }
+      }
+
+      // PASS 3: Reorder Lexical children to match projected order.
+      // After PASS 1 (update) and PASS 2 (create), the Lexical tree may
+      // have nodes in the wrong order — existing nodes keep their old
+      // positions and newly appended nodes land at the end.  Walk the
+      // projected list and move each BlockNode into the correct slot.
+      let prevBlock: BlockNode | null = null;
+      for (const projected of visibleNodes) {
+        const block = existingBlockMap.get(projected.blockId);
+        if (!block) continue;
+        if (prevBlock) {
+          // Move block to be right after its predecessor (no-op if already there)
+          prevBlock.insertAfter(block);
+        }
+        prevBlock = block;
       }
     }, { tag: 'runtime-sync' });
 
@@ -788,6 +800,17 @@ export function BlockPlugin({
 function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
   if (!contentAST || contentAST.length === 0) {
     // Use zero-width space so empty blocks have a focusable cursor position
+    block.append($createTextNode('\u200B'));
+    return;
+  }
+
+  // Check if the AST is effectively empty (single paragraph with only empty text)
+  const isEffectivelyEmpty = contentAST.length === 1
+    && contentAST[0].children.length === 1
+    && contentAST[0].children[0].type === 'text'
+    && contentAST[0].children[0].text === '';
+
+  if (isEffectivelyEmpty) {
     block.append($createTextNode('\u200B'));
     return;
   }

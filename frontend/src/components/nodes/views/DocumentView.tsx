@@ -25,6 +25,7 @@ export function DocumentView({
   maxDepth = Infinity,
   onNodeClick,
   onContentChange,
+  onAddClass,
   pageId,
   pageUuid,
   className = '',
@@ -101,6 +102,7 @@ export function DocumentView({
         readOnly={!editable}
         onNavigateToNode={handleNavigateToNode}
         onContentChange={handleContentChangeBridge}
+        onAddClass={onAddClass}
         pageId={pageId}
         pageUuid={pageUuid}
         placeholder="Start writing…"

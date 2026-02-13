@@ -109,6 +109,9 @@ export interface NodeCollectionProps {
   /** Called when node content changes (only in edit mode) */
   onContentChange?: (nodeId: number, content: string) => void;
   
+  /** Called when a class is added to a node via @ menu (plain Enter) */
+  onAddClass?: (nodeId: number, classId: number) => void;
+  
   /** Additional CSS class */
   className?: string;
   
@@ -179,6 +182,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Content change handler */
   onContentChange?: (nodeId: number, content: string) => void;
+  
+  /** Add class handler (called when @ menu adds class via plain Enter) */
+  onAddClass?: (nodeId: number, classId: number) => void;
   
   /** Custom node renderer */
   renderNode?: (node: Node, editable: boolean) => ReactNode;
