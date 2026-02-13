@@ -253,14 +253,11 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
   reference: 0,
 };
 
-// Terrain height map parameters
-export const TERRAIN_MIN_HEIGHT = 0.15;
-
-// Terrain contour levels (evenly spaced between MIN_HEIGHT and 1.0)
+// Terrain contour levels (evenly spaced between 0 and 1.0)
 export const TERRAIN_CONTOUR_COUNT = 10;
 export const CONTOUR_LEVELS: number[] = Array.from(
   { length: TERRAIN_CONTOUR_COUNT },
-  (_, i) => TERRAIN_MIN_HEIGHT + (1 - TERRAIN_MIN_HEIGHT) * (i + 1) / (TERRAIN_CONTOUR_COUNT + 1)
+  (_, i) => (i + 1) / (TERRAIN_CONTOUR_COUNT + 1)
 );
 
 // Terrain height map parameters

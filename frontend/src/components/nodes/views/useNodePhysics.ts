@@ -1564,12 +1564,12 @@ export function useNodePhysics({
             rawHeights.set(node.id, h);
             if (h > maxHeightRaw) maxHeightRaw = h;
           }
-          // Use sqrt compression so leaf nodes still have visible height
-          // Linear normalization crushes children (mass=1 → 0.05 when parent=20)
-          // Sqrt: mass=1 → ~0.22, mass=4 → ~0.45, mass=20 → 1.0
-          const sqrtMax = Math.sqrt(maxHeightRaw);
+          // Use log compression so leaf nodes still have visible mountains
+          // sqrt was too weak: leaf=sqrt(1)/sqrt(378)=0.05, invisible
+          // log: leaf=log(2)/log(379)=0.12, and MIN_HEIGHT clamps up to 0.35
+          const logMax = Math.log(1 + maxHeightRaw);
           for (const [id, h] of rawHeights) {
-            terrainHeights.set(id, sqrtMax > 0 ? Math.sqrt(h) / sqrtMax : 0);
+            terrainHeights.set(id, logMax > 0 ? Math.log(1 + h) / logMax : 0);
           }
           
           const ld = currentSettings.linkDirection;
