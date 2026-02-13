@@ -140,6 +140,9 @@ export interface NodeCollectionProps {
   
   /** Whether to auto-collapse nodes at configured depth (default: false, enabled for linked refs and queries) */
   autoCollapse?: boolean;
+  
+  /** Whether to wrap spatial views (graph, terrain) in a Card container (default: false) */
+  containerCard?: boolean;
 }
 
 // ==================== View-Specific Props ====================
