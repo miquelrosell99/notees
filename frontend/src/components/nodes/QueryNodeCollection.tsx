@@ -687,7 +687,7 @@ export function QueryNodeCollection({
           viewId={activeView?.id}
           view={activeView}
           viewMode={collectionViewMode}
-          availableViewModes={['list', 'table', 'card']}
+          availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
           onViewModeChange={handleViewModeChange}
           editable={can_edit}
           hideToolbar={hideToolbar}
