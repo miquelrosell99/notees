@@ -815,14 +815,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         if (gx >= 0 && gx < gW && gy >= 0 && gy < gH) {
           const h = heightMap[gy * gW + gx];
           if (h > 0) {
-            // Find nearest contour level
-            let bestDist = Infinity;
-            for (let i = 0; i < CONTOUR_LEVELS.length; i++) {
-              const d = Math.abs(h - CONTOUR_LEVELS[i]);
-              if (d < bestDist) { bestDist = d; newContourLevel = i; }
+            // Find the outermost (lowest) contour level that the cursor is inside
+            // i.e. the highest contour level still <= current height
+            for (let i = CONTOUR_LEVELS.length - 1; i >= 0; i--) {
+              if (CONTOUR_LEVELS[i] <= h) { newContourLevel = i; break; }
             }
-            // Only highlight if cursor is close to a contour line
-            if (bestDist > 0.04) newContourLevel = -1;
           }
         }
       }
