@@ -185,6 +185,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Store grid dims + owner map for plateau hit testing
   const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES });
   
+  // Hovered contour level index (-1 = none)
+  const hoveredContourLevelRef = useRef(-1);
+  
   // ==================== Render Function ====================
   
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -422,12 +425,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
       const level = CONTOUR_LEVELS[li];
       const isMajor = (li + 1) % 5 === 0;
-      const opacity = 0.25 + level * 0.5;
+      const isHovered = li === hoveredContourLevelRef.current;
+      const opacity = isHovered ? 0.9 : 0.25 + level * 0.5;
       const r = Math.round(lowR + (highR - lowR) * level);
       const g = Math.round(lowG + (highG - lowG) * level);
       const b = Math.round(lowB + (highB - lowB) * level);
       ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      ctx.lineWidth = isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+      ctx.lineWidth = isHovered ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
       
       // Single batched path: marching squares segments drawn directly
       ctx.beginPath();
@@ -615,6 +619,35 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       if (canvas) canvas.style.cursor = 'grabbing';
     } else {
       const node = getNodeAtPosition(screenX, screenY) || getNodeInPlateau(screenX, screenY);
+      
+      // Determine hovered contour level from heightMap
+      let newContourLevel = -1;
+      const heightMap = heightMapBufRef.current;
+      const { gridW: gW, gridH: gH, gs: hitGs } = plateauGridRef.current;
+      if (heightMap && gW > 0) {
+        const gx = Math.floor(screenX / hitGs);
+        const gy = Math.floor(screenY / hitGs);
+        if (gx >= 0 && gx < gW && gy >= 0 && gy < gH) {
+          const h = heightMap[gy * gW + gx];
+          if (h > 0) {
+            // Find nearest contour level
+            let bestDist = Infinity;
+            for (let i = 0; i < CONTOUR_LEVELS.length; i++) {
+              const d = Math.abs(h - CONTOUR_LEVELS[i]);
+              if (d < bestDist) { bestDist = d; newContourLevel = i; }
+            }
+            // Only highlight if cursor is close to a contour line
+            if (bestDist > 0.04) newContourLevel = -1;
+          }
+        }
+      }
+      
+      if (newContourLevel !== hoveredContourLevelRef.current) {
+        hoveredContourLevelRef.current = newContourLevel;
+        if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
+          renderRef.current(ctxRef.current);
+        }
+      }
       
       if (canvas) {
         canvas.style.cursor = node ? 'pointer' : 'grab';
