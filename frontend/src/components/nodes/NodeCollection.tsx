@@ -362,7 +362,7 @@ export function NodeCollection({
             is_daily: n.is_daily || false,
           }));
         const graphContent = <GraphView nodes={graphNodes} className="node-collection__graph" />;
-        return containerCard ? <Card variant="outlined" padding paddingSize="sm" radius="md">{graphContent}</Card> : graphContent;
+        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{graphContent}</Card> : graphContent;
       
       case 'terrain':
         // Terrain mode - similar to graph but uses contour visualization
@@ -379,7 +379,7 @@ export function NodeCollection({
             is_daily: n.is_daily || false,
           }));
         const terrainContent = <TerrainView nodes={terrainNodes} className="node-collection__terrain" />;
-        return containerCard ? <Card variant="outlined" padding paddingSize="sm" radius="md">{terrainContent}</Card> : terrainContent;
+        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{terrainContent}</Card> : terrainContent;
       
       default:
         // Fallback to list view
@@ -397,7 +397,7 @@ export function NodeCollection({
 
   return (
     <NodeCollectionContext.Provider value={contextValue}>
-      <div className={`node-collection node-collection--${viewMode} ${isEmpty ? 'node-collection--empty' : ''} ${className}`}>
+      <div className={`node-collection node-collection--${viewMode} ${isEmpty ? 'node-collection--empty' : ''} ${containerCard ? 'node-collection--contained' : ''} ${className}`}>
           {/* Header with GroupBy and View Mode Switcher - hidden when hideToolbar is true */}
           {showInternalToolbar && (
             <div className="node-collection__header">
