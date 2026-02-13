@@ -1663,7 +1663,6 @@ export function useNodePhysics({
         (MAX_SIMULATION_TIME_MS > 0 && (performance.now() - simulationStartTime) > MAX_SIMULATION_TIME_MS);
       
       if (forceStop) {
-        console.log(`[Graph] Simulation force-stopped: frames=${totalFrames}, ${nodes.length} nodes`);
         simulationSleepingRef.current = true;
         if (ctxRef.current && renderRef.current) {
           renderRef.current(ctxRef.current);

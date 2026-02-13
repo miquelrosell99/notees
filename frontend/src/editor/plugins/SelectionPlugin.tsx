@@ -8,7 +8,7 @@
  * - Shift+Arrow: extends selection across blocks
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getRoot,
@@ -16,7 +16,6 @@ import {
   $isRangeSelection,
 } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
-import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 
 export interface SelectionPluginProps {
@@ -175,17 +174,6 @@ export function SelectionPlugin({
       }
     };
   }, [editor, enableBoxSelect, onSelectionChange]);
-
-  // ─── Select with children ──────────────────────────────────
-
-  // Select with children (available for future use)
-  void useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const descendants = runtime.getDescendants(blockId);
-    const ids = new Set([blockId, ...descendants.map(d => d.blockId)]);
-    selectedBlockIds.current = ids;
-    onSelectionChange?.([...ids]);
-  }, [onSelectionChange]);
 
   return null;
 }

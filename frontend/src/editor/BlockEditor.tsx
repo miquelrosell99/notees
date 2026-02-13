@@ -12,7 +12,7 @@
  * NOT used for Card Mode — see CardModeView for per-card editors.
  */
 
-import { useCallback, useMemo, useId, type JSX } from 'react';
+import { useCallback, useMemo, useId, useLayoutEffect, type JSX } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -38,6 +38,7 @@ import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
+import { EditablePlugin } from './plugins/EditablePlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
@@ -176,34 +177,42 @@ export function BlockEditor({
   
   const resolvedRootBlockId = useMemo(() => {
     if (nodes && nodes.length > 0) {
-      const runtime = getNodeGraphRuntime();
-      
-      // Convert API nodes to GraphNodes, passing pageId/pageUuid for parent resolution
-      const { graphNodes, rootBlockId: derivedRootId } = apiNodesToGraphNodes(
+      const { rootBlockId: derivedRootId } = apiNodesToGraphNodes(
         nodes, pageId, pageUuid,
       );
-      
-      // Register parent serverId so useBlockPersist can resolve it for new blocks
-      if (pageId != null && derivedRootId) {
-        runtime.registerParentServerId(derivedRootId, pageId);
-      }
-      
-      // Clean up stale children that are no longer in the API response
-      // but keep optimistic blocks (no serverId) that haven't been persisted yet
-      const newBlockIds = new Set(graphNodes.map(n => n.blockId));
-      const currentChildren = runtime.getChildren(derivedRootId);
-      const staleIds = currentChildren
-        .filter(child => !newBlockIds.has(child.blockId) && child.serverId != null)
-        .map(child => child.blockId);
-      if (staleIds.length > 0) {
-        runtime.removeNodes(staleIds);
-      }
-      
-      runtime.upsertNodes(graphNodes);
       return derivedRootId;
     }
     return externalRootBlockId || '';
   }, [nodes, externalRootBlockId, pageId, pageUuid]);
+
+  // Sync runtime state imperatively — runs once per dependency change,
+  // synchronously before paint so Lexical has data on first render.
+  useLayoutEffect(() => {
+    if (!nodes || nodes.length === 0) return;
+
+    const runtime = getNodeGraphRuntime();
+    const { graphNodes, rootBlockId: derivedRootId } = apiNodesToGraphNodes(
+      nodes, pageId, pageUuid,
+    );
+
+    // Register parent serverId so useBlockPersist can resolve it for new blocks
+    if (pageId != null && derivedRootId) {
+      runtime.registerParentServerId(derivedRootId, pageId);
+    }
+
+    // Clean up stale children that are no longer in the API response
+    // but keep optimistic blocks (no serverId) that haven't been persisted yet
+    const newBlockIds = new Set(graphNodes.map(n => n.blockId));
+    const currentChildren = runtime.getChildren(derivedRootId);
+    const staleIds = currentChildren
+      .filter(child => !newBlockIds.has(child.blockId) && child.serverId != null)
+      .map(child => child.blockId);
+    if (staleIds.length > 0) {
+      runtime.removeNodes(staleIds);
+    }
+
+    runtime.upsertNodes(graphNodes);
+  }, [nodes, pageId, pageUuid]);
 
   // Auto-detect includeRoot: if the rootBlockId corresponds to a node
   // in the nodes array, the root IS a displayed node (e.g. focused block).
@@ -303,6 +312,7 @@ export function BlockEditor({
         />
 
         {/* Core plugins — global undo/redo in list mode */}
+        <EditablePlugin readOnly={readOnly} />
         <HistoryPlugin />
         <FormattingPlugin />
         <CollapsePlugin />

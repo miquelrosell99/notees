@@ -294,9 +294,8 @@ export function PropertyForm({
             searchMode="classes"
             emptyText="Add class"
             searchPlaceholder="Search classes..."
-            onNodeClick={(node) => {
+            onNodeClick={() => {
               // Optional: navigate to class node
-              console.log('Class clicked:', node);
             }}
             onRemove={!readOnly ? (node) => onRemoveClass(node.id) : undefined}
             onAdd={!readOnly ? onAddClass : undefined}

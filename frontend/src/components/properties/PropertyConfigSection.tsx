@@ -129,9 +129,8 @@ export function PropertyConfigSection({
     }
   }, [property, onUpdate]);
   
-  const handleReorderSelectionOptions = useCallback((reordered: SelectionOptionWithId[]) => {
+  const handleReorderSelectionOptions = useCallback((_reordered: SelectionOptionWithId[]) => {
     // TODO: Call API to reorder options
-    console.log('Reorder selection options:', reordered);
   }, []);
   
   // Allowed class handlers
@@ -258,7 +257,6 @@ export function PropertyConfigSection({
             onClick={(e) => {
               e.preventDefault();
               // TODO: Navigate to node
-              console.log('Navigate to node:', property.node_id);
             }}
           >
             Page #{property.node_id}

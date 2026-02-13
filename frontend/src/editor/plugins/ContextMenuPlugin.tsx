@@ -14,6 +14,7 @@ import { $getRoot } from 'lexical';
 
 import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { serializeContentAST } from '../BlockEditor';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import type { Node } from '../../types/api';
 
@@ -195,7 +196,7 @@ export function ContextMenuPlugin({
   const apiNode: Node = {
     id: graphNode.serverId || 0,
     uuid: graphNode.blockId,
-    name: JSON.stringify(graphNode.contentAST),
+    name: graphNode.contentAST ? serializeContentAST(graphNode.contentAST) : '',
     is_page: graphNode.isPage,
     collapsed: graphNode.collapsed || false,
     icon: graphNode.icon || null,

@@ -81,11 +81,12 @@ export class BlockCodeNode extends BlockNode {
   }
 
   static importJSON(json: SerializedBlockNode & { language?: string }): BlockCodeNode {
-    return $createBlockCodeNode(
+    const node = new BlockCodeNode(
       json.blockId,
       json.language ?? '',
-      json.depth,
+      json.depth ?? 0,
     );
+    return node;
   }
 }
 

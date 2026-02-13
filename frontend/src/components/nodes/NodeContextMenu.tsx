@@ -50,13 +50,11 @@ interface ColorPickerRowProps {
 export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowProps) {
   // Stop propagation to prevent ContextMenu's outside click handler from closing the menu
   const handleMouseDown = (e: React.MouseEvent) => {
-    console.log('[ColorPickerRow] mousedown on row');
     e.stopPropagation();
     e.preventDefault();
   };
 
   const handleColorClick = (e: React.MouseEvent, color: string | null) => {
-    console.log('[ColorPickerRow] Color clicked:', color);
     e.stopPropagation();
     e.preventDefault();
     onColorChange(color);
@@ -421,7 +419,6 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite, node.is_daily, node.is_monthly]);
   
   const handleColorChange = useCallback((color: string | null) => {
-    console.log('[PageContextMenu] handleColorChange called:', { nodeId: node.id, color });
     const data: NodeUpdate = { color };
     updateNode.mutate({ id: node.id, data });
   }, [node.id, updateNode]);

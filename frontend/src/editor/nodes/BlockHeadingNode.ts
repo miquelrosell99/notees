@@ -102,7 +102,15 @@ export class BlockHeadingNode extends BlockNode {
   }
 
   static importJSON(json: SerializedBlockHeadingNode): BlockHeadingNode {
-    return new BlockHeadingNode(json.blockId, json.level);
+    return new BlockHeadingNode(
+      json.blockId,
+      json.level,
+      json.depth ?? 0,
+      json.nodeType ?? 'page',
+      json.icon ?? null,
+      json.color ?? null,
+      json.blockName ?? '',
+    );
   }
 }
 

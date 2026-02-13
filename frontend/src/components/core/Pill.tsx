@@ -23,11 +23,6 @@ export const Pill: React.FC<PillProps> = ({
     onRightIconClick?.();
   };
 
-  // Debug log - remove after fixing
-  if (color) {
-    console.log('[Pill] Rendering with color:', color, 'for text:', text);
-  }
-
   return (
     <div 
       className={`pill ${className}`}

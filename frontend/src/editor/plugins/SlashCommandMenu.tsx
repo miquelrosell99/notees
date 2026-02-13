@@ -136,7 +136,11 @@ export function SlashCommandMenu({
 
   // Handle keyboard navigation
   useEffect(() => {
+    let mounted = true;
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!mounted) return;
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -173,7 +177,10 @@ export function SlashCommandMenu({
     };
 
     document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    return () => {
+      mounted = false;
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [selectedIndex, filteredCommands, onSelect, onClose]);
 
   // Close on click outside
