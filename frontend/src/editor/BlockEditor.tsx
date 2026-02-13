@@ -201,6 +201,12 @@ export function BlockEditor({
       runtime.registerParentServerId(derivedRootId, pageId);
     }
 
+    // Upsert FIRST so that new/real nodes are already present in the
+    // runtime before we remove stale ones.  Both calls emit events
+    // that drive syncProjection; doing upsert-then-remove ensures
+    // the first (non-coalesced) sync sees the new block immediately.
+    runtime.upsertNodes(graphNodes);
+
     // Clean up stale children that are no longer in the API response
     // but keep optimistic blocks (no serverId) that haven't been persisted yet
     const newBlockIds = new Set(graphNodes.map(n => n.blockId));
@@ -211,8 +217,6 @@ export function BlockEditor({
     if (staleIds.length > 0) {
       runtime.removeNodes(staleIds);
     }
-
-    runtime.upsertNodes(graphNodes);
   }, [nodes, pageId, pageUuid]);
 
   // Auto-detect includeRoot: if the rootBlockId corresponds to a node
