@@ -67,6 +67,7 @@ import {
   TimelineView,
 } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
+import { Card } from '../core/Card';
 import './NodeCollection.css';
 
 // ==================== Context ====================
@@ -151,6 +152,7 @@ export function NodeCollection({
   customContextMenu,
   customContextMenuItems,
   autoCollapse = false,
+  containerCard = false,
   pageId,
   pageUuid,
 }: NodeCollectionProps) {
@@ -359,7 +361,8 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        return <GraphView nodes={graphNodes} className="node-collection__graph" />;
+        const graphContent = <GraphView nodes={graphNodes} className="node-collection__graph" />;
+        return containerCard ? <Card variant="outlined" padding paddingSize="sm" radius="md">{graphContent}</Card> : graphContent;
       
       case 'terrain':
         // Terrain mode - similar to graph but uses contour visualization
@@ -375,7 +378,8 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        return <TerrainView nodes={terrainNodes} className="node-collection__terrain" />;
+        const terrainContent = <TerrainView nodes={terrainNodes} className="node-collection__terrain" />;
+        return containerCard ? <Card variant="outlined" padding paddingSize="sm" radius="md">{terrainContent}</Card> : terrainContent;
       
       default:
         // Fallback to list view

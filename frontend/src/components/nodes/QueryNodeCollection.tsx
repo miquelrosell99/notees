@@ -712,6 +712,7 @@ export function QueryNodeCollection({
           onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
           emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
           autoCollapse={true}
+          containerCard={viewType !== 'all_pages'}
         />
       )}
 
