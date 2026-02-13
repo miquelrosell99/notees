@@ -36,9 +36,14 @@ export function PillDecorator({ linkId, refType }: PillDecoratorProps) {
   }, [node, linkId]);
 
   const isPage = node?.is_page ?? true;
+  const nodeColor = node?.color || undefined;
 
   return (
-    <span className="node-pill-inner" data-ref-type={refType}>
+    <span
+      className="node-pill-inner"
+      data-ref-type={refType}
+      style={nodeColor ? { backgroundColor: nodeColor } : undefined}
+    >
       {effectiveIcon && (
         <span className="node-pill-icon">
           <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
