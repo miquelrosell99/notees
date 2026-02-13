@@ -1044,6 +1044,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
     const canvas = canvasRef.current;
     
+    // Always keep mouse position up to date (avoids snapping back after drag release)
+    mouseScreenRef.current = { x: screenX, y: screenY };
+    
     if (isPanningRef.current) {
       const dx = screenX - panStartRef.current.x;
       const dy = screenY - panStartRef.current.y;
@@ -1102,8 +1105,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
       
-      // Update mouse position and redraw profiles
-      mouseScreenRef.current = { x: screenX, y: screenY };
+      // Update overlays and redraw profiles
       setOverlaysVisible(true);
       drawProfiles();
       // Redraw main canvas for crosshair lines
