@@ -116,7 +116,6 @@ interface FocusedBlockContentProps {
 }
 
 function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProps) {
-  const createNode = useCreateNode();
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -128,21 +127,27 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
   }, [onAddSidebarCard]);
 
   // Handle add block (adds child to the focused block)
-  const handleAddBlock = useCallback(async () => {
-    const maxSequence = node.children?.reduce((max, child) => 
-      Math.max(max, child.sequence ?? 0), -1) ?? -1;
-    
-    const newNode = await createNode.mutateAsync({
-      name: '',
-      parent_id: node.id,
-      sequence: maxSequence + 1,
-    });
-    // Request focus on the newly created block so the editor focuses it after sync
+  const handleAddBlock = useCallback(() => {
+    // Create via runtime intent so the block appears immediately (no API roundtrip)
+    // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
-    runtime.requestFocus(newNode.uuid);
-    // Flush immediately so focus happens in this frame
+    const newBlockId = crypto.randomUUID();
+
+    const nodeChildren = node.children ?? [];
+    const lastChild = nodeChildren.length > 0
+      ? nodeChildren.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
+      : null;
+
+    runtime.requestFocus(newBlockId);
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: node.uuid,
+      afterBlockId: lastChild?.uuid ?? null,
+      blockId: newBlockId,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+    });
     runtime.flushEvents();
-  }, [createNode, node.id, node.children]);
+  }, [node.uuid, node.children]);
 
   return (
     <div className="focused-block-content">

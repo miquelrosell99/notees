@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState } from 'react';
-import { useCreateNode, useContentSave, useNodeNavigation } from '@/hooks';
+import { useContentSave, useNodeNavigation } from '@/hooks';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
@@ -55,7 +55,6 @@ export function NodeContent({
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const createNode = useCreateNode();
   const { addSidebarCard } = useAppStore();
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
@@ -70,20 +69,27 @@ export function NodeContent({
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const handleAddBlock = useCallback(async () => {
-    // Add child block at the end
-    const maxSequence = children.reduce((max, child) => 
-      Math.max(max, child.sequence ?? 0), -1);
-    
-    const newNode = await createNode.mutateAsync({
-      name: '',
-      parent_id: node.id,
-      sequence: maxSequence + 1,
-    });
-    // Request focus on the newly created block so the editor focuses it after sync
+  const handleAddBlock = useCallback(() => {
+    // Create via runtime intent so the block appears immediately (no API roundtrip)
+    // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
-    runtime.requestFocus(newNode.uuid);
-  }, [createNode, node.id, children]);
+    const newBlockId = crypto.randomUUID();
+
+    // Find the last child's blockId to insert after it
+    const lastChild = children.length > 0
+      ? children.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
+      : null;
+
+    runtime.requestFocus(newBlockId);
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: node.uuid,
+      afterBlockId: lastChild?.uuid ?? null,
+      blockId: newBlockId,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+    });
+    runtime.flushEvents();
+  }, [node.uuid, children]);
 
   // Handle successful asset upload
   // Strategy:
