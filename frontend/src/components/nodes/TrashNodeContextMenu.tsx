@@ -105,13 +105,11 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   return (
     <>
       {!showPermanentDeleteModal && !showRestoreModal && (
-        <div className="node-context-menu-wrapper" style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 1000 }}>
-          <ContextMenu
-            items={menuItems}
-            position={{ x: 0, y: 0 }}
-            onClose={onClose}
-          />
-        </div>
+        <ContextMenu
+          items={menuItems}
+          position={position}
+          onClose={onClose}
+        />
       )}
       <ConfirmationModal
         isOpen={showRestoreModal}

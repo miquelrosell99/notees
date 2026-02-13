@@ -88,6 +88,7 @@ export function SuggestionPopup({
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
   
   // Map SuggestionType to NodeSearchMode
   const searchMode: NodeSearchMode = (type === 'type' || type === 'class') ? 'classes' : type === 'tag' ? 'tags' : 'all';
@@ -254,31 +255,42 @@ export function SuggestionPopup({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
   
-  // Adjust position to stay within viewport
-  const adjustedPosition = useMemo(() => {
-    if (!isOpen) return position;
+  // Adjust position to stay within viewport after render
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
     
-    const popupWidth = 280;
-    const popupHeight = 320;
+    const popupRect = containerRef.current.getBoundingClientRect();
     const padding = 8;
     
     let { top, left } = position;
     
     // Adjust horizontal position
-    if (left + popupWidth > window.innerWidth - padding) {
-      left = window.innerWidth - popupWidth - padding;
+    if (left + popupRect.width > window.innerWidth - padding) {
+      left = window.innerWidth - popupRect.width - padding;
     }
     if (left < padding) {
       left = padding;
     }
     
     // Adjust vertical position - flip above if not enough space below
-    if (top + popupHeight > window.innerHeight - padding) {
-      top = position.top - popupHeight - 24; // Flip above cursor
+    if (top + popupRect.height > window.innerHeight - padding) {
+      // Try to flip above cursor
+      const topAbove = position.top - popupRect.height - 24;
+      if (topAbove >= padding) {
+        top = topAbove;
+      } else {
+        // Not enough space above either, position at bottom with padding
+        top = window.innerHeight - popupRect.height - padding;
+      }
     }
     
-    return { top, left };
-  }, [isOpen, position]);
+    // Ensure not above top edge
+    if (top < padding) {
+      top = padding;
+    }
+    
+    setAdjustedPosition({ top, left });
+  }, [isOpen, position, allItems.length, selectedNodes.length, query]);
   
   if (!isOpen) return null;
   
