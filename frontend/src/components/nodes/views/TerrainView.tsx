@@ -23,7 +23,7 @@ import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode, PeakSizeMode } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiFileTree, mdiLinkVariant, mdiArrowExpandAll, mdiTextBox } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiTrashCanOutline, mdiClose, mdiFileTree, mdiLinkVariant, mdiArrowExpandAll, mdiTextBox } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -138,11 +138,13 @@ export function TerrainView({
         try {
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
-            const migrated = parsed.map((cc: Record<string, unknown>) => {
-              const rawName = (cc.className ?? '') as string;
+            const migrated = parsed.map((cc: ClassColor) => {
+              const rawName = cc.className || '';
               return {
-                ...cc,
+                typeId: cc.typeId,
                 className: nodeNameToText(rawName) || rawName || 'Untitled',
+                color: cc.color,
+                order: cc.order,
               };
             });
             skipClassColorsSaveRef.current++;
@@ -347,7 +349,7 @@ export function TerrainView({
   }, [customNodeClick, addSidebarCard]);
   
   const handleNodeDoubleClick = useCallback((node: GraphNode) => {
-    openNode(node.id, node.type);
+    openNode(node.id);
     setSelectedNodes([]);
   }, [openNode]);
   
@@ -367,7 +369,7 @@ export function TerrainView({
     if (nodeIds.length === 0) {
       setSelectedNodes([]);
     } else {
-      const nodeMap = new Map(nodes.map(n => [n.id, n.name]));
+      const nodeMap = new Map(nodes.map(n => [n.id, n.displayName]));
       const newSelection = nodeIds.map((id, index) => ({
         id,
         name: nodeMap.get(id) || 'Untitled',
