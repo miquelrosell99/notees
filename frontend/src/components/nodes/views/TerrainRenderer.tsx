@@ -851,20 +851,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             xCtx.lineTo(cardMx, ch);
             xCtx.stroke();
             
-            // Dot at cursor position on the profile outline
-            const curGx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
-            const curVal = heightMap[gy * gW + curGx];
-            const dotY = ch - curVal * (ch - 4);
-            xCtx.setLineDash([]);
-            xCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            xCtx.beginPath();
-            xCtx.arc(cardMx, dotY, 3, 0, Math.PI * 2);
-            xCtx.fill();
-            
             // Node position dots — show dots where nodes project onto X axis
             const t = transformRef.current;
             const { visibleNodes } = frameDataRef.current;
-            const NODE_DOT_MAX_DIST = 120; // pixels: max distance for dot to appear
+            const NODE_DOT_MAX_DIST = 80; // pixels: max distance for dot to appear
             for (const node of visibleNodes) {
               const nsx = node.x * t.scale + t.x;
               const nsy = node.y * t.scale + t.y;
@@ -880,8 +870,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
               const ndotY = ch - nVal * (ch - 4);
               // Proximity factor: 1 at dist=0, 0 at dist=NODE_DOT_MAX_DIST
               const prox = 1 - distY / NODE_DOT_MAX_DIST;
-              const dotR = 1.5 + prox * 2; // radius 1.5 → 3.5
-              xCtx.globalAlpha = 0.2 + prox * 0.5;
+              const proxSq = prox * prox; // quadratic falloff for subtler fade-in
+              const dotR = 1.5 + proxSq * 2; // radius 1.5 → 3.5
+              xCtx.globalAlpha = 0.15 + proxSq * 0.65;
               xCtx.fillStyle = '#ffffff';
               xCtx.beginPath();
               xCtx.arc(cardNx, ndotY, dotR, 0, Math.PI * 2);
@@ -951,20 +942,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             yCtx.lineTo(cw, cardMy);
             yCtx.stroke();
             
-            // Dot at cursor position on the profile outline
-            const curGy = Math.min(Math.max(Math.floor(my / pGs), 0), gH - 1);
-            const curValY = heightMap[curGy * gW + gx];
-            const dotX = cw - curValY * (cw - 4);
-            yCtx.setLineDash([]);
-            yCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            yCtx.beginPath();
-            yCtx.arc(dotX, cardMy, 3, 0, Math.PI * 2);
-            yCtx.fill();
-            
             // Node position dots — show dots where nodes project onto Y axis
             const t = transformRef.current;
             const { visibleNodes } = frameDataRef.current;
-            const NODE_DOT_MAX_DIST = 120;
+            const NODE_DOT_MAX_DIST = 80;
             for (const node of visibleNodes) {
               const nsx = node.x * t.scale + t.x;
               const nsy = node.y * t.scale + t.y;
@@ -978,10 +959,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
               const ngy = Math.min(Math.max(Math.floor(nsy / pGs), 0), gH - 1);
               const nVal = heightMap[ngy * gW + gx];
               const ndotX = cw - nVal * (cw - 4);
-              // Proximity factor
+              // Proximity factor with quadratic falloff
               const prox = 1 - distX / NODE_DOT_MAX_DIST;
-              const dotR = 1.5 + prox * 2;
-              yCtx.globalAlpha = 0.2 + prox * 0.5;
+              const proxSq = prox * prox;
+              const dotR = 1.5 + proxSq * 2;
+              yCtx.globalAlpha = 0.15 + proxSq * 0.65;
               yCtx.fillStyle = '#ffffff';
               yCtx.beginPath();
               yCtx.arc(ndotX, cardNy, dotR, 0, Math.PI * 2);
