@@ -66,8 +66,16 @@ export function TriggerPlugin({
         const text = anchorNode.getTextContent();
         const offset = selection.anchor.offset;
 
+        // Strip zero-width spaces before trigger detection —
+        // empty blocks use ZWS for cursor placement and the transform
+        // cleans it up, but there can be a single tick where the
+        // raw text still contains it.
+        const cleanText = text.replace(/\u200B/g, '');
+        const zwsBeforeCursor = (text.slice(0, offset).match(/\u200B/g) || []).length;
+        const cleanOffset = offset - zwsBeforeCursor;
+
         // Look backwards from cursor for trigger patterns
-        const textBefore = text.slice(0, offset);
+        const textBefore = cleanText.slice(0, cleanOffset);
         const match = detectTriggerPattern(textBefore);
 
         if (match) {
@@ -112,11 +120,15 @@ export function TriggerPlugin({
 
       // Remove trigger text and insert the selected item
       const anchorNode = selection.anchor.getNode();
-      const text = anchorNode.getTextContent();
+      const rawText = anchorNode.getTextContent();
+      // Strip ZWS so that trigger offsets (computed from clean text) align
+      const text = rawText.replace(/\u200B/g, '');
+      const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+      const cursorClean = selection.anchor.offset - zwsBefore;
 
       // Remove trigger text
       const beforeTrigger = text.slice(0, trigger.triggerOffset);
-      const afterCursor = text.slice(selection.anchor.offset);
+      const afterCursor = text.slice(cursorClean);
 
       if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
         // Replace with a Pill
