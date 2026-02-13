@@ -195,7 +195,8 @@ function parseJSON(input: unknown): ASTDocument {
       if (!Array.isArray(parsed)) return [];
       return validateDocument(parsed);
     } catch {
-      return [];
+      // Not valid JSON — treat as plain text so content is never silently lost
+      return [paragraph(text(input))];
     }
   }
   if (Array.isArray(input)) {
