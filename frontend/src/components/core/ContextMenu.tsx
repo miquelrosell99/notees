@@ -46,9 +46,12 @@ interface ContextMenuProps {
 
 export function ContextMenu({ items, position, onClose, title, activeItem, containerRef }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [submenuPosition, setSubmenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [submenuInitialPos, setSubmenuInitialPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Get non-separator items for keyboard navigation
   const navigableItems = items.filter(item => !item.separator && !item.disabled);
@@ -112,27 +115,69 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     };
   }, [onClose, navigableItems, focusedIndex, containerRef]);
 
-  // Adjust position to stay within viewport
-  const adjustedPosition = useCallback(() => {
-    const menuWidth = 200;
-    const menuHeight = items.length * 36 + (title ? 32 : 0);
+  // Adjust position to stay within viewport after render
+  useEffect(() => {
+    if (!menuRef.current) return;
+
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const padding = 8; // Minimum distance from viewport edges
     
     let x = position.x;
     let y = position.y;
 
-    if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 8;
+    // Check right edge
+    if (x + menuRect.width > window.innerWidth) {
+      x = window.innerWidth - menuRect.width - padding;
     }
-    if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 8;
+    // Check bottom edge
+    if (y + menuRect.height > window.innerHeight) {
+      y = window.innerHeight - menuRect.height - padding;
     }
-    if (x < 0) x = 8;
-    if (y < 0) y = 8;
+    // Check left edge
+    if (x < padding) {
+      x = padding;
+    }
+    // Check top edge
+    if (y < padding) {
+      y = padding;
+    }
 
-    return { x, y };
+    setAdjustedPosition({ x, y });
   }, [position, items.length, title]);
 
-  const pos = adjustedPosition();
+  // Adjust submenu position to stay within viewport
+  useEffect(() => {
+    if (!activeSubmenu || !submenuRef.current) return;
+
+    const submenuRect = submenuRef.current.getBoundingClientRect();
+    const padding = 8;
+    
+    let x = submenuInitialPos.x;
+    let y = submenuInitialPos.y;
+
+    // Check right edge - if submenu goes off screen, show it on the left side instead
+    if (x + submenuRect.width > window.innerWidth) {
+      // Position to the left of the parent menu
+      if (menuRef.current) {
+        const menuRect = menuRef.current.getBoundingClientRect();
+        x = menuRect.left - submenuRect.width - 4;
+      }
+    }
+    // Check bottom edge
+    if (y + submenuRect.height > window.innerHeight) {
+      y = window.innerHeight - submenuRect.height - padding;
+    }
+    // Check left edge
+    if (x < padding) {
+      x = padding;
+    }
+    // Check top edge
+    if (y < padding) {
+      y = padding;
+    }
+
+    setSubmenuPosition({ x, y });
+  }, [activeSubmenu, submenuInitialPos]);
 
   const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (item.disabled || item.separator) return;
@@ -146,10 +191,12 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
         const buttonEl = event?.currentTarget;
         if (buttonEl) {
           const rect = buttonEl.getBoundingClientRect();
-          setSubmenuPosition({ 
+          const initialPos = { 
             x: rect.right + 4, 
             y: rect.top 
-          });
+          };
+          setSubmenuInitialPos(initialPos);
+          setSubmenuPosition(initialPos);
         }
         setActiveSubmenu(item.id);
       }
@@ -169,7 +216,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     <Card
       ref={menuRef}
       className="context-menu"
-      style={{ left: pos.x, top: pos.y }}
+      style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
       role="menu"
       elevation="high"
       padding={false}
@@ -213,6 +260,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       })}
       {activeSubmenu && (
         <div 
+          ref={submenuRef}
           className="context-menu-submenu"
           style={{ left: submenuPosition.x, top: submenuPosition.y }}
         >
