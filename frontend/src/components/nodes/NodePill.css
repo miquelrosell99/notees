@@ -15,19 +15,21 @@
   margin: 0 1px;
   background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
   border-radius: var(--shape-small);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px dotted var(--color-outline-variant);
   color: var(--color-on-surface);
   font: inherit;
   line-height: inherit;
   gap: 2px;
   transition: background var(--motion-duration-short) var(--motion-easing-standard),
               border-color var(--motion-duration-short) var(--motion-easing-standard),
+              border-bottom-style var(--motion-duration-short) var(--motion-easing-standard),
               box-shadow var(--motion-duration-short) var(--motion-easing-standard),
               transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .node-pill--link .pill:hover {
   background: color-mix(in srgb, var(--color-on-surface) 10%, transparent);
+  border-bottom-style: solid;
   border-bottom-color: var(--color-on-surface-variant);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   filter: none;
@@ -60,6 +62,7 @@
 
 .node-pill--link.node-pill--class .pill:hover:not([style*="background"]) {
   background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+  border-bottom-style: solid;
   border-bottom-color: var(--color-on-surface-variant);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }

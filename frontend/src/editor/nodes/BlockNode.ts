@@ -44,6 +44,7 @@ export interface SerializedBlockNode extends SerializedElementNode {
   color: string | null;
   blockName: string;
   isProjectionRoot: boolean;
+  classIds: string[];
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -58,6 +59,7 @@ export class BlockNode extends ElementNode {
   __color: string | null;
   __blockName: string;
   __isProjectionRoot: boolean;
+  __classIds: string[];
 
   static getType(): string {
     return 'node-block';
@@ -74,6 +76,7 @@ export class BlockNode extends ElementNode {
       node.__color,
       node.__blockName,
       node.__isProjectionRoot,
+      node.__classIds,
       node.__key,
     );
   }
@@ -88,6 +91,7 @@ export class BlockNode extends ElementNode {
     color: string | null = null,
     blockName: string = '',
     isProjectionRoot: boolean = false,
+    classIds: string[] = [],
     key?: NodeKey,
   ) {
     super(key);
@@ -100,6 +104,7 @@ export class BlockNode extends ElementNode {
     this.__color = color;
     this.__blockName = blockName;
     this.__isProjectionRoot = isProjectionRoot;
+    this.__classIds = classIds;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -185,6 +190,16 @@ export class BlockNode extends ElementNode {
   setIsProjectionRoot(isProjectionRoot: boolean): this {
     const writable = this.getWritable();
     writable.__isProjectionRoot = isProjectionRoot;
+    return this;
+  }
+
+  getClassIds(): string[] {
+    return this.getLatest().__classIds;
+  }
+
+  setClassIds(classIds: string[]): this {
+    const writable = this.getWritable();
+    writable.__classIds = classIds;
     return this;
   }
 
@@ -284,6 +299,17 @@ export class BlockNode extends ElementNode {
     const content = document.createElement('div');
     content.className = 'node-block-content';
     dom.appendChild(content);
+
+    // Class pills container — React portal target for BlockClassPillsPlugin
+    const classPills = document.createElement('div');
+    classPills.className = 'node-block-class-pills';
+    classPills.contentEditable = 'false';
+    setDOMUnmanaged(classPills);
+    // Hide if no classes
+    if (this.__classIds.length === 0) {
+      classPills.style.display = 'none';
+    }
+    dom.appendChild(classPills);
 
     return dom;
   }
@@ -388,6 +414,16 @@ export class BlockNode extends ElementNode {
       }
     }
 
+    // Update classIds - show/hide the pills container
+    const prevClassIdsStr = prevNode.__classIds.join(',');
+    const currClassIdsStr = this.__classIds.join(',');
+    if (prevClassIdsStr !== currClassIdsStr) {
+      const classPills = dom.querySelector('.node-block-class-pills') as HTMLElement | null;
+      if (classPills) {
+        classPills.style.display = this.__classIds.length === 0 ? 'none' : '';
+      }
+    }
+
     return false; // Don't recreate DOM
   }
 
@@ -418,6 +454,7 @@ export class BlockNode extends ElementNode {
       color: this.__color,
       blockName: this.__blockName,
       isProjectionRoot: this.__isProjectionRoot,
+      classIds: this.__classIds,
     };
   }
 
@@ -432,6 +469,7 @@ export class BlockNode extends ElementNode {
       json.color,
       json.blockName,
       json.isProjectionRoot,
+      json.classIds ?? [],
     );
   }
 
@@ -469,9 +507,10 @@ export function $createBlockNode(
   color: string | null = null,
   blockName: string = '',
   isProjectionRoot: boolean = false,
+  classIds: string[] = [],
 ): BlockNode {
   return $applyNodeReplacement(
-    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds),
   );
 }
 
