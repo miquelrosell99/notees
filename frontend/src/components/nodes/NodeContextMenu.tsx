@@ -372,7 +372,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       {node.parent_id && parentPage && (
         <div className="parent-selector-current">
           <span className="parent-selector-label">Current:</span>
-          <span className="parent-selector-name">{parentPage.name || 'Untitled'}</span>
+          <span className="parent-selector-name">{nodeNameToText(parentPage.name) || 'Untitled'}</span>
         </div>
       )}
       <div className="parent-selector-search">
@@ -409,7 +409,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     if (!node.is_daily && !node.is_monthly) {
       items.push({
         id: 'change-parent',
-        label: `Parent: ${parentPage?.name || 'None'}`,
+        label: `Parent: ${parentPage ? nodeNameToText(parentPage.name) || 'Untitled' : 'None'}`,
         submenu: parentSubmenu
       });
       items.push({ id: 'sep-page-2', label: '', separator: true });
