@@ -16,6 +16,8 @@ export interface QuerySectionProps {
   nodeId: number;
   /** The node UUID for query placeholders */
   nodeUuid: string;
+  /** The node name (used to include the active node in graph/terrain views) */
+  nodeName?: string;
   /** The view type (e.g., 'linked_references', 'child_pages') */
   viewType: NodeViewType | string;
   /** Section title */
@@ -43,6 +45,7 @@ export interface QuerySectionProps {
 export function QuerySection({
   nodeId,
   nodeUuid,
+  nodeName,
   viewType,
   title,
   icon,
@@ -65,6 +68,7 @@ export function QuerySection({
     <QueryNodeCollection
       nodeId={nodeId}
       nodeUuid={nodeUuid}
+      nodeName={nodeName}
       viewType={viewType}
       onNodeClick={onNodeClick}
       onBlockCreated={onBlockCreated}

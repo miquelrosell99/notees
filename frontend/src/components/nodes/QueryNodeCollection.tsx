@@ -108,6 +108,8 @@ export interface QueryNodeCollectionProps {
   nodeId: number;
   /** The node UUID for query placeholders */
   nodeUuid: string;
+  /** The node name (used to include the active node in graph/terrain views) */
+  nodeName?: string;
   /** The view type (e.g., 'linked_references', 'child_pages') */
   viewType: NodeViewType | string;
   /** Callback when a node is clicked */
@@ -160,6 +162,7 @@ export interface QueryNodeCollectionResult {
 export function QueryNodeCollection({
   nodeId,
   nodeUuid,
+  nodeName,
   viewType,
   onNodeClick,
   onBlockCreated,
@@ -713,6 +716,7 @@ export function QueryNodeCollection({
           emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
           autoCollapse={true}
           containerCard={viewType !== 'all_pages'}
+          activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
         />
       )}
 

@@ -153,6 +153,7 @@ export function NodeCollection({
   customContextMenuItems,
   autoCollapse = false,
   containerCard = false,
+  activeNode,
   pageId,
   pageUuid,
 }: NodeCollectionProps) {
@@ -347,7 +348,7 @@ export function NodeCollection({
       case 'timeline':
         return <TimelineView nodes={nodes} />;
       
-      case 'graph':
+      case 'graph': {
         // Graph only shows pages - convert Node to API GraphNode format
         const graphNodes = nodes
           .filter(n => n.is_page)
@@ -361,10 +362,24 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        const graphContent = <GraphView nodes={graphNodes} className="node-collection__graph" />;
+        // Include active node if provided and not already in the list
+        if (activeNode && !graphNodes.some(n => n.id === activeNode.id)) {
+          graphNodes.unshift({
+            id: activeNode.id,
+            uuid: activeNode.uuid,
+            name: activeNode.name || 'Untitled',
+            type: 'page' as const,
+            tags: [],
+            class_ids: [],
+            properties: {},
+            is_daily: false,
+          });
+        }
+        const graphContent = <GraphView nodes={graphNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__graph" />;
         return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{graphContent}</Card> : graphContent;
+      }
       
-      case 'terrain':
+      case 'terrain': {
         // Terrain mode - similar to graph but uses contour visualization
         const terrainNodes = nodes
           .filter(n => n.is_page)
@@ -378,8 +393,22 @@ export function NodeCollection({
             properties: {},
             is_daily: n.is_daily || false,
           }));
-        const terrainContent = <TerrainView nodes={terrainNodes} className="node-collection__terrain" />;
+        // Include active node if provided and not already in the list
+        if (activeNode && !terrainNodes.some(n => n.id === activeNode.id)) {
+          terrainNodes.unshift({
+            id: activeNode.id,
+            uuid: activeNode.uuid,
+            name: activeNode.name || 'Untitled',
+            type: 'page' as const,
+            tags: [],
+            class_ids: [],
+            properties: {},
+            is_daily: false,
+          });
+        }
+        const terrainContent = <TerrainView nodes={terrainNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__terrain" />;
         return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{terrainContent}</Card> : terrainContent;
+      }
       
       default:
         // Fallback to list view

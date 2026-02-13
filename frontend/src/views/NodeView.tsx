@@ -1057,6 +1057,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
             <QuerySection
               nodeId={node.id}
               nodeUuid={node.uuid}
+              nodeName={node.name}
               viewType="extended_by"
               title="Extended By"
               icon={<TableIcon size="sm" />}
@@ -1075,6 +1076,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
             <QuerySection
               nodeId={node.id}
               nodeUuid={node.uuid}
+              nodeName={node.name}
               viewType="classed_nodes"
               title="Nodes"
               icon={<TableIcon size="sm" />}
@@ -1090,6 +1092,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
             <QuerySection
               nodeId={node.id}
               nodeUuid={node.uuid}
+              nodeName={node.name}
               viewType="child_pages"
               title="Children"
               icon={<PageIcon size="sm" />}
@@ -1105,6 +1108,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
           <QuerySection
             nodeId={node.id}
             nodeUuid={node.uuid}
+            nodeName={node.name}
             viewType="linked_references"
             title="Linked References"
             icon={<LinkIcon size="sm" />}
