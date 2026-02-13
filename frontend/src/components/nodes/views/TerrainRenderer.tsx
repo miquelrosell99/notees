@@ -31,6 +31,7 @@ import {
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_MIN_HEIGHT,
   TERRAIN_ANISOTROPY,
+  TERRAIN_NOISE_STRENGTH,
   LABEL_FADE_ZOOM_MIN,
   LABEL_FADE_ZOOM_MAX,
   // Helpers
@@ -230,6 +231,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const gridH = Math.ceil(h / gs);
     const gridSize = gridW * gridH;
     
+    // Fast integer hash for deterministic per-cell noise (no Math.random, stable across frames)
+    // Uses node id + angular octave to create organic per-peak shape variation
+    const ihash = (a: number, b: number): number => {
+      let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
+      h = Math.imul(h ^ (h >>> 13), 1103515245);
+      return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff; // 0..1
+    };
+    
     // Reuse typed-array buffers across frames
     if (!heightMapBufRef.current || heightMapBufRef.current.length < gridSize) {
       heightMapBufRef.current = new Float32Array(gridSize);
@@ -338,6 +347,17 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           }
           
           if (distSq > RsSq) continue;
+          
+          // Angular noise: perturb effective distance based on angle from center
+          // Uses 6 octaves keyed to node id for stable, per-peak irregularity
+          if (TERRAIN_NOISE_STRENGTH > 0 && distSq > 0.01) {
+            const ang = Math.atan2(dy, dx);
+            // Sum 2 octaves of angular noise for organic shape
+            const n1 = ihash(node.id, Math.floor(ang * 3 + 100)) * 2 - 1; // -1..1
+            const n2 = ihash(node.id, Math.floor(ang * 7 + 200)) * 2 - 1;
+            const noise = (n1 * 0.7 + n2 * 0.3) * TERRAIN_NOISE_STRENGTH;
+            distSq *= (1 + noise) * (1 + noise);
+          }
           
           // Quartic falloff (1 - t²): height stays high at mid-range, drops steeply at edge
           // Creates wider overlap zones between peaks for natural saddle formation
