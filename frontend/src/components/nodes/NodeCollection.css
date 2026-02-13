@@ -106,5 +106,10 @@
 
 .node-collection--graph {
   /* Graph handled by NodeGraphView */
-  min-height: 400px;
+}
+
+.node-collection--graph .node-collection__content,
+.node-collection--terrain .node-collection__content {
+  aspect-ratio: 1;
+  flex: none;
 }
