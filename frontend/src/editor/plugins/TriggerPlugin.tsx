@@ -39,7 +39,7 @@ export interface TriggerPluginProps {
   /** Called when a link node is selected */
   onLinkSelect?: (linkId: string) => void;
   /** Called when a class should be added to block's class_ids (not inline) */
-  onAddClass?: (classId: number) => void;
+  onAddClass?: (blockServerId: number, classId: number) => void;
 }
 
 export function TriggerPlugin({
@@ -176,7 +176,8 @@ export function TriggerPlugin({
     const handleSuggestionSelect = (node: Node, keepInline: boolean) => {
       // For @ type trigger with plain Enter (not Shift+Enter), add to class_ids instead of inline
       if (trigger.type === 'type' && !keepInline && onAddClass) {
-        // Remove trigger text without inserting a Pill
+        // Remove trigger text without inserting a Pill, and resolve block server ID
+        let blockServerId: number | undefined;
         editor.update(() => {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return;
@@ -199,10 +200,20 @@ export function TriggerPlugin({
           const newOffset = beforeTrigger.length;
           selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
           selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+          // Resolve the parent block's server ID for the onAddClass call
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (blockNode) {
+            const runtime = getNodeGraphRuntime();
+            const graphNode = runtime.getNode(blockNode.getBlockId());
+            blockServerId = graphNode?.serverId;
+          }
         });
 
-        // Add class to block's class_ids
-        onAddClass(node.id);
+        // Add class to block's class_ids (only if we resolved the block)
+        if (blockServerId != null) {
+          onAddClass(blockServerId, node.id);
+        }
         setTrigger(prev => ({ ...prev, isOpen: false }));
       } else {
         // Insert as Pill inline (for Shift+Enter or for link/tag triggers)
