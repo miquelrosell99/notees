@@ -97,7 +97,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const [, setHoveredNode] = useState<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
   const [overlaysVisible, setOverlaysVisible] = useState(false);
-  const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number } | null>(null);
   
   // Pan state
   const isPanningRef = useRef(false);
@@ -852,8 +851,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       // Update mouse position and redraw profiles
       mouseScreenRef.current = { x: screenX, y: screenY };
       setOverlaysVisible(true);
-      const world = screenToWorld(screenX, screenY);
-      setCursorCoords({ x: Math.round(world.x), y: Math.round(world.y) });
       drawProfiles();
       // Redraw main canvas for crosshair lines
       if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
@@ -921,7 +918,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     mouseScreenRef.current = { x: -1, y: -1 };
     hoveredContourLevelRef.current = -1;
     setOverlaysVisible(false);
-    setCursorCoords(null);
     drawProfiles();
     if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
       renderRef.current(ctxRef.current);
@@ -1038,18 +1034,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       >
         <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
       </Card>
-      {cursorCoords && (
-        <Card
-          variant="dashed"
-          elevation="none"
-          padding={false}
-          radius="sm"
-          className={`terrain-profile-card terrain-profile-card--coords${overlaysVisible ? ' terrain-overlay--visible' : ''}`}
-        >
-          <span className="terrain-coords-text">{cursorCoords.x}</span>
-          <span className="terrain-coords-text">{cursorCoords.y}</span>
-        </Card>
-      )}
     </div>
   );
 });
