@@ -406,41 +406,33 @@ export function BlockPlugin({
           return true;
         }
 
-        let blockId: string | null = null;
+        // Command handlers run inside a Lexical state context —
+        // call $getSelection() directly (NOT inside editor.read()).
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
+
+        const anchorNode = selection.anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return false;
+
+        const blockId = blockNode.getBlockId();
+
+        // Calculate cursor offset by walking through block children
         let cursorOffset = 0;
-
-        editor.read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-
-          const anchorNode = selection.anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (!blockNode) return;
-
-          blockId = blockNode.getBlockId();
-
-          // Calculate cursor offset by walking through block children
-          let offset = 0;
-          const children = blockNode.getChildren();
-          for (const child of children) {
-            if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
-              // Found the node with the cursor
-              offset += selection.anchor.offset;
-              break;
-            }
-            // Add this child's text length
-            if ($isTextNode(child)) {
-              offset += child.getTextContent().length;
-            } else if ($isPillNode(child)) {
-              offset += 1; // Pills count as 1 character
-            } else {
-              offset += child.getTextContent().length;
-            }
+        const children = blockNode.getChildren();
+        for (const child of children) {
+          if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
+            cursorOffset += selection.anchor.offset;
+            break;
           }
-          cursorOffset = offset;
-        });
-
-        if (!blockId) return false;
+          if ($isTextNode(child)) {
+            cursorOffset += child.getTextContent().length;
+          } else if ($isPillNode(child)) {
+            cursorOffset += 1; // Pills count as 1 character
+          } else {
+            cursorOffset += child.getTextContent().length;
+          }
+        }
 
         event?.preventDefault();
 
@@ -484,73 +476,58 @@ export function BlockPlugin({
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       (event) => {
-        let currentBlockId: string | null = null;
-        let prevBlockId: string | null = null;
+        // Command handlers run inside a Lexical state context —
+        // call $getSelection() directly (NOT inside editor.read()).
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
+        if (!selection.isCollapsed()) return false;
 
-        editor.read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          if (!selection.isCollapsed()) return;
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return false;
 
-          const anchor = selection.anchor;
-          const anchorNode = anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (!blockNode) return;
+        // Check if block is effectively empty (only contains zero-width space or empty)
+        const textContent = blockNode.getTextContent();
+        const isEmptyBlock = textContent === '' || textContent === '\u200B';
 
-          // Check if block is effectively empty (only contains zero-width space or empty)
-          const textContent = blockNode.getTextContent();
-          const isEmptyBlock = textContent === '' || textContent === '\u200B';
-          
-          // Only merge/delete when cursor is at the absolute start of the block
-          if (!isEmptyBlock) {
-            if (anchor.offset !== 0) return;
-            // For text anchors: must be the deepest-first node of the block
-            // For element anchors: must be the block itself at child index 0
-            if (anchor.type === 'text') {
-              if (anchorNode !== blockNode.getFirstDescendant()) return;
-            } else {
-              if (anchorNode !== blockNode) return;
-            }
+        // Only merge/delete when cursor is at the absolute start of the block
+        if (!isEmptyBlock) {
+          if (anchor.offset !== 0) return false;
+          // For text anchors: must be the deepest-first node of the block
+          // For element anchors: must be the block itself at child index 0
+          if (anchor.type === 'text') {
+            if (anchorNode !== blockNode.getFirstDescendant()) return false;
+          } else {
+            if (anchorNode !== blockNode) return false;
           }
-
-          const root = $getRoot();
-          const children = root.getChildren();
-          const blockIndex = children.indexOf(blockNode);
-
-          // Handle first block specially
-          if (blockIndex === 0) {
-            // If first block is empty, delete it (even if it's the only block)
-            if (isEmptyBlock) {
-              currentBlockId = blockNode.getBlockId();
-              // Set a flag to indicate we want to delete, not merge
-              prevBlockId = null;
-            } else if (anchor.offset === 0) {
-              // At start of non-empty first block - can't merge, just prevent default
-              event?.preventDefault();
-            }
-            return;
-          }
-
-          if (blockIndex < 0) return;
-
-          const prevBlock = children[blockIndex - 1];
-          if ($isBlockNode(prevBlock)) {
-            currentBlockId = blockNode.getBlockId();
-            prevBlockId = prevBlock.getBlockId();
-          }
-        });
-
-        if (!currentBlockId) return false;
-
-        event?.preventDefault();
-        
-        // If prevBlockId is null, this is a delete operation (empty first block)
-        if (prevBlockId === null) {
-          onBlockDelete?.(currentBlockId);
-        } else {
-          onBlockMerge?.(currentBlockId, prevBlockId);
         }
-        return true;
+
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+
+        // Handle first block specially
+        if (blockIndex === 0) {
+          if (isEmptyBlock) {
+            event?.preventDefault();
+            onBlockDelete?.(blockNode.getBlockId());
+            return true;
+          }
+          // At start of non-empty first block - can't merge
+          return false;
+        }
+
+        if (blockIndex < 0) return false;
+
+        const prevBlock = children[blockIndex - 1];
+        if ($isBlockNode(prevBlock)) {
+          event?.preventDefault();
+          onBlockMerge?.(blockNode.getBlockId(), prevBlock.getBlockId());
+          return true;
+        }
+
+        return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
@@ -564,44 +541,38 @@ export function BlockPlugin({
     return editor.registerCommand(
       KEY_DELETE_COMMAND,
       (event) => {
-        let currentBlockId: string | null = null;
-        let nextBlockId: string | null = null;
+        // Command handlers run inside a Lexical state context —
+        // call $getSelection() directly (NOT inside editor.read()).
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
+        if (!selection.isCollapsed()) return false;
 
-        editor.read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          if (!selection.isCollapsed()) return;
+        const anchorNode = selection.anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return false;
 
-          const anchorNode = selection.anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (!blockNode) return;
+        // Check if cursor is at the absolute end of the block
+        const anchor = selection.anchor;
+        if (anchor.type === 'text') {
+          const lastDescendant = blockNode.getLastDescendant();
+          if (anchorNode !== lastDescendant || anchor.offset < anchorNode.getTextContentSize()) return false;
+        } else {
+          if (anchorNode !== blockNode || anchor.offset < blockNode.getChildrenSize()) return false;
+        }
 
-          // Check if cursor is at the absolute end of the block
-          const anchor = selection.anchor;
-          if (anchor.type === 'text') {
-            const lastDescendant = blockNode.getLastDescendant();
-            if (anchorNode !== lastDescendant || anchor.offset < anchorNode.getTextContentSize()) return;
-          } else {
-            if (anchorNode !== blockNode || anchor.offset < blockNode.getChildrenSize()) return;
-          }
+        const root = $getRoot();
+        const children = root.getChildren();
+        const blockIndex = children.indexOf(blockNode);
+        if (blockIndex >= children.length - 1) return false;
 
-          const root = $getRoot();
-          const children = root.getChildren();
-          const blockIndex = children.indexOf(blockNode);
-          if (blockIndex >= children.length - 1) return;
+        const nextBlock = children[blockIndex + 1];
+        if ($isBlockNode(nextBlock)) {
+          event?.preventDefault();
+          onBlockMerge?.(nextBlock.getBlockId(), blockNode.getBlockId());
+          return true;
+        }
 
-          const nextBlock = children[blockIndex + 1];
-          if ($isBlockNode(nextBlock)) {
-            currentBlockId = blockNode.getBlockId();
-            nextBlockId = nextBlock.getBlockId();
-          }
-        });
-
-        if (!nextBlockId || !currentBlockId) return false;
-
-        event?.preventDefault();
-        onBlockMerge?.(nextBlockId, currentBlockId);
-        return true;
+        return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
@@ -615,22 +586,17 @@ export function BlockPlugin({
     return editor.registerCommand(
       KEY_TAB_COMMAND,
       (event) => {
-        let blockIdToIndent: string | null = null;
-        let shouldOutdent = false;
+        // Command handlers run inside a Lexical state context —
+        // call $getSelection() directly (NOT inside editor.read()).
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
 
-        editor.read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
+        const anchorNode = selection.anchor.getNode();
+        const blockNode = findParentNodeBlock(anchorNode);
+        if (!blockNode) return false;
 
-          const anchorNode = selection.anchor.getNode();
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (!blockNode) return;
-
-          blockIdToIndent = blockNode.getBlockId();
-          shouldOutdent = event?.shiftKey ?? false;
-        });
-
-        if (!blockIdToIndent) return false;
+        const blockIdToIndent = blockNode.getBlockId();
+        const shouldOutdent = event?.shiftKey ?? false;
 
         event?.preventDefault();
 
@@ -838,17 +804,19 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
 
   // Ensure there's always a text node after the last element for proper cursor placement
   // This is especially important when the last element is a pill
+  // Use zero-width space to prevent Lexical from removing the text node
   const children = block.getChildren();
   const lastChild = children[children.length - 1];
   if (lastChild && ($isPillNode(lastChild) || $isLineBreakNode(lastChild))) {
-    block.append($createTextNode(''));
+    block.append($createTextNode('\u200B'));
   }
 }
 
 /**
  * Recursively append inline nodes to a block, tracking format flags for nested marks.
+ * Also ensures text nodes exist around pills for proper cursor navigation.
  */
-function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number): void {
+function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number, isFirst: boolean = false): void {
   switch (inline.type) {
     case 'text': {
       const textNode = $createTextNode(inline.text);
@@ -863,6 +831,14 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       break;
     }
     case 'node_link': {
+      // Ensure there's a text node before the pill if this is the first element
+      // or if the previous sibling is also a pill
+      // Use zero-width space to prevent Lexical from removing the text node
+      const children = parent.getChildren();
+      const lastChild = children[children.length - 1];
+      if (children.length === 0 || $isPillNode(lastChild)) {
+        parent.append($createTextNode('\u200B'));
+      }
       const pill = $createPillNode(inline.link_id, inline.ref_type);
       parent.append(pill);
       break;

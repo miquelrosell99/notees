@@ -132,7 +132,8 @@ export function TriggerPlugin({
 
       if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
         // Replace with a Pill
-        (anchorNode as any).setTextContent(beforeTrigger);
+        // Use zero-width space if empty to prevent Lexical from removing the text node
+        (anchorNode as any).setTextContent(beforeTrigger || '\u200B');
 
         const pill = $createPillNode(
           value,
@@ -141,21 +142,20 @@ export function TriggerPlugin({
 
         anchorNode.insertAfter(pill);
 
-        // Add remaining text after pill
-        if (afterCursor) {
-          const afterNode = $createTextNode(afterCursor);
-          pill.insertAfter(afterNode);
-          afterNode.selectStart();
-        } else {
-          pill.selectEnd();
-        }
+        // Always add a text node after pill for proper cursor navigation
+        // Use zero-width space if empty to prevent Lexical from removing the text node
+        const afterNode = $createTextNode(afterCursor || '\u200B');
+        pill.insertAfter(afterNode);
+        afterNode.selectStart();
 
-        onLinkSelect?.(value);
+        // Don't call onLinkSelect here - that's for clicking existing pills,
+        // not for inserting new ones. Calling it would trigger navigation.
+        // onLinkSelect?.(value);
       }
     });
 
     setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [editor, trigger, onLinkSelect]);
+  }, [editor, trigger]);
 
   const handleClose = useCallback(() => {
     setTrigger(prev => ({ ...prev, isOpen: false }));

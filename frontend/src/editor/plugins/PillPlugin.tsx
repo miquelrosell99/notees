@@ -16,6 +16,8 @@ import {
   $getSelection,
   $isNodeSelection,
   $isRangeSelection,
+  $isTextNode,
+  $createNodeSelection,
   $setSelection,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
@@ -53,42 +55,6 @@ export function PillPlugin({
           onPillClick?.(linkId, refType);
         }
         return true;
-      }
-
-      // Handle clicks after a pill (when pill is last element in block)
-      // Check if click is in empty space after a pill
-      const blockContent = target.closest('.node-block-content');
-      if (blockContent) {
-        editor.update(() => {
-          const selection = $getSelection();
-          if ($isRangeSelection(selection)) {
-            const anchor = selection.anchor.getNode();
-            const parent = anchor.getParent();
-            
-            // If we're in a block with children
-            if (parent && $isBlockNode(parent)) {
-              const children = parent.getChildren();
-              const lastChild = children[children.length - 1];
-              
-              // If last child is a pill and we clicked after it
-              if ($isPillNode(lastChild)) {
-                // Check if click is to the right of the pill
-                const pillElement = editor.getElementByKey(lastChild.getKey());
-                if (pillElement) {
-                  const pillRect = pillElement.getBoundingClientRect();
-                  const clickX = event.clientX;
-                  
-                  if (clickX > pillRect.right) {
-                    // Click was after the pill - move cursor after it
-                    event.preventDefault();
-                    lastChild.selectNext();
-                    return true;
-                  }
-                }
-              }
-            }
-          }
-        });
       }
 
       return false;
@@ -141,30 +107,34 @@ export function PillPlugin({
     const handleArrowLeft = (event: KeyboardEvent) => {
       const selection = $getSelection();
       
-      // If a pill is selected, move cursor to before it
+      // Case 1: A pill is currently selected - move cursor to before it
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         for (const node of nodes) {
           if ($isPillNode(node)) {
             event.preventDefault();
-            // Move cursor to left of pill
             node.selectPrevious();
             return true;
           }
         }
       }
 
-      // Handle cursor at pill boundary in RangeSelection
-      if ($isRangeSelection(selection)) {
+      // Case 2: Cursor is in text, check if there's a pill to the left
+      if ($isRangeSelection(selection) && selection.isCollapsed()) {
         const anchor = selection.anchor;
-        const node = anchor.getNode();
+        const anchorNode = anchor.getNode();
         
-        // Check if there's a pill node immediately to the left
-        const prevSibling = node.getPreviousSibling();
-        if ($isPillNode(prevSibling) && anchor.offset === 0) {
-          // Cursor is at start of text node after a pill
-          // Let default behavior work, but select the pill if arrow pressed again
-          return false;
+        // If cursor is at position 0 in a text node
+        if ($isTextNode(anchorNode) && anchor.offset === 0) {
+          const prevSibling = anchorNode.getPreviousSibling();
+          if ($isPillNode(prevSibling)) {
+            // Select the pill instead of moving past it
+            event.preventDefault();
+            const nodeSelection = $createNodeSelection();
+            nodeSelection.add(prevSibling.getKey());
+            $setSelection(nodeSelection);
+            return true;
+          }
         }
       }
 
@@ -174,47 +144,54 @@ export function PillPlugin({
     const handleArrowRight = (event: KeyboardEvent) => {
       const selection = $getSelection();
       
-      // If a pill is selected, move cursor to after it
+      // Case 1: A pill is currently selected - move cursor to after it
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         for (const node of nodes) {
           if ($isPillNode(node)) {
             event.preventDefault();
-            // Move cursor to right of pill
             node.selectNext();
             return true;
           }
         }
       }
 
-      // Handle cursor at pill boundary in RangeSelection
-      if ($isRangeSelection(selection)) {
+      // Case 2: Cursor is in text, check if there's a pill to the right
+      if ($isRangeSelection(selection) && selection.isCollapsed()) {
         const anchor = selection.anchor;
-        const node = anchor.getNode();
-        const nodeText = node.getTextContent();
+        const anchorNode = anchor.getNode();
         
-        // Check if there's a pill node immediately to the right
-        const nextSibling = node.getNextSibling();
-        if ($isPillNode(nextSibling) && anchor.offset === nodeText.length) {
-          // Cursor is at end of text node before a pill
-          // Let default behavior work
-          return false;
+        // If cursor is at end of a text node
+        if ($isTextNode(anchorNode)) {
+          const textLength = anchorNode.getTextContentSize();
+          if (anchor.offset === textLength) {
+            const nextSibling = anchorNode.getNextSibling();
+            if ($isPillNode(nextSibling)) {
+              // Select the pill instead of moving past it
+              event.preventDefault();
+              const nodeSelection = $createNodeSelection();
+              nodeSelection.add(nextSibling.getKey());
+              $setSelection(nodeSelection);
+              return true;
+            }
+          }
         }
       }
 
       return false;
     };
 
+    // Use COMMAND_PRIORITY_HIGH so we intercept before default Lexical handling
     const unsubLeft = editor.registerCommand(
       KEY_ARROW_LEFT_COMMAND,
       handleArrowLeft,
-      COMMAND_PRIORITY_LOW, // Low priority to let other handlers go first
+      COMMAND_PRIORITY_HIGH,
     );
 
     const unsubRight = editor.registerCommand(
       KEY_ARROW_RIGHT_COMMAND,
       handleArrowRight,
-      COMMAND_PRIORITY_LOW,
+      COMMAND_PRIORITY_HIGH,
     );
 
     return () => {
