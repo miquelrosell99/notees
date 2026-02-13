@@ -370,8 +370,6 @@ export function TableView({
         selectable={selectable}
         selectedKeys={selectedKeys}
         onSelectionChange={handleSelectionChange}
-        onRowClick={onNodeClick}
-        onRowShiftClick={onNodeShiftClick}
         onRowContextMenu={handleRowContextMenu}
         expandable={expandableConfig}
         reorderable={reorderableConfig}
