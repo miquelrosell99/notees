@@ -67,6 +67,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     span.dataset.linkId = this.__linkId;
     span.dataset.refType = this.__refType;
     span.contentEditable = 'false';
+    span.setAttribute('tabindex', '-1');
     return span;
   }
 

@@ -835,6 +835,14 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
       appendInlineNode(block, inline, 0);
     }
   }
+
+  // Ensure there's always a text node after the last element for proper cursor placement
+  // This is especially important when the last element is a pill
+  const children = block.getChildren();
+  const lastChild = children[children.length - 1];
+  if (lastChild && ($isPillNode(lastChild) || $isLineBreakNode(lastChild))) {
+    block.append($createTextNode(''));
+  }
 }
 
 /**
