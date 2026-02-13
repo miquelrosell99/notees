@@ -64,6 +64,15 @@ export interface TerrainRendererRef {
   updateLinks: (links: GraphLink[]) => void;
 }
 
+// ==================== Helpers ====================
+
+/** Fast integer hash for deterministic per-cell noise (no Math.random, stable across frames) */
+const ihash = (a: number, b: number): number => {
+  let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1103515245);
+  return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff; // 0..1
+};
+
 // ==================== Component ====================
 
 export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererProps>(({
@@ -343,13 +352,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       && cache.classColorsHash === classColorsHash
       && cache.gridW === gridW
       && cache.gridH === gridH;
-    
-    // Fast integer hash for deterministic per-cell noise (no Math.random, stable across frames)
-    const ihash = (a: number, b: number): number => {
-      let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
-      h = Math.imul(h ^ (h >>> 13), 1103515245);
-      return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff; // 0..1
-    };
     
     // Numeric point key for contour chain building (avoids string allocation)
     const ptKey = (x: number, y: number): number => {
