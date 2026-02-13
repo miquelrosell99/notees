@@ -40,6 +40,7 @@ import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
 import { EditablePlugin } from './plugins/EditablePlugin';
 import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
+import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -402,6 +403,9 @@ export function BlockEditor({
 
         {/* Block class pills — renders class badges on each block */}
         <BlockClassPillsPlugin onNavigateToNode={onNavigateToNode} />
+
+        {/* Constrain text selection to active block + custom copy/cut */}
+        <SelectionConstraintPlugin readOnly={readOnly} />
 
         {/* Custom caret (replaces native caret, Insert key toggles block mode) */}
         <CustomCaretPlugin readOnly={readOnly} />
