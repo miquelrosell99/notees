@@ -179,35 +179,72 @@
   z-index: 10;
   background: var(--color-caret);
   display: none; /* Hidden by default, shown when positioned */
-  /* Only transition width (line↔block morph), not position */
-  transition: width 0.15s var(--motion-easing-standard),
-              border-radius 0.15s var(--motion-easing-standard),
-              opacity 0.15s var(--motion-easing-standard);
+  /* Smooth morph between line/block/pill modes */
+  transition: top 0.12s var(--motion-easing-standard),
+              left 0.12s var(--motion-easing-standard),
+              width 0.15s var(--motion-easing-standard),
+              height 0.12s var(--motion-easing-standard),
+              border-radius 0.15s var(--motion-easing-standard);
 }
 
 /* Line caret (normal typing mode) — thin vertical line with rounded ends */
 .notees-custom-caret--line {
   border-radius: 2px;
-  opacity: 0.85;
-  animation: notees-line-caret-blink 1s step-end infinite;
+  animation: notees-line-breathe 1.2s ease-in-out infinite;
 }
 
 /* Block caret (overwrite mode) — covers the character */
 .notees-custom-caret--block {
   border-radius: 1px;
   mix-blend-mode: difference;
-  opacity: 0.72;
-  animation: notees-block-caret-blink 1s step-end infinite;
+  animation: notees-block-breathe 1.2s ease-in-out infinite;
 }
 
-@keyframes notees-line-caret-blink {
-  0%, 100% { opacity: 0.85; }
-  50%      { opacity: 0; }
+/* Pill surround mode — wraps around a node link pill */
+.notees-custom-caret--pill {
+  border-radius: 6px;
+  background: transparent;
+  border: 2px solid var(--color-caret);
+  animation: notees-pill-breathe 1.2s ease-in-out infinite;
 }
 
-@keyframes notees-block-caret-blink {
-  0%, 100% { opacity: 0.72; }
-  50%      { opacity: 0; }
+/* ─── Breathing animations (sine-eased opacity + subtle width pulse) ── */
+
+@keyframes notees-line-breathe {
+  0%, 100% { opacity: 0.9; transform: scaleX(1); }
+  50%      { opacity: 0.15; transform: scaleX(0.8); }
+}
+
+@keyframes notees-block-breathe {
+  0%, 100% { opacity: 0.72; transform: scaleX(1); }
+  50%      { opacity: 0.12; transform: scaleX(0.97); }
+}
+
+@keyframes notees-pill-breathe {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 0.25; }
+}
+
+/* Idle state — after a pause, caret fades to low opacity */
+.notees-custom-caret--idle {
+  animation: none !important;
+  transition: top 0.12s var(--motion-easing-standard),
+              left 0.12s var(--motion-easing-standard),
+              width 0.15s var(--motion-easing-standard),
+              height 0.12s var(--motion-easing-standard),
+              border-radius 0.15s var(--motion-easing-standard),
+              opacity 1.5s ease-out !important;
+  opacity: 0.15 !important;
+}
+
+/* When user returns from idle — snappy restore */
+.notees-custom-caret--active {
+  transition: top 0.12s var(--motion-easing-standard),
+              left 0.12s var(--motion-easing-standard),
+              width 0.15s var(--motion-easing-standard),
+              height 0.12s var(--motion-easing-standard),
+              border-radius 0.15s var(--motion-easing-standard),
+              opacity 0.1s ease-in !important;
 }
 
 /* Respect reduced-motion */
@@ -440,64 +477,51 @@ th.node-block-table-cell {
   color: var(--color-on-surface);
 }
 
-/* ─── Node pill (inline, TE style) ─────────────────────────────── */
+/* ─── Node pill (inline link, dotted underline style) ──────────── */
 
 .node-pill-wrapper {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: baseline;
+  display: inline;
   cursor: pointer;
   user-select: none;
 }
 
 .node-pill-wrapper .node-pill-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border-radius: var(--shape-small);
-  background: var(--color-surface-container-high);
+  display: inline;
   color: var(--color-on-surface);
-  font-size: 0.95em;
-  line-height: 1.4;
-  text-decoration: none;
-  border: 1px solid transparent;
-  transition: background var(--motion-duration-short) var(--motion-easing-standard),
-              border-color var(--motion-duration-short) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: inherit;
+  line-height: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--color-outline-variant);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.node-pill-wrapper:hover .node-pill-inner:not([style*="background"]) {
-  background: var(--color-surface-container-highest);
-  border-color: var(--color-outline-variant);
-}
-
-.node-pill-wrapper:hover .node-pill-inner[style*="background"] {
-  filter: brightness(0.92);
-  border-color: var(--color-outline-variant);
+.node-pill-wrapper:hover .node-pill-inner {
+  text-decoration-color: var(--color-on-surface);
+  color: var(--color-primary);
 }
 
 .node-pill-wrapper:active .node-pill-inner {
-  box-shadow: var(--tactile-press-shadow);
-  transform: scale(0.97);
+  opacity: 0.7;
 }
 
 /* Selected state (when pill has keyboard/node selection) */
 .node-pill-wrapper.selected .node-pill-inner,
 .node-pill-wrapper--selected .node-pill-inner {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 15%, transparent);
-  background: var(--color-surface-container-highest);
+  text-decoration-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 -2px;
 }
 
 .node-pill-wrapper .node-pill-icon {
   font-size: 0.9em;
-  flex-shrink: 0;
+  vertical-align: baseline;
+  margin-right: 2px;
 }
 
 /* ─── Ghost card (drag preview) ────────────────────────────────── */

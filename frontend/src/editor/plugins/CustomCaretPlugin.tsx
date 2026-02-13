@@ -1,14 +1,15 @@
 /**
- * CustomCaretPlugin — Fully replaces the native browser caret with a custom styled one.
+ * CustomCaretPlugin — Fully replaces the native browser caret with a custom one.
  *
  * Features:
  * - **Normal mode**: Thin vertical line caret (2px wide, rounded corners)
- * - **Insert mode**: Block caret covering the character (press Insert key to toggle)
- * - Smooth animations and positioning
- * - Theme-aware styling with blink animation
+ * - **Insert mode**: Block caret covering the character (Insert key toggle)
+ * - **Pill surround**: When navigating onto a node link, caret smoothly wraps it
+ * - **Breathing blink**: Sine-eased opacity 1→0.15→1 with subtle width pulse
+ * - **Idle fade**: After 4s of inactivity, caret fades to low opacity; restores on keypress
+ * - Theme-aware styling via --color-caret token
  *
- * The native caret is hidden via CSS. This plugin renders a positioned div that
- * follows the cursor using Range.getBoundingClientRect().
+ * The native caret is hidden via CSS (`caret-color: transparent`).
  */
 
 import { useEffect, useRef, useCallback, useState, type JSX } from 'react';
@@ -16,6 +17,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import {
   $getSelection,
   $isRangeSelection,
+  $isNodeSelection,
   $isTextNode,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_CRITICAL,
@@ -23,6 +25,10 @@ import {
   SELECTION_CHANGE_COMMAND,
   CONTROLLED_TEXT_INSERTION_COMMAND,
 } from 'lexical';
+import { $isPillNode } from '../nodes/PillNode';
+
+// Idle timeout (ms) before the caret starts to fade
+const IDLE_TIMEOUT = 4000;
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -31,6 +37,34 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const [overwriteMode, setOverwriteMode] = useState(false);
   const caretRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number>(0);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isIdleRef = useRef(false);
+  // Track whether we've set an initial position (skip transition on first placement)
+  const hasPositionedRef = useRef(false);
+
+  // ─── Idle detection helpers ──────────────────────────────────
+
+  const markActive = useCallback(() => {
+    const caret = caretRef.current;
+    if (!caret) return;
+
+    if (isIdleRef.current) {
+      isIdleRef.current = false;
+      caret.classList.remove('notees-custom-caret--idle');
+      caret.classList.add('notees-custom-caret--active');
+      // Remove the --active class after the snap-in transition
+      setTimeout(() => caret.classList.remove('notees-custom-caret--active'), 150);
+    }
+
+    // Reset idle timer
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      isIdleRef.current = true;
+      if (caretRef.current) {
+        caretRef.current.classList.add('notees-custom-caret--idle');
+      }
+    }, IDLE_TIMEOUT);
+  }, []);
 
   // ─── Toggle Insert/Overwrite mode with Insert key ───────────
 
@@ -183,18 +217,65 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     if (!caret) return;
 
     const rootElement = editor.getRootElement();
-    if (!rootElement) { 
-      caret.style.display = 'none'; 
-      return; 
+    if (!rootElement) {
+      caret.style.display = 'none';
+      return;
     }
 
     // Check if the editor has focus
     const activeEl = document.activeElement;
     const editorHasFocus = rootElement.contains(activeEl) || rootElement === activeEl;
-    if (!editorHasFocus) { 
-      caret.style.display = 'none'; 
-      return; 
+    if (!editorHasFocus) {
+      caret.style.display = 'none';
+      return;
     }
+
+    // Get editor root for relative positioning
+    const editorRoot = rootElement.closest('.notees-editor');
+    if (!editorRoot) {
+      caret.style.display = 'none';
+      return;
+    }
+    const editorRect = editorRoot.getBoundingClientRect();
+
+    // ─── Check if a pill node is selected (NodeSelection) ───
+    let isPillSelected = false;
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if ($isNodeSelection(selection)) {
+        const nodes = selection.getNodes();
+        isPillSelected = nodes.length === 1 && $isPillNode(nodes[0]);
+      }
+    });
+
+    if (isPillSelected) {
+      // Find the selected pill DOM element
+      const selectedPill = rootElement.querySelector('.node-pill-wrapper.selected, .node-pill-wrapper--selected');
+      if (selectedPill) {
+        const pillRect = selectedPill.getBoundingClientRect();
+        const padding = 3;
+
+        // Disable position transitions on first placement
+        if (!hasPositionedRef.current) {
+          caret.style.transition = 'none';
+          hasPositionedRef.current = true;
+          requestAnimationFrame(() => { caret.style.transition = ''; });
+        }
+
+        caret.style.display = 'block';
+        caret.style.top = `${pillRect.top - editorRect.top - padding}px`;
+        caret.style.left = `${pillRect.left - editorRect.left - padding}px`;
+        caret.style.width = `${pillRect.width + padding * 2}px`;
+        caret.style.height = `${pillRect.height + padding * 2}px`;
+
+        // Apply pill mode classes
+        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block');
+        caret.classList.add('notees-custom-caret--pill');
+        return;
+      }
+    }
+
+    // ─── Non-pill: text caret positioning ───
 
     const domSelection = window.getSelection();
     if (!domSelection || domSelection.rangeCount === 0 || !domSelection.isCollapsed) {
@@ -203,8 +284,6 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     }
 
     const range = domSelection.getRangeAt(0);
-
-    // Measure position and dimensions
     let rect: DOMRect;
     const { startContainer, startOffset } = range;
 
@@ -219,7 +298,6 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         charRange.setEnd(startContainer, startOffset + 1);
         rect = charRange.getBoundingClientRect();
 
-        // Fallback for zero-width characters
         if (rect.width < 1) {
           rect = range.getBoundingClientRect();
         }
@@ -227,20 +305,17 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         rect = range.getBoundingClientRect();
       }
     } else {
-      // Line caret — use collapsed range position
+      // Line caret — collapsed range
       rect = range.getBoundingClientRect();
     }
 
-    // If rect has no height (edge case at format boundaries), don't hide caret
-    // Use a minimum height to keep it visible
+    // Height fallback for format boundaries
     if (rect.height < 1) {
-      // Try to get a better rect from the parent element
-      const parentEl = startContainer.nodeType === Node.TEXT_NODE 
-        ? startContainer.parentElement 
+      const parentEl = startContainer.nodeType === Node.TEXT_NODE
+        ? startContainer.parentElement
         : startContainer as Element;
       if (parentEl) {
         const parentRect = parentEl.getBoundingClientRect();
-        // Use parent's height and position, but keep the measured left position
         rect = new DOMRect(
           rect.left || parentRect.left,
           parentRect.top,
@@ -248,36 +323,35 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
           parentRect.height || 20
         );
       } else {
-        // Absolute fallback
         rect = new DOMRect(rect.left, rect.top, rect.width || 2, 20);
       }
     }
 
-    // Position relative to editor root
-    const editorRoot = rootElement.closest('.notees-editor');
-    if (!editorRoot) { 
-      caret.style.display = 'none'; 
-      return; 
-    }
-    const editorRect = editorRoot.getBoundingClientRect();
-
     const top = rect.top - editorRect.top;
     const left = rect.left - editorRect.left;
-    const height = rect.height > 1 ? rect.height : 20; // Minimum height fallback
+    const height = rect.height > 1 ? rect.height : 20;
+
+    // Disable position transitions on first placement
+    if (!hasPositionedRef.current) {
+      caret.style.transition = 'none';
+      hasPositionedRef.current = true;
+      requestAnimationFrame(() => { caret.style.transition = ''; });
+    }
 
     caret.style.display = 'block';
     caret.style.top = `${top}px`;
     caret.style.left = `${left}px`;
     caret.style.height = `${height}px`;
 
+    // Remove pill class
+    caret.classList.remove('notees-custom-caret--pill');
+
     if (overwriteMode) {
-      // Block caret width covers the character
-      const charWidth = rect.width > 1 ? rect.width : 8; // fallback for EOL
+      const charWidth = rect.width > 1 ? rect.width : 8;
       caret.style.width = `${charWidth}px`;
       caret.classList.add('notees-custom-caret--block');
       caret.classList.remove('notees-custom-caret--line');
     } else {
-      // Line caret is a thin vertical bar
       caret.style.width = '2px';
       caret.classList.add('notees-custom-caret--line');
       caret.classList.remove('notees-custom-caret--block');
@@ -290,14 +364,16 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     const unregisterSelection = editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
+        markActive();
         cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(updateCaretPosition);
-        return false; // Don't consume
+        return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
 
     const unregisterUpdate = editor.registerUpdateListener(() => {
+      markActive();
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(updateCaretPosition);
     });
@@ -310,7 +386,22 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       unregisterUpdate();
       cancelAnimationFrame(rafRef.current);
     };
-  }, [editor, updateCaretPosition]);
+  }, [editor, updateCaretPosition, markActive]);
+
+  // ─── Mark active on any keypress ────────────────────────────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      () => {
+        markActive();
+        return false;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, readOnly, markActive]);
 
   // ─── Listen for focus/blur events ────────────────────────────
 
@@ -318,19 +409,27 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
-    const onFocusBlur = () => {
+    const onFocus = () => {
+      markActive();
+      hasPositionedRef.current = false; // Reset so first position after focus skips transition
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(updateCaretPosition);
     };
 
-    rootElement.addEventListener('focus', onFocusBlur, true);
-    rootElement.addEventListener('blur', onFocusBlur, true);
+    const onBlur = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateCaretPosition);
+    };
+
+    rootElement.addEventListener('focus', onFocus, true);
+    rootElement.addEventListener('blur', onBlur, true);
 
     return () => {
-      rootElement.removeEventListener('focus', onFocusBlur, true);
-      rootElement.removeEventListener('blur', onFocusBlur, true);
+      rootElement.removeEventListener('focus', onFocus, true);
+      rootElement.removeEventListener('blur', onBlur, true);
     };
-  }, [editor, updateCaretPosition]);
+  }, [editor, updateCaretPosition, markActive]);
 
   // ─── Listen for DOM mutations (indent/outdent, style changes) ───
 
@@ -373,6 +472,14 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       rootElement.removeEventListener('transitionend', onTransitionEnd, true);
     };
   }, [editor, updateCaretPosition]);
+
+  // ─── Cleanup idle timer on unmount ───────────────────────────
+
+  useEffect(() => {
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, []);
 
   // ─── Render ──────────────────────────────────────────────────
 
