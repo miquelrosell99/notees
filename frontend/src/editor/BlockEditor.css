@@ -164,6 +164,39 @@
 
 /* ─── Collapsed state ──────────────────────────────────────────── */
 
+/* ─── Overwrite mode (Insert key toggle) ─────────────────────── */
+
+/* Hide the native line caret when in overwrite mode */
+.notees-editor--overwrite .node-block-content {
+  caret-color: transparent !important;
+}
+
+/* Block caret overlay — a themed rectangle that covers the character
+   at the cursor position, with a steady blink animation. */
+.notees-block-caret {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+  background: var(--color-caret);
+  opacity: 0.72;
+  mix-blend-mode: difference;
+  border-radius: 1px;
+  animation: notees-block-caret-blink 1s step-end infinite;
+}
+
+@keyframes notees-block-caret-blink {
+  0%, 100% { opacity: 0.72; }
+  50%      { opacity: 0; }
+}
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .notees-block-caret {
+    animation: none;
+    opacity: 0.72;
+  }
+}
+
 .node-block--collapsed > .node-block {
   display: none;
   animation: slideCollapse var(--motion-duration-long) var(--motion-easing-collapse) forwards;
