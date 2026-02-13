@@ -32,8 +32,6 @@ import {
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_ANISOTROPY,
   TERRAIN_NOISE_STRENGTH,
-  LABEL_FADE_ZOOM_MIN,
-  LABEL_FADE_ZOOM_MAX,
   // Helpers
   getNodeColor,
 } from './viewTypes';
@@ -199,9 +197,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
     const { width: w, height: h } = dimensions;
+    const dpr = window.devicePixelRatio || 1;
     const t = transformRef.current;
     
-    ctx.clearRect(0, 0, w, h);
+    // Reset transform and clear full backing store, then apply DPR scale
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w * dpr, h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     
     const { visibleNodes } = frameDataRef.current;
     const terrainHeights = frameDataRef.current.terrainHeights;
@@ -223,13 +225,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         ctx.arc(sx, sy, plateauR, 0, 2 * Math.PI);
         ctx.fill();
         ctx.globalAlpha = 1;
-        // Label
-        ctx.fillStyle = textColor;
-        ctx.font = '10px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const displayName = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
-        ctx.fillText(displayName, sx, sy + 6);
+        // Label — only if this single node is hovered
+        if (hoveredNodeRef.current?.id === node.id) {
+          ctx.fillStyle = textColor;
+          ctx.font = '10px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          const displayName = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
+          ctx.fillText(displayName, sx, sy + 6);
+        }
       }
       return;
     }
@@ -501,42 +505,30 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     ctx.restore();
     
-    // ==================== Draw Labels ====================
+    // ==================== Draw Hovered Label ====================
     
-    const currentScale = t.scale;
-    const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN 
-      ? 0 
-      : currentScale >= LABEL_FADE_ZOOM_MAX 
-        ? 1 
-        : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
-    
-    if (zoomOpacity > 0) {
-      ctx.font = '10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
+    const hovNode = hoveredNodeRef.current;
+    if (hovNode) {
+      const sx = hovNode.x * t.scale + t.x;
+      const sy = hovNode.y * t.scale + t.y;
       
-      for (const node of visibleNodes) {
-        const sx = node.x * t.scale + t.x;
-        const sy = node.y * t.scale + t.y;
-        
-        // Skip off-screen
-        if (sx < -60 || sx > w + 60 || sy < -20 || sy > h + 20) continue;
-        
-        const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
-        ctx.globalAlpha = zoomOpacity * dimOpacity;
+      if (sx >= -60 && sx <= w + 60 && sy >= -20 && sy <= h + 20) {
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.globalAlpha = 1;
         
         // Text outline for readability on colored plateaus
         ctx.lineWidth = 3;
         ctx.lineJoin = 'round';
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-        const displayName = node.displayName.length > 35 
-          ? node.displayName.slice(0, 35) + '...' 
-          : node.displayName;
+        const displayName = hovNode.displayName.length > 35 
+          ? hovNode.displayName.slice(0, 35) + '...' 
+          : hovNode.displayName;
         ctx.strokeText(displayName, sx, sy + 6);
         ctx.fillStyle = '#ffffff';
         ctx.fillText(displayName, sx, sy + 6);
       }
-      ctx.globalAlpha = 1;
     }
     
     // ==================== Draw Crosshair Lines ====================
@@ -810,12 +802,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     if (!canvas) return { x: 0, y: 0 };
     
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
+    // Coordinates are in CSS pixels (render uses ctx.scale(dpr) for HiDPI)
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   }, []);
   
@@ -1026,10 +1016,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const screenX = (e.clientX - rect.left) * scaleX;
-    const screenY = (e.clientY - rect.top) * scaleY;
+    // Coordinates are in CSS pixels (render uses ctx.scale(dpr) for HiDPI)
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
     
     const cur = transformRef.current;
     const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * 0.001;
@@ -1061,8 +1050,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     <div className={`node-graph-renderer ${className}`} ref={containerRef}>
       <canvas
         ref={canvasRef}
-        width={dimensions.width}
-        height={dimensions.height}
+        width={dimensions.width * (window.devicePixelRatio || 1)}
+        height={dimensions.height * (window.devicePixelRatio || 1)}
         className="node-graph-renderer__canvas"
         onMouseMove={handleMouseMove}
         onMouseDown={handleMouseDown}
