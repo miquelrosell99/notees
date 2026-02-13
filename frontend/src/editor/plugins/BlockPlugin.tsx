@@ -16,6 +16,8 @@ import {
   $getSelection,
   $isRangeSelection,
   $createTextNode,
+  $createNodeSelection,
+  $setSelection,
   $isTextNode,
   $isLineBreakNode,
   TextNode,
@@ -487,9 +489,17 @@ export function BlockPlugin({
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
 
-        // Check if block is effectively empty (only contains zero-width space or empty)
+        // Check if block is effectively empty (only contains zero-width space or empty).
+        // DecoratorNodes like PillNode return '' from getTextContent(), so a block
+        // containing only pills would appear empty by text alone — check for pills too.
         const textContent = blockNode.getTextContent();
-        const isEmptyBlock = textContent === '' || textContent === '\u200B';
+        const hasPillNodes = blockNode.getChildren().some(child => $isPillNode(child));
+        const isEmptyBlock = (textContent === '' || textContent === '\u200B') && !hasPillNodes;
+
+        // A block that has pills but no meaningful text (only ZWS placeholders).
+        // These should NOT be merged/deleted — backspace selects the pill first.
+        const textWithoutZWS = textContent.replace(/\u200B/g, '');
+        const isPillOnlyBlock = hasPillNodes && textWithoutZWS === '';
 
         // Only merge/delete when cursor is at the absolute start of the block
         if (!isEmptyBlock) {
@@ -500,6 +510,19 @@ export function BlockPlugin({
             if (anchorNode !== blockNode.getFirstDescendant()) return false;
           } else {
             if (anchorNode !== blockNode) return false;
+          }
+        }
+
+        // Pill-only block: select the pill instead of merging/deleting.
+        // This way backspace transitions pill → selected-pill → removed-pill → empty-block → delete.
+        if (isPillOnlyBlock) {
+          const pillChild = blockNode.getChildren().find(child => $isPillNode(child));
+          if (pillChild) {
+            event?.preventDefault();
+            const sel = $createNodeSelection();
+            sel.add(pillChild.getKey());
+            $setSelection(sel);
+            return true;
           }
         }
 
