@@ -111,6 +111,21 @@ export function apiNodesToGraphNodes(
     }
   }
 
+  // Multiple top-level nodes without a common resolvable parent.
+  // Create a stable virtual root so project() can find all of them.
+  if (topLevelNodes.length > 1) {
+    // Use count + first/last IDs for a compact, stable identifier
+    const sorted = topLevelNodes.map(n => n.id).sort((a, b) => a - b);
+    const virtualRootId = `vroot-${sorted[0]}-${sorted[sorted.length - 1]}-${sorted.length}`;
+    const topLevelUuids = new Set(topLevelNodes.map(n => n.uuid));
+    for (const gn of graphNodes) {
+      if (topLevelUuids.has(gn.blockId)) {
+        gn.parentId = virtualRootId;
+      }
+    }
+    return { graphNodes, rootBlockId: virtualRootId };
+  }
+
   // Last resort: first node's UUID
   return { graphNodes, rootBlockId: nodes[0]?.uuid || '' };
 }
