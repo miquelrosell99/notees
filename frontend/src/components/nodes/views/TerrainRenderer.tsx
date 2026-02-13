@@ -193,6 +193,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const tempMapBufRef = useRef<Float32Array | null>(null);
   const ownerMapRef = useRef<Int32Array | null>(null);
   
+  // Offscreen canvases for selection-aware contour compositing
+  const contourOffscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const selectionMaskRef = useRef<HTMLCanvasElement | null>(null);
+  
   // Store grid dims + owner map for plateau hit testing
   const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES });
   
@@ -446,52 +450,24 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
     }
     
-    // Draw contour lines — marching squares with selection-aware gradient blending
-    // When nodes are selected, segments blend between dim (non-selected) and bright (selected)
-    // based on the ownership of the 4 cell corners, creating smooth gradient transitions
+    // Draw contour lines — continuous paths with smooth selection dimming
+    // Uses offscreen canvas + ownership mask compositing so contour lines stay
+    // continuous (no per-segment color switching) and the dim↔bright transition
+    // is a smooth spatial gradient created by bilinear scaling of the mask.
     ctx.save();
     ctx.lineCap = 'butt';
     ctx.setLineDash(LINE_DASH_NONE);
     
     const DIM_OPACITY_FACTOR = 0.25;
-    const MIN_SEG_LEN_SQ = 4; // Skip contour segments shorter than 2px (avoids floating islands)
     
-    // Reusable segment buffers for gradient buckets: 0%,25%,50%,75%,100% bright
-    // Each buffer stores flat x1,y1,x2,y2 coordinates
-    const segBufs: number[][] = [[], [], [], [], []];
-    
-    // Segment emitter: filters short segments, routes to ctx path or gradient buffer
-    const emitDirect = (x1: number, y1: number, x2: number, y2: number) => {
-      const dx = x2 - x1, dy = y2 - y1;
-      if (dx * dx + dy * dy >= MIN_SEG_LEN_SQ) { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); }
-    };
-    const emitBucket = (x1: number, y1: number, x2: number, y2: number, bucket: number) => {
-      const dx = x2 - x1, dy = y2 - y1;
-      if (dx * dx + dy * dy >= MIN_SEG_LEN_SQ) { segBufs[bucket].push(x1, y1, x2, y2); }
+    // Helper: emit segment into target context's current path
+    const emitSeg = (tgt: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) => {
+      tgt.moveTo(x1, y1); tgt.lineTo(x2, y2);
     };
     
-    for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-      const level = CONTOUR_LEVELS[li];
-      const isMajor = (li + 1) % 5 === 0;
-      const isHovered = li === hoveredContourLevelRef.current;
-      const baseOpacity = isHovered ? 0.9 : 0.25 + level * 0.5;
-      const baseLineWidth = isHovered ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-      
-      // Bright style (no selection or selected peaks)
-      const brightR = Math.round(lowR + (highR - lowR) * level);
-      const brightG = Math.round(lowG + (highG - lowG) * level);
-      const brightB = Math.round(lowB + (highB - lowB) * level);
-      const dimLW = Math.max(0.5, baseLineWidth * 0.7);
-      
-      if (hasSelection) {
-        for (let b = 0; b < 5; b++) segBufs[b].length = 0;
-      } else {
-        ctx.strokeStyle = `rgba(${brightR}, ${brightG}, ${brightB}, ${baseOpacity})`;
-        ctx.lineWidth = baseLineWidth;
-        ctx.beginPath();
-      }
-      
-      // Marching squares grid traversal
+    // Helper: traverse marching squares grid and stroke one contour level
+    const traceContourLevel = (tgt: CanvasRenderingContext2D, level: number) => {
+      tgt.beginPath();
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
@@ -501,14 +477,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const v10 = heightMap[rowOff + gx + 1];
           const v01 = heightMap[nextRowOff + gx];
           const v11 = heightMap[nextRowOff + gx + 1];
-          
           const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
                        (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
           if (code === 0 || code === 15) continue;
-          
           const px = gx * gs;
-          
-          // Edge interpolation
           const topD = v10 - v00;
           const topT = topD === 0 ? 0.5 : (level - v00) / topD;
           const rightD = v11 - v10;
@@ -517,86 +489,125 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const bottomT = bottomD === 0 ? 0.5 : (level - v01) / bottomD;
           const leftD = v01 - v00;
           const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
-          
           const topX = px + topT * gs, topY = py;
           const rightX = px + gs, rightY = py + rightT * gs;
           const bottomX = px + bottomT * gs, bottomY = py + gs;
           const leftX = px, leftY = py + leftT * gs;
-          
-          if (hasSelection) {
-            // Compute ownership-based gradient bucket from 4 corner owners
-            const o00 = ownerMap[rowOff + gx];
-            const o10 = ownerMap[rowOff + gx + 1];
-            const o01 = ownerMap[nextRowOff + gx];
-            const o11 = ownerMap[nextRowOff + gx + 1];
-            let selCount = 0, validCount = 0;
-            if (o00 >= 0) { validCount++; if (selectedNodeIndices.has(o00)) selCount++; }
-            if (o10 >= 0) { validCount++; if (selectedNodeIndices.has(o10)) selCount++; }
-            if (o01 >= 0) { validCount++; if (selectedNodeIndices.has(o01)) selCount++; }
-            if (o11 >= 0) { validCount++; if (selectedNodeIndices.has(o11)) selCount++; }
-            const bucket = validCount > 0 ? Math.round(selCount / validCount * 4) : 0;
-            
-            switch (code) {
-              case 1: emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
-              case 2: emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
-              case 3: emitBucket(leftX, leftY, rightX, rightY, bucket); break;
-              case 4: emitBucket(topX, topY, rightX, rightY, bucket); break;
-              case 5: emitBucket(leftX, leftY, topX, topY, bucket); emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
-              case 6: emitBucket(topX, topY, bottomX, bottomY, bucket); break;
-              case 7: emitBucket(leftX, leftY, topX, topY, bucket); break;
-              case 8: emitBucket(topX, topY, leftX, leftY, bucket); break;
-              case 9: emitBucket(topX, topY, bottomX, bottomY, bucket); break;
-              case 10: emitBucket(topX, topY, rightX, rightY, bucket); emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
-              case 11: emitBucket(topX, topY, rightX, rightY, bucket); break;
-              case 12: emitBucket(leftX, leftY, rightX, rightY, bucket); break;
-              case 13: emitBucket(bottomX, bottomY, rightX, rightY, bucket); break;
-              case 14: emitBucket(leftX, leftY, bottomX, bottomY, bucket); break;
-            }
-          } else {
-            // No selection: draw directly into batched path
-            switch (code) {
-              case 1: emitDirect(leftX, leftY, bottomX, bottomY); break;
-              case 2: emitDirect(bottomX, bottomY, rightX, rightY); break;
-              case 3: emitDirect(leftX, leftY, rightX, rightY); break;
-              case 4: emitDirect(topX, topY, rightX, rightY); break;
-              case 5: emitDirect(leftX, leftY, topX, topY); emitDirect(bottomX, bottomY, rightX, rightY); break;
-              case 6: emitDirect(topX, topY, bottomX, bottomY); break;
-              case 7: emitDirect(leftX, leftY, topX, topY); break;
-              case 8: emitDirect(topX, topY, leftX, leftY); break;
-              case 9: emitDirect(topX, topY, bottomX, bottomY); break;
-              case 10: emitDirect(topX, topY, rightX, rightY); emitDirect(leftX, leftY, bottomX, bottomY); break;
-              case 11: emitDirect(topX, topY, rightX, rightY); break;
-              case 12: emitDirect(leftX, leftY, rightX, rightY); break;
-              case 13: emitDirect(bottomX, bottomY, rightX, rightY); break;
-              case 14: emitDirect(leftX, leftY, bottomX, bottomY); break;
-            }
+          switch (code) {
+            case 1: emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
+            case 2: emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
+            case 3: emitSeg(tgt, leftX, leftY, rightX, rightY); break;
+            case 4: emitSeg(tgt, topX, topY, rightX, rightY); break;
+            case 5: emitSeg(tgt, leftX, leftY, topX, topY); emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
+            case 6: emitSeg(tgt, topX, topY, bottomX, bottomY); break;
+            case 7: emitSeg(tgt, leftX, leftY, topX, topY); break;
+            case 8: emitSeg(tgt, topX, topY, leftX, leftY); break;
+            case 9: emitSeg(tgt, topX, topY, bottomX, bottomY); break;
+            case 10: emitSeg(tgt, topX, topY, rightX, rightY); emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
+            case 11: emitSeg(tgt, topX, topY, rightX, rightY); break;
+            case 12: emitSeg(tgt, leftX, leftY, rightX, rightY); break;
+            case 13: emitSeg(tgt, bottomX, bottomY, rightX, rightY); break;
+            case 14: emitSeg(tgt, leftX, leftY, bottomX, bottomY); break;
           }
         }
       }
+      tgt.stroke();
+    };
+    
+    // Helper: draw ALL contour levels with given style onto a target context
+    const drawAllContours = (tgt: CanvasRenderingContext2D, styleFn: (level: number, isMajor: boolean, isHovered: boolean) => void) => {
+      for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
+        const level = CONTOUR_LEVELS[li];
+        styleFn(level, (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
+        traceContourLevel(tgt, level);
+      }
+    };
+    
+    if (hasSelection) {
+      // Offscreen canvas + ownership mask approach:
+      // 1. Build mask at grid resolution (selected=opaque, non-selected=transparent)
+      // 2. Draw dim contours on offscreen → destination-out mask → composite to main
+      // 3. Draw bright contours on offscreen → destination-in mask → composite to main
+      // Bilinear scaling of the small mask creates smooth gradient at boundaries.
       
-      if (hasSelection) {
-        // Draw each gradient bucket with interpolated dim↔bright style
-        for (let b = 0; b < 5; b++) {
-          const buf = segBufs[b];
-          if (buf.length === 0) continue;
-          const frac = b / 4; // 0=fully dim, 1=fully bright
-          const r = Math.round(lowR + (brightR - lowR) * frac);
-          const g = Math.round(lowG + (brightG - lowG) * frac);
-          const bl = Math.round(lowB + (brightB - lowB) * frac);
-          const op = baseOpacity * DIM_OPACITY_FACTOR + (baseOpacity - baseOpacity * DIM_OPACITY_FACTOR) * frac;
-          const lw = dimLW + (baseLineWidth - dimLW) * frac;
-          ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${op})`;
-          ctx.lineWidth = lw;
-          ctx.beginPath();
-          for (let i = 0; i < buf.length; i += 4) {
-            ctx.moveTo(buf[i], buf[i + 1]);
-            ctx.lineTo(buf[i + 2], buf[i + 3]);
-          }
-          ctx.stroke();
-        }
-      } else {
-        ctx.stroke();
+      // --- Prepare offscreen canvas ---
+      if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
+      const offCanvas = contourOffscreenRef.current;
+      const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
+      if (offCanvas.width !== bw || offCanvas.height !== bh) { offCanvas.width = bw; offCanvas.height = bh; }
+      const offCtx = offCanvas.getContext('2d')!;
+      
+      // --- Build selection mask at grid resolution ---
+      if (!selectionMaskRef.current) selectionMaskRef.current = document.createElement('canvas');
+      const maskCanvas = selectionMaskRef.current;
+      if (maskCanvas.width !== gridW || maskCanvas.height !== gridH) { maskCanvas.width = gridW; maskCanvas.height = gridH; }
+      const maskCtx = maskCanvas.getContext('2d')!;
+      const maskData = maskCtx.createImageData(gridW, gridH);
+      const md = maskData.data;
+      for (let i = 0; i < gridW * gridH; i++) {
+        const owner = ownerMap[i];
+        const off = i * 4;
+        md[off] = md[off + 1] = md[off + 2] = 0;
+        md[off + 3] = (owner >= 0 && selectedNodeIndices.has(owner)) ? 255 : 0;
       }
+      maskCtx.putImageData(maskData, 0, 0);
+      
+      // --- Pass 1: DIM contours (non-selected regions) ---
+      offCtx.setTransform(1, 0, 0, 1, 0, 0);
+      offCtx.clearRect(0, 0, bw, bh);
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.lineCap = 'butt';
+      offCtx.setLineDash(LINE_DASH_NONE);
+      drawAllContours(offCtx, (level, isMajor, isHov) => {
+        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
+        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+        offCtx.strokeStyle = `rgba(${lowR}, ${lowG}, ${lowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
+        offCtx.lineWidth = Math.max(0.5, baseLW * 0.7);
+      });
+      // Remove selected regions (keep only non-selected)
+      offCtx.save();
+      offCtx.globalCompositeOperation = 'destination-out';
+      offCtx.imageSmoothingEnabled = true;
+      offCtx.drawImage(maskCanvas, 0, 0, w, h);
+      offCtx.restore();
+      // Composite dim contours to main
+      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
+      
+      // --- Pass 2: BRIGHT contours (selected regions) ---
+      offCtx.setTransform(1, 0, 0, 1, 0, 0);
+      offCtx.clearRect(0, 0, bw, bh);
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.lineCap = 'butt';
+      offCtx.setLineDash(LINE_DASH_NONE);
+      drawAllContours(offCtx, (level, isMajor, isHov) => {
+        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
+        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+        const r = Math.round(lowR + (highR - lowR) * level);
+        const g = Math.round(lowG + (highG - lowG) * level);
+        const b = Math.round(lowB + (highB - lowB) * level);
+        offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
+        offCtx.lineWidth = baseLW;
+      });
+      // Keep only selected regions
+      offCtx.save();
+      offCtx.globalCompositeOperation = 'destination-in';
+      offCtx.imageSmoothingEnabled = true;
+      offCtx.drawImage(maskCanvas, 0, 0, w, h);
+      offCtx.restore();
+      // Composite bright contours to main
+      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
+      
+    } else {
+      // No selection — single pass, continuous paths, bright style
+      drawAllContours(ctx, (level, isMajor, isHov) => {
+        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
+        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
+        const r = Math.round(lowR + (highR - lowR) * level);
+        const g = Math.round(lowG + (highG - lowG) * level);
+        const b = Math.round(lowB + (highB - lowB) * level);
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
+        ctx.lineWidth = baseLW;
+      });
     }
     
     ctx.restore();
