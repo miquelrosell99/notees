@@ -22,8 +22,8 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
-import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, LinkDirection, HeightMode } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
+import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode } from './viewTypes';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiTrashCanOutline, mdiClose, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiFileTree, mdiLinkVariant } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -93,9 +93,9 @@ export function TerrainView({
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
     nodeSizeMode: 'mass', // Not used in terrain, but keep for compatibility
-    heightMode: 'outgoing',
+    heightMode: 'hierarchy',
     constraintMode: 'physics',
-    linkDirection: 'all',
+    linkDirection: 'in',
   });
   const settingsLoadedRef = useRef(false);
   
@@ -160,8 +160,11 @@ export function TerrainView({
         try {
           const parsed = typeof savedSettings === 'string' ? JSON.parse(savedSettings) : savedSettings;
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            // Migrate old heightMode values and force linkDirection
+            const migrated = { ...parsed };
+            migrated.linkDirection = 'in'; // Always use incoming reference links for size
             skipGraphSettingsSaveRef.current++;
-            setGraphSettings(prev => ({ ...prev, ...parsed }));
+            setGraphSettings(prev => ({ ...prev, ...migrated }));
           }
         } catch (e) {
           console.error('Failed to parse terrain_settings:', e);
@@ -422,32 +425,13 @@ export function TerrainView({
                     description="How terrain peak height is determined"
                     labelPosition="left"
                     options={[
-                      { value: 'outgoing', icon: mdiCallMade, label: 'Parent (outgoing)' },
-                      { value: 'incoming', icon: mdiCallReceived, label: 'Parent (incoming)' },
+                      { value: 'hierarchy', icon: mdiFileTree, label: 'Parent / child' },
+                      { value: 'references', icon: mdiLinkVariant, label: 'Reference links' },
                     ]}
                     value={graphSettings.heightMode}
                     onChange={(value) => setGraphSettings(prev => ({
                       ...prev,
                       heightMode: value as HeightMode
-                    }))}
-                  />
-                </div>
-
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Peak size based on"
-                    description="Determines the size/spread of terrain peaks"
-                    labelPosition="left"
-                    options={[
-                      { value: 'in', icon: mdiCallReceived, label: 'Incoming links' },
-                      { value: 'out', icon: mdiCallMade, label: 'Outgoing links' },
-                      { value: 'all', icon: mdiSwapHorizontal, label: 'All links' }
-                    ]}
-                    value={graphSettings.linkDirection}
-                    onChange={(value) => setGraphSettings(prev => ({
-                      ...prev,
-                      linkDirection: value as LinkDirection
                     }))}
                   />
                 </div>

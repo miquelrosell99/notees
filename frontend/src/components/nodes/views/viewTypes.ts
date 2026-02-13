@@ -14,7 +14,7 @@ export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
 export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
 export type ConstraintMode = 'physics' | 'equidistant';
 export type LinkDirection = 'in' | 'out' | 'all';
-export type HeightMode = 'outgoing' | 'incoming';
+export type HeightMode = 'hierarchy' | 'references';
 
 /**
  * Graph layout mode (for NodeGraphRenderer only)
@@ -161,7 +161,7 @@ export interface FrameData {
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   linkCountAttraction: false,
   nodeSizeMode: 'uniform',
-  heightMode: 'outgoing',
+  heightMode: 'hierarchy',
   constraintMode: 'physics',
   linkDirection: 'all',
 };

@@ -1089,7 +1089,7 @@ export function useNodePhysics({
       const linkDistJitter = linkDistJitterRef.current;
       const adjacency = adjacencyRef.current;
       const massCache = massCacheRef.current;
-      const useMass = currentSettings.heightMode === 'outgoing';
+      const useMass = currentSettings.heightMode === 'hierarchy';
       
       let maxConnections = 0, maxMass = 0;
       const linkDir = currentSettings.linkDirection;
@@ -1561,10 +1561,13 @@ export function useNodePhysics({
           const rawHeights = new Map<number, number>();
           const heightMode = currentSettings.heightMode;
           const inCnts = inLinkCountsRef.current;
+          const inRefCnts = inReferenceLinkCountsRef.current;
           for (const node of nodes) {
-            const h = heightMode === 'outgoing'
+            const h = heightMode === 'hierarchy'
               ? (massCache.get(node.id) ?? 1)
-              : 1 + (inCnts.get(node.id) || 0);
+              : heightMode === 'references'
+                ? 1 + (inRefCnts.get(node.id) || 0)
+                : 1 + (inCnts.get(node.id) || 0);
             rawHeights.set(node.id, h);
             if (h > maxHeightRaw) maxHeightRaw = h;
           }

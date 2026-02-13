@@ -108,7 +108,7 @@ export function GraphView({
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
     nodeSizeMode: 'uniform',
-    heightMode: 'outgoing',
+    heightMode: 'hierarchy',
     constraintMode: 'physics',
     linkDirection: 'all',
   });
@@ -496,10 +496,10 @@ export function GraphView({
                 label="Mass accumulation"
                 description="Parent nodes resist movement based on descendants"
                 labelPosition="left"
-                checked={graphSettings.heightMode === 'outgoing'}
+                checked={graphSettings.heightMode === 'hierarchy'}
                 onChange={(e) => setGraphSettings(prev => ({
                   ...prev,
-                  heightMode: e.target.checked ? 'outgoing' : 'incoming'
+                  heightMode: e.target.checked ? 'hierarchy' : 'references'
                 }))}
               />
             </div>
