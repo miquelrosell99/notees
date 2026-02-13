@@ -30,33 +30,29 @@ export function CollapsePlugin(): null {
         if (!ctrlKey && !metaKey) return false;
         if (key !== 'ArrowLeft' && key !== 'ArrowRight') return false;
 
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return false;
+        if (!selection.isCollapsed()) return false;
+
+        const anchorNode = selection.anchor.getNode();
+        let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
+        while (blockNode && !$isBlockNode(blockNode)) {
+          blockNode = blockNode.getParent();
+        }
+
+        if (!blockNode || !$isBlockNode(blockNode)) return false;
+        if (!blockNode.getHasChildren()) return false;
+
         let blockIdToToggle: string | null = null;
         let shouldCollapse = false;
 
-        editor.read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          if (!selection.isCollapsed()) return;
-
-          const anchorNode = selection.anchor.getNode();
-          let blockNode: ReturnType<typeof anchorNode.getParent> | typeof anchorNode = anchorNode;
-          while (blockNode && !$isBlockNode(blockNode)) {
-            blockNode = blockNode.getParent();
-          }
-
-          if (!blockNode || !$isBlockNode(blockNode)) return;
-          if (!blockNode.getHasChildren()) return;
-
-          if (key === 'ArrowLeft' && !blockNode.getCollapsed()) {
-            // Collapse
-            blockIdToToggle = blockNode.getBlockId();
-            shouldCollapse = true;
-          } else if (key === 'ArrowRight' && blockNode.getCollapsed()) {
-            // Expand
-            blockIdToToggle = blockNode.getBlockId();
-            shouldCollapse = false;
-          }
-        });
+        if (key === 'ArrowLeft' && !blockNode.getCollapsed()) {
+          blockIdToToggle = blockNode.getBlockId();
+          shouldCollapse = true;
+        } else if (key === 'ArrowRight' && blockNode.getCollapsed()) {
+          blockIdToToggle = blockNode.getBlockId();
+          shouldCollapse = false;
+        }
 
         if (!blockIdToToggle) return false;
 
