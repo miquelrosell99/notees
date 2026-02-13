@@ -80,17 +80,14 @@ export function KeyboardSelectionPlugin({
           // Edit mode → select current block
           let blockIdToSelect: string | null = null;
           
-          // Read blockId synchronously first (editor.read is always sync)
-          editor.read(() => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return;
-
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
             const blockNode = findParentNodeBlock(anchorNode);
-            if (!blockNode) return;
-
-            blockIdToSelect = blockNode.getBlockId();
-          });
+            if (blockNode) {
+              blockIdToSelect = blockNode.getBlockId();
+            }
+          }
 
           if (blockIdToSelect) {
             // Clear text selection in a separate update
@@ -128,16 +125,14 @@ export function KeyboardSelectionPlugin({
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
           
-          editor.read(() => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return;
-
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
             const blockNode = findParentNodeBlock(anchorNode);
-            if (!blockNode) return;
-
-            blockIdToSelect = blockNode.getBlockId();
-          });
+            if (blockNode) {
+              blockIdToSelect = blockNode.getBlockId();
+            }
+          }
           
           if (blockIdToSelect) {
             editor.update(() => { $setSelection(null); });
@@ -213,16 +208,14 @@ export function KeyboardSelectionPlugin({
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
           
-          editor.read(() => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return;
-
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
             const blockNode = findParentNodeBlock(anchorNode);
-            if (!blockNode) return;
-
-            blockIdToSelect = blockNode.getBlockId();
-          });
+            if (blockNode) {
+              blockIdToSelect = blockNode.getBlockId();
+            }
+          }
           
           if (blockIdToSelect) {
             editor.update(() => { $setSelection(null); });
