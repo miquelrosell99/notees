@@ -41,6 +41,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const isIdleRef = useRef(false);
   // Track whether we've set an initial position (skip transition on first placement)
   const hasPositionedRef = useRef(false);
+  // Track previous Y position for elastic bounce on block jumps
+  const prevTopRef = useRef<number | null>(null);
 
   // ─── Idle detection helpers ──────────────────────────────────
 
@@ -136,6 +138,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   // didn't move visually and trigger an extra move.
 
   const lastVisualPosRef = useRef<{ x: number; y: number } | null>(null);
+  const lastArrowDirRef = useRef<'left' | 'right' | null>(null);
 
   useEffect(() => {
     if (readOnly) return;
@@ -146,11 +149,12 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return false;
         if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
 
-        // Capture the visual position before the move
+        // Capture visual position and direction before the move
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
         const beforeRect = sel.getRangeAt(0).getBoundingClientRect();
         lastVisualPosRef.current = { x: Math.round(beforeRect.left), y: Math.round(beforeRect.top) };
+        lastArrowDirRef.current = event.key === 'ArrowLeft' ? 'left' : 'right';
 
         return false; // Don't consume — let Lexical handle the move
       },
@@ -165,8 +169,10 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       SELECTION_CHANGE_COMMAND,
       () => {
         const prev = lastVisualPosRef.current;
-        if (!prev) return false;
+        const dir = lastArrowDirRef.current;
+        if (!prev || !dir) return false;
         lastVisualPosRef.current = null;
+        lastArrowDirRef.current = null;
 
         // Check if the visual position actually changed
         const sel = window.getSelection();
@@ -175,9 +181,9 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         const dx = Math.abs(Math.round(afterRect.left) - prev.x);
         const dy = Math.abs(Math.round(afterRect.top) - prev.y);
 
-        // If the cursor didn't visually move (same pixel position), we're at
-        // a format boundary — read the Lexical selection and move once more
-        if (dx < 1 && dy < 1) {
+        // If the cursor didn't visually move, we're at a format boundary —
+        // advance one more position in the same direction as the arrow key
+        if (dx < 2 && dy < 2) {
           editor.update(() => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection) || !selection.isCollapsed()) return;
@@ -185,19 +191,27 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
             const anchor = selection.anchor;
             const node = anchor.getNode();
 
-            // Determine direction from which edge we're at
-            if ($isTextNode(node)) {
-              if (anchor.offset === 0) {
-                // At start of text node — we came from the left, try to move left into prev node
-                const prev = node.getPreviousSibling();
-                if (prev && $isTextNode(prev)) {
-                  prev.select(prev.getTextContentSize(), prev.getTextContentSize());
-                }
-              } else if (anchor.offset === node.getTextContentSize()) {
-                // At end of text node — we came from the right, try to move right into next node
+            if (!$isTextNode(node)) return;
+
+            if (dir === 'right') {
+              if (anchor.offset < node.getTextContentSize()) {
+                node.select(anchor.offset + 1, anchor.offset + 1);
+              } else {
                 const next = node.getNextSibling();
-                if (next && $isTextNode(next)) {
-                  next.select(0, 0);
+                if (next && $isTextNode(next) && next.getTextContentSize() > 0) {
+                  next.select(1, 1);
+                }
+              }
+            } else {
+              if (anchor.offset > 0) {
+                node.select(anchor.offset - 1, anchor.offset - 1);
+              } else {
+                const prevSibling = node.getPreviousSibling();
+                if (prevSibling && $isTextNode(prevSibling)) {
+                  const len = prevSibling.getTextContentSize();
+                  if (len > 0) {
+                    prevSibling.select(len - 1, len - 1);
+                  }
                 }
               }
             }
@@ -249,7 +263,10 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     });
 
     if (isPillSelected) {
-      // Find the selected pill DOM element
+      // Clear any selection highlight children
+      while (caret.firstChild) caret.removeChild(caret.firstChild);
+      caret.style.background = '';
+
       const selectedPill = rootElement.querySelector('.node-pill-wrapper.selected, .node-pill-wrapper--selected');
       if (selectedPill) {
         const pillRect = selectedPill.getBoundingClientRect();
@@ -268,27 +285,112 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         caret.style.width = `${pillRect.width + padding * 2}px`;
         caret.style.height = `${pillRect.height + padding * 2}px`;
 
-        // Apply pill mode classes
-        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block');
+        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--selection');
         caret.classList.add('notees-custom-caret--pill');
         return;
       }
     }
 
-    // ─── Non-pill: text caret positioning ───
+    // ─── DOM selection ───
 
     const domSelection = window.getSelection();
-    if (!domSelection || domSelection.rangeCount === 0 || !domSelection.isCollapsed) {
+    if (!domSelection || domSelection.rangeCount === 0) {
       caret.style.display = 'none';
       return;
     }
+
+    // ─── Non-collapsed: selection highlight mode ───
+
+    if (!domSelection.isCollapsed) {
+      const range = domSelection.getRangeAt(0);
+      const clientRects = range.getClientRects();
+
+      if (clientRects.length === 0) {
+        caret.style.display = 'none';
+        return;
+      }
+
+      // Merge client rects into per-line rects
+      const lineRects: { left: number; top: number; width: number; height: number }[] = [];
+      for (const r of clientRects) {
+        if (r.width < 1 || r.height < 1) continue;
+        const last = lineRects[lineRects.length - 1];
+        if (last && Math.abs(r.top - last.top) < r.height * 0.5) {
+          const newLeft = Math.min(last.left, r.left);
+          const newRight = Math.max(last.left + last.width, r.left + r.width);
+          const newTop = Math.min(last.top, r.top);
+          const newBottom = Math.max(last.top + last.height, r.top + r.height);
+          last.left = newLeft;
+          last.top = newTop;
+          last.width = newRight - newLeft;
+          last.height = newBottom - newTop;
+        } else {
+          lineRects.push({ left: r.left, top: r.top, width: r.width, height: r.height });
+        }
+      }
+
+      if (lineRects.length === 0) {
+        caret.style.display = 'none';
+        return;
+      }
+
+      const overallRect = range.getBoundingClientRect();
+
+      if (!hasPositionedRef.current) {
+        caret.style.transition = 'none';
+        hasPositionedRef.current = true;
+        requestAnimationFrame(() => { caret.style.transition = ''; });
+      }
+
+      caret.style.display = 'block';
+      caret.style.top = `${overallRect.top - editorRect.top}px`;
+      caret.style.left = `${overallRect.left - editorRect.left}px`;
+      caret.style.width = `${overallRect.width}px`;
+      caret.style.height = `${overallRect.height}px`;
+      caret.style.background = 'transparent';
+
+      caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--pill');
+      caret.classList.add('notees-custom-caret--selection');
+
+      // Render per-line highlight rects as children
+      const existingChildren = caret.children;
+      let childIdx = 0;
+
+      for (const lr of lineRects) {
+        let child: HTMLElement;
+        if (childIdx < existingChildren.length) {
+          child = existingChildren[childIdx] as HTMLElement;
+        } else {
+          child = document.createElement('div');
+          child.className = 'notees-caret-selection-line';
+          caret.appendChild(child);
+        }
+        child.style.left = `${lr.left - overallRect.left}px`;
+        child.style.top = `${lr.top - overallRect.top}px`;
+        child.style.width = `${lr.width}px`;
+        child.style.height = `${lr.height}px`;
+        childIdx++;
+      }
+
+      // Remove extra children from previous renders
+      while (caret.children.length > childIdx) {
+        caret.removeChild(caret.lastChild!);
+      }
+
+      return;
+    }
+
+    // ─── Collapsed: clear selection children, restore caret ───
+
+    while (caret.firstChild) caret.removeChild(caret.firstChild);
+    caret.style.background = '';
+    caret.classList.remove('notees-custom-caret--selection');
 
     const range = domSelection.getRangeAt(0);
     let rect: DOMRect;
     const { startContainer, startOffset } = range;
 
     if (overwriteMode) {
-      // Block caret — measure the next character
       if (
         startContainer.nodeType === Node.TEXT_NODE &&
         startOffset < (startContainer.textContent?.length ?? 0)
@@ -297,15 +399,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         charRange.setStart(startContainer, startOffset);
         charRange.setEnd(startContainer, startOffset + 1);
         rect = charRange.getBoundingClientRect();
-
-        if (rect.width < 1) {
-          rect = range.getBoundingClientRect();
-        }
+        if (rect.width < 1) rect = range.getBoundingClientRect();
       } else {
         rect = range.getBoundingClientRect();
       }
     } else {
-      // Line caret — collapsed range
       rect = range.getBoundingClientRect();
     }
 
@@ -338,13 +436,31 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       requestAnimationFrame(() => { caret.style.transition = ''; });
     }
 
+    // Elastic bounce on block/line jumps (vertical position change > 10px)
+    const prevTop = prevTopRef.current;
+    prevTopRef.current = top;
+
+    if (prevTop !== null && hasPositionedRef.current) {
+      const deltaY = top - prevTop;
+      if (Math.abs(deltaY) > 10) {
+        caret.animate(
+          [
+            { transform: `translateY(${deltaY > 0 ? -3 : 3}px)` },
+            { transform: 'translateY(0.8px)' },
+            { transform: 'translateY(0)' },
+          ],
+          { duration: 280, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+        );
+      }
+    }
+
     caret.style.display = 'block';
     caret.style.top = `${top}px`;
     caret.style.left = `${left}px`;
     caret.style.height = `${height}px`;
 
-    // Remove pill class
-    caret.classList.remove('notees-custom-caret--pill');
+    // Remove pill/selection classes
+    caret.classList.remove('notees-custom-caret--pill', 'notees-custom-caret--selection');
 
     if (overwriteMode) {
       const charWidth = rect.width > 1 ? rect.width : 8;
@@ -411,7 +527,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     const onFocus = () => {
       markActive();
-      hasPositionedRef.current = false; // Reset so first position after focus skips transition
+      hasPositionedRef.current = false;
+      prevTopRef.current = null; // Reset so re-focus doesn't trigger bounce
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(updateCaretPosition);
     };
@@ -452,24 +569,59 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     return () => observer.disconnect();
   }, [editor, updateCaretPosition]);
 
-  // ─── Listen for CSS transitions completing ───────────────────
+  // ─── Listen for CSS transitions (indent/outdent) ──────────────
+  // Track ongoing transitions and update caret continuously during them
 
   useEffect(() => {
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
-    const onTransitionEnd = (e: TransitionEvent) => {
-      // Only respond to margin-left transitions (indent/outdent)
-      if (e.propertyName === 'margin-left') {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(updateCaretPosition);
+    const transitioningElements = new Set<Element>();
+    let transitionRaf: number = 0;
+
+    // Update caret continuously while any transitions are active
+    const updateDuringTransition = () => {
+      if (transitioningElements.size > 0) {
+        updateCaretPosition();
+        transitionRaf = requestAnimationFrame(updateDuringTransition);
       }
     };
 
+    const onTransitionStart = (e: TransitionEvent) => {
+      // Only respond to margin-left transitions (indent/outdent)
+      if (e.propertyName === 'margin-left' && e.target instanceof Element) {
+        transitioningElements.add(e.target);
+        // Start continuous updates if not already running
+        if (transitionRaf === 0) {
+          transitionRaf = requestAnimationFrame(updateDuringTransition);
+        }
+      }
+    };
+
+    const onTransitionEnd = (e: TransitionEvent) => {
+      // Only respond to margin-left transitions (indent/outdent)
+      if (e.propertyName === 'margin-left' && e.target instanceof Element) {
+        transitioningElements.delete(e.target);
+        // Final update after transition completes
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(updateCaretPosition);
+        // Stop continuous updates if no more transitions
+        if (transitioningElements.size === 0 && transitionRaf !== 0) {
+          cancelAnimationFrame(transitionRaf);
+          transitionRaf = 0;
+        }
+      }
+    };
+
+    rootElement.addEventListener('transitionstart', onTransitionStart, true);
     rootElement.addEventListener('transitionend', onTransitionEnd, true);
 
     return () => {
+      rootElement.removeEventListener('transitionstart', onTransitionStart, true);
       rootElement.removeEventListener('transitionend', onTransitionEnd, true);
+      if (transitionRaf !== 0) {
+        cancelAnimationFrame(transitionRaf);
+      }
     };
   }, [editor, updateCaretPosition]);
 
