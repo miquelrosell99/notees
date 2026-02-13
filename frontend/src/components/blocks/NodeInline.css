@@ -19,7 +19,7 @@
 }
 
 .node-inline--clickable:hover {
-  background: var(--color-selection-bg);
+  background: var(--color-hover-overlay);
 }
 
 .node-inline__text {

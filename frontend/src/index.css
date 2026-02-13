@@ -73,7 +73,7 @@ button:focus-visible {
 input, textarea, select {
   font-family: inherit;
   font-size: inherit;
-  caret-color: var(--color-caret);
+  caret-color: var(--color-on-surface);
 }
 
 input:focus, textarea:focus, select:focus {
@@ -113,6 +113,6 @@ input:focus, textarea:focus, select:focus {
 
 /* Selection styling — monochrome, deliberate highlight */
 ::selection {
-  background: var(--color-selection-text);
+  background: var(--color-pressed-overlay);
   color: var(--color-on-surface);
 }

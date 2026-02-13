@@ -95,7 +95,7 @@
 }
 
 .suggestion-popup__item:hover {
-  background: var(--color-selection-bg);
+  background: var(--color-hover-overlay);
 }
 
 .suggestion-popup__item:active {
@@ -103,7 +103,7 @@
 }
 
 .suggestion-popup__item--selected {
-  background: var(--color-selection-bg);
+  background: var(--color-hover-overlay);
 }
 
 .suggestion-popup__item--create {

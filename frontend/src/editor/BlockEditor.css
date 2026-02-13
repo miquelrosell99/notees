@@ -82,7 +82,7 @@
   align-items: center;
   padding: 0;
   margin: 3px 0;
-  margin-left: calc(var(--node-block-depth, 0) * var(--indent-width));
+  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-6));
   min-height: 1.6em;
   line-height: 1.6;
   transition: margin-left var(--motion-duration-medium) var(--motion-easing-standard);
@@ -111,7 +111,7 @@
 
 .bullet-collapse-arrow:hover {
   opacity: 1 !important;
-  color: var(--color-bullet-hover);
+  color: var(--color-on-surface);
 }
 
 .bullet-collapse-arrow:active {
@@ -204,7 +204,7 @@
   position: absolute;
   pointer-events: none;
   z-index: 10;
-  background: var(--color-caret);
+  background: var(--color-on-surface);
   display: none;
   transition: top 0.1s var(--motion-easing-standard),
               left 0.1s var(--motion-easing-standard),
@@ -231,7 +231,7 @@
 .notees-custom-caret--pill {
   border-radius: 6px;
   background: transparent;
-  border: 2px solid var(--color-caret);
+  border: 2px solid var(--color-on-surface);
   animation: notees-pill-breathe 0.85s ease-in-out infinite;
 }
 
@@ -246,7 +246,7 @@
 /* Per-line selection highlight */
 .notees-caret-selection-line {
   position: absolute;
-  background: var(--color-caret);
+  background: var(--color-on-surface);
   opacity: 0.15;
   border-radius: 3px;
   pointer-events: none;
@@ -286,7 +286,7 @@
 
 /* Selection creates a card-like appearance encompassing block + children */
 .node-block--selected {
-  background-color: var(--color-selection-bg, rgba(59, 130, 246, 0.04));
+  background-color: var(--color-hover-overlay);
   position: relative;
 }
 
@@ -335,7 +335,7 @@
 
 /* Child blocks of a selected block share the background */
 .node-block--selected-child {
-  background-color: var(--color-selection-bg, rgba(59, 130, 246, 0.04));
+  background-color: var(--color-hover-overlay);
   margin: 0;
 }
 
@@ -382,7 +382,7 @@
 
 .node-block--selected,
 .node-block.selected {
-  background-color: var(--color-selection-bg);
+  background-color: var(--color-hover-overlay);
 }
 
 /* No hover background on the entire block - only on bullet */
@@ -403,7 +403,7 @@
 }
 
 .node-block--card:hover {
-  box-shadow: var(--tactile-lift-shadow);
+  box-shadow: var(--elevation-2);
 }
 
 .node-block--query {
@@ -554,8 +554,8 @@ th.node-block-table-cell {
   position: fixed;
   pointer-events: none;
   z-index: 10000;
-  background: var(--color-ghost-card-bg);
-  border: 1px solid var(--color-ghost-card-border);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   padding: 8px 14px;
   opacity: var(--ghost-card-opacity);
@@ -578,7 +578,7 @@ th.node-block-table-cell {
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--color-drop-indicator);
+  background: var(--color-on-surface);
   border-radius: 1px;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -592,7 +592,7 @@ th.node-block-table-cell {
   width: 6px;
   height: 10px;
   border-radius: 3px;
-  background: var(--color-drop-indicator);
+  background: var(--color-on-surface);
 }
 
 /* ─── Selection box ────────────────────────────────────────────── */
@@ -601,7 +601,7 @@ th.node-block-table-cell {
   pointer-events: none;
   z-index: 1000;
   position: fixed;
-  background: var(--color-selection-bg);
+  background: var(--color-hover-overlay);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
 }
@@ -630,7 +630,7 @@ th.node-block-table-cell {
    See CardEditor.css and CardModeView.css for card-specific styles. */
 
 .notees-editor--list .notees-editor-content {
-  padding: 0 0 0 var(--indent-width);
+  padding: 0 0 0 var(--spacing-6);
   min-height: 0;
   cursor: default;
 }

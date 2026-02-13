@@ -139,7 +139,7 @@
 }
 
 .table--hoverable .table-body .table-row:hover > .table-cell {
-  background: var(--color-selection-bg);
+  background: var(--color-hover-overlay);
 }
 
 .table--selectable .table-body .table-row {
@@ -147,7 +147,7 @@
 }
 
 .table-row--selected > .table-cell {
-  background: var(--color-selection-bg) !important;
+  background: var(--color-hover-overlay) !important;
 }
 
 /* Alignment */
