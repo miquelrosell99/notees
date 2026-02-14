@@ -348,11 +348,13 @@ export function CommandPalette({
       items.push({ type: 'quick-add', label: `Quick add: "${searchTerm}"` });
     }
 
-    // Commands section — filter by search term
-    const lowerSearch = searchTerm.toLowerCase();
-    for (const cmd of commands) {
-      if (!lowerSearch || cmd.label.toLowerCase().includes(lowerSearch)) {
-        items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
+    // Commands section — only show when user is searching
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase();
+      for (const cmd of commands) {
+        if (cmd.label.toLowerCase().includes(lowerSearch)) {
+          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
+        }
       }
     }
     
