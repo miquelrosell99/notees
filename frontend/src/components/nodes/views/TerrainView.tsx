@@ -23,7 +23,7 @@ import { setSetting } from '@/api/databases';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode, PeakSizeMode } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiTrashCanOutline, mdiClose, mdiFileTree, mdiLinkVariant, mdiArrowExpandAll, mdiTextBox, mdiPause, mdiPlay } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiTrashCanOutline, mdiClose, mdiFileTree, mdiLinkVariant, mdiArrowExpandAll, mdiTextBox } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -481,6 +481,25 @@ export function TerrainView({
                     }))}
                   />
                 </div>
+
+                <div className="visibility-option">
+                  <BooleanToggle
+                    size="sm"
+                    label="Simulation"
+                    description="Run or pause the physics simulation"
+                    labelPosition="left"
+                    checked={!simulationPaused}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        rendererRef.current?.resumeSimulation();
+                        setSimulationPaused(false);
+                      } else {
+                        rendererRef.current?.pauseSimulation();
+                        setSimulationPaused(true);
+                      }
+                    }}
+                  />
+                </div>
               </div>
             </ButtonWithPanel>
             
@@ -600,21 +619,6 @@ export function TerrainView({
       
       {/* Recenter button — bottom right */}
       <div className="terrain-recenter-btn">
-        <Button
-          icon={simulationPaused ? mdiPlay : mdiPause}
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            if (simulationPaused) {
-              rendererRef.current?.resumeSimulation();
-              setSimulationPaused(false);
-            } else {
-              rendererRef.current?.pauseSimulation();
-              setSimulationPaused(true);
-            }
-          }}
-          title={simulationPaused ? 'Resume simulation' : 'Pause simulation'}
-        />
         <Button
           icon={mdiCrosshairsGps}
           size="sm"
