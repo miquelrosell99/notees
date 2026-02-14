@@ -5,22 +5,50 @@
  * Fetches node data by UUID and renders a lightweight inline pill.
  *
  * Also used by BlockClassPillsPlugin to render class pills on blocks.
+ * Supports URL pills (refType === 'url') that render an external-link pill.
  */
 
 import { useMemo } from 'react';
+import Icon from '@mdi/react';
+import { mdiWeb } from '@mdi/js';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useClasses } from '@/hooks';
 import { NodeIcon } from '@/components/core/icons';
 import { parseLinkId } from '@/lib/astBuilder';
+import type { PillRefType } from '../nodes/PillNode';
 
 export interface InlineNodeLinkProps {
   linkId: string;
-  refType: 'node' | 'class';
+  refType: PillRefType;
+  /** URL for external-link pills. */
+  url?: string;
 }
 
-export function InlineNodeLink({ linkId, refType }: InlineNodeLinkProps) {
+export function InlineNodeLink({ linkId, refType, url }: InlineNodeLinkProps) {
+  // ─── URL pill ──────────────────────────────────────────────
+  if (refType === 'url') {
+    const displayText = url
+      ? url.replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 50) || url
+      : 'URL';
+
+    return (
+      <span className="node-pill-inner" data-ref-type="url">
+        <span className="node-pill-icon">
+          <Icon path={mdiWeb} size="14px" />
+        </span>
+        <span className="node-pill-text">{displayText}</span>
+      </span>
+    );
+  }
+
+  // ─── Node / class pill ─────────────────────────────────────
+  return <NodePill linkId={linkId} refType={refType} />;
+}
+
+/** Inner component for node/class pills — uses hooks that need stable renders. */
+function NodePill({ linkId, refType }: { linkId: string; refType: 'node' | 'class' }) {
   const { nodeUuid } = parseLinkId(linkId);
   const { data: node } = useNodeByUuid(nodeUuid);
   const { data: allClasses } = useClasses();

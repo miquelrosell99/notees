@@ -906,10 +906,12 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       break;
     }
     case 'external_link': {
-      // For now, render children as plain text
-      for (const child of inline.children) {
-        appendInlineNode(parent, child, format);
-      }
+      // Render as a URL pill
+      const label = inline.children
+        .map(c => ('text' in c ? c.text : ''))
+        .join('');
+      const urlPill = $createPillNode(label || inline.url, 'url', inline.url);
+      parent.append(urlPill);
       break;
     }
   }
@@ -924,11 +926,25 @@ function extractBlockContent(block: BlockNode): ContentAST {
 
   for (const child of children) {
     if ($isPillNode(child)) {
-      inlines.push({
-        type: 'node_link',
-        link_id: child.getLinkId(),
-        ref_type: child.getRefType(),
-      });
+      const rt = child.getRefType();
+      if (rt === 'url') {
+        // URL pill → external_link AST
+        const url = child.getUrl();
+        const displayText = child.getLinkId();
+        inlines.push({
+          type: 'external_link',
+          url,
+          children: displayText && displayText !== url
+            ? [{ type: 'text', text: displayText }]
+            : [],
+        });
+      } else {
+        inlines.push({
+          type: 'node_link',
+          link_id: child.getLinkId(),
+          ref_type: rt,
+        });
+      }
     } else if ($isLineBreakNode(child)) {
       inlines.push({ type: 'hard_break' });
     } else {

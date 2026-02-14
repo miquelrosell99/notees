@@ -17,6 +17,7 @@ import { $isBlockNode } from '../nodes/BlockNode';
 import { $isPillNode } from '../nodes/PillNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../BlockEditor';
+import type { PillRefType } from '../nodes/PillNode';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import type { Node } from '../../types/api';
@@ -27,7 +28,7 @@ export interface ContextMenuPluginProps {
   /** Called when bullet is clicked (for navigation) */
   onNavigateToNode?: (blockId: string) => void;
   /** Called when "Edit link" is chosen from the pill context menu */
-  onPillEdit?: (linkId: string, refType: 'node' | 'class') => void;
+  onPillEdit?: (linkId: string, refType: PillRefType, url?: string) => void;
   /** Called when "Delete link" is chosen from the pill context menu */
   onPillRemove?: (linkId: string) => void;
 }
@@ -38,8 +39,10 @@ interface ContextMenuState {
   isPage: boolean;
   /** When set, the menu targets a linked node (pill) rather than the block itself */
   pillLinkId?: string;
-  /** Ref type of the pill link ('node' or 'class') */
-  pillRefType?: 'node' | 'class';
+  /** Ref type of the pill link */
+  pillRefType?: PillRefType;
+  /** URL for URL pills */
+  pillUrl?: string;
 }
 
 export function ContextMenuPlugin({
@@ -163,13 +166,15 @@ export function ContextMenuPlugin({
         if (linkId) {
           event.preventDefault();
           event.stopPropagation();
-          const refType = (pillWrapper.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
+          const refType = (pillWrapper.getAttribute('data-ref-type') as PillRefType) || 'node';
+          const pillUrl = pillWrapper.getAttribute('data-url') || undefined;
           setContextMenu({
             position: { x: event.clientX, y: event.clientY },
             blockId: linkId,
             isPage: false,
             pillLinkId: linkId,
             pillRefType: refType,
+            pillUrl,
           });
         }
         return;
@@ -240,13 +245,14 @@ export function ContextMenuPlugin({
     if (!contextMenu?.pillLinkId) return [];
     const linkId = contextMenu.pillLinkId;
     const refType = contextMenu.pillRefType || 'node';
+    const pillUrl = contextMenu.pillUrl;
     return [
       {
         id: 'edit-link',
         label: 'Edit link',
         icon: mdiPencilOutline,
         onClick: () => {
-          onPillEdit?.(linkId, refType);
+          onPillEdit?.(linkId, refType, pillUrl);
           handleCloseContextMenu();
         },
       },
