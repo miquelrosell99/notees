@@ -261,6 +261,7 @@ export interface LogseqPage {
   journal?: string;     // YYYY-MM-DD date string for journal/daily pages
   tags?: string[];      // class ids
   aliases?: string[];   // alias page titles (from logseq.property/alias)
+  aliasOfUuids?: string[]; // UUIDs from :block/alias (this page is an alias of those targets)
   parent?: string;      // Parent page title (from logseq.property/parent namespace hierarchy)
   properties?: Record<string, unknown>;
   blocks: LogseqBlock[];
@@ -436,6 +437,21 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         }
       }
 
+      // :block/alias — set of [:block/uuid #uuid "..."] references
+      // When present, this page is an alias OF the referenced target pages
+      const aliasSet = mapGet(pageMap, 'block/alias');
+      const aliasOfUuids: string[] = [];
+      if (aliasSet instanceof Set) {
+        for (const ref of aliasSet) {
+          // Each entry is [:block/uuid #uuid "..."] — a 2-element vector
+          if (Array.isArray(ref) && ref.length === 2
+              && ref[0] instanceof EdnKeyword && ref[0].value === 'block/uuid'
+              && ref[1] instanceof EdnTagged) {
+            aliasOfUuids.push(String(ref[1].value));
+          }
+        }
+      }
+
       // Blocks
       const blocksVec = mapGet(entry, 'blocks');
       const blocks: LogseqBlock[] = [];
@@ -451,6 +467,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         journal: journalDate,
         tags: tags.length > 0 ? tags : undefined,
         aliases: pageAliases.length > 0 ? pageAliases : undefined,
+        aliasOfUuids: aliasOfUuids.length > 0 ? aliasOfUuids : undefined,
         parent: pageParent,
         properties: Object.keys(pageProperties).length > 0 ? pageProperties : undefined,
         blocks,
