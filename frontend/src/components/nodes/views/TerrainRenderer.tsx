@@ -268,7 +268,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const colorMapRef = useRef<HTMLCanvasElement | null>(null);
   
   // Store grid dims + owner map for plateau hit testing
-  const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES });
+  const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES, originX: 0, originY: 0 });
   
   // Hovered contour level index (-1 = none)
   const hoveredContourLevelRef = useRef(-1);
@@ -285,6 +285,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     gridW: number;
     gridH: number;
     gs: number;
+    originX: number;
+    originY: number;
     allChains: Array<Array<Array<[number, number]>>>; // [level][chain][point]
     nodeChildDirs: Array<Array<{nx: number, ny: number}>>;
     idToIdx: Map<number, number>;
@@ -298,7 +300,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     valid: boolean;
   }>({
     positionHash: 0, selectionHash: 0, classColorsHash: 0,
-    gridW: 0, gridH: 0, gs: 4,
+    gridW: 0, gridH: 0, gs: 4, originX: 0, originY: 0,
     allChains: [], nodeChildDirs: [], idToIdx: new Map(), nodeColors: [],
     lowR: 0, lowG: 0, lowB: 0, highR: 0, highG: 0, highB: 0,
     hasClassColors: false, hasSelection: false, selectedNodeIndices: new Set(),
@@ -348,21 +350,44 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return;
     }
     
-    // Generate height field — fixed grid resolution (adaptive caused contour flickering on zoom)
-    const gs = TERRAIN_GRID_RES;
-    const gridW = Math.ceil(w / gs);
-    const gridH = Math.ceil(h / gs);
+    // Generate height field in world space — zoom/pan changes do NOT trigger recomputation.
+    // Compute world-space bounding box of all visible nodes with padding for slope radii.
+    let minWX = Infinity, maxWX = -Infinity, minWY = Infinity, maxWY = -Infinity;
+    for (const node of visibleNodes) {
+      if (node.x < minWX) minWX = node.x;
+      if (node.x > maxWX) maxWX = node.x;
+      if (node.y < minWY) minWY = node.y;
+      if (node.y > maxWY) maxWY = node.y;
+    }
+    // Find maximum slope radius for bounding box padding
+    let maxSlopeR = TERRAIN_BASE_SLOPE_RADIUS;
+    for (const node of visibleNodes) {
+      const ps = terrainPeakRadii.get(node.id) ?? 0;
+      const sR = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * ps;
+      if (sR > maxSlopeR) maxSlopeR = sR;
+    }
+    const worldPad = maxSlopeR * (1 + TERRAIN_ANISOTROPY) * 1.1;
+    const originX = minWX - worldPad;
+    const originY = minWY - worldPad;
+    const worldW = Math.max(maxWX - minWX, 50) + worldPad * 2;
+    const worldH = Math.max(maxWY - minWY, 50) + worldPad * 2;
+    let gs = TERRAIN_GRID_RES;
+    let gridW = Math.ceil(worldW / gs);
+    let gridH = Math.ceil(worldH / gs);
+    // Cap grid dimensions for performance
+    const MAX_GRID_DIM = 1200;
+    if (gridW > MAX_GRID_DIM || gridH > MAX_GRID_DIM) {
+      gs = Math.ceil(Math.max(worldW / MAX_GRID_DIM, worldH / MAX_GRID_DIM));
+      gridW = Math.ceil(worldW / gs);
+      gridH = Math.ceil(worldH / gs);
+    }
     const gridSize = gridW * gridH;
     
     // ==================== Cache Validation ====================
-    // Compute cheap hash of node positions + transform to detect changes.
-    // Use grid-snapped positions so sub-grid-cell motion doesn't force a rebuild
-    // (contours don't visibly change for sub-pixel movements).
+    // Compute cheap hash of node world positions to detect changes.
+    // Zoom/pan changes do NOT invalidate the cache — only node positions do.
     const posSnap = gs * 0.5; // half a grid cell — invisible contour change
-    let positionHash = (Math.round(t.x / posSnap) * 7
-                      + Math.round(t.y / posSnap) * 13
-                      + Math.round(t.scale * 1000) * 31
-                      + visibleNodes.length * 97) | 0;
+    let positionHash = (visibleNodes.length * 97) | 0;
     for (let i = 0; i < visibleNodes.length; i++) {
       const n = visibleNodes[i];
       // Snap positions to half-grid-cell precision — finer changes are invisible
@@ -389,10 +414,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       && cache.gridH === gridH;
     
     // Numeric point key for contour chain building (avoids string allocation)
+    // Uses relative grid coords (subtract origin) to keep values in a compact range
     const ptKey = (x: number, y: number): number => {
-      const ix = ((x * 100 + 0.5) | 0) + 500000;
-      const iy = ((y * 100 + 0.5) | 0) + 500000;
-      return ix * 1048576 + iy; // 2^20 should be enough range
+      const ix = (((x - originX) * 100 + 0.5) | 0) + 500000;
+      const iy = (((y - originY) * 100 + 0.5) | 0) + 500000;
+      return ix * 2097152 + iy; // 2^21 for larger range with world coords
     };
     
     if (!cacheValid) {
@@ -417,6 +443,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     plateauGridRef.current.gridW = gridW;
     plateauGridRef.current.gridH = gridH;
     plateauGridRef.current.gs = gs;
+    plateauGridRef.current.originX = originX;
+    plateauGridRef.current.originY = originY;
     
     // Precompute per-node anisotropy direction from parent links
     // Each node accumulates a stretch direction toward its parent/child connections
@@ -457,14 +485,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       if (H <= 0) { nodeIdx++; continue; }
       nodePeakH[nodeIdx] = H;
       
-      const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale / gs;
-      const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) * t.scale / gs;
+      const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) / gs;
+      const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) / gs;
       const RpSq = Rp * Rp;
       const RsSq = Rs * Rs;
       const invSlopeRangeSq = 1 / (RsSq - RpSq);
       
-      const centerX = (node.x * t.scale + t.x) / gs;
-      const centerY = (node.y * t.scale + t.y) / gs;
+      const centerX = (node.x - originX) / gs;
+      const centerY = (node.y - originY) / gs;
       
       // Star-shaped distortion: child directions for this node
       const dirs = nodeChildDirs[nodeIdx];
@@ -571,22 +599,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
       
       if (refLinks.length > 0) {
-        // Build node peak info map (position + plateau radius)
+        // Build node peak info map (world position + plateau radius in world units)
         const nodePeaks = new Map<number, NodePeakInfo>();
         for (const node of visibleNodes) {
-          const sx = node.x * t.scale + t.x;
-          const sy = node.y * t.scale + t.y;
           const peakSize = terrainPeakRadii.get(node.id) ?? 0;
-          const plateauRadius = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale;
-          nodePeaks.set(node.id, { screenX: sx, screenY: sy, plateauRadius });
+          const plateauRadius = TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize;
+          nodePeaks.set(node.id, { x: node.x, y: node.y, plateauRadius });
         }
         
         // Build set of protected peak grid cells (node centers ± small radius)
         const nodePeakGridCells = new Set<number>();
         const peakProtectRadius = 3; // grid cells around each peak to protect
         for (const node of visibleNodes) {
-          const cx = Math.round((node.x * t.scale + t.x) / gs);
-          const cy = Math.round((node.y * t.scale + t.y) / gs);
+          const cx = Math.round((node.x - originX) / gs);
+          const cy = Math.round((node.y - originY) / gs);
           for (let dy = -peakProtectRadius; dy <= peakProtectRadius; dy++) {
             for (let dx = -peakProtectRadius; dx <= peakProtectRadius; dx++) {
               const px = cx + dx;
@@ -601,13 +627,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         // Compute paths via A* on heightMap
         const result = computeReferencePaths(
           heightMap, gridW, gridH, gs,
+          originX, originY,
           refLinks, nodePeaks,
         );
         computedReferencePaths = result.paths;
         
         // Apply subtle erosion along paths (creates shallow valleys)
         if (computedReferencePaths.length > 0) {
-          applyPathErosion(heightMap, gridW, gridH, gs, computedReferencePaths, nodePeakGridCells);
+          applyPathErosion(heightMap, gridW, gridH, gs, originX, originY, computedReferencePaths, nodePeakGridCells);
         }
       }
     }
@@ -754,7 +781,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
-        const py = gy * gs;
+        const py = originY + gy * gs;
         for (let gx = 0; gx < gridW - 1; gx++) {
           const v00 = heightMap[rowOff + gx];
           const v10 = heightMap[rowOff + gx + 1];
@@ -763,7 +790,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
                        (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
           if (code === 0 || code === 15) continue;
-          const px = gx * gs;
+          const px = originX + gx * gs;
           const topD = v10 - v00;
           const topT = topD === 0 ? 0.5 : (level - v00) / topD;
           const rightD = v11 - v10;
@@ -923,6 +950,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     cache.gridW = gridW;
     cache.gridH = gridH;
     cache.gs = gs;
+    cache.originX = originX;
+    cache.originY = originY;
     cache.allChains = allChains;
     cache.nodeChildDirs = nodeChildDirs;
     cache.idToIdx = idToIdx;
@@ -1011,6 +1040,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       offCtx.setTransform(1, 0, 0, 1, 0, 0);
       offCtx.clearRect(0, 0, bw, bh);
       offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.translate(t.x, t.y);
+      offCtx.scale(t.scale, t.scale);
       offCtx.lineCap = 'butt';
       offCtx.setLineDash(LINE_DASH_NONE);
       drawAllContours(offCtx, (level, isMajor, isHov) => {
@@ -1019,20 +1050,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         offCtx.strokeStyle = cachedHasClassColors
           ? `rgba(255, 255, 255, ${baseOp * DIM_OPACITY_FACTOR})`
           : `rgba(${cachedLowR}, ${cachedLowG}, ${cachedLowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
-        offCtx.lineWidth = Math.max(0.5, baseLW * 0.7);
+        offCtx.lineWidth = Math.max(0.5, baseLW * 0.7) / t.scale;
       });
       if (cachedHasClassColors && blurredColorMap) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
+        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
         offCtx.restore();
       }
       if (blurredMask) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'destination-out';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, 0, 0, w, h);
+        offCtx.drawImage(blurredMask, originX, originY, gridW * gs, gridH * gs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
@@ -1041,6 +1072,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       offCtx.setTransform(1, 0, 0, 1, 0, 0);
       offCtx.clearRect(0, 0, bw, bh);
       offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.translate(t.x, t.y);
+      offCtx.scale(t.scale, t.scale);
       offCtx.lineCap = 'butt';
       offCtx.setLineDash(LINE_DASH_NONE);
       drawAllContours(offCtx, (level, isMajor, isHov) => {
@@ -1054,20 +1087,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
           offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
         }
-        offCtx.lineWidth = baseLW;
+        offCtx.lineWidth = baseLW / t.scale;
       });
       if (cachedHasClassColors && blurredColorMap) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
+        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
         offCtx.restore();
       }
       if (blurredMask) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'destination-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, 0, 0, w, h);
+        offCtx.drawImage(blurredMask, originX, originY, gridW * gs, gridH * gs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
@@ -1081,23 +1114,28 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       offCtx.setTransform(1, 0, 0, 1, 0, 0);
       offCtx.clearRect(0, 0, bw, bh);
       offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      offCtx.translate(t.x, t.y);
+      offCtx.scale(t.scale, t.scale);
       offCtx.lineCap = 'butt';
       offCtx.setLineDash(LINE_DASH_NONE);
       drawAllContours(offCtx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
         offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
-        offCtx.lineWidth = baseLW;
+        offCtx.lineWidth = baseLW / t.scale;
       });
       if (blurredColorMap) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, 0, 0, w, h);
+        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
     } else {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.scale(t.scale, t.scale);
       drawAllContours(ctx, (level, isMajor, isHov) => {
         const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
         const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
@@ -1105,8 +1143,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const g = Math.round(cachedLowG + (cachedHighG - cachedLowG) * level);
         const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
         ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
-        ctx.lineWidth = baseLW;
+        ctx.lineWidth = baseLW / t.scale;
       });
+      ctx.restore();
     }
     
     ctx.restore();
@@ -1151,11 +1190,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     if (curOpacity > 0.001 && cache.referencePaths.length > 0) {
       ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.scale(t.scale, t.scale);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       
       for (const path of cache.referencePaths) {
-        const pts = path.screenPoints;
+        const pts = path.worldPoints;
         const mult = path.pointMultiplicity;
         if (pts.length < 2) continue;
         
@@ -1198,12 +1239,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           
           // Outer glow stroke
           ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.12 * curOpacity})`;
-          ctx.lineWidth = lineWidth + 1.5;
+          ctx.lineWidth = (lineWidth + 1.5) / t.scale;
           ctx.stroke();
           
           // Main stroke — bolder where paths merge
           ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${opacityBoost * curOpacity})`;
-          ctx.lineWidth = lineWidth;
+          ctx.lineWidth = lineWidth / t.scale;
           ctx.stroke();
         }
       }
@@ -1418,7 +1459,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   const updateProfiles = useCallback(() => {
     const heightMap = heightMapBufRef.current;
-    const { gridW: gW, gridH: gH, gs: pGs } = plateauGridRef.current;
+    const { gridW: gW, gridH: gH, gs: pGs, originX: pOX, originY: pOY } = plateauGridRef.current;
     if (!heightMap || gW === 0) {
       setProfileXPath('');
       setProfileYPath('');
@@ -1451,7 +1492,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
     if (mx >= 0 && my >= 0) {
-      const gy = Math.floor(my / pGs);
+      const tProf = transformRef.current;
+      const worldMy = (my - tProf.y) / tProf.scale;
+      const gy = Math.floor((worldMy - pOY) / pGs);
       if (gy >= 0 && gy < gH) {
         const tLeft = INSET;
         const tRight = w - CROSS_INSET;
@@ -1463,14 +1506,16 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const samplePts: Array<[number, number]> = [];
         for (let px = 0; px <= cw; px += 6) {
           const terrainX = tLeft + (px / cw) * tSpan;
-          const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
+          const worldTerrainX = (terrainX - tProf.x) / tProf.scale;
+          const gx = Math.min(Math.max(Math.floor((worldTerrainX - pOX) / pGs), 0), gW - 1);
           const val = heightMap[gy * gW + gx];
           const py = ch - val * (ch - 4);
           samplePts.push([px, py]);
         }
         // Ensure last point is at cw
         if (samplePts.length === 0 || samplePts[samplePts.length - 1][0] !== cw) {
-          const gxEnd = Math.min(Math.max(Math.floor((tLeft + tSpan) / pGs), 0), gW - 1);
+          const worldEndX = (tLeft + tSpan - tProf.x) / tProf.scale;
+          const gxEnd = Math.min(Math.max(Math.floor((worldEndX - pOX) / pGs), 0), gW - 1);
           const valEnd = heightMap[gy * gW + gxEnd];
           samplePts.push([cw, ch - valEnd * (ch - 4)]);
         }
@@ -1493,7 +1538,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           if (distY > NODE_DOT_MAX_DIST) continue;
           if (nsx < tLeft || nsx > tRight) continue;
           const cardNx = (nsx - tLeft) / tSpan * cw;
-          const ngx = Math.min(Math.max(Math.floor(nsx / pGs), 0), gW - 1);
+          const ngx = Math.min(Math.max(Math.floor((node.x - pOX) / pGs), 0), gW - 1);
           const nVal = heightMap[gy * gW + ngx];
           const ndotY = ch - nVal * (ch - 4);
           const prox = 1 - distY / NODE_DOT_MAX_DIST;
@@ -1520,7 +1565,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     // --- Right profile (Y axis): sample heightMap along column at cursor X ---
     if (mx >= 0 && my >= 0) {
-      const gx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
+      const tProf2 = transformRef.current;
+      const worldMx = (mx - tProf2.x) / tProf2.scale;
+      const gx = Math.min(Math.max(Math.floor((worldMx - pOX) / pGs), 0), gW - 1);
       if (gx >= 0 && gx < gW) {
         const tTop = INSET;
         const tBottom = h - CROSS_INSET;
@@ -1532,14 +1579,16 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const samplePts: Array<[number, number]> = [];
         for (let py = 0; py <= ch; py += 6) {
           const terrainY = tTop + (py / ch) * tSpan;
-          const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
+          const worldTerrainY = (terrainY - tProf2.y) / tProf2.scale;
+          const gy = Math.min(Math.max(Math.floor((worldTerrainY - pOY) / pGs), 0), gH - 1);
           const val = heightMap[gy * gW + gx];
           const px = cw - val * (cw - 4);
           samplePts.push([px, py]);
         }
         // Ensure last point is at ch
         if (samplePts.length === 0 || samplePts[samplePts.length - 1][1] !== ch) {
-          const gyEnd = Math.min(Math.max(Math.floor((tTop + tSpan) / pGs), 0), gH - 1);
+          const worldEndY = (tTop + tSpan - tProf2.y) / tProf2.scale;
+          const gyEnd = Math.min(Math.max(Math.floor((worldEndY - pOY) / pGs), 0), gH - 1);
           const valEnd = heightMap[gyEnd * gW + gx];
           samplePts.push([cw - valEnd * (cw - 4), ch]);
         }
@@ -1562,7 +1611,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           if (distX > NODE_DOT_MAX_DIST) continue;
           if (nsy < tTop || nsy > tBottom) continue;
           const cardNy = (nsy - tTop) / tSpan * ch;
-          const ngy = Math.min(Math.max(Math.floor(nsy / pGs), 0), gH - 1);
+          const ngy = Math.min(Math.max(Math.floor((node.y - pOY) / pGs), 0), gH - 1);
           const nVal = heightMap[ngy * gW + gx];
           const ndotX = cw - nVal * (cw - 4);
           const prox = 1 - distX / NODE_DOT_MAX_DIST;
@@ -1623,12 +1672,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const getNodeInPlateau = useCallback((screenX: number, screenY: number): GraphNode | null => {
     const ownerMap = ownerMapRef.current;
     const heightMap = heightMapBufRef.current;
-    const { gridW, gridH } = plateauGridRef.current;
+    const { gridW, gridH, gs: hitGs, originX: hitOX, originY: hitOY } = plateauGridRef.current;
     if (!ownerMap || !heightMap || gridW === 0) return null;
     
-    const { gs: hitGs } = plateauGridRef.current;
-    const gx = Math.floor(screenX / hitGs);
-    const gy = Math.floor(screenY / hitGs);
+    const tHit = transformRef.current;
+    const worldX = (screenX - tHit.x) / tHit.scale;
+    const worldY = (screenY - tHit.y) / tHit.scale;
+    const gx = Math.floor((worldX - hitOX) / hitGs);
+    const gy = Math.floor((worldY - hitOY) / hitGs);
     if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return null;
     
     const idx = gy * gridW + gx;
@@ -1684,10 +1735,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       // Determine hovered contour level from heightMap
       let newContourLevel = -1;
       const heightMap = heightMapBufRef.current;
-      const { gridW: gW, gridH: gH, gs: hitGs } = plateauGridRef.current;
+      const { gridW: gW, gridH: gH, gs: hitGs, originX: hitOX, originY: hitOY } = plateauGridRef.current;
       if (heightMap && gW > 0) {
-        const gx = Math.floor(screenX / hitGs);
-        const gy = Math.floor(screenY / hitGs);
+        const tHit = transformRef.current;
+        const hitWX = (screenX - tHit.x) / tHit.scale;
+        const hitWY = (screenY - tHit.y) / tHit.scale;
+        const gx = Math.floor((hitWX - hitOX) / hitGs);
+        const gy = Math.floor((hitWY - hitOY) / hitGs);
         if (gx >= 0 && gx < gW && gy >= 0 && gy < gH) {
           const h = heightMap[gy * gW + gx];
           if (h > 0) {

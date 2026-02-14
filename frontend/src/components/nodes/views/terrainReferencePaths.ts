@@ -19,8 +19,8 @@ export interface ReferencePath {
   sourceId: number;
   /** Target node id */
   targetId: number;
-  /** Path points in screen coordinates (px) */
-  screenPoints: Array<[number, number]>;
+  /** Path points in world coordinates */
+  worldPoints: Array<[number, number]>;
   /** Per-point multiplicity: how many paths share each point (≥1) */
   pointMultiplicity: number[];
   /** Average slope along the path (for line-width variation) */
@@ -39,9 +39,9 @@ export interface RefLink {
 
 /** Node peak info for path edge offset computation */
 export interface NodePeakInfo {
-  screenX: number;
-  screenY: number;
-  /** Plateau radius in screen pixels */
+  x: number;
+  y: number;
+  /** Plateau radius in world units */
   plateauRadius: number;
 }
 
@@ -70,7 +70,7 @@ const MIN_ASTAR_GRID_DIST = 3;
 /** Number of perimeter sample points around each peak plateau */
 const PERIMETER_SAMPLES = 16;
 
-/** Merge radius in screen pixels — paths within this distance snap together */
+/** Merge radius in world units — paths within this distance snap together */
 const PATH_MERGE_RADIUS = 20;
 
 /** Erosion radius in grid cells around path */
@@ -378,15 +378,17 @@ function decimatePath(chain: Array<[number, number]>, epsilon: number): Array<[n
  * Used as multi-source / multi-target seeds for A*.
  */
 function getPlateauPerimeterCells(
-  peakScreenX: number,
-  peakScreenY: number,
+  peakX: number,
+  peakY: number,
   plateauRadius: number,
   gs: number,
+  originX: number,
+  originY: number,
   gridW: number,
   gridH: number,
 ): Array<[number, number]> {
-  const centerGx = peakScreenX / gs;
-  const centerGy = peakScreenY / gs;
+  const centerGx = (peakX - originX) / gs;
+  const centerGy = (peakY - originY) / gs;
   const radiusGrid = plateauRadius / gs;
   const cells: Array<[number, number]> = [];
   const seen = new Set<number>();
@@ -419,7 +421,9 @@ function getPlateauPerimeterCells(
  * @param heightMap - The terrain height map (gridW × gridH, values 0–1)
  * @param gridW - Height map width in grid cells
  * @param gridH - Height map height in grid cells
- * @param gs - Grid cell size in screen pixels
+ * @param gs - Grid cell size in world units
+ * @param originX - World-space X origin of the height map grid
+ * @param originY - World-space Y origin of the height map grid
  * @param refLinks - Reference links to compute paths for
  * @param nodePeaks - Map of node id → NodePeakInfo (position + plateau radius)
  */
@@ -428,6 +432,8 @@ export function computeReferencePaths(
   gridW: number,
   gridH: number,
   gs: number,
+  originX: number,
+  originY: number,
   refLinks: RefLink[],
   nodePeaks: Map<number, NodePeakInfo>,
 ): ReferencePathResult {
@@ -452,17 +458,17 @@ export function computeReferencePaths(
 
     // Compute plateau perimeter cells for multi-source / multi-target A*
     const srcPerimeter = getPlateauPerimeterCells(
-      srcPeak.screenX, srcPeak.screenY, srcPeak.plateauRadius, gs, gridW, gridH,
+      srcPeak.x, srcPeak.y, srcPeak.plateauRadius, gs, originX, originY, gridW, gridH,
     );
     const tgtPerimeter = getPlateauPerimeterCells(
-      tgtPeak.screenX, tgtPeak.screenY, tgtPeak.plateauRadius, gs, gridW, gridH,
+      tgtPeak.x, tgtPeak.y, tgtPeak.plateauRadius, gs, originX, originY, gridW, gridH,
     );
 
     // Approximate distance between peak centers (grid coords)
-    const srcCenterGx = srcPeak.screenX / gs;
-    const srcCenterGy = srcPeak.screenY / gs;
-    const tgtCenterGx = tgtPeak.screenX / gs;
-    const tgtCenterGy = tgtPeak.screenY / gs;
+    const srcCenterGx = (srcPeak.x - originX) / gs;
+    const srcCenterGy = (srcPeak.y - originY) / gs;
+    const tgtCenterGx = (tgtPeak.x - originX) / gs;
+    const tgtCenterGy = (tgtPeak.y - originY) / gs;
     const gdx = tgtCenterGx - srcCenterGx;
     const gdy = tgtCenterGy - srcCenterGy;
     const gridDist = Math.sqrt(gdx * gdx + gdy * gdy);
@@ -519,14 +525,14 @@ export function computeReferencePaths(
     }
     const avgSlope = slopeCount > 0 ? totalSlope / slopeCount : 0;
 
-    // Convert grid coords → screen coords
-    const screenPoints: Array<[number, number]> = gridPoints.map(([gx, gy]) => [gx * gs, gy * gs]);
+    // Convert grid coords → world coords
+    const worldPoints: Array<[number, number]> = gridPoints.map(([gx, gy]) => [gx * gs + originX, gy * gs + originY]);
 
     paths.push({
       sourceId: link.source,
       targetId: link.target,
-      screenPoints,
-      pointMultiplicity: new Array(screenPoints.length).fill(1),
+      worldPoints,
+      pointMultiplicity: new Array(worldPoints.length).fill(1),
       avgSlope,
     });
   }
@@ -561,7 +567,7 @@ function mergeNearbyPaths(paths: ReferencePath[], mergeRadius: number): void {
   const step = Math.max(4, mergeRadius * 0.5);
   const resampled: Array<Array<[number, number]>> = [];
   for (const path of paths) {
-    resampled.push(resamplePolyline(path.screenPoints, step));
+    resampled.push(resamplePolyline(path.worldPoints, step));
   }
 
   // --- 2. Spatial hash: bucket points by grid cell ---
@@ -628,7 +634,7 @@ function mergeNearbyPaths(paths: ReferencePath[], mergeRadius: number): void {
 
   // --- 5. Write back to paths ---
   for (let pi = 0; pi < paths.length; pi++) {
-    paths[pi].screenPoints = resampled[pi];
+    paths[pi].worldPoints = resampled[pi];
     paths[pi].pointMultiplicity = multiplicity[pi];
   }
 }
@@ -690,8 +696,10 @@ function resamplePolyline(
  * @param heightMap - Mutable height map to erode in-place
  * @param gridW - Grid width
  * @param gridH - Grid height
- * @param gs - Grid cell size in pixels
- * @param paths - Computed reference paths (in screen coords, divide by gs for grid)
+ * @param gs - Grid cell size in world units
+ * @param originX - World-space X origin of the height map grid
+ * @param originY - World-space Y origin of the height map grid
+ * @param paths - Computed reference paths (in world coords)
  * @param nodePeakGridCells - Protected grid cells (node peak positions)
  */
 export function applyPathErosion(
@@ -699,6 +707,8 @@ export function applyPathErosion(
   gridW: number,
   gridH: number,
   gs: number,
+  originX: number,
+  originY: number,
   paths: ReferencePath[],
   nodePeakGridCells: Set<number>,
 ): void {
@@ -709,10 +719,10 @@ export function applyPathErosion(
   const erosionMap = new Float32Array(gridW * gridH).fill(1.0);
 
   for (const path of paths) {
-    const pts = path.screenPoints;
+    const pts = path.worldPoints;
     for (let i = 0; i < pts.length; i++) {
-      const gx = Math.round(pts[i][0] / gs);
-      const gy = Math.round(pts[i][1] / gs);
+      const gx = Math.round((pts[i][0] - originX) / gs);
+      const gy = Math.round((pts[i][1] - originY) / gs);
 
       // Erode in a small radius around the path point
       for (let dy = -EROSION_RADIUS; dy <= EROSION_RADIUS; dy++) {
