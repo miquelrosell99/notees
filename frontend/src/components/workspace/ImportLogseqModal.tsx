@@ -21,6 +21,7 @@ import { mdiImport, mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown
 import Icon from '@mdi/react';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
+import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
@@ -648,25 +649,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
 
         {parsed && (
           <div className="import-logseq__mode-selector">
-            <span className="import-logseq__mode-label">Mode:</span>
-            <div className="import-logseq__mode-buttons">
-              <button
-                className={`import-logseq__mode-btn${importMode === 'additive' ? ' import-logseq__mode-btn--active' : ''}`}
-                onClick={() => setImportMode('additive')}
-                disabled={importing}
-                type="button"
-              >
-                Additive
-              </button>
-              <button
-                className={`import-logseq__mode-btn${importMode === 'override' ? ' import-logseq__mode-btn--active' : ''}`}
-                onClick={() => setImportMode('override')}
-                disabled={importing}
-                type="button"
-              >
-                Override
-              </button>
-            </div>
+            <ToggleSwitch
+              size="sm"
+              leftLabel="ADDITIVE"
+              rightLabel="OVERRIDE"
+              checked={importMode === 'override'}
+              onChange={(checked) => setImportMode(checked ? 'override' : 'additive')}
+              disabled={importing}
+            />
             <span className="import-logseq__mode-hint">
               {importMode === 'additive'
                 ? 'Only creates new entities; skips existing ones'
