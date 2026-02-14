@@ -58,11 +58,12 @@ function createPhase(label: string): PhaseResult {
 }
 
 function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
+  // Check for Axios-style response detail FIRST (before generic Error.message)
   if (typeof e === 'object' && e !== null && 'response' in e) {
     const resp = (e as { response?: { data?: { detail?: string } } }).response;
     if (resp?.data?.detail) return resp.data.detail;
   }
+  if (e instanceof Error) return e.message;
   return String(e);
 }
 
@@ -477,8 +478,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const p5 = createPhase('Assign property values');
       phases.push(p5);
       for (const page of parsed.pages) {
-        if (!page.properties || !page.uuid) continue;
-        const nodeInfo = uuidMap.get(page.uuid);
+        if (!page.properties) continue;
+        // Look up node by UUID first, then fall back to title
+        const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
         if (!nodeInfo) continue;
         const isExisting = existingNodeIds.has(nodeInfo.id);
         await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
