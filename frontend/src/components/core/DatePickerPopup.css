@@ -1,0 +1,75 @@
+/**
+ * DatePickerPopup Styles
+ * Reuses calendar-* classes from CalendarPopup where possible
+ */
+
+/* ==================== Container ==================== */
+.date-picker-popup {
+  position: fixed;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-4);
+  padding: var(--spacing-3);
+  z-index: var(--z-popover);
+  min-width: 280px;
+}
+
+/* ==================== Text Input ==================== */
+.date-picker-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.date-picker-text-input {
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  outline: none;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-text-input:focus {
+  border-color: var(--color-primary);
+}
+
+.date-picker-text-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== Parsed Preview ==================== */
+.date-picker-preview {
+  font: var(--font-label-small);
+  color: var(--color-primary);
+  padding: 0 var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+  min-height: 1.25rem;
+}
+
+.date-picker-preview--invalid {
+  color: var(--color-error);
+}
+
+/* ==================== Selected Date Indicator ==================== */
+.calendar-day.btn.selected {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  font-weight: 600;
+}
+
+.calendar-day.btn.selected:hover {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+/* Today + selected: primary wins */
+.calendar-day.btn.today.selected {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
