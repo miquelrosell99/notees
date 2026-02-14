@@ -34,8 +34,8 @@ def _db_error_to_http(error: Exception) -> HTTPException:
 async def list_databases(user: User = Depends(get_current_user)):
     """List all available databases for current user."""
     databases = await db.list_databases(user.id)
-    active = db.get_active_db_name(user.id)
-    return {"databases": databases, "active": active}
+    active_uuid = db.get_active_db_name(user.id)
+    return {"databases": databases, "active": active_uuid}
 
 
 @router.get("/check-name/{name}")
@@ -56,15 +56,15 @@ async def create_database(data: DatabaseCreate, user: User = Depends(get_current
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{name}/switch")
-async def switch_database(name: str, user: User = Depends(get_current_user)):
-    """Switch to a different database."""
-    success = await db.switch_database(user.id, name)
+@router.post("/{workspace_id}/switch")
+async def switch_database(workspace_id: str, user: User = Depends(get_current_user)):
+    """Switch to a different database by workspace UUID."""
+    success = await db.switch_database(user.id, workspace_id)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Database '{name}' not found")
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
     # Invalidate cached workspace context so subsequent requests use the new workspace
     invalidate_workspace_cache(int(user.id))
-    return {"status": "ok", "active": name}
+    return {"status": "ok", "active": workspace_id}
 
 
 @router.put("/{name}/rename")

@@ -21,6 +21,7 @@ from .db.schema.init import seed_workspace
 logger = get_logger(__name__)
 
 # Track active workspace per user (in-memory, for session)
+# Maps user_id (str) -> workspace UUID (str)
 _active_workspaces: Dict[str, str] = {}
 
 
@@ -82,14 +83,14 @@ async def list_workspaces(user_id: str) -> List[Dict[str, Any]]:
         ]
 
 
-def get_active_workspace_name(user_id: str) -> Optional[str]:
-    """Get the active workspace name for a user.
+def get_active_workspace_id(user_id: str) -> Optional[str]:
+    """Get the active workspace UUID for a user.
     
     Args:
         user_id: User ID
         
     Returns:
-        Active workspace name or None
+        Active workspace UUID or None
     """
     return _active_workspaces.get(user_id)
 
@@ -147,17 +148,17 @@ async def create_workspace(user_id: str, name: str) -> Dict[str, Any]:
         
         # Set as active if user has no active workspace
         if user_id not in _active_workspaces:
-            _active_workspaces[user_id] = name
+            _active_workspaces[user_id] = str(row['uuid'])
         
         return result
 
 
-async def switch_workspace(user_id: str, name: str) -> bool:
+async def switch_workspace(user_id: str, workspace_uuid: str) -> bool:
     """Switch to a different workspace.
     
     Args:
         user_id: User ID
-        name: Workspace name to switch to
+        workspace_uuid: Workspace UUID to switch to
         
     Returns:
         True if switch successful, False if workspace not found/accessible
@@ -172,16 +173,16 @@ async def switch_workspace(user_id: str, name: str) -> bool:
             """
             SELECT g.id FROM workspace g
             LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
-            WHERE g.name = $1 AND g.active = TRUE 
+            WHERE g.uuid::text = $1 AND g.active = TRUE 
               AND (g.create_uid = $2 OR gs.user_id = $2)
             """,
-            name, numeric_user_id
+            workspace_uuid, numeric_user_id
         )
         
         if not workspace:
             return False
         
-        _active_workspaces[user_id] = name
+        _active_workspaces[user_id] = workspace_uuid
         return True
 
 
@@ -576,7 +577,7 @@ def get_export_dir(user_id: str, workspace_name: str = "default") -> Path:
 
 # Keep old function names for backward compatibility
 list_databases = list_workspaces
-get_active_db_name = get_active_workspace_name
+get_active_db_name = get_active_workspace_id
 create_database = create_workspace
 switch_database = switch_workspace
 rename_database = rename_workspace
