@@ -179,32 +179,32 @@ class InactiveUserError(UserError):
         )
 
 
-# ==================== Database/Workspace Errors ====================
+# ==================== Workspace Errors ====================
 
-class DatabaseError(DomainError):
-    """Base class for database/workspace errors."""
+class WorkspaceError(DomainError):
+    """Base class for workspace errors."""
     pass
 
 
-class DatabaseNotFoundError(DatabaseError):
-    """Raised when a database cannot be found."""
+class WorkspaceNotFoundError(WorkspaceError):
+    """Raised when a workspace cannot be found."""
     
     def __init__(self, name: str):
         self.name = name
         super().__init__(
-            message=f"Database not found: {name}",
-            code="DATABASE_NOT_FOUND"
+            message=f"Workspace not found: {name}",
+            code="WORKSPACE_NOT_FOUND"
         )
 
 
-class DuplicateDatabaseError(DatabaseError):
-    """Raised when attempting to create a duplicate database."""
+class DuplicateWorkspaceError(WorkspaceError):
+    """Raised when attempting to create a duplicate workspace."""
     
     def __init__(self, name: str):
         self.name = name
         super().__init__(
-            message=f"Database already exists: {name}",
-            code="DUPLICATE_DATABASE"
+            message=f"Workspace already exists: {name}",
+            code="DUPLICATE_WORKSPACE"
         )
 
 

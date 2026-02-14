@@ -45,7 +45,7 @@ interface FavoritesState {
   loadRecents: () => Promise<void>;
   removeRecent: (nodeId: number) => void;
   
-  // Clear all data (used when switching databases)
+  // Clear all data (used when switching workspaces)
   clear: () => void;
   
   // Refresh both

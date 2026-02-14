@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
-import { getSettings } from './api/databases';
+import { getSettings } from './api/workspaces';
 import { Layout } from './components/layout/Layout';
 import { LoginView } from './views/LoginView';
 import { WorkspaceManagementView } from './views/WorkspaceManagementView';
@@ -19,7 +19,7 @@ import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
-import { listDatabases } from './api/databases';
+import { listWorkspaces } from './api/workspaces';
 import { useAuthStore, useAppStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
@@ -40,10 +40,10 @@ function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
   const { toggleQuickAdd, toggleCalendar, showDbManagement, setShowDbManagement } = useAppStore();
   
-  // Fetch databases when authenticated
-  const { data: dbData, isLoading: isLoadingDatabases, refetch: refetchDatabases } = useQuery({
-    queryKey: ['databases'],
-    queryFn: listDatabases,
+  // Fetch workspaces when authenticated
+  const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: listWorkspaces,
     enabled: isAuthenticated,
     staleTime: 10000,
   });
@@ -172,9 +172,9 @@ function AppContent() {
     window.history.replaceState(null, '', intendedUrl || '/');
   }
   
-  // Show loading while checking databases
-  if (isLoadingDatabases) {
-    log.debug('Loading databases...');
+  // Show loading while checking workspaces
+  if (isLoadingWorkspaces) {
+    log.debug('Loading workspaces...');
     return (
       <div className="loading-screen">
         <div className="loading-spinner">Loading...</div>
@@ -183,7 +183,7 @@ function AppContent() {
   }
   
   // Show workspace management if no workspaces exist or no active workspace
-  const hasNoWorkspaces = !dbData?.databases || dbData.databases.length === 0;
+  const hasNoWorkspaces = !dbData?.workspaces || dbData.workspaces.length === 0;
   const hasNoActiveWorkspace = !dbData?.active;
   
   if (hasNoWorkspaces || hasNoActiveWorkspace || showDbManagement) {
@@ -192,7 +192,7 @@ function AppContent() {
       <WorkspaceManagementView 
         onWorkspaceSelected={() => {
           setShowDbManagement(false);
-          refetchDatabases();
+          refetchWorkspaces();
         }}
         showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
         onClose={() => setShowDbManagement(false)}
