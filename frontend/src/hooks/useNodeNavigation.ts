@@ -6,12 +6,19 @@
  * openNode no longer needs a type — the view layer resolves page vs block
  * from node.is_page in the database.
  * 
+ * Alias redirection:
+ * When navigating to a node that is an alias (has aliased_id set), it will
+ * automatically redirect to the main node, unless skipAliasRedirect is true.
+ * 
  * Usage:
  *   const { navigateToNode, openInSidebar, handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
  *   
  *   // Simple navigation:
  *   navigateToNode(node);
  *   openInSidebar(node);
+ *   
+ *   // Skip alias redirection (e.g., in aliases section):
+ *   navigateToNode(node, { skipAliasRedirect: true });
  *   
  *   // As click handlers (pass directly to onNodeClick / onNodeShiftClick):
  *   <NodeCollection onNodeClick={handleNodeClick} onNodeShiftClick={handleNodeShiftClick} />
@@ -26,32 +33,55 @@ export function getNodeViewType(node: { is_page?: boolean; parent_id?: number | 
   return node.is_page ? 'page' : 'block';
 }
 
+/** Options for node navigation */
+export interface NavigationOptions {
+  /** If true, navigate to the alias node itself instead of redirecting to the main node */
+  skipAliasRedirect?: boolean;
+}
+
 /**
  * Hook that provides standardized node navigation functions.
- * Wraps openNode and addSidebarCard from the store with automatic type resolution.
+ * Wraps openNode and addSidebarCard from the store with automatic type resolution
+ * and alias redirection.
  */
 export function useNodeNavigation() {
   const openNode = useAppStore(state => state.openNode);
   const addSidebarCard = useAppStore(state => state.addSidebarCard);
 
   /** Navigate to a node in the main view */
-  const navigateToNode = useCallback((node: Node) => {
-    openNode(node.id);
+  const navigateToNode = useCallback((node: Node, options?: NavigationOptions) => {
+    // Redirect to main node if this is an alias (unless opted out)
+    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
+      ? node.aliased_id 
+      : node.id;
+    openNode(targetId);
   }, [openNode]);
 
   /** Open a node in the sidebar */
-  const openInSidebar = useCallback((node: Node) => {
-    addSidebarCard(node.id, getNodeViewType(node) as SidebarCardType);
+  const openInSidebar = useCallback((node: Node, options?: NavigationOptions) => {
+    // Redirect to main node if this is an alias (unless opted out)
+    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
+      ? node.aliased_id 
+      : node.id;
+    addSidebarCard(targetId, getNodeViewType(node) as SidebarCardType);
   }, [addSidebarCard]);
 
   /** Click handler: navigates to the node. Pass directly as onNodeClick. */
-  const handleNodeClick = useCallback((node: Node) => {
-    openNode(node.id);
+  const handleNodeClick = useCallback((node: Node, options?: NavigationOptions) => {
+    // Redirect to main node if this is an alias (unless opted out)
+    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
+      ? node.aliased_id 
+      : node.id;
+    openNode(targetId);
   }, [openNode]);
 
   /** Shift+click handler: opens in sidebar. Pass directly as onNodeShiftClick. */
-  const handleNodeShiftClick = useCallback((node: Node) => {
-    addSidebarCard(node.id, getNodeViewType(node) as SidebarCardType);
+  const handleNodeShiftClick = useCallback((node: Node, options?: NavigationOptions) => {
+    // Redirect to main node if this is an alias (unless opted out)
+    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
+      ? node.aliased_id 
+      : node.id;
+    addSidebarCard(targetId, getNodeViewType(node) as SidebarCardType);
   }, [addSidebarCard]);
 
   return {

@@ -159,3 +159,15 @@
   letter-spacing: 0.5px;
 }
 
+.aliased-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-high);
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
