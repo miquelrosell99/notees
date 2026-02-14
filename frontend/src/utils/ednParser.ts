@@ -366,15 +366,28 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       const pageMap = mapGet(entry, 'page');
       if (!pageMap || !(pageMap instanceof Map)) continue;
 
-      // Detect journal/daily pages (have build/journal but no block/title)
+      // Detect journal/daily pages
+      // 1. Explicit build/journal field (number like 20231118 or string)
       const journalRaw = mapGet(pageMap, 'build/journal');
       let journalDate: string | undefined;
       if (typeof journalRaw === 'number') {
         const s = String(journalRaw);
         if (s.length === 8) journalDate = `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      } else if (typeof journalRaw === 'string') {
+        // Handle build/journal as string (e.g. "20231118" or "2023-11-18")
+        const stripped = journalRaw.replace(/-/g, '');
+        if (/^\d{8}$/.test(stripped)) {
+          journalDate = `${stripped.slice(0,4)}-${stripped.slice(4,6)}-${stripped.slice(6,8)}`;
+        }
       }
 
-      const title = asString(mapGet(pageMap, 'block/title')) ?? (journalDate ?? '');
+      const rawTitle = asString(mapGet(pageMap, 'block/title'));
+      const title = rawTitle ?? (journalDate ?? '');
+
+      // 2. If no build/journal, detect date pages from title format
+      if (!journalDate && rawTitle) {
+        journalDate = detectDateFromTitle(rawTitle);
+      }
       const uuidTagged = mapGet(pageMap, 'block/uuid');
       const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
 
@@ -444,6 +457,89 @@ function asString(v: EdnValue | undefined): string | null {
   return null;
 }
 
+/**
+ * Detect a date from a page title string.
+ * Supports common Logseq journal title formats:
+ *   - YYYY-MM-DD, YYYY/MM/DD (ISO-style)
+ *   - DD-MM-YYYY, DD/MM/YYYY (European-style)
+ *   - MM-DD-YYYY, MM/DD/YYYY (US-style)
+ *   - "Nov 18th, 2023", "November 18th, 2023" (English ordinal)
+ *   - "Nov 18, 2023", "November 18, 2023" (English plain)
+ *
+ * Returns YYYY-MM-DD string if detected, else undefined.
+ */
+function detectDateFromTitle(title: string): string | undefined {
+  const t = title.trim();
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = t.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    if (isValidDate(+y, +m, +d)) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // DD-MM-YYYY or DD/MM/YYYY (day > 12 → unambiguous European)
+  // MM-DD-YYYY or MM/DD/YYYY (when first part ≤ 12, assume DD/MM if second ≤ 12 too — prefer European)
+  const dmy = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmy) {
+    const [, a, b, y] = dmy;
+    // Try DD/MM/YYYY first (European), then MM/DD/YYYY
+    if (isValidDate(+y, +b, +a)) return `${y}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`;
+    if (isValidDate(+y, +a, +b)) return `${y}-${a.padStart(2, '0')}-${b.padStart(2, '0')}`;
+  }
+
+  // English month names: "Nov 18th, 2023" or "November 18, 2023"
+  const enMatch = t.match(
+    /^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i
+  );
+  if (enMatch) {
+    const [, mon, d, y] = enMatch;
+    const m = monthNameToNumber(mon);
+    if (m && isValidDate(+y, m, +d)) return `${y}-${String(m).padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // "18 Nov 2023" or "18 November 2023" (reversed English)
+  const enRevMatch = t.match(
+    /^(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?),?\s+(\d{4})$/i
+  );
+  if (enRevMatch) {
+    const [, d, mon, y] = enRevMatch;
+    const m = monthNameToNumber(mon);
+    if (m && isValidDate(+y, m, +d)) return `${y}-${String(m).padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  return undefined;
+}
+
+function isValidDate(year: number, month: number, day: number): boolean {
+  return year >= 1900 && year <= 2200 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+}
+
+const MONTH_NAMES: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6,
+  jul: 7, july: 7, aug: 8, august: 8, sep: 9, september: 9,
+  oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+};
+
+function monthNameToNumber(name: string): number | undefined {
+  return MONTH_NAMES[name.toLowerCase()];
+}
+
+/** Convert a build/journal EDN value (number or string) to YYYY-MM-DD, or undefined. */
+function journalFieldToDate(v: EdnValue | undefined): string | undefined {
+  if (typeof v === 'number') {
+    const s = String(v);
+    if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  }
+  if (typeof v === 'string') {
+    const stripped = v.replace(/-/g, '');
+    if (/^\d{8}$/.test(stripped)) {
+      return `${stripped.slice(0,4)}-${stripped.slice(4,6)}-${stripped.slice(6,8)}`;
+    }
+  }
+  return undefined;
+}
 function parseBlock(raw: EdnValue): LogseqBlock {
   if (!(raw instanceof Map)) return { title: String(raw) };
   const title = asString(mapGet(raw, 'block/title')) ?? '';
@@ -510,12 +606,13 @@ function resolvePropertyValue(v: EdnValue): unknown {
     if (v.length === 2 && v[0] instanceof EdnKeyword && v[0].value === 'build/page' && v[1] instanceof Map) {
       const innerMap = v[1];
       const title = asString(mapGet(innerMap, 'block/title'));
-      if (title) return { __type: 'page-ref', title };
       const journal = mapGet(innerMap, 'build/journal');
-      if (typeof journal === 'number') {
-        const s = String(journal);
-        if (s.length === 8) return { __type: 'date-ref', date: `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` };
-        return { __type: 'date-ref', date: s };
+      const dateStr = journalFieldToDate(journal);
+      if (dateStr) return { __type: 'date-ref', date: dateStr };
+      if (title) {
+        const detected = detectDateFromTitle(title);
+        if (detected) return { __type: 'date-ref', date: detected };
+        return { __type: 'page-ref', title };
       }
     }
     // [:block/uuid #uuid "..."] — a UUID reference (selection/closed value)
@@ -529,12 +626,13 @@ function resolvePropertyValue(v: EdnValue): unknown {
   if (v instanceof Map) {
     // Direct :build/page reference (not wrapped in vec)
     const title = asString(mapGet(v, 'block/title'));
-    if (title) return { __type: 'page-ref', title };
     const journal = mapGet(v, 'build/journal');
-    if (typeof journal === 'number') {
-      const s = String(journal);
-      if (s.length === 8) return { __type: 'date-ref', date: `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` };
-      return s;
+    const dateStr = journalFieldToDate(journal);
+    if (dateStr) return { __type: 'date-ref', date: dateStr };
+    if (title) {
+      const detected = detectDateFromTitle(title);
+      if (detected) return { __type: 'date-ref', date: detected };
+      return { __type: 'page-ref', title };
     }
     return Object.fromEntries(
       [...v.entries()].map(([mk, mv]) => [
