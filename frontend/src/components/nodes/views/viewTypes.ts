@@ -260,7 +260,7 @@ export const GLARE_SCALE_BRIGHT = 3.0;
 export const GLARE_SCALE_CURRENT = 3.5;
 export const GLARE_OPACITY_NORMAL = 0.15;
 export const GLARE_OPACITY_BRIGHT = 0.25;
-export const GLARE_OPACITY_DIM = 0.05;
+export const GLARE_OPACITY_DIM = 0.02;
 
 // Label fade based on zoom
 export const LABEL_FADE_ZOOM_MIN = 0.3;
