@@ -235,12 +235,14 @@ export interface LogseqProperty {
 export interface LogseqClass {
   id: string;           // e.g. "user.class/libro-SHcT7TN6"
   title: string;
+  uuid?: string;
   extends?: string;     // Parent class id
   properties?: string[]; // Property ids assigned to this class
 }
 
 export interface LogseqBlock {
   title: string;
+  uuid?: string;
   children?: LogseqBlock[];
 }
 
@@ -289,6 +291,8 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
     for (const [k, v] of classesMap.entries()) {
       if (!(k instanceof EdnKeyword)) continue;
       const title = asString(mapGet(v, 'block/title')) ?? k.value;
+      const uuidTagged = mapGet(v, 'block/uuid');
+      const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
       const extendsVec = mapGet(v, 'build/class-extends');
       let extendsId: string | undefined;
       if (Array.isArray(extendsVec) && extendsVec.length > 0 && extendsVec[0] instanceof EdnKeyword) {
@@ -301,7 +305,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
           .filter((p): p is EdnKeyword => p instanceof EdnKeyword)
           .map(p => p.value);
       }
-      classes.push({ id: k.value, title, extends: extendsId, properties: propIds });
+      classes.push({ id: k.value, title, uuid, extends: extendsId, properties: propIds });
     }
   }
 
@@ -369,12 +373,14 @@ function asString(v: EdnValue | undefined): string | null {
 function parseBlock(raw: EdnValue): LogseqBlock {
   if (!(raw instanceof Map)) return { title: String(raw) };
   const title = asString(mapGet(raw, 'block/title')) ?? '';
+  const uuidTagged = mapGet(raw, 'block/uuid');
+  const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
   const childrenVec = mapGet(raw, 'build/children');
   let children: LogseqBlock[] | undefined;
   if (Array.isArray(childrenVec)) {
     children = childrenVec.map(parseBlock);
   }
-  return { title, children };
+  return { title, uuid, children };
 }
 
 /**
