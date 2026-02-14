@@ -11,13 +11,14 @@
 import { useState, useEffect, useCallback, useMemo, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
+import { mdiPencilOutline, mdiTrashCanOutline } from '@mdi/js';
 
 import { $isBlockNode } from '../nodes/BlockNode';
+import { $isPillNode } from '../nodes/PillNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../BlockEditor';
-import { useNodeByUuid } from '../../hooks/useNodeQueries';
-import { parseLinkId } from '../../lib/astBuilder';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
+import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import type { Node } from '../../types/api';
 
 export interface ContextMenuPluginProps {
@@ -25,6 +26,10 @@ export interface ContextMenuPluginProps {
   onOpenInSidebar?: (blockId: string) => void;
   /** Called when bullet is clicked (for navigation) */
   onNavigateToNode?: (blockId: string) => void;
+  /** Called when "Edit link" is chosen from the pill context menu */
+  onPillEdit?: (linkId: string, refType: 'node' | 'class') => void;
+  /** Called when "Delete link" is chosen from the pill context menu */
+  onPillRemove?: (linkId: string) => void;
 }
 
 interface ContextMenuState {
@@ -33,11 +38,15 @@ interface ContextMenuState {
   isPage: boolean;
   /** When set, the menu targets a linked node (pill) rather than the block itself */
   pillLinkId?: string;
+  /** Ref type of the pill link ('node' or 'class') */
+  pillRefType?: 'node' | 'class';
 }
 
 export function ContextMenuPlugin({
   onOpenInSidebar,
   onNavigateToNode,
+  onPillEdit,
+  onPillRemove,
 }: ContextMenuPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -154,11 +163,13 @@ export function ContextMenuPlugin({
         if (linkId) {
           event.preventDefault();
           event.stopPropagation();
+          const refType = (pillWrapper.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
           setContextMenu({
             position: { x: event.clientX, y: event.clientY },
             blockId: linkId,
-            isPage: false, // will be resolved from fetched data
+            isPage: false,
             pillLinkId: linkId,
+            pillRefType: refType,
           });
         }
         return;
@@ -204,30 +215,63 @@ export function ContextMenuPlugin({
     };
   }, [contextMenu]);
 
-  // Fetch linked node data when showing a pill context menu
-  const pillLinkId = contextMenu?.pillLinkId ?? null;
-  const pillNodeUuid = useMemo(() => {
-    if (!pillLinkId) return null;
-    return parseLinkId(pillLinkId).nodeUuid;
-  }, [pillLinkId]);
-  const { data: pillNode } = useNodeByUuid(pillNodeUuid);
+  // Remove a pill by linkId from the Lexical tree
+  const removePillByLinkId = useCallback((linkId: string) => {
+    editor.update(() => {
+      const root = $getRoot();
+      const findAndRemove = (parent: ReturnType<typeof $getRoot>): boolean => {
+        for (const child of parent.getChildren()) {
+          if ($isPillNode(child) && child.getLinkId() === linkId) {
+            child.remove();
+            return true;
+          }
+          if ('getChildren' in child && typeof child.getChildren === 'function') {
+            if (findAndRemove(child as any)) return true;
+          }
+        }
+        return false;
+      };
+      findAndRemove(root);
+    });
+  }, [editor]);
+
+  // Build link context menu items
+  const linkMenuItems: ContextMenuItem[] = useMemo(() => {
+    if (!contextMenu?.pillLinkId) return [];
+    const linkId = contextMenu.pillLinkId;
+    const refType = contextMenu.pillRefType || 'node';
+    return [
+      {
+        id: 'edit-link',
+        label: 'Edit link',
+        icon: mdiPencilOutline,
+        onClick: () => {
+          onPillEdit?.(linkId, refType);
+          handleCloseContextMenu();
+        },
+      },
+      {
+        id: 'delete-link',
+        label: 'Delete link',
+        icon: mdiTrashCanOutline,
+        danger: true,
+        onClick: () => {
+          removePillByLinkId(linkId);
+          onPillRemove?.(linkId);
+          handleCloseContextMenu();
+        },
+      },
+    ];
+  }, [contextMenu, onPillEdit, onPillRemove, handleCloseContextMenu, removePillByLinkId]);
 
   // Render context menu
   if (!contextMenu) return null;
 
-  // For pill context menus, use the fetched node data
+  // For pill context menus, show link-specific Edit / Delete menu
   if (contextMenu.pillLinkId) {
-    if (!pillNode) return null; // still loading
-
-    return pillNode.is_page ? (
-      <PageContextMenu
-        node={pillNode}
-        position={contextMenu.position}
-        onClose={handleCloseContextMenu}
-      />
-    ) : (
-      <BlockContextMenu
-        node={pillNode}
+    return (
+      <ContextMenu
+        items={linkMenuItems}
         position={contextMenu.position}
         onClose={handleCloseContextMenu}
       />
