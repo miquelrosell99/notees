@@ -22,7 +22,7 @@ import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from './useStringifyAST';
 
-export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags';
+export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags' | 'aliases';
 
 export interface NodeSearchFilters {
   /** What types of nodes to include */
@@ -158,6 +158,30 @@ export function useNodeSearch(
           }
           return false;
         });
+      }
+      
+      results = results.slice(0, maxResults);
+
+      return {
+        pageResults: results.map(node => ({
+          node,
+          section: 'page' as const,
+        })),
+        blockResults: [],
+      };
+    }
+
+    // Aliases mode - show pages that are NOT already an alias of another node
+    // Exclude class definitions and non-page nodes
+    if (mode === 'aliases') {
+      let results = (searchQuery.length > 0
+        ? (searchResults ?? []).filter(n => n.is_page)
+        : (allPages ?? []).slice(0, maxResults * 3)
+      ).filter(n => !isClassDef(n) && !n.aliased_id);
+      
+      // Apply hierarchical filtering if needed
+      if (parsed.isHierarchical && allPages) {
+        results = filterNodesByHierarchy(query, results, allPages);
       }
       
       results = results.slice(0, maxResults);

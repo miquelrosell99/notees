@@ -24,6 +24,7 @@ from .helpers import (
     _get_tag_ids,
     _get_tag_ids_batch,
     _get_class_ids_batch,
+    _get_alias_ids,
     extract_properties_dict,
 )
 
@@ -216,7 +217,10 @@ async def get_node(
     # Get tags for the node (from node_link with is_tag=1)
     tag_ids = await _get_tag_ids(service._pool, service._workspace_id or 0, node_id)
     
-    response = _node_to_response(node, tags=tag_ids, classes=class_ids)
+    # Get aliases for the node (nodes that have aliased_id pointing to this node)
+    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    
+    response = _node_to_response(node, tags=tag_ids, classes=class_ids, aliases=alias_ids)
     
     if include_children:
         pool = service._node_repo.get_connection()
@@ -445,7 +449,11 @@ async def get_page_content(
     
     page_class_ids = node_class_map.get(page_id, [])
     page_tag_ids = node_tag_map.get(page_id, [])
-    page_response = _node_to_response(page, tags=page_tag_ids, classes=page_class_ids)
+    
+    # Get aliases for the page
+    page_alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, page_id)
+    
+    page_response = _node_to_response(page, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids)
     page_response.children = root_children
     
     # Add properties - get the full property values

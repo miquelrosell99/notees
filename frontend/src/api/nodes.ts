@@ -537,6 +537,33 @@ export async function updateLinkName(linkUuid: string, name: string | null): Pro
   return response.data;
 }
 
+// ==================== Aliases ====================
+
+/**
+ * Get all aliases for a node
+ */
+export async function getAliases(nodeId: number): Promise<Node[]> {
+  const response = await api.get<{ aliases: Node[] }>(`${BASE}/${nodeId}/aliases`);
+  return response.data.aliases ?? [];
+}
+
+/**
+ * Add a page as an alias of a node
+ */
+export async function addAlias(nodeId: number, aliasNodeId: number): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeId}/aliases`, {
+    alias_node_id: aliasNodeId,
+  });
+  return response.data;
+}
+
+/**
+ * Remove an alias from a node
+ */
+export async function removeAlias(nodeId: number, aliasId: number): Promise<void> {
+  await api.delete(`${BASE}/${nodeId}/aliases/${aliasId}`);
+}
+
 // ============== Page View Tracking & Recents ==============
 
 /**

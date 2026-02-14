@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS node (
     class_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,
+    -- Alias support: if set, this node is an alias of the referenced node
+    aliased_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     -- Full-text search
     search_vector tsvector,
     search_language VARCHAR(50) DEFAULT 'english',
@@ -135,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
+CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
 
@@ -579,6 +582,18 @@ BEGIN
         WHERE table_name = 'property' AND column_name = 'icon_visibility'
     ) THEN
         ALTER TABLE property ADD COLUMN icon_visibility VARCHAR(50) DEFAULT 'hidden';
+    END IF;
+END $$;
+
+-- Migration: Add aliased_id column to node table for alias support
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'node' AND column_name = 'aliased_id'
+    ) THEN
+        ALTER TABLE node ADD COLUMN aliased_id INTEGER REFERENCES node(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
     END IF;
 END $$;
 
