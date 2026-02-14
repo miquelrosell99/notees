@@ -261,6 +261,7 @@ export interface LogseqPage {
   journal?: string;     // YYYY-MM-DD date string for journal/daily pages
   tags?: string[];      // class ids
   aliases?: string[];   // alias page titles (from logseq.property/alias)
+  parent?: string;      // Parent page title (from logseq.property/parent namespace hierarchy)
   properties?: Record<string, unknown>;
   blocks: LogseqBlock[];
 }
@@ -404,9 +405,18 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       const propsOnPage = mapGet(pageMap, 'build/properties');
       const pageProperties: Record<string, unknown> = {};
       const pageAliases: string[] = [];
+      let pageParent: string | undefined;
       if (propsOnPage instanceof Map) {
         for (const [pk, pv] of propsOnPage.entries()) {
           if (!(pk instanceof EdnKeyword)) continue;
+          // Extract parent page before skipping other system properties
+          if (pk.value === 'logseq.property/parent') {
+            const resolved = resolvePropertyValue(pv);
+            if (resolved && typeof resolved === 'object' && (resolved as Record<string, unknown>).__type === 'page-ref') {
+              pageParent = (resolved as Record<string, string>).title;
+            }
+            continue;
+          }
           // Extract aliases before skipping other system properties
           if (pk.value === 'logseq.property/alias') {
             const resolved = resolvePropertyValue(pv);
@@ -441,6 +451,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         journal: journalDate,
         tags: tags.length > 0 ? tags : undefined,
         aliases: pageAliases.length > 0 ? pageAliases : undefined,
+        parent: pageParent,
         properties: Object.keys(pageProperties).length > 0 ? pageProperties : undefined,
         blocks,
       });

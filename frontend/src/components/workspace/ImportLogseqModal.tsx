@@ -26,7 +26,7 @@ import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/edn
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty } from '@/api/nodes';
-import { listProperties, updateProperty } from '@/api/properties';
+import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
@@ -191,6 +191,29 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           } catch (e) {
             p1.failed++;
             p1.errors.push({ item: cls.title, message: errorMessage(e) });
+          }
+        }
+
+        // Set class extends (inheritance) relationships
+        const p1b = createPhase('Set class extends');
+        phases.push(p1b);
+        for (const cls of parsed.classes) {
+          if (!cls.extends) continue;
+          const noteesClassId = classIdMap.get(cls.id);
+          const noteesParentClassId = classIdMap.get(cls.extends);
+          if (!noteesClassId || !noteesParentClassId) continue;
+          setImportStatus(`Setting class extends: ${cls.title}`);
+          try {
+            await addClassExtends(noteesClassId, noteesParentClassId);
+            p1b.succeeded++;
+          } catch (e) {
+            const msg = errorMessage(e);
+            if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+              p1b.succeeded++;
+            } else {
+              p1b.failed++;
+              p1b.errors.push({ item: `${cls.title} extends ${cls.extends}`, message: msg });
+            }
           }
         }
       }
@@ -368,6 +391,35 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         } catch (e) {
           p3.failed++;
           p3.errors.push({ item: `Page: ${page.title}`, message: errorMessage(e) });
+        }
+      }
+
+      // ──────────────────────────────────────────────────────────
+      // PHASE 3b: Set page parents (namespace hierarchy)
+      // ──────────────────────────────────────────────────────────
+      const pagesWithParent = parsed.pages.filter(p => p.parent);
+      if (pagesWithParent.length > 0) {
+        const p3b = createPhase('Set page parents');
+        phases.push(p3b);
+        for (const page of pagesWithParent) {
+          const pageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
+          const parentInfo = titleToNodeInfo.get(page.parent!);
+          if (!pageInfo || !parentInfo) {
+            p3b.failed++;
+            p3b.errors.push({
+              item: `${page.title} → ${page.parent}`,
+              message: parentInfo ? 'Page not found' : `Parent page "${page.parent}" not found`,
+            });
+            continue;
+          }
+          setImportStatus(`Setting parent: ${page.title} → ${page.parent}`);
+          try {
+            await updateNodeMutation.mutateAsync({ id: pageInfo.id, data: { parent_id: parentInfo.id } });
+            p3b.succeeded++;
+          } catch (e) {
+            p3b.failed++;
+            p3b.errors.push({ item: `${page.title} → ${page.parent}`, message: errorMessage(e) });
+          }
         }
       }
 
