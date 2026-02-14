@@ -176,7 +176,7 @@ export function useNodePhysics({
   const dimensionsRef = useRef<Dimensions>(dimensions);
   
   // CSS vars cache
-  const cssVarsRef = useRef({ textColor: '#333', accentColor: '#6366f1', dimColor: '#404040' });
+  const cssVarsRef = useRef({ textColor: '#111111', accentColor: '#404040', dimColor: '#555555', outlineColor: '#a3a3a3', warningColor: '#d97706' });
   
   // Simulation state
   const animationRef = useRef<number>(0);
@@ -1821,9 +1821,11 @@ export function useNodePhysics({
     const updateCssVars = () => {
       const style = getComputedStyle(document.documentElement);
       cssVarsRef.current = {
-        textColor: style.getPropertyValue('--text-primary').trim() || '#333',
-        accentColor: style.getPropertyValue('--color-secondary').trim() || '#6366f1',
-        dimColor: style.getPropertyValue('--color-surface-variant').trim() || '#404040',
+        textColor: style.getPropertyValue('--color-on-surface').trim() || '#111111',
+        accentColor: style.getPropertyValue('--color-accent').trim() || '#404040',
+        dimColor: style.getPropertyValue('--color-on-surface-variant').trim() || '#555555',
+        outlineColor: style.getPropertyValue('--color-outline').trim() || '#a3a3a3',
+        warningColor: style.getPropertyValue('--color-warning').trim() || '#d97706',
       };
     };
     updateCssVars();

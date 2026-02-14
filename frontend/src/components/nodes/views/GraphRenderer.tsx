@@ -203,7 +203,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     ctx.translate(t.x, t.y);
     ctx.scale(t.scale, t.scale);
     
-    const { textColor, accentColor, dimColor } = cssVarsRef.current;
+    const { textColor, accentColor, dimColor, outlineColor, warningColor } = cssVarsRef.current;
     const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass } = frameDataRef.current;
     
     // Build link direction map
@@ -242,7 +242,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const renderAsParent = isParentLink || isExtendsLink;
       
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
+      ctx.strokeStyle = hexToRgba(outlineColor, 0.4);
       ctx.lineWidth = 1.5;
       
       if (renderAsParent || isClassLink) {
@@ -326,7 +326,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
           const cy = source.y - (sourceLineGlare + 2 + dotSize / 2) * Math.sin(revAngle);
           ctx.beginPath();
           ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
-          ctx.strokeStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.strokeStyle = hexToRgba(outlineColor, 0.8);
           ctx.lineWidth = 1.5;
           ctx.setLineDash(LINE_DASH_NONE);
           ctx.stroke();
@@ -337,7 +337,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
           const cy = target.y - (targetLineGlare + 2 + dotSize / 2) * Math.sin(lineAngle);
           ctx.beginPath();
           ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
-          ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.fillStyle = hexToRgba(outlineColor, 0.8);
           ctx.fill();
         }
         
@@ -347,7 +347,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
           const cy = source.y - (sourceLineGlare + 2 + dotSize / 2) * Math.sin(revAngle);
           ctx.beginPath();
           ctx.arc(cx, cy, dotSize / 2, 0, 2 * Math.PI);
-          ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+          ctx.fillStyle = hexToRgba(outlineColor, 0.8);
           ctx.fill();
         }
       }
@@ -368,7 +368,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         }
       }
       
-      ctx.strokeStyle = 'rgba(100, 100, 100, 0.1)';
+      ctx.strokeStyle = hexToRgba(outlineColor, 0.1);
       ctx.lineWidth = 1;
       ctx.setLineDash(LINE_DASH_NONE);
       
@@ -401,7 +401,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         const shadowOpacity = 0.3 * liftProgress;
         
         ctx.save();
-        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
+        ctx.shadowColor = hexToRgba(outlineColor, shadowOpacity);
         ctx.shadowBlur = shadowBlur;
         ctx.shadowOffsetX = shadowOffset;
         ctx.shadowOffsetY = shadowOffset;
@@ -439,7 +439,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       
       ctx.beginPath();
       const glareColor = node.glare === 'current' 
-        ? `rgba(255, 215, 0, ${glareOpacity})`
+        ? hexToRgba(warningColor, glareOpacity)
         : hexToRgba(nodeColor, glareOpacity);
       ctx.fillStyle = glareColor;
       ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
@@ -461,7 +461,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         const pinRadius = circleRadius * 0.3;
         
         ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowColor = hexToRgba(outlineColor, 0.3);
         ctx.shadowBlur = 3;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
@@ -510,7 +510,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         const shadowBlur = 12 * liftProgress;
         const shadowOpacity = 0.3 * liftProgress;
         ctx.save();
-        ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`;
+        ctx.shadowColor = hexToRgba(outlineColor, shadowOpacity);
         ctx.shadowBlur = shadowBlur;
         ctx.shadowOffsetX = shadowOffset;
         ctx.shadowOffsetY = shadowOffset;
@@ -532,7 +532,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const glareRadius = baseRadius * glareScale;
       ctx.beginPath();
       ctx.fillStyle = node.glare === 'current'
-        ? `rgba(255, 215, 0, ${glareOpacity})`
+        ? hexToRgba(warningColor, glareOpacity)
         : hexToRgba(nodeColor, glareOpacity);
       ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
       ctx.fill();
@@ -542,7 +542,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       ctx.fill();
       if (node.pinned) {
         ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
+        ctx.shadowColor = hexToRgba(outlineColor, 0.3); ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
         ctx.beginPath(); ctx.fillStyle = textColor;
         ctx.arc(node.x, node.y, circleRadius * 0.3, 0, 2 * Math.PI); ctx.fill();
         ctx.restore();

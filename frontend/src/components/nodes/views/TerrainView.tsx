@@ -34,12 +34,6 @@ import type { ClassColor } from '@/components/shared/ClassColorsPanel';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css'; // Reuse GraphView styles
 
-// Default class colors
-const DEFAULT_CLASS_COLORS = [
-  '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#3b82f6', '#84cc16',
-];
-
 export interface TerrainViewProps {
   /** Unique ID for this view to persist settings separately */
   viewId?: string;
@@ -518,7 +512,6 @@ export function TerrainView({
             >
               <ClassColorsPanel
                 classColors={classColors}
-                defaultColors={DEFAULT_CLASS_COLORS}
                 onChange={handleClassColorsChange}
               />
             </ButtonWithPanel>

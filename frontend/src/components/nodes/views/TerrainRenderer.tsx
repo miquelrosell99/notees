@@ -113,6 +113,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Node label state
   const [nodeLabels, setNodeLabels] = useState<Array<{ id: number; x: number; y: number; text: string; isSelected: boolean }>>([]);
   
+  // Profile SVG viewBox dimensions (computed based on actual dimensions)
+  const [profileViewBoxX, setProfileViewBoxX] = useState({ width: 800, height: 48 });
+  const [profileViewBoxY, setProfileViewBoxY] = useState({ width: 48, height: 600 });
+  
   // State
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 800, height: 600 });
   const dimensionsRef = useRef<Dimensions>({ width: 800, height: 600 });
@@ -847,11 +851,50 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return len;
     };
     
+    // Ramer-Douglas-Peucker chain decimation — removes redundant collinear
+    // points that the Catmull-Rom spline will reconstruct smoothly.
+    const decimateChain = (chain: Chain, epsilon: number): Chain => {
+      const n = chain.length;
+      if (n <= 3) return chain;
+      // Find the point with the greatest perpendicular distance from the
+      // line segment between the first and last point
+      const [sx, sy] = chain[0];
+      const [ex, ey] = chain[n - 1];
+      const lx = ex - sx, ly = ey - sy;
+      const lenSq = lx * lx + ly * ly;
+      let maxDist = 0, maxIdx = 0;
+      for (let i = 1; i < n - 1; i++) {
+        const dx = chain[i][0] - sx, dy = chain[i][1] - sy;
+        let dist: number;
+        if (lenSq < 0.0001) {
+          dist = Math.sqrt(dx * dx + dy * dy);
+        } else {
+          const t = (dx * lx + dy * ly) / lenSq;
+          const px = sx + t * lx - chain[i][0];
+          const py = sy + t * ly - chain[i][1];
+          dist = Math.sqrt(px * px + py * py);
+        }
+        if (dist > maxDist) { maxDist = dist; maxIdx = i; }
+      }
+      if (maxDist <= epsilon) {
+        return [chain[0], chain[n - 1]];
+      }
+      const left = decimateChain(chain.slice(0, maxIdx + 1), epsilon);
+      const right = decimateChain(chain.slice(maxIdx), epsilon);
+      return left.slice(0, -1).concat(right);
+    };
+
+    // Epsilon = half a grid cell — points closer than this to the line between
+    // their neighbours are invisible and will be reconstructed by the spline
+    const decimationEpsilon = gs * 0.5;
+
     const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
       const segs = collectSegments(CONTOUR_LEVELS[li]);
       const chains = buildChains(segs);
-      allChains[li] = chains.filter(c => chainLength(c) >= MIN_CHAIN_LEN);
+      allChains[li] = chains
+        .filter(c => chainLength(c) >= MIN_CHAIN_LEN)
+        .map(c => decimateChain(c, decimationEpsilon));
     }
     
     // Store to cache
@@ -886,6 +929,34 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const cachedIdToIdx = cache.idToIdx;
     const cachedNodeColors = cache.nodeColors;
     
+    // Draw a chain as a smooth Catmull-Rom spline (converted to cubic Bezier curves).
+    // For each segment (i, i+1), control points are derived from neighbours:
+    //   CP1 = P_i   + (P_{i+1} - P_{i-1}) / 6
+    //   CP2 = P_{i+1} - (P_{i+2} - P_i)   / 6
+    // Boundary points are clamped (duplicating the first/last point).
+    const drawChainSmooth = (tgt: CanvasRenderingContext2D, chain: Array<[number, number]>) => {
+      const n = chain.length;
+      if (n < 2) return;
+      tgt.moveTo(chain[0][0], chain[0][1]);
+      if (n === 2) {
+        tgt.lineTo(chain[1][0], chain[1][1]);
+        return;
+      }
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = chain[i > 0 ? i - 1 : 0];
+        const p1 = chain[i];
+        const p2 = chain[i + 1];
+        const p3 = chain[i + 2 < n ? i + 2 : n - 1];
+        tgt.bezierCurveTo(
+          p1[0] + (p2[0] - p0[0]) / 6,
+          p1[1] + (p2[1] - p0[1]) / 6,
+          p2[0] - (p3[0] - p1[0]) / 6,
+          p2[1] - (p3[1] - p1[1]) / 6,
+          p2[0], p2[1],
+        );
+      }
+    };
+
     // Draw pre-computed chains for all contour levels onto a target context
     const drawAllContours = (tgt: CanvasRenderingContext2D, styleFn: (level: number, isMajor: boolean, isHovered: boolean) => void) => {
       for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
@@ -894,10 +965,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         styleFn(CONTOUR_LEVELS[li], (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
         tgt.beginPath();
         for (const chain of chains) {
-          tgt.moveTo(chain[0][0], chain[0][1]);
-          for (let i = 1; i < chain.length; i++) {
-            tgt.lineTo(chain[i][0], chain[i][1]);
-          }
+          drawChainSmooth(tgt, chain);
         }
         tgt.stroke();
       }
@@ -1078,10 +1146,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const lineWidth = baseWidth * slopeScale;
         
         ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(pts[i][0], pts[i][1]);
-        }
+        drawChainSmooth(ctx, pts);
         
         // Determine path color from source node's color (subtle tint)
         const srcIdx = cachedIdToIdx.get(path.sourceId);
@@ -1129,7 +1194,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     const { visibleNodes } = frameDataRef.current;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-    const { accentColor } = cssVarsRef.current;
+    const { accentColor, textColor } = cssVarsRef.current;
     const currentClassColors = classColorsRef.current;
     const cache = terrainCacheRef.current;
     const idToIdx = cache.idToIdx;
@@ -1220,7 +1285,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         overlayCtx.stroke();
         
         overlayCtx.globalAlpha = 0.8;
-        overlayCtx.strokeStyle = '#ffffff';
+        overlayCtx.strokeStyle = textColor;
         overlayCtx.lineWidth = 1.5;
         overlayCtx.stroke();
         
@@ -1247,9 +1312,15 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
     if (mx >= 0 && my >= 0 && !isPanningRef.current && !dragNodeRef.current) {
+      // Parse textColor hex to rgb for rgba usage
+      const hx = textColor.replace('#', '');
+      const cr = parseInt(hx.substring(0, 2), 16) || 0;
+      const cg = parseInt(hx.substring(2, 4), 16) || 0;
+      const cb = parseInt(hx.substring(4, 6), 16) || 0;
+      
       overlayCtx.save();
       overlayCtx.setLineDash([6, 4]);
-      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      overlayCtx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, 0.15)`;
       overlayCtx.lineWidth = 1;
       overlayCtx.beginPath();
       overlayCtx.moveTo(mx, 0);
@@ -1262,7 +1333,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       const CROSS_SIZE = 8;
       overlayCtx.setLineDash([]);
-      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      overlayCtx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, 0.7)`;
       overlayCtx.lineWidth = 1.5;
       overlayCtx.beginPath();
       overlayCtx.moveTo(mx - CROSS_SIZE, my);
@@ -1304,12 +1375,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
     const { width: w, height: h } = dimensionsRef.current;
+    const { accentColor: profileAccentColor } = cssVarsRef.current;
     
     // Card inset constants (must match CSS)
     const INSET = 12;
     const CROSS_INSET = 68;
     const PROFILE_X_HEIGHT = 48;
     const PROFILE_Y_WIDTH = 48;
+    
+    // Calculate actual card dimensions
+    const cardXWidth = w - INSET - CROSS_INSET;
+    const cardYHeight = h - INSET - CROSS_INSET;
+    
+    // Update viewBox dimensions
+    setProfileViewBoxX({ width: cardXWidth, height: PROFILE_X_HEIGHT });
+    setProfileViewBoxY({ width: PROFILE_Y_WIDTH, height: cardYHeight });
     
     // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
     if (mx >= 0 && my >= 0) {
@@ -1359,7 +1439,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           dots.push({
             x: cardNx,
             y: ndotY,
-            color: cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff',
+            color: cc.length > 0 ? getNodeColor(node, cc, profileAccentColor) : profileAccentColor,
             opacity: 0.15 + proxSq * 0.65
           });
         }
@@ -1423,7 +1503,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           dots.push({
             x: ndotX,
             y: cardNy,
-            color: cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff',
+            color: cc.length > 0 ? getNodeColor(node, cc, profileAccentColor) : profileAccentColor,
             opacity: 0.15 + proxSq * 0.65
           });
         }
@@ -1752,27 +1832,32 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         className="terrain-profile-card terrain-profile-card--right"
       >
         <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
-          <svg className="terrain-profile-canvas" viewBox="0 0 48 600" preserveAspectRatio="none">
+          <svg 
+            className="terrain-profile-canvas" 
+            viewBox={`0 0 ${profileViewBoxY.width} ${profileViewBoxY.height}`}
+            preserveAspectRatio="none"
+          >
             {profileYPath && (
               <>
                 <path
                   d={profileYPath}
-                  fill="var(--color-surface-container-high)"
-                  fillOpacity="0.25"
-                  stroke="var(--color-outline)"
+                  fill="var(--color-on-surface)"
+                  fillOpacity="0.08"
+                  stroke="var(--color-on-surface)"
                   strokeWidth="1"
+                  strokeOpacity="0.4"
                   vectorEffect="non-scaling-stroke"
                 />
                 {profileYCursor.visible && (
                   <line
                     x1="0"
                     y1={profileYCursor.y}
-                    x2="48"
+                    x2={profileViewBoxY.width}
                     y2={profileYCursor.y}
-                    stroke="var(--color-outline-variant)"
+                    stroke="var(--color-on-surface)"
                     strokeWidth="1"
                     strokeDasharray="4 3"
-                    strokeOpacity="0.5"
+                    strokeOpacity="0.3"
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
@@ -1781,7 +1866,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
                     key={i}
                     cx={dot.x}
                     cy={dot.y}
-                    r="2"
+                    r="3"
                     fill={dot.color}
                     opacity={dot.opacity}
                   />
@@ -1797,15 +1882,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         className="terrain-profile-card terrain-profile-card--bottom"
       >
         <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
-          <svg className="terrain-profile-canvas" viewBox="0 0 800 48" preserveAspectRatio="none">
+          <svg 
+            className="terrain-profile-canvas" 
+            viewBox={`0 0 ${profileViewBoxX.width} ${profileViewBoxX.height}`}
+            preserveAspectRatio="none"
+          >
             {profileXPath && (
               <>
                 <path
                   d={profileXPath}
-                  fill="var(--color-surface-container-high)"
-                  fillOpacity="0.25"
-                  stroke="var(--color-outline)"
+                  fill="var(--color-on-surface)"
+                  fillOpacity="0.08"
+                  stroke="var(--color-on-surface)"
                   strokeWidth="1"
+                  strokeOpacity="0.4"
                   vectorEffect="non-scaling-stroke"
                 />
                 {profileXCursor.visible && (
@@ -1813,11 +1903,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
                     x1={profileXCursor.x}
                     y1="0"
                     x2={profileXCursor.x}
-                    y2="48"
-                    stroke="var(--color-outline-variant)"
+                    y2={profileViewBoxX.height}
+                    stroke="var(--color-on-surface)"
                     strokeWidth="1"
                     strokeDasharray="4 3"
-                    strokeOpacity="0.5"
+                    strokeOpacity="0.3"
                     vectorEffect="non-scaling-stroke"
                   />
                 )}
@@ -1826,7 +1916,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
                     key={i}
                     cx={dot.x}
                     cy={dot.y}
-                    r="2"
+                    r="3"
                     fill={dot.color}
                     opacity={dot.opacity}
                   />

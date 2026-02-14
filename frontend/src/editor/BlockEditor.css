@@ -315,7 +315,7 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background-color: var(--color-accent, #3b82f6);
+  background-color: var(--color-accent);
   opacity: 0.3;
   border-top-left-radius: var(--shape-medium);
   border-bottom-left-radius: var(--shape-medium);
@@ -330,7 +330,7 @@
 .node-block--selected .bullet-dot,
 .node-block--selected-child .bullet-dot {
   opacity: 0.9;
-  background-color: var(--color-accent, #3b82f6);
+  background-color: var(--color-accent);
 }
 
 /* Child blocks of a selected block share the background */

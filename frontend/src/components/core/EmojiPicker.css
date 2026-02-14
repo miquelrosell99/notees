@@ -145,7 +145,7 @@
 
 .emoji-picker-mdi-category.active {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-on-primary);
   border-color: var(--color-primary);
 }
 
@@ -181,7 +181,7 @@
 
 .emoji-picker-item.selected {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-on-primary);
 }
 
 .emoji-picker-item.mdi-item {
@@ -194,7 +194,7 @@
 }
 
 .emoji-picker-item.mdi-item.selected {
-  color: white;
+  color: var(--color-on-primary);
 }
 
 /* Empty state */
