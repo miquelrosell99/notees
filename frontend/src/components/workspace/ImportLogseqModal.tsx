@@ -22,6 +22,7 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
+import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes } from '@/api/nodes';
 import { listProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -95,6 +96,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const addClassMutation = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
+  const { openNode } = useAppStore();
 
   // Reset state and focus when opened
   useEffect(() => {
@@ -402,6 +404,18 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ── Build final report ────────────────────────────────────
       const totalSucceeded = phases.reduce((s, p) => s + p.succeeded, 0);
       const totalFailed = phases.reduce((s, p) => s + p.failed, 0);
+
+      // Single-page import: navigate directly to the page and close
+      if (parsed.pages.length === 1 && totalFailed === 0) {
+        const singlePage = parsed.pages[0];
+        const info = singlePage.uuid ? uuidMap.get(singlePage.uuid) : titleToNodeInfo.get(singlePage.title);
+        if (info) {
+          openNode(info.id);
+          onClose();
+          return;
+        }
+      }
+
       setReport({ phases, totalSucceeded, totalFailed });
       setImportStatus('');
     } catch (e) {
