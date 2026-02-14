@@ -13,6 +13,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useClasses } from '@/hooks';
 import { NodeIcon } from '@/components/core/icons';
+import { parseLinkId } from '@/lib/astBuilder';
 
 export interface InlineNodeLinkProps {
   linkId: string;
@@ -20,7 +21,8 @@ export interface InlineNodeLinkProps {
 }
 
 export function InlineNodeLink({ linkId, refType }: InlineNodeLinkProps) {
-  const { data: node } = useNodeByUuid(linkId);
+  const { nodeUuid } = parseLinkId(linkId);
+  const { data: node } = useNodeByUuid(nodeUuid);
   const { data: allClasses } = useClasses();
 
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
