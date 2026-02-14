@@ -146,9 +146,8 @@ async def create_workspace(user_id: str, name: str) -> Dict[str, Any]:
             "created_at": row['create_date'].isoformat() if row['create_date'] else None,
         }
         
-        # Set as active if user has no active workspace
-        if user_id not in _active_workspaces:
-            _active_workspaces[user_id] = str(row['uuid'])
+        # Auto-activate newly created workspace
+        _active_workspaces[user_id] = str(row['uuid'])
         
         return result
 
