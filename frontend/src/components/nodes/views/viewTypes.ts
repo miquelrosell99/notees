@@ -183,14 +183,14 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 // ==================== Physics Constants ====================
 
 // Linked pair attraction
-export const LINKED_ATTRACTION_DISTANCE = 120;
-export const ATTRACTION_STRENGTH = 0.015;
+export const LINKED_ATTRACTION_DISTANCE = 90;
+export const ATTRACTION_STRENGTH = 0.025;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.005;
 export const LINK_DAMPING = 0.08;
 
 // Unlinked repulsion
-export const REPULSION_STRENGTH = 4000;
-export const UNLINKED_REPULSION_DISTANCE = 500;
+export const REPULSION_STRENGTH = 6000;
+export const UNLINKED_REPULSION_DISTANCE = 600;
 export const MIN_REPULSION_DISTANCE = 20;
 
 // Return-to-target force (constrained modes)
@@ -282,19 +282,19 @@ export const CONTOUR_LEVELS: number[] = Array.from(
 
 // Terrain height map parameters (spline smoothing allows coarser grid)
 export const TERRAIN_GRID_RES = 4;
-export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.25; // Controls contour spline detail (lower = more detail)
-export const TERRAIN_BASE_PLATEAU_RADIUS = 14;
-export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
-export const TERRAIN_BASE_SLOPE_RADIUS = 120;
-export const TERRAIN_PEAK_SLOPE_BONUS = 200;
+export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.15; // Controls contour spline detail (lower = more detail)
+export const TERRAIN_BASE_PLATEAU_RADIUS = 5;
+export const TERRAIN_PEAK_PLATEAU_BONUS = 14;
+export const TERRAIN_BASE_SLOPE_RADIUS = 100;
+export const TERRAIN_PEAK_SLOPE_BONUS = 150;
 export const TERRAIN_ANISOTROPY = 0.25; // 0 = perfect circle, 1 = fully stretched toward parent links
 export const TERRAIN_NOISE_STRENGTH = 0.12; // 0 = smooth circles, higher = more irregular contour shapes
 
 // Terrain ridge parameters (parent-child connections)
-export const TERRAIN_RIDGE_PLATEAU_RADIUS = 5;
-export const TERRAIN_RIDGE_PLATEAU_BONUS = 8;
-export const TERRAIN_RIDGE_SLOPE_RADIUS = 20;
-export const TERRAIN_RIDGE_SLOPE_BONUS = 40;
+export const TERRAIN_RIDGE_PLATEAU_RADIUS = 30;
+export const TERRAIN_RIDGE_PLATEAU_BONUS = 40;
+export const TERRAIN_RIDGE_SLOPE_RADIUS = 100;
+export const TERRAIN_RIDGE_SLOPE_BONUS = 200;
 export const TERRAIN_RIDGE_SAG = 0.15; // Height dip at ridge midpoint (0-1)
 
 // Line dash patterns (allocated once)
