@@ -459,6 +459,8 @@ export function BlockEditor({
         <ContextMenuPlugin
           onNavigateToNode={onNavigateToNode}
           onOpenInSidebar={onOpenInSidebar}
+          onPillEdit={handlePillEdit}
+          onPillRemove={handlePillRemove}
         />
 
         {/* Blur editor when clicking outside */}
