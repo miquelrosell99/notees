@@ -1691,9 +1691,21 @@ export function useNodePhysics({
           }
           
           // --- Peak radii (size) ---
+          // Base size comes from the chosen mode (links or pageSize), then
+          // we blend in child count so parent nodes get wider mountain bases.
           const peakSizeMode = currentSettings.peakSizeMode;
           let maxRawSize = 0;
+          let maxChildCount = 0;
           const rawRadii = new Map<number, number>();
+          const childCounts = new Map<number, number>();
+          
+          // Pre-compute child counts from mass cache (mass = 1 + Σ children)
+          for (const node of nodes) {
+            const m = massCache.get(node.id) ?? 1;
+            const cc = m - 1; // number of recursive descendants
+            childCounts.set(node.id, cc);
+            if (cc > maxChildCount) maxChildCount = cc;
+          }
           
           if (peakSizeMode === 'pageSize') {
             // Use page content length (displayName chars) as peak size
@@ -1721,8 +1733,15 @@ export function useNodePhysics({
               if (count > maxRawSize) maxRawSize = count;
             }
           }
+          // Blend base size with child count: 60% mode-based size + 40% hierarchy size
+          // This ensures parents with many children get wider mountain bases
+          const CHILD_COUNT_WEIGHT = 0.4;
           for (const [id, c] of rawRadii) {
-            terrainPeakRadii.set(id, maxRawSize > 0 ? c / maxRawSize : 0);
+            const baseFrac = maxRawSize > 0 ? c / maxRawSize : 0;
+            const childFrac = maxChildCount > 0
+              ? Math.log(1 + (childCounts.get(id) ?? 0)) / Math.log(1 + maxChildCount)
+              : 0;
+            terrainPeakRadii.set(id, baseFrac * (1 - CHILD_COUNT_WEIGHT) + childFrac * CHILD_COUNT_WEIGHT);
           }
           
           terrainDataDirtyRef.current = false;
