@@ -86,19 +86,27 @@
 }
 
 /* Node labels as DOM elements */
-.terrain-node-label {
-  font-size: 10px;
+.terrain-node-label-wrapper {
+  opacity: 0;
+  animation: fadeInLabel 0.2s ease forwards;
+}
+
+.terrain-node-label-card {
+  padding: 4px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px var(--color-shadow);
+  pointer-events: none;
+  width: fit-content;
+}
+
+.terrain-node-label-text {
+  font-size: 11px;
   font-family: Inter, sans-serif;
   font-weight: 500;
   color: var(--color-on-surface);
   white-space: nowrap;
   text-align: center;
-  text-shadow: 
-    0 0 3px var(--color-surface),
-    0 0 5px var(--color-surface),
-    0 1px 2px var(--color-shadow);
-  opacity: 0;
-  animation: fadeInLabel 0.2s ease forwards;
 }
 
 @keyframes fadeInLabel {

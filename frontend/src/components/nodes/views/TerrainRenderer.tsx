@@ -1231,7 +1231,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const displayName = hovNode.displayName.length > 35 
           ? hovNode.displayName.slice(0, 35) + '...' 
           : hovNode.displayName;
-        labels.push({ id: hovNode.id, x: sx, y: sy + 6, text: displayName, isSelected: false });
+        labels.push({ id: hovNode.id, x: sx, y: sy, text: displayName, isSelected: false });
       }
     }
     
@@ -1317,7 +1317,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           : node.displayName;
         // Only add if not already added as hovered (avoid duplicate)
         if (!labels.find(l => l.id === node.id)) {
-          labels.push({ id: node.id, x: sx, y: sy + 6, text: displayName, isSelected: true });
+          labels.push({ id: node.id, x: sx, y: sy, text: displayName, isSelected: true });
         }
       }
       
@@ -1979,17 +1979,19 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       {nodeLabels.map((label) => (
         <div
           key={label.id}
-          className="terrain-node-label"
+          className="terrain-node-label-wrapper"
           style={{
             position: 'absolute',
             left: `${label.x}px`,
             top: `${label.y}px`,
-            transform: 'translateX(-50%)',
+            transform: 'translate(-50%, -50%)',
             pointerEvents: 'none',
             zIndex: 5,
           }}
         >
-          {label.text}
+          <Card className="terrain-node-label-card">
+            <span className="terrain-node-label-text">{label.text}</span>
+          </Card>
         </div>
       ))}
     </div>
