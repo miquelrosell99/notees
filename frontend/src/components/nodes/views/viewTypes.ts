@@ -235,7 +235,7 @@ export const TERRAIN_SEPARATION_STRENGTH = 0.15;
 export const TERRAIN_MIN_SEPARATION = 5;
 
 // Reference-linked node separation (ensures valleys between peaks for path routing)
-export const TERRAIN_REF_LINK_MIN_SEPARATION = 180; // minimum distance in world units
+export const TERRAIN_REF_LINK_MIN_SEPARATION = 240; // minimum distance in world units
 export const TERRAIN_REF_LINK_SEPARATION_STRENGTH = 0.06; // repulsion strength (gentle)
 
 // ==================== Rendering Constants ====================
@@ -278,9 +278,9 @@ export const CONTOUR_LEVELS: number[] = Array.from(
 
 // Terrain height map parameters
 export const TERRAIN_GRID_RES = 4;
-export const TERRAIN_BASE_PLATEAU_RADIUS = 20;
+export const TERRAIN_BASE_PLATEAU_RADIUS = 14;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
-export const TERRAIN_BASE_SLOPE_RADIUS = 160;
+export const TERRAIN_BASE_SLOPE_RADIUS = 120;
 export const TERRAIN_PEAK_SLOPE_BONUS = 200;
 export const TERRAIN_ANISOTROPY = 0.25; // 0 = perfect circle, 1 = fully stretched toward parent links
 export const TERRAIN_NOISE_STRENGTH = 0.12; // 0 = smooth circles, higher = more irregular contour shapes
