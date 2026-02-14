@@ -284,7 +284,14 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       // Skip logseq system properties — only import user properties
       if (k.value.startsWith('logseq.property')) continue;
       const title = asString(mapGet(v, 'block/title')) ?? k.value;
-      const typeKw = mapGet(v, 'logseq.property/type');
+      let typeKw = mapGet(v, 'logseq.property/type');
+      // Fallback: some EDN exports use block/schema {:type :node} instead
+      if (!typeKw) {
+        const schema = mapGet(v, 'block/schema');
+        if (schema instanceof Map) {
+          typeKw = mapGet(schema, 'type');
+        }
+      }
       const cardKw = mapGet(v, 'db/cardinality');
 
       // Class filters for node-type properties
