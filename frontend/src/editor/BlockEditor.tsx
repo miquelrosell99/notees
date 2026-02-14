@@ -12,7 +12,7 @@
  * NOT used for Card Mode — see CardModeView for per-card editors.
  */
 
-import { useCallback, useMemo, useId, useLayoutEffect, type JSX } from 'react';
+import { useCallback, useMemo, useId, useLayoutEffect, useState, type JSX } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -27,7 +27,7 @@ import { BlockCodeNode } from './nodes/BlockCodeNode';
 import { BlockTableCellNode } from './nodes/BlockTableCellNode';
 
 import { BlockPlugin } from './plugins/BlockPlugin';
-import { PillPlugin } from './plugins/PillPlugin';
+import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { BlockDragSelectionPlugin } from './plugins/BlockDragSelectionPlugin';
 import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
@@ -42,6 +42,7 @@ import { EditablePlugin } from './plugins/EditablePlugin';
 import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
+import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
@@ -49,6 +50,8 @@ import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
+import { updateLinkName } from '../api/nodes';
+import { parseLinkId, buildLinkId } from '../lib/astBuilder';
 
 import './BlockEditor.css';
 
@@ -301,6 +304,63 @@ export function BlockEditor({
     // Content change will be picked up by the update listener
   }, []);
 
+  // ─── Link edit modal ──────────────────────────────────────
+
+  const [linkEditState, setLinkEditState] = useState<{
+    linkId: string;
+    refType: 'node' | 'class';
+  } | null>(null);
+
+  const handlePillEdit = useCallback((linkId: string, refType: 'node' | 'class') => {
+    setLinkEditState({ linkId, refType });
+  }, []);
+
+  const handleLinkEditClose = useCallback(() => {
+    setLinkEditState(null);
+  }, []);
+
+  const handleLinkEditSave = useCallback((result: LinkEditResult) => {
+    const { nodeUuid: origNodeUuid, linkUuid } = parseLinkId(result.originalLinkId);
+
+    // Update custom label via API if we have a linkUuid
+    if (linkUuid) {
+      updateLinkName(linkUuid, result.label).catch(err => {
+        console.error('[BlockEditor] Failed to update link name:', err);
+      });
+    }
+
+    // If the target node changed, update the PillNode in the Lexical tree
+    if (result.targetNode && result.targetNode.uuid !== origNodeUuid) {
+      const newNodeUuid = result.targetNode.uuid;
+      // Build new compound linkId — keep the same linkUuid if available
+      const newLinkId = linkUuid
+        ? buildLinkId(newNodeUuid, linkUuid)
+        : newNodeUuid;
+
+      // Find and update the PillNode in the editor
+      // We need access to the editor instance — use a deferred update
+      // via the Lexical composition context. The editor is available
+      // from the LexicalComposer context, but since we're outside,
+      // we use a ref-based approach via the NodeLinkPlugin.
+
+      // Store the pending update — NodeLinkPlugin will pick it up
+      setPendingPillUpdate({
+        oldLinkId: result.originalLinkId,
+        newLinkId,
+        newRefType: linkEditState?.refType ?? 'node',
+      });
+    }
+
+    setLinkEditState(null);
+  }, [linkEditState]);
+
+  // Pending pill update (applied by a useEffect that has editor access)
+  const [pendingPillUpdate, setPendingPillUpdate] = useState<{
+    oldLinkId: string;
+    newLinkId: string;
+    newRefType: 'node' | 'class';
+  } | null>(null);
+
   // ─── Render ────────────────────────────────────────────────
 
   const editorClassName = [
@@ -351,9 +411,12 @@ export function BlockEditor({
         />
 
         {/* Pill plugin */}
-        <PillPlugin
+        <NodeLinkPlugin
           onPillClick={handlePillClick}
+          onPillEdit={handlePillEdit}
           onPillRemove={handlePillRemove}
+          pendingPillUpdate={pendingPillUpdate}
+          onPillUpdateApplied={() => setPendingPillUpdate(null)}
         />
 
         {/* Drag & drop */}
@@ -410,6 +473,17 @@ export function BlockEditor({
         {/* Custom caret (replaces native caret, Insert key toggles block mode) */}
         <CustomCaretPlugin readOnly={readOnly} />
       </LexicalComposer>
+
+      {/* Link edit modal (rendered outside Lexical context) */}
+      {linkEditState && (
+        <LinkEditModal
+          isOpen={true}
+          linkId={linkEditState.linkId}
+          refType={linkEditState.refType}
+          onSave={handleLinkEditSave}
+          onClose={handleLinkEditClose}
+        />
+      )}
     </div>
   );
 }

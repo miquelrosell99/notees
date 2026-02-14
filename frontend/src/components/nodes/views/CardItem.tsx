@@ -23,7 +23,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { notesEditorTheme } from '@/editor/theme';
 import { EDITOR_NODES, serializeContentAST } from '@/editor/BlockEditor';
 import { BlockPlugin } from '@/editor/plugins/BlockPlugin';
-import { PillPlugin } from '@/editor/plugins/PillPlugin';
+import { NodeLinkPlugin } from '@/editor/plugins/NodeLinkPlugin';
 import { DragDropPlugin } from '@/editor/plugins/DragDropPlugin';
 import { CollapsePlugin } from '@/editor/plugins/CollapsePlugin';
 import { FormattingPlugin } from '@/editor/plugins/FormattingPlugin';
@@ -202,7 +202,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onOutdent={handleOutdent}
           readOnly={readOnly}
         />
-        <PillPlugin
+        <NodeLinkPlugin
           onPillClick={handlePillClick}
           onPillRemove={() => {}}
         />

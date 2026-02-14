@@ -1,5 +1,5 @@
 /**
- * PillPlugin — Lexical plugin for rendering Pill decorator nodes.
+ * NodeLinkPlugin — Lexical plugin for rendering node-link pill decorator nodes.
  *
  * Handles:
  * - Rendering PillNode as React components
@@ -14,6 +14,7 @@ import {
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   $getSelection,
+  $getRoot,
   $isNodeSelection,
   $isRangeSelection,
   $isTextNode,
@@ -26,19 +27,35 @@ import {
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isPillNode, $createPillNode } from '../nodes/PillNode';
 
-export interface PillPluginProps {
-  /** Called when a pill is clicked for navigation */
-  onPillClick?: (linkId: string, refType: 'node' | 'class') => void;
-  /** Called when a pill is removed */
-  onPillRemove?: (linkId: string) => void;
+/** Pending update to apply to a PillNode (from LinkEditModal). */
+export interface PendingPillUpdate {
+  oldLinkId: string;
+  newLinkId: string;
+  newRefType: 'node' | 'class';
 }
 
-export function PillPlugin({
+export interface NodeLinkPluginProps {
+  /** Called when a pill is clicked for navigation */
+  onPillClick?: (linkId: string, refType: 'node' | 'class') => void;
+  /** Called when a pill is clicked in edit mode (opens edit modal) */
+  onPillEdit?: (linkId: string, refType: 'node' | 'class') => void;
+  /** Called when a pill is removed */
+  onPillRemove?: (linkId: string) => void;
+  /** Pending pill update from LinkEditModal (applied then cleared) */
+  pendingPillUpdate?: PendingPillUpdate | null;
+  /** Called after pendingPillUpdate is consumed */
+  onPillUpdateApplied?: () => void;
+}
+
+export function NodeLinkPlugin({
   onPillClick,
+  onPillEdit,
   onPillRemove,
-}: PillPluginProps): null {
+  pendingPillUpdate,
+  onPillUpdateApplied,
+}: NodeLinkPluginProps): null {
   const [editor] = useLexicalComposerContext();
 
   // ─── Click handling ────────────────────────────────────────
@@ -52,7 +69,12 @@ export function PillPlugin({
         const linkId = pillWrapper.getAttribute('data-link-id');
         const refType = (pillWrapper.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
         if (linkId) {
-          onPillClick?.(linkId, refType);
+          // In edit mode, open the edit modal instead of navigating
+          if (editor.isEditable() && onPillEdit) {
+            onPillEdit(linkId, refType);
+          } else {
+            onPillClick?.(linkId, refType);
+          }
         }
         return true;
       }
@@ -61,7 +83,39 @@ export function PillPlugin({
     };
 
     return editor.registerCommand(CLICK_COMMAND, handleClick, COMMAND_PRIORITY_HIGH);
-  }, [editor, onPillClick]);
+  }, [editor, onPillClick, onPillEdit]);
+
+  // ─── Apply pending pill update (from LinkEditModal) ──────────
+
+  useEffect(() => {
+    if (!pendingPillUpdate) return;
+
+    editor.update(() => {
+      const root = $getRoot();
+      // Recursive descent to find and replace the PillNode with matching linkId
+      const findAndReplacePill = (parent: ReturnType<typeof $getRoot>) => {
+        for (const child of parent.getChildren()) {
+          if ($isPillNode(child) && child.getLinkId() === pendingPillUpdate.oldLinkId) {
+            // Replace with a new PillNode with the updated linkId
+            const newPill = $createPillNode(
+              pendingPillUpdate.newLinkId,
+              pendingPillUpdate.newRefType,
+            );
+            child.replace(newPill);
+            return true;
+          }
+          // Recurse into element nodes
+          if ('getChildren' in child && typeof child.getChildren === 'function') {
+            if (findAndReplacePill(child as any)) return true;
+          }
+        }
+        return false;
+      };
+      findAndReplacePill(root);
+    });
+
+    onPillUpdateApplied?.();
+  }, [editor, pendingPillUpdate, onPillUpdateApplied]);
 
   // ─── Selection change handling (apply selected class) ─────────
 
