@@ -2,8 +2,11 @@
  * Terrain Reference Paths
  *
  * Computes least-slope paths between reference-linked node peaks on the terrain
- * height map using A* pathfinding on a downsampled grid. Applies subtle erosion
- * along computed paths to create shallow valleys in the terrain.
+ * height map using A* pathfinding on a downsampled grid. Paths start and end at
+ * the edge of each peak's plateau (not the center), following a natural
+ * downhill → valley → uphill trajectory.
+ *
+ * Also applies subtle erosion along computed paths to create shallow valleys.
  *
  * This module does NOT affect node positions or physics — paths are purely
  * derived geometry rendered after contour lines.
@@ -32,21 +35,35 @@ export interface RefLink {
   target: number;
 }
 
+/** Node peak info for path edge offset computation */
+export interface NodePeakInfo {
+  screenX: number;
+  screenY: number;
+  /** Plateau radius in screen pixels */
+  plateauRadius: number;
+}
+
 // ==================== Constants ====================
 
 /** Downsample factor for A* grid (relative to heightMap grid) */
 const PATHFIND_DOWNSAMPLE = 2;
 
-/** A* cost weights: α (elevation change²), β (slope magnitude), γ (distance) */
-const ALPHA = 8.0;
-const BETA = 3.0;
-const GAMMA = 1.0;
+/**
+ * A* cost weights — tuned for downhill→valley→uphill traversal.
+ *
+ * ALPHA: penalizes elevation change² (keeps path smooth, avoids cliffs)
+ * BETA:  penalizes absolute height at each cell (drives path into valleys)
+ * GAMMA: penalizes distance (keeps path reasonably short)
+ */
+const ALPHA = 6.0;   // elevation change² penalty
+const BETA = 12.0;   // absolute height penalty — key for valley-seeking
+const GAMMA = 1.0;   // distance penalty
 
 /** Max path distance in grid cells before falling back to Bézier */
 const MAX_ASTAR_GRID_DIST = 300;
 
 /** Min distance in grid cells — skip A* for very close peaks */
-const MIN_ASTAR_GRID_DIST = 4;
+const MIN_ASTAR_GRID_DIST = 3;
 
 /** Erosion radius in grid cells around path */
 const EROSION_RADIUS = 2;
@@ -108,9 +125,12 @@ class MinHeap {
 
 /**
  * 8-directional A* on the downsampled height grid.
- * Cost function: α * (Δh)² + β * |slope| + γ * step_distance
  *
- * Prefers gentle passes over steep ridges.
+ * Cost per step:
+ *   α * (Δh)² + β * h_next * step_distance + γ * step_distance
+ *
+ * The β * h_next term makes the path actively seek low-elevation cells,
+ * producing natural downhill → valley → uphill routes between peaks.
  */
 function astarPath(
   heightMap: Float32Array,
@@ -120,7 +140,7 @@ function astarPath(
   startGy: number,
   endGx: number,
   endGy: number,
-  ds: number,           // downsample factor
+  ds: number,
 ): Array<[number, number]> | null {
   const pw = Math.ceil(gridW / ds);
   const ph = Math.ceil(gridH / ds);
@@ -184,10 +204,9 @@ function astarPath(
 
       const nH = sampleH(nx, ny);
       const dh = nH - curH;
-      const slope = Math.abs(dh) / stepDist;
 
-      // Cost: penalize uphill strongly, prefer valleys
-      const cost = ALPHA * dh * dh + BETA * slope + GAMMA * stepDist;
+      // Cost: Δh² keeps it smooth, h_next drives it into valleys, dist keeps it short
+      const cost = ALPHA * dh * dh + BETA * nH * stepDist + GAMMA * stepDist;
       const tentG = gScore[cur] + cost;
 
       if (tentG < gScore[ni]) {
@@ -231,14 +250,8 @@ function astarPath(
 function bezierFallback(
   startGx: number, startGy: number,
   endGx: number, endGy: number,
-  heightMap: Float32Array,
-  gridW: number,
-  gridH: number,
   numSamples: number = 20,
 ): Array<[number, number]> {
-  const mx = (startGx + endGx) / 2;
-  const my = (startGy + endGy) / 2;
-
   // Perpendicular offset for control points (slight sag)
   const dx = endGx - startGx;
   const dy = endGy - startGy;
@@ -246,16 +259,11 @@ function bezierFallback(
   const px = -dy / (len || 1) * len * 0.15;
   const py = dx / (len || 1) * len * 0.15;
 
-  // Sample height at midpoint to determine sag direction
-  const mgx = Math.min(Math.max(Math.round(mx), 0), gridW - 1);
-  const mgy = Math.min(Math.max(Math.round(my), 0), gridH - 1);
-  const midH = heightMap[mgy * gridW + mgx];
-
-  // Control points: slight perpendicular offset if midpoint is high (go around ridge)
-  const cp1x = startGx + dx * 0.33 + (midH > 0.5 ? px * 0.3 : 0);
-  const cp1y = startGy + dy * 0.33 + (midH > 0.5 ? py * 0.3 : 0);
-  const cp2x = startGx + dx * 0.66 + (midH > 0.5 ? px * 0.3 : 0);
-  const cp2y = startGy + dy * 0.66 + (midH > 0.5 ? py * 0.3 : 0);
+  // Control points with slight perpendicular offset
+  const cp1x = startGx + dx * 0.33 + px * 0.15;
+  const cp1y = startGy + dy * 0.33 + py * 0.15;
+  const cp2x = startGx + dx * 0.66 + px * 0.15;
+  const cp2y = startGy + dy * 0.66 + py * 0.15;
 
   const points: Array<[number, number]> = [];
   for (let i = 0; i <= numSamples; i++) {
@@ -291,13 +299,36 @@ function smoothPath(points: Array<[number, number]>, passes: number = 2): Array<
   return current;
 }
 
+// ==================== Peak Edge Helper ====================
+
+/**
+ * Compute a point on the edge of a peak's plateau, toward another peak.
+ * Returns screen-space coordinates of the edge point.
+ */
+function peakEdgePoint(
+  peak: NodePeakInfo,
+  otherPeak: NodePeakInfo,
+): [number, number] {
+  const dx = otherPeak.screenX - peak.screenX;
+  const dy = otherPeak.screenY - peak.screenY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return [peak.screenX, peak.screenY];
+  const nx = dx / dist;
+  const ny = dy / dist;
+  return [
+    peak.screenX + nx * peak.plateauRadius,
+    peak.screenY + ny * peak.plateauRadius,
+  ];
+}
+
 // ==================== Public API ====================
 
 /**
  * Compute reference link paths on the terrain heightMap.
  *
  * For each reference link between visible nodes, find the least-slope
- * route using A* on a downsampled height grid. Falls back to Bézier
+ * route using A* on a downsampled height grid. Paths start and end at
+ * the plateau edge of each peak, not the center. Falls back to Bézier
  * for very close/far peaks or when A* fails.
  *
  * @param heightMap - The terrain height map (gridW × gridH, values 0–1)
@@ -305,7 +336,7 @@ function smoothPath(points: Array<[number, number]>, passes: number = 2): Array<
  * @param gridH - Height map height in grid cells
  * @param gs - Grid cell size in screen pixels
  * @param refLinks - Reference links to compute paths for
- * @param nodeScreenPositions - Map of node id → [screenX, screenY]
+ * @param nodePeaks - Map of node id → NodePeakInfo (position + plateau radius)
  */
 export function computeReferencePaths(
   heightMap: Float32Array,
@@ -313,7 +344,7 @@ export function computeReferencePaths(
   gridH: number,
   gs: number,
   refLinks: RefLink[],
-  nodeScreenPositions: Map<number, [number, number]>,
+  nodePeaks: Map<number, NodePeakInfo>,
 ): ReferencePathResult {
   if (refLinks.length === 0) return { paths: [] };
 
@@ -330,15 +361,19 @@ export function computeReferencePaths(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const srcPos = nodeScreenPositions.get(link.source);
-    const tgtPos = nodeScreenPositions.get(link.target);
-    if (!srcPos || !tgtPos) continue;
+    const srcPeak = nodePeaks.get(link.source);
+    const tgtPeak = nodePeaks.get(link.target);
+    if (!srcPeak || !tgtPeak) continue;
 
-    // Convert screen coords to grid coords
-    const srcGx = srcPos[0] / gs;
-    const srcGy = srcPos[1] / gs;
-    const tgtGx = tgtPos[0] / gs;
-    const tgtGy = tgtPos[1] / gs;
+    // Compute edge points (start/end at plateau boundary, not center)
+    const [srcEdgeX, srcEdgeY] = peakEdgePoint(srcPeak, tgtPeak);
+    const [tgtEdgeX, tgtEdgeY] = peakEdgePoint(tgtPeak, srcPeak);
+
+    // Convert edge screen coords to grid coords
+    const srcGx = srcEdgeX / gs;
+    const srcGy = srcEdgeY / gs;
+    const tgtGx = tgtEdgeX / gs;
+    const tgtGy = tgtEdgeY / gs;
 
     const gdx = tgtGx - srcGx;
     const gdy = tgtGy - srcGy;
@@ -348,22 +383,26 @@ export function computeReferencePaths(
 
     if (gridDist < MIN_ASTAR_GRID_DIST) {
       // Very close peaks — simple Bézier
-      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, heightMap, gridW, gridH, 12);
+      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 12);
     } else if (gridDist > MAX_ASTAR_GRID_DIST) {
-      // Too far — skip or use Bézier with more samples
-      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, heightMap, gridW, gridH, 30);
+      // Too far — Bézier with more samples
+      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 30);
     } else {
       // A* pathfinding
-      gridPoints = astarPath(heightMap, gridW, gridH, 
+      gridPoints = astarPath(heightMap, gridW, gridH,
         Math.round(srcGx), Math.round(srcGy),
         Math.round(tgtGx), Math.round(tgtGy), ds);
       if (!gridPoints) {
         // Fallback on A* failure
-        gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, heightMap, gridW, gridH, 20);
+        gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 20);
       }
     }
 
     if (!gridPoints || gridPoints.length < 2) continue;
+
+    // Ensure exact edge start/end
+    gridPoints[0] = [srcGx, srcGy];
+    gridPoints[gridPoints.length - 1] = [tgtGx, tgtGy];
 
     // Smooth the path for visual appeal
     gridPoints = smoothPath(gridPoints, 3);
