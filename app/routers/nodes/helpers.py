@@ -75,6 +75,7 @@ def _node_to_response(
     classes: Optional[List[int]] = None,
     comment_count: int = 0,
     backlink_count: int = 0,
+    aliases: Optional[List[int]] = None,
 ) -> NodeResponse:
     """Convert domain Node to API response.
     
@@ -106,6 +107,8 @@ def _node_to_response(
         comment_count=comment_count,
         backlink_count=backlink_count,
         classes_path=node.classes_path or [],
+        aliased_id=node.aliased_id,
+        aliases=aliases or [],
     )
 
 
@@ -198,6 +201,45 @@ async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> List[int]:
             ORDER BY position
         """, node_id)
         return [row['target_id'] for row in rows]
+
+
+async def _get_alias_ids(pool, workspace_id: int, node_id: int) -> List[int]:
+    """Helper to get alias IDs for a node (nodes that have aliased_id = node_id)."""
+    async with acquire_connection(pool) as conn:
+        rows = await conn.fetch("""
+            SELECT id FROM node 
+            WHERE aliased_id = $1 AND workspace_id = $2 
+              AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
+            ORDER BY name
+        """, node_id, workspace_id)
+        return [row['id'] for row in rows]
+
+
+async def _get_alias_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+    """Efficiently fetch alias_ids for multiple nodes in a single query.
+    
+    Returns a dict mapping node_id -> list of alias node IDs.
+    """
+    if not node_ids:
+        return {}
+    
+    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
+    
+    async with acquire_connection(pool) as conn:
+        rows = await conn.fetch("""
+            SELECT aliased_id, id
+            FROM node
+            WHERE aliased_id = ANY($1) AND workspace_id = $2
+              AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
+            ORDER BY aliased_id, name
+        """, node_ids, workspace_id)
+    
+        for row in rows:
+            aliased_id = row['aliased_id']
+            if aliased_id in result:
+                result[aliased_id].append(row['id'])
+    
+    return result
 
 
 async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:

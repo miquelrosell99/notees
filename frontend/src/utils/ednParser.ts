@@ -259,6 +259,7 @@ export interface LogseqPage {
   title: string;
   uuid?: string;
   tags?: string[];      // class ids
+  aliases?: string[];   // alias page titles (from logseq.property/alias)
   properties?: Record<string, unknown>;
   blocks: LogseqBlock[];
 }
@@ -380,10 +381,24 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       // Properties on this page
       const propsOnPage = mapGet(pageMap, 'build/properties');
       const pageProperties: Record<string, unknown> = {};
+      const pageAliases: string[] = [];
       if (propsOnPage instanceof Map) {
         for (const [pk, pv] of propsOnPage.entries()) {
           if (!(pk instanceof EdnKeyword)) continue;
-          // Skip logseq system properties
+          // Extract aliases before skipping other system properties
+          if (pk.value === 'logseq.property/alias') {
+            const resolved = resolvePropertyValue(pv);
+            const items = Array.isArray(resolved) ? resolved : [resolved];
+            for (const item of items) {
+              if (item && typeof item === 'object' && (item as Record<string, unknown>).__type === 'page-ref') {
+                pageAliases.push((item as Record<string, string>).title);
+              } else if (typeof item === 'string') {
+                pageAliases.push(item);
+              }
+            }
+            continue;
+          }
+          // Skip other logseq system properties
           if (pk.value.startsWith('logseq.property')) continue;
           pageProperties[pk.value] = resolvePropertyValue(pv);
         }
@@ -402,6 +417,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         title,
         uuid,
         tags: tags.length > 0 ? tags : undefined,
+        aliases: pageAliases.length > 0 ? pageAliases : undefined,
         properties: Object.keys(pageProperties).length > 0 ? pageProperties : undefined,
         blocks,
       });

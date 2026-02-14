@@ -49,6 +49,15 @@ export function DocumentView({
     return result;
   }, [nodes, maxDepth]);
 
+  // Resolve alias: if node is an alias, return the main node instead
+  const resolveAlias = useCallback((node: Node): Node => {
+    if (node.aliased_id) {
+      const mainNode = allNodes.find(n => n.id === node.aliased_id);
+      return mainNode ?? { id: node.aliased_id, is_page: true } as Node;
+    }
+    return node;
+  }, [allNodes]);
+
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getNodeGraphRuntime();
@@ -56,7 +65,7 @@ export function DocumentView({
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
-        onNodeClick?.(targetNode);
+        onNodeClick?.(resolveAlias(targetNode));
       } else {
         onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
       }
@@ -67,11 +76,11 @@ export function DocumentView({
       const { parseLinkId } = await import('@/lib/astBuilder');
       const { nodeUuid } = parseLinkId(linkId);
       const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(node);
+      onNodeClick?.(resolveAlias(node));
     } catch {
       // Node not found
     }
-  }, [allNodes, onNodeClick]);
+  }, [allNodes, onNodeClick, resolveAlias]);
 
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {

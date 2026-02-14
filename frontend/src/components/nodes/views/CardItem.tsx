@@ -487,7 +487,7 @@ export const NodeCard = memo(function NodeCard({
     }
   }, [handleContentChange]);
 
-  // Navigate via pills
+  // Navigate via pills — redirect aliases to main node
   const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getNodeGraphRuntime();
     const graphNode = runtime.getNode(linkId);
@@ -501,7 +501,12 @@ export const NodeCard = memo(function NodeCard({
       const { parseLinkId } = await import('@/lib/astBuilder');
       const { nodeUuid } = parseLinkId(linkId);
       const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(node);
+      // Redirect aliases to their main node
+      if (node.aliased_id) {
+        onNodeClick?.({ id: node.aliased_id, is_page: true } as Node);
+      } else {
+        onNodeClick?.(node);
+      }
     } catch {
       // Node not found
     }

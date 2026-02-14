@@ -96,9 +96,10 @@
   display: none;
 }
 
-/* Extends, tags rows - with labels inline */
+/* Extends, tags, aliases rows - with labels inline */
 .page-header-section__extends,
-.page-header-section__tags {
+.page-header-section__tags,
+.page-header-section__aliases {
   display: flex;
   align-items: center;
 }

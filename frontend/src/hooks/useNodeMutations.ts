@@ -1427,3 +1427,46 @@ export function useRemoveTagLink() {
     },
   });
 }
+
+// ==================== Alias Mutations ====================
+
+/**
+ * Hook to add an alias to a node
+ */
+export function useAddAlias() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ nodeId, aliasNodeId }: { nodeId: number; aliasNodeId: number }) => 
+      nodesApi.addAlias(nodeId, aliasNodeId),
+    onSuccess: (_, { nodeId, aliasNodeId }) => {
+      // Invalidate both the main node and the alias node caches
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(aliasNodeId) });
+      // Also invalidate linked references since aliases affect backlinks
+      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(nodeId) });
+      // Invalidate pages list (aliased_id changed)
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+    },
+  });
+}
+
+/**
+ * Hook to remove an alias from a node
+ */
+export function useRemoveAlias() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ nodeId, aliasId }: { nodeId: number; aliasId: number }) => 
+      nodesApi.removeAlias(nodeId, aliasId),
+    onSuccess: (_, { nodeId, aliasId }) => {
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(aliasId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+    },
+  });
+}

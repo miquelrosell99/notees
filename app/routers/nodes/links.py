@@ -1,6 +1,6 @@
-"""Backlinks, linked references, tag links, and property endpoints."""
+"""Backlinks, linked references, tag links, alias, and property endpoints."""
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends
 
@@ -17,6 +17,7 @@ from .models import (
     BreadcrumbSegment,
     InlineClassResponse,
     PropertyBacklinkResponse,
+    AliasRequest,
 )
 from .helpers import (
     _get_node_service,
@@ -24,6 +25,7 @@ from .helpers import (
     _get_descendants,
     _build_children_response,
     _get_class_ids_batch,
+    _get_alias_ids,
     extract_properties_dict,
 )
 from ...db.connection import acquire_connection
@@ -495,3 +497,111 @@ async def update_link_name(
             position=row['position'],
             name=row['name'],
         )
+
+
+# ==================== ALIAS ENDPOINTS ====================
+
+
+@router.get("/{node_id}/aliases")
+async def get_aliases(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get all aliases for a node (pages that are aliases of this node)."""
+    service = await _get_node_service(user)
+    
+    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    
+    # Fetch full node data for each alias
+    aliases = []
+    for alias_id in alias_ids:
+        alias_node = await service._node_repo.get_by_id(alias_id)
+        if alias_node:
+            aliases.append(_node_to_response(alias_node))
+    
+    return {"aliases": aliases}
+
+
+@router.post("/{node_id}/aliases")
+async def add_alias(
+    node_id: int,
+    request: AliasRequest,
+    user: User = Depends(get_current_user),
+):
+    """Add a page as an alias of this node.
+    
+    The alias node must be:
+    - A page (is_page=true)
+    - Not already an alias of another node
+    - Not the same as the target node
+    - Not a node that has aliases itself (avoid chaining)
+    """
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        # Verify target node exists
+        target = await conn.fetchrow(
+            "SELECT id, is_page, aliased_id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
+            node_id, service._workspace_id
+        )
+        if not target:
+            raise HTTPException(404, "Target node not found")
+        if not target['is_page']:
+            raise HTTPException(400, "Aliases can only be added to page nodes")
+        if target['aliased_id'] is not None:
+            raise HTTPException(400, "Cannot add aliases to a node that is itself an alias. Add aliases to the main node instead.")
+        
+        # Verify alias node exists and is eligible
+        alias_node = await conn.fetchrow(
+            "SELECT id, is_page, aliased_id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
+            request.alias_node_id, service._workspace_id
+        )
+        if not alias_node:
+            raise HTTPException(404, "Alias node not found")
+        if not alias_node['is_page']:
+            raise HTTPException(400, "Only page nodes can be used as aliases")
+        if alias_node['aliased_id'] is not None:
+            raise HTTPException(400, "This node is already an alias of another node")
+        if request.alias_node_id == node_id:
+            raise HTTPException(400, "A node cannot be an alias of itself")
+        
+        # Check that the alias candidate doesn't have aliases itself (no chaining)
+        existing_aliases = await conn.fetchval(
+            "SELECT COUNT(*) FROM node WHERE aliased_id = $1 AND workspace_id = $2 AND active = TRUE",
+            request.alias_node_id, service._workspace_id
+        )
+        if existing_aliases > 0:
+            raise HTTPException(400, "Cannot use a node that has aliases as an alias itself. Remove its aliases first.")
+        
+        # Set aliased_id on the alias node
+        await conn.execute(
+            "UPDATE node SET aliased_id = $1 WHERE id = $2",
+            node_id, request.alias_node_id
+        )
+    
+    # Return updated target node with aliases
+    node = await service.get_node(node_id)
+    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    return _node_to_response(node, aliases=alias_ids)
+
+
+@router.delete("/{node_id}/aliases/{alias_id}")
+async def remove_alias(
+    node_id: int,
+    alias_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Remove an alias from a node (clears aliased_id on the alias node)."""
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        # Verify the alias relationship exists
+        result = await conn.execute(
+            "UPDATE node SET aliased_id = NULL WHERE id = $1 AND aliased_id = $2 AND workspace_id = $3",
+            alias_id, node_id, service._workspace_id
+        )
+    
+    if result == "UPDATE 0":
+        raise HTTPException(404, "Alias relationship not found")
+    
+    return {"removed": True}

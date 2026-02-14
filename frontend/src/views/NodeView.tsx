@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias } from '@/hooks';
 import { useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -304,6 +304,30 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
     if (!node) return;
     removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
   }, [node, removeTag]);
+
+  // ---- Alias support ----
+  const addAlias = useAddAlias();
+  const removeAlias = useRemoveAlias();
+  
+  // Resolve alias details from IDs
+  const pageAliasDetails = useMemo(() => {
+    if (!node?.aliases || node.aliases.length === 0) return [];
+    return node.aliases
+      .map(aliasId => allNodes?.find(n => n.id === aliasId))
+      .filter((n): n is Node => n !== undefined);
+  }, [node?.aliases, allNodes]);
+  
+  // Handle adding an alias via NodeSelector
+  const handleAddAlias = useCallback((aliasNode: Node) => {
+    if (!node) return;
+    addAlias.mutate({ nodeId: node.id, aliasNodeId: aliasNode.id });
+  }, [node, addAlias]);
+  
+  // Handle removing an alias via NodeSelector
+  const handleRemoveAlias = useCallback((aliasNode: Node) => {
+    if (!node) return;
+    removeAlias.mutate({ nodeId: node.id, aliasId: aliasNode.id });
+  }, [node, removeAlias]);
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
@@ -925,8 +949,24 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
                 />
               </div>
             </div>
+
+            {/* Row 3: Aliases (only for pages) */}
+            {node.is_page && (
+              <div className="page-header-section__aliases">
+                <div className="section-label">Aliases:</div>
+                <NodeSelector
+                  nodes={pageAliasDetails}
+                  searchMode="aliases"
+                  emptyText="Add alias"
+                  searchPlaceholder="Search pages..."
+                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onRemove={handleRemoveAlias}
+                  onAdd={handleAddAlias}
+                />
+              </div>
+            )}
             
-            {/* Row 3: Extends (only for classes) */}
+            {/* Row 4: Extends (only for classes) */}
             {node.is_class && (
               <div className="page-header-section__extends">
                 <div className="section-label">Extends:</div>

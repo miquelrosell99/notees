@@ -64,6 +64,15 @@ export function ListView({
     return sortBySequence(result);
   }, [nodes, pagesOnly]);
 
+  // Resolve alias: if node is an alias, return the main node instead
+  const resolveAlias = useCallback((node: Node): Node => {
+    if (node.aliased_id) {
+      const mainNode = allNodes.find(n => n.id === node.aliased_id);
+      return mainNode ?? { id: node.aliased_id, is_page: true } as Node;
+    }
+    return node;
+  }, [allNodes]);
+
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback(async (blockId: string) => {
     // Get runtime to resolve blockId to serverId
@@ -73,7 +82,7 @@ export function ListView({
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
-        onNodeClick?.(targetNode);
+        onNodeClick?.(resolveAlias(targetNode));
       } else {
         onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
       }
@@ -85,11 +94,11 @@ export function ListView({
       const { parseLinkId } = await import('@/lib/astBuilder');
       const { nodeUuid } = parseLinkId(blockId);
       const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(node);
+      onNodeClick?.(resolveAlias(node));
     } catch {
       // Node not found
     }
-  }, [allNodes, onNodeClick]);
+  }, [allNodes, onNodeClick, resolveAlias]);
 
   // Handler for shift-click (open in sidebar) from editor
   const handleOpenInSidebar = useCallback((blockId: string) => {

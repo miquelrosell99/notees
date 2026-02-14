@@ -67,6 +67,8 @@ export {
   useRemoveClass,
   useAddTagLink,
   useRemoveTagLink,
+  useAddAlias,
+  useRemoveAlias,
 } from './useNodeMutations';
 
 // ==================== Property Hooks ====================

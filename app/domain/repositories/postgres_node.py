@@ -151,6 +151,7 @@ class PostgresNodeRepository(NodeRepository):
             class_ids=class_ids,
             classes_path=classes_path,
             version=row.get('version', 1),
+            aliased_id=row.get('aliased_id'),
         )
     
     async def _compute_page_id(self, parent_id: int) -> Optional[int]:

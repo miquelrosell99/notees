@@ -1,7 +1,7 @@
 /**
  * ImportLogseqModal - Modal for importing Logseq EDN graph exports
  *
- * Import flow (6 phases):
+ * Import flow (7 phases):
  * 1. Create classes (type nodes)
  * 2. Create properties (with correct backend field names)
  * 3. Create all nodes (pages + blocks) with classes assigned at creation,
@@ -10,6 +10,7 @@
  * 5. Assign property values to nodes
  * 6. Update node content with proper AST containing node_link entries,
  *    which triggers the backend to create link records automatically
+ * 7. Assign aliases between pages (from logseq.property/alias)
  *
  * Every operation is wrapped in try/catch so a single failure never aborts
  * the import. Errors are collected and presented in a status report modal
@@ -23,7 +24,7 @@ import { Button } from '../core/Button';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias } from '@/api/nodes';
 import { listProperties, updateProperty } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -406,6 +407,51 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           } catch (e) {
             p6.failed++;
             p6.errors.push({ item: `Node ${id}`, message: errorMessage(e) });
+          }
+        }
+      }
+
+      // ──────────────────────────────────────────────────────────
+      // PHASE 7: Assign aliases between pages
+      // ──────────────────────────────────────────────────────────
+      const pagesWithAliases = parsed.pages.filter(p => p.aliases && p.aliases.length > 0);
+      if (pagesWithAliases.length > 0) {
+        const p7 = createPhase('Assign aliases');
+        phases.push(p7);
+        for (const page of pagesWithAliases) {
+          const mainInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
+          if (!mainInfo) continue;
+          for (const aliasTitle of page.aliases!) {
+            const aliasInfo = titleToNodeInfo.get(aliasTitle);
+            if (!aliasInfo) {
+              // Create the alias page if it doesn't exist yet
+              setImportStatus(`Creating alias page: ${aliasTitle}`);
+              try {
+                const aliasNode = await createNodeMutation.mutateAsync({
+                  name: aliasTitle,
+                });
+                titleToNodeInfo.set(aliasTitle, { id: aliasNode.id, uuid: aliasNode.uuid });
+                await addAlias(mainInfo.id, aliasNode.id);
+                p7.succeeded++;
+              } catch (e) {
+                p7.failed++;
+                p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: errorMessage(e) });
+              }
+            } else {
+              setImportStatus(`Assigning alias: ${aliasTitle} → ${page.title}`);
+              try {
+                await addAlias(mainInfo.id, aliasInfo.id);
+                p7.succeeded++;
+              } catch (e) {
+                const msg = errorMessage(e);
+                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+                  p7.succeeded++;
+                } else {
+                  p7.failed++;
+                  p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: msg });
+                }
+              }
+            }
           }
         }
       }

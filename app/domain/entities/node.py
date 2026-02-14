@@ -82,6 +82,9 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False   # Comment block
     
+    # Alias support - if set, this node is an alias of the node with this ID
+    aliased_id: Optional[int] = None  # The main node this page aliases
+    
     # Open date - when the page was last opened/viewed (NULL by default)
     open_date: Optional[str] = None
     

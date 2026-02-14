@@ -64,6 +64,10 @@ export interface Node {
   // For comments
   comment_count?: number;
   
+  // Alias support
+  aliased_id?: number | null;  // If set, this node is an alias of the node with this ID
+  aliases?: number[];  // IDs of nodes that are aliases of this node
+  
   // Metadata for linked references (attached client-side)
   _linkedRefMetadata?: {
     linkType: 'text' | 'property';

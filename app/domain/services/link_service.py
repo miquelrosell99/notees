@@ -595,6 +595,7 @@ class LinkParsingService:
         - Breadcrumb path to page ancestor
         
         Includes backlinks to all descendants (children, grandchildren, etc.) recursively.
+        Also includes backlinks to all aliases of this node (and their descendants).
         
         Classes are stored in class_ids column, not as property links.
         """
@@ -609,6 +610,21 @@ class LinkParsingService:
         if not descendant_ids:
             # If no descendants found, just use the target node itself
             descendant_ids = [target_node_id]
+        
+        # Also include alias nodes and THEIR descendants
+        # Aliases are pages whose aliased_id points to this node
+        alias_rows = await pool.fetch("""
+            SELECT id FROM node 
+            WHERE aliased_id = $1 AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
+        """, target_node_id)
+        
+        for alias_row in alias_rows:
+            alias_id = alias_row['id']
+            alias_descendants = await self._node_repo.get_descendants(alias_id, include_self=True)
+            if alias_descendants:
+                descendant_ids.extend(alias_descendants)
+            else:
+                descendant_ids.append(alias_id)
         
         # Get all links pointing to this node OR any of its descendants, with property info
         rows = await pool.fetch("""
