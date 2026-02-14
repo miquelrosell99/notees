@@ -69,6 +69,7 @@ import {
   getGlareRadius,
   getNodeRadius,
   findPathBetweenNodes,
+  findAllShortestPaths,
 } from './viewTypes';
 
 // ==================== Hook Props ====================
@@ -2091,9 +2092,9 @@ export function useNodePhysics({
       }
       
       for (let i = 0; i < selectedIds.length - 1; i++) {
-        const path = findPathBetweenNodes(selectedIds[i], selectedIds[i + 1], nodes, links);
+        const pathNodes = findAllShortestPaths(selectedIds[i], selectedIds[i + 1], nodes, links);
         
-        for (const nodeId of path) {
+        for (const nodeId of pathNodes) {
           const node = nodeMap.get(nodeId);
           if (node && node.glare !== 'bright') {
             node.glare = 'path';
@@ -2164,5 +2165,5 @@ export function useNodePhysics({
   };
 }
 
-// Re-export findPathBetweenNodes for use elsewhere
-export { findPathBetweenNodes } from './viewTypes';
+// Re-export path finding functions for use elsewhere
+export { findPathBetweenNodes, findAllShortestPaths } from './viewTypes';
