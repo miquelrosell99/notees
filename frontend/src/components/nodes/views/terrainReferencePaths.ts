@@ -49,21 +49,24 @@ export interface NodePeakInfo {
 const PATHFIND_DOWNSAMPLE = 2;
 
 /**
- * A* cost weights — tuned for downhill→valley→uphill traversal.
+ * A* cost weights — tuned for natural topographic paths.
  *
- * ALPHA: penalizes elevation change² (keeps path smooth, avoids cliffs)
- * BETA:  penalizes absolute height at each cell (drives path into valleys)
+ * ALPHA: penalizes absolute height changes |Δh| (prefers level terrain)
+ * BETA:  penalizes gradient discontinuity |grad − prevGrad| (smooth slope transitions)
  * GAMMA: penalizes distance (keeps path reasonably short)
  */
-const ALPHA = 6.0;   // elevation change² penalty
-const BETA = 12.0;   // absolute height penalty — key for valley-seeking
-const GAMMA = 1.0;   // distance penalty
+const ALPHA = 1.5;   // |Δh| penalty
+const BETA = 1.0;    // gradient continuity penalty
+const GAMMA = 0.1;   // distance penalty
 
 /** Max path distance in grid cells before falling back to Bézier */
 const MAX_ASTAR_GRID_DIST = 300;
 
 /** Min distance in grid cells — skip A* for very close peaks */
 const MIN_ASTAR_GRID_DIST = 3;
+
+/** Number of perimeter sample points around each peak plateau */
+const PERIMETER_SAMPLES = 16;
 
 /** Erosion radius in grid cells around path */
 const EROSION_RADIUS = 2;
@@ -124,56 +127,50 @@ class MinHeap {
 }
 
 /**
- * 8-directional A* on the downsampled height grid.
+ * 8-directional A* with gradient continuity tracking.
  *
  * Cost per step:
- *   α * (Δh)² + β * h_next * step_distance + γ * step_distance
+ *   α * |Δh| + β * |gradient − prevGradient| + γ * distance
  *
- * The β * h_next term makes the path actively seek low-elevation cells,
- * producing natural downhill → valley → uphill routes between peaks.
+ * Paths naturally follow terrain features — climbing ridges, descending
+ * into valleys, and crossing saddles with smooth slope transitions.
+ *
+ * Uses multi-source start (all plateau perimeter cells) and multi-target
+ * end (all target perimeter cells) so the best entry/exit points are
+ * chosen automatically.
  */
 function astarPath(
   heightMap: Float32Array,
   gridW: number,
   gridH: number,
-  startGx: number,
-  startGy: number,
-  endGx: number,
-  endGy: number,
+  startCells: Array<[number, number]>,
+  endCells: Array<[number, number]>,
   ds: number,
 ): Array<[number, number]> | null {
   const pw = Math.ceil(gridW / ds);
   const ph = Math.ceil(gridH / ds);
 
-  const sx = Math.min(Math.max(Math.round(startGx / ds), 0), pw - 1);
-  const sy = Math.min(Math.max(Math.round(startGy / ds), 0), ph - 1);
-  const ex = Math.min(Math.max(Math.round(endGx / ds), 0), pw - 1);
-  const ey = Math.min(Math.max(Math.round(endGy / ds), 0), ph - 1);
-
-  if (sx === ex && sy === ey) return [[startGx, startGy], [endGx, endGy]];
+  // Build end-cell set for fast goal check
+  const endSet = new Set<number>();
+  let goalCenterX = 0, goalCenterY = 0;
+  for (const [gx, gy] of endCells) {
+    const px = Math.min(Math.max(Math.round(gx / ds), 0), pw - 1);
+    const py = Math.min(Math.max(Math.round(gy / ds), 0), ph - 1);
+    endSet.add(py * pw + px);
+    goalCenterX += px;
+    goalCenterY += py;
+  }
+  if (endSet.size === 0) return null;
+  goalCenterX /= endSet.size;
+  goalCenterY /= endSet.size;
 
   const totalCells = pw * ph;
   const gScore = new Float32Array(totalCells).fill(Infinity);
   const cameFrom = new Int32Array(totalCells).fill(-1);
   const closed = new Uint8Array(totalCells);
-
-  const startIdx = sy * pw + sx;
-  const endIdx = ey * pw + ex;
-  gScore[startIdx] = 0;
-
-  const heap = new MinHeap();
-  const heuristic = (x: number, y: number) => {
-    const dx = x - ex;
-    const dy = y - ey;
-    return GAMMA * Math.sqrt(dx * dx + dy * dy);
-  };
-  heap.push(startIdx, heuristic(sx, sy));
-
-  // 8-directional neighbors
-  const dirs = [
-    [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
-    [-1, -1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [1, 1, 1.414],
-  ];
+  // Per-cell gradient tracking for slope continuity
+  const prevGrad = new Float32Array(totalCells);
+  const hasGrad = new Uint8Array(totalCells); // 0 = no previous gradient
 
   /** Sample height from the full-res grid (nearest to downsampled cell) */
   const sampleH = (px: number, py: number): number => {
@@ -182,18 +179,49 @@ function astarPath(
     return heightMap[gy * gridW + gx];
   };
 
+  // 3D heuristic: Euclidean distance including height difference to goal center
+  const goalH = sampleH(Math.round(goalCenterX), Math.round(goalCenterY));
+  const heuristic = (x: number, y: number) => {
+    const dx = x - goalCenterX;
+    const dy = y - goalCenterY;
+    const dh = sampleH(x, y) - goalH;
+    return GAMMA * Math.sqrt(dx * dx + dy * dy + dh * dh);
+  };
+
+  const heap = new MinHeap();
+
+  // Seed with all start perimeter cells (multi-source)
+  for (const [gx, gy] of startCells) {
+    const px = Math.min(Math.max(Math.round(gx / ds), 0), pw - 1);
+    const py = Math.min(Math.max(Math.round(gy / ds), 0), ph - 1);
+    const idx = py * pw + px;
+    if (gScore[idx] <= 0) continue; // already seeded
+    gScore[idx] = 0;
+    hasGrad[idx] = 0;
+    heap.push(idx, heuristic(px, py));
+  }
+
+  // 8-directional neighbors
+  const dirs: Array<[number, number, number]> = [
+    [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
+    [-1, -1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [1, 1, 1.414],
+  ];
+
   let iterations = 0;
   const maxIter = totalCells * 2; // safety limit
+  let endIdx = -1;
 
   while (heap.size > 0 && iterations++ < maxIter) {
     const cur = heap.pop();
-    if (cur === endIdx) break;
+    if (endSet.has(cur)) { endIdx = cur; break; }
     if (closed[cur]) continue;
     closed[cur] = 1;
 
     const cx = cur % pw;
     const cy = (cur - cx) / pw;
     const curH = sampleH(cx, cy);
+    const curHasGrad = hasGrad[cur] !== 0;
+    const curGrad = curHasGrad ? prevGrad[cur] : 0;
 
     for (const [ddx, ddy, stepDist] of dirs) {
       const nx = cx + ddx;
@@ -204,21 +232,30 @@ function astarPath(
 
       const nH = sampleH(nx, ny);
       const dh = nH - curH;
+      const gradient = dh / stepDist;
 
-      // Cost: Δh² keeps it smooth, h_next drives it into valleys, dist keeps it short
-      const cost = ALPHA * dh * dh + BETA * nH * stepDist + GAMMA * stepDist;
+      // Gradient continuity penalty: penalize abrupt slope changes
+      let slopePenalty = 0;
+      if (curHasGrad) {
+        slopePenalty = Math.abs(gradient - curGrad);
+      }
+
+      // Cost: α * |Δh| + β * |grad − prevGrad| + γ * distance
+      const cost = ALPHA * Math.abs(dh) + BETA * slopePenalty + GAMMA * stepDist;
       const tentG = gScore[cur] + cost;
 
       if (tentG < gScore[ni]) {
         gScore[ni] = tentG;
         cameFrom[ni] = cur;
+        prevGrad[ni] = gradient;
+        hasGrad[ni] = 1;
         heap.push(ni, tentG + heuristic(nx, ny));
       }
     }
   }
 
   // Reconstruct path
-  if (cameFrom[endIdx] === -1 && startIdx !== endIdx) return null;
+  if (endIdx === -1) return null;
 
   const pathIndices: number[] = [];
   let ci = endIdx;
@@ -235,10 +272,6 @@ function astarPath(
     const py = (idx - px) / pw;
     points.push([px * ds, py * ds]);
   }
-
-  // Ensure exact start/end
-  points[0] = [startGx, startGy];
-  points[points.length - 1] = [endGx, endGy];
 
   return points;
 }
@@ -332,26 +365,37 @@ function decimatePath(chain: Array<[number, number]>, epsilon: number): Array<[n
   return left.slice(0, -1).concat(right);
 }
 
-// ==================== Peak Edge Helper ====================
+// ==================== Plateau Perimeter Helper ====================
 
 /**
- * Compute a point on the edge of a peak's plateau, toward another peak.
- * Returns screen-space coordinates of the edge point.
+ * Sample evenly-spaced perimeter cells around a peak's plateau edge.
+ * Returns grid-coordinate points that lie on the plateau boundary.
+ * Used as multi-source / multi-target seeds for A*.
  */
-function peakEdgePoint(
-  peak: NodePeakInfo,
-  otherPeak: NodePeakInfo,
-): [number, number] {
-  const dx = otherPeak.screenX - peak.screenX;
-  const dy = otherPeak.screenY - peak.screenY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 1) return [peak.screenX, peak.screenY];
-  const nx = dx / dist;
-  const ny = dy / dist;
-  return [
-    peak.screenX + nx * peak.plateauRadius,
-    peak.screenY + ny * peak.plateauRadius,
-  ];
+function getPlateauPerimeterCells(
+  peakScreenX: number,
+  peakScreenY: number,
+  plateauRadius: number,
+  gs: number,
+  gridW: number,
+  gridH: number,
+): Array<[number, number]> {
+  const centerGx = peakScreenX / gs;
+  const centerGy = peakScreenY / gs;
+  const radiusGrid = plateauRadius / gs;
+  const cells: Array<[number, number]> = [];
+  const seen = new Set<number>();
+  for (let i = 0; i < PERIMETER_SAMPLES; i++) {
+    const angle = (i / PERIMETER_SAMPLES) * 2 * Math.PI;
+    const gx = Math.round(centerGx + Math.cos(angle) * radiusGrid);
+    const gy = Math.round(centerGy + Math.sin(angle) * radiusGrid);
+    if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) continue;
+    const key = gy * gridW + gx;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cells.push([gx, gy]);
+  }
+  return cells;
 }
 
 // ==================== Public API ====================
@@ -359,10 +403,13 @@ function peakEdgePoint(
 /**
  * Compute reference link paths on the terrain heightMap.
  *
- * For each reference link between visible nodes, find the least-slope
- * route using A* on a downsampled height grid. Paths start and end at
- * the plateau edge of each peak, not the center. Falls back to Bézier
- * for very close/far peaks or when A* fails.
+ * For each reference link between visible nodes, find a natural
+ * topographic route using A* with gradient continuity on a downsampled
+ * height grid. Paths start and end at the plateau perimeter of each
+ * peak, with the best entry/exit points chosen automatically by
+ * multi-source / multi-target A*.
+ *
+ * Falls back to Bézier for very close/far peaks or when A* fails.
  *
  * @param heightMap - The terrain height map (gridW × gridH, values 0–1)
  * @param gridW - Height map width in grid cells
@@ -398,44 +445,47 @@ export function computeReferencePaths(
     const tgtPeak = nodePeaks.get(link.target);
     if (!srcPeak || !tgtPeak) continue;
 
-    // Compute edge points (start/end at plateau boundary, not center)
-    const [srcEdgeX, srcEdgeY] = peakEdgePoint(srcPeak, tgtPeak);
-    const [tgtEdgeX, tgtEdgeY] = peakEdgePoint(tgtPeak, srcPeak);
+    // Compute plateau perimeter cells for multi-source / multi-target A*
+    const srcPerimeter = getPlateauPerimeterCells(
+      srcPeak.screenX, srcPeak.screenY, srcPeak.plateauRadius, gs, gridW, gridH,
+    );
+    const tgtPerimeter = getPlateauPerimeterCells(
+      tgtPeak.screenX, tgtPeak.screenY, tgtPeak.plateauRadius, gs, gridW, gridH,
+    );
 
-    // Convert edge screen coords to grid coords
-    const srcGx = srcEdgeX / gs;
-    const srcGy = srcEdgeY / gs;
-    const tgtGx = tgtEdgeX / gs;
-    const tgtGy = tgtEdgeY / gs;
-
-    const gdx = tgtGx - srcGx;
-    const gdy = tgtGy - srcGy;
+    // Approximate distance between peak centers (grid coords)
+    const srcCenterGx = srcPeak.screenX / gs;
+    const srcCenterGy = srcPeak.screenY / gs;
+    const tgtCenterGx = tgtPeak.screenX / gs;
+    const tgtCenterGy = tgtPeak.screenY / gs;
+    const gdx = tgtCenterGx - srcCenterGx;
+    const gdy = tgtCenterGy - srcCenterGy;
     const gridDist = Math.sqrt(gdx * gdx + gdy * gdy);
 
     let gridPoints: Array<[number, number]> | null = null;
 
-    if (gridDist < MIN_ASTAR_GRID_DIST) {
-      // Very close peaks — simple Bézier
-      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 12);
+    if (gridDist < MIN_ASTAR_GRID_DIST || srcPerimeter.length === 0 || tgtPerimeter.length === 0) {
+      // Very close peaks or degenerate perimeters — simple Bézier
+      gridPoints = bezierFallback(srcCenterGx, srcCenterGy, tgtCenterGx, tgtCenterGy, 12);
     } else if (gridDist > MAX_ASTAR_GRID_DIST) {
       // Too far — Bézier with more samples
-      gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 30);
+      gridPoints = bezierFallback(srcCenterGx, srcCenterGy, tgtCenterGx, tgtCenterGy, 30);
     } else {
-      // A* pathfinding
-      gridPoints = astarPath(heightMap, gridW, gridH,
-        Math.round(srcGx), Math.round(srcGy),
-        Math.round(tgtGx), Math.round(tgtGy), ds);
+      // Multi-source / multi-target A* with gradient continuity
+      gridPoints = astarPath(heightMap, gridW, gridH, srcPerimeter, tgtPerimeter, ds);
       if (!gridPoints) {
         // Fallback on A* failure
-        gridPoints = bezierFallback(srcGx, srcGy, tgtGx, tgtGy, 20);
+        gridPoints = bezierFallback(srcCenterGx, srcCenterGy, tgtCenterGx, tgtCenterGy, 20);
       }
     }
 
     if (!gridPoints || gridPoints.length < 2) continue;
 
-    // Ensure exact edge start/end
-    gridPoints[0] = [srcGx, srcGy];
-    gridPoints[gridPoints.length - 1] = [tgtGx, tgtGy];
+    // Anchor path at node centers (grid coords) so there are no gaps
+    const srcCenterG: [number, number] = [srcCenterGx, srcCenterGy];
+    const tgtCenterG: [number, number] = [tgtCenterGx, tgtCenterGy];
+    gridPoints.unshift(srcCenterG);
+    gridPoints.push(tgtCenterG);
 
     // Single smoothing pass to remove A* grid artifacts,
     // then decimate — Catmull-Rom spline rendering handles final smoothness
