@@ -29,10 +29,16 @@ import {
   TERRAIN_BASE_PLATEAU_RADIUS,
   TERRAIN_PEAK_PLATEAU_BONUS,
   TERRAIN_BASE_SLOPE_RADIUS,
-  TERRAIN_PEAK_SLOPE_BONUS,
+  TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
   TERRAIN_ANISOTROPY,
   TERRAIN_NOISE_STRENGTH,
+  TERRAIN_SLOPE_POWER,
+  TERRAIN_RIDGE_WIDTH,
+  TERRAIN_RIDGE_SAG,
+  TERRAIN_RIDGE_BLEND_DISTANCE,
+  TERRAIN_RIDGE_ENABLED,
   TERRAIN_REF_PATH_KE_THRESHOLD,
+  TERRAIN_SLEEP_THRESHOLD,
   // Helpers
   getNodeColor,
 } from './viewTypes';
@@ -76,6 +82,120 @@ const ihash = (a: number, b: number): number => {
   let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
   h = Math.imul(h ^ (h >>> 13), 1103515245);
   return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff; // 0..1
+};
+
+// ==================== Per-Node Stamp System ====================
+// Each node has a local height grid ("stamp") computed independently.
+// Stamps are position-independent and cached — only recomputed when
+// the node's height, peak size, grid resolution, or child directions change.
+// Building the global height map is just blitting (MAX-merging) stamps
+// onto the grid at each node's position, which is much cheaper than
+// re-doing sqrt/atan2/pow/noise per cell every frame.
+
+interface NodeStamp {
+  /** Local height values (centered at cx,cy) */
+  heights: Float32Array;
+  /** Stamp dimensions in grid cells */
+  w: number;
+  h: number;
+  /** Center offset in stamp-local coords (grid cells) */
+  cx: number;
+  cy: number;
+}
+
+/** Cache entry stores the stamp and the parameters it was computed for */
+interface StampCacheEntry {
+  stamp: NodeStamp;
+  H: number;
+  peakSize: number;
+  gs: number;
+  dirsHash: number;
+}
+
+/**
+ * Quantize child directions into a stable hash.
+ * Directions are snapped to 16 compass points so the cache stays
+ * valid across small angular changes during simulation.
+ */
+const hashChildDirs = (dirs: Array<{nx: number, ny: number}>): number => {
+  if (dirs.length === 0) return 0;
+  let h = dirs.length * 97;
+  for (const d of dirs) {
+    // Quantize angle to 16 compass directions (22.5° steps)
+    const angle = Math.round(Math.atan2(d.ny, d.nx) * 8 / Math.PI);
+    h = (h * 31 + (angle + 8)) | 0; // +8 to avoid negatives
+  }
+  return h;
+};
+
+/**
+ * Compute a height stamp for a single node.
+ * The stamp is a local grid centered at (0,0) in grid-cell units.
+ */
+const computeNodeStamp = (
+  nodeId: number,
+  H: number,
+  peakSize: number,
+  gs: number,
+  dirs: Array<{nx: number, ny: number}>,
+): NodeStamp => {
+  const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) / gs;
+  const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_RADIUS_BONUS * peakSize) / gs;
+  const RpSq = Rp * Rp;
+  const RsSq = Rs * Rs;
+  const invSlopeRangeSq = 1 / (RsSq - RpSq);
+  const hasDirs = dirs.length > 0;
+
+  // Stamp radius (in grid cells) — expanded for anisotropy
+  const radius = Math.ceil(Rs * (hasDirs ? (1 + TERRAIN_ANISOTROPY) : 1));
+  const w = radius * 2 + 1;
+  const h = w; // square stamp
+  const cx = radius;
+  const cy = radius;
+  const heights = new Float32Array(w * h);
+
+  for (let sy = 0; sy < h; sy++) {
+    const dy = sy - cy;
+    const rowOff = sy * w;
+    for (let sx = 0; sx < w; sx++) {
+      const dx = sx - cx;
+      let distSq = dx * dx + dy * dy;
+
+      // Star-shaped: reduce effective distance when aligned with child directions
+      if (hasDirs && distSq > 0.01) {
+        const invDist = 1 / Math.sqrt(distSq);
+        const udx = dx * invDist;
+        const udy = dy * invDist;
+        let maxAlign = 0;
+        for (let d = 0; d < dirs.length; d++) {
+          const dot = udx * dirs[d].nx + udy * dirs[d].ny;
+          if (dot > maxAlign) maxAlign = dot;
+        }
+        if (maxAlign > 0.4) {
+          const ramp = (maxAlign - 0.4) / 0.6;
+          const shrink = 1 / (1 + TERRAIN_ANISOTROPY * ramp * ramp);
+          distSq *= shrink * shrink;
+        }
+      }
+
+      if (distSq > RsSq) continue;
+
+      // Angular noise for organic shape
+      if (TERRAIN_NOISE_STRENGTH > 0 && distSq > 0.01) {
+        const ang = Math.atan2(dy, dx);
+        const n1 = ihash(nodeId, Math.floor(ang * 3 + 100)) * 2 - 1;
+        const n2 = ihash(nodeId, Math.floor(ang * 7 + 200)) * 2 - 1;
+        const noise = (n1 * 0.7 + n2 * 0.3) * TERRAIN_NOISE_STRENGTH;
+        distSq *= (1 + noise) * (1 + noise);
+      }
+
+      const ndSq = distSq <= RpSq ? 0 : (distSq - RpSq) * invSlopeRangeSq;
+      const falloff = Math.pow(1 - ndSq, TERRAIN_SLOPE_POWER);
+      heights[rowOff + sx] = H * falloff;
+    }
+  }
+
+  return { heights, w, h, cx, cy };
 };
 
 // ==================== Component ====================
@@ -258,9 +378,17 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const heightMapBufRef = useRef<Float32Array | null>(null);
   const tempMapBufRef = useRef<Float32Array | null>(null);
   const ownerMapRef = useRef<Int32Array | null>(null);
+  // Per-cell highest single-node contribution (for ownership with additive heights)
+  const maxContribRef = useRef<Float32Array | null>(null);
   
   // Flat segment buffer for marching squares (4 floats per segment: x1,y1,x2,y2)
   const segsBufRef = useRef<Float32Array | null>(null);
+  
+  // Time-throttle terrain rebuilds during active simulation
+  const lastTerrainRebuildRef = useRef(0);
+  
+  // Per-node stamp cache: nodeId → cached stamp + parameters
+  const stampCacheRef = useRef(new Map<number, StampCacheEntry>());
   
   // Offscreen canvases for selection-aware contour compositing
   const contourOffscreenRef = useRef<HTMLCanvasElement | null>(null);
@@ -363,7 +491,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     let maxSlopeR = TERRAIN_BASE_SLOPE_RADIUS;
     for (const node of visibleNodes) {
       const ps = terrainPeakRadii.get(node.id) ?? 0;
-      const sR = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * ps;
+      const sR = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_RADIUS_BONUS * ps;
       if (sR > maxSlopeR) maxSlopeR = sR;
     }
     const worldPad = maxSlopeR * (1 + TERRAIN_ANISOTROPY) * 1.1;
@@ -371,11 +499,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const originY = minWY - worldPad;
     const worldW = Math.max(maxWX - minWX, 50) + worldPad * 2;
     const worldH = Math.max(maxWY - minWY, 50) + worldPad * 2;
-    let gs = TERRAIN_GRID_RES;
+    // Use coarser grid during active simulation for faster rebuilds
+    const isSimActive = !simulationSleepingRef.current && kineticEnergyRef.current >= TERRAIN_SLEEP_THRESHOLD;
+    let gs = isSimActive ? TERRAIN_GRID_RES * 2 : TERRAIN_GRID_RES;
     let gridW = Math.ceil(worldW / gs);
     let gridH = Math.ceil(worldH / gs);
     // Cap grid dimensions for performance
-    const MAX_GRID_DIM = 1200;
+    const MAX_GRID_DIM = isSimActive ? 600 : 1200;
     if (gridW > MAX_GRID_DIM || gridH > MAX_GRID_DIM) {
       gs = Math.ceil(Math.max(worldW / MAX_GRID_DIM, worldH / MAX_GRID_DIM));
       gridW = Math.ceil(worldW / gs);
@@ -386,7 +516,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // ==================== Cache Validation ====================
     // Compute cheap hash of node world positions to detect changes.
     // Zoom/pan changes do NOT invalidate the cache — only node positions do.
-    const posSnap = gs * 0.5; // half a grid cell — invisible contour change
+    // During active simulation use a coarser snap so the expensive terrain
+    // rebuild doesn't run every frame — contours appear immediately and
+    // progressively sharpen as nodes settle.
+    const posSnap = isSimActive ? gs * 8 : gs * 0.5;
     let positionHash = (visibleNodes.length * 97) | 0;
     for (let i = 0; i < visibleNodes.length; i++) {
       const n = visibleNodes[i];
@@ -406,12 +539,17 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     const cache = terrainCacheRef.current;
-    const cacheValid = cache.valid
+    // Time-throttle rebuilds during active simulation: at most once per 150ms
+    const now = performance.now();
+    const MIN_REBUILD_INTERVAL = 150; // ms
+    const throttled = isSimActive && (now - lastTerrainRebuildRef.current) < MIN_REBUILD_INTERVAL;
+    const cacheValid = (cache.valid
       && cache.positionHash === positionHash
       && cache.selectionHash === selectionHash
       && cache.classColorsHash === classColorsHash
       && cache.gridW === gridW
-      && cache.gridH === gridH;
+      && cache.gridH === gridH)
+      || (throttled && cache.valid);
     
     // Numeric point key for contour chain building (avoids string allocation)
     // Uses relative grid coords (subtract origin) to keep values in a compact range
@@ -429,6 +567,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       heightMapBufRef.current = new Float32Array(gridSize);
       tempMapBufRef.current = new Float32Array(gridSize);
       ownerMapRef.current = new Int32Array(gridSize);
+      maxContribRef.current = new Float32Array(gridSize);
     }
     const heightMap = heightMapBufRef.current;
     const tempMap = tempMapBufRef.current!;
@@ -476,88 +615,189 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       nodeChildDirs[ci].push({ nx: -ldx / llen, ny: -ldy / llen });
     }
     
-    // Build height map + ownership map with MAX merge — sqrt-free
+    // Build height map via per-node stamp cache + blit
+    // Each node's height footprint is pre-computed into a local "stamp" grid.
+    // Stamps are position-independent and cached — only recomputed when
+    // the node's shape parameters (H, peakSize, gs, child directions) change.
+    // Building the global height map additively merges stamps at each
+    // node's position — overlapping peaks sum their heights, creating
+    // natural saddles and ridges where nodes are close together.
+    // Ownership is tracked by whichever node contributes the most at each cell.
+    const stampCache = stampCacheRef.current;
     let nodeIdx = 0;
     for (const node of visibleNodes) {
-      let H = terrainHeights.get(node.id) ?? 0;
+      const H = terrainHeights.get(node.id) ?? 0;
       const peakSize = terrainPeakRadii.get(node.id) ?? 0;
       
       if (H <= 0) { nodeIdx++; continue; }
       nodePeakH[nodeIdx] = H;
       
-      const Rp = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) / gs;
-      const Rs = (TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize) / gs;
-      const RpSq = Rp * Rp;
-      const RsSq = Rs * Rs;
-      const invSlopeRangeSq = 1 / (RsSq - RpSq);
-      
-      const centerX = (node.x - originX) / gs;
-      const centerY = (node.y - originY) / gs;
-      
-      // Star-shaped distortion: child directions for this node
       const dirs = nodeChildDirs[nodeIdx];
-      const hasDirs = dirs.length > 0;
+      const dirsHash = hashChildDirs(dirs);
       
-      // Expand bounding box to account for stretch
-      const rsInt = Math.ceil(Rs * (hasDirs ? (1 + TERRAIN_ANISOTROPY) : 1));
-      const minGx = Math.max(0, Math.floor(centerX - rsInt));
-      const maxGx = Math.min(gridW - 1, Math.ceil(centerX + rsInt));
-      const minGy = Math.max(0, Math.floor(centerY - rsInt));
-      const maxGy = Math.min(gridH - 1, Math.ceil(centerY + rsInt));
+      // Check stamp cache — reuse if shape parameters haven't changed
+      let stamp: NodeStamp;
+      const cached = stampCache.get(node.id);
+      if (cached && cached.H === H && cached.peakSize === peakSize
+          && cached.gs === gs && cached.dirsHash === dirsHash) {
+        stamp = cached.stamp;
+      } else {
+        // Compute new stamp (expensive: sqrt/atan2/pow/noise per cell)
+        stamp = computeNodeStamp(node.id, H, peakSize, gs, dirs);
+        stampCache.set(node.id, { stamp, H, peakSize, gs, dirsHash });
+      }
       
-      for (let gy = minGy; gy <= maxGy; gy++) {
-        const dy = gy - centerY;
-        const rowOff = gy * gridW;
-        for (let gx = minGx; gx <= maxGx; gx++) {
-          const dx = gx - centerX;
-          let distSq = dx * dx + dy * dy;
-          
-          // Star-shaped: reduce effective distance when aligned with any child direction
-          // Each child creates a "finger" extending the plateau toward it
-          if (hasDirs && distSq > 0.01) {
-            const invDist = 1 / Math.sqrt(distSq);
-            const udx = dx * invDist;
-            const udy = dy * invDist;
-            // Find max alignment with any child direction
-            let maxAlign = 0;
-            for (let d = 0; d < dirs.length; d++) {
-              const dot = udx * dirs[d].nx + udy * dirs[d].ny;
-              if (dot > maxAlign) maxAlign = dot;
-            }
-            // Smooth ramp: only stretch when well-aligned (dot > 0.5)
-            if (maxAlign > 0.5) {
-              const ramp = (maxAlign - 0.5) * 2; // 0 at dot=0.5, 1 at dot=1.0
-              const shrink = 1 / (1 + TERRAIN_ANISOTROPY * ramp * ramp);
-              distSq *= shrink * shrink;
-            }
-          }
-          
-          if (distSq > RsSq) continue;
-          
-          // Angular noise: perturb effective distance based on angle from center
-          // Uses 6 octaves keyed to node id for stable, per-peak irregularity
-          if (TERRAIN_NOISE_STRENGTH > 0 && distSq > 0.01) {
-            const ang = Math.atan2(dy, dx);
-            // Sum 2 octaves of angular noise for organic shape
-            const n1 = ihash(node.id, Math.floor(ang * 3 + 100)) * 2 - 1; // -1..1
-            const n2 = ihash(node.id, Math.floor(ang * 7 + 200)) * 2 - 1;
-            const noise = (n1 * 0.7 + n2 * 0.3) * TERRAIN_NOISE_STRENGTH;
-            distSq *= (1 + noise) * (1 + noise);
-          }
-          
-          // Quartic falloff (1 - t²): height stays high at mid-range, drops steeply at edge
-          // Creates wider overlap zones between peaks for natural saddle formation
-          const ndSq = distSq <= RpSq ? 0 : (distSq - RpSq) * invSlopeRangeSq; // 0..1
-          const ht = H * (1 - ndSq * ndSq);
-          
-          const idx = rowOff + gx;
-          if (ht > heightMap[idx]) {
-            heightMap[idx] = ht;
-            ownerMap[idx] = nodeIdx;
+      // Blit stamp onto global height map at node's grid position (additive merge)
+      const gxCenter = Math.round((node.x - originX) / gs);
+      const gyCenter = Math.round((node.y - originY) / gs);
+      const stampW = stamp.w;
+      const stampH = stamp.h;
+      const stampCx = stamp.cx;
+      const stampCy = stamp.cy;
+      const stampHeights = stamp.heights;
+      
+      // Global grid bounds for this stamp
+      const gxStart = gxCenter - stampCx;
+      const gyStart = gyCenter - stampCy;
+      // Clamp to grid bounds
+      const sxMin = Math.max(0, -gxStart);
+      const syMin = Math.max(0, -gyStart);
+      const sxMax = Math.min(stampW, gridW - gxStart);
+      const syMax = Math.min(stampH, gridH - gyStart);
+      
+      for (let sy = syMin; sy < syMax; sy++) {
+        const gy = gyStart + sy;
+        const globalRowOff = gy * gridW;
+        const stampRowOff = sy * stampW;
+        for (let sx = sxMin; sx < sxMax; sx++) {
+          const ht = stampHeights[stampRowOff + sx];
+          if (ht <= 0) continue;
+          const gx = gxStart + sx;
+          const globalIdx = globalRowOff + gx;
+          // MAX merge: tallest contribution wins
+          if (ht > heightMap[globalIdx]) {
+            heightMap[globalIdx] = ht;
+            ownerMap[globalIdx] = nodeIdx;
           }
         }
       }
       nodeIdx++;
+    }
+    
+    // Evict stamps for nodes no longer visible
+    if (stampCache.size > visibleNodes.length * 2) {
+      const visibleIds = new Set(visibleNodes.map(n => n.id));
+      for (const id of stampCache.keys()) {
+        if (!visibleIds.has(id)) stampCache.delete(id);
+      }
+    }
+    
+    // ==================== Add Explicit Parent-Child Ridges ====================
+    // Ridges connect parent and child peaks with a catenary profile:
+    // height matches each peak at the endpoints and sags to a lowest
+    // point at the midpoint, creating a natural saddle/pass shape.
+    if (TERRAIN_RIDGE_ENABLED) {
+      const ridgeWidth = TERRAIN_RIDGE_WIDTH / gs;
+      const blendDist = TERRAIN_RIDGE_BLEND_DISTANCE / gs;
+      
+      for (const link of visibleLinks) {
+        if (link.type !== 'parent') continue;
+        
+        const parentIdx = idToIdx.get(link.source);
+        const childIdx = idToIdx.get(link.target);
+        if (parentIdx === undefined || childIdx === undefined) continue;
+        
+        const parentNode = visibleNodes[parentIdx];
+        const childNode = visibleNodes[childIdx];
+        
+        const parentH = terrainHeights.get(parentNode.id) ?? 0;
+        const childH = terrainHeights.get(childNode.id) ?? 0;
+        if (parentH <= 0 || childH <= 0) continue;
+        
+        // Midpoint sag height: dip below the lower peak
+        const minH = Math.min(parentH, childH);
+        const sagH = minH * (1 - TERRAIN_RIDGE_SAG);
+        
+        const px = (parentNode.x - originX) / gs;
+        const py = (parentNode.y - originY) / gs;
+        const cx = (childNode.x - originX) / gs;
+        const cy = (childNode.y - originY) / gs;
+        
+        const dx = cx - px;
+        const dy = cy - py;
+        const linkLen = Math.sqrt(dx * dx + dy * dy);
+        if (linkLen < 0.1) continue;
+        
+        // Normalized direction and perpendicular
+        const ndx = dx / linkLen;
+        const ndy = dy / linkLen;
+        const perpX = -ndy;
+        const perpY = ndx;
+        
+        // Draw ridge along the line with smooth falloff perpendicular to it
+        const searchRadius = ridgeWidth + blendDist;
+        
+        // Bounding box for ridge drawing
+        const minGx = Math.max(0, Math.floor(Math.min(px, cx) - searchRadius));
+        const maxGx = Math.min(gridW - 1, Math.ceil(Math.max(px, cx) + searchRadius));
+        const minGy = Math.max(0, Math.floor(Math.min(py, cy) - searchRadius));
+        const maxGy = Math.min(gridH - 1, Math.ceil(Math.max(py, cy) + searchRadius));
+        
+        for (let gy = minGy; gy <= maxGy; gy++) {
+          const rowOff = gy * gridW;
+          for (let gx = minGx; gx <= maxGx; gx++) {
+            // Vector from parent to point
+            const vx = gx - px;
+            const vy = gy - py;
+            
+            // Project onto link direction to get distance along link
+            const alongLink = vx * ndx + vy * ndy;
+            
+            // Skip if beyond link endpoints with blend distance
+            if (alongLink < -blendDist || alongLink > linkLen + blendDist) continue;
+            
+            // Distance perpendicular to link
+            const perpDist = Math.abs(vx * perpX + vy * perpY);
+            if (perpDist > searchRadius) continue;
+            
+            // Falloff perpendicular to ridge (Gaussian-like)
+            let perpFalloff = 1.0;
+            if (perpDist > ridgeWidth) {
+              const fadeT = (perpDist - ridgeWidth) / blendDist;
+              perpFalloff = Math.max(0, 1 - fadeT * fadeT);
+            }
+            
+            // Catenary height profile along the ridge:
+            // t=0 at parent (parentH), t=1 at child (childH), sag at t=0.5
+            // Use quadratic interpolation through (0, parentH), (0.5, sagH), (1, childH)
+            const t = Math.max(0, Math.min(1, alongLink / linkLen));
+            // Quadratic Lagrange interpolation through 3 points:
+            // h(t) = parentH*(1-t)*(1-2t) + 4*sagH*t*(1-t) + childH*t*(2t-1)
+            // Simplified: blend linearly + parabolic dip
+            const linearH = parentH + (childH - parentH) * t;
+            const dip = 4 * t * (1 - t); // 0 at endpoints, 1 at midpoint
+            const ridgeAtT = linearH - dip * (linearH - sagH);
+            
+            // Endpoint fade-in (blend with peak slopes)
+            let endFalloff = 1.0;
+            if (alongLink < blendDist) {
+              const et = Math.max(0, alongLink) / blendDist;
+              endFalloff = et * et;
+            } else if (alongLink > linkLen - blendDist) {
+              const et = Math.max(0, linkLen - alongLink) / blendDist;
+              endFalloff = et * et;
+            }
+            
+            const ridgeContribution = ridgeAtT * perpFalloff * endFalloff;
+            
+            const idx = rowOff + gx;
+            // MAX merge: ridge raises terrain only where it's taller
+            if (ridgeContribution > heightMap[idx]) {
+              heightMap[idx] = ridgeContribution;
+            }
+          }
+        }
+      }
     }
     
     // Apply gaussian blur (2 passes)
@@ -580,6 +820,24 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
+    
+    // ==================== Normalize Height Map ====================
+    // Heights are raw (additive stamps + ridges). Normalize to [0,1]
+    // so contour levels (0.125 … 1.0) span the actual range.
+    let maxH = 0;
+    for (let i = 0; i < gridSize; i++) {
+      if (heightMap[i] > maxH) maxH = heightMap[i];
+    }
+    if (maxH > 0) {
+      const invMaxH = 1 / maxH;
+      for (let i = 0; i < gridSize; i++) {
+        heightMap[i] *= invMaxH;
+      }
+      // Normalize per-node peak heights for plateau detection
+      for (let i = 0; i < nodePeakH.length; i++) {
+        if (nodePeakH[i] !== undefined) nodePeakH[i] *= invMaxH;
+      }
+    }
     
     // ==================== Reference Link Paths ====================
     // Compute least-slope A* paths for reference links after heightMap is built.
@@ -960,6 +1218,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     cache.highR = highR; cache.highG = highG; cache.highB = highB;
     cache.hasClassColors = hasClassColors;
     cache.hasSelection = hasSelection;
+    lastTerrainRebuildRef.current = now;
     cache.selectedNodeIndices = selectedNodeIndices;
     cache.referencePaths = computedReferencePaths;
     cache.valid = true;
@@ -976,6 +1235,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const cachedNodeChildDirs = cache.nodeChildDirs;
     const cachedIdToIdx = cache.idToIdx;
     const cachedNodeColors = cache.nodeColors;
+    // Use cached grid geometry for drawing (must match the cached chains/color maps)
+    const drawOriginX = cache.originX;
+    const drawOriginY = cache.originY;
+    const drawGridW = cache.gridW;
+    const drawGridH = cache.gridH;
+    const drawGs = cache.gs;
     
     // Draw a chain as a smooth Catmull-Rom spline (converted to cubic Bezier curves).
     // For each segment (i, i+1), control points are derived from neighbours:
@@ -1056,14 +1321,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
+        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
         offCtx.restore();
       }
       if (blurredMask) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'destination-out';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, originX, originY, gridW * gs, gridH * gs);
+        offCtx.drawImage(blurredMask, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
@@ -1093,14 +1358,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
+        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
         offCtx.restore();
       }
       if (blurredMask) {
         offCtx.save();
         offCtx.globalCompositeOperation = 'destination-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, originX, originY, gridW * gs, gridH * gs);
+        offCtx.drawImage(blurredMask, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
@@ -1128,7 +1393,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         offCtx.save();
         offCtx.globalCompositeOperation = 'source-in';
         offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, originX, originY, gridW * gs, gridH * gs);
+        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
         offCtx.restore();
       }
       ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
@@ -1149,6 +1414,85 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     ctx.restore();
+    
+    // ==================== DEBUG: Draw Height Map Grid ====================
+    if (settings.showDebugGrid && heightMapBufRef.current && drawGridW > 0 && drawGridH > 0) {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.scale(t.scale, t.scale);
+      const dbgHeightMap = heightMapBufRef.current;
+      const dbgOwnerMap = ownerMapRef.current;
+      // Draw each grid cell as a semi-transparent colored rectangle
+      // Color: red channel = height, blue = owner-based hue
+      for (let gy = 0; gy < drawGridH; gy++) {
+        for (let gx = 0; gx < drawGridW; gx++) {
+          const idx = gy * drawGridW + gx;
+          const val = dbgHeightMap[idx];
+          if (val <= 0.001) continue;
+          const wx = drawOriginX + gx * drawGs;
+          const wy = drawOriginY + gy * drawGs;
+          // Heat map: black→blue→cyan→green→yellow→red
+          const v = Math.min(1, val);
+          const r = Math.min(255, Math.max(0, Math.round(v < 0.5 ? 0 : (v - 0.5) * 2 * 255)));
+          const g = Math.min(255, Math.max(0, Math.round(v < 0.25 ? 0 : v < 0.75 ? (v - 0.25) * 2 * 255 : 255)));
+          const b = Math.min(255, Math.max(0, Math.round(v < 0.5 ? v * 2 * 255 : (1 - v) * 2 * 255)));
+          ctx.fillStyle = `rgba(${r},${g},${b},0.35)`;
+          ctx.fillRect(wx, wy, drawGs, drawGs);
+        }
+      }
+      // Draw grid lines (very faint)
+      ctx.strokeStyle = 'rgba(128,128,128,0.08)';
+      ctx.lineWidth = 0.5 / t.scale;
+      for (let gy = 0; gy <= drawGridH; gy += 10) {
+        const wy = drawOriginY + gy * drawGs;
+        ctx.beginPath();
+        ctx.moveTo(drawOriginX, wy);
+        ctx.lineTo(drawOriginX + drawGridW * drawGs, wy);
+        ctx.stroke();
+      }
+      for (let gx = 0; gx <= drawGridW; gx += 10) {
+        const wx = drawOriginX + gx * drawGs;
+        ctx.beginPath();
+        ctx.moveTo(wx, drawOriginY);
+        ctx.lineTo(wx, drawOriginY + drawGridH * drawGs);
+        ctx.stroke();
+      }
+      // Draw each node's stamp footprint
+      const dbgStampCache = stampCacheRef.current;
+      for (const node of visibleNodes) {
+        const stampEntry = dbgStampCache.get(node.id);
+        if (!stampEntry) continue;
+        const { stamp: dbgStamp } = stampEntry;
+        const gxCenter = Math.round((node.x - drawOriginX) / drawGs);
+        const gyCenter = Math.round((node.y - drawOriginY) / drawGs);
+        const gxStart = gxCenter - dbgStamp.cx;
+        const gyStart = gyCenter - dbgStamp.cy;
+        const stampWorldX = drawOriginX + gxStart * drawGs;
+        const stampWorldY = drawOriginY + gyStart * drawGs;
+        const stampWorldW = dbgStamp.w * drawGs;
+        const stampWorldH = dbgStamp.h * drawGs;
+        // Stamp bounding box
+        ctx.strokeStyle = 'rgba(255,0,0,0.5)';
+        ctx.lineWidth = 1 / t.scale;
+        ctx.strokeRect(stampWorldX, stampWorldY, stampWorldW, stampWorldH);
+        // Node center cross
+        ctx.strokeStyle = 'rgba(255,255,0,0.8)';
+        ctx.lineWidth = 1.5 / t.scale;
+        const crossSize = 6 / t.scale;
+        ctx.beginPath();
+        ctx.moveTo(node.x - crossSize, node.y);
+        ctx.lineTo(node.x + crossSize, node.y);
+        ctx.moveTo(node.x, node.y - crossSize);
+        ctx.lineTo(node.x, node.y + crossSize);
+        ctx.stroke();
+      }
+      // Grid bounding box
+      ctx.strokeStyle = 'rgba(0,255,0,0.4)';
+      ctx.lineWidth = 2 / t.scale;
+      ctx.strokeRect(drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
+      ctx.restore();
+    }
+    // ==================== END DEBUG ====================
     
     // ==================== Draw Reference Link Paths ====================
     // Rendered after contour lines but before overlays.

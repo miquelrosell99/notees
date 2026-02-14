@@ -59,7 +59,7 @@ import {
   TERRAIN_REF_LINK_MIN_SEPARATION,
   TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
-  TERRAIN_PEAK_SLOPE_BONUS,
+  TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
   LINK_TYPE_PRIORITY,
   // Helpers
   getMaxSimulationFrames,
@@ -932,7 +932,7 @@ export function useNodePhysics({
       let footprint = 0;
       if (isTerrain && terrainPeakRadii) {
         const peakSize = terrainPeakRadii.get(node.id) ?? 0;
-        footprint = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_BONUS * peakSize;
+        footprint = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_RADIUS_BONUS * peakSize;
       }
       minX = Math.min(minX, node.x - footprint);
       maxX = Math.max(maxX, node.x + footprint);
@@ -1682,10 +1682,14 @@ export function useNodePhysics({
             rawHeights.set(node.id, h);
             if (h > maxHeightRaw) maxHeightRaw = h;
           }
-          // Log compression so leaf nodes still have visible mountains
-          const logMax = Math.log(1 + maxHeightRaw);
+          // Log-compress heights to reduce dynamic range before stamp creation.
+          // Raw hierarchy masses can be 50:1+ (root vs leaf). Log compression
+          // makes it progressively harder for nodes to reach the top, so small
+          // peaks remain visible after additive merging and post-build
+          // normalization in TerrainRenderer.
+          // log(1+1)=0.69, log(1+10)=2.4, log(1+50)=3.9, log(1+100)=4.6
           for (const [id, h] of rawHeights) {
-            terrainHeights.set(id, logMax > 0 ? Math.log(1 + h) / logMax : 0);
+            terrainHeights.set(id, Math.log(1 + h));
           }
           
           // --- Peak radii (size) ---
