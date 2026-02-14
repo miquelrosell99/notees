@@ -259,6 +259,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const tempMapBufRef = useRef<Float32Array | null>(null);
   const ownerMapRef = useRef<Int32Array | null>(null);
   
+  // Flat segment buffer for marching squares (4 floats per segment: x1,y1,x2,y2)
+  const segsBufRef = useRef<Float32Array | null>(null);
+  
   // Offscreen canvases for selection-aware contour compositing
   const contourOffscreenRef = useRef<HTMLCanvasElement | null>(null);
   const selectionMaskRef = useRef<HTMLCanvasElement | null>(null);
@@ -728,12 +731,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     type Pt = [number, number];
     type Chain = Pt[];
     
-    const addSeg = (segs: Array<[number, number, number, number]>, x1: number, y1: number, x2: number, y2: number) => {
-      segs.push([x1, y1, x2, y2]);
+    // Flat segment buffer: 4 floats per segment (x1, y1, x2, y2).
+    // Max segments = 2 per grid cell (saddle cases 5, 10).
+    const maxSegs = (gridW - 1) * (gridH - 1) * 2;
+    const segsFloats = maxSegs * 4;
+    if (!segsBufRef.current || segsBufRef.current.length < segsFloats) {
+      segsBufRef.current = new Float32Array(segsFloats);
+    }
+    const segsBuf = segsBufRef.current;
+    
+    // Write a segment into the flat buffer and bump the count
+    let segCount = 0;
+    const addSeg = (x1: number, y1: number, x2: number, y2: number) => {
+      const off = segCount * 4;
+      segsBuf[off] = x1; segsBuf[off + 1] = y1;
+      segsBuf[off + 2] = x2; segsBuf[off + 3] = y2;
+      segCount++;
     };
     
-    const collectSegments = (level: number): Array<[number, number, number, number]> => {
-      const segs: Array<[number, number, number, number]> = [];
+    const collectSegments = (level: number): number => {
+      segCount = 0;
       for (let gy = 0; gy < gridH - 1; gy++) {
         const rowOff = gy * gridW;
         const nextRowOff = rowOff + gridW;
@@ -760,45 +777,47 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           const bottomX = px + bottomT * gs, bottomY = py + gs;
           const leftX = px, leftY = py + leftT * gs;
           switch (code) {
-            case 1: addSeg(segs, leftX, leftY, bottomX, bottomY); break;
-            case 2: addSeg(segs, bottomX, bottomY, rightX, rightY); break;
-            case 3: addSeg(segs, leftX, leftY, rightX, rightY); break;
-            case 4: addSeg(segs, topX, topY, rightX, rightY); break;
-            case 5: addSeg(segs, leftX, leftY, topX, topY); addSeg(segs, bottomX, bottomY, rightX, rightY); break;
-            case 6: addSeg(segs, topX, topY, bottomX, bottomY); break;
-            case 7: addSeg(segs, leftX, leftY, topX, topY); break;
-            case 8: addSeg(segs, topX, topY, leftX, leftY); break;
-            case 9: addSeg(segs, topX, topY, bottomX, bottomY); break;
-            case 10: addSeg(segs, topX, topY, rightX, rightY); addSeg(segs, leftX, leftY, bottomX, bottomY); break;
-            case 11: addSeg(segs, topX, topY, rightX, rightY); break;
-            case 12: addSeg(segs, leftX, leftY, rightX, rightY); break;
-            case 13: addSeg(segs, bottomX, bottomY, rightX, rightY); break;
-            case 14: addSeg(segs, leftX, leftY, bottomX, bottomY); break;
+            case 1: addSeg(leftX, leftY, bottomX, bottomY); break;
+            case 2: addSeg(bottomX, bottomY, rightX, rightY); break;
+            case 3: addSeg(leftX, leftY, rightX, rightY); break;
+            case 4: addSeg(topX, topY, rightX, rightY); break;
+            case 5: addSeg(leftX, leftY, topX, topY); addSeg(bottomX, bottomY, rightX, rightY); break;
+            case 6: addSeg(topX, topY, bottomX, bottomY); break;
+            case 7: addSeg(leftX, leftY, topX, topY); break;
+            case 8: addSeg(topX, topY, leftX, leftY); break;
+            case 9: addSeg(topX, topY, bottomX, bottomY); break;
+            case 10: addSeg(topX, topY, rightX, rightY); addSeg(leftX, leftY, bottomX, bottomY); break;
+            case 11: addSeg(topX, topY, rightX, rightY); break;
+            case 12: addSeg(leftX, leftY, rightX, rightY); break;
+            case 13: addSeg(bottomX, bottomY, rightX, rightY); break;
+            case 14: addSeg(leftX, leftY, bottomX, bottomY); break;
           }
         }
       }
-      return segs;
+      return segCount;
     };
     
-    const buildChains = (segs: Array<[number, number, number, number]>): Chain[] => {
-      if (segs.length === 0) return [];
+    const buildChains = (nSegs: number): Chain[] => {
+      if (nSegs === 0) return [];
       const adj = new Map<number, Array<{ si: number; end: number }>>();
       const addAdj = (key: number, si: number, end: number) => {
         let list = adj.get(key);
         if (!list) { list = []; adj.set(key, list); }
         list.push({ si, end });
       };
-      for (let i = 0; i < segs.length; i++) {
-        const [x1, y1, x2, y2] = segs[i];
-        addAdj(ptKey(x1, y1), i, 0);
-        addAdj(ptKey(x2, y2), i, 1);
+      for (let i = 0; i < nSegs; i++) {
+        const off = i * 4;
+        addAdj(ptKey(segsBuf[off], segsBuf[off + 1]), i, 0);
+        addAdj(ptKey(segsBuf[off + 2], segsBuf[off + 3]), i, 1);
       }
-      const visited = new Uint8Array(segs.length);
+      const visited = new Uint8Array(nSegs);
       const chains: Chain[] = [];
-      for (let si = 0; si < segs.length; si++) {
+      for (let si = 0; si < nSegs; si++) {
         if (visited[si]) continue;
         visited[si] = 1;
-        const [x1, y1, x2, y2] = segs[si];
+        const off = si * 4;
+        const x1 = segsBuf[off], y1 = segsBuf[off + 1];
+        const x2 = segsBuf[off + 2], y2 = segsBuf[off + 3];
         const chain: Pt[] = [[x1, y1], [x2, y2]];
         let curKey = ptKey(x2, y2);
         for (;;) {
@@ -808,9 +827,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           for (const nb of neighbors) {
             if (visited[nb.si]) continue;
             visited[nb.si] = 1;
-            const s = segs[nb.si];
-            const nx = nb.end === 0 ? s[2] : s[0];
-            const ny = nb.end === 0 ? s[3] : s[1];
+            const sOff = nb.si * 4;
+            const nx = nb.end === 0 ? segsBuf[sOff + 2] : segsBuf[sOff];
+            const ny = nb.end === 0 ? segsBuf[sOff + 3] : segsBuf[sOff + 1];
             chain.push([nx, ny]);
             curKey = ptKey(nx, ny);
             found = true;
@@ -826,9 +845,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           for (const nb of neighbors) {
             if (visited[nb.si]) continue;
             visited[nb.si] = 1;
-            const s = segs[nb.si];
-            const nx = nb.end === 0 ? s[2] : s[0];
-            const ny = nb.end === 0 ? s[3] : s[1];
+            const sOff = nb.si * 4;
+            const nx = nb.end === 0 ? segsBuf[sOff + 2] : segsBuf[sOff];
+            const ny = nb.end === 0 ? segsBuf[sOff + 3] : segsBuf[sOff + 1];
             chain.unshift([nx, ny]);
             curKey = ptKey(nx, ny);
             found = true;
@@ -890,8 +909,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
 
     const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-      const segs = collectSegments(CONTOUR_LEVELS[li]);
-      const chains = buildChains(segs);
+      const nSegs = collectSegments(CONTOUR_LEVELS[li]);
+      const chains = buildChains(nSegs);
       allChains[li] = chains
         .filter(c => chainLength(c) >= MIN_CHAIN_LEN)
         .map(c => decimateChain(c, decimationEpsilon));
