@@ -27,7 +27,7 @@ export {
 // Plugins
 export {
   BlockPlugin,
-  PillPlugin,
+  NodeLinkPlugin,
   DragDropPlugin,
   SelectionPlugin,
   CollapsePlugin,
