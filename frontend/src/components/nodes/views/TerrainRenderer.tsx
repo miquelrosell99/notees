@@ -387,6 +387,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Time-throttle terrain rebuilds during active simulation
   const lastTerrainRebuildRef = useRef(0);
   
+  // Hysteresis for resolution switching: prevents flickering between low-res
+  // (during simulation) and full-res (when settled). Requires the simulation
+  // to stay settled for a minimum duration before upgrading to full resolution.
+  const terrainLowResRef = useRef(true);        // currently using low-res grid?
+  const terrainSettledAtRef = useRef(0);          // timestamp when KE first dropped below threshold
+  const HIRES_SETTLE_DELAY = 500;                 // ms energy must stay low before switching to full-res
+  
   // Per-node stamp cache: nodeId → cached stamp + parameters
   const stampCacheRef = useRef(new Map<number, StampCacheEntry>());
   
@@ -499,8 +506,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const originY = minWY - worldPad;
     const worldW = Math.max(maxWX - minWX, 50) + worldPad * 2;
     const worldH = Math.max(maxWY - minWY, 50) + worldPad * 2;
-    // Use coarser grid during active simulation for faster rebuilds
-    const isSimActive = !simulationSleepingRef.current && kineticEnergyRef.current >= TERRAIN_SLEEP_THRESHOLD;
+    // Use coarser grid during active simulation for faster rebuilds.
+    // Hysteresis prevents flickering: switch to low-res immediately when
+    // simulation wakes, but require it to stay settled for HIRES_SETTLE_DELAY
+    // before upgrading back to full resolution.
+    const rawSimActive = !simulationSleepingRef.current && kineticEnergyRef.current >= TERRAIN_SLEEP_THRESHOLD;
+    const now0 = performance.now();
+    if (rawSimActive) {
+      // Simulation is active → low-res immediately, reset settle timer
+      terrainLowResRef.current = true;
+      terrainSettledAtRef.current = 0;
+    } else if (terrainLowResRef.current) {
+      // Simulation just settled — start or continue the settle timer
+      if (terrainSettledAtRef.current === 0) {
+        terrainSettledAtRef.current = now0;
+      } else if (now0 - terrainSettledAtRef.current >= HIRES_SETTLE_DELAY) {
+        // Stayed settled long enough → upgrade to full resolution
+        terrainLowResRef.current = false;
+      }
+    }
+    const isSimActive = terrainLowResRef.current;
     let gs = isSimActive ? TERRAIN_GRID_RES * 2 : TERRAIN_GRID_RES;
     let gridW = Math.ceil(worldW / gs);
     let gridH = Math.ceil(worldH / gs);
