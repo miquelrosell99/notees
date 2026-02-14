@@ -250,6 +250,8 @@ export interface LogseqClass {
 export interface LogseqBlock {
   title: string;
   uuid?: string;
+  tags?: string[];      // class ids (same as pages)
+  properties?: Record<string, unknown>;
   children?: LogseqBlock[];
 }
 
@@ -414,12 +416,39 @@ function parseBlock(raw: EdnValue): LogseqBlock {
   const title = asString(mapGet(raw, 'block/title')) ?? '';
   const uuidTagged = mapGet(raw, 'block/uuid');
   const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
+
+  // Tags (classes assigned to this block)
+  const tagsVec = mapGet(raw, 'build/tags');
+  const tags: string[] = [];
+  if (Array.isArray(tagsVec)) {
+    for (const t of tagsVec) {
+      if (t instanceof EdnKeyword) tags.push(t.value);
+    }
+  }
+
+  // Properties on this block
+  const propsOnBlock = mapGet(raw, 'build/properties');
+  const blockProperties: Record<string, unknown> = {};
+  if (propsOnBlock instanceof Map) {
+    for (const [pk, pv] of propsOnBlock.entries()) {
+      if (!(pk instanceof EdnKeyword)) continue;
+      if (pk.value.startsWith('logseq.property')) continue;
+      blockProperties[pk.value] = resolvePropertyValue(pv);
+    }
+  }
+
   const childrenVec = mapGet(raw, 'build/children');
   let children: LogseqBlock[] | undefined;
   if (Array.isArray(childrenVec)) {
     children = childrenVec.map(parseBlock);
   }
-  return { title, uuid, children };
+  return {
+    title,
+    uuid,
+    tags: tags.length > 0 ? tags : undefined,
+    properties: Object.keys(blockProperties).length > 0 ? blockProperties : undefined,
+    children,
+  };
 }
 
 /**
