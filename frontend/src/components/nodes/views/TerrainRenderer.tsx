@@ -1156,16 +1156,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       for (const path of cache.referencePaths) {
         const pts = path.screenPoints;
+        const mult = path.pointMultiplicity;
         if (pts.length < 2) continue;
-        
-        // Subtle, map-like stroke: thin line with low opacity
-        // Line width varies inversely with average slope (thinner on steep sections)
-        const baseWidth = 1.2;
-        const slopeScale = Math.max(0.4, 1.0 - path.avgSlope * 3);
-        const lineWidth = baseWidth * slopeScale;
-        
-        ctx.beginPath();
-        drawChainSmooth(ctx, pts);
         
         // Determine path color from source node's color (subtle tint)
         const srcIdx = cachedIdToIdx.get(path.sourceId);
@@ -1178,15 +1170,42 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
           pathB = Math.round(cb * 0.4 + cachedLowB * 0.6);
         }
         
-        // Draw a subtle outer stroke for depth, modulated by fade opacity
-        ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.12 * curOpacity})`;
-        ctx.lineWidth = lineWidth + 1.5;
-        ctx.stroke();
+        // Slope-based base width
+        const slopeScale = Math.max(0.4, 1.0 - path.avgSlope * 3);
         
-        // Draw the main path stroke, modulated by fade opacity
-        ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.35 * curOpacity})`;
-        ctx.lineWidth = lineWidth;
-        ctx.stroke();
+        // Draw segments with variable width based on per-point multiplicity.
+        // Where paths merge (multiplicity > 1) the stroke is bolder.
+        for (let i = 0; i < pts.length - 1; i++) {
+          const segMult = Math.max(mult[i] || 1, mult[i + 1] || 1);
+          const baseWidth = 1.2 + (segMult - 1) * 0.6; // wider for merged segments
+          const lineWidth = baseWidth * slopeScale;
+          const opacityBoost = Math.min(1, 0.35 + (segMult - 1) * 0.08);
+          
+          ctx.beginPath();
+          // Use Catmull-Rom for segment smoothness (prev/next neighbors)
+          const p0 = pts[i > 0 ? i - 1 : 0];
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          const p3 = pts[i + 2 < pts.length ? i + 2 : pts.length - 1];
+          ctx.moveTo(p1[0], p1[1]);
+          ctx.bezierCurveTo(
+            p1[0] + (p2[0] - p0[0]) / 6,
+            p1[1] + (p2[1] - p0[1]) / 6,
+            p2[0] - (p3[0] - p1[0]) / 6,
+            p2[1] - (p3[1] - p1[1]) / 6,
+            p2[0], p2[1],
+          );
+          
+          // Outer glow stroke
+          ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.12 * curOpacity})`;
+          ctx.lineWidth = lineWidth + 1.5;
+          ctx.stroke();
+          
+          // Main stroke — bolder where paths merge
+          ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${opacityBoost * curOpacity})`;
+          ctx.lineWidth = lineWidth;
+          ctx.stroke();
+        }
       }
       
       ctx.restore();
