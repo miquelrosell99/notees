@@ -359,7 +359,7 @@ export function NodeSelector({
                       <BulletIcon size="sm" />
                     )}
                     <span className="node-selector__single-value-name">
-                      {node?.name || 'Untitled'}
+                      {nodeNameToText(node?.name) || 'Untitled'}
                     </span>
                   </span>
                 );
