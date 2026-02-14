@@ -203,8 +203,14 @@ export const CENTER_GRAVITY = 0.001;
 export const MAX_VELOCITY = 15;
 export const VELOCITY_DAMPING = 0.92;
 export const VELOCITY_DEADZONE = 0.01;
-export const TERRAIN_VELOCITY_DAMPING = 0.85;
-export const TERRAIN_VELOCITY_DEADZONE = 0.05;
+export const TERRAIN_VELOCITY_DAMPING = 0.80;
+export const TERRAIN_VELOCITY_DEADZONE = 0.1;
+export const TERRAIN_LINK_DAMPING = 0.12;
+export const TERRAIN_MAX_VELOCITY = 10;
+
+// Terrain sleep tuning
+export const TERRAIN_SLEEP_THRESHOLD = 0.0005;
+export const TERRAIN_SLEEP_FRAMES = 30;
 
 // Drag pull
 export const DRAG_PULL_STRENGTH = 0.03;
