@@ -92,7 +92,7 @@
 }
 
 .terrain-node-label-card {
-  padding: 3px 6px;
+  padding: 2px 6px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: 0 2px 8px var(--color-shadow);
