@@ -79,7 +79,7 @@
 .node-block {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 0;
   margin: 3px 0;
   margin-left: calc(var(--node-block-depth, 0) * var(--spacing-6));
@@ -99,8 +99,8 @@
 /* Block bullet specific: right margin for spacing from content */
 .node-block > .bullet-wrapper {
   margin-right: 6px;
-  /* In editor, reset top margin since blocks handle vertical alignment */
-  margin-top: 0;
+  /* Align bullet with text baseline on first line */
+  margin-top: 2px;
 }
 
 /* Show collapse arrow when hovering bullet (if has children) or collapsed */
