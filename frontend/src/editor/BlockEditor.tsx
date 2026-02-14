@@ -22,6 +22,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { notesEditorTheme } from './theme';
 import { BlockNode } from './nodes/BlockNode';
 import { PillNode } from './nodes/PillNode';
+import type { PillRefType } from './nodes/PillNode';
 import { BlockHeadingNode } from './nodes/BlockHeadingNode';
 import { BlockCodeNode } from './nodes/BlockCodeNode';
 import { BlockTableCellNode } from './nodes/BlockTableCellNode';
@@ -296,7 +297,7 @@ export function BlockEditor({
     runtime.applyIntent({ type: 'outdent_block', blockId });
   }, [canOutdent]);
 
-  const handlePillClick = useCallback((linkId: string) => {
+  const handlePillClick = useCallback((linkId: string, _refType?: PillRefType) => {
     onNavigateToNode?.(linkId);
   }, [onNavigateToNode]);
 
@@ -308,11 +309,12 @@ export function BlockEditor({
 
   const [linkEditState, setLinkEditState] = useState<{
     linkId: string;
-    refType: 'node' | 'class';
+    refType: PillRefType;
+    url?: string;
   } | null>(null);
 
-  const handlePillEdit = useCallback((linkId: string, refType: 'node' | 'class') => {
-    setLinkEditState({ linkId, refType });
+  const handlePillEdit = useCallback((linkId: string, refType: PillRefType, url?: string) => {
+    setLinkEditState({ linkId, refType, url });
   }, []);
 
   const handleLinkEditClose = useCallback(() => {
@@ -320,35 +322,38 @@ export function BlockEditor({
   }, []);
 
   const handleLinkEditSave = useCallback((result: LinkEditResult) => {
-    const { nodeUuid: origNodeUuid, linkUuid } = parseLinkId(result.originalLinkId);
-
-    // Update custom label via API if we have a linkUuid
-    if (linkUuid) {
-      updateLinkName(linkUuid, result.label).catch(err => {
-        console.error('[BlockEditor] Failed to update link name:', err);
-      });
-    }
-
-    // If the target node changed, update the PillNode in the Lexical tree
-    if (result.targetNode && result.targetNode.uuid !== origNodeUuid) {
-      const newNodeUuid = result.targetNode.uuid;
-      // Build new compound linkId — keep the same linkUuid if available
-      const newLinkId = linkUuid
-        ? buildLinkId(newNodeUuid, linkUuid)
-        : newNodeUuid;
-
-      // Find and update the PillNode in the editor
-      // We need access to the editor instance — use a deferred update
-      // via the Lexical composition context. The editor is available
-      // from the LexicalComposer context, but since we're outside,
-      // we use a ref-based approach via the NodeLinkPlugin.
-
-      // Store the pending update — NodeLinkPlugin will pick it up
+    if (result.mode === 'url') {
+      // URL mode: replace the PillNode with a URL pill
       setPendingPillUpdate({
         oldLinkId: result.originalLinkId,
-        newLinkId,
-        newRefType: linkEditState?.refType ?? 'node',
+        newLinkId: result.label || result.url || result.originalLinkId,
+        newRefType: 'url',
+        newUrl: result.url,
       });
+    } else {
+      // Node mode: keep existing behaviour
+      const { nodeUuid: origNodeUuid, linkUuid } = parseLinkId(result.originalLinkId);
+
+      // Update custom label via API if we have a linkUuid
+      if (linkUuid) {
+        updateLinkName(linkUuid, result.label).catch(err => {
+          console.error('[BlockEditor] Failed to update link name:', err);
+        });
+      }
+
+      // If the target node changed, update the PillNode in the Lexical tree
+      if (result.targetNode && result.targetNode.uuid !== origNodeUuid) {
+        const newNodeUuid = result.targetNode.uuid;
+        const newLinkId = linkUuid
+          ? buildLinkId(newNodeUuid, linkUuid)
+          : newNodeUuid;
+
+        setPendingPillUpdate({
+          oldLinkId: result.originalLinkId,
+          newLinkId,
+          newRefType: linkEditState?.refType === 'class' ? 'class' : 'node',
+        });
+      }
     }
 
     setLinkEditState(null);
@@ -358,7 +363,8 @@ export function BlockEditor({
   const [pendingPillUpdate, setPendingPillUpdate] = useState<{
     oldLinkId: string;
     newLinkId: string;
-    newRefType: 'node' | 'class';
+    newRefType: PillRefType;
+    newUrl?: string;
   } | null>(null);
 
   // ─── Render ────────────────────────────────────────────────
@@ -482,6 +488,7 @@ export function BlockEditor({
           isOpen={true}
           linkId={linkEditState.linkId}
           refType={linkEditState.refType}
+          currentUrl={linkEditState.url}
           onSave={handleLinkEditSave}
           onClose={handleLinkEditClose}
         />
