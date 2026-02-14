@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import './WorkspaceModal.css';
 import { useQuery } from '@tanstack/react-query';
-import { checkDatabaseName } from '@/api/databases';
+import { checkWorkspaceName } from '@/api/workspaces';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
@@ -50,8 +50,8 @@ export function WorkspaceNameModal({
 
   // Debounced name check
   const { data: nameCheck, isLoading: isCheckingName } = useQuery({
-    queryKey: ['database-name-check', name],
-    queryFn: () => checkDatabaseName(name),
+    queryKey: ['workspace-name-check', name],
+    queryFn: () => checkWorkspaceName(name),
     enabled: name.length >= 2,
     staleTime: 5000,
   });

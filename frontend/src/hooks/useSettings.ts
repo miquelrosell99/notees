@@ -6,7 +6,7 @@
  * requests, and ensures settings are available from cache on navigation.
  */
 import { useQuery } from '@tanstack/react-query';
-import { getSettings } from '@/api/databases';
+import { getSettings } from '@/api/workspaces';
 import { settingsKeys } from './queryKeys';
 
 /**

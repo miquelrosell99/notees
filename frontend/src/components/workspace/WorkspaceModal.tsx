@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import './WorkspaceModal.css';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { createDatabase, checkDatabaseName, type DatabaseInfo } from '@/api/databases';
+import { createWorkspace, checkWorkspaceName, type WorkspaceInfo } from '@/api/workspaces';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
@@ -17,7 +17,7 @@ interface WorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** Called when a workspace is successfully created */
-  onSuccess?: (workspace: DatabaseInfo) => void;
+  onSuccess?: (workspace: WorkspaceInfo) => void;
 }
 
 export function WorkspaceModal({ isOpen, onClose, onSuccess }: WorkspaceModalProps) {
@@ -27,16 +27,16 @@ export function WorkspaceModal({ isOpen, onClose, onSuccess }: WorkspaceModalPro
 
   // Debounced name check
   const { data: nameCheck, isLoading: isCheckingName } = useQuery({
-    queryKey: ['database-name-check', name],
-    queryFn: () => checkDatabaseName(name),
+    queryKey: ['workspace-name-check', name],
+    queryFn: () => checkWorkspaceName(name),
     enabled: name.length >= 2,
     staleTime: 5000,
   });
 
   const createMutation = useMutation({
-    mutationFn: createDatabase,
+    mutationFn: createWorkspace,
     onSuccess: (newWorkspace) => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       onSuccess?.(newWorkspace);
       handleClose();
     },

@@ -12,7 +12,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore, type MainViewType } from '@/stores';
-import { listDatabases, type DatabaseListResponse } from '@/api/databases';
+import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
@@ -44,10 +44,10 @@ export function RouterSync({ children }: RouterSyncProps) {
     openPropertyView,
   } = useAppStore();
   
-  // Fetch databases
-  const { data: dbData, isLoading: isLoadingDbs } = useQuery<DatabaseListResponse>({
-    queryKey: ['databases'],
-    queryFn: listDatabases,
+  // Fetch workspaces
+  const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
+    queryKey: ['workspaces'],
+    queryFn: listWorkspaces,
     staleTime: 30000,
   });
   

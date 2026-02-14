@@ -214,8 +214,8 @@ class DatabaseInfo(BaseModel):
     user_id: Optional[str] = None
 
 
-class DatabaseCreate(BaseModel):
-    """Create database request."""
+class WorkspaceCreate(BaseModel):
+    """Create workspace request."""
     name: str
 
 

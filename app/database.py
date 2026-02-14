@@ -571,17 +571,3 @@ def get_export_dir(user_id: str, workspace_name: str = "default") -> Path:
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir
 
-
-# ============== Backward Compatibility Aliases ==============
-
-# Keep old function names for backward compatibility
-list_databases = list_workspaces
-get_active_db_name = get_active_workspace_id
-create_database = create_workspace
-switch_database = switch_workspace
-rename_database = rename_workspace
-delete_database = delete_workspace
-export_database = export_workspace
-import_database = import_workspace
-
-

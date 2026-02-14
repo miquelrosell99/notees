@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
 import { mdiSync, mdiAlertCircleOutline, mdiWifiOff, mdiChevronDown, mdiPlus, mdiCog } from '@mdi/js';
-import { listDatabases, switchDatabase } from '@/api/databases';
+import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
 import { Dropdown, type DropdownOption } from '../core/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -25,13 +25,13 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   const { setShowDbManagement } = useAppStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['databases'],
-    queryFn: listDatabases,
+    queryKey: ['workspaces'],
+    queryFn: listWorkspaces,
     staleTime: 30000,
   });
 
   const switchMutation = useMutation({
-    mutationFn: switchDatabase,
+    mutationFn: switchWorkspace,
     onSuccess: () => {
       const currentState = useAppStore.getState();
       
@@ -73,8 +73,8 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
       queryClient.removeQueries({ queryKey: ['inlineClasses'] });
       queryClient.removeQueries({ queryKey: ['textLinks'] });
       
-      // Invalidate databases query to refetch the list (keep cache for smoother UX)
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      // Invalidate workspaces query to refetch the list (keep cache for smoother UX)
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     },
   });
 
@@ -120,7 +120,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   };
 
   // Build dropdown options from workspaces (use uuid as value, name as label)
-  const workspaceOptions: DropdownOption<string>[] = data?.databases.map(workspace => ({
+  const workspaceOptions: DropdownOption<string>[] = data?.workspaces.map(workspace => ({
     value: workspace.uuid,
     label: workspace.name,
   })) || [];
@@ -147,7 +147,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     }
   };
 
-  const activeWorkspace = data?.databases.find(w => w.uuid === data?.active);
+  const activeWorkspace = data?.workspaces.find(w => w.uuid === data?.active);
   const displayName = isLoading 
     ? 'Loading...' 
     : (activeWorkspace?.name || 'No Workspace');

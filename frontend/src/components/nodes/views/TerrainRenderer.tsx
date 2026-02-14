@@ -11,7 +11,7 @@
  * - Mouse interactions (pan, zoom, click)
  */
 
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Card } from '../../core/Card';
 import type {
   GraphNode,
@@ -462,7 +462,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const { visibleNodes } = frameDataRef.current;
     const terrainHeights = frameDataRef.current.terrainHeights;
     const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-    const { accentColor, textColor } = cssVarsRef.current;
+    const { accentColor } = cssVarsRef.current;
     const currentClassColors = classColorsRef.current;
     
     // Skip contour rendering if not enough nodes
@@ -1237,8 +1237,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const cachedHighR = cache.highR, cachedHighG = cache.highG, cachedHighB = cache.highB;
     const cachedHasClassColors = cache.hasClassColors;
     const cachedHasSelection = cache.hasSelection;
-    const cachedSelectedNodeIndices = cache.selectedNodeIndices;
-    const cachedNodeChildDirs = cache.nodeChildDirs;
     const cachedIdToIdx = cache.idToIdx;
     const cachedNodeColors = cache.nodeColors;
     // Use cached grid geometry for drawing (must match the cached chains/color maps)
@@ -1427,7 +1425,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       ctx.translate(t.x, t.y);
       ctx.scale(t.scale, t.scale);
       const dbgHeightMap = heightMapBufRef.current;
-      const dbgOwnerMap = ownerMapRef.current;
       // Draw each grid cell as a semi-transparent colored rectangle
       // Color: red channel = height, blue = owner-based hue
       for (let gy = 0; gy < drawGridH; gy++) {

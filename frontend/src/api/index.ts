@@ -5,7 +5,7 @@ export * from './auth';
 export * from './nodes';
 export * from './nodeViews';
 export * from './properties';
-export * from './databases';
+export * from './workspaces';
 export * from './assets';
 export * from './assetTokens';
 export * from './activity';
