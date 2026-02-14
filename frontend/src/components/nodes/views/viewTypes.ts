@@ -309,9 +309,14 @@ export const TERRAIN_BASE_PLATEAU_RADIUS = 3; // Small flat peak top
 export const TERRAIN_PEAK_PLATEAU_BONUS = 8; // Modest size variation
 export const TERRAIN_BASE_SLOPE_RADIUS = 60; // Compact peak base
 export const TERRAIN_PEAK_SLOPE_RADIUS_BONUS = 80; // Limited spread
-export const TERRAIN_ANISOTROPY = 0.0; // Disable directional stretching - use explicit ridges instead
+export const TERRAIN_ANISOTROPY = 0.4; // Directional stretching toward children for cordillera shapes
 export const TERRAIN_NOISE_STRENGTH = 0.05; // Minimal irregularity for clean peaks
 export const TERRAIN_SLOPE_POWER = 2.5; // Steep falloff for distinct peaks
+
+// Ridge stamps between parent-child pairs (Option A: cordillera connectivity)
+export const TERRAIN_RIDGE_HEIGHT_FACTOR = 0.45; // Ridge height = factor × min(parentH, childH)
+export const TERRAIN_RIDGE_WIDTH = 12; // Half-width of ridge in world units
+export const TERRAIN_RIDGE_FALLOFF_POWER = 2.0; // Lateral falloff steepness
 
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];
