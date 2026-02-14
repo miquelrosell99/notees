@@ -75,3 +75,34 @@
   width: 100%;
   height: 100%;
 }
+
+/* SVG profile styling */
+.terrain-profile-canvas path {
+  transition: opacity 0.15s ease;
+}
+
+.terrain-profile-canvas circle {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Node labels as DOM elements */
+.terrain-node-label {
+  font-size: 10px;
+  font-family: Inter, sans-serif;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  text-align: center;
+  text-shadow: 
+    0 0 3px var(--color-surface),
+    0 0 5px var(--color-surface),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  animation: fadeInLabel 0.2s ease forwards;
+}
+
+@keyframes fadeInLabel {
+  to {
+    opacity: 1;
+  }
+}

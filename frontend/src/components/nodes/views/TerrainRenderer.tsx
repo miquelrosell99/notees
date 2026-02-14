@@ -98,11 +98,20 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const profileXCanvasRef = useRef<HTMLCanvasElement>(null); // bottom profile (X axis)
-  const profileYCanvasRef = useRef<HTMLCanvasElement>(null); // right profile (Y axis)
   
   // Cursor screen position for crosshair + profiles (-1 = not hovering)
   const mouseScreenRef = useRef({ x: -1, y: -1 });
+  
+  // SVG profile path state
+  const [profileXPath, setProfileXPath] = useState('');
+  const [profileYPath, setProfileYPath] = useState('');
+  const [profileXCursor, setProfileXCursor] = useState({ x: -1, visible: false });
+  const [profileYCursor, setProfileYCursor] = useState({ y: -1, visible: false });
+  const [profileXDots, setProfileXDots] = useState<Array<{ x: number; y: number; color: string; opacity: number }>>([]);
+  const [profileYDots, setProfileYDots] = useState<Array<{ x: number; y: number; color: string; opacity: number }>>([]);
+  
+  // Node label state
+  const [nodeLabels, setNodeLabels] = useState<Array<{ id: number; x: number; y: number; text: string; isSelected: boolean }>>([]);
   
   // State
   const [dimensions, setDimensions] = useState<Dimensions>({ width: 800, height: 600 });
@@ -326,15 +335,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         ctx.arc(sx, sy, plateauR, 0, 2 * Math.PI);
         ctx.fill();
         ctx.globalAlpha = 1;
-        // Label — only if this single node is hovered
-        if (hoveredNodeRef.current?.id === node.id) {
-          ctx.fillStyle = textColor;
-          ctx.font = '10px Inter, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          const displayName = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
-          ctx.fillText(displayName, sx, sy + 6);
-        }
+        // Label handled by DOM element now
       }
       terrainCacheRef.current.valid = false;
       return;
@@ -1134,27 +1135,19 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const idToIdx = cache.idToIdx;
     const nodeChildDirs = cache.nodeChildDirs;
     
-    // ==================== Draw Hovered Label ====================
+    // ==================== Update Node Labels (DOM elements) ====================
+    const labels: Array<{ id: number; x: number; y: number; text: string; isSelected: boolean }> = [];
+    
+    // Hovered node label
     const hovNode = hoveredNodeRef.current;
     if (hovNode) {
       const sx = hovNode.x * t.scale + t.x;
       const sy = hovNode.y * t.scale + t.y;
-      
       if (sx >= -60 && sx <= w + 60 && sy >= -20 && sy <= h + 20) {
-        overlayCtx.font = '10px Inter, sans-serif';
-        overlayCtx.textAlign = 'center';
-        overlayCtx.textBaseline = 'top';
-        overlayCtx.globalAlpha = 1;
-        
-        overlayCtx.lineWidth = 3;
-        overlayCtx.lineJoin = 'round';
-        overlayCtx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
         const displayName = hovNode.displayName.length > 35 
           ? hovNode.displayName.slice(0, 35) + '...' 
           : hovNode.displayName;
-        overlayCtx.strokeText(displayName, sx, sy + 6);
-        overlayCtx.fillStyle = '#ffffff';
-        overlayCtx.fillText(displayName, sx, sy + 6);
+        labels.push({ id: hovNode.id, x: sx, y: sy + 6, text: displayName, isSelected: false });
       }
     }
     
@@ -1233,22 +1226,22 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         
         overlayCtx.setLineDash([]);
         overlayCtx.globalAlpha = 1;
-        overlayCtx.font = '10px Inter, sans-serif';
-        overlayCtx.textAlign = 'center';
-        overlayCtx.textBaseline = 'top';
-        overlayCtx.lineWidth = 3;
-        overlayCtx.lineJoin = 'round';
-        overlayCtx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+        
+        // Add label for selected node
         const displayName = node.displayName.length > 35 
           ? node.displayName.slice(0, 35) + '...' 
           : node.displayName;
-        overlayCtx.strokeText(displayName, sx, sy + 6);
-        overlayCtx.fillStyle = '#ffffff';
-        overlayCtx.fillText(displayName, sx, sy + 6);
+        // Only add if not already added as hovered (avoid duplicate)
+        if (!labels.find(l => l.id === node.id)) {
+          labels.push({ id: node.id, x: sx, y: sy + 6, text: displayName, isSelected: true });
+        }
       }
       
       overlayCtx.restore();
     }
+    
+    // Update label state
+    setNodeLabels(labels);
     
     // ==================== Draw Crosshair Lines ====================
     const mx = mouseScreenRef.current.x;
@@ -1292,12 +1285,21 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     renderOverlayRef.current = renderOverlay;
   }, [renderOverlay]);
   
-  // ==================== Profile Drawing ====================
+  // ==================== Profile Path Generation ====================
   
-  const drawProfiles = useCallback(() => {
+  const updateProfiles = useCallback(() => {
     const heightMap = heightMapBufRef.current;
     const { gridW: gW, gridH: gH, gs: pGs } = plateauGridRef.current;
-    if (!heightMap || gW === 0) return;
+    if (!heightMap || gW === 0) {
+      setProfileXPath('');
+      setProfileYPath('');
+      setProfileXCursor({ x: -1, visible: false });
+      setProfileYCursor({ y: -1, visible: false });
+      setProfileXDots([]);
+      setProfileYDots([]);
+      setNodeLabels([]);
+      return;
+    }
     
     const mx = mouseScreenRef.current.x;
     const my = mouseScreenRef.current.y;
@@ -1305,202 +1307,136 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     // Card inset constants (must match CSS)
     const INSET = 12;
-    const CROSS_INSET = 68; // space reserved for the perpendicular card + gap
-    
-    // Get CSS color variables for axis rendering
-    const style = getComputedStyle(document.documentElement);
-    const fillColor = style.getPropertyValue('--color-surface-container-high').trim() || '#e5e5e5';
-    const strokeColor = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
-    const cursorColor = style.getPropertyValue('--color-outline-variant').trim() || '#e5e5e5';
+    const CROSS_INSET = 68;
+    const PROFILE_X_HEIGHT = 48;
+    const PROFILE_Y_WIDTH = 48;
     
     // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
-    const xCanvas = profileXCanvasRef.current;
-    if (xCanvas) {
-      const xCtx = xCanvas.getContext('2d');
-      const xParent = xCanvas.parentElement;
-      if (xCtx && xParent) {
-        const cw = xParent.clientWidth;
-        const ch = xParent.clientHeight;
-        xCanvas.width = cw;
-        xCanvas.height = ch;
-        xCtx.clearRect(0, 0, cw, ch);
+    if (mx >= 0 && my >= 0) {
+      const gy = Math.floor(my / pGs);
+      if (gy >= 0 && gy < gH) {
+        const tLeft = INSET;
+        const tRight = w - CROSS_INSET;
+        const tSpan = tRight - tLeft;
+        const cw = tRight - tLeft;
+        const ch = PROFILE_X_HEIGHT;
         
-        if (mx >= 0 && my >= 0) {
-          const gy = Math.floor(my / pGs);
-          if (gy >= 0 && gy < gH) {
-            // Card spans terrain x=[INSET, w - CROSS_INSET]
-            const tLeft = INSET;
-            const tRight = w - CROSS_INSET;
-            const tSpan = tRight - tLeft;
-            
-            xCtx.beginPath();
-            xCtx.moveTo(0, ch);
-            for (let px = 0; px < cw; px++) {
-              const terrainX = tLeft + (px / cw) * tSpan;
-              const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
-              const val = heightMap[gy * gW + gx];
-              const py = ch - val * (ch - 4);
-              if (px === 0) xCtx.lineTo(0, py);
-              else xCtx.lineTo(px, py);
-            }
-            xCtx.lineTo(cw, ch);
-            xCtx.closePath();
-            xCtx.fillStyle = fillColor;
-            xCtx.globalAlpha = 0.25;
-            xCtx.fill();
-            xCtx.globalAlpha = 1;
-            xCtx.strokeStyle = strokeColor;
-            xCtx.lineWidth = 1;
-            xCtx.beginPath();
-            for (let px = 0; px < cw; px++) {
-              const terrainX = tLeft + (px / cw) * tSpan;
-              const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
-              const val = heightMap[gy * gW + gx];
-              const py = ch - val * (ch - 4);
-              if (px === 0) xCtx.moveTo(0, py);
-              else xCtx.lineTo(px, py);
-            }
-            xCtx.stroke();
-            
-            // Cursor marker line (aligned to terrain position)
-            const cardMx = (mx - tLeft) / tSpan * cw;
-            xCtx.setLineDash([4, 3]);
-            xCtx.strokeStyle = cursorColor;
-            xCtx.globalAlpha = 0.5;
-            xCtx.beginPath();
-            xCtx.moveTo(cardMx, 0);
-            xCtx.lineTo(cardMx, ch);
-            xCtx.stroke();
-            xCtx.globalAlpha = 1;
-            
-            // Node position dots — show dots where nodes project onto X axis
-            const t = transformRef.current;
-            const { visibleNodes } = frameDataRef.current;
-            const NODE_DOT_MAX_DIST = 80; // pixels: max distance for dot to appear
-            for (const node of visibleNodes) {
-              const nsx = node.x * t.scale + t.x;
-              const nsy = node.y * t.scale + t.y;
-              // Distance from cursor's Y line to node's Y position
-              const distY = Math.abs(nsy - my);
-              if (distY > NODE_DOT_MAX_DIST) continue;
-              // Map node screen X to card X
-              if (nsx < tLeft || nsx > tRight) continue;
-              const cardNx = (nsx - tLeft) / tSpan * cw;
-              // Sample height at node's grid position for Y placement
-              const ngx = Math.min(Math.max(Math.floor(nsx / pGs), 0), gW - 1);
-              const nVal = heightMap[gy * gW + ngx];
-              const ndotY = ch - nVal * (ch - 4);
-              // Proximity factor: 1 at dist=0, 0 at dist=NODE_DOT_MAX_DIST
-              const prox = 1 - distY / NODE_DOT_MAX_DIST;
-              const proxSq = prox * prox; // quadratic falloff for subtler fade-in
-              const dotR = 1.5 + proxSq * 2; // radius 1.5 → 3.5
-              xCtx.globalAlpha = 0.15 + proxSq * 0.65;
-              const cc = classColorsRef.current;
-              xCtx.fillStyle = cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff';
-              xCtx.beginPath();
-              xCtx.arc(cardNx, ndotY, dotR, 0, Math.PI * 2);
-              xCtx.fill();
-            }
-            xCtx.globalAlpha = 1;
-          }
+        // Build SVG path (area + line)
+        const pathPoints: string[] = [];
+        pathPoints.push(`M 0,${ch}`);
+        for (let px = 0; px <= cw; px += 2) {
+          const terrainX = tLeft + (px / cw) * tSpan;
+          const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
+          const val = heightMap[gy * gW + gx];
+          const py = ch - val * (ch - 4);
+          pathPoints.push(`L ${px},${py}`);
         }
+        pathPoints.push(`L ${cw},${ch} Z`);
+        setProfileXPath(pathPoints.join(' '));
+        
+        // Cursor position
+        const cardMx = (mx - tLeft) / tSpan * cw;
+        setProfileXCursor({ x: cardMx, visible: true });
+        
+        // Node position dots
+        const t = transformRef.current;
+        const { visibleNodes } = frameDataRef.current;
+        const NODE_DOT_MAX_DIST = 80;
+        const dots: Array<{ x: number; y: number; color: string; opacity: number }> = [];
+        for (const node of visibleNodes) {
+          const nsx = node.x * t.scale + t.x;
+          const nsy = node.y * t.scale + t.y;
+          const distY = Math.abs(nsy - my);
+          if (distY > NODE_DOT_MAX_DIST) continue;
+          if (nsx < tLeft || nsx > tRight) continue;
+          const cardNx = (nsx - tLeft) / tSpan * cw;
+          const ngx = Math.min(Math.max(Math.floor(nsx / pGs), 0), gW - 1);
+          const nVal = heightMap[gy * gW + ngx];
+          const ndotY = ch - nVal * (ch - 4);
+          const prox = 1 - distY / NODE_DOT_MAX_DIST;
+          const proxSq = prox * prox;
+          const cc = classColorsRef.current;
+          dots.push({
+            x: cardNx,
+            y: ndotY,
+            color: cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff',
+            opacity: 0.15 + proxSq * 0.65
+          });
+        }
+        setProfileXDots(dots);
+      } else {
+        setProfileXPath('');
+        setProfileXCursor({ x: -1, visible: false });
+        setProfileXDots([]);
       }
+    } else {
+      setProfileXPath('');
+      setProfileXCursor({ x: -1, visible: false });
+      setProfileXDots([]);
     }
     
     // --- Right profile (Y axis): sample heightMap along column at cursor X ---
-    // Inverted: height grows right-to-left (profile faces toward the terrain)
-    const yCanvas = profileYCanvasRef.current;
-    if (yCanvas) {
-      const yCtx = yCanvas.getContext('2d');
-      const yParent = yCanvas.parentElement;
-      if (yCtx && yParent) {
-        const cw = yParent.clientWidth;
-        const ch = yParent.clientHeight;
-        yCanvas.width = cw;
-        yCanvas.height = ch;
-        yCtx.clearRect(0, 0, cw, ch);
+    if (mx >= 0 && my >= 0) {
+      const gx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
+      if (gx >= 0 && gx < gW) {
+        const tTop = INSET;
+        const tBottom = h - CROSS_INSET;
+        const tSpan = tBottom - tTop;
+        const cw = PROFILE_Y_WIDTH;
+        const ch = tBottom - tTop;
         
-        if (mx >= 0 && my >= 0) {
-          const gx = Math.min(Math.max(Math.floor(mx / pGs), 0), gW - 1);
-          if (gx >= 0 && gx < gW) {
-            // Card spans terrain y=[INSET, h - CROSS_INSET]
-            const tTop = INSET;
-            const tBottom = h - CROSS_INSET;
-            const tSpan = tBottom - tTop;
-            
-            // Inverted: fill from right edge, profile line goes left
-            yCtx.beginPath();
-            yCtx.moveTo(cw, 0);
-            for (let py = 0; py < ch; py++) {
-              const terrainY = tTop + (py / ch) * tSpan;
-              const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
-              const val = heightMap[gy * gW + gx];
-              const px = cw - val * (cw - 4);
-              if (py === 0) yCtx.lineTo(px, 0);
-              else yCtx.lineTo(px, py);
-            }
-            yCtx.lineTo(cw, ch);
-            yCtx.closePath();
-            yCtx.fillStyle = fillColor;
-            yCtx.globalAlpha = 0.25;
-            yCtx.fill();
-            yCtx.globalAlpha = 1;
-            yCtx.strokeStyle = strokeColor;
-            yCtx.lineWidth = 1;
-            yCtx.beginPath();
-            for (let py = 0; py < ch; py++) {
-              const terrainY = tTop + (py / ch) * tSpan;
-              const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
-              const val = heightMap[gy * gW + gx];
-              const px = cw - val * (cw - 4);
-              if (py === 0) yCtx.moveTo(px, 0);
-              else yCtx.lineTo(px, py);
-            }
-            yCtx.stroke();
-            
-            // Cursor marker line (aligned to terrain position)
-            const cardMy = (my - tTop) / tSpan * ch;
-            yCtx.setLineDash([4, 3]);
-            yCtx.strokeStyle = cursorColor;
-            yCtx.globalAlpha = 0.5;
-            yCtx.beginPath();
-            yCtx.moveTo(0, cardMy);
-            yCtx.lineTo(cw, cardMy);
-            yCtx.stroke();
-            yCtx.globalAlpha = 1;
-            
-            // Node position dots — show dots where nodes project onto Y axis
-            const t = transformRef.current;
-            const { visibleNodes } = frameDataRef.current;
-            const NODE_DOT_MAX_DIST = 80;
-            for (const node of visibleNodes) {
-              const nsx = node.x * t.scale + t.x;
-              const nsy = node.y * t.scale + t.y;
-              // Distance from cursor's X line to node's X position
-              const distX = Math.abs(nsx - mx);
-              if (distX > NODE_DOT_MAX_DIST) continue;
-              // Map node screen Y to card Y
-              if (nsy < tTop || nsy > tBottom) continue;
-              const cardNy = (nsy - tTop) / tSpan * ch;
-              // Sample height at node's grid position for X placement (inverted)
-              const ngy = Math.min(Math.max(Math.floor(nsy / pGs), 0), gH - 1);
-              const nVal = heightMap[ngy * gW + gx];
-              const ndotX = cw - nVal * (cw - 4);
-              // Proximity factor with quadratic falloff
-              const prox = 1 - distX / NODE_DOT_MAX_DIST;
-              const proxSq = prox * prox;
-              const dotR = 1.5 + proxSq * 2;
-              yCtx.globalAlpha = 0.15 + proxSq * 0.65;
-              const cc = classColorsRef.current;
-              yCtx.fillStyle = cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff';
-              yCtx.beginPath();
-              yCtx.arc(ndotX, cardNy, dotR, 0, Math.PI * 2);
-              yCtx.fill();
-            }
-            yCtx.globalAlpha = 1;
-          }
+        // Build SVG path (inverted: height grows right-to-left)
+        const pathPoints: string[] = [];
+        pathPoints.push(`M ${cw},0`);
+        for (let py = 0; py <= ch; py += 2) {
+          const terrainY = tTop + (py / ch) * tSpan;
+          const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
+          const val = heightMap[gy * gW + gx];
+          const px = cw - val * (cw - 4);
+          pathPoints.push(`L ${px},${py}`);
         }
+        pathPoints.push(`L ${cw},${ch} Z`);
+        setProfileYPath(pathPoints.join(' '));
+        
+        // Cursor position
+        const cardMy = (my - tTop) / tSpan * ch;
+        setProfileYCursor({ y: cardMy, visible: true });
+        
+        // Node position dots
+        const t = transformRef.current;
+        const { visibleNodes } = frameDataRef.current;
+        const NODE_DOT_MAX_DIST = 80;
+        const dots: Array<{ x: number; y: number; color: string; opacity: number }> = [];
+        for (const node of visibleNodes) {
+          const nsx = node.x * t.scale + t.x;
+          const nsy = node.y * t.scale + t.y;
+          const distX = Math.abs(nsx - mx);
+          if (distX > NODE_DOT_MAX_DIST) continue;
+          if (nsy < tTop || nsy > tBottom) continue;
+          const cardNy = (nsy - tTop) / tSpan * ch;
+          const ngy = Math.min(Math.max(Math.floor(nsy / pGs), 0), gH - 1);
+          const nVal = heightMap[ngy * gW + gx];
+          const ndotX = cw - nVal * (cw - 4);
+          const prox = 1 - distX / NODE_DOT_MAX_DIST;
+          const proxSq = prox * prox;
+          const cc = classColorsRef.current;
+          dots.push({
+            x: ndotX,
+            y: cardNy,
+            color: cc.length > 0 ? getNodeColor(node, cc, '#ffffff') : '#ffffff',
+            opacity: 0.15 + proxSq * 0.65
+          });
+        }
+        setProfileYDots(dots);
+      } else {
+        setProfileYPath('');
+        setProfileYCursor({ y: -1, visible: false });
+        setProfileYDots([]);
       }
+    } else {
+      setProfileYPath('');
+      setProfileYCursor({ y: -1, visible: false });
+      setProfileYDots([]);
     }
   }, []); // stable — reads from dimensionsRef
   
@@ -1624,7 +1560,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       
       // Update overlays and redraw profiles
       setOverlaysVisible(true);
-      drawProfiles();
+      updateProfiles();
       
       // Redraw overlay only (crosshair, labels) — NOT the full terrain canvas
       if (overlayCtxRef.current && renderOverlayRef.current) {
@@ -1644,7 +1580,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
     }
-  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation, drawProfiles, setOverlaysVisible]);
+  }, [getCanvasCoordinates, getNodeAtPosition, getNodeInPlateau, screenToWorld, onHoveredNodeChange, setTransformDirect, wakeSimulation, updateProfiles, setOverlaysVisible]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
@@ -1693,7 +1629,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     hoveredContourLevelRef.current = -1;
     hoveredNodeRef.current = null;
     setOverlaysVisible(false);
-    drawProfiles();
+    updateProfiles();
     // Clear overlay canvas
     if (overlayCtxRef.current) {
       const dpr = window.devicePixelRatio || 1;
@@ -1705,7 +1641,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
       renderRef.current(ctxRef.current);
     }
-  }, [handleMouseUp, drawProfiles, setOverlaysVisible]);
+  }, [handleMouseUp, updateProfiles, setOverlaysVisible]);
   
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (wasJustDraggingRef.current) return;
@@ -1810,22 +1746,113 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         className="node-graph-renderer__overlay"
         style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%' }}
       />
+      {/* Right profile (Y axis) */}
       <div
         ref={profileYCardRef}
         className="terrain-profile-card terrain-profile-card--right"
       >
         <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
-          <canvas ref={profileYCanvasRef} className="terrain-profile-canvas" />
+          <svg className="terrain-profile-canvas" viewBox="0 0 48 600" preserveAspectRatio="none">
+            {profileYPath && (
+              <>
+                <path
+                  d={profileYPath}
+                  fill="var(--color-surface-container-high)"
+                  fillOpacity="0.25"
+                  stroke="var(--color-outline)"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {profileYCursor.visible && (
+                  <line
+                    x1="0"
+                    y1={profileYCursor.y}
+                    x2="48"
+                    y2={profileYCursor.y}
+                    stroke="var(--color-outline-variant)"
+                    strokeWidth="1"
+                    strokeDasharray="4 3"
+                    strokeOpacity="0.5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {profileYDots.map((dot, i) => (
+                  <circle
+                    key={i}
+                    cx={dot.x}
+                    cy={dot.y}
+                    r="2"
+                    fill={dot.color}
+                    opacity={dot.opacity}
+                  />
+                ))}
+              </>
+            )}
+          </svg>
         </Card>
       </div>
+      {/* Bottom profile (X axis) */}
       <div
         ref={profileXCardRef}
         className="terrain-profile-card terrain-profile-card--bottom"
       >
         <Card variant="dashed" elevation="none" padding={false} radius="sm" className="terrain-profile-card__inner">
-          <canvas ref={profileXCanvasRef} className="terrain-profile-canvas" />
+          <svg className="terrain-profile-canvas" viewBox="0 0 800 48" preserveAspectRatio="none">
+            {profileXPath && (
+              <>
+                <path
+                  d={profileXPath}
+                  fill="var(--color-surface-container-high)"
+                  fillOpacity="0.25"
+                  stroke="var(--color-outline)"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {profileXCursor.visible && (
+                  <line
+                    x1={profileXCursor.x}
+                    y1="0"
+                    x2={profileXCursor.x}
+                    y2="48"
+                    stroke="var(--color-outline-variant)"
+                    strokeWidth="1"
+                    strokeDasharray="4 3"
+                    strokeOpacity="0.5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {profileXDots.map((dot, i) => (
+                  <circle
+                    key={i}
+                    cx={dot.x}
+                    cy={dot.y}
+                    r="2"
+                    fill={dot.color}
+                    opacity={dot.opacity}
+                  />
+                ))}
+              </>
+            )}
+          </svg>
         </Card>
       </div>
+      {/* Node labels */}
+      {nodeLabels.map((label) => (
+        <div
+          key={label.id}
+          className="terrain-node-label"
+          style={{
+            position: 'absolute',
+            left: `${label.x}px`,
+            top: `${label.y}px`,
+            transform: 'translateX(-50%)',
+            pointerEvents: 'none',
+            zIndex: 5,
+          }}
+        >
+          {label.text}
+        </div>
+      ))}
     </div>
   );
 });
