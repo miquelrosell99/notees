@@ -1,18 +1,33 @@
 /**
  * ImportLogseqModal - Modal for importing Logseq EDN graph exports
  *
- * Provides a code-block style textarea where users paste raw EDN,
- * parses it and creates pages/blocks via the existing API.
+ * Import flow (6 phases):
+ * 1. Create classes (type nodes)
+ * 2. Create properties (with correct backend field names)
+ * 3. Create all nodes (pages + blocks) with classes assigned at creation,
+ *    using plain-text names initially — builds UUID→nodeInfo map
+ * 4. Bind properties to classes
+ * 5. Assign property values to nodes
+ * 6. Update node content with proper AST containing node_link entries,
+ *    which triggers the backend to create link records automatically
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { mdiImport } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
-import { parseLogseqEdn, type LogseqExport } from '@/utils/ednParser';
-import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
+import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
+import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { getOrCreateDaily } from '@/api/nodes';
+import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
+import type { ASTInlineNode } from '@/lib/astBuilder';
 import type { PropertyType } from '@/types/api';
 import './ImportLogseqModal.css';
+
+/** Info stored per created Notees node, keyed by Logseq UUID */
+interface NodeInfo {
+  id: number;
+  uuid: string; // Notees UUID (from the created node)
+}
 
 interface ImportLogseqModalProps {
   isOpen: boolean;
@@ -32,6 +47,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const createPropertyMutation = useCreateProperty();
   const setNodePropertyMutation = useSetNodeProperty();
   const addPropertyToClassMutation = useAddPropertyToClass();
+  const addClassMutation = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
 
@@ -71,70 +87,21 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     setImporting(true);
 
     try {
-      // UUID → Notees node ID map (for resolving [[uuid]] links)
-      const uuidMap = new Map<string, number>();
+      // ── Maps built during import ─────────────────────────────
+      // Logseq UUID → Notees {id, uuid}
+      const uuidMap = new Map<string, NodeInfo>();
       // Logseq property id → Notees property id
       const propIdMap = new Map<string, number>();
-      // Page title → Notees node ID (for resolving node-type property values)
-      const titleToNodeId = new Map<string, number>();
+      // Logseq class id → Notees node id
+      const classIdMap = new Map<string, number>();
+      // Page title → Notees node info (for property value resolution)
+      const titleToNodeInfo = new Map<string, NodeInfo>();
+      // All created nodes that need content update: {notees id, original title text}
+      const contentQueue: Array<{ id: number; title: string }> = [];
 
-      // Helper: replace [[logseq-uuid]] references with [[notees-node-id]]
-      const UUID_LINK_RE = /\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/gi;
-      const resolveLinks = (text: string): string =>
-        text.replace(UUID_LINK_RE, (_match, uuid: string) => {
-          const nodeId = uuidMap.get(uuid);
-          return nodeId ? `[[${nodeId}]]` : '';
-        });
-      const hasUnresolvedLinks = (text: string): boolean =>
-        /\[\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]\]/i.test(text);
-
-      // Map logseq property type → Notees property type
-      const mapPropertyType = (logseqType: string): PropertyType => {
-        switch (logseqType) {
-          case 'checkbox': return 'boolean';
-          case 'date': return 'date';
-          case 'node': return 'node';
-          case 'number': return 'float';
-          default: return 'text';
-        }
-      };
-
-      // 1. Create properties
-      for (const prop of parsed.properties) {
-        setImportStatus(`Creating property: ${prop.title}`);
-        try {
-          const noteesType = mapPropertyType(prop.type);
-          const isMulti = prop.cardinality === 'db.cardinality/many';
-
-          // Build selection options for number-type properties with closed values
-          const options = prop.selectionOptions
-            ? prop.selectionOptions.map(o => String(o.value))
-            : undefined;
-
-          const created = await createPropertyMutation.mutateAsync({
-            name: prop.title,
-            type: noteesType === 'float' && prop.selectionOptions ? 'selection' : noteesType,
-            multi: isMulti,
-            options: options,
-          });
-          propIdMap.set(prop.id, created.id);
-
-          // Map selection option UUIDs → selection line IDs
-          if (prop.selectionOptions && created.options) {
-            for (let i = 0; i < prop.selectionOptions.length && i < created.options.length; i++) {
-              const opt = prop.selectionOptions[i];
-              if (opt.uuid) {
-                uuidMap.set(opt.uuid, created.options[i].id);
-              }
-            }
-          }
-        } catch {
-          console.warn(`Failed to create property: ${prop.title}`);
-        }
-      }
-
-      // 2. Create classes (as type nodes)
-      const classIdMap = new Map<string, number>(); // logseq class id → notees node id
+      // ──────────────────────────────────────────────────────────
+      // PHASE 1: Create classes (as type nodes)
+      // ──────────────────────────────────────────────────────────
       if (classClassId) {
         for (const cls of parsed.classes) {
           setImportStatus(`Creating class: ${cls.title}`);
@@ -144,25 +111,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               classes: [classClassId, pageClassId],
             });
             classIdMap.set(cls.id, node.id);
-            if (cls.uuid) uuidMap.set(cls.uuid, node.id);
-
-            // Bind properties to this class
-            if (cls.properties) {
-              for (const logseqPropId of cls.properties) {
-                // Skip logseq system properties
-                if (logseqPropId.startsWith('logseq.property')) continue;
-                const noteesPropId = propIdMap.get(logseqPropId);
-                if (noteesPropId) {
-                  try {
-                    await addPropertyToClassMutation.mutateAsync({
-                      classId: node.id,
-                      propertyId: noteesPropId,
-                    });
-                  } catch {
-                    console.warn(`Failed to bind property ${logseqPropId} to class ${cls.title}`);
-                  }
-                }
-              }
+            if (cls.uuid) {
+              uuidMap.set(cls.uuid, { id: node.id, uuid: node.uuid });
             }
           } catch {
             console.warn(`Failed to create class: ${cls.title}`);
@@ -170,11 +120,52 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
       }
 
-      // 3. Create all pages first (without blocks) to build UUID map
-      const pageNodes = new Map<number, typeof parsed.pages[number]>(); // notees id → page data
+      // ──────────────────────────────────────────────────────────
+      // PHASE 2: Create properties
+      // ──────────────────────────────────────────────────────────
+      for (const prop of parsed.properties) {
+        setImportStatus(`Creating property: ${prop.title}`);
+        try {
+          const noteesType = mapPropertyType(prop.type);
+          const isMulti = prop.cardinality === 'db.cardinality/many';
+          const selectionLines = prop.selectionOptions
+            ? prop.selectionOptions.map(o => String(o.value))
+            : [];
+          const finalType = noteesType === 'float' && prop.selectionOptions
+            ? 'selection' as PropertyType
+            : noteesType;
+
+          // Send backend field names directly (is_multi, selection_lines)
+          const created = await createPropertyMutation.mutateAsync({
+            name: prop.title,
+            type: finalType,
+            is_multi: isMulti,
+            selection_lines: selectionLines,
+          } as Record<string, unknown> & { name: string });
+          propIdMap.set(prop.id, created.id);
+
+          // Map selection option UUIDs → selection line IDs
+          if (prop.selectionOptions && created.options) {
+            for (let i = 0; i < prop.selectionOptions.length && i < created.options.length; i++) {
+              const opt = prop.selectionOptions[i];
+              if (opt.uuid) {
+                uuidMap.set(opt.uuid, { id: created.options[i].id, uuid: '' });
+              }
+            }
+          }
+        } catch {
+          console.warn(`Failed to create property: ${prop.title}`);
+        }
+      }
+
+      // ──────────────────────────────────────────────────────────
+      // PHASE 3: Create all nodes (pages + blocks) with classes,
+      //          using plain-text names (no links yet)
+      // ──────────────────────────────────────────────────────────
       for (const page of parsed.pages) {
         setImportStatus(`Creating page: ${page.title}`);
 
+        // Resolve class IDs for this page
         const pageClasses = [pageClassId];
         if (page.tags) {
           for (const tag of page.tags) {
@@ -188,57 +179,73 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             name: page.title,
             classes: pageClasses,
           });
-          if (page.uuid) uuidMap.set(page.uuid, pageNode.id);
-          if (page.title) titleToNodeId.set(page.title, pageNode.id);
-          pageNodes.set(pageNode.id, page);
+          if (page.uuid) {
+            uuidMap.set(page.uuid, { id: pageNode.id, uuid: pageNode.uuid });
+          }
+          titleToNodeInfo.set(page.title, { id: pageNode.id, uuid: pageNode.uuid });
+
+          // Create blocks recursively under this page
+          if (page.blocks.length > 0) {
+            setImportStatus(`Creating blocks for: ${page.title}`);
+            await createBlocksRecursively(
+              page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue,
+            );
+          }
         } catch {
           console.warn(`Failed to create page: ${page.title}`);
         }
       }
 
-      // 4. Set property values on pages
-      for (const [pageNodeId, page] of pageNodes) {
-        if (!page.properties) continue;
-        for (const [logseqPropId, rawValue] of Object.entries(page.properties)) {
+      // ──────────────────────────────────────────────────────────
+      // PHASE 4: Bind properties to classes
+      // ──────────────────────────────────────────────────────────
+      for (const cls of parsed.classes) {
+        const noteesClassId = classIdMap.get(cls.id);
+        if (!noteesClassId || !cls.properties) continue;
+        for (const logseqPropId of cls.properties) {
+          if (logseqPropId.startsWith('logseq.property')) continue;
           const noteesPropId = propIdMap.get(logseqPropId);
           if (!noteesPropId) continue;
-
+          setImportStatus(`Binding property to class: ${cls.title}`);
           try {
-            const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeId);
-            if (resolved !== undefined) {
-              setImportStatus(`Setting property on: ${page.title}`);
-              await setNodePropertyMutation.mutateAsync({
-                nodeId: pageNodeId,
-                propertyId: noteesPropId,
-                value: resolved,
-              });
-            }
+            await addPropertyToClassMutation.mutateAsync({
+              classId: noteesClassId,
+              propertyId: noteesPropId,
+            });
           } catch {
-            console.warn(`Failed to set property ${logseqPropId} on ${page.title}`);
+            console.warn(`Failed to bind property ${logseqPropId} to class ${cls.title}`);
           }
         }
       }
 
-      // 5. Create blocks for each page, resolving page/class [[uuid]] links
-      const pendingUpdates: Array<{ nodeId: number; originalTitle: string }> = [];
-      for (const [pageNodeId, page] of pageNodes) {
-        if (page.blocks.length > 0) {
-          setImportStatus(`Creating blocks for: ${page.title}`);
-          await createBlocksRecursively(page.blocks, pageNodeId, 0, resolveLinks, pendingUpdates, uuidMap, hasUnresolvedLinks);
-        }
+      // ──────────────────────────────────────────────────────────
+      // PHASE 5: Assign property values to pages and blocks
+      // ──────────────────────────────────────────────────────────
+      // Pages
+      for (const page of parsed.pages) {
+        if (!page.properties || !page.uuid) continue;
+        const nodeInfo = uuidMap.get(page.uuid);
+        if (!nodeInfo) continue;
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
+      }
+      // Blocks (recursive)
+      for (const page of parsed.pages) {
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
       }
 
-      // 6. Second pass: resolve block-to-block links
-      if (pendingUpdates.length > 0) {
-        setImportStatus(`Resolving block links (${pendingUpdates.length} blocks)…`);
-        for (const { nodeId, originalTitle } of pendingUpdates) {
-          const resolved = resolveLinks(originalTitle);
-          if (resolved !== originalTitle) {
-            try {
-              await updateNodeMutation.mutateAsync({ id: nodeId, data: { name: resolved } });
-            } catch {
-              console.warn(`Failed to update block links for node ${nodeId}`);
-            }
+      // ──────────────────────────────────────────────────────────
+      // PHASE 6: Update node content with proper AST + links
+      // ──────────────────────────────────────────────────────────
+      if (contentQueue.length > 0) {
+        setImportStatus(`Setting content with links (${contentQueue.length} nodes)…`);
+        for (const { id, title } of contentQueue) {
+          if (!title) continue;
+          try {
+            const ast = buildAstFromLogseqText(title, uuidMap);
+            const astJson = JSON.stringify(ast);
+            await updateNodeMutation.mutateAsync({ id, data: { name: astJson } });
+          } catch {
+            console.warn(`Failed to set content for node ${id}`);
           }
         }
       }
@@ -250,33 +257,50 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     } finally {
       setImporting(false);
     }
-  }, [parsed, pageClassId, classClassId, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, onClose]);
+  }, [parsed, pageClassId, classClassId, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, addClassMutation, onClose]);
 
+  /** Recursively create blocks under a parent, tracking content for phase 6 */
   const createBlocksRecursively = async (
-    blocks: LogseqExport['pages'][0]['blocks'],
+    blocks: LogseqBlock[],
     parentId: number,
     startSequence: number,
-    resolveLinks: (text: string) => string,
-    pendingUpdates: Array<{ nodeId: number; originalTitle: string }>,
-    uuidMap: Map<string, number>,
-    hasUnresolvedLinks: (text: string) => boolean,
+    uuidMap: Map<string, NodeInfo>,
+    classIdMap: Map<string, number>,
+    contentQueue: Array<{ id: number; title: string }>,
   ) => {
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
-      const resolved = resolveLinks(block.title);
+
+      // Resolve class IDs for this block
+      const blockClasses: number[] = [];
+      if (block.tags) {
+        for (const tag of block.tags) {
+          const mapped = classIdMap.get(tag);
+          if (mapped) blockClasses.push(mapped);
+        }
+      }
+
+      // Create with plain-text name (or empty) — content set in phase 6
       const node = await createNodeMutation.mutateAsync({
-        name: resolved,
+        name: '',
         parent_id: parentId,
         sequence: startSequence + i,
+        ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
       });
-      // Map block UUID so later blocks/updates can reference it
-      if (block.uuid) uuidMap.set(block.uuid, node.id);
-      // If the resolved text still has UUID links, queue for pass 4
-      if (hasUnresolvedLinks(resolved)) {
-        pendingUpdates.push({ nodeId: node.id, originalTitle: block.title });
+
+      if (block.uuid) {
+        uuidMap.set(block.uuid, { id: node.id, uuid: node.uuid });
       }
+
+      // Queue for content update in phase 6 (after all UUIDs are mapped)
+      if (block.title) {
+        contentQueue.push({ id: node.id, title: block.title });
+      }
+
       if (block.children && block.children.length > 0) {
-        await createBlocksRecursively(block.children, node.id, 0, resolveLinks, pendingUpdates, uuidMap, hasUnresolvedLinks);
+        await createBlocksRecursively(
+          block.children, node.id, 0, uuidMap, classIdMap, contentQueue,
+        );
       }
     }
   };
@@ -362,12 +386,131 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   );
 }
 
-function countBlocks(blocks: LogseqExport['pages'][0]['blocks']): number {
+// ── Helpers (outside component) ────────────────────────────────
+
+function countBlocks(blocks: LogseqBlock[]): number {
   let n = blocks.length;
   for (const b of blocks) {
     if (b.children) n += countBlocks(b.children);
   }
   return n;
+}
+
+/** Map Logseq property type → Notees property type */
+function mapPropertyType(logseqType: string): PropertyType {
+  switch (logseqType) {
+    case 'checkbox': return 'boolean';
+    case 'date': return 'date';
+    case 'node': return 'node';
+    case 'number': return 'float';
+    default: return 'text';
+  }
+}
+
+/**
+ * Build AST document from Logseq block text, converting [[uuid]] references
+ * to proper node_link AST nodes with compound link_id (nodeUuid:linkUuid).
+ *
+ * The backend will parse these node_link entries and automatically create
+ * records in the node_link DB table.
+ */
+const UUID_LINK_RE = /\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/gi;
+
+function buildAstFromLogseqText(
+  rawText: string,
+  uuidMap: Map<string, NodeInfo>,
+): Array<{ type: string; children: ASTInlineNode[] }> {
+  if (!rawText) return [];
+
+  const children: ASTInlineNode[] = [];
+  let lastIndex = 0;
+
+  // Find all [[uuid]] patterns and convert to node_link AST nodes
+  for (const match of rawText.matchAll(UUID_LINK_RE)) {
+    const logseqUuid = match[1];
+    const matchStart = match.index ?? 0;
+
+    // Add preceding plain text
+    if (matchStart > lastIndex) {
+      children.push(astText(rawText.slice(lastIndex, matchStart)));
+    }
+
+    const target = uuidMap.get(logseqUuid);
+    if (target) {
+      // Build compound link_id: "targetNodeUuid:newLinkInstanceUuid"
+      const linkInstanceUuid = crypto.randomUUID();
+      const linkId = buildLinkId(target.uuid, linkInstanceUuid);
+      children.push(nodeLink(linkId, 'node'));
+    }
+    // If target not found, skip the [[uuid]] entirely (remove dead link)
+
+    lastIndex = matchStart + match[0].length;
+  }
+
+  // Add trailing plain text
+  if (lastIndex < rawText.length) {
+    children.push(astText(rawText.slice(lastIndex)));
+  }
+
+  // If no children were generated, produce empty doc
+  if (children.length === 0) return [];
+
+  return [paragraph(...children)];
+}
+
+/** Assign properties to a single node */
+async function assignProperties(
+  properties: Record<string, unknown>,
+  nodeId: number,
+  label: string,
+  propIdMap: Map<string, number>,
+  uuidMap: Map<string, NodeInfo>,
+  titleToNodeInfo: Map<string, NodeInfo>,
+  setImportStatus: (s: string) => void,
+  setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+) {
+  for (const [logseqPropId, rawValue] of Object.entries(properties)) {
+    const noteesPropId = propIdMap.get(logseqPropId);
+    if (!noteesPropId) continue;
+    try {
+      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo);
+      if (resolved !== undefined) {
+        setImportStatus(`Setting property on: ${label}`);
+        await setNodePropertyMutation.mutateAsync({
+          nodeId,
+          propertyId: noteesPropId,
+          value: resolved,
+        });
+      }
+    } catch {
+      console.warn(`Failed to set property ${logseqPropId} on ${label}`);
+    }
+  }
+}
+
+/** Recursively assign properties to blocks */
+async function assignBlockProperties(
+  blocks: LogseqBlock[],
+  propIdMap: Map<string, number>,
+  uuidMap: Map<string, NodeInfo>,
+  titleToNodeInfo: Map<string, NodeInfo>,
+  setImportStatus: (s: string) => void,
+  setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+) {
+  for (const block of blocks) {
+    if (block.properties && block.uuid) {
+      const nodeInfo = uuidMap.get(block.uuid);
+      if (nodeInfo) {
+        await assignProperties(
+          block.properties, nodeInfo.id, block.title || '(block)',
+          propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation,
+        );
+      }
+    }
+    if (block.children) {
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
+    }
+  }
 }
 
 /**
@@ -381,8 +524,8 @@ function countBlocks(blocks: LogseqExport['pages'][0]['blocks']): number {
  */
 async function resolvePropertyValueForImport(
   value: unknown,
-  uuidMap: Map<string, number>,
-  titleToNodeId: Map<string, number>,
+  uuidMap: Map<string, NodeInfo>,
+  titleToNodeInfo: Map<string, NodeInfo>,
 ): Promise<unknown> {
   if (value === null || value === undefined) return undefined;
 
@@ -390,7 +533,7 @@ async function resolvePropertyValueForImport(
   if (Array.isArray(value)) {
     const resolved = [];
     for (const item of value) {
-      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeId);
+      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo);
       if (r !== undefined) resolved.push(r);
     }
     return resolved.length > 0 ? resolved : undefined;
@@ -401,12 +544,10 @@ async function resolvePropertyValueForImport(
     const typed = value as { __type: string; [key: string]: unknown };
     switch (typed.__type) {
       case 'page-ref': {
-        // Node-type property: find the target node by title
-        const nodeId = titleToNodeId.get(typed.title as string);
-        return nodeId ?? undefined;
+        const info = titleToNodeInfo.get(typed.title as string);
+        return info?.id ?? undefined;
       }
       case 'date-ref': {
-        // Date-type property: get or create the daily node
         try {
           const dayNode = await getOrCreateDaily(typed.date as string);
           return dayNode.id;
@@ -416,9 +557,8 @@ async function resolvePropertyValueForImport(
         }
       }
       case 'uuid-ref': {
-        // Selection option or other UUID ref
-        const id = uuidMap.get(typed.uuid as string);
-        return id ?? undefined;
+        const info = uuidMap.get(typed.uuid as string);
+        return info?.id ?? undefined;
       }
     }
   }
