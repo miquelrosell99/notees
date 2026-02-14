@@ -494,6 +494,20 @@ export function TerrainView({
                     }}
                   />
                 </div>
+
+                <div className="visibility-option">
+                  <BooleanToggle
+                    size="sm"
+                    label="Debug grid"
+                    description="Show height map, stamp boxes, and grid overlay"
+                    labelPosition="left"
+                    checked={graphSettings.showDebugGrid ?? false}
+                    onChange={(e) => setGraphSettings(prev => ({
+                      ...prev,
+                      showDebugGrid: e.target.checked
+                    }))}
+                  />
+                </div>
               </div>
             </ButtonWithPanel>
             

@@ -95,6 +95,7 @@ export interface GraphSettings {
   peakSizeMode: PeakSizeMode;
   constraintMode: ConstraintMode;
   linkDirection: LinkDirection;
+  showDebugGrid?: boolean;
 }
 
 /**
@@ -167,6 +168,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   peakSizeMode: 'links',
   constraintMode: 'physics',
   linkDirection: 'all',
+  showDebugGrid: false,
 };
 
 export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
@@ -301,19 +303,21 @@ export const getContourLevelMeters = (levelIndex: number): number => {
 // Terrain height map parameters (spline smoothing allows coarser grid)
 export const TERRAIN_GRID_RES = 4;
 export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.15; // Controls contour spline detail (lower = more detail)
-export const TERRAIN_BASE_PLATEAU_RADIUS = 5;
-export const TERRAIN_PEAK_PLATEAU_BONUS = 14;
-export const TERRAIN_BASE_SLOPE_RADIUS = 100;
-export const TERRAIN_PEAK_SLOPE_BONUS = 150;
-export const TERRAIN_ANISOTROPY = 0.25; // 0 = perfect circle, 1 = fully stretched toward parent links
-export const TERRAIN_NOISE_STRENGTH = 0.12; // 0 = smooth circles, higher = more irregular contour shapes
 
-// Terrain ridge parameters (parent-child connections)
-export const TERRAIN_RIDGE_PLATEAU_RADIUS = 30;
-export const TERRAIN_RIDGE_PLATEAU_BONUS = 40;
-export const TERRAIN_RIDGE_SLOPE_RADIUS = 100;
-export const TERRAIN_RIDGE_SLOPE_BONUS = 200;
-export const TERRAIN_RIDGE_SAG = 0.15; // Height dip at ridge midpoint (0-1)
+// Node peaks - small and compact
+export const TERRAIN_BASE_PLATEAU_RADIUS = 3; // Small flat peak top
+export const TERRAIN_PEAK_PLATEAU_BONUS = 8; // Modest size variation
+export const TERRAIN_BASE_SLOPE_RADIUS = 60; // Compact peak base
+export const TERRAIN_PEAK_SLOPE_RADIUS_BONUS = 80; // Limited spread
+export const TERRAIN_ANISOTROPY = 0.0; // Disable directional stretching - use explicit ridges instead
+export const TERRAIN_NOISE_STRENGTH = 0.05; // Minimal irregularity for clean peaks
+export const TERRAIN_SLOPE_POWER = 2.5; // Steep falloff for distinct peaks
+
+// Terrain ridge parameters (parent-child nerve-like connections)
+export const TERRAIN_RIDGE_WIDTH = 15; // Width of ridge path
+export const TERRAIN_RIDGE_SAG = 0.35; // How much the midpoint dips (0 = flat top, 1 = drops to zero)
+export const TERRAIN_RIDGE_BLEND_DISTANCE = 25; // Distance from peak where ridge blending starts
+export const TERRAIN_RIDGE_ENABLED = true; // Enable explicit ridge rendering
 
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];
