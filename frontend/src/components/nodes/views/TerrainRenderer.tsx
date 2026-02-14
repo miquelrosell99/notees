@@ -33,6 +33,9 @@ import {
   TERRAIN_ANISOTROPY,
   TERRAIN_NOISE_STRENGTH,
   TERRAIN_SLOPE_POWER,
+  TERRAIN_RIDGE_HEIGHT_FACTOR,
+  TERRAIN_RIDGE_WIDTH,
+  TERRAIN_RIDGE_FALLOFF_POWER,
   TERRAIN_REF_PATH_KE_THRESHOLD,
   TERRAIN_SLEEP_THRESHOLD,
   // Helpers
@@ -685,6 +688,85 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       const visibleIds = new Set(visibleNodes.map(n => n.id));
       for (const id of stampCache.keys()) {
         if (!visibleIds.has(id)) stampCache.delete(id);
+      }
+    }
+    
+    // ==================== Ridge Stamps (Option A: Cordillera Connectivity) ====================
+    // Walk the line segment between each parent and child and stamp a
+    // lower-height ridge connecting them. This creates saddles/cols between
+    // peaks so that parent clusters form connected mountain ranges.
+    const ridgeHalfW = TERRAIN_RIDGE_WIDTH / gs; // ridge half-width in grid cells
+    for (const link of visibleLinks) {
+      if (link.type !== 'parent') continue;
+      const pi = idToIdx.get(link.source);
+      const ci = idToIdx.get(link.target);
+      if (pi === undefined || ci === undefined) continue;
+      const pn = visibleNodes[pi];
+      const cn = visibleNodes[ci];
+      const pH = terrainHeights.get(pn.id) ?? 0;
+      const cH = terrainHeights.get(cn.id) ?? 0;
+      if (pH <= 0 && cH <= 0) continue;
+      
+      // Ridge height = factor × min of the two peaks (saddle can't exceed either)
+      const ridgeH = TERRAIN_RIDGE_HEIGHT_FACTOR * Math.min(pH, cH);
+      if (ridgeH <= 0) continue;
+      
+      // Direction vector from parent to child in world coords
+      const edx = cn.x - pn.x;
+      const edy = cn.y - pn.y;
+      const edgeLen = Math.sqrt(edx * edx + edy * edy);
+      if (edgeLen < 1) continue;
+      
+      // Unit tangent (along ridge) and normal (across ridge)
+      const tx = edx / edgeLen;
+      const ty = edy / edgeLen;
+      const nx = -ty; // perpendicular
+      const ny = tx;
+      
+      // Walk along the edge in grid-cell steps
+      const steps = Math.ceil(edgeLen / gs);
+      const invSteps = 1 / steps;
+      
+      for (let s = 0; s <= steps; s++) {
+        const frac = s * invSteps; // 0..1 along the edge
+        // World position along the ridge centerline
+        const wx = pn.x + edx * frac;
+        const wy = pn.y + edy * frac;
+        // Grid position
+        const gxc = Math.round((wx - originX) / gs);
+        const gyc = Math.round((wy - originY) / gs);
+        
+        // Height tapers at endpoints so ridge blends into peaks
+        // Use a smooth envelope: sin² so it's 0 at endpoints, 1 in the middle
+        const envelope = Math.sin(frac * Math.PI);
+        const envSq = envelope * envelope;
+        // Also lerp between the two peak heights for a natural saddle profile
+        const lerpH = pH + (cH - pH) * frac;
+        const localRidgeH = TERRAIN_RIDGE_HEIGHT_FACTOR * lerpH * envSq;
+        if (localRidgeH <= 0) continue;
+        
+        // Stamp across the ridge width (perpendicular to the edge)
+        const halfW = Math.ceil(ridgeHalfW);
+        for (let d = -halfW; d <= halfW; d++) {
+          const gx = gxc + Math.round(nx * d);
+          const gy = gyc + Math.round(ny * d);
+          if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) continue;
+          
+          // Lateral falloff: smooth drop-off from centerline
+          const nd = Math.abs(d) / ridgeHalfW; // 0 at center, 1 at edge
+          if (nd > 1) continue;
+          const lateralFalloff = Math.pow(1 - nd * nd, TERRAIN_RIDGE_FALLOFF_POWER);
+          const ht = localRidgeH * lateralFalloff;
+          if (ht <= 0) continue;
+          
+          const globalIdx = gy * gridW + gx;
+          // MAX merge: ridge only raises terrain, never lowers it
+          if (ht > heightMap[globalIdx]) {
+            heightMap[globalIdx] = ht;
+            // Ownership: assign to whichever endpoint is closer
+            ownerMap[globalIdx] = frac < 0.5 ? pi : ci;
+          }
+        }
       }
     }
     
