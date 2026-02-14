@@ -47,7 +47,7 @@ export interface NodePeakInfo {
 
 // ==================== Constants ====================
 
-/** Downsample factor for A* grid (relative to heightMap grid) */
+/** Downsample factor for A* grid (relative to heightMap grid). 1 = full resolution. */
 const PATHFIND_DOWNSAMPLE = 2;
 
 /**
@@ -66,7 +66,7 @@ const UPHILL_BIAS = 1.8;
 const ELEVATION_PENALTY = 0.3;
 
 /** Max path distance in grid cells before falling back to Bézier */
-const MAX_ASTAR_GRID_DIST = 300;
+const MAX_ASTAR_GRID_DIST = 800;
 
 /** Min distance in grid cells — skip A* for very close peaks */
 const MIN_ASTAR_GRID_DIST = 3;
