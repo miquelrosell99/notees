@@ -22,7 +22,9 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
-import { getOrCreateDaily } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes } from '@/api/nodes';
+import { listProperties } from '@/api/properties';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
 import type { PropertyType } from '@/types/api';
@@ -67,6 +69,9 @@ interface NodeInfo {
   uuid: string; // Notees UUID (from the created node)
 }
 
+/** Import mode: additive only adds new entities, override also updates existing ones */
+type ImportMode = 'additive' | 'override';
+
 interface ImportLogseqModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -79,6 +84,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
   const [report, setReport] = useState<ImportReport | null>(null);
+  const [importMode, setImportMode] = useState<ImportMode>('additive');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const createNodeMutation = useCreateNode();
@@ -99,6 +105,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setImporting(false);
       setImportStatus('');
       setReport(null);
+      setImportMode('additive');
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
@@ -127,6 +134,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     setImporting(true);
     setReport(null);
 
+    const override = importMode === 'override';
     const phases: PhaseResult[] = [];
 
     try {
@@ -143,9 +151,28 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const p1 = createPhase('Create classes');
       phases.push(p1);
       if (classClassId) {
+        // Pre-fetch existing classes to avoid 409 conflicts
+        const existingClasses = await listClasses();
+        const existingClassByName = new Map(
+          existingClasses.map(c => [nodeNameToText(c.name).toLowerCase(), c])
+        );
+
         for (const cls of parsed.classes) {
           setImportStatus(`Creating class: ${cls.title}`);
           try {
+            const existing = existingClassByName.get(cls.title.toLowerCase());
+            if (existing) {
+              classIdMap.set(cls.id, existing.id);
+              if (cls.uuid) {
+                uuidMap.set(cls.uuid, { id: existing.id, uuid: existing.uuid });
+              }
+              // Override mode: update name if it differs (case-sensitive)
+              if (override && nodeNameToText(existing.name) !== cls.title) {
+                await updateNodeMutation.mutateAsync({ id: existing.id, data: { name: cls.title } });
+              }
+              p1.succeeded++;
+              continue;
+            }
             const node = await createNodeMutation.mutateAsync({
               name: cls.title,
               classes: [classClassId, pageClassId],
@@ -167,6 +194,13 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       const p2 = createPhase('Create properties');
       phases.push(p2);
+
+      // Pre-fetch existing properties to avoid 409 conflicts
+      const existingProperties = await listProperties();
+      const existingPropByName = new Map(
+        existingProperties.map(p => [p.name.toLowerCase(), p])
+      );
+
       for (const prop of parsed.properties) {
         setImportStatus(`Creating property: ${prop.title}`);
         try {
@@ -178,6 +212,23 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           const finalType = noteesType === 'float' && prop.selectionOptions
             ? 'selection' as PropertyType
             : noteesType;
+
+          const existingProp = existingPropByName.get(prop.title.toLowerCase());
+          if (existingProp) {
+            propIdMap.set(prop.id, existingProp.id);
+
+            // Map selection option UUIDs for existing properties
+            if (prop.selectionOptions && existingProp.options) {
+              for (let i = 0; i < prop.selectionOptions.length && i < existingProp.options.length; i++) {
+                const opt = prop.selectionOptions[i];
+                if (opt.uuid) {
+                  uuidMap.set(opt.uuid, { id: existingProp.options[i].id, uuid: '' });
+                }
+              }
+            }
+            p2.succeeded++;
+            continue;
+          }
 
           const created = await createPropertyMutation.mutateAsync({
             name: prop.title,
@@ -219,6 +270,45 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
 
         try {
+          // Check if a page with this exact name already exists
+          const searchResults = await searchNodes(page.title);
+          const existingPage = searchResults.find(
+            n => n.is_page && nodeNameToText(n.name).toLowerCase() === page.title.toLowerCase()
+          );
+
+          if (existingPage) {
+            if (page.uuid) {
+              uuidMap.set(page.uuid, { id: existingPage.id, uuid: existingPage.uuid });
+            }
+            titleToNodeInfo.set(page.title, { id: existingPage.id, uuid: existingPage.uuid });
+
+            // Override mode: update name if different (case-sensitive)
+            if (override && nodeNameToText(existingPage.name) !== page.title) {
+              await updateNodeMutation.mutateAsync({ id: existingPage.id, data: { name: page.title } });
+            }
+
+            // Add missing classes (both modes — classes are always additive)
+            const existingClassIds = new Set(existingPage.classes ?? []);
+            for (const classId of pageClasses) {
+              if (!existingClassIds.has(classId)) {
+                try {
+                  await addClassMutation.mutateAsync({ nodeId: existingPage.id, classId });
+                } catch { /* already has class, ignore */ }
+              }
+            }
+
+            p3.succeeded++;
+
+            // Still create blocks under the existing page
+            if (page.blocks.length > 0) {
+              setImportStatus(`Creating blocks for: ${page.title}`);
+              await createBlocksRecursively(
+                page.blocks, existingPage.id, 0, uuidMap, classIdMap, contentQueue, p3,
+              );
+            }
+            continue;
+          }
+
           const pageNode = await createNodeMutation.mutateAsync({
             name: page.title,
             classes: pageClasses,
@@ -242,7 +332,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 4: Bind properties to classes
+      // PHASE 4: Bind properties to classes (idempotent — duplicates are OK)
       // ──────────────────────────────────────────────────────────
       const p4 = createPhase('Bind properties to classes');
       phases.push(p4);
@@ -261,8 +351,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             });
             p4.succeeded++;
           } catch (e) {
-            p4.failed++;
-            p4.errors.push({ item: `${cls.title} ← ${logseqPropId}`, message: errorMessage(e) });
+            // Treat "already bound" / conflict as success
+            const msg = errorMessage(e);
+            if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+              p4.succeeded++;
+            } else {
+              p4.failed++;
+              p4.errors.push({ item: `${cls.title} ← ${logseqPropId}`, message: msg });
+            }
           }
         }
       }
@@ -313,7 +409,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     } finally {
       setImporting(false);
     }
-  }, [parsed, pageClassId, classClassId, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, addClassMutation, onClose]);
+  }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, addClassMutation, onClose]);
 
   /** Recursively create blocks under a parent, tracking content for phase 6 */
   const createBlocksRecursively = async (
@@ -456,6 +552,35 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
           spellCheck={false}
         />
+
+        {parsed && (
+          <div className="import-logseq__mode-selector">
+            <span className="import-logseq__mode-label">Mode:</span>
+            <div className="import-logseq__mode-buttons">
+              <button
+                className={`import-logseq__mode-btn${importMode === 'additive' ? ' import-logseq__mode-btn--active' : ''}`}
+                onClick={() => setImportMode('additive')}
+                disabled={importing}
+                type="button"
+              >
+                Additive
+              </button>
+              <button
+                className={`import-logseq__mode-btn${importMode === 'override' ? ' import-logseq__mode-btn--active' : ''}`}
+                onClick={() => setImportMode('override')}
+                disabled={importing}
+                type="button"
+              >
+                Override
+              </button>
+            </div>
+            <span className="import-logseq__mode-hint">
+              {importMode === 'additive'
+                ? 'Only creates new entities; skips existing ones'
+                : 'Updates existing entities with imported data'}
+            </span>
+          </div>
+        )}
 
         {error && <div className="import-logseq__error">{error}</div>}
 
