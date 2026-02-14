@@ -28,19 +28,21 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { $isPillNode, $createPillNode } from '../nodes/PillNode';
+import type { PillRefType } from '../nodes/PillNode';
 
 /** Pending update to apply to a PillNode (from LinkEditModal). */
 export interface PendingPillUpdate {
   oldLinkId: string;
   newLinkId: string;
-  newRefType: 'node' | 'class';
+  newRefType: PillRefType;
+  newUrl?: string;
 }
 
 export interface NodeLinkPluginProps {
   /** Called when a pill is clicked for navigation */
-  onPillClick?: (linkId: string, refType: 'node' | 'class') => void;
+  onPillClick?: (linkId: string, refType: PillRefType) => void;
   /** Called when a pill is clicked in edit mode (opens edit modal) */
-  onPillEdit?: (linkId: string, refType: 'node' | 'class') => void;
+  onPillEdit?: (linkId: string, refType: PillRefType) => void;
   /** Called when a pill is removed */
   onPillRemove?: (linkId: string) => void;
   /** Pending pill update from LinkEditModal (applied then cleared) */
@@ -67,10 +69,16 @@ export function NodeLinkPlugin({
       
       if (pillWrapper) {
         const linkId = pillWrapper.getAttribute('data-link-id');
-        const refType = (pillWrapper.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
+        const refType = (pillWrapper.getAttribute('data-ref-type') as PillRefType) || 'node';
         if (linkId) {
-          // Always navigate on click — edit modal is accessible via right-click context menu
-          onPillClick?.(linkId, refType);
+          if (refType === 'url') {
+            // URL pill: open in new tab
+            const url = pillWrapper.getAttribute('data-url');
+            if (url) window.open(url, '_blank', 'noopener,noreferrer');
+          } else {
+            // Node pill: navigate
+            onPillClick?.(linkId, refType);
+          }
         }
         return true;
       }
@@ -96,6 +104,7 @@ export function NodeLinkPlugin({
             const newPill = $createPillNode(
               pendingPillUpdate.newLinkId,
               pendingPillUpdate.newRefType,
+              pendingPillUpdate.newUrl,
             );
             child.replace(newPill);
             return true;

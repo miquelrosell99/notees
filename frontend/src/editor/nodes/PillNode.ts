@@ -20,33 +20,42 @@ import {
 import { createElement, type JSX } from 'react';
 import { InlineNodeLink } from '../components/InlineNodeLink';
 
+// ─── Types ────────────────────────────────────────────────────────
+
+export type PillRefType = 'node' | 'class' | 'url';
+
 // ─── Serialized form ──────────────────────────────────────────────
 
 export interface SerializedPillNode extends SerializedLexicalNode {
   type: 'node-pill';
   version: 1;
   linkId: string;
-  refType: 'node' | 'class';
+  refType: PillRefType;
+  /** URL for external-link pills (refType === 'url'). */
+  url?: string;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
 
 export class PillNode extends DecoratorNode<JSX.Element> {
   __linkId: string;
-  __refType: 'node' | 'class';
+  __refType: PillRefType;
+  /** URL for external-link pills. */
+  __url: string;
 
   static getType(): string {
     return 'node-pill';
   }
 
   static clone(node: PillNode): PillNode {
-    return new PillNode(node.__linkId, node.__refType, node.__key);
+    return new PillNode(node.__linkId, node.__refType, node.__key, node.__url);
   }
 
-  constructor(linkId: string, refType: 'node' | 'class' = 'node', key?: NodeKey) {
+  constructor(linkId: string, refType: PillRefType = 'node', key?: NodeKey, url = '') {
     super(key);
     this.__linkId = linkId;
     this.__refType = refType;
+    this.__url = url;
   }
 
   // ─── Getters ──────────────────────────────────────────────────
@@ -55,8 +64,12 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return this.__linkId;
   }
 
-  getRefType(): 'node' | 'class' {
+  getRefType(): PillRefType {
     return this.__refType;
+  }
+
+  getUrl(): string {
+    return this.__url;
   }
 
   // ─── DOM ──────────────────────────────────────────────────────
@@ -66,6 +79,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     span.classList.add('node-pill-wrapper');
     span.dataset.linkId = this.__linkId;
     span.dataset.refType = this.__refType;
+    if (this.__url) span.dataset.url = this.__url;
     span.contentEditable = 'false';
     span.setAttribute('tabindex', '-1');
     return span;
@@ -77,6 +91,10 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     }
     if (prevNode.__refType !== this.__refType) {
       dom.dataset.refType = this.__refType;
+    }
+    if (prevNode.__url !== this.__url) {
+      if (this.__url) dom.dataset.url = this.__url;
+      else delete dom.dataset.url;
     }
     return false;
   }
@@ -96,16 +114,18 @@ export class PillNode extends DecoratorNode<JSX.Element> {
   // ─── Serialization ───────────────────────────────────────────
 
   exportJSON(): SerializedPillNode {
-    return {
+    const json: SerializedPillNode = {
       type: 'node-pill',
       version: 1,
       linkId: this.__linkId,
       refType: this.__refType,
     };
+    if (this.__url) json.url = this.__url;
+    return json;
   }
 
   static importJSON(json: SerializedPillNode): PillNode {
-    return $createPillNode(json.linkId, json.refType);
+    return $createPillNode(json.linkId, json.refType, json.url);
   }
 
   // ─── Behavior ─────────────────────────────────────────────────
@@ -134,6 +154,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return createElement(InlineNodeLink, {
       linkId: this.__linkId,
       refType: this.__refType,
+      url: this.__url || undefined,
     });
   }
 }
@@ -142,9 +163,10 @@ export class PillNode extends DecoratorNode<JSX.Element> {
 
 export function $createPillNode(
   linkId: string,
-  refType: 'node' | 'class' = 'node',
+  refType: PillRefType = 'node',
+  url?: string,
 ): PillNode {
-  return $applyNodeReplacement(new PillNode(linkId, refType));
+  return $applyNodeReplacement(new PillNode(linkId, refType, undefined, url));
 }
 
 export function $isPillNode(
