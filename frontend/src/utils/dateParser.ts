@@ -99,6 +99,63 @@ export function parseDate(input: string): ParsedDate | null {
     return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
   }
 
+  // --- Relative expressions ---
+  // "next week" / "last week" / "in N days" / "N days ago"
+  if (lower === 'next week') {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  if (lower === 'last week') {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  if (lower === 'next month') {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  if (lower === 'last month') {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  if (lower === 'next year') {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  if (lower === 'last year') {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  // "in N days/weeks/months"
+  const inNMatch = lower.match(/^in\s+(\d+)\s+(days?|weeks?|months?|years?)$/);
+  if (inNMatch) {
+    const n = parseInt(inNMatch[1], 10);
+    const unit = inNMatch[2].replace(/s$/, '');
+    const d = new Date();
+    if (unit === 'day') d.setDate(d.getDate() + n);
+    else if (unit === 'week') d.setDate(d.getDate() + n * 7);
+    else if (unit === 'month') d.setMonth(d.getMonth() + n);
+    else if (unit === 'year') d.setFullYear(d.getFullYear() + n);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+  // "N days/weeks/months ago"
+  const agoMatch = lower.match(/^(\d+)\s+(days?|weeks?|months?|years?)\s+ago$/);
+  if (agoMatch) {
+    const n = parseInt(agoMatch[1], 10);
+    const unit = agoMatch[2].replace(/s$/, '');
+    const d = new Date();
+    if (unit === 'day') d.setDate(d.getDate() - n);
+    else if (unit === 'week') d.setDate(d.getDate() - n * 7);
+    else if (unit === 'month') d.setMonth(d.getMonth() - n);
+    else if (unit === 'year') d.setFullYear(d.getFullYear() - n);
+    return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+
   // --- ISO format: YYYY-MM-DD or YYYY/MM/DD ---
   const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (isoMatch) {

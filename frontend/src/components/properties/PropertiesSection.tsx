@@ -47,6 +47,7 @@ function getPropertyIcon(property: Property): string {
 }
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
+import { DatePickerPopup } from '../core/DatePickerPopup';
 import { NodeSelector } from '../nodes/NodeSelector';
 import { TextPropertyBlock } from '../blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
@@ -107,11 +108,12 @@ function DatePropertyValue({
   onDelete?: () => void;
 }) {
   const { data: dayNode } = useNode(value);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Convert day page UUID (YYYYMMDD) to YYYY-MM-DD for the date input
-  const inputDateValue = useMemo(() => {
+  // Convert day page UUID (YYYYMMDD) to YYYY-MM-DD for the DatePickerPopup
+  const isoValue = useMemo(() => {
     if (!dayNode?.uuid) return '';
     const u = dayNode.uuid;
     if (u.length === 8 && /^\d{8}$/.test(u)) {
@@ -120,8 +122,7 @@ function DatePropertyValue({
     return '';
   }, [dayNode?.uuid]);
 
-  const handleDateChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const isoDate = e.target.value; // YYYY-MM-DD
+  const handleSelect = useCallback(async (isoDate: string) => {
     if (!isoDate) {
       onDelete?.();
       return;
@@ -139,24 +140,15 @@ function DatePropertyValue({
 
   const handleClick = useCallback(() => {
     if (readOnly || loading) return;
-    dateInputRef.current?.showPicker();
+    setIsOpen(true);
   }, [readOnly, loading]);
 
   const displayName = dayNode ? nodeNameToText(dayNode.name) : null;
 
   return (
     <div className="property-value-date-container">
-      {/* Hidden date input for the native calendar picker */}
-      <input
-        ref={dateInputRef}
-        type="date"
-        value={inputDateValue}
-        onChange={handleDateChange}
-        className="property-value-date-hidden-input"
-        tabIndex={-1}
-        aria-hidden
-      />
       <button
+        ref={anchorRef}
         type="button"
         className="property-value-date-display"
         onClick={handleClick}
@@ -181,6 +173,14 @@ function DatePropertyValue({
         >
           ×
         </Button>
+      )}
+      {isOpen && (
+        <DatePickerPopup
+          value={isoValue}
+          onSelect={handleSelect}
+          onClose={() => setIsOpen(false)}
+          anchorRef={anchorRef}
+        />
       )}
     </div>
   );
