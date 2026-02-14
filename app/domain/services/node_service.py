@@ -1254,3 +1254,61 @@ class NodeService:
     async def get_archived_pages(self) -> List[Node]:
         """Get all archived pages."""
         return await self._node_repo.get_archived_pages()
+
+    # ==================== Batch Operations ====================
+
+    async def batch_create_nodes(
+        self,
+        items: List[NodeCreateData],
+        user_id: Optional[int] = None,
+    ) -> List[dict]:
+        """Create multiple nodes in a single batch.
+        
+        Each item is processed independently — failures on one item do not
+        prevent the others from being created.  Results are returned in the
+        same order as the input list.
+        
+        Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None }
+        """
+        results: List[dict] = []
+        for item in items:
+            try:
+                node = await self.create_node(item, user_id=user_id)
+                results.append({"success": True, "node": node, "error": None})
+            except Exception as e:
+                logger.warning(f"[BATCH_CREATE] Failed to create node: {e}")
+                results.append({"success": False, "node": None, "error": str(e)})
+        return results
+
+    async def batch_update_nodes(
+        self,
+        items: List[dict],
+        user_id: Optional[int] = None,
+    ) -> List[dict]:
+        """Update multiple nodes in a single batch.
+        
+        Each item dict must have 'node_id' (int) and 'data' (NodeUpdateData),
+        plus an optional 'expected_version' (int|None).
+        
+        Failures on one item do not prevent the others from being updated.
+        Results are returned in the same order as the input list.
+        
+        Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None }
+        """
+        results: List[dict] = []
+        for item in items:
+            try:
+                node = await self.update_node(
+                    item["node_id"],
+                    item["data"],
+                    user_id=user_id,
+                    expected_version=item.get("expected_version"),
+                )
+                if not node:
+                    results.append({"success": False, "node": None, "error": "Node not found"})
+                else:
+                    results.append({"success": True, "node": node, "error": None})
+            except Exception as e:
+                logger.warning(f"[BATCH_UPDATE] Failed to update node {item.get('node_id')}: {e}")
+                results.append({"success": False, "node": None, "error": str(e)})
+        return results

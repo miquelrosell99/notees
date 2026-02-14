@@ -244,6 +244,89 @@ export interface NodeUpdate {
   expected_version?: number;  // For optimistic locking
 }
 
+// ==================== Batch Operations ====================
+
+/**
+ * A single node to create in a batch operation
+ */
+export interface BatchNodeCreateItem {
+  name?: string;
+  icon?: string | null;
+  color?: string | null;
+  parent_id?: number | null;
+  sequence?: number;
+  classes?: number[];
+  properties?: Record<number, unknown>;
+  uuid?: string;  // Optional: provide a UUID (e.g. from Logseq)
+}
+
+/**
+ * Request to create multiple nodes in a batch
+ */
+export interface BatchNodeCreateRequest {
+  nodes: BatchNodeCreateItem[];
+}
+
+/**
+ * Result for a single node in a batch create
+ */
+export interface BatchNodeCreateResultItem {
+  index: number;
+  success: boolean;
+  node?: Node;
+  error?: string;
+}
+
+/**
+ * Response for batch node creation
+ */
+export interface BatchNodeCreateResponse {
+  results: BatchNodeCreateResultItem[];
+  created: number;
+  failed: number;
+}
+
+/**
+ * A single node update in a batch operation
+ */
+export interface BatchNodeUpdateItem {
+  id?: number;
+  uuid?: string;
+  name?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  parent_id?: number | null;
+  sequence?: number | null;
+  collapsed?: boolean | null;
+  expected_version?: number;
+}
+
+/**
+ * Request to update multiple nodes in a batch
+ */
+export interface BatchNodeUpdateRequest {
+  nodes: BatchNodeUpdateItem[];
+}
+
+/**
+ * Result for a single node in a batch update
+ */
+export interface BatchNodeUpdateResultItem {
+  index: number;
+  success: boolean;
+  node?: Node;
+  error?: string;
+}
+
+/**
+ * Response for batch node update
+ */
+export interface BatchNodeUpdateResponse {
+  results: BatchNodeUpdateResultItem[];
+  updated: number;
+  failed: number;
+}
+
 // ==================== Property Types ====================
 
 /**

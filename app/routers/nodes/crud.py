@@ -16,6 +16,12 @@ from .models import (
     BreadcrumbSegment,
     BacklinkResponse,
     LinkedReferenceResponse,
+    BatchNodeCreateRequest,
+    BatchNodeCreateResponse,
+    BatchNodeCreateResultItem,
+    BatchNodeUpdateRequest,
+    BatchNodeUpdateResponse,
+    BatchNodeUpdateResultItem,
 )
 from .helpers import (
     _get_node_service,
@@ -65,6 +71,159 @@ async def create_node(
             },
         )
     return _node_to_response(node, classes=list(request.classes))
+
+
+@router.post("/batch", name="batch_create_nodes")
+async def batch_create_nodes(
+    request: BatchNodeCreateRequest,
+    user: User = Depends(get_current_user),
+):
+    """Create multiple nodes in a single batch.
+    
+    Accepts an array of node definitions and creates them sequentially.
+    Each node is processed independently — a failure on one node does not
+    prevent the others from being created.  Useful for Logseq / bulk imports.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    
+    # Build NodeCreateData list
+    create_items = []
+    for item in request.nodes:
+        create_items.append(NodeCreateData(
+            name=item.name,
+            icon=item.icon,
+            color=item.color,
+            parent_id=item.parent_id,
+            sequence=item.sequence,
+            classes=list(item.classes),
+            property_values=item.properties,
+            uuid=item.uuid,
+        ))
+    
+    raw_results = await service.batch_create_nodes(create_items, user_id=int(user.id))
+    
+    results = []
+    created = 0
+    failed = 0
+    for i, r in enumerate(raw_results):
+        if r["success"]:
+            created += 1
+            classes = list(request.nodes[i].classes)
+            results.append(BatchNodeCreateResultItem(
+                index=i,
+                success=True,
+                node=_node_to_response(r["node"], classes=classes),
+            ))
+        else:
+            failed += 1
+            results.append(BatchNodeCreateResultItem(
+                index=i,
+                success=False,
+                error=r["error"],
+            ))
+    
+    logger.info(f"[BATCH_CREATE] {created} created, {failed} failed out of {len(request.nodes)}")
+    return BatchNodeCreateResponse(results=results, created=created, failed=failed)
+
+
+@router.put("/batch", name="batch_update_nodes")
+async def batch_update_nodes(
+    request: BatchNodeUpdateRequest,
+    user: User = Depends(get_current_user),
+):
+    """Update multiple nodes in a single batch.
+    
+    Each item identifies the node by `id` or `uuid` (at least one required).
+    Failures on one node do not prevent others from being updated.
+    Useful for Logseq / bulk imports where many blocks need content updates.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    
+    # Resolve node IDs and build update items
+    update_items = []
+    resolve_errors = []  # Track items that can't even be resolved
+    
+    for i, item in enumerate(request.nodes):
+        node_id = item.id
+        
+        # If no id provided, try to resolve from uuid
+        if node_id is None and item.uuid:
+            resolved = await service._node_repo.get_by_uuid(item.uuid)
+            if resolved:
+                node_id = resolved.id
+            else:
+                resolve_errors.append((i, f"Node with uuid '{item.uuid}' not found"))
+                continue
+        elif node_id is None:
+            resolve_errors.append((i, "Either 'id' or 'uuid' must be provided"))
+            continue
+        
+        data = NodeUpdateData(
+            name=item.name,
+            icon=item.icon,
+            color=item.color,
+            # In batch mode, we don't clear icon/color unless they were explicitly set.
+            # Pydantic defaults them to None which means "unchanged", not "clear".
+            clear_icon=False,
+            clear_color=False,
+            parent_id=item.parent_id,
+            sequence=item.sequence,
+            collapsed=item.collapsed,
+        )
+        
+        update_items.append({
+            "node_id": node_id,
+            "data": data,
+            "expected_version": item.expected_version,
+            "original_index": i,
+        })
+    
+    # Execute batch update via service
+    raw_results = await service.batch_update_nodes(update_items, user_id=int(user.id))
+    
+    # Build response, interleaving resolve errors and update results
+    results = []
+    updated = 0
+    failed = 0
+    
+    # First add resolve errors
+    for idx, error in resolve_errors:
+        failed += 1
+        results.append(BatchNodeUpdateResultItem(
+            index=idx,
+            success=False,
+            error=error,
+        ))
+    
+    # Then add update results
+    for j, r in enumerate(raw_results):
+        original_index = update_items[j]["original_index"]
+        if r["success"]:
+            updated += 1
+            results.append(BatchNodeUpdateResultItem(
+                index=original_index,
+                success=True,
+                node=_node_to_response(r["node"]),
+            ))
+        else:
+            failed += 1
+            results.append(BatchNodeUpdateResultItem(
+                index=original_index,
+                success=False,
+                error=r["error"],
+            ))
+    
+    # Sort by original index for consistent ordering
+    results.sort(key=lambda r: r.index)
+    
+    logger.info(f"[BATCH_UPDATE] {updated} updated, {failed} failed out of {len(request.nodes)}")
+    return BatchNodeUpdateResponse(results=results, updated=updated, failed=failed)
 
 
 @router.post("/page")
