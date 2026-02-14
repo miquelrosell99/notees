@@ -9,7 +9,7 @@ import { mdiImport } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { parseLogseqEdn, type LogseqExport } from '@/utils/ednParser';
-import { useCreateNode, usePageClass, useClassClass } from '@/hooks';
+import { useCreateNode, useUpdateNode, usePageClass, useClassClass } from '@/hooks';
 import './ImportLogseqModal.css';
 
 interface ImportLogseqModalProps {
@@ -26,6 +26,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const createNodeMutation = useCreateNode();
+  const updateNodeMutation = useUpdateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
 
@@ -65,6 +66,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     setImporting(true);
 
     try {
+      // UUID → Notees node ID map (for resolving [[uuid]] links)
+      const uuidMap = new Map<string, number>();
+
+      // Helper: replace [[logseq-uuid]] references with [[notees-node-id]]
+      const UUID_LINK_RE = /\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/gi;
+      const resolveLinks = (text: string): string =>
+        text.replace(UUID_LINK_RE, (_match, uuid: string) => {
+          const nodeId = uuidMap.get(uuid);
+          return nodeId ? `[[${nodeId}]]` : '';
+        });
+      const hasUnresolvedLinks = (text: string): boolean =>
+        /\[\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]\]/i.test(text);
+
       // 1. Create classes first (as type nodes)
       const classIdMap = new Map<string, number>(); // logseq class id → notees node id
       if (classClassId) {
@@ -76,13 +90,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               classes: [classClassId, pageClassId],
             });
             classIdMap.set(cls.id, node.id);
+            // Also map class UUID if present
+            if (cls.uuid) uuidMap.set(cls.uuid, node.id);
           } catch {
             console.warn(`Failed to create class: ${cls.title}`);
           }
         }
       }
 
-      // 2. Create pages with blocks
+      // 2. Create all pages first (without blocks) to build UUID map
+      const pageNodes = new Map<number, typeof parsed.pages[number]>(); // notees id → page data
       for (const page of parsed.pages) {
         setImportStatus(`Creating page: ${page.title}`);
 
@@ -100,13 +117,35 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             name: page.title,
             classes: pageClasses,
           });
-
-          // Create child blocks
-          if (page.blocks.length > 0) {
-            await createBlocksRecursively(page.blocks, pageNode.id, 0);
-          }
+          if (page.uuid) uuidMap.set(page.uuid, pageNode.id);
+          pageNodes.set(pageNode.id, page);
         } catch {
           console.warn(`Failed to create page: ${page.title}`);
+        }
+      }
+
+      // 3. Create blocks for each page, resolving page/class [[uuid]] links
+      //    Collect blocks whose names still have unresolved UUIDs (block-to-block refs)
+      const pendingUpdates: Array<{ nodeId: number; originalTitle: string }> = [];
+      for (const [pageNodeId, page] of pageNodes) {
+        if (page.blocks.length > 0) {
+          setImportStatus(`Creating blocks for: ${page.title}`);
+          await createBlocksRecursively(page.blocks, pageNodeId, 0, resolveLinks, pendingUpdates, uuidMap, hasUnresolvedLinks);
+        }
+      }
+
+      // 4. Second pass: now that all block UUIDs are mapped, resolve block-to-block links
+      if (pendingUpdates.length > 0) {
+        setImportStatus(`Resolving block links (${pendingUpdates.length} blocks)…`);
+        for (const { nodeId, originalTitle } of pendingUpdates) {
+          const resolved = resolveLinks(originalTitle);
+          if (resolved !== originalTitle) {
+            try {
+              await updateNodeMutation.mutateAsync({ id: nodeId, data: { name: resolved } });
+            } catch {
+              console.warn(`Failed to update block links for node ${nodeId}`);
+            }
+          }
         }
       }
 
@@ -117,22 +156,33 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     } finally {
       setImporting(false);
     }
-  }, [parsed, pageClassId, classClassId, createNodeMutation, onClose]);
+  }, [parsed, pageClassId, classClassId, createNodeMutation, updateNodeMutation, onClose]);
 
   const createBlocksRecursively = async (
     blocks: LogseqExport['pages'][0]['blocks'],
     parentId: number,
     startSequence: number,
+    resolveLinks: (text: string) => string,
+    pendingUpdates: Array<{ nodeId: number; originalTitle: string }>,
+    uuidMap: Map<string, number>,
+    hasUnresolvedLinks: (text: string) => boolean,
   ) => {
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
+      const resolved = resolveLinks(block.title);
       const node = await createNodeMutation.mutateAsync({
-        name: block.title,
+        name: resolved,
         parent_id: parentId,
         sequence: startSequence + i,
       });
+      // Map block UUID so later blocks/updates can reference it
+      if (block.uuid) uuidMap.set(block.uuid, node.id);
+      // If the resolved text still has UUID links, queue for pass 4
+      if (hasUnresolvedLinks(resolved)) {
+        pendingUpdates.push({ nodeId: node.id, originalTitle: block.title });
+      }
       if (block.children && block.children.length > 0) {
-        await createBlocksRecursively(block.children, node.id, 0);
+        await createBlocksRecursively(block.children, node.id, 0, resolveLinks, pendingUpdates, uuidMap, hasUnresolvedLinks);
       }
     }
   };
