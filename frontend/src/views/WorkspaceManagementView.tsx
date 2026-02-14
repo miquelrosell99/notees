@@ -149,7 +149,7 @@ export function WorkspaceManagementView({
       setImportNameModalState({ isOpen: false, file: null, type: null });
       setImportError(null);
       // Auto-switch to the new workspace
-      await switchMutation.mutateAsync(newWorkspace.name);
+      await switchMutation.mutateAsync(newWorkspace.uuid);
       onWorkspaceSelected?.();
     },
     onError: (err: Error) => {
@@ -160,7 +160,7 @@ export function WorkspaceManagementView({
   // Handle successful workspace creation from modal
   const handleWorkspaceCreated = async (newWorkspace: DatabaseInfo) => {
     // Auto-switch to the new workspace
-    await switchMutation.mutateAsync(newWorkspace.name);
+    await switchMutation.mutateAsync(newWorkspace.uuid);
     setIsCreateModalOpen(false);
     onWorkspaceSelected?.();
   };
@@ -205,8 +205,8 @@ export function WorkspaceManagementView({
   };
 
   const handleSelectWorkspace = (workspace: DatabaseInfo) => {
-    if (workspace.name !== data?.active) {
-      switchMutation.mutate(workspace.name);
+    if (workspace.uuid !== data?.active) {
+      switchMutation.mutate(workspace.uuid);
     } else {
       onWorkspaceSelected?.();
     }
@@ -289,16 +289,16 @@ export function WorkspaceManagementView({
             <div className="workspace-management__grid">
               {workspaces.map((workspace) => (
                 <Card 
-                  key={workspace.name} 
-                  className={`workspace-management__card ${workspace.name === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.name ? 'workspace-management__card--delete-confirm' : ''}`}
+                  key={workspace.uuid} 
+                  className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.name ? 'workspace-management__card--delete-confirm' : ''}`}
                   elevation="low"
                   padding={false}
-                  selected={workspace.name === data?.active}
+                  selected={workspace.uuid === data?.active}
                 >
                   <div className="workspace-management__card-header">
                     <div className="workspace-management__card-title">
                       <span className="workspace-management__card-name">{workspace.name}</span>
-                      {workspace.name === data?.active && (
+                      {workspace.uuid === data?.active && (
                         <span className="workspace-management__card-badge">Active</span>
                       )}
                     </div>

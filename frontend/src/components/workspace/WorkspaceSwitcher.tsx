@@ -119,9 +119,9 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     }
   };
 
-  // Build dropdown options from workspaces
+  // Build dropdown options from workspaces (use uuid as value, name as label)
   const workspaceOptions: DropdownOption<string>[] = data?.databases.map(workspace => ({
-    value: workspace.name,
+    value: workspace.uuid,
     label: workspace.name,
   })) || [];
 
@@ -147,9 +147,10 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     }
   };
 
+  const activeWorkspace = data?.databases.find(w => w.uuid === data?.active);
   const displayName = isLoading 
     ? 'Loading...' 
-    : (data?.active || 'No Workspace');
+    : (activeWorkspace?.name || 'No Workspace');
 
   return (
     <div className="workspace-switcher">

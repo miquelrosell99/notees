@@ -25,7 +25,7 @@ from .models import User
 from .db.connection import get_pool, acquire_connection
 from .db.schema.constants import SYSTEM_CLASS_UUIDS
 from .db.schema import get_or_create_user_workspace
-from .database import get_active_workspace_name
+from .database import get_active_workspace_id
 from .domain.repositories import (
     PostgresNodeRepository,
     PostgresPropertyRepository,
@@ -60,8 +60,8 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
     """
     now = time.monotonic()
     
-    # Get the user's active workspace name (set by switch_workspace)
-    active_name = get_active_workspace_name(str(user_id))
+    # Get the user's active workspace UUID (set by switch_workspace)
+    active_uuid = get_active_workspace_id(str(user_id))
     
     cached = _workspace_context_cache.get(user_id)
     if cached is not None:
@@ -71,7 +71,7 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
     
     async with acquire_connection(pool) as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, user_id, active_name)
+        workspace_id = await get_or_create_user_workspace(conn, user_id, workspace_uuid=active_uuid)
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND workspace_id = $2 LIMIT 1",
             SYSTEM_CLASS_UUIDS["page"], workspace_id

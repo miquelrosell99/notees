@@ -4,6 +4,7 @@
 import api from './client';
 
 export interface DatabaseInfo {
+  uuid: string;
   name: string;
   created_at?: string;
   updated_at?: string;
@@ -12,6 +13,7 @@ export interface DatabaseInfo {
   asset_count?: number;
   size_bytes?: number;
   is_active?: boolean;
+  is_shared?: boolean;
 }
 
 export interface DatabaseListResponse {
@@ -49,10 +51,10 @@ export async function createDatabase(name: string): Promise<DatabaseInfo> {
 }
 
 /**
- * Switch to a different database
+ * Switch to a different database by workspace UUID
  */
-export async function switchDatabase(name: string): Promise<{ status: string; active: string }> {
-  const response = await api.post(`/databases/${encodeURIComponent(name)}/switch`);
+export async function switchDatabase(uuid: string): Promise<{ status: string; active: string }> {
+  const response = await api.post(`/databases/${encodeURIComponent(uuid)}/switch`);
   return response.data;
 }
 
