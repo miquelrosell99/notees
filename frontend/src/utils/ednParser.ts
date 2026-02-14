@@ -369,7 +369,7 @@ function asString(v: EdnValue | undefined): string | null {
 function parseBlock(raw: EdnValue): LogseqBlock {
   if (!(raw instanceof Map)) return { title: String(raw) };
   const title = asString(mapGet(raw, 'block/title')) ?? '';
-  const childrenVec = mapGet(raw, 'block/children');
+  const childrenVec = mapGet(raw, 'build/children');
   let children: LogseqBlock[] | undefined;
   if (Array.isArray(childrenVec)) {
     children = childrenVec.map(parseBlock);
