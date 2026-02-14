@@ -150,6 +150,15 @@
   text-overflow: ellipsis;
 }
 
+.suggestion-popup__item-alias {
+  margin-left: auto;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .suggestion-popup__item--create .suggestion-popup__item-name {
   color: var(--color-on-surface);
 }

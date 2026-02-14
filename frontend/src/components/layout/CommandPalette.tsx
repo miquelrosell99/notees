@@ -161,12 +161,19 @@ function ResultItem({
   result,
   isSelected,
   onClick,
+  allNodes,
 }: {
   result: SearchResult;
   isSelected: boolean;
   onClick: () => void;
+  allNodes?: Node[];
 }) {
   const ref = useRef<HTMLButtonElement>(null);
+  
+  // Resolve aliased node name if this node is an alias
+  const aliasedNodeName = result.node?.aliased_id && allNodes
+    ? nodeNameToText(allNodes.find(n => n.id === result.node?.aliased_id)?.name) || 'Unknown'
+    : null;
   
   // Scroll into view when selected
   useEffect(() => {
@@ -228,6 +235,11 @@ function ResultItem({
           </span>
         )}
       </span>
+      {aliasedNodeName && (
+        <span className="command-palette__result-alias">
+          alias of: {aliasedNodeName}
+        </span>
+      )}
       <span className="command-palette__result-type">
         {result.type}
       </span>
@@ -767,6 +779,7 @@ export function CommandPalette({
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
+                    allNodes={searchResults}
                   />
                 );
               })}
@@ -785,6 +798,7 @@ export function CommandPalette({
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
+                    allNodes={searchResults}
                   />
                 );
               })}

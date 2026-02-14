@@ -583,7 +583,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               if (!thisPageInfo) continue;
               setImportStatus(`Assigning alias: ${page.title} → target UUID ${targetUuid}`);
               try {
-                await addAlias(targetInfo.id, thisPageInfo.id);
+                await addAlias(thisPageInfo.id, targetInfo.id);
                 p7.succeeded++;
               } catch (e) {
                 const msg = errorMessage(e);
