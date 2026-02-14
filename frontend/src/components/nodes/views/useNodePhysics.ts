@@ -114,6 +114,7 @@ export interface UseGraphPhysicsReturn {
   wakeSimulation: () => void;
   requestRender: () => void;
   simulationSleepingRef: React.MutableRefObject<boolean>;
+  kineticEnergyRef: React.MutableRefObject<number>;
   simulationPausedRef: React.MutableRefObject<boolean>;
   pauseSimulation: () => void;
   resumeSimulation: () => void;
@@ -229,6 +230,7 @@ export function useNodePhysics({
   
   // Convergence-based simulation sleep
   const simulationSleepingRef = useRef(false);
+  const kineticEnergyRef = useRef(0);
   const wakeSimulationRef = useRef<() => void>(() => {});
   const simulationGenerationRef = useRef(0);
   const sleepCounterRef = useRef(0);
@@ -1763,6 +1765,7 @@ export function useNodePhysics({
         for (const node of nodes) {
           totalEnergy += node.vx * node.vx + node.vy * node.vy;
         }
+        kineticEnergyRef.current = totalEnergy;
         if (totalEnergy < sleepThreshold) {
           sleepCounterRef.current++;
           if (sleepCounterRef.current > sleepFrames) {
@@ -2114,6 +2117,7 @@ export function useNodePhysics({
     wakeSimulation: wakeSimulationRef.current,
     requestRender,
     simulationSleepingRef,
+    kineticEnergyRef,
     simulationPausedRef,
     pauseSimulation,
     resumeSimulation,
