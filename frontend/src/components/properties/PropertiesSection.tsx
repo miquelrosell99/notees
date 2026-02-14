@@ -30,20 +30,20 @@ import { mdiPlus } from '@mdi/js';
 import { ChevronRightIcon, PropertiesIcon } from '../core/icons';
 import type { PropertyType } from '@/types/api';
 
-/** Default icons for each property type */
+/** Default MDI icons for each property type (used when no custom icon is set) */
 const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  text: '📝',
-  integer: '#️⃣',
-  float: '🔢',
-  boolean: '☑️',
-  date: '📅',
-  selection: '📋',
-  node: '🔗',
+  text: 'mdi-format-text',
+  integer: 'mdi-pound',
+  float: 'mdi-decimal',
+  boolean: 'mdi-checkbox-marked-outline',
+  date: 'mdi-calendar',
+  selection: 'mdi-format-list-bulleted',
+  node: 'mdi-link',
 };
 
-/** Get icon for a property - uses custom icon if set, otherwise default for type */
+/** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */
 function getPropertyIcon(property: Property): string {
-  return property.icon || PROPERTY_TYPE_ICONS[property.type] || '📄';
+  return property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdi-file-document-outline';
 }
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
