@@ -202,7 +202,10 @@
 }
 
 .import-logseq__phase-ok {
-  color: var(--color-primary);
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .import-logseq__phase-fail {
