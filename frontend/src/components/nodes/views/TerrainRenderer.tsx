@@ -32,6 +32,7 @@ import {
   TERRAIN_PEAK_SLOPE_BONUS,
   TERRAIN_ANISOTROPY,
   TERRAIN_NOISE_STRENGTH,
+  TERRAIN_REF_PATH_KE_THRESHOLD,
   // Helpers
   getNodeColor,
 } from './viewTypes';
@@ -161,6 +162,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     dragStartTimeRef,
     wakeSimulation,
     simulationSleepingRef,
+    kineticEnergyRef,
     pauseSimulation,
     resumeSimulation,
     simulationPausedRef,
@@ -547,7 +549,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // Compute least-slope A* paths for reference links after heightMap is built.
     // Paths are cached alongside terrain data and only recomputed when layout changes.
     let computedReferencePaths: ReferencePath[] = [];
-    if (visibilityFiltersRef.current.showReferenceLinks && simulationSleepingRef.current) {
+    const isNearlySettled = simulationSleepingRef.current || kineticEnergyRef.current < TERRAIN_REF_PATH_KE_THRESHOLD;
+    if (visibilityFiltersRef.current.showReferenceLinks && isNearlySettled) {
       // Collect reference links from visible links
       const refLinks: RefLink[] = [];
       for (const link of visibleLinks) {
@@ -1027,7 +1030,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     // Evolve opacity based on simulation state
     const showRefPaths = visibilityFiltersRef.current.showReferenceLinks && cache.referencePaths.length > 0;
-    const targetOpacity = (showRefPaths && simulationSleepingRef.current) ? 1 : 0;
+    const isSettledForPaths = simulationSleepingRef.current || kineticEnergyRef.current < TERRAIN_REF_PATH_KE_THRESHOLD;
+    const targetOpacity = (showRefPaths && isSettledForPaths) ? 1 : 0;
     let curOpacity = refPathOpacityRef.current;
     
     if (curOpacity !== targetOpacity) {

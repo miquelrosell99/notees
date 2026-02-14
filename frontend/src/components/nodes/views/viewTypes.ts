@@ -238,6 +238,10 @@ export const TERRAIN_MIN_SEPARATION = 5;
 export const TERRAIN_REF_LINK_MIN_SEPARATION = 240; // minimum distance in world units
 export const TERRAIN_REF_LINK_SEPARATION_STRENGTH = 0.06; // repulsion strength (gentle)
 
+// Kinetic-energy threshold for showing reference paths (multiple of sleep threshold)
+// Paths appear when KE drops below this, well before full sleep
+export const TERRAIN_REF_PATH_KE_THRESHOLD = 0.025;
+
 // ==================== Rendering Constants ====================
 
 // Node radii
