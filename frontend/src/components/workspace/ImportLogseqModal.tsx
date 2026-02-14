@@ -528,14 +528,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       // PHASE 7: Assign aliases between pages
       // ──────────────────────────────────────────────────────────
-      const pagesWithAliases = parsed.pages.filter(p => p.aliases && p.aliases.length > 0);
+      const pagesWithAliases = parsed.pages.filter(p => (p.aliases && p.aliases.length > 0) || (p.aliasOfUuids && p.aliasOfUuids.length > 0));
       if (pagesWithAliases.length > 0) {
         const p7 = createPhase('Assign aliases');
         phases.push(p7);
         for (const page of pagesWithAliases) {
           const mainInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
           if (!mainInfo) continue;
-          for (const aliasTitle of page.aliases!) {
+
+          // Handle logseq.property/alias — page.aliases lists alias page titles
+          for (const aliasTitle of page.aliases ?? []) {
             const aliasInfo = titleToNodeInfo.get(aliasTitle);
             if (!aliasInfo) {
               // Create the alias page if it doesn't exist yet
@@ -563,6 +565,33 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 } else {
                   p7.failed++;
                   p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: msg });
+                }
+              }
+            }
+          }
+
+          // Handle :block/alias — this page is an alias OF the target UUIDs
+          if (page.aliasOfUuids) {
+            for (const targetUuid of page.aliasOfUuids) {
+              const targetInfo = uuidMap.get(targetUuid);
+              if (!targetInfo) {
+                p7.failed++;
+                p7.errors.push({ item: `Alias: ${page.title} → UUID ${targetUuid}`, message: 'Target page UUID not found' });
+                continue;
+              }
+              const thisPageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
+              if (!thisPageInfo) continue;
+              setImportStatus(`Assigning alias: ${page.title} → target UUID ${targetUuid}`);
+              try {
+                await addAlias(targetInfo.id, thisPageInfo.id);
+                p7.succeeded++;
+              } catch (e) {
+                const msg = errorMessage(e);
+                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+                  p7.succeeded++;
+                } else {
+                  p7.failed++;
+                  p7.errors.push({ item: `Alias: ${page.title} → UUID ${targetUuid}`, message: msg });
                 }
               }
             }
