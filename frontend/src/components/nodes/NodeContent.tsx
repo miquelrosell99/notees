@@ -14,6 +14,7 @@
  */
 import { useRef, useCallback, useState } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass } from '@/hooks';
+import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
@@ -75,12 +76,19 @@ export function NodeContent({
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
+  // Ensure blocks created via the Add Block button get persisted even when
+  // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
+  useBlockPersist();
+
   const handleAddBlock = useCallback(() => {
     console.log('[NodeContent] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: children.length });
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
     const newBlockId = crypto.randomUUID();
+
+    // Register the parent's serverId so useBlockPersist can resolve it
+    runtime.registerParentServerId(node.uuid, node.id);
 
     // Find the last child's blockId to insert after it
     const lastChild = children.length > 0

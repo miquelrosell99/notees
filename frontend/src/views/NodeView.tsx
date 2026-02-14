@@ -24,6 +24,7 @@ import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAd
 import { useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -126,6 +127,10 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     onAddSidebarCard(clickedNode.id);
   }, [onAddSidebarCard]);
 
+  // Ensure blocks created via the Add Block button get persisted even when
+  // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
+  useBlockPersist();
+
   // Handle add block (adds child to the focused block)
   const handleAddBlock = useCallback(() => {
     console.log('[NodeView/FocusedBlock] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: node.children?.length });
@@ -133,6 +138,9 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
     const newBlockId = crypto.randomUUID();
+
+    // Register the parent's serverId so useBlockPersist can resolve it
+    runtime.registerParentServerId(node.uuid, node.id);
 
     const nodeChildren = node.children ?? [];
     const lastChild = nodeChildren.length > 0
