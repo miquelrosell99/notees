@@ -307,7 +307,7 @@ export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.15; // Controls contour s
 // Node peaks - small and compact
 export const TERRAIN_BASE_PLATEAU_RADIUS = 6; // Small flat peak top
 export const TERRAIN_PEAK_PLATEAU_BONUS = 8; // Modest size variation
-export const TERRAIN_BASE_SLOPE_RADIUS = 60; // Compact peak base
+export const TERRAIN_BASE_SLOPE_RADIUS = 120; // Compact peak base
 export const TERRAIN_PEAK_SLOPE_RADIUS_BONUS = 80; // Limited spread
 export const TERRAIN_ANISOTROPY = 0.4; // Directional stretching toward children for cordillera shapes
 export const TERRAIN_NOISE_STRENGTH = 0.25; // Minimal irregularity for clean peaks
