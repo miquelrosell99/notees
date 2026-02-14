@@ -313,12 +313,6 @@ export const TERRAIN_ANISOTROPY = 0.0; // Disable directional stretching - use e
 export const TERRAIN_NOISE_STRENGTH = 0.05; // Minimal irregularity for clean peaks
 export const TERRAIN_SLOPE_POWER = 2.5; // Steep falloff for distinct peaks
 
-// Terrain ridge parameters (parent-child nerve-like connections)
-export const TERRAIN_RIDGE_WIDTH = 15; // Width of ridge path
-export const TERRAIN_RIDGE_SAG = 0.35; // How much the midpoint dips (0 = flat top, 1 = drops to zero)
-export const TERRAIN_RIDGE_BLEND_DISTANCE = 25; // Distance from peak where ridge blending starts
-export const TERRAIN_RIDGE_ENABLED = true; // Enable explicit ridge rendering
-
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];
 export const LINE_DASH_DOTTED = [3, 3];
