@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
@@ -270,6 +270,7 @@ export function CommandPalette({
   
   const { openNode, openPropertyView } = useAppStore();
   const { quickAddDestination } = useSettingsStore();
+  const { navigateToNode } = useNodeNavigation();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
@@ -495,7 +496,7 @@ export function CommandPalette({
           if (onSelect) {
             onSelect(item.result.node);
           } else {
-            openNode(item.result.node.id);
+            navigateToNode(item.result.node);
           }
         }
         onClose();
