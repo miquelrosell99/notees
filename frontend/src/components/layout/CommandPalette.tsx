@@ -24,6 +24,7 @@ import { mdiExport } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodePill } from '../nodes/NodePill';
+import { DuplicatePageModal } from './DuplicatePageModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -245,6 +246,13 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [selectedClasses, setSelectedClasses] = useState<Node[]>([]);
   const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
+  const [duplicateModal, setDuplicateModal] = useState<{
+    isOpen: boolean;
+    pageName: string;
+    conflictingClasses: string[];
+    originalClasses: number[];
+    parentId: number | null;
+  }>({ isOpen: false, pageName: '', conflictingClasses: [], originalClasses: [], parentId: null });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -329,12 +337,16 @@ export function CommandPalette({
     // Pages section
     pages.forEach(result => items.push({ type: 'page', result }));
     
-    // Add page option if query exists and no exact match
+    // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0 
       ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToText(selectedClasses[0].name)}"` : `${selectedClasses.length} classes`}`
       : '';
-    if (pageNameForCreation && !pages.some(p => nodeNameToText(p.node?.name)?.toLowerCase() === pageNameForCreation.toLowerCase())) {
-      items.push({ type: 'add-page', label: `Create page "${pageNameForCreation}"${classLabels}` });
+    const hasExactMatch = pages.some(p => nodeNameToText(p.node?.name)?.toLowerCase() === pageNameForCreation.toLowerCase());
+    if (pageNameForCreation) {
+      const label = hasExactMatch
+        ? `Create another "${pageNameForCreation}"${classLabels || ' (pick a class to differentiate)'}`
+        : `Create page "${pageNameForCreation}"${classLabels}`;
+      items.push({ type: 'add-page', label });
     }
     
     // Blocks section
@@ -517,13 +529,31 @@ export function CommandPalette({
           }
           
           // Create the final page (leaf of the path) with all classes
-          const newNode = await createNodeMutation.mutateAsync({
-            name: parsed.leaf || pageNameForCreation,
-            parent_id: parentId,
-            classes,
-          });
-          onClose();
-          openNode(newNode.id);
+          try {
+            const newNode = await createNodeMutation.mutateAsync({
+              name: parsed.leaf || pageNameForCreation,
+              parent_id: parentId,
+              classes,
+            });
+            onClose();
+            openNode(newNode.id);
+          } catch (createErr: unknown) {
+            const axiosErr = createErr as { response?: { status?: number; data?: { detail?: { message?: string; conflicting_classes?: string[] } | string } } };
+            if (axiosErr.response?.status === 409) {
+              // Show the duplicate page modal to let user pick a class
+              const detail = axiosErr.response.data?.detail;
+              const conflicting = typeof detail === 'object' && detail !== null ? (detail.conflicting_classes || []) : [];
+              setDuplicateModal({
+                isOpen: true,
+                pageName: parsed.leaf || pageNameForCreation,
+                conflictingClasses: conflicting,
+                originalClasses: classes,
+                parentId: parentId,
+              });
+            } else {
+              console.error('Failed to create page:', createErr);
+            }
+          }
         } catch (error) {
           console.error('Failed to create page:', error);
         }
@@ -847,6 +877,20 @@ export function CommandPalette({
           </span>
         </div>
       </div>
+      
+      {/* Duplicate page modal - shown when trying to create a page with an existing name */}
+      <DuplicatePageModal
+        isOpen={duplicateModal.isOpen}
+        onClose={() => setDuplicateModal(prev => ({ ...prev, isOpen: false }))}
+        pageName={duplicateModal.pageName}
+        conflictingClasses={duplicateModal.conflictingClasses}
+        originalClasses={duplicateModal.originalClasses}
+        parentId={duplicateModal.parentId}
+        onSuccess={(node) => {
+          onClose();
+          openNode(node.id);
+        }}
+      />
     </div>
   );
 }
