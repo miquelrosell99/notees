@@ -11,7 +11,7 @@
  * - page: Full property display with icons, bullets before values (default)
  * - block: Compact property display for blocks
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { 
   useNode, 
   useProperties,
@@ -23,11 +23,11 @@ import {
   usePageClass,
 } from '@/hooks';
 import { useAppStore } from '@/stores';
-import { getNodeByUuid } from '@/api/nodes';
+import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
-import { CalendarIcon, ChevronRightIcon, PropertiesIcon } from '../core/icons';
+import { ChevronRightIcon, PropertiesIcon } from '../core/icons';
 import type { PropertyType } from '@/types/api';
 
 /** Default icons for each property type */
@@ -53,6 +53,7 @@ import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { Bullet } from '../blocks/Bullet';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import './PropertiesSection.css';
 
@@ -87,6 +88,102 @@ interface PropertyValueProps {
   onPropertyChange: (propertyId: number, value: unknown) => void;
   /** Callback when text property bullet is clicked (opens focused block view) */
   onBulletClick?: (blockId: number) => void;
+}
+
+/**
+ * Date property value component.
+ * Shows the day page name; click opens a hidden date picker to select a new date.
+ * The selected date creates/gets the day page and stores its ID as the relation value.
+ */
+function DatePropertyValue({
+  value,
+  readOnly,
+  onChange,
+  onDelete,
+}: {
+  value: number | null;
+  readOnly: boolean;
+  onChange: (value: unknown) => void;
+  onDelete?: () => void;
+}) {
+  const { data: dayNode } = useNode(value);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Convert day page UUID (YYYYMMDD) to YYYY-MM-DD for the date input
+  const inputDateValue = useMemo(() => {
+    if (!dayNode?.uuid) return '';
+    const u = dayNode.uuid;
+    if (u.length === 8 && /^\d{8}$/.test(u)) {
+      return `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+    }
+    return '';
+  }, [dayNode?.uuid]);
+
+  const handleDateChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isoDate = e.target.value; // YYYY-MM-DD
+    if (!isoDate) {
+      onDelete?.();
+      return;
+    }
+    setLoading(true);
+    try {
+      const newDayNode = await getOrCreateDaily(isoDate);
+      onChange(newDayNode.id);
+    } catch (err) {
+      console.error('Failed to create/get day page:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [onChange, onDelete]);
+
+  const handleClick = useCallback(() => {
+    if (readOnly || loading) return;
+    dateInputRef.current?.showPicker();
+  }, [readOnly, loading]);
+
+  const displayName = dayNode ? nodeNameToText(dayNode.name) : null;
+
+  return (
+    <div className="property-value-date-container">
+      {/* Hidden date input for the native calendar picker */}
+      <input
+        ref={dateInputRef}
+        type="date"
+        value={inputDateValue}
+        onChange={handleDateChange}
+        className="property-value-date-hidden-input"
+        tabIndex={-1}
+        aria-hidden
+      />
+      <button
+        type="button"
+        className="property-value-date-display"
+        onClick={handleClick}
+        disabled={readOnly || loading}
+        title={readOnly ? undefined : 'Click to change date'}
+      >
+        {loading ? (
+          <span className="property-placeholder">Setting…</span>
+        ) : displayName ? (
+          <span className="property-value-date-name">{displayName}</span>
+        ) : (
+          <span className="property-placeholder">Pick a date…</span>
+        )}
+      </button>
+      {!readOnly && value != null && (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="property-value-date-clear"
+          onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+          title="Clear date"
+        >
+          ×
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -280,40 +377,16 @@ function PropertyValue({
       }
 
     case 'date':
-      // Date picker that links to day page when clicked
-      const dateValue = value ? String(value) : '';
+      // Date property: value is a day page node ID (relation)
+      // Display: show day page node name
+      // Edit: calendar picker → creates/gets day page → sets node ID
       return (
-        <div className="property-value-date-container">
-          <input
-            type="date"
-            value={dateValue}
-            disabled={readOnly}
-            onChange={(e) => onChange(e.target.value)}
-            className="property-value-date-input"
-          />
-          {dateValue && (
-            <Button
-              variant="ghost"
-              size="xs"
-              className="property-value-date-link"
-              onClick={async () => {
-                // Navigate to day page via UUID (YYYYMMDD format)
-                const dateParts = dateValue.split('-');
-                if (dateParts.length === 3) {
-                  const uuid = `${dateParts[0]}${dateParts[1]}${dateParts[2]}`;
-                  try {
-                    const dayNode = await getNodeByUuid(uuid);                  const { openNode } = require('@/stores').useOpenNodeAction.getState();                    openNode(dayNode.id);
-                  } catch (error) {
-                    console.error('Failed to find day page:', error);
-                  }
-                }
-              }}
-              title="Go to day page"
-            >
-              <CalendarIcon size="xs" />
-            </Button>
-          )}
-        </div>
+        <DatePropertyValue
+          value={typeof value === 'number' ? value : null}
+          readOnly={readOnly}
+          onChange={onChange}
+          onDelete={!readOnly && value != null ? () => onChange(null) : undefined}
+        />
       );
 
     default:

@@ -174,8 +174,8 @@ class PropertyRepository(ABC):
     New property system with:
     - property: Property definitions (with local property support)
     - node_property: Assignment of properties to nodes
-    - property_value_scalar: Scalar values (integer, float, boolean)
-    - property_value_relation: Relation values (node, text, image, date)
+    - property_value_scalar: Scalar values (integer, float, boolean, date)
+    - property_value_relation: Relation values (node, text, image)
     - property_selection_line: Selection options
     - property_value_selection: Selection values
     """

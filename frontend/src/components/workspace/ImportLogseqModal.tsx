@@ -661,7 +661,7 @@ async function assignBlockProperties(
  * Resolve a parsed EDN property value to a Notees-compatible value.
  * Handles structured markers from the EDN parser:
  * - { __type: 'page-ref', title } → find node ID by title
- * - { __type: 'date-ref', date } → get/create daily node, return ID
+ * - { __type: 'date-ref', date } → create/get day page, return node ID
  * - { __type: 'uuid-ref', uuid } → look up in uuidMap (selection line IDs)
  * - boolean/number/string → pass through
  * - arrays → resolve each element (multi-value)
@@ -692,6 +692,7 @@ async function resolvePropertyValueForImport(
         return info?.id ?? undefined;
       }
       case 'date-ref': {
+        // Create/get day page and return its node ID (dates are relation values)
         try {
           const dayNode = await getOrCreateDaily(typed.date as string);
           return dayNode.id;

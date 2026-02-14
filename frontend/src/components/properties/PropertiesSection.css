@@ -236,50 +236,49 @@
 .property-value-date-container {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-1);
+  position: relative;
 }
 
-.property-value-date-input {
-  padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--color-surface);
+.property-value-date-hidden-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.property-value-date-display {
+  all: unset;
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
   cursor: pointer;
-}
-
-.property-value-date-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.property-value-date-link {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: var(--spacing-1);
-  border: none;
-  background: transparent;
+  gap: var(--spacing-1);
+}
+
+.property-value-date-display:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.property-value-date-display:disabled {
+  cursor: default;
+}
+
+.property-value-date-name {
   color: var(--color-primary);
-  cursor: pointer;
-  border-radius: var(--shape-small);
 }
 
-.property-value-date-link:hover {
-  background: var(--color-primary-container);
+.property-value-date-clear {
+  opacity: 0;
+  transition: opacity 0.1s;
 }
 
-/* Date value display (like "2025-01-13") */
-.property-value-date-display {
-  color: var(--color-primary);
-  font: var(--font-body-medium);
-  cursor: pointer;
-  padding: var(--spacing-1) 0;
-}
-
-.property-value-date-display:hover {
-  text-decoration: underline;
+.property-value-date-container:hover .property-value-date-clear {
+  opacity: 1;
 }
 
 /* ==================== Hidden Properties Section ==================== */
