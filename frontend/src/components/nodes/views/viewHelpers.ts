@@ -163,7 +163,83 @@ export function pairKey(a: number, b: number): number {
 }
 
 /**
- * Find shortest path between two nodes using BFS
+ * Find all shortest paths between two nodes using BFS
+ * Returns all nodes that appear in any shortest path
+ */
+export function findAllShortestPaths(
+  startId: number,
+  endId: number,
+  nodes: GraphNode[],
+  links: GraphLink[]
+): Set<number> {
+  if (startId === endId) return new Set([startId]);
+  
+  // Build adjacency list
+  const adjacency = new Map<number, number[]>();
+  for (const node of nodes) {
+    adjacency.set(node.id, []);
+  }
+  for (const link of links) {
+    adjacency.get(link.source)?.push(link.target);
+    adjacency.get(link.target)?.push(link.source);
+  }
+  
+  // BFS to find shortest distance and track all parents
+  const distance = new Map<number, number>();
+  const parents = new Map<number, number[]>();
+  const queue: number[] = [startId];
+  distance.set(startId, 0);
+  parents.set(startId, []);
+  
+  let found = false;
+  
+  while (queue.length > 0 && !found) {
+    const current = queue.shift()!;
+    const currentDist = distance.get(current)!;
+    
+    if (current === endId) {
+      found = true;
+      break;
+    }
+    
+    for (const neighbor of adjacency.get(current) || []) {
+      const neighborDist = distance.get(neighbor);
+      
+      if (neighborDist === undefined) {
+        // First time visiting this node
+        distance.set(neighbor, currentDist + 1);
+        parents.set(neighbor, [current]);
+        queue.push(neighbor);
+      } else if (neighborDist === currentDist + 1) {
+        // Found another shortest path to this node
+        parents.get(neighbor)?.push(current);
+      }
+    }
+  }
+  
+  if (!found) return new Set();
+  
+  // Reconstruct all nodes in all shortest paths using DFS
+  const nodesInPaths = new Set<number>();
+  
+  const dfs = (nodeId: number) => {
+    if (nodesInPaths.has(nodeId)) return;
+    nodesInPaths.add(nodeId);
+    
+    const nodeParents = parents.get(nodeId) || [];
+    for (const parent of nodeParents) {
+      dfs(parent);
+    }
+  };
+  
+  dfs(endId);
+  
+  return nodesInPaths;
+}
+
+/**
+ * Find shortest path between two nodes using BFS (returns single path)
+ * @deprecated Use findAllShortestPaths for better path visualization
  */
 export function findPathBetweenNodes(
   startId: number,
