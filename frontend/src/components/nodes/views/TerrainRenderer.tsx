@@ -348,8 +348,8 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return;
     }
     
-    // Generate height field — adaptive grid: finer when zoomed out, coarser when zoomed in
-    const gs = Math.max(2, Math.min(8, Math.round(TERRAIN_GRID_RES * Math.sqrt(t.scale))));
+    // Generate height field — fixed grid resolution (adaptive caused contour flickering on zoom)
+    const gs = TERRAIN_GRID_RES;
     const gridW = Math.ceil(w / gs);
     const gridH = Math.ceil(h / gs);
     const gridSize = gridW * gridH;
