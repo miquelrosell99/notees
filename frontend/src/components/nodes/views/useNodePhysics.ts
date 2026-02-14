@@ -1682,14 +1682,12 @@ export function useNodePhysics({
             rawHeights.set(node.id, h);
             if (h > maxHeightRaw) maxHeightRaw = h;
           }
-          // Log-compress heights to reduce dynamic range before stamp creation.
-          // Raw hierarchy masses can be 50:1+ (root vs leaf). Log compression
-          // makes it progressively harder for nodes to reach the top, so small
-          // peaks remain visible after additive merging and post-build
-          // normalization in TerrainRenderer.
-          // log(1+1)=0.69, log(1+10)=2.4, log(1+50)=3.9, log(1+100)=4.6
+          // Double-log-compress heights to reduce dynamic range before stamp creation.
+          // Raw hierarchy masses can be 50:1+ (root vs leaf). Double-log compression
+          // keeps parents taller than children but prevents them from towering.
+          // log(1+log(1+1))=0.53, log(1+log(1+10))=0.93, log(1+log(1+50))=1.22
           for (const [id, h] of rawHeights) {
-            terrainHeights.set(id, Math.log(1 + h));
+            terrainHeights.set(id, Math.log(1 + Math.log(1 + h)));
           }
           
           // --- Peak radii (size) ---
