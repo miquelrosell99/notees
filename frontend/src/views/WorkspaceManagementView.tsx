@@ -7,14 +7,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  listDatabases, 
-  switchDatabase,
-  deleteDatabase,
-  renameDatabase,
-  getDatabaseExportUrl,
-  importDatabase,
-  type DatabaseInfo,
-} from '@/api/databases';
+  listWorkspaces, 
+  switchWorkspace,
+  deleteWorkspace,
+  renameWorkspace,
+  getWorkspaceExportUrl,
+  importWorkspace,
+  type WorkspaceInfo,
+} from '@/api/workspaces';
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal } from '../components/workspace/ImportOptionsModal';
@@ -66,16 +66,16 @@ export function WorkspaceManagementView({
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
 
-  // Fetch databases
+  // Fetch workspaces
   const { data, isLoading } = useQuery({
-    queryKey: ['databases'],
-    queryFn: listDatabases,
+    queryKey: ['workspaces'],
+    queryFn: listWorkspaces,
     staleTime: 10000,
   });
 
   // Switch database mutation
   const switchMutation = useMutation({
-    mutationFn: switchDatabase,
+    mutationFn: switchWorkspace,
     onSuccess: () => {
       // Reset node state to prevent showing stale data from previous database
       useAppStore.setState({
@@ -108,17 +108,17 @@ export function WorkspaceManagementView({
       queryClient.removeQueries({ queryKey: ['inlineClasses'] });
       queryClient.removeQueries({ queryKey: ['textLinks'] });
       
-      // Invalidate databases query to refetch the list (keep cache for smoother UX)
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      // Invalidate workspaces query to refetch the list (keep cache for smoother UX)
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       onWorkspaceSelected?.();
     },
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: deleteDatabase,
+    mutationFn: deleteWorkspace,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       setDeleteConfirm(null);
     },
     onError: (err: Error) => {
@@ -130,9 +130,9 @@ export function WorkspaceManagementView({
   // Rename mutation
   const renameMutation = useMutation({
     mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) => 
-      renameDatabase(oldName, newName),
+      renameWorkspace(oldName, newName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       setRenameModalState({ isOpen: false, workspaceName: null });
       setRenameError(null);
     },
@@ -143,9 +143,9 @@ export function WorkspaceManagementView({
 
   // Import mutation
   const importMutation = useMutation({
-    mutationFn: ({ name, file }: { name: string; file: File }) => importDatabase(name, file),
+    mutationFn: ({ name, file }: { name: string; file: File }) => importWorkspace(name, file),
     onSuccess: async (newWorkspace) => {
-      queryClient.invalidateQueries({ queryKey: ['databases'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       setImportNameModalState({ isOpen: false, file: null, type: null });
       setImportError(null);
       // Auto-switch to the new workspace
@@ -158,7 +158,7 @@ export function WorkspaceManagementView({
   });
 
   // Handle successful workspace creation from modal
-  const handleWorkspaceCreated = async (newWorkspace: DatabaseInfo) => {
+  const handleWorkspaceCreated = async (newWorkspace: WorkspaceInfo) => {
     // Auto-switch to the new workspace
     await switchMutation.mutateAsync(newWorkspace.uuid);
     setIsCreateModalOpen(false);
@@ -204,7 +204,7 @@ export function WorkspaceManagementView({
     setRenameError(null);
   };
 
-  const handleSelectWorkspace = (workspace: DatabaseInfo) => {
+  const handleSelectWorkspace = (workspace: WorkspaceInfo) => {
     if (workspace.uuid !== data?.active) {
       switchMutation.mutate(workspace.uuid);
     } else {
@@ -213,10 +213,10 @@ export function WorkspaceManagementView({
   };
 
   const handleExport = (name: string) => {
-    window.open(getDatabaseExportUrl(name), '_blank');
+    window.open(getWorkspaceExportUrl(name), '_blank');
   };
 
-  const workspaces = data?.databases || [];
+  const workspaces = data?.workspaces || [];
   const hasNoWorkspaces = !isLoading && workspaces.length === 0;
 
   return (

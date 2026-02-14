@@ -19,7 +19,7 @@ import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { setSetting } from '@/api/databases';
+import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 import type { GraphNode, GraphLink, GraphSettings, VisibilityFilters, HeightMode, PeakSizeMode } from './viewTypes';

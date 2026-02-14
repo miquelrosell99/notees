@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { setSetting } from '@/api/databases';
+import { setSetting } from '@/api/workspaces';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
 import { useAppStore } from '@/stores';

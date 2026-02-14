@@ -38,7 +38,7 @@ from .db.connection import init_pool, close_pool
 from .db.schema import init_database
 from .routers import (
     auth_router,
-    databases_router,
+    workspaces_router,
     nodes_router,
     properties_router,
     sync_router,
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize database schema
     async with pool.acquire() as conn:
-        await init_database(conn)
+        await init_database(conn)  # type: ignore[arg-type]
     logger.info("Database schema initialized")
     
     # Ensure admin user exists
@@ -100,7 +100,7 @@ app = FastAPI(
 # Configure rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Configure CORS if origins are specified
 if settings.cors_origins:
@@ -203,7 +203,7 @@ if dist_path.exists():
 
 # ============ Include API Routers ============
 app.include_router(auth_router)
-app.include_router(databases_router)
+app.include_router(workspaces_router)
 app.include_router(nodes_router)
 app.include_router(properties_router)
 app.include_router(sync_router)

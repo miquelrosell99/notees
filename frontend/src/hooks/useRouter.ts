@@ -20,7 +20,7 @@
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore, type MainViewType } from '@/stores';
-import { listDatabases, type DatabaseListResponse } from '@/api/databases';
+import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
 
@@ -200,10 +200,10 @@ export function useRouter() {
     openNode,
   } = useAppStore();
   
-  // Fetch databases to validate db name in URLs
-  const { data: dbData, isLoading: isLoadingDbs } = useQuery<DatabaseListResponse>({
-    queryKey: ['databases'],
-    queryFn: listDatabases,
+  // Fetch workspaces to validate workspace in URLs
+  const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
+    queryKey: ['workspaces'],
+    queryFn: listWorkspaces,
     staleTime: 30000,
   });
   
