@@ -1377,6 +1377,26 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   
   // ==================== Profile Path Generation ====================
   
+  /** Convert an array of [x,y] sample points into an SVG Catmull-Rom cubic Bezier path string.
+   *  Returns the curve portion only (caller adds M start, closing L, and Z). */
+  const catmullRomSvg = (pts: Array<[number, number]>): string => {
+    if (pts.length < 2) return '';
+    if (pts.length === 2) return `L ${pts[1][0]},${pts[1][1]}`;
+    const cmds: string[] = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i > 0 ? i - 1 : 0];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2 < pts.length ? i + 2 : pts.length - 1];
+      const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+      const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+      cmds.push(`C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`);
+    }
+    return cmds.join(' ');
+  };
+  
   const updateProfiles = useCallback(() => {
     const heightMap = heightMapBufRef.current;
     const { gridW: gW, gridH: gH, gs: pGs } = plateauGridRef.current;
@@ -1420,18 +1440,23 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const cw = tRight - tLeft;
         const ch = PROFILE_X_HEIGHT;
         
-        // Build SVG path (area + line)
-        const pathPoints: string[] = [];
-        pathPoints.push(`M 0,${ch}`);
-        for (let px = 0; px <= cw; px += 2) {
+        // Build SVG path (area + smooth Catmull-Rom curve)
+        const samplePts: Array<[number, number]> = [];
+        for (let px = 0; px <= cw; px += 6) {
           const terrainX = tLeft + (px / cw) * tSpan;
           const gx = Math.min(Math.max(Math.floor(terrainX / pGs), 0), gW - 1);
           const val = heightMap[gy * gW + gx];
           const py = ch - val * (ch - 4);
-          pathPoints.push(`L ${px},${py}`);
+          samplePts.push([px, py]);
         }
-        pathPoints.push(`L ${cw},${ch} Z`);
-        setProfileXPath(pathPoints.join(' '));
+        // Ensure last point is at cw
+        if (samplePts.length === 0 || samplePts[samplePts.length - 1][0] !== cw) {
+          const gxEnd = Math.min(Math.max(Math.floor((tLeft + tSpan) / pGs), 0), gW - 1);
+          const valEnd = heightMap[gy * gW + gxEnd];
+          samplePts.push([cw, ch - valEnd * (ch - 4)]);
+        }
+        const curvePath = catmullRomSvg(samplePts);
+        setProfileXPath(`M 0,${ch} L ${samplePts[0][0]},${samplePts[0][1]} ${curvePath} L ${cw},${ch} Z`);
         
         // Cursor position
         const cardMx = (mx - tLeft) / tSpan * cw;
@@ -1484,18 +1509,23 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         const cw = PROFILE_Y_WIDTH;
         const ch = tBottom - tTop;
         
-        // Build SVG path (inverted: height grows right-to-left)
-        const pathPoints: string[] = [];
-        pathPoints.push(`M ${cw},0`);
-        for (let py = 0; py <= ch; py += 2) {
+        // Build SVG path (inverted: height grows right-to-left, smooth Catmull-Rom curve)
+        const samplePts: Array<[number, number]> = [];
+        for (let py = 0; py <= ch; py += 6) {
           const terrainY = tTop + (py / ch) * tSpan;
           const gy = Math.min(Math.max(Math.floor(terrainY / pGs), 0), gH - 1);
           const val = heightMap[gy * gW + gx];
           const px = cw - val * (cw - 4);
-          pathPoints.push(`L ${px},${py}`);
+          samplePts.push([px, py]);
         }
-        pathPoints.push(`L ${cw},${ch} Z`);
-        setProfileYPath(pathPoints.join(' '));
+        // Ensure last point is at ch
+        if (samplePts.length === 0 || samplePts[samplePts.length - 1][1] !== ch) {
+          const gyEnd = Math.min(Math.max(Math.floor((tTop + tSpan) / pGs), 0), gH - 1);
+          const valEnd = heightMap[gyEnd * gW + gx];
+          samplePts.push([cw - valEnd * (cw - 4), ch]);
+        }
+        const curvePath = catmullRomSvg(samplePts);
+        setProfileYPath(`M ${cw},0 L ${samplePts[0][0]},${samplePts[0][1]} ${curvePath} L ${cw},${ch} Z`);
         
         // Cursor position
         const cardMy = (my - tTop) / tSpan * ch;
