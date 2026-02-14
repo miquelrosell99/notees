@@ -36,7 +36,7 @@ import {
   getNodeColor,
 } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
-import { computeReferencePaths, applyPathErosion, type ReferencePath, type RefLink } from './terrainReferencePaths';
+import { computeReferencePaths, applyPathErosion, type ReferencePath, type RefLink, type NodePeakInfo } from './terrainReferencePaths';
 import './graph-renderer.css';
 
 // ==================== Types ====================
@@ -560,12 +560,14 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
       
       if (refLinks.length > 0) {
-        // Build node screen positions map
-        const nodeScreenPositions = new Map<number, [number, number]>();
+        // Build node peak info map (position + plateau radius)
+        const nodePeaks = new Map<number, NodePeakInfo>();
         for (const node of visibleNodes) {
           const sx = node.x * t.scale + t.x;
           const sy = node.y * t.scale + t.y;
-          nodeScreenPositions.set(node.id, [sx, sy]);
+          const peakSize = terrainPeakRadii.get(node.id) ?? 0;
+          const plateauRadius = (TERRAIN_BASE_PLATEAU_RADIUS + TERRAIN_PEAK_PLATEAU_BONUS * peakSize) * t.scale;
+          nodePeaks.set(node.id, { screenX: sx, screenY: sy, plateauRadius });
         }
         
         // Build set of protected peak grid cells (node centers ± small radius)
@@ -588,7 +590,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         // Compute paths via A* on heightMap
         const result = computeReferencePaths(
           heightMap, gridW, gridH, gs,
-          refLinks, nodeScreenPositions,
+          refLinks, nodePeaks,
         );
         computedReferencePaths = result.paths;
         
