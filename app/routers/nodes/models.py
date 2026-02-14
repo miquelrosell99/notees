@@ -38,6 +38,9 @@ class NodeResponse(BaseModel):
     backlink_count: int = 0  # Count of backlinks to this node
     # Comments
     comment_count: int = 0
+    # Alias support
+    aliased_id: Optional[int] = None  # If set, this node is an alias of the node with this ID
+    aliases: List[int] = []  # IDs of nodes that are aliases of this node
     
     class Config:
         from_attributes = True
@@ -196,6 +199,11 @@ class CommentResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class AliasRequest(BaseModel):
+    """Request to add an alias."""
+    alias_node_id: int
 
 
 class CommentsResponse(BaseModel):
