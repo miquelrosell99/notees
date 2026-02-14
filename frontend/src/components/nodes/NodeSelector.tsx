@@ -347,17 +347,11 @@ export function NodeSelector({
                 ))}
               </div>
             ) : (
-              // Single-select: Show effective icon + node name
+              // Single-select: Show node name only
               (() => {
                 const node = nodes[0];
-                const effectiveIcon = node ? getEffectiveIcon(node, allPages) : null;
                 return (
                   <span className="node-selector__single-value">
-                    {effectiveIcon ? (
-                      <NodeIcon icon={effectiveIcon} isPage={node.is_page} size="sm" />
-                    ) : (
-                      <BulletIcon size="sm" />
-                    )}
                     <span className="node-selector__single-value-name">
                       {nodeNameToText(node?.name) || 'Untitled'}
                     </span>
