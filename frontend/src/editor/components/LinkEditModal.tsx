@@ -200,7 +200,7 @@ export function LinkEditModal({
             id="link-label-input"
             type="text"
             className="link-edit-modal__input"
-            placeholder="Leave empty to use default"
+            placeholder=""
             value={label}
             onChange={e => setLabel(e.target.value)}
             autoComplete="off"
