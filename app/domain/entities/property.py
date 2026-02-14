@@ -14,7 +14,7 @@ Property types and storage:
 - Relation types (stored in property_value_relation): node, text, image, date
   - text: Links to a node that acts as text content
   - image: Links to an asset node (always single value)
-  - date: Links to a day page node
+  - date: Links to a day page node (UUID = YYYYMMDD)
   - node: Generic node reference
 - Selection type (stored in property_value_selection): selection
 
@@ -42,7 +42,7 @@ class PropertyType(str, Enum):
     NODE = "node"       # Reference to other nodes
     TEXT = "text"       # Links to a node that acts as text content (always single)
     IMAGE = "image"     # Links to an asset node (always single)
-    DATE = "date"       # Date value linking to day page
+    DATE = "date"       # Links to a day page node (UUID = YYYYMMDD)
     
     # Selection type - stored in property_value_selection
     SELECTION = "selection"

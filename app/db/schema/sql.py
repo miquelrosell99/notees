@@ -230,7 +230,7 @@ CREATE INDEX IF NOT EXISTS idx_node_property_property_id ON node_property(proper
 -- PROPERTY VALUES
 -- ============================================================
 
--- Property value scalar - for integer, float, boolean, text types
+-- Property value scalar - for integer, float, boolean, date types
 CREATE TABLE IF NOT EXISTS property_value_scalar (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
@@ -251,7 +251,7 @@ CREATE INDEX IF NOT EXISTS idx_pvs_node_property_id ON property_value_scalar(nod
 CREATE INDEX IF NOT EXISTS idx_pvs_property_id ON property_value_scalar(property_id);
 CREATE INDEX IF NOT EXISTS idx_pvs_node_id ON property_value_scalar(node_id);
 
--- Property value relation - for node, image, date relation types
+-- Property value relation - for node, text, image relation types
 CREATE TABLE IF NOT EXISTS property_value_relation (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),

@@ -216,8 +216,8 @@ function PropertyRow({
   const [showNodeValueContextMenu, setShowNodeValueContextMenu] = useState(false);
   const [nodeValueContextMenuPosition, setNodeValueContextMenuPosition] = useState({ x: 0, y: 0 });
   
-  // Fetch the node for the value if it's a node property
-  const nodeValueId = property.type === 'node' && !property.multi && typeof value === 'number' ? value : null;
+  // Fetch the node for the value if it's a node or date property
+  const nodeValueId = (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? value : null;
   const { data: nodeValueData } = useNode(nodeValueId);
   
   // Get navigation functions from store
@@ -298,7 +298,7 @@ function PropertyRow({
         </div>
         <div className="property-row__value-container">
           <div className="property-row__value-wrapper">
-            {showBullet && property.type === 'node' && !property.multi && typeof value === 'number' ? (
+            {showBullet && (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? (
               <Bullet
                 nodeId={value}
                 interactive={true}

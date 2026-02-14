@@ -10,8 +10,8 @@ Updated for workspace-based schema:
 Property system with separate tables for:
 - property: Property definitions
 - node_property: Assignment of properties to nodes
-- property_value_scalar: Scalar values (integer, float, boolean)
-- property_value_relation: Relation values (node references)
+- property_value_scalar: Scalar values (integer, float, boolean, date)
+- property_value_relation: Relation values (node, text, image)
 - property_selection_line: Selection options
 - property_value_selection: Selection values
 """
