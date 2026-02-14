@@ -210,6 +210,15 @@
   text-overflow: ellipsis;
 }
 
+.command-palette__result-alias {
+  margin-left: auto;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .command-palette__result-type {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
