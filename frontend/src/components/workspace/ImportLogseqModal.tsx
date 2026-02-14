@@ -774,7 +774,7 @@ function ReportPhaseRow({ phase }: { phase: PhaseResult }) {
       >
         <span className="import-logseq__phase-label">{phase.label}</span>
         <span className="import-logseq__phase-counts">
-          <span className="import-logseq__phase-ok">{phase.succeeded} ok</span>
+          <span className="import-logseq__phase-ok">{phase.succeeded} <Icon path={mdiCheckCircleOutline} size={0.6} /></span>
           {hasErrors && (
             <>
               <span className="import-logseq__phase-fail">{phase.failed} failed</span>
