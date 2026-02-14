@@ -82,6 +82,8 @@ interface NodesState {
   isQuickAddOpen: boolean;
   isCommandPaletteOpen: boolean;
   isImportDataModalOpen: boolean;
+  isImportLogseqModalOpen: boolean;
+  isExportPageModalOpen: boolean;
   showDbManagement: boolean;
   isMinimapOpen: boolean;
   
@@ -114,6 +116,8 @@ interface NodesState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
   setImportDataModalOpen: (open: boolean) => void;
+  setImportLogseqModalOpen: (open: boolean) => void;
+  setExportPageModalOpen: (open: boolean) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
@@ -169,6 +173,8 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isQuickAddOpen: false,
   isCommandPaletteOpen: false,
   isImportDataModalOpen: false,
+  isImportLogseqModalOpen: false,
+  isExportPageModalOpen: false,
   showDbManagement: false,
   isMinimapOpen: false,
   // New features state
@@ -199,6 +205,8 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
   toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
   setImportDataModalOpen: (open) => set({ isImportDataModalOpen: open }),
+  setImportLogseqModalOpen: (open) => set({ isImportLogseqModalOpen: open }),
+  setExportPageModalOpen: (open) => set({ isExportPageModalOpen: open }),
   openNodeInSidebar: (nodeId, nodeType) => set({ 
     rightSidebarOpen: true, 
     rightSidebarContent: 'node',

@@ -18,7 +18,9 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useAppStore, useSettingsStore } from '@/stores';
 import type { Node, Property } from '@/types';
-import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon } from '../core/icons';
+import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
+import Icon from '@mdi/react';
+import { mdiExport } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodePill } from '../nodes/NodePill';
@@ -301,8 +303,17 @@ export function CommandPalette({
   const queryClient = useQueryClient();
   
   // All selectable items (pages, blocks, properties, quick-add actions)
+  // Command definitions for the palette
+  const commands = useMemo(() => {
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export'; requiresPage?: boolean }> = [
+      { id: 'import-logseq', label: 'Import Logseq EDN', icon: 'import' },
+      { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
+    ];
+    return cmds;
+  }, []);
+
   const allItems = useMemo(() => {
-    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node }> = [];
+    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' }> = [];
     
     // Date suggestion (shown at top if query matches a date format)
     if (parsedDate) {
@@ -335,9 +346,17 @@ export function CommandPalette({
     if (searchTerm.trim()) {
       items.push({ type: 'quick-add', label: `Quick add: "${searchTerm}"` });
     }
+
+    // Commands section — filter by search term
+    const lowerSearch = searchTerm.toLowerCase();
+    for (const cmd of commands) {
+      if (!lowerSearch || cmd.label.toLowerCase().includes(lowerSearch)) {
+        items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
+      }
+    }
     
     return items;
-  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode]);
+  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands]);
   
   // Focus input when opened
   useEffect(() => {
@@ -524,6 +543,18 @@ export function CommandPalette({
         }
         onClose();
         break;
+      
+      case 'command':
+        if (item.commandId === 'import-logseq') {
+          useAppStore.getState().setImportLogseqModalOpen(true);
+        } else if (item.commandId === 'export-page') {
+          const currentId = useAppStore.getState().currentNodeId;
+          if (currentId) {
+            useAppStore.getState().setExportPageModalOpen(true);
+          }
+        }
+        onClose();
+        break;
     }
   }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose, queryClient]);
   
@@ -562,6 +593,7 @@ export function CommandPalette({
   const blockItems = allItems.filter(i => i.type === 'block');
   const propertyItems = allItems.filter(i => i.type === 'property');
   const quickAddItems = allItems.filter(i => i.type === 'quick-add');
+  const commandItems = allItems.filter(i => i.type === 'command');
   
   return (
     <div className="command-palette__backdrop" onClick={handleBackdropClick}>
@@ -761,6 +793,34 @@ export function CommandPalette({
                       <span className="command-palette__result-name">{item.label}</span>
                     </span>
                     <kbd className="command-palette__item-shortcut">⌘↵</kbd>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Commands section */}
+          {commandItems.length > 0 && (
+            <div className="command-palette__section">
+              <div className="command-palette__section-header">Commands</div>
+              {commandItems.map((item) => {
+                const globalIndex = allItems.indexOf(item);
+                return (
+                  <button
+                    key={item.commandId}
+                    className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                    onClick={() => handleSelect(globalIndex)}
+                  >
+                    <span className="command-palette__result-icon">
+                      {item.commandIcon === 'import' ? (
+                        <ImportIcon size="sm" />
+                      ) : (
+                        <Icon path={mdiExport} size={0.7} />
+                      )}
+                    </span>
+                    <span className="command-palette__result-content">
+                      <span className="command-palette__result-name">{item.label}</span>
+                    </span>
                   </button>
                 );
               })}
