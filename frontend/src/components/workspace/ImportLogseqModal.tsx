@@ -10,9 +10,14 @@
  * 5. Assign property values to nodes
  * 6. Update node content with proper AST containing node_link entries,
  *    which triggers the backend to create link records automatically
+ *
+ * Every operation is wrapped in try/catch so a single failure never aborts
+ * the import. Errors are collected and presented in a status report modal
+ * at the end.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { mdiImport } from '@mdi/js';
+import { mdiImport, mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
+import Icon from '@mdi/react';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
@@ -22,6 +27,39 @@ import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuil
 import type { ASTInlineNode } from '@/lib/astBuilder';
 import type { PropertyType } from '@/types/api';
 import './ImportLogseqModal.css';
+
+// ── Error tracking types ───────────────────────────────────────
+
+interface ImportError {
+  item: string;   // e.g. "Class: Book" or "Property: Author"
+  message: string; // error description
+}
+
+interface PhaseResult {
+  label: string;
+  succeeded: number;
+  failed: number;
+  errors: ImportError[];
+}
+
+interface ImportReport {
+  phases: PhaseResult[];
+  totalSucceeded: number;
+  totalFailed: number;
+}
+
+function createPhase(label: string): PhaseResult {
+  return { label, succeeded: 0, failed: 0, errors: [] };
+}
+
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'object' && e !== null && 'response' in e) {
+    const resp = (e as { response?: { data?: { detail?: string } } }).response;
+    if (resp?.data?.detail) return resp.data.detail;
+  }
+  return String(e);
+}
 
 /** Info stored per created Notees node, keyed by Logseq UUID */
 interface NodeInfo {
@@ -40,6 +78,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [parsed, setParsed] = useState<LogseqExport | null>(null);
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
+  const [report, setReport] = useState<ImportReport | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const createNodeMutation = useCreateNode();
@@ -59,6 +98,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setParsed(null);
       setImporting(false);
       setImportStatus('');
+      setReport(null);
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
@@ -85,23 +125,23 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const handleImport = useCallback(async () => {
     if (!parsed || !pageClassId) return;
     setImporting(true);
+    setReport(null);
+
+    const phases: PhaseResult[] = [];
 
     try {
       // ── Maps built during import ─────────────────────────────
-      // Logseq UUID → Notees {id, uuid}
       const uuidMap = new Map<string, NodeInfo>();
-      // Logseq property id → Notees property id
       const propIdMap = new Map<string, number>();
-      // Logseq class id → Notees node id
       const classIdMap = new Map<string, number>();
-      // Page title → Notees node info (for property value resolution)
       const titleToNodeInfo = new Map<string, NodeInfo>();
-      // All created nodes that need content update: {notees id, original title text}
       const contentQueue: Array<{ id: number; title: string }> = [];
 
       // ──────────────────────────────────────────────────────────
       // PHASE 1: Create classes (as type nodes)
       // ──────────────────────────────────────────────────────────
+      const p1 = createPhase('Create classes');
+      phases.push(p1);
       if (classClassId) {
         for (const cls of parsed.classes) {
           setImportStatus(`Creating class: ${cls.title}`);
@@ -114,8 +154,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             if (cls.uuid) {
               uuidMap.set(cls.uuid, { id: node.id, uuid: node.uuid });
             }
-          } catch {
-            console.warn(`Failed to create class: ${cls.title}`);
+            p1.succeeded++;
+          } catch (e) {
+            p1.failed++;
+            p1.errors.push({ item: cls.title, message: errorMessage(e) });
           }
         }
       }
@@ -123,6 +165,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       // PHASE 2: Create properties
       // ──────────────────────────────────────────────────────────
+      const p2 = createPhase('Create properties');
+      phases.push(p2);
       for (const prop of parsed.properties) {
         setImportStatus(`Creating property: ${prop.title}`);
         try {
@@ -135,7 +179,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             ? 'selection' as PropertyType
             : noteesType;
 
-          // Send backend field names directly (is_multi, selection_lines)
           const created = await createPropertyMutation.mutateAsync({
             name: prop.title,
             type: finalType,
@@ -144,7 +187,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           } as Record<string, unknown> & { name: string });
           propIdMap.set(prop.id, created.id);
 
-          // Map selection option UUIDs → selection line IDs
           if (prop.selectionOptions && created.options) {
             for (let i = 0; i < prop.selectionOptions.length && i < created.options.length; i++) {
               const opt = prop.selectionOptions[i];
@@ -153,19 +195,21 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
             }
           }
-        } catch {
-          console.warn(`Failed to create property: ${prop.title}`);
+          p2.succeeded++;
+        } catch (e) {
+          p2.failed++;
+          p2.errors.push({ item: prop.title, message: errorMessage(e) });
         }
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 3: Create all nodes (pages + blocks) with classes,
-      //          using plain-text names (no links yet)
+      // PHASE 3: Create all nodes (pages + blocks) with classes
       // ──────────────────────────────────────────────────────────
+      const p3 = createPhase('Create nodes');
+      phases.push(p3);
       for (const page of parsed.pages) {
         setImportStatus(`Creating page: ${page.title}`);
 
-        // Resolve class IDs for this page
         const pageClasses = [pageClassId];
         if (page.tags) {
           for (const tag of page.tags) {
@@ -183,22 +227,25 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             uuidMap.set(page.uuid, { id: pageNode.id, uuid: pageNode.uuid });
           }
           titleToNodeInfo.set(page.title, { id: pageNode.id, uuid: pageNode.uuid });
+          p3.succeeded++;
 
-          // Create blocks recursively under this page
           if (page.blocks.length > 0) {
             setImportStatus(`Creating blocks for: ${page.title}`);
             await createBlocksRecursively(
-              page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue,
+              page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue, p3,
             );
           }
-        } catch {
-          console.warn(`Failed to create page: ${page.title}`);
+        } catch (e) {
+          p3.failed++;
+          p3.errors.push({ item: `Page: ${page.title}`, message: errorMessage(e) });
         }
       }
 
       // ──────────────────────────────────────────────────────────
       // PHASE 4: Bind properties to classes
       // ──────────────────────────────────────────────────────────
+      const p4 = createPhase('Bind properties to classes');
+      phases.push(p4);
       for (const cls of parsed.classes) {
         const noteesClassId = classIdMap.get(cls.id);
         if (!noteesClassId || !cls.properties) continue;
@@ -212,8 +259,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               classId: noteesClassId,
               propertyId: noteesPropId,
             });
-          } catch {
-            console.warn(`Failed to bind property ${logseqPropId} to class ${cls.title}`);
+            p4.succeeded++;
+          } catch (e) {
+            p4.failed++;
+            p4.errors.push({ item: `${cls.title} ← ${logseqPropId}`, message: errorMessage(e) });
           }
         }
       }
@@ -221,21 +270,23 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       // PHASE 5: Assign property values to pages and blocks
       // ──────────────────────────────────────────────────────────
-      // Pages
+      const p5 = createPhase('Assign property values');
+      phases.push(p5);
       for (const page of parsed.pages) {
         if (!page.properties || !page.uuid) continue;
         const nodeInfo = uuidMap.get(page.uuid);
         if (!nodeInfo) continue;
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5);
       }
-      // Blocks (recursive)
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5);
       }
 
       // ──────────────────────────────────────────────────────────
       // PHASE 6: Update node content with proper AST + links
       // ──────────────────────────────────────────────────────────
+      const p6 = createPhase('Set content & links');
+      phases.push(p6);
       if (contentQueue.length > 0) {
         setImportStatus(`Setting content with links (${contentQueue.length} nodes)…`);
         for (const { id, title } of contentQueue) {
@@ -244,14 +295,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             const ast = buildAstFromLogseqText(title, uuidMap);
             const astJson = JSON.stringify(ast);
             await updateNodeMutation.mutateAsync({ id, data: { name: astJson } });
-          } catch {
-            console.warn(`Failed to set content for node ${id}`);
+            p6.succeeded++;
+          } catch (e) {
+            p6.failed++;
+            p6.errors.push({ item: `Node ${id}`, message: errorMessage(e) });
           }
         }
       }
 
-      setImportStatus('Import complete!');
-      setTimeout(() => onClose(), 800);
+      // ── Build final report ────────────────────────────────────
+      const totalSucceeded = phases.reduce((s, p) => s + p.succeeded, 0);
+      const totalFailed = phases.reduce((s, p) => s + p.failed, 0);
+      setReport({ phases, totalSucceeded, totalFailed });
+      setImportStatus('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed');
     } finally {
@@ -267,11 +323,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     uuidMap: Map<string, NodeInfo>,
     classIdMap: Map<string, number>,
     contentQueue: Array<{ id: number; title: string }>,
+    phase: PhaseResult,
   ) => {
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
 
-      // Resolve class IDs for this block
       const blockClasses: number[] = [];
       if (block.tags) {
         for (const tag of block.tags) {
@@ -280,27 +336,32 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
       }
 
-      // Create with plain-text name (or empty) — content set in phase 6
-      const node = await createNodeMutation.mutateAsync({
-        name: '',
-        parent_id: parentId,
-        sequence: startSequence + i,
-        ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
-      });
+      try {
+        const node = await createNodeMutation.mutateAsync({
+          name: '',
+          parent_id: parentId,
+          sequence: startSequence + i,
+          ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
+        });
 
-      if (block.uuid) {
-        uuidMap.set(block.uuid, { id: node.id, uuid: node.uuid });
-      }
+        if (block.uuid) {
+          uuidMap.set(block.uuid, { id: node.id, uuid: node.uuid });
+        }
 
-      // Queue for content update in phase 6 (after all UUIDs are mapped)
-      if (block.title) {
-        contentQueue.push({ id: node.id, title: block.title });
-      }
+        if (block.title) {
+          contentQueue.push({ id: node.id, title: block.title });
+        }
 
-      if (block.children && block.children.length > 0) {
-        await createBlocksRecursively(
-          block.children, node.id, 0, uuidMap, classIdMap, contentQueue,
-        );
+        phase.succeeded++;
+
+        if (block.children && block.children.length > 0) {
+          await createBlocksRecursively(
+            block.children, node.id, 0, uuidMap, classIdMap, contentQueue, phase,
+          );
+        }
+      } catch (e) {
+        phase.failed++;
+        phase.errors.push({ item: `Block: ${block.title.slice(0, 60) || '(empty)'}`, message: errorMessage(e) });
       }
     }
   };
@@ -321,6 +382,43 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const blockCount =
     parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0;
 
+  // ── Report view (shown after import completes) ────────────────
+  if (report) {
+    const hasErrors = report.totalFailed > 0;
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Import Report"
+        size="lg"
+        footer={
+          <Button variant="primary" onClick={onClose}>
+            Close
+          </Button>
+        }
+      >
+        <div className="import-logseq__report">
+          <div className={`import-logseq__report-summary ${hasErrors ? 'import-logseq__report-summary--warning' : 'import-logseq__report-summary--success'}`}>
+            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1} />
+            <div>
+              <strong>{hasErrors ? 'Import completed with errors' : 'Import completed successfully'}</strong>
+              <span className="import-logseq__report-totals">
+                {report.totalSucceeded} succeeded{report.totalFailed > 0 ? `, ${report.totalFailed} failed` : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className="import-logseq__report-phases">
+            {report.phases.map((phase, idx) => (
+              <ReportPhaseRow key={idx} phase={phase} />
+            ))}
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Input view (default) ──────────────────────────────────────
   return (
     <Modal
       isOpen={isOpen}
@@ -383,6 +481,48 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         )}
       </div>
     </Modal>
+  );
+}
+
+// ── Report phase row (collapsible error details) ───────────────
+
+function ReportPhaseRow({ phase }: { phase: PhaseResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasErrors = phase.failed > 0;
+  const total = phase.succeeded + phase.failed;
+
+  if (total === 0) return null;
+
+  return (
+    <div className="import-logseq__phase">
+      <div
+        className={`import-logseq__phase-header ${hasErrors ? 'import-logseq__phase-header--error' : ''}`}
+        onClick={() => hasErrors && setExpanded(!expanded)}
+        role={hasErrors ? 'button' : undefined}
+        tabIndex={hasErrors ? 0 : undefined}
+        onKeyDown={(e) => { if (hasErrors && (e.key === 'Enter' || e.key === ' ')) setExpanded(!expanded); }}
+      >
+        <span className="import-logseq__phase-label">{phase.label}</span>
+        <span className="import-logseq__phase-counts">
+          <span className="import-logseq__phase-ok">{phase.succeeded} ok</span>
+          {hasErrors && (
+            <>
+              <span className="import-logseq__phase-fail">{phase.failed} failed</span>
+              <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
+            </>
+          )}
+        </span>
+      </div>
+      {expanded && phase.errors.length > 0 && (
+        <ul className="import-logseq__phase-errors">
+          {phase.errors.map((err, i) => (
+            <li key={i} className="import-logseq__phase-error">
+              <strong>{err.item}</strong>: {err.message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -468,6 +608,7 @@ async function assignProperties(
   titleToNodeInfo: Map<string, NodeInfo>,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+  phase: PhaseResult,
 ) {
   for (const [logseqPropId, rawValue] of Object.entries(properties)) {
     const noteesPropId = propIdMap.get(logseqPropId);
@@ -481,9 +622,11 @@ async function assignProperties(
           propertyId: noteesPropId,
           value: resolved,
         });
+        phase.succeeded++;
       }
-    } catch {
-      console.warn(`Failed to set property ${logseqPropId} on ${label}`);
+    } catch (e) {
+      phase.failed++;
+      phase.errors.push({ item: `${label} ← ${logseqPropId}`, message: errorMessage(e) });
     }
   }
 }
@@ -496,6 +639,7 @@ async function assignBlockProperties(
   titleToNodeInfo: Map<string, NodeInfo>,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+  phase: PhaseResult,
 ) {
   for (const block of blocks) {
     if (block.properties && block.uuid) {
@@ -503,12 +647,12 @@ async function assignBlockProperties(
       if (nodeInfo) {
         await assignProperties(
           block.properties, nodeInfo.id, block.title || '(block)',
-          propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation,
+          propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase,
         );
       }
     }
     if (block.children) {
-      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation);
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase);
     }
   }
 }
