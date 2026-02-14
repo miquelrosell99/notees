@@ -44,6 +44,8 @@ import {
   TERRAIN_VELOCITY_DEADZONE,
   TERRAIN_LINK_DAMPING,
   TERRAIN_MAX_VELOCITY,
+  GRAPH_SLEEP_THRESHOLD,
+  GRAPH_SLEEP_FRAMES,
   TERRAIN_SLEEP_THRESHOLD,
   TERRAIN_SLEEP_FRAMES,
   DRAG_PULL_STRENGTH,
@@ -1110,9 +1112,8 @@ export function useNodePhysics({
       const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
       const isTerrainModeNow = currentViewMode === 'terrain';
       
-      // Terrain sleep: skip all force + integration work when asleep
-      if (isTerrainModeNow && simulationSleepingRef.current) {
-        animationRef.current = requestAnimationFrame(simulate);
+      // Sleep: skip all force + integration work when asleep
+      if (simulationSleepingRef.current) {
         return;
       }
       
@@ -1685,15 +1686,17 @@ export function useNodePhysics({
         return;
       }
       
-      // Terrain sleep detection: put simulation to sleep when total kinetic energy is negligible
-      if (isTerrainModeNow) {
+      // Sleep detection: put simulation to sleep when total kinetic energy is negligible
+      {
+        const sleepThreshold = isTerrainModeNow ? TERRAIN_SLEEP_THRESHOLD : GRAPH_SLEEP_THRESHOLD;
+        const sleepFrames = isTerrainModeNow ? TERRAIN_SLEEP_FRAMES : GRAPH_SLEEP_FRAMES;
         let totalEnergy = 0;
         for (const node of nodes) {
           totalEnergy += node.vx * node.vx + node.vy * node.vy;
         }
-        if (totalEnergy < TERRAIN_SLEEP_THRESHOLD) {
+        if (totalEnergy < sleepThreshold) {
           sleepCounterRef.current++;
-          if (sleepCounterRef.current > TERRAIN_SLEEP_FRAMES) {
+          if (sleepCounterRef.current > sleepFrames) {
             simulationSleepingRef.current = true;
             sleepCounterRef.current = 0;
             if (ctxRef.current && renderRef.current) {
