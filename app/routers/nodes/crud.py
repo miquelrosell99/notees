@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError, OptimisticLockError
+from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError
 from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
 from ..auth import get_current_user
 from ...models import User
@@ -52,7 +52,18 @@ async def create_node(
         property_values=request.properties,
     )
     
-    node = await service.create_node(data, user_id=int(user.id))
+    try:
+        node = await service.create_node(data, user_id=int(user.id))
+    except DuplicateNodeError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(e),
+                "code": "DUPLICATE_NODE",
+                "name": e.name,
+                "conflicting_classes": e.conflicting_classes,
+            },
+        )
     return _node_to_response(node, classes=list(request.classes))
 
 
