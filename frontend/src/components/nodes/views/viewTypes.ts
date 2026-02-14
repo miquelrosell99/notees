@@ -208,7 +208,9 @@ export const TERRAIN_VELOCITY_DEADZONE = 0.1;
 export const TERRAIN_LINK_DAMPING = 0.12;
 export const TERRAIN_MAX_VELOCITY = 10;
 
-// Terrain sleep tuning
+// Sleep tuning
+export const GRAPH_SLEEP_THRESHOLD = 0.001;
+export const GRAPH_SLEEP_FRAMES = 60;
 export const TERRAIN_SLEEP_THRESHOLD = 0.0005;
 export const TERRAIN_SLEEP_FRAMES = 30;
 
