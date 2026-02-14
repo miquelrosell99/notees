@@ -60,6 +60,10 @@ const PATHFIND_DOWNSAMPLE = 2;
 const ALPHA = 1.5;   // |Δh| penalty
 const BETA = 1.0;    // gradient continuity penalty
 const GAMMA = 0.1;   // distance penalty
+/** Extra cost multiplier for uphill steps — biases paths to stay level or go downhill */
+const UPHILL_BIAS = 1.8;
+/** Penalty for absolute elevation — routes paths through lower terrain */
+const ELEVATION_PENALTY = 0.3;
 
 /** Max path distance in grid cells before falling back to Bézier */
 const MAX_ASTAR_GRID_DIST = 300;
@@ -245,8 +249,10 @@ function astarPath(
         slopePenalty = Math.abs(gradient - curGrad);
       }
 
-      // Cost: α * |Δh| + β * |grad − prevGrad| + γ * distance
-      const cost = ALPHA * Math.abs(dh) + BETA * slopePenalty + GAMMA * stepDist;
+      // Cost: α * |Δh| (asymmetric) + β * |grad − prevGrad| + γ * distance + δ * elevation
+      // Uphill steps (dh > 0) are penalized more heavily so paths prefer level or downhill routes
+      const heightCost = dh > 0 ? ALPHA * dh * UPHILL_BIAS : ALPHA * Math.abs(dh);
+      const cost = heightCost + BETA * slopePenalty + GAMMA * stepDist + ELEVATION_PENALTY * nH;
       const tentG = gScore[cur] + cost;
 
       if (tentG < gScore[ni]) {
