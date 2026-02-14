@@ -42,6 +42,10 @@ import {
   VELOCITY_DEADZONE,
   TERRAIN_VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DEADZONE,
+  TERRAIN_LINK_DAMPING,
+  TERRAIN_MAX_VELOCITY,
+  TERRAIN_SLEEP_THRESHOLD,
+  TERRAIN_SLEEP_FRAMES,
   DRAG_PULL_STRENGTH,
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
@@ -220,6 +224,7 @@ export function useNodePhysics({
   const simulationSleepingRef = useRef(false);
   const wakeSimulationRef = useRef<() => void>(() => {});
   const simulationGenerationRef = useRef(0);
+  const sleepCounterRef = useRef(0);
   
   // Transform state
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
@@ -1081,6 +1086,7 @@ export function useNodePhysics({
     
     const wake = () => {
       if (simulationGenerationRef.current !== thisGeneration) return;
+      sleepCounterRef.current = 0;
       if (simulationSleepingRef.current) {
         simulationSleepingRef.current = false;
         const maxFrames = getMaxSimulationFrames(nodesRef.current.length);
@@ -1103,6 +1109,12 @@ export function useNodePhysics({
       const currentViewMode = viewModeRef.current;
       const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
       const isTerrainModeNow = currentViewMode === 'terrain';
+      
+      // Terrain sleep: skip all force + integration work when asleep
+      if (isTerrainModeNow && simulationSleepingRef.current) {
+        animationRef.current = requestAnimationFrame(simulate);
+        return;
+      }
       
       if (topologyDirtyRef.current) {
         rebuildTopologyCache();
@@ -1276,7 +1288,8 @@ export function useNodePhysics({
           const rvx = nodeB.vx - nodeA.vx;
           const rvy = nodeB.vy - nodeA.vy;
           const relVelAlongSpring = (rvx * dx + rvy * dy) / dist;
-          netForce += relVelAlongSpring * LINK_DAMPING;
+          const linkDamping = isTerrainModeNow ? TERRAIN_LINK_DAMPING : LINK_DAMPING;
+          netForce += relVelAlongSpring * linkDamping;
           
           const sfx = (dx / dist) * netForce;
           const sfy = (dy / dist) * netForce;
@@ -1515,11 +1528,12 @@ export function useNodePhysics({
       // Update positions
       const velDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
       const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
+      const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
       for (const node of nodes) {
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
           const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-          if (speed > MAX_VELOCITY) {
-            const scale = MAX_VELOCITY / speed;
+          if (speed > maxVel) {
+            const scale = maxVel / speed;
             node.vx *= scale;
             node.vy *= scale;
           }
@@ -1664,10 +1678,32 @@ export function useNodePhysics({
       
       if (forceStop) {
         simulationSleepingRef.current = true;
+        sleepCounterRef.current = 0;
         if (ctxRef.current && renderRef.current) {
           renderRef.current(ctxRef.current);
         }
         return;
+      }
+      
+      // Terrain sleep detection: put simulation to sleep when total kinetic energy is negligible
+      if (isTerrainModeNow) {
+        let totalEnergy = 0;
+        for (const node of nodes) {
+          totalEnergy += node.vx * node.vx + node.vy * node.vy;
+        }
+        if (totalEnergy < TERRAIN_SLEEP_THRESHOLD) {
+          sleepCounterRef.current++;
+          if (sleepCounterRef.current > TERRAIN_SLEEP_FRAMES) {
+            simulationSleepingRef.current = true;
+            sleepCounterRef.current = 0;
+            if (ctxRef.current && renderRef.current) {
+              renderRef.current(ctxRef.current);
+            }
+            return;
+          }
+        } else {
+          sleepCounterRef.current = 0;
+        }
       }
       
       animationRef.current = requestAnimationFrame(simulate);
