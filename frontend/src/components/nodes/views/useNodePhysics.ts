@@ -1289,8 +1289,11 @@ export function useNodePhysics({
             attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
           }
           
-          // In terrain mode, treat all links equally (no reduction for reference links)
-          if (!isTerrainModeNow) {
+          // In terrain mode, skip attraction for reference links entirely —
+          // they use only the minimum-separation force for valley routing
+          if (isTerrainModeNow) {
+            if (link.type === 'reference' || link.type === 'property-reference') continue;
+          } else {
             if (link.type === 'property-reference') {
               attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
             } else if (link.type === 'reference') {
