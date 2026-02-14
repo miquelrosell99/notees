@@ -26,6 +26,8 @@ import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from '../sidebar/CommentsSidebar';
 import { ImportDataModal } from '../workspace/ImportDataModal';
+import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
+import { ExportPageModal } from '../workspace/ExportPageModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -41,6 +43,10 @@ export function Layout() {
     setCommandPaletteOpen,
     isImportDataModalOpen,
     setImportDataModalOpen,
+    isImportLogseqModalOpen,
+    setImportLogseqModalOpen,
+    isExportPageModalOpen,
+    setExportPageModalOpen,
     isMinimapOpen,
     setMinimapOpen,
     commentsSidebarOpen,
@@ -284,6 +290,21 @@ export function Layout() {
         {/* Floating Graph Minimap */}
         {isMinimapOpen && (
           <GraphMinimap onClose={() => setMinimapOpen(false)} />
+        )}
+
+        {/* Import Logseq EDN Modal */}
+        <ImportLogseqModal
+          isOpen={isImportLogseqModalOpen}
+          onClose={() => setImportLogseqModalOpen(false)}
+        />
+
+        {/* Export Page Modal */}
+        {currentNodeId && (
+          <ExportPageModal
+            isOpen={isExportPageModalOpen}
+            onClose={() => setExportPageModalOpen(false)}
+            nodeId={currentNodeId}
+          />
         )}
       </div>
     </RouterSync>
