@@ -115,7 +115,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
   }
 
   /**
-   * Not isolated - we handle navigation ourselves via PillPlugin.
+   * Not isolated - we handle navigation ourselves via NodeLinkPlugin.
    * Setting this to true causes Lexical's default navigation to fail
    * with "key is read-only" errors when trying to jump over the node.
    */

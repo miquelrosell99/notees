@@ -5,8 +5,8 @@
 export { BlockPlugin } from './BlockPlugin';
 export type { BlockPluginProps } from './BlockPlugin';
 
-export { PillPlugin } from './PillPlugin';
-export type { PillPluginProps } from './PillPlugin';
+export { NodeLinkPlugin } from './NodeLinkPlugin';
+export type { NodeLinkPluginProps } from './NodeLinkPlugin';
 
 export { DragDropPlugin } from './DragDropPlugin';
 export type { DragDropPluginProps } from './DragDropPlugin';
