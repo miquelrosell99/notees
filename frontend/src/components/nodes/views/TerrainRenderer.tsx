@@ -1307,6 +1307,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const INSET = 12;
     const CROSS_INSET = 68; // space reserved for the perpendicular card + gap
     
+    // Get CSS color variables for axis rendering
+    const style = getComputedStyle(document.documentElement);
+    const fillColor = style.getPropertyValue('--color-surface-container-high').trim() || '#e5e5e5';
+    const strokeColor = style.getPropertyValue('--color-outline').trim() || '#a3a3a3';
+    const cursorColor = style.getPropertyValue('--color-outline-variant').trim() || '#e5e5e5';
+    
     // --- Bottom profile (X axis): sample heightMap along row at cursor Y ---
     const xCanvas = profileXCanvasRef.current;
     if (xCanvas) {
@@ -1339,9 +1345,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             }
             xCtx.lineTo(cw, ch);
             xCtx.closePath();
-            xCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            xCtx.fillStyle = fillColor;
+            xCtx.globalAlpha = 0.25;
             xCtx.fill();
-            xCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            xCtx.globalAlpha = 1;
+            xCtx.strokeStyle = strokeColor;
             xCtx.lineWidth = 1;
             xCtx.beginPath();
             for (let px = 0; px < cw; px++) {
@@ -1357,11 +1365,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             // Cursor marker line (aligned to terrain position)
             const cardMx = (mx - tLeft) / tSpan * cw;
             xCtx.setLineDash([4, 3]);
-            xCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            xCtx.strokeStyle = cursorColor;
+            xCtx.globalAlpha = 0.5;
             xCtx.beginPath();
             xCtx.moveTo(cardMx, 0);
             xCtx.lineTo(cardMx, ch);
             xCtx.stroke();
+            xCtx.globalAlpha = 1;
             
             // Node position dots — show dots where nodes project onto X axis
             const t = transformRef.current;
@@ -1431,9 +1441,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             }
             yCtx.lineTo(cw, ch);
             yCtx.closePath();
-            yCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            yCtx.fillStyle = fillColor;
+            yCtx.globalAlpha = 0.25;
             yCtx.fill();
-            yCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            yCtx.globalAlpha = 1;
+            yCtx.strokeStyle = strokeColor;
             yCtx.lineWidth = 1;
             yCtx.beginPath();
             for (let py = 0; py < ch; py++) {
@@ -1449,11 +1461,13 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
             // Cursor marker line (aligned to terrain position)
             const cardMy = (my - tTop) / tSpan * ch;
             yCtx.setLineDash([4, 3]);
-            yCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            yCtx.strokeStyle = cursorColor;
+            yCtx.globalAlpha = 0.5;
             yCtx.beginPath();
             yCtx.moveTo(0, cardMy);
             yCtx.lineTo(cw, cardMy);
             yCtx.stroke();
+            yCtx.globalAlpha = 1;
             
             // Node position dots — show dots where nodes project onto Y axis
             const t = transformRef.current;
