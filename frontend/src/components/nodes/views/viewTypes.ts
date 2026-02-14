@@ -273,12 +273,30 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
   reference: 0,
 };
 
-// Terrain contour levels (evenly spaced between 0 and 1.0)
-export const TERRAIN_CONTOUR_COUNT = 10;
+// Terrain contour levels (linear division by meters)
+// Max terrain height in "meters" (scale unit)
+export const TERRAIN_MAX_HEIGHT_METERS = 4000;
+// Interval between contour lines in meters
+export const TERRAIN_CONTOUR_INTERVAL_METERS = 500;
+// Generate contour levels at every interval (0.1, 0.2, 0.3, ... 1.0)
 export const CONTOUR_LEVELS: number[] = Array.from(
-  { length: TERRAIN_CONTOUR_COUNT },
-  (_, i) => (i + 1) / (TERRAIN_CONTOUR_COUNT + 1)
+  { length: Math.floor(TERRAIN_MAX_HEIGHT_METERS / TERRAIN_CONTOUR_INTERVAL_METERS) },
+  (_, i) => ((i + 1) * TERRAIN_CONTOUR_INTERVAL_METERS) / TERRAIN_MAX_HEIGHT_METERS
 );
+
+/**
+ * Convert normalized height [0,1] to meters
+ */
+export const normalizedHeightToMeters = (normalizedHeight: number): number => {
+  return normalizedHeight * TERRAIN_MAX_HEIGHT_METERS;
+};
+
+/**
+ * Get meter value for a specific contour level
+ */
+export const getContourLevelMeters = (levelIndex: number): number => {
+  return (levelIndex + 1) * TERRAIN_CONTOUR_INTERVAL_METERS;
+};
 
 // Terrain height map parameters (spline smoothing allows coarser grid)
 export const TERRAIN_GRID_RES = 4;
