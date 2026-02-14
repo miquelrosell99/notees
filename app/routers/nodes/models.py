@@ -215,3 +215,73 @@ class CommentsResponse(BaseModel):
 class DateFormatUpdateRequest(BaseModel):
     """Request to update date format for all date nodes."""
     new_format: str  # e.g., "YYYY/MM/DD", "DD-MM-YYYY", etc.
+
+
+# ==================== Batch Operations ====================
+
+class BatchNodeCreateItem(BaseModel):
+    """A single node to create in a batch operation."""
+    name: str = ""
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[int] = None
+    sequence: int = 0
+    classes: List[int] = []
+    properties: Dict[int, Any] = {}
+    uuid: Optional[str] = None  # Optional: provide a UUID (e.g. from Logseq)
+
+
+class BatchNodeCreateRequest(BaseModel):
+    """Request to create multiple nodes in a single batch."""
+    nodes: List[BatchNodeCreateItem]
+
+
+class BatchNodeCreateResultItem(BaseModel):
+    """Result for a single node creation in a batch."""
+    index: int  # Index in the request array
+    success: bool
+    node: Optional[NodeResponse] = None
+    error: Optional[str] = None
+
+
+class BatchNodeCreateResponse(BaseModel):
+    """Response for batch node creation."""
+    results: List[BatchNodeCreateResultItem]
+    created: int  # Count of successfully created nodes
+    failed: int  # Count of failed nodes
+
+
+class BatchNodeUpdateItem(BaseModel):
+    """A single node update in a batch operation.
+    
+    Identifies the node by either id or uuid (at least one required).
+    """
+    id: Optional[int] = None
+    uuid: Optional[str] = None
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[int] = None
+    sequence: Optional[int] = None
+    collapsed: Optional[bool] = None
+    expected_version: Optional[int] = None
+
+
+class BatchNodeUpdateRequest(BaseModel):
+    """Request to update multiple nodes in a single batch."""
+    nodes: List[BatchNodeUpdateItem]
+
+
+class BatchNodeUpdateResultItem(BaseModel):
+    """Result for a single node update in a batch."""
+    index: int
+    success: bool
+    node: Optional[NodeResponse] = None
+    error: Optional[str] = None
+
+
+class BatchNodeUpdateResponse(BaseModel):
+    """Response for batch node update."""
+    results: List[BatchNodeUpdateResultItem]
+    updated: int
+    failed: int
