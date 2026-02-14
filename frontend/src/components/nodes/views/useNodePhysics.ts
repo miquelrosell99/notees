@@ -56,6 +56,8 @@ import {
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
+  TERRAIN_REF_LINK_MIN_SEPARATION,
+  TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_BONUS,
   LINK_TYPE_PRIORITY,
@@ -112,6 +114,9 @@ export interface UseGraphPhysicsReturn {
   wakeSimulation: () => void;
   requestRender: () => void;
   simulationSleepingRef: React.MutableRefObject<boolean>;
+  simulationPausedRef: React.MutableRefObject<boolean>;
+  pauseSimulation: () => void;
+  resumeSimulation: () => void;
   
   // Canvas context (set by renderer)
   ctxRef: React.MutableRefObject<CanvasRenderingContext2D | null>;
@@ -152,7 +157,7 @@ export function useNodePhysics({
   currentNodeId,
   dimensions,
   isTerrainMode: _isTerrainMode = false,
-}: UseNodePhysicsProps): UseNodePhysicsReturn {
+}: UseNodePhysicsProps): UseGraphPhysicsReturn {
   
   // ==================== Refs ====================
   
@@ -228,6 +233,9 @@ export function useNodePhysics({
   const simulationGenerationRef = useRef(0);
   const sleepCounterRef = useRef(0);
   
+  // User-controlled pause
+  const simulationPausedRef = useRef(false);
+  
   // Transform state
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
   const transformRef = useRef<Transform>({ x: 0, y: 0, scale: 1 });
@@ -265,6 +273,15 @@ export function useNodePhysics({
     if (simulationSleepingRef.current && ctxRef.current && renderRef.current) {
       renderRef.current(ctxRef.current);
     }
+  }, []);
+  
+  const pauseSimulation = useCallback(() => {
+    simulationPausedRef.current = true;
+  }, []);
+  
+  const resumeSimulation = useCallback(() => {
+    simulationPausedRef.current = false;
+    wakeSimulationRef.current();
   }, []);
   
   // ==================== Coordinate Conversion ====================
@@ -1117,6 +1134,15 @@ export function useNodePhysics({
         return;
       }
       
+      // Pause: skip physics but keep animation frame alive so we can resume
+      if (simulationPausedRef.current) {
+        if (ctxRef.current && renderRef.current) {
+          renderRef.current(ctxRef.current);
+        }
+        animationRef.current = requestAnimationFrame(simulate);
+        return;
+      }
+      
       if (topologyDirtyRef.current) {
         rebuildTopologyCache();
       }
@@ -1363,6 +1389,46 @@ export function useNodePhysics({
             
             shortNode.x += nx * correction;
             shortNode.y += ny * correction;
+          }
+        }
+      }
+      
+      // Terrain mode: ensure minimum separation between reference-linked nodes
+      // so that peaks have a valley between them for path routing
+      if (isTerrainModeNow && usePhysics) {
+        const refTerrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+        for (const link of links) {
+          if (link.type !== 'reference' && link.type !== 'property-reference') continue;
+          const nodeA = nodeMap.get(link.source);
+          const nodeB = nodeMap.get(link.target);
+          if (!nodeA || !nodeB) continue;
+          if (nodeA.pinned && nodeB.pinned) continue;
+          if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
+          
+          const dx = nodeB.x - nodeA.x;
+          const dy = nodeB.y - nodeA.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          // Scale min separation by average peak size of the pair
+          const peakA = refTerrainPeakRadii.get(nodeA.id) ?? 0;
+          const peakB = refTerrainPeakRadii.get(nodeB.id) ?? 0;
+          const avgPeak = (peakA + peakB) * 0.5;
+          const minSep = TERRAIN_REF_LINK_MIN_SEPARATION + avgPeak * 60;
+          
+          if (dist >= minSep) continue;
+          
+          const overlap = minSep - dist;
+          const force = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * warmupMultiplier;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          
+          if (!nodeA.pinned) {
+            nodeA.vx -= nx * force;
+            nodeA.vy -= ny * force;
+          }
+          if (!nodeB.pinned) {
+            nodeB.vx += nx * force;
+            nodeB.vy += ny * force;
           }
         }
       }
@@ -2045,6 +2111,9 @@ export function useNodePhysics({
     wakeSimulation: wakeSimulationRef.current,
     requestRender,
     simulationSleepingRef,
+    simulationPausedRef,
+    pauseSimulation,
+    resumeSimulation,
     ctxRef,
     renderRef,
     recenter,

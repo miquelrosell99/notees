@@ -34,7 +34,7 @@ import type {
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiPause, mdiPlay } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -103,6 +103,7 @@ export function GraphView({
   const [viewMode, setViewMode] = useState<GraphViewMode>('normal');
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
   const [pinnedNodes, setPinnedNodes] = useState<Set<number>>(new Set());
+  const [simulationPaused, setSimulationPaused] = useState(false);
   
   // Settings state
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
@@ -821,6 +822,20 @@ export function GraphView({
       
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">
+        <Button
+          icon={simulationPaused ? mdiPlay : mdiPause}
+          size="sm"
+          onClick={() => {
+            if (simulationPaused) {
+              rendererRef.current?.resumeSimulation();
+              setSimulationPaused(false);
+            } else {
+              rendererRef.current?.pauseSimulation();
+              setSimulationPaused(true);
+            }
+          }}
+          title={simulationPaused ? 'Resume simulation' : 'Pause simulation'}
+        />
         <Button
           icon={mdiCrosshairsGps}
           size="sm"
