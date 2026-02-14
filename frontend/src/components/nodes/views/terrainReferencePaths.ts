@@ -64,6 +64,14 @@ const GAMMA = 0.1;   // distance penalty
 const UPHILL_BIAS = 1.8;
 /** Penalty for absolute elevation — routes paths through lower terrain */
 const ELEVATION_PENALTY = 0.3;
+/**
+ * Maximum comfortable slope (gradient) before switchback penalty kicks in.
+ * Gradient = Δh / stepDist. Steps steeper than this get an exponential penalty
+ * that forces the path to zig-zag laterally (like mountain switchbacks).
+ */
+const MAX_SLOPE = 0.05;
+/** Multiplier for the switchback penalty beyond MAX_SLOPE */
+const SWITCHBACK_PENALTY = 6.0;
 
 /** Max path distance in grid cells before falling back to Bézier */
 const MAX_ASTAR_GRID_DIST = 800;
@@ -252,7 +260,20 @@ function astarPath(
       // Cost: α * |Δh| (asymmetric) + β * |grad − prevGrad| + γ * distance + δ * elevation
       // Uphill steps (dh > 0) are penalized more heavily so paths prefer level or downhill routes
       const heightCost = dh > 0 ? ALPHA * dh * UPHILL_BIAS : ALPHA * Math.abs(dh);
-      const cost = heightCost + BETA * slopePenalty + GAMMA * stepDist + ELEVATION_PENALTY * nH;
+
+      // Switchback penalty: when uphill gradient exceeds MAX_SLOPE, add a steep
+      // exponential cost that makes lateral (traversing) steps far cheaper than
+      // direct ascent — producing natural zig-zag switchbacks.
+      let switchbackCost = 0;
+      if (dh > 0) {
+        const absGrad = Math.abs(gradient);
+        if (absGrad > MAX_SLOPE) {
+          const excess = absGrad - MAX_SLOPE;
+          switchbackCost = SWITCHBACK_PENALTY * excess * excess;
+        }
+      }
+
+      const cost = heightCost + BETA * slopePenalty + GAMMA * stepDist + ELEVATION_PENALTY * nH + switchbackCost;
       const tentG = gScore[cur] + cost;
 
       if (tentG < gScore[ni]) {
