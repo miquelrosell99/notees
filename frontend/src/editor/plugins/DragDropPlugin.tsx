@@ -180,7 +180,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       case 'child':
         indicator.style.top = `${rect.top}px`;
         indicator.style.height = `${rect.height}px`;
-        indicator.style.background = 'var(--color-accent-light, rgba(59,130,246,0.1))';
+        indicator.style.background = 'var(--color-focus-overlay)';
         break;
     }
   }, []);
@@ -189,7 +189,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     const indicator = dropIndicatorRef.current;
     if (indicator) {
       indicator.style.display = 'none';
-      indicator.style.background = 'var(--color-accent, #3b82f6)';
+      indicator.style.background = 'var(--color-accent)';
     }
   }, []);
 

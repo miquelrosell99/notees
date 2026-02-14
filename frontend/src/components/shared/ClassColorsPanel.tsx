@@ -10,6 +10,7 @@
  * - Color picker for each class
  * - Remove classes
  */
+import { useMemo } from 'react';
 import { mdiClose } from '@mdi/js';
 import type { Node } from '@/types';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -18,6 +19,8 @@ import { ColorButton } from '../core/ColorButton';
 import { ListSortable } from '../core/ListSortable';
 import { SearchBox } from '../core/SearchBox';
 import './ClassColorsPanel.css';
+
+import { getClassColorPalette } from '@/components/nodes/views/viewTypes';
 
 export interface ClassColor {
   typeId: number;
@@ -35,22 +38,18 @@ export interface ClassColorsPanelProps {
   onChange: (classColors: ClassColor[]) => void;
 }
 
-const DEFAULT_CLASS_COLORS = [
-  '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#3b82f6', '#84cc16',
-];
-
 export function ClassColorsPanel({
   classColors,
-  defaultColors = DEFAULT_CLASS_COLORS,
+  defaultColors,
   onChange,
 }: ClassColorsPanelProps) {
+  const resolvedDefaults = useMemo(() => defaultColors ?? getClassColorPalette(), [defaultColors]);
   const addClassColor = (classNode: Node) => {
     const converted = nodeNameToText(classNode.name);
     const newClassColor: ClassColor = {
       typeId: classNode.id,
       className: converted || 'Untitled',
-      color: defaultColors[classColors.length % defaultColors.length],
+      color: resolvedDefaults[classColors.length % resolvedDefaults.length],
       order: classColors.length,
     };
     onChange([...classColors, newClassColor]);

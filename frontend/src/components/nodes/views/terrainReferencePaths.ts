@@ -279,24 +279,57 @@ function bezierFallback(
 // ==================== Smooth Path ====================
 
 /**
- * Smooth a polyline path with a simple 3-point moving average.
+ * Smooth a polyline path with a single 3-point moving average pass.
+ * Just enough to remove grid-stepping artifacts from A*;
+ * final visual smoothness comes from Catmull-Rom spline rendering.
  * Preserves start and end points exactly.
  */
-function smoothPath(points: Array<[number, number]>, passes: number = 2): Array<[number, number]> {
+function smoothPath(points: Array<[number, number]>): Array<[number, number]> {
   if (points.length < 3) return points;
-  let current = points;
-  for (let p = 0; p < passes; p++) {
-    const smoothed: Array<[number, number]> = [current[0]];
-    for (let i = 1; i < current.length - 1; i++) {
-      smoothed.push([
-        (current[i - 1][0] + current[i][0] + current[i + 1][0]) / 3,
-        (current[i - 1][1] + current[i][1] + current[i + 1][1]) / 3,
-      ]);
-    }
-    smoothed.push(current[current.length - 1]);
-    current = smoothed;
+  const smoothed: Array<[number, number]> = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    smoothed.push([
+      (points[i - 1][0] + points[i][0] + points[i + 1][0]) / 3,
+      (points[i - 1][1] + points[i][1] + points[i + 1][1]) / 3,
+    ]);
   }
-  return current;
+  smoothed.push(points[points.length - 1]);
+  return smoothed;
+}
+
+// ==================== Path Decimation ====================
+
+/**
+ * Ramer-Douglas-Peucker polyline simplification.
+ * Removes near-collinear points that the Catmull-Rom spline will reconstruct.
+ */
+function decimatePath(chain: Array<[number, number]>, epsilon: number): Array<[number, number]> {
+  const n = chain.length;
+  if (n <= 3) return chain;
+  const [sx, sy] = chain[0];
+  const [ex, ey] = chain[n - 1];
+  const lx = ex - sx, ly = ey - sy;
+  const lenSq = lx * lx + ly * ly;
+  let maxDist = 0, maxIdx = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const dx = chain[i][0] - sx, dy = chain[i][1] - sy;
+    let dist: number;
+    if (lenSq < 0.0001) {
+      dist = Math.sqrt(dx * dx + dy * dy);
+    } else {
+      const t = (dx * lx + dy * ly) / lenSq;
+      const px = sx + t * lx - chain[i][0];
+      const py = sy + t * ly - chain[i][1];
+      dist = Math.sqrt(px * px + py * py);
+    }
+    if (dist > maxDist) { maxDist = dist; maxIdx = i; }
+  }
+  if (maxDist <= epsilon) {
+    return [chain[0], chain[n - 1]];
+  }
+  const left = decimatePath(chain.slice(0, maxIdx + 1), epsilon);
+  const right = decimatePath(chain.slice(maxIdx), epsilon);
+  return left.slice(0, -1).concat(right);
 }
 
 // ==================== Peak Edge Helper ====================
@@ -404,8 +437,10 @@ export function computeReferencePaths(
     gridPoints[0] = [srcGx, srcGy];
     gridPoints[gridPoints.length - 1] = [tgtGx, tgtGy];
 
-    // Smooth the path for visual appeal
-    gridPoints = smoothPath(gridPoints, 3);
+    // Single smoothing pass to remove A* grid artifacts,
+    // then decimate — Catmull-Rom spline rendering handles final smoothness
+    gridPoints = smoothPath(gridPoints);
+    gridPoints = decimatePath(gridPoints, 1.0);  // epsilon in grid cells
 
     // Compute average slope along path
     let totalSlope = 0;

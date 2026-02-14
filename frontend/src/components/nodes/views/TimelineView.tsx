@@ -14,6 +14,7 @@ import * as nodesApi from '@/api/nodes';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './timelineTypes';
+import { getDateLanePalette } from './viewTypes';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { ButtonWithPanel } from '../../core/ButtonWithPanel';
@@ -45,10 +46,13 @@ export function TimelineView({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>(0);
   
-  const [dateProperties, setDateProperties] = useState<DatePropertyConfig[]>([
-    { property: 'create_date', label: 'Created', color: '#6366f1', visible: true, removable: false },
-    { property: 'write_date', label: 'Modified', color: '#8b5cf6', visible: true, removable: false },
-  ]);
+  const [dateProperties, setDateProperties] = useState<DatePropertyConfig[]>(() => {
+    const palette = getDateLanePalette();
+    return [
+      { property: 'create_date', label: 'Created', color: palette[0], visible: true, removable: false },
+      { property: 'write_date', label: 'Modified', color: palette[1], visible: true, removable: false },
+    ];
+  });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [transform, setTransform] = useState<TimelineTransform>({ panX: 0, scale: 1.0 });
   const [zoomPreset, setZoomPreset] = useState<'decade' | 'year' | 'semester' | 'quatrimester' | 'month' | 'custom'>('year');

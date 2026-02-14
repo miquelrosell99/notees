@@ -12,6 +12,7 @@ import { useProperties } from '@/hooks';
 import { Button } from '../../core/Button';
 import { ColorButton } from '../../core/ColorButton';
 import { SearchBox } from '../../core/SearchBox';
+import { getDateLanePalette } from './viewTypes';
 
 export interface DatePropertyConfig {
   property: string;
@@ -67,7 +68,7 @@ export function DatePropertiesPanel({
   };
   
   const addProperty = (prop: Property) => {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
+    const colors = getDateLanePalette();
     const color = colors[properties.length % colors.length];
     onChange([
       ...properties,
