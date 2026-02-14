@@ -216,6 +216,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useAppStore();
+  const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
@@ -328,6 +329,11 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
     if (!node) return;
     removeAlias.mutate({ nodeId: node.id, aliasId: aliasNode.id });
   }, [node, removeAlias]);
+  
+  // Handle navigating to an alias node (skip redirection to show the alias itself)
+  const handleNavigateToAlias = useCallback((aliasNode: Node) => {
+    navigateToNode(aliasNode, { skipAliasRedirect: true });
+  }, [navigateToNode]);
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
@@ -959,7 +965,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
                   searchMode="aliases"
                   emptyText="Add alias"
                   searchPlaceholder="Search pages..."
-                  onNodeClick={(n) => handleNavigateToNode(n.id)}
+                  onNodeClick={handleNavigateToAlias}
                   onRemove={handleRemoveAlias}
                   onAdd={handleAddAlias}
                 />
