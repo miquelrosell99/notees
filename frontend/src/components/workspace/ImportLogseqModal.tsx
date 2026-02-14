@@ -24,7 +24,7 @@ import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/edn
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes } from '@/api/nodes';
-import { listProperties } from '@/api/properties';
+import { listProperties, updateProperty } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
@@ -218,6 +218,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           const existingProp = existingPropByName.get(prop.title.toLowerCase());
           if (existingProp) {
             propIdMap.set(prop.id, existingProp.id);
+
+            // Update is_multi flag if it changed
+            if (existingProp.multi !== isMulti) {
+              try {
+                await updateProperty(existingProp.id, { multi: isMulti });
+              } catch (e) {
+                p2.errors.push({ item: prop.title, message: `Failed to update multi flag: ${errorMessage(e)}` });
+              }
+            }
 
             // Map selection option UUIDs for existing properties
             if (prop.selectionOptions && existingProp.options) {
