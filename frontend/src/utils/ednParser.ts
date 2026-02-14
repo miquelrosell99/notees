@@ -225,11 +225,18 @@ function mapGet(map: EdnValue, key: string): EdnValue | undefined {
 
 // ── Logseq EDN → Intermediate representation ──────────────────
 
+export interface LogseqSelectionOption {
+  value: unknown;
+  uuid?: string;
+}
+
 export interface LogseqProperty {
   id: string;           // e.g. "user.property/Autor-UEGDrhRa"
   title: string;        // Human-readable: "Autor"
   type: string;         // :node, :date, :checkbox, :default, :number
   cardinality: string;  // :db.cardinality/one | :db.cardinality/many
+  classFilters?: string[]; // For node-type: class ids that restrict selection
+  selectionOptions?: LogseqSelectionOption[]; // For closed-values / selection
 }
 
 export interface LogseqClass {
@@ -272,14 +279,44 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
   if (propsMap instanceof Map) {
     for (const [k, v] of propsMap.entries()) {
       if (!(k instanceof EdnKeyword)) continue;
+      // Skip logseq system properties — only import user properties
+      if (k.value.startsWith('logseq.property')) continue;
       const title = asString(mapGet(v, 'block/title')) ?? k.value;
       const typeKw = mapGet(v, 'logseq.property/type');
       const cardKw = mapGet(v, 'db/cardinality');
+
+      // Class filters for node-type properties
+      const classFiltersVec = mapGet(v, 'build/property-classes');
+      let classFilters: string[] | undefined;
+      if (Array.isArray(classFiltersVec)) {
+        classFilters = classFiltersVec
+          .filter((c): c is EdnKeyword => c instanceof EdnKeyword)
+          .map(c => c.value);
+      }
+
+      // Closed values (selection options)
+      const closedVals = mapGet(v, 'build/closed-values');
+      let selectionOptions: LogseqSelectionOption[] | undefined;
+      if (Array.isArray(closedVals)) {
+        selectionOptions = [];
+        for (const cv of closedVals) {
+          if (!(cv instanceof Map)) continue;
+          const val = mapGet(cv, 'value');
+          const uuidTagged = mapGet(cv, 'uuid');
+          selectionOptions.push({
+            value: val,
+            uuid: uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined,
+          });
+        }
+      }
+
       properties.push({
         id: k.value,
         title,
         type: typeKw instanceof EdnKeyword ? typeKw.value : 'default',
         cardinality: cardKw instanceof EdnKeyword ? cardKw.value : 'db.cardinality/one',
+        classFilters: classFilters && classFilters.length > 0 ? classFilters : undefined,
+        selectionOptions: selectionOptions && selectionOptions.length > 0 ? selectionOptions : undefined,
       });
     }
   }
@@ -337,6 +374,8 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       if (propsOnPage instanceof Map) {
         for (const [pk, pv] of propsOnPage.entries()) {
           if (!(pk instanceof EdnKeyword)) continue;
+          // Skip logseq system properties
+          if (pk.value.startsWith('logseq.property')) continue;
           pageProperties[pk.value] = resolvePropertyValue(pv);
         }
       }
@@ -385,7 +424,14 @@ function parseBlock(raw: EdnValue): LogseqBlock {
 
 /**
  * Resolve a property value from the EDN tree.
- * Handles sets, tagged literals, nested build/page refs, etc.
+ * Returns structured values:
+ * - booleans for checkboxes
+ * - strings for text
+ * - numbers for numeric values
+ * - { __type: 'page-ref', title: string } for node references
+ * - { __type: 'date-ref', date: 'YYYY-MM-DD' } for date references
+ * - { __type: 'uuid-ref', uuid: string } for UUID references (selection closed values)
+ * - arrays of the above for multi-value
  */
 function resolvePropertyValue(v: EdnValue): unknown {
   if (v instanceof Set) {
@@ -398,19 +444,34 @@ function resolvePropertyValue(v: EdnValue): unknown {
     return v.value;
   }
   if (Array.isArray(v)) {
-    // Could be a single-element vec wrapping a build/page ref
+    // [:build/page {...}] — a page/date reference wrapped in a vector
+    if (v.length === 2 && v[0] instanceof EdnKeyword && v[0].value === 'build/page' && v[1] instanceof Map) {
+      const innerMap = v[1];
+      const title = asString(mapGet(innerMap, 'block/title'));
+      if (title) return { __type: 'page-ref', title };
+      const journal = mapGet(innerMap, 'build/journal');
+      if (typeof journal === 'number') {
+        const s = String(journal);
+        if (s.length === 8) return { __type: 'date-ref', date: `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` };
+        return { __type: 'date-ref', date: s };
+      }
+    }
+    // [:block/uuid #uuid "..."] — a UUID reference (selection/closed value)
+    if (v.length === 2 && v[0] instanceof EdnKeyword && v[0].value === 'block/uuid' && v[1] instanceof EdnTagged) {
+      return { __type: 'uuid-ref', uuid: String(v[1].value) };
+    }
+    // Single-element vec: unwrap
     if (v.length === 1) return resolvePropertyValue(v[0]);
     return v.map(resolvePropertyValue);
   }
   if (v instanceof Map) {
-    // Likely a :build/page reference
+    // Direct :build/page reference (not wrapped in vec)
     const title = asString(mapGet(v, 'block/title'));
-    if (title) return title;
+    if (title) return { __type: 'page-ref', title };
     const journal = mapGet(v, 'build/journal');
     if (typeof journal === 'number') {
-      // Convert YYYYMMDD → YYYY-MM-DD
       const s = String(journal);
-      if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      if (s.length === 8) return { __type: 'date-ref', date: `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` };
       return s;
     }
     return Object.fromEntries(
