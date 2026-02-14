@@ -367,7 +367,7 @@ class NodeService:
                                 if prop.type == PropertyType.NODE:
                                     await self._property_repo.set_relation_value(node.id, cp.property_id, default)
                                 else:
-                                    # For TEXT, IMAGE, DATE - create a text node with the default value
+                                    # For TEXT, IMAGE - create a text node with the default value
                                     text_node = await self._node_repo.create(
                                         NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id),
                                         user_id
@@ -1096,6 +1096,7 @@ class NodeService:
                         default = cp.default_node_id
                     elif prop.type == PropertyType.TEXT and cp.default_text is not None:
                         default = cp.default_text
+                    # Image and Date don't have simple defaults
                     
                     if default is not None:
                         if prop.type == PropertyType.NODE:
