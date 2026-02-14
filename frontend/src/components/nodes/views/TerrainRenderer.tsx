@@ -36,6 +36,7 @@ import {
   getNodeColor,
 } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
+import { computeReferencePaths, applyPathErosion, type ReferencePath, type RefLink } from './terrainReferencePaths';
 import './graph-renderer.css';
 
 // ==================== Types ====================
@@ -62,6 +63,9 @@ export interface TerrainRendererRef {
   createNode: (node: GraphNode) => void;
   destroyNode: (nodeId: number) => void;
   updateLinks: (links: GraphLink[]) => void;
+  pauseSimulation: () => void;
+  resumeSimulation: () => void;
+  simulationPausedRef: React.MutableRefObject<boolean>;
 }
 
 // ==================== Helpers ====================
@@ -121,6 +125,19 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     selectedNodeIdsRef.current = new Set(selectedNodeIds);
   }, [selectedNodeIds]);
   
+  // Visibility filters ref for render access (render callback reads from refs)
+  const visibilityFiltersRef = useRef(visibilityFilters);
+  useEffect(() => {
+    visibilityFiltersRef.current = visibilityFilters;
+  }, [visibilityFilters]);
+  
+  // Reference path fade animation state
+  const refPathOpacityRef = useRef(0);       // current opacity 0..1
+  const refPathFadeRafRef = useRef(0);        // RAF id for fade animation
+  const refPathLastFrameRef = useRef(0);      // last frame timestamp for delta time
+  const REF_PATH_FADE_IN_SPEED = 2.5;        // per second (0→1 in 400ms)
+  const REF_PATH_FADE_OUT_SPEED = 5.0;        // per second (1→0 in 200ms)
+  
   // Physics hook
   const physics = useNodePhysics({
     inputNodes,
@@ -144,6 +161,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     dragStartTimeRef,
     wakeSimulation,
     simulationSleepingRef,
+    pauseSimulation,
+    resumeSimulation,
+    simulationPausedRef,
     ctxRef,
     renderRef,
     recenter,
@@ -164,7 +184,10 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     createNode,
     destroyNode,
     updateLinks,
-  }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks]);
+    pauseSimulation,
+    resumeSimulation,
+    simulationPausedRef,
+  }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks, pauseSimulation, resumeSimulation]);
   
   // Overlay canvas for crosshair, hover labels, selected outlines (lightweight layer)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -253,6 +276,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     hasClassColors: boolean;
     hasSelection: boolean;
     selectedNodeIndices: Set<number>;
+    referencePaths: ReferencePath[];
     valid: boolean;
   }>({
     positionHash: 0, selectionHash: 0, classColorsHash: 0,
@@ -260,6 +284,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     allChains: [], nodeChildDirs: [], idToIdx: new Map(), nodeColors: [],
     lowR: 0, lowG: 0, lowB: 0, highR: 0, highG: 0, highB: 0,
     hasClassColors: false, hasSelection: false, selectedNodeIndices: new Set(),
+    referencePaths: [],
     valid: false,
   });
   
@@ -517,6 +542,62 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     
     blurKernel(heightMap, tempMap, gridW, gridH);
     blurKernel(tempMap, heightMap, gridW, gridH);
+    
+    // ==================== Reference Link Paths ====================
+    // Compute least-slope A* paths for reference links after heightMap is built.
+    // Paths are cached alongside terrain data and only recomputed when layout changes.
+    let computedReferencePaths: ReferencePath[] = [];
+    if (visibilityFiltersRef.current.showReferenceLinks && simulationSleepingRef.current) {
+      // Collect reference links from visible links
+      const refLinks: RefLink[] = [];
+      for (const link of visibleLinks) {
+        if (link.type === 'reference' || link.type === 'property-reference') {
+          // Only include links where both endpoints are visible
+          if (idToIdx.has(link.source) && idToIdx.has(link.target)) {
+            refLinks.push({ source: link.source, target: link.target });
+          }
+        }
+      }
+      
+      if (refLinks.length > 0) {
+        // Build node screen positions map
+        const nodeScreenPositions = new Map<number, [number, number]>();
+        for (const node of visibleNodes) {
+          const sx = node.x * t.scale + t.x;
+          const sy = node.y * t.scale + t.y;
+          nodeScreenPositions.set(node.id, [sx, sy]);
+        }
+        
+        // Build set of protected peak grid cells (node centers ± small radius)
+        const nodePeakGridCells = new Set<number>();
+        const peakProtectRadius = 3; // grid cells around each peak to protect
+        for (const node of visibleNodes) {
+          const cx = Math.round((node.x * t.scale + t.x) / gs);
+          const cy = Math.round((node.y * t.scale + t.y) / gs);
+          for (let dy = -peakProtectRadius; dy <= peakProtectRadius; dy++) {
+            for (let dx = -peakProtectRadius; dx <= peakProtectRadius; dx++) {
+              const px = cx + dx;
+              const py = cy + dy;
+              if (px >= 0 && px < gridW && py >= 0 && py < gridH) {
+                nodePeakGridCells.add(py * gridW + px);
+              }
+            }
+          }
+        }
+        
+        // Compute paths via A* on heightMap
+        const result = computeReferencePaths(
+          heightMap, gridW, gridH, gs,
+          refLinks, nodeScreenPositions,
+        );
+        computedReferencePaths = result.paths;
+        
+        // Apply subtle erosion along paths (creates shallow valleys)
+        if (computedReferencePaths.length > 0) {
+          applyPathErosion(heightMap, gridW, gridH, gs, computedReferencePaths, nodePeakGridCells);
+        }
+      }
+    }
     
     // Read CSS variables (cached, refreshed on theme change)
     if (cssColorsDirtyRef.current || !cssColorsRef.current) {
@@ -783,6 +864,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     cache.hasClassColors = hasClassColors;
     cache.hasSelection = hasSelection;
     cache.selectedNodeIndices = selectedNodeIndices;
+    cache.referencePaths = computedReferencePaths;
     cache.valid = true;
     
     } // end if (!cacheValid)
@@ -935,6 +1017,89 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     }
     
     ctx.restore();
+    
+    // ==================== Draw Reference Link Paths ====================
+    // Rendered after contour lines but before overlays.
+    // Thin, subtle polylines following terrain curvature.
+    // Paths fade in when simulation stabilizes and fade out when it wakes.
+    
+    // Evolve opacity based on simulation state
+    const showRefPaths = visibilityFiltersRef.current.showReferenceLinks && cache.referencePaths.length > 0;
+    const targetOpacity = (showRefPaths && simulationSleepingRef.current) ? 1 : 0;
+    let curOpacity = refPathOpacityRef.current;
+    
+    if (curOpacity !== targetOpacity) {
+      const now = performance.now();
+      const dt = refPathLastFrameRef.current > 0
+        ? Math.min((now - refPathLastFrameRef.current) / 1000, 0.05) // cap delta to 50ms
+        : 0.016; // first frame default ~60fps
+      refPathLastFrameRef.current = now;
+      
+      if (targetOpacity > curOpacity) {
+        curOpacity = Math.min(1, curOpacity + REF_PATH_FADE_IN_SPEED * dt);
+      } else {
+        curOpacity = Math.max(0, curOpacity - REF_PATH_FADE_OUT_SPEED * dt);
+      }
+      refPathOpacityRef.current = curOpacity;
+      
+      // Schedule another render frame to continue the fade animation
+      if (curOpacity !== targetOpacity) {
+        cancelAnimationFrame(refPathFadeRafRef.current);
+        refPathFadeRafRef.current = requestAnimationFrame(() => {
+          if (ctxRef.current && renderRef.current) {
+            renderRef.current(ctxRef.current);
+          }
+        });
+      }
+    } else {
+      refPathLastFrameRef.current = 0; // reset for next transition
+    }
+    
+    if (curOpacity > 0.001 && cache.referencePaths.length > 0) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      for (const path of cache.referencePaths) {
+        const pts = path.screenPoints;
+        if (pts.length < 2) continue;
+        
+        // Subtle, map-like stroke: thin line with low opacity
+        // Line width varies inversely with average slope (thinner on steep sections)
+        const baseWidth = 1.2;
+        const slopeScale = Math.max(0.4, 1.0 - path.avgSlope * 3);
+        const lineWidth = baseWidth * slopeScale;
+        
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i][0], pts[i][1]);
+        }
+        
+        // Determine path color from source node's color (subtle tint)
+        const srcIdx = cachedIdToIdx.get(path.sourceId);
+        let pathR = cachedLowR, pathG = cachedLowG, pathB = cachedLowB;
+        if (srcIdx !== undefined && cachedNodeColors[srcIdx]) {
+          const [cr, cg, cb] = cachedNodeColors[srcIdx];
+          // Blend node color with neutral at 40% — keeps paths subtle
+          pathR = Math.round(cr * 0.4 + cachedLowR * 0.6);
+          pathG = Math.round(cg * 0.4 + cachedLowG * 0.6);
+          pathB = Math.round(cb * 0.4 + cachedLowB * 0.6);
+        }
+        
+        // Draw a subtle outer stroke for depth, modulated by fade opacity
+        ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.12 * curOpacity})`;
+        ctx.lineWidth = lineWidth + 1.5;
+        ctx.stroke();
+        
+        // Draw the main path stroke, modulated by fade opacity
+        ctx.strokeStyle = `rgba(${pathR}, ${pathG}, ${pathB}, ${0.35 * curOpacity})`;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+    }
     
     // Also repaint the overlay (labels, outlines, crosshair) since node positions may have changed
     if (overlayCtxRef.current && renderOverlayRef.current) {
@@ -1594,6 +1759,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     const handler = (e: WheelEvent) => handleWheelRef.current(e);
     canvas.addEventListener('wheel', handler, { passive: false });
     return () => canvas.removeEventListener('wheel', handler);
+  }, []);
+  
+  // Cleanup fade animation RAF on unmount
+  useEffect(() => {
+    return () => cancelAnimationFrame(refPathFadeRafRef.current);
   }, []);
   
   // ==================== Render ====================
