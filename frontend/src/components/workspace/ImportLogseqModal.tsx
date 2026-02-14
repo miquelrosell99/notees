@@ -282,6 +282,29 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
 
         try {
+          // Handle journal/daily pages via getOrCreateDaily
+          if (page.journal) {
+            try {
+              const dayNode = await getOrCreateDaily(page.journal);
+              if (page.uuid) {
+                uuidMap.set(page.uuid, { id: dayNode.id, uuid: dayNode.uuid });
+              }
+              titleToNodeInfo.set(page.title, { id: dayNode.id, uuid: dayNode.uuid });
+              p3.succeeded++;
+
+              if (page.blocks.length > 0) {
+                setImportStatus(`Creating blocks for journal: ${page.journal}`);
+                await createBlocksRecursively(
+                  page.blocks, dayNode.id, 0, uuidMap, classIdMap, contentQueue, p3,
+                );
+              }
+            } catch (e) {
+              p3.failed++;
+              p3.errors.push({ item: `Journal: ${page.journal}`, message: errorMessage(e) });
+            }
+            continue;
+          }
+
           // Check if a page with this exact name already exists
           const searchResults = await searchNodes(page.title);
           const existingPage = searchResults.find(
@@ -541,7 +564,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     [parsed, importing, handleImport],
   );
 
-  const pageCount = parsed?.pages.length ?? 0;
+  const journalCount = parsed?.pages.filter(p => p.journal).length ?? 0;
+  const pageCount = (parsed?.pages.length ?? 0) - journalCount;
   const classCount = parsed?.classes.length ?? 0;
   const propCount = parsed?.properties.length ?? 0;
   const blockCount =
@@ -658,6 +682,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             <span className="import-logseq__preview-badge">
               {pageCount} page{pageCount !== 1 ? 's' : ''}
             </span>
+            {journalCount > 0 && (
+              <span className="import-logseq__preview-badge">
+                {journalCount} journal{journalCount !== 1 ? 's' : ''}
+              </span>
+            )}
             <span className="import-logseq__preview-badge">
               {blockCount} block{blockCount !== 1 ? 's' : ''}
             </span>

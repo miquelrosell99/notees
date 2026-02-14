@@ -69,12 +69,8 @@ export function NodeLinkPlugin({
         const linkId = pillWrapper.getAttribute('data-link-id');
         const refType = (pillWrapper.getAttribute('data-ref-type') as 'node' | 'class') || 'node';
         if (linkId) {
-          // In edit mode, open the edit modal instead of navigating
-          if (editor.isEditable() && onPillEdit) {
-            onPillEdit(linkId, refType);
-          } else {
-            onPillClick?.(linkId, refType);
-          }
+          // Always navigate on click — edit modal is accessible via right-click context menu
+          onPillClick?.(linkId, refType);
         }
         return true;
       }
@@ -83,7 +79,7 @@ export function NodeLinkPlugin({
     };
 
     return editor.registerCommand(CLICK_COMMAND, handleClick, COMMAND_PRIORITY_HIGH);
-  }, [editor, onPillClick, onPillEdit]);
+  }, [editor, onPillClick]);
 
   // ─── Apply pending pill update (from LinkEditModal) ──────────
 
