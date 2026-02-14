@@ -1,0 +1,162 @@
+/**
+ * ImportMarkdownModal styles
+ */
+
+.import-md__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.import-md__description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.import-md__description code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  padding: 1px 5px;
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-extra-small);
+}
+
+.import-md__row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.import-md__label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-on-surface);
+  white-space: nowrap;
+}
+
+.import-md__select {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  appearance: auto;
+}
+
+.import-md__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.import-md__select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.import-md__file-input {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.import-md__file-input::file-selector-button {
+  padding: 6px 14px;
+  margin-right: 12px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.import-md__file-input::file-selector-button:hover {
+  background: var(--color-surface-container);
+}
+
+.import-md__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+.import-md__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-md__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-md__badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.import-md__page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.import-md__page-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.import-md__page-item:last-child {
+  border-bottom: none;
+}
+
+.import-md__page-item--more {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.import-md__page-blocks {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.import-md__status {
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  padding: 4px 0;
+  animation: import-md-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes import-md-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

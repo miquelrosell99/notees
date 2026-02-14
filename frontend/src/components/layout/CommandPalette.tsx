@@ -307,6 +307,7 @@ export function CommandPalette({
   const commands = useMemo(() => {
     const cmds: Array<{ id: string; label: string; icon: 'import' | 'export'; requiresPage?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq EDN', icon: 'import' },
+      { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
     ];
     return cmds;
@@ -547,6 +548,8 @@ export function CommandPalette({
       case 'command':
         if (item.commandId === 'import-logseq') {
           useAppStore.getState().setImportLogseqModalOpen(true);
+        } else if (item.commandId === 'import-markdown') {
+          useAppStore.getState().setImportMarkdownModalOpen(true);
         } else if (item.commandId === 'export-page') {
           const currentId = useAppStore.getState().currentNodeId;
           if (currentId) {

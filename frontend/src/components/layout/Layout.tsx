@@ -27,6 +27,7 @@ import { CommandPalette } from './CommandPalette';
 import { CommentsSidebar } from '../sidebar/CommentsSidebar';
 import { ImportDataModal } from '../workspace/ImportDataModal';
 import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
+import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
@@ -45,6 +46,8 @@ export function Layout() {
     setImportDataModalOpen,
     isImportLogseqModalOpen,
     setImportLogseqModalOpen,
+    isImportMarkdownModalOpen,
+    setImportMarkdownModalOpen,
     isExportPageModalOpen,
     setExportPageModalOpen,
     isMinimapOpen,
@@ -296,6 +299,12 @@ export function Layout() {
         <ImportLogseqModal
           isOpen={isImportLogseqModalOpen}
           onClose={() => setImportLogseqModalOpen(false)}
+        />
+
+        {/* Import Markdown Modal */}
+        <ImportMarkdownModal
+          isOpen={isImportMarkdownModalOpen}
+          onClose={() => setImportMarkdownModalOpen(false)}
         />
 
         {/* Export Page Modal */}

@@ -83,6 +83,7 @@ interface NodesState {
   isCommandPaletteOpen: boolean;
   isImportDataModalOpen: boolean;
   isImportLogseqModalOpen: boolean;
+  isImportMarkdownModalOpen: boolean;
   isExportPageModalOpen: boolean;
   showDbManagement: boolean;
   isMinimapOpen: boolean;
@@ -117,6 +118,7 @@ interface NodesState {
   toggleCommandPalette: () => void;
   setImportDataModalOpen: (open: boolean) => void;
   setImportLogseqModalOpen: (open: boolean) => void;
+  setImportMarkdownModalOpen: (open: boolean) => void;
   setExportPageModalOpen: (open: boolean) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
@@ -174,6 +176,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isCommandPaletteOpen: false,
   isImportDataModalOpen: false,
   isImportLogseqModalOpen: false,
+  isImportMarkdownModalOpen: false,
   isExportPageModalOpen: false,
   showDbManagement: false,
   isMinimapOpen: false,
@@ -206,6 +209,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
   setImportDataModalOpen: (open) => set({ isImportDataModalOpen: open }),
   setImportLogseqModalOpen: (open) => set({ isImportLogseqModalOpen: open }),
+  setImportMarkdownModalOpen: (open) => set({ isImportMarkdownModalOpen: open }),
   setExportPageModalOpen: (open) => set({ isExportPageModalOpen: open }),
   openNodeInSidebar: (nodeId, nodeType) => set({ 
     rightSidebarOpen: true, 
