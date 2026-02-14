@@ -51,6 +51,8 @@ async def create_database(data: DatabaseCreate, user: User = Depends(get_current
     """Create a new database."""
     try:
         database = await db.create_database(user.id, data.name)
+        # Invalidate cached workspace context so subsequent requests use the new workspace
+        invalidate_workspace_cache(int(user.id))
         return database
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
