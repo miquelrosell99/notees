@@ -21,6 +21,8 @@ export interface ReferencePath {
   targetId: number;
   /** Path points in screen coordinates (px) */
   screenPoints: Array<[number, number]>;
+  /** Per-point multiplicity: how many paths share each point (≥1) */
+  pointMultiplicity: number[];
   /** Average slope along the path (for line-width variation) */
   avgSlope: number;
 }
@@ -67,6 +69,9 @@ const MIN_ASTAR_GRID_DIST = 3;
 
 /** Number of perimeter sample points around each peak plateau */
 const PERIMETER_SAMPLES = 16;
+
+/** Merge radius in screen pixels — paths within this distance snap together */
+const PATH_MERGE_RADIUS = 20;
 
 /** Erosion radius in grid cells around path */
 const EROSION_RADIUS = 2;
@@ -521,12 +526,154 @@ export function computeReferencePaths(
       sourceId: link.source,
       targetId: link.target,
       screenPoints,
+      pointMultiplicity: new Array(screenPoints.length).fill(1),
       avgSlope,
     });
   }
 
+  // Merge nearby path segments and compute per-point multiplicity
+  if (paths.length > 1) {
+    mergeNearbyPaths(paths, PATH_MERGE_RADIUS);
+  }
+
   return { paths };
 }
+
+// ==================== Path Merging ====================
+
+/**
+ * Merge nearby path segments so that paths travelling in similar
+ * directions snap to shared waypoints where they're close together,
+ * then split apart naturally.  Per-point multiplicity is set to the
+ * number of paths sharing each location.
+ *
+ * Algorithm:
+ * 1. Resample all paths to uniform spacing (~mergeRadius / 2)
+ * 2. Bucket resampled points into a spatial grid (cell = mergeRadius)
+ * 3. For cells with points from multiple paths, snap to centroid
+ * 4. Write multiplicity = number of distinct paths in the cell
+ * 5. Smooth the result to remove snapping artifacts
+ */
+function mergeNearbyPaths(paths: ReferencePath[], mergeRadius: number): void {
+  if (paths.length < 2) return;
+
+  // --- 1. Resample all paths to uniform step ≈ mergeRadius / 2 ---
+  const step = Math.max(4, mergeRadius * 0.5);
+  const resampled: Array<Array<[number, number]>> = [];
+  for (const path of paths) {
+    resampled.push(resamplePolyline(path.screenPoints, step));
+  }
+
+  // --- 2. Spatial hash: bucket points by grid cell ---
+  const cellSize = mergeRadius;
+  const cellKey = (x: number, y: number): number => {
+    const cx = Math.floor(x / cellSize);
+    const cy = Math.floor(y / cellSize);
+    return cx * 100003 + cy; // large prime avoids collisions
+  };
+
+  // Map from cell key → list of { pathIdx, ptIdx }
+  const buckets = new Map<number, Array<{ pi: number; qi: number }>>(); // pi=path, qi=point
+  for (let pi = 0; pi < resampled.length; pi++) {
+    const pts = resampled[pi];
+    for (let qi = 0; qi < pts.length; qi++) {
+      const k = cellKey(pts[qi][0], pts[qi][1]);
+      let list = buckets.get(k);
+      if (!list) { list = []; buckets.set(k, list); }
+      list.push({ pi, qi });
+    }
+  }
+
+  // --- 3. For multi-path cells, snap to centroid and set multiplicity ---
+  const multiplicity: Array<number[]> = resampled.map(pts => new Array(pts.length).fill(1));
+
+  for (const entries of buckets.values()) {
+    // Count distinct paths in this cell
+    const pathSet = new Set<number>();
+    for (const e of entries) pathSet.add(e.pi);
+    if (pathSet.size < 2) continue;
+
+    // Compute centroid of all points in this cell
+    let cx = 0, cy = 0;
+    for (const e of entries) {
+      cx += resampled[e.pi][e.qi][0];
+      cy += resampled[e.pi][e.qi][1];
+    }
+    cx /= entries.length;
+    cy /= entries.length;
+
+    // Snap points to centroid and record multiplicity
+    const mult = pathSet.size;
+    for (const e of entries) {
+      resampled[e.pi][e.qi] = [cx, cy];
+      multiplicity[e.pi][e.qi] = mult;
+    }
+  }
+
+  // --- 4. Smooth snapped paths to remove grid artifacts ---
+  for (let pi = 0; pi < resampled.length; pi++) {
+    const pts = resampled[pi];
+    if (pts.length < 3) continue;
+    // Single pass moving average (preserve start/end)
+    const smoothed: Array<[number, number]> = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      smoothed.push([
+        (pts[i - 1][0] + pts[i][0] + pts[i + 1][0]) / 3,
+        (pts[i - 1][1] + pts[i][1] + pts[i + 1][1]) / 3,
+      ]);
+    }
+    smoothed.push(pts[pts.length - 1]);
+    resampled[pi] = smoothed;
+  }
+
+  // --- 5. Write back to paths ---
+  for (let pi = 0; pi < paths.length; pi++) {
+    paths[pi].screenPoints = resampled[pi];
+    paths[pi].pointMultiplicity = multiplicity[pi];
+  }
+}
+
+/**
+ * Resample a polyline to approximately uniform spacing.
+ * Preserves start and end points exactly.
+ */
+function resamplePolyline(
+  points: Array<[number, number]>,
+  spacing: number,
+): Array<[number, number]> {
+  if (points.length < 2) return [...points];
+
+  // Compute cumulative arc length
+  const cumLen = [0];
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i][0] - points[i - 1][0];
+    const dy = points[i][1] - points[i - 1][1];
+    cumLen.push(cumLen[i - 1] + Math.sqrt(dx * dx + dy * dy));
+  }
+  const totalLen = cumLen[cumLen.length - 1];
+  if (totalLen < spacing) return [points[0], points[points.length - 1]];
+
+  const numSamples = Math.max(2, Math.ceil(totalLen / spacing) + 1);
+  const result: Array<[number, number]> = [points[0]];
+  let segIdx = 0;
+
+  for (let si = 1; si < numSamples - 1; si++) {
+    const targetLen = (si / (numSamples - 1)) * totalLen;
+    // Advance to the segment containing targetLen
+    while (segIdx < cumLen.length - 2 && cumLen[segIdx + 1] < targetLen) segIdx++;
+    const segLen = cumLen[segIdx + 1] - cumLen[segIdx];
+    const t = segLen > 0 ? (targetLen - cumLen[segIdx]) / segLen : 0;
+    result.push([
+      points[segIdx][0] + t * (points[segIdx + 1][0] - points[segIdx][0]),
+      points[segIdx][1] + t * (points[segIdx + 1][1] - points[segIdx][1]),
+    ]);
+  }
+
+  result.push(points[points.length - 1]);
+  return result;
+}
+
+// ==================== Path Erosion ====================
 
 /**
  * Apply subtle terrain erosion along computed reference paths.
