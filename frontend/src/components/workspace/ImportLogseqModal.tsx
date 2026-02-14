@@ -690,10 +690,18 @@ function mapPropertyType(logseqType: string): PropertyType {
  * Build AST document from Logseq block text, converting [[uuid]] references
  * to proper node_link AST nodes with compound link_id (nodeUuid:linkUuid).
  *
+ * Also handles labeled links: [label]([[uuid]]) → node_link (label is dropped
+ * since the AST doesn't carry labels; the pill will show the target node name).
+ *
  * The backend will parse these node_link entries and automatically create
  * records in the node_link DB table.
  */
-const UUID_LINK_RE = /\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/gi;
+const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+// Matches both [label]([[uuid]]) and bare [[uuid]] — labeled form first so it takes priority
+const NODE_LINK_RE = new RegExp(
+  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]`,
+  'gi'
+);
 
 function buildAstFromLogseqText(
   rawText: string,
@@ -704,9 +712,10 @@ function buildAstFromLogseqText(
   const children: ASTInlineNode[] = [];
   let lastIndex = 0;
 
-  // Find all [[uuid]] patterns and convert to node_link AST nodes
-  for (const match of rawText.matchAll(UUID_LINK_RE)) {
-    const logseqUuid = match[1];
+  // Find all [[uuid]] and [label]([[uuid]]) patterns → node_link AST nodes
+  for (const match of rawText.matchAll(NODE_LINK_RE)) {
+    // Group 1 = labeled form uuid, Group 2 = bare form uuid
+    const logseqUuid = match[1] ?? match[2];
     const matchStart = match.index ?? 0;
 
     // Add preceding plain text
@@ -721,7 +730,7 @@ function buildAstFromLogseqText(
       const linkId = buildLinkId(target.uuid, linkInstanceUuid);
       children.push(nodeLink(linkId, 'node'));
     }
-    // If target not found, skip the [[uuid]] entirely (remove dead link)
+    // If target not found, skip the link entirely (remove dead link)
 
     lastIndex = matchStart + match[0].length;
   }
