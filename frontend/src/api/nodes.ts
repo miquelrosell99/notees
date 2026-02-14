@@ -11,6 +11,10 @@ import type {
   BacklinksResponse,
   LinkedReference,
   LinkedReferencesResponse,
+  BatchNodeCreateRequest,
+  BatchNodeCreateResponse,
+  BatchNodeUpdateRequest,
+  BatchNodeUpdateResponse,
 } from '@/types/api';
 
 const BASE = '/nodes';
@@ -149,6 +153,26 @@ export async function getOrCreateYearly(year: number): Promise<Node> {
  */
 export async function updateNode(id: number, data: NodeUpdate): Promise<Node> {
   const response = await api.put<Node>(`${BASE}/${id}`, data);
+  return response.data;
+}
+
+/**
+ * Create multiple nodes in a single batch.
+ * Each node is processed independently — failures don't block others.
+ * Useful for Logseq / bulk imports.
+ */
+export async function batchCreateNodes(request: BatchNodeCreateRequest): Promise<BatchNodeCreateResponse> {
+  const response = await api.post<BatchNodeCreateResponse>(`${BASE}/batch`, request);
+  return response.data;
+}
+
+/**
+ * Update multiple nodes in a single batch.
+ * Nodes can be identified by id or uuid.
+ * Useful for Logseq / bulk imports where many blocks need content updates.
+ */
+export async function batchUpdateNodes(request: BatchNodeUpdateRequest): Promise<BatchNodeUpdateResponse> {
+  const response = await api.put<BatchNodeUpdateResponse>(`${BASE}/batch`, request);
   return response.data;
 }
 
