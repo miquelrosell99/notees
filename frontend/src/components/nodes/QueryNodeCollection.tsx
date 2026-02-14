@@ -25,6 +25,8 @@ import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection } from './NodeCollection';
+import { PropertyReferencesSection, type PropertyRefItem } from './PropertyReferencesSection';
+import type { Node } from '@/types';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { Badge } from '../core/Badge';
@@ -359,16 +361,34 @@ export function QueryNodeCollection({
   // Extract nodes from linked references and attach metadata
   // Show page collapsed only when link comes from a property on a PAGE
   // For links in blocks (including text properties of blocks), show the block
-  const linkedReferencesNodes = useMemo(() => {
-    if (!linkedReferencesData) return [];
+  const { linkedReferencesNodes, propertyRefItems } = useMemo(() => {
+    if (!linkedReferencesData) return { linkedReferencesNodes: [] as Node[], propertyRefItems: [] as PropertyRefItem[] };
     
     const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
     
-    return linkedReferencesData.map(ref => {
+    const nodes: Node[] = [];
+    const propRefItems: PropertyRefItem[] = [];
+    
+    for (const ref of linkedReferencesData) {
       // Check if link has property context (direct property link or text link in text property)
       const isPropertyLink = ref.link_type === 'property';
       const hasPropertyInBreadcrumbs = ref.breadcrumb_path?.some(seg => seg.is_property) ?? false;
       const isPropertyContext = isPropertyLink || hasPropertyInBreadcrumbs;
+      
+      // Property reference on a page → goes into the separate property refs section (list view only)
+      const isPropertyRefPage = isPropertyContext && ref.source_node.is_page && ref.property_id;
+      
+      if (isListView && isPropertyRefPage) {
+        // Extract as a property reference page item for the top section
+        const pageNode = ref.source_page ?? ref.source_node;
+        propRefItems.push({
+          ref,
+          pageNode,
+          propertyId: ref.property_id!,
+          propertyName: ref.property_name ?? '',
+        });
+        continue;
+      }
       
       // Show page collapsed only when:
       // 1. It's a property-context link AND
@@ -388,7 +408,7 @@ export function QueryNodeCollection({
         page_uuid: ref.source_page.uuid,
       } : {};
       
-      return {
+      nodes.push({
         ...displayNode,
         ...pageInfo,
         // Set collapsed state for pages in list view - always collapsed on load
@@ -402,8 +422,10 @@ export function QueryNodeCollection({
           // Store the actual node ID (for fetching properties in PropertyReferencesDisplay)
           sourceNodeId: ref.source_node.id,
         },
-      };
-    });
+      } as Node);
+    }
+    
+    return { linkedReferencesNodes: nodes, propertyRefItems: propRefItems };
   }, [linkedReferencesData, nodeId, collectionViewMode]);
 
   // Execute ad-hoc query for pseudo-nodes
@@ -629,7 +651,7 @@ export function QueryNodeCollection({
     });
   }
 
-  const resultCount = resultNodes.length;
+  const resultCount = resultNodes.length + propertyRefItems.length;
 
   // Resolve leftElement (can be static or function)
   const resolvedLeftElement = typeof leftElement === 'function' 
@@ -691,40 +713,53 @@ export function QueryNodeCollection({
       {isQueryLoading ? (
         <div className="query-section__loading">Loading...</div>
       ) : (
-        <NodeCollection
-          nodes={resultNodes}
-          viewId={activeView?.id}
-          view={activeView}
-          viewMode={collectionViewMode}
-          availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
-          onViewModeChange={handleViewModeChange}
-          editable={can_edit}
-          hideToolbar={hideToolbar}
-          toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
-          leftElement={resolvedLeftElement}
-          hideToolbarControls={hideToolbarControls}
-          hideContent={hideContent}
-          showGroupBy={!hideViewManagement && collectionViewMode === 'list'}
-          groupBy={groupBy}
-          onGroupByChange={setGroupBy}
-          showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
-          onAdd={effectiveCanCreate ? handleAddNode : undefined}
-          can_create={can_create}
-          can_edit={can_edit}
-          can_delete={can_delete}
-          pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
-          showClasses={showClasses}
-          pageId={viewType === 'child_pages' ? nodeId : undefined}
-          pageUuid={viewType === 'child_pages' ? nodeUuid : undefined}
-          selectedPropertyUuids={selectedPropertyUuids}
-          onPropertyColumnsChange={handlePropertyColumnsChange}
-          onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-          emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
-          autoCollapse={true}
-          containerCard={viewType !== 'all_pages'}
-          activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
-          onAddClass={handleAddClass}
-        />
+        <>
+          {/* Property references section - shown before regular results in list view */}
+          {viewType === 'linked_references' && propertyRefItems.length > 0 && (
+            <PropertyReferencesSection
+              items={propertyRefItems}
+              editable={can_edit}
+              onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+              onNodeShiftClick={(node) => onNodeClick?.(node.id, node.is_page)}
+              onAddClass={handleAddClass}
+            />
+          )}
+          <NodeCollection
+            nodes={resultNodes}
+            viewId={activeView?.id}
+            view={activeView}
+            viewMode={collectionViewMode}
+            availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
+            onViewModeChange={handleViewModeChange}
+            editable={can_edit}
+            hideToolbar={hideToolbar}
+            toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
+            leftElement={resolvedLeftElement}
+            hideToolbarControls={hideToolbarControls}
+            hideContent={hideContent}
+            showGroupBy={!hideViewManagement && collectionViewMode === 'list'}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
+            onAdd={effectiveCanCreate ? handleAddNode : undefined}
+            can_create={can_create}
+            can_edit={can_edit}
+            can_delete={can_delete}
+            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
+            showClasses={showClasses}
+            pageId={viewType === 'child_pages' ? nodeId : undefined}
+            pageUuid={viewType === 'child_pages' ? nodeUuid : undefined}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={handlePropertyColumnsChange}
+            onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+            emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
+            showEmpty={propertyRefItems.length === 0}
+            autoCollapse={true}
+            containerCard={viewType !== 'all_pages'}
+            activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
+            onAddClass={handleAddClass}
+          />
+        </>
       )}
 
       {/* Edit Modal */}
