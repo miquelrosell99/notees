@@ -282,6 +282,7 @@ export const CONTOUR_LEVELS: number[] = Array.from(
 
 // Terrain height map parameters (spline smoothing allows coarser grid)
 export const TERRAIN_GRID_RES = 4;
+export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.25; // Controls contour spline detail (lower = more detail)
 export const TERRAIN_BASE_PLATEAU_RADIUS = 14;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
 export const TERRAIN_BASE_SLOPE_RADIUS = 120;
