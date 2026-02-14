@@ -82,7 +82,9 @@ export function ListView({
 
     // Node not in runtime — fetch by UUID from API
     try {
-      const node = await getNodeByUuid(blockId);
+      const { parseLinkId } = await import('@/lib/astBuilder');
+      const { nodeUuid } = parseLinkId(blockId);
+      const node = await getNodeByUuid(nodeUuid);
       onNodeClick?.(node);
     } catch {
       // Node not found

@@ -8,7 +8,7 @@
  * - Click on bullet: navigate to focused view
  */
 
-import { useState, useEffect, useCallback, type JSX } from 'react';
+import { useState, useEffect, useCallback, useMemo, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 
@@ -16,6 +16,7 @@ import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../BlockEditor';
 import { useNodeByUuid } from '../../hooks/useNodeQueries';
+import { parseLinkId } from '../../lib/astBuilder';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import type { Node } from '../../types/api';
 
@@ -205,7 +206,11 @@ export function ContextMenuPlugin({
 
   // Fetch linked node data when showing a pill context menu
   const pillLinkId = contextMenu?.pillLinkId ?? null;
-  const { data: pillNode } = useNodeByUuid(pillLinkId);
+  const pillNodeUuid = useMemo(() => {
+    if (!pillLinkId) return null;
+    return parseLinkId(pillLinkId).nodeUuid;
+  }, [pillLinkId]);
+  const { data: pillNode } = useNodeByUuid(pillNodeUuid);
 
   // Render context menu
   if (!contextMenu) return null;
