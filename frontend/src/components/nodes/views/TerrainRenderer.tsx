@@ -26,7 +26,6 @@ import {
   LINE_DASH_NONE,
   CONTOUR_LEVELS,
   TERRAIN_GRID_RES,
-  TERRAIN_DECIMATION_EPSILON_MULTIPLIER,
   TERRAIN_BASE_PLATEAU_RADIUS,
   TERRAIN_PEAK_PLATEAU_BONUS,
   TERRAIN_BASE_SLOPE_RADIUS,
@@ -904,9 +903,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       return left.slice(0, -1).concat(right);
     };
 
-    // Epsilon = grid cell multiplier — points closer than this to the line between
+    // Epsilon = half a grid cell — points closer than this to the line between
     // their neighbours are invisible and will be reconstructed by the spline
-    const decimationEpsilon = gs * TERRAIN_DECIMATION_EPSILON_MULTIPLIER;
+    const decimationEpsilon = gs * 0.5;
 
     const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
     for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
