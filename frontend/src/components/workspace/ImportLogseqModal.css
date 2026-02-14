@@ -102,6 +102,67 @@
   50% { opacity: 0.5; }
 }
 
+/* ── Import mode selector ───────────────────────────────────── */
+
+.import-logseq__mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.import-logseq__mode-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.import-logseq__mode-buttons {
+  display: flex;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.import-logseq__mode-btn {
+  padding: 4px 14px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.import-logseq__mode-btn:not(:last-child) {
+  border-right: 1px solid var(--color-outline-variant);
+}
+
+.import-logseq__mode-btn:hover:not(:disabled) {
+  background: var(--color-surface-container);
+}
+
+.import-logseq__mode-btn--active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.import-logseq__mode-btn--active:hover:not(:disabled) {
+  background: var(--color-primary);
+}
+
+.import-logseq__mode-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.import-logseq__mode-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+}
+
 /* ── Import report ──────────────────────────────────────────── */
 
 .import-logseq__report {
