@@ -234,6 +234,10 @@ export const TERRAIN_PEAK_FOOTPRINT = 120;
 export const TERRAIN_SEPARATION_STRENGTH = 0.15;
 export const TERRAIN_MIN_SEPARATION = 5;
 
+// Reference-linked node separation (ensures valleys between peaks for path routing)
+export const TERRAIN_REF_LINK_MIN_SEPARATION = 180; // minimum distance in world units
+export const TERRAIN_REF_LINK_SEPARATION_STRENGTH = 0.06; // repulsion strength (gentle)
+
 // ==================== Rendering Constants ====================
 
 // Node radii

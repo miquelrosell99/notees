@@ -69,6 +69,9 @@ export interface GraphRendererRef {
   createNode: (node: GraphNode) => void;
   destroyNode: (nodeId: number) => void;
   updateLinks: (links: GraphLink[]) => void;
+  pauseSimulation: () => void;
+  resumeSimulation: () => void;
+  simulationPausedRef: React.MutableRefObject<boolean>;
 }
 
 // ==================== Component ====================
@@ -137,6 +140,9 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     dragLiftProgressRef,
     wakeSimulation,
     simulationSleepingRef,
+    pauseSimulation,
+    resumeSimulation,
+    simulationPausedRef,
     ctxRef,
     renderRef,
     recenter,
@@ -160,7 +166,10 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     createNode,
     destroyNode,
     updateLinks,
-  }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks]);
+    pauseSimulation,
+    resumeSimulation,
+    simulationPausedRef,
+  }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks, pauseSimulation, resumeSimulation]);
   
   // Container resize
   useEffect(() => {
