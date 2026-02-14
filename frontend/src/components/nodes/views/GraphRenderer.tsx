@@ -447,14 +447,18 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       
       // Node circle
       let displayColor = nodeColor;
+      let nodeOpacity = 1;
       if (node.glare === 'dim') {
         displayColor = dimColor;
+        nodeOpacity = 0.25;
       }
       
       ctx.beginPath();
+      ctx.globalAlpha = nodeOpacity;
       ctx.fillStyle = displayColor;
       ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
       ctx.fill();
+      ctx.globalAlpha = 1;
       
       // Pin indicator
       if (node.pinned) {
@@ -481,7 +485,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         : currentScale >= LABEL_FADE_ZOOM_MAX 
           ? 1 
           : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
-      const dimOpacity = node.glare === 'dim' ? 0.4 : 1;
+      const dimOpacity = node.glare === 'dim' ? 0.12 : 1;
       const labelOpacity = zoomOpacity * dimOpacity;
       
       ctx.fillStyle = textColor;
@@ -537,9 +541,15 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
       ctx.fill();
       ctx.beginPath();
-      ctx.fillStyle = node.glare === 'dim' ? dimColor : nodeColor;
+      if (node.glare === 'dim') {
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = dimColor;
+      } else {
+        ctx.fillStyle = nodeColor;
+      }
       ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
       ctx.fill();
+      ctx.globalAlpha = 1;
       if (node.pinned) {
         ctx.save();
         ctx.shadowColor = hexToRgba(outlineColor, 0.3); ctx.shadowBlur = 3; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1;
@@ -549,7 +559,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       }
       const currentScale = transformRef.current.scale;
       const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN ? 0 : currentScale >= LABEL_FADE_ZOOM_MAX ? 1 : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
-      const dimOp = node.glare === 'dim' ? 0.4 : 1;
+      const dimOp = node.glare === 'dim' ? 0.12 : 1;
       ctx.fillStyle = textColor; ctx.globalAlpha = zoomOpacity * dimOp;
       ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       const displayName = node.name.length > 35 ? node.name.slice(0, 35) + '...' : node.name;
