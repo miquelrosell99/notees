@@ -258,6 +258,7 @@ export interface LogseqBlock {
 export interface LogseqPage {
   title: string;
   uuid?: string;
+  journal?: string;     // YYYY-MM-DD date string for journal/daily pages
   tags?: string[];      // class ids
   aliases?: string[];   // alias page titles (from logseq.property/alias)
   properties?: Record<string, unknown>;
@@ -365,7 +366,15 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       const pageMap = mapGet(entry, 'page');
       if (!pageMap || !(pageMap instanceof Map)) continue;
 
-      const title = asString(mapGet(pageMap, 'block/title')) ?? '';
+      // Detect journal/daily pages (have build/journal but no block/title)
+      const journalRaw = mapGet(pageMap, 'build/journal');
+      let journalDate: string | undefined;
+      if (typeof journalRaw === 'number') {
+        const s = String(journalRaw);
+        if (s.length === 8) journalDate = `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      }
+
+      const title = asString(mapGet(pageMap, 'block/title')) ?? (journalDate ?? '');
       const uuidTagged = mapGet(pageMap, 'block/uuid');
       const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
 
@@ -416,6 +425,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       pages.push({
         title,
         uuid,
+        journal: journalDate,
         tags: tags.length > 0 ? tags : undefined,
         aliases: pageAliases.length > 0 ? pageAliases : undefined,
         properties: Object.keys(pageProperties).length > 0 ? pageProperties : undefined,
