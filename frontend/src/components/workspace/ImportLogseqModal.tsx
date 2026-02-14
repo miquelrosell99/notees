@@ -25,7 +25,7 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty } from '@/api/nodes';
 import { listProperties, updateProperty } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -148,6 +148,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const classIdMap = new Map<string, number>();
       const titleToNodeInfo = new Map<string, NodeInfo>();
       const contentQueue: Array<{ id: number; title: string }> = [];
+      /** Track node IDs that already existed before import */
+      const existingNodeIds = new Set<number>();
 
       // ──────────────────────────────────────────────────────────
       // PHASE 1: Create classes (as type nodes)
@@ -287,6 +289,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           if (page.journal) {
             try {
               const dayNode = await getOrCreateDaily(page.journal);
+              existingNodeIds.add(dayNode.id); // Daily nodes may pre-exist
               if (page.uuid) {
                 uuidMap.set(page.uuid, { id: dayNode.id, uuid: dayNode.uuid });
               }
@@ -313,6 +316,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           );
 
           if (existingPage) {
+            existingNodeIds.add(existingPage.id);
             if (page.uuid) {
               uuidMap.set(page.uuid, { id: existingPage.id, uuid: existingPage.uuid });
             }
@@ -408,10 +412,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         if (!page.properties || !page.uuid) continue;
         const nodeInfo = uuidMap.get(page.uuid);
         if (!nodeInfo) continue;
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5);
+        const isExisting = existingNodeIds.has(nodeInfo.id);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
       }
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
       }
 
       // ──────────────────────────────────────────────────────────
@@ -659,8 +664,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             />
             <span className="import-logseq__mode-hint">
               {importMode === 'additive'
-                ? 'Only creates new entities; skips existing ones'
-                : 'Updates existing entities with imported data'}
+                ? 'Adds new entities and merges new properties into existing nodes'
+                : 'Replaces existing node properties with imported data'}
             </span>
           </div>
         )}
@@ -831,10 +836,48 @@ async function assignProperties(
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
+  override: boolean = false,
+  isExistingNode: boolean = false,
 ) {
+  // For existing nodes, fetch current properties to determine what to skip/delete
+  let existingProperties: Record<number, unknown> | undefined;
+  if (isExistingNode) {
+    try {
+      const fullNode = await getNode(nodeId, { include_properties: true });
+      existingProperties = fullNode.properties ?? {};
+    } catch {
+      existingProperties = {};
+    }
+
+    if (override) {
+      // Override mode: delete all existing properties that are NOT in the import set
+      const importedPropIds = new Set(
+        Object.keys(properties)
+          .map(logseqId => propIdMap.get(logseqId))
+          .filter((id): id is number => id !== undefined)
+      );
+      for (const existingPropIdStr of Object.keys(existingProperties!)) {
+        const existingPropId = Number(existingPropIdStr);
+        if (!importedPropIds.has(existingPropId)) {
+          try {
+            setImportStatus(`Removing old property from: ${label}`);
+            await removeProperty(nodeId, existingPropId);
+          } catch { /* property may already be gone, ignore */ }
+        }
+      }
+    }
+  }
+
   for (const [logseqPropId, rawValue] of Object.entries(properties)) {
     const noteesPropId = propIdMap.get(logseqPropId);
     if (!noteesPropId) continue;
+
+    // Additive mode on existing node: skip properties that already have values
+    if (isExistingNode && !override && existingProperties && noteesPropId in existingProperties) {
+      phase.succeeded++;
+      continue;
+    }
+
     try {
       const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo);
       if (resolved !== undefined) {
@@ -862,19 +905,23 @@ async function assignBlockProperties(
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
+  override: boolean = false,
+  existingNodeIds: Set<number> = new Set(),
 ) {
   for (const block of blocks) {
     if (block.properties && block.uuid) {
       const nodeInfo = uuidMap.get(block.uuid);
       if (nodeInfo) {
+        const isExisting = existingNodeIds.has(nodeInfo.id);
         await assignProperties(
           block.properties, nodeInfo.id, block.title || '(block)',
           propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase,
+          override, isExisting,
         );
       }
     }
     if (block.children) {
-      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase);
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
     }
   }
 }
