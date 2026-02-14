@@ -280,8 +280,8 @@ export const CONTOUR_LEVELS: number[] = Array.from(
   (_, i) => (i + 1) / (TERRAIN_CONTOUR_COUNT + 1)
 );
 
-// Terrain height map parameters
-export const TERRAIN_GRID_RES = 4;
+// Terrain height map parameters (spline smoothing allows coarser grid)
+export const TERRAIN_GRID_RES = 6;
 export const TERRAIN_BASE_PLATEAU_RADIUS = 14;
 export const TERRAIN_PEAK_PLATEAU_BONUS = 25;
 export const TERRAIN_BASE_SLOPE_RADIUS = 120;
@@ -475,4 +475,47 @@ export const findPathBetweenNodes = (
   }
   
   return [];
+};
+
+// ==================== Shared Color Palettes ====================
+
+/** Resolve a CSS variable to its computed value */
+const resolveCssColor = (varName: string, fallback: string): string => {
+  const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return val || fallback;
+};
+
+/** Preset color CSS variable names in order */
+const PRESET_COLOR_VARS = [
+  '--color-preset-red',
+  '--color-preset-orange',
+  '--color-preset-yellow',
+  '--color-preset-green',
+  '--color-preset-teal',
+  '--color-preset-blue',
+  '--color-preset-purple',
+  '--color-preset-pink',
+] as const;
+
+/** Resolve class color palette from --color-preset-* CSS variables */
+export const getClassColorPalette = (): string[] =>
+  PRESET_COLOR_VARS.map(v => resolveCssColor(v, '#808080'));
+
+/** Resolve node picker palette from --color-preset-* CSS variables (with null = no color) */
+export const getNodePickerPalette = (): (string | null)[] => [
+  null,
+  ...getClassColorPalette(),
+];
+
+/** Resolve date lane palette (subset of preset colors) */
+export const getDateLanePalette = (): string[] => {
+  const vars = [
+    '--color-preset-red',
+    '--color-preset-purple',
+    '--color-preset-pink',
+    '--color-preset-yellow',
+    '--color-preset-orange',
+    '--color-preset-teal',
+  ];
+  return vars.map(v => resolveCssColor(v, '#808080'));
 };

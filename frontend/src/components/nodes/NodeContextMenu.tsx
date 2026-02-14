@@ -19,14 +19,8 @@ import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { SearchBox } from '../core/SearchBox';
 import type { Node, NodeUpdate } from '@/types';
+import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import './NodeContextMenu.css';
-
-// Color palette for node color picker (subset for quick access)
-const NODE_COLORS = [
-  null, // No color
-  '#ff4d4d', '#ff9933', '#ffcc00', '#33cc33', 
-  '#00b3b3', '#3366ff', '#9933ff', '#ff33cc',
-];
 
 // ==================== Common Context Menu Items ====================
 
@@ -48,6 +42,7 @@ interface ColorPickerRowProps {
 }
 
 export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowProps) {
+  const nodeColors = useMemo(() => getNodePickerPalette(), []);
   // Stop propagation to prevent ContextMenu's outside click handler from closing the menu
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -68,7 +63,7 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
     >
       <span className="context-menu-color-label">Color</span>
       <div className="context-menu-color-swatches">
-        {NODE_COLORS.map((color) => (
+        {nodeColors.map((color) => (
           <button
             key={color || 'none'}
             className={`context-menu-color-swatch ${currentColor === color ? 'selected' : ''} ${!color ? 'no-color' : ''}`}

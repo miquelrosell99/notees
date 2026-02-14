@@ -109,8 +109,8 @@ export function SelectionPlugin({
       const box = document.createElement('div');
       box.className = 'selection-box';
       box.style.position = 'fixed';
-      box.style.border = '1px solid var(--color-accent, #3b82f6)';
-      box.style.background = 'rgba(59, 130, 246, 0.1)';
+      box.style.border = '1px solid var(--color-accent)';
+      box.style.background = 'var(--color-focus-overlay)';
       box.style.pointerEvents = 'none';
       box.style.zIndex = '1000';
       document.body.appendChild(box);
