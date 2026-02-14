@@ -25,7 +25,7 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -395,12 +395,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 3b: Set page parents (namespace hierarchy)
+      // PHASE 3b: Set page parents (namespace hierarchy) — batched
       // ──────────────────────────────────────────────────────────
       const pagesWithParent = parsed.pages.filter(p => p.parent);
       if (pagesWithParent.length > 0) {
         const p3b = createPhase('Set page parents');
         phases.push(p3b);
+
+        // Build batch update items, skipping unresolved pages
+        const batchItems: Array<{ id: number; parent_id: number }> = [];
+        const batchMeta: Array<{ pageTitle: string; parentTitle: string }> = [];
+
         for (const page of pagesWithParent) {
           const pageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
           const parentInfo = titleToNodeInfo.get(page.parent!);
@@ -412,13 +417,24 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             });
             continue;
           }
-          setImportStatus(`Setting parent: ${page.title} → ${page.parent}`);
-          try {
-            await updateNodeMutation.mutateAsync({ id: pageInfo.id, data: { parent_id: parentInfo.id } });
-            p3b.succeeded++;
-          } catch (e) {
-            p3b.failed++;
-            p3b.errors.push({ item: `${page.title} → ${page.parent}`, message: errorMessage(e) });
+          batchItems.push({ id: pageInfo.id, parent_id: parentInfo.id });
+          batchMeta.push({ pageTitle: page.title, parentTitle: page.parent! });
+        }
+
+        if (batchItems.length > 0) {
+          setImportStatus(`Setting page parents (${batchItems.length} pages)…`);
+          const batchResult = await batchUpdateNodes({ nodes: batchItems });
+          for (const result of batchResult.results) {
+            if (result.success) {
+              p3b.succeeded++;
+            } else {
+              p3b.failed++;
+              const meta = batchMeta[result.index];
+              p3b.errors.push({
+                item: `${meta?.pageTitle} → ${meta?.parentTitle}`,
+                message: result.error || 'Unknown error',
+              });
+            }
           }
         }
       }
@@ -472,22 +488,39 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 6: Update node content with proper AST + links
+      // PHASE 6: Update node content with proper AST + links — batched
       // ──────────────────────────────────────────────────────────
       const p6 = createPhase('Set content & links');
       phases.push(p6);
       if (contentQueue.length > 0) {
-        setImportStatus(`Setting content with links (${contentQueue.length} nodes)…`);
+        // Build batch items, converting content to AST ahead of time
+        const batchItems: Array<{ id: number; name: string }> = [];
+        const BATCH_SIZE = 50; // Send in chunks to avoid oversized requests
+
         for (const { id, title } of contentQueue) {
           if (!title) continue;
           try {
             const ast = buildAstFromLogseqText(title, uuidMap);
-            const astJson = JSON.stringify(ast);
-            await updateNodeMutation.mutateAsync({ id, data: { name: astJson } });
-            p6.succeeded++;
+            batchItems.push({ id, name: JSON.stringify(ast) });
           } catch (e) {
             p6.failed++;
             p6.errors.push({ item: `Node ${id}`, message: errorMessage(e) });
+          }
+        }
+
+        // Send in chunks
+        for (let offset = 0; offset < batchItems.length; offset += BATCH_SIZE) {
+          const chunk = batchItems.slice(offset, offset + BATCH_SIZE);
+          setImportStatus(`Setting content with links (${offset + 1}–${offset + chunk.length} of ${batchItems.length})…`);
+          const batchResult = await batchUpdateNodes({ nodes: chunk });
+          for (const result of batchResult.results) {
+            if (result.success) {
+              p6.succeeded++;
+            } else {
+              p6.failed++;
+              const item = chunk[result.index];
+              p6.errors.push({ item: `Node ${item?.id}`, message: result.error || 'Unknown error' });
+            }
           }
         }
       }
@@ -561,7 +594,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     }
   }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, addClassMutation, onClose]);
 
-  /** Recursively create blocks under a parent, tracking content for phase 6 */
+  /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
+   *  Sibling blocks are created in a single batch request. Children are processed
+   *  after the batch returns (they need the parent node ID from the result).
+   */
   const createBlocksRecursively = async (
     blocks: LogseqBlock[],
     parentId: number,
@@ -571,9 +607,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     contentQueue: Array<{ id: number; title: string }>,
     phase: PhaseResult,
   ) => {
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i];
+    if (blocks.length === 0) return;
 
+    // Build batch items for all siblings at this level
+    const batchItems = blocks.map((block, i) => {
       const blockClasses: number[] = [];
       if (block.tags) {
         for (const tag of block.tags) {
@@ -581,34 +618,50 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           if (mapped) blockClasses.push(mapped);
         }
       }
+      return {
+        name: '',
+        parent_id: parentId,
+        sequence: startSequence + i,
+        ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
+      };
+    });
 
-      try {
-        const node = await createNodeMutation.mutateAsync({
-          name: '',
-          parent_id: parentId,
-          sequence: startSequence + i,
-          ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
-        });
+    // Create all siblings in one batch request
+    const batchResult = await batchCreateNodes({ nodes: batchItems });
 
-        if (block.uuid) {
-          uuidMap.set(block.uuid, { id: node.id, uuid: node.uuid });
-        }
+    // Process results and queue children
+    const childWork: Array<{ block: LogseqBlock; parentNodeId: number }> = [];
 
-        if (block.title) {
-          contentQueue.push({ id: node.id, title: block.title });
-        }
-
+    for (const result of batchResult.results) {
+      const block = blocks[result.index];
+      if (result.success && result.node) {
         phase.succeeded++;
 
-        if (block.children && block.children.length > 0) {
-          await createBlocksRecursively(
-            block.children, node.id, 0, uuidMap, classIdMap, contentQueue, phase,
-          );
+        if (block.uuid) {
+          uuidMap.set(block.uuid, { id: result.node.id, uuid: result.node.uuid });
         }
-      } catch (e) {
+        if (block.title) {
+          contentQueue.push({ id: result.node.id, title: block.title });
+        }
+
+        // Queue children for recursive processing
+        if (block.children && block.children.length > 0) {
+          childWork.push({ block, parentNodeId: result.node.id });
+        }
+      } else {
         phase.failed++;
-        phase.errors.push({ item: `Block: ${block.title.slice(0, 60) || '(empty)'}`, message: errorMessage(e) });
+        phase.errors.push({
+          item: `Block: ${block.title?.slice(0, 60) || '(empty)'}`,
+          message: result.error || 'Unknown error',
+        });
       }
+    }
+
+    // Recursively create children (each group is batched too)
+    for (const { block, parentNodeId } of childWork) {
+      await createBlocksRecursively(
+        block.children!, parentNodeId, 0, uuidMap, classIdMap, contentQueue, phase,
+      );
     }
   };
 
