@@ -120,6 +120,18 @@ export function SuggestionPopup({
     return allNodes.filter(n => selectedIds.has(n.id));
   }, [multiSelect, selectedIds, allNodes]);
   
+  // Build complete node list for alias resolution
+  const allSearchNodes = useMemo(() => {
+    return [...pageResults.map(r => r.node), ...blockResults.map(r => r.node)];
+  }, [pageResults, blockResults]);
+  
+  // Helper to resolve aliased node name
+  const getAliasedNodeName = useCallback((node: Node): string | null => {
+    if (!node.aliased_id) return null;
+    const aliasedNode = allSearchNodes.find(n => n.id === node.aliased_id) || allNodes.find(n => n.id === node.aliased_id);
+    return aliasedNode ? (nodeNameToText(aliasedNode.name) || 'Unknown') : null;
+  }, [allSearchNodes, allNodes]);
+  
   // Combined list for navigation (in multi-select mode, exclude already selected)
   const allItems = useMemo(() => {
     const items = [...pageResults, ...blockResults];
@@ -437,6 +449,7 @@ export function SuggestionPopup({
                 )}
                 {pageResults.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
+                  const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <button
                       key={`page-${item.node.id}`}
@@ -450,6 +463,11 @@ export function SuggestionPopup({
                       <span className="suggestion-popup__item-name">
                         {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
+                      {aliasedName && (
+                        <span className="suggestion-popup__item-alias">
+                          alias of: {aliasedName}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -480,6 +498,7 @@ export function SuggestionPopup({
                 <div className="suggestion-popup__section-header">Blocks</div>
                 {blockResults.map((item, index) => {
                   const globalIndex = blockStartIndex + index;
+                  const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <button
                       key={`block-${item.node.id}`}
@@ -493,6 +512,11 @@ export function SuggestionPopup({
                       <span className="suggestion-popup__item-name">
                         {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
+                      {aliasedName && (
+                        <span className="suggestion-popup__item-alias">
+                          alias of: {aliasedName}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -510,6 +534,7 @@ export function SuggestionPopup({
                 {allItems.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
                   const isChecked = multiSelect && selectedIds.has(item.node.id);
+                  const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <button
                       key={`result-${item.node.id}`}
@@ -531,6 +556,11 @@ export function SuggestionPopup({
                       <span className="suggestion-popup__item-name">
                         {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
+                      {aliasedName && (
+                        <span className="suggestion-popup__item-alias">
+                          alias of: {aliasedName}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
