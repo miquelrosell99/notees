@@ -64,7 +64,9 @@ export function DocumentView({
     }
     // Node not in runtime — fetch by UUID from API
     try {
-      const node = await getNodeByUuid(linkId);
+      const { parseLinkId } = await import('@/lib/astBuilder');
+      const { nodeUuid } = parseLinkId(linkId);
+      const node = await getNodeByUuid(nodeUuid);
       onNodeClick?.(node);
     } catch {
       // Node not found
