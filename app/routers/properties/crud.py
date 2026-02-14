@@ -94,7 +94,7 @@ async def create_property(
             async with acquire_connection(pool) as conn:
                 page_class_row = await conn.fetchrow(
                     "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-                    SYSTEM_CLASS_UUIDS["page"], user.workspace_id
+                    SYSTEM_CLASS_UUIDS["page"], repo._workspace_id
                 )
                 if page_class_row:
                     class_filters = [page_class_row['id']]
@@ -104,8 +104,8 @@ async def create_property(
     
     # Add selection lines for selection-type properties
     if prop_type == PropertyType.SELECTION:
-        for seq, line_name in enumerate(request.selection_lines):
-            await repo.add_selection_line(created.id, line_name, order=seq)
+        for line_name in request.selection_lines:
+            await repo.add_selection_line(created.id, line_name)
     
     # Reload to get full data
     reloaded = await repo.get_by_id(created.id)

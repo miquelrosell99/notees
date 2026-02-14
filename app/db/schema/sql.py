@@ -137,7 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
-CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
+-- Note: idx_node_aliased_id is created by migration block below (aliased_id may not exist on older DBs)
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
 
@@ -596,6 +596,9 @@ BEGIN
         CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
     END IF;
 END $$;
+
+-- Ensure aliased_id index exists (safe to run even if column was just created)
+CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
 
 -- ============================================================
 -- SCHEMA METADATA
