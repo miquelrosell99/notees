@@ -94,7 +94,7 @@ export function WorkspaceManagementView({
       // Navigate to home (no database in URL)
       window.history.replaceState(null, '', '/');
       
-      // Remove all cached data from previous database to prevent stale icons/data
+      // Remove ALL cached data from previous workspace to prevent stale data
       // Using removeQueries instead of invalidateQueries clears the cache immediately
       queryClient.removeQueries({ queryKey: ['nodes'] });
       queryClient.removeQueries({ queryKey: ['graph'] });
@@ -102,6 +102,11 @@ export function WorkspaceManagementView({
       queryClient.removeQueries({ queryKey: ['properties'] });
       queryClient.removeQueries({ queryKey: ['property-nodes'] });
       queryClient.removeQueries({ queryKey: ['page'] });
+      queryClient.removeQueries({ queryKey: ['trash'] });
+      queryClient.removeQueries({ queryKey: ['archived-pages'] });
+      queryClient.removeQueries({ queryKey: ['nodeViews'] });
+      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
+      queryClient.removeQueries({ queryKey: ['textLinks'] });
       
       // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });

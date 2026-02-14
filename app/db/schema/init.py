@@ -235,23 +235,40 @@ async def create_workspace_for_user(
 
 async def get_or_create_user_workspace(
     conn: asyncpg.Connection,
-    user_id: int
+    user_id: int,
+    workspace_name: str | None = None,
 ) -> int:
-    """Get the user's default workspace or create one if it doesn't exist.
+    """Get the user's workspace or create one if it doesn't exist.
+    
+    If workspace_name is provided, resolves that specific workspace.
+    Otherwise falls back to the user's first owned/shared workspace.
     
     Checks for:
-    1. Workspaces owned by the user (create_uid)
-    2. Workspaces shared with the user (workspace_share)
+    1. Specific workspace by name (if provided)
+    2. Workspaces owned by the user (create_uid)
+    3. Workspaces shared with the user (workspace_share)
     
     If none found, creates a new workspace.
     
     Args:
         conn: Database connection
         user_id: The user ID
+        workspace_name: Optional workspace name to resolve
         
     Returns:
         The workspace ID
     """
+    # If a specific workspace name is requested, resolve it first
+    if workspace_name:
+        row = await conn.fetchrow("""
+            SELECT g.id FROM workspace g
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
+            WHERE g.name = $1 AND g.active = TRUE
+              AND (g.create_uid = $2 OR gs.user_id = $2)
+        """, workspace_name, user_id)
+        if row:
+            return row['id']
+    
     # Check for existing workspace owned by user
     row = await conn.fetchrow("""
         SELECT id FROM workspace

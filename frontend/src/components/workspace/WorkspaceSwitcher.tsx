@@ -59,7 +59,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
       const newUrl = viewPath ? `/${viewPath}` : '/';
       window.history.replaceState(null, '', newUrl);
       
-      // Remove all cached data from previous database to prevent stale icons/data
+      // Remove ALL cached data from previous workspace to prevent stale data
       // Using removeQueries instead of invalidateQueries clears the cache immediately
       queryClient.removeQueries({ queryKey: ['nodes'] });
       queryClient.removeQueries({ queryKey: ['graph'] });
@@ -67,6 +67,11 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
       queryClient.removeQueries({ queryKey: ['properties'] });
       queryClient.removeQueries({ queryKey: ['property-nodes'] });
       queryClient.removeQueries({ queryKey: ['page'] });
+      queryClient.removeQueries({ queryKey: ['trash'] });
+      queryClient.removeQueries({ queryKey: ['archived-pages'] });
+      queryClient.removeQueries({ queryKey: ['nodeViews'] });
+      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
+      queryClient.removeQueries({ queryKey: ['textLinks'] });
       
       // Invalidate databases query to refetch the list (keep cache for smoother UX)
       queryClient.invalidateQueries({ queryKey: ['databases'] });

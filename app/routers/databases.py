@@ -11,6 +11,7 @@ import shutil
 
 from ..models import DatabaseCreate, User
 from ..domain import DatabaseNotFoundError, DuplicateDatabaseError
+from ..dependencies import invalidate_workspace_cache
 from .auth import get_current_user
 
 # Import legacy db - database management is infrastructure-level
@@ -61,6 +62,8 @@ async def switch_database(name: str, user: User = Depends(get_current_user)):
     success = await db.switch_database(user.id, name)
     if not success:
         raise HTTPException(status_code=404, detail=f"Database '{name}' not found")
+    # Invalidate cached workspace context so subsequent requests use the new workspace
+    invalidate_workspace_cache(int(user.id))
     return {"status": "ok", "active": name}
 
 
