@@ -34,7 +34,7 @@ import type {
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiPause, mdiPlay } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -563,6 +563,25 @@ export function GraphView({
                 />
               </div>
             )}
+
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Simulation"
+                description="Run or pause the physics simulation"
+                labelPosition="left"
+                checked={!simulationPaused}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    rendererRef.current?.resumeSimulation();
+                    setSimulationPaused(false);
+                  } else {
+                    rendererRef.current?.pauseSimulation();
+                    setSimulationPaused(true);
+                  }
+                }}
+              />
+            </div>
           </div>
         </ButtonWithPanel>
         
@@ -822,20 +841,6 @@ export function GraphView({
       
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">
-        <Button
-          icon={simulationPaused ? mdiPlay : mdiPause}
-          size="sm"
-          onClick={() => {
-            if (simulationPaused) {
-              rendererRef.current?.resumeSimulation();
-              setSimulationPaused(false);
-            } else {
-              rendererRef.current?.pauseSimulation();
-              setSimulationPaused(true);
-            }
-          }}
-          title={simulationPaused ? 'Resume simulation' : 'Pause simulation'}
-        />
         <Button
           icon={mdiCrosshairsGps}
           size="sm"
