@@ -509,7 +509,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         for (const { id, title } of contentQueue) {
           if (!title) continue;
           try {
-            const ast = buildAstFromLogseqText(title, uuidMap);
+            const ast = buildAstFromLogseqText(title, uuidMap, titleToNodeInfo);
             batchItems.push({ id, name: JSON.stringify(ast) });
           } catch (e) {
             p6.failed++;
@@ -919,25 +919,27 @@ function mapPropertyType(logseqType: string): PropertyType {
  * records in the node_link DB table.
  */
 const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-// Matches both [label]([[uuid]]) and bare [[uuid]] — labeled form first so it takes priority
+// Matches [label]([[uuid]]), bare [[uuid]], and bare [[name]] — labeled form first so it takes priority
 const NODE_LINK_RE = new RegExp(
-  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]`,
+  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\[\\[([^\\]]+)\\]\\]`,
   'gi'
 );
 
 function buildAstFromLogseqText(
   rawText: string,
   uuidMap: Map<string, NodeInfo>,
+  titleToNodeInfo?: Map<string, NodeInfo>,
 ): Array<{ type: string; children: ASTInlineNode[] }> {
   if (!rawText) return [];
 
   const children: ASTInlineNode[] = [];
   let lastIndex = 0;
 
-  // Find all [[uuid]] and [label]([[uuid]]) patterns → node_link AST nodes
+  // Find all [[uuid]], [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
   for (const match of rawText.matchAll(NODE_LINK_RE)) {
-    // Group 1 = labeled form uuid, Group 2 = bare form uuid
+    // Group 1 = labeled form uuid, Group 2 = bare form uuid, Group 3 = name-based link
     const logseqUuid = match[1] ?? match[2];
+    const linkName = match[3];
     const matchStart = match.index ?? 0;
 
     // Add preceding plain text
@@ -945,14 +947,23 @@ function buildAstFromLogseqText(
       children.push(astText(rawText.slice(lastIndex, matchStart)));
     }
 
-    const target = uuidMap.get(logseqUuid);
+    let target: NodeInfo | undefined;
+    if (logseqUuid) {
+      target = uuidMap.get(logseqUuid);
+    } else if (linkName && titleToNodeInfo) {
+      target = titleToNodeInfo.get(linkName);
+    }
+
     if (target) {
       // Build compound link_id: "targetNodeUuid:newLinkInstanceUuid"
       const linkInstanceUuid = crypto.randomUUID();
       const linkId = buildLinkId(target.uuid, linkInstanceUuid);
       children.push(nodeLink(linkId, 'node'));
+    } else if (linkName) {
+      // Name-based link with no matching node — keep as plain text without brackets
+      children.push(astText(linkName));
     }
-    // If target not found, skip the link entirely (remove dead link)
+    // If UUID target not found, skip the link entirely (remove dead link)
 
     lastIndex = matchStart + match[0].length;
   }
