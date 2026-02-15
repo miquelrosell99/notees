@@ -473,12 +473,11 @@ export function QueryNodeCollection({
     ? linkedReferencesLoading 
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
-  // Separate blocks and pages for list/document views
-  // Skip for page-only views like child_pages and all_pages
+  // Always separate blocks and pages
+  // In list/document view they render as separate sections; other views show all together
+  // Skip separation for page-scope queries (results are all pages anyway)
   const { resultBlocks, resultPages } = useMemo(() => {
-    const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
-    const isPageOnlyView = viewType === 'child_pages' || viewType === 'all_pages' || viewType === 'classed_nodes' || viewType === 'extended_by';
-    if (!isListView || isPageOnlyView) {
+    if (activeAST?.scope?.scope_type === 'pages') {
       return { resultBlocks: resultNodes, resultPages: [] as Node[] };
     }
     const blocks: Node[] = [];
@@ -491,7 +490,10 @@ export function QueryNodeCollection({
       }
     }
     return { resultBlocks: blocks, resultPages: pages };
-  }, [resultNodes, collectionViewMode, viewType]);
+  }, [resultNodes, activeAST?.scope?.scope_type]);
+
+  // Only render blocks/pages as separate sections in list/document view
+  const showPageSeparation = (collectionViewMode === 'list' || collectionViewMode === 'document') && resultPages.length > 0;
 
   // Preview query for edit modal
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
@@ -751,9 +753,9 @@ export function QueryNodeCollection({
         <div className="query-section__loading">Loading...</div>
       ) : (
         <>
-          {/* Blocks section (or all results when not separating) */}
+          {/* Main results - blocks only when separating, all results otherwise */}
           <NodeCollection
-            nodes={resultBlocks}
+            nodes={showPageSeparation ? resultBlocks : resultNodes}
             viewId={activeView?.id}
             view={activeView}
             viewMode={collectionViewMode}
@@ -781,15 +783,15 @@ export function QueryNodeCollection({
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
             emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
-            showEmpty={resultPages.length === 0}
+            showEmpty={!showPageSeparation}
             autoCollapse={true}
-            containerCard={resultPages.length > 0 ? false : viewType !== 'all_pages'}
+            containerCard={showPageSeparation ? false : viewType !== 'all_pages'}
             activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
           />
 
-          {/* Pages section - shown when block/page separation is active */}
-          {resultPages.length > 0 && (
+          {/* Pages section - only in list/document view */}
+          {showPageSeparation && (
             <>
               <div className="linked-references__pages-header">PAGES</div>
 
