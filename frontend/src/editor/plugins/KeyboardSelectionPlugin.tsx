@@ -19,10 +19,13 @@ import {
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
+  KEY_DELETE_COMMAND,
+  KEY_BACKSPACE_COMMAND,
   COMMAND_PRIORITY_HIGH,
 } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { selectBlockWithChildren, clearBlockSelection, findParentNodeBlock } from '../utils/selectionUtils';
+import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 
 export interface KeyboardSelectionPluginProps {
   editorId: string;
@@ -350,6 +353,46 @@ export function KeyboardSelectionPlugin({
     return () => {
       unsubLeft();
       unsubRight();
+    };
+  }, [editor, readOnly, onSelectionChange]);
+
+  // ─── Delete / Backspace: Delete all selected blocks ────────────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleDeleteSelected = (_event: KeyboardEvent) => {
+      if (selectedBlocks.current.size === 0) return false; // Not in selection mode
+
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return true;
+
+      // Collect all selected blockIds before clearing selection
+      const blockIds = [...selectedBlocks.current];
+
+      // Clear visual selection
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+
+      // Batch-delete all selected blocks via the runtime
+      const runtime = getNodeGraphRuntime();
+      runtime.applyIntent({
+        type: 'batch',
+        intents: blockIds.map(blockId => ({ type: 'delete_block' as const, blockId })),
+      });
+      runtime.flushEvents();
+
+      return true;
+    };
+
+    const unsubDelete = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteSelected, COMMAND_PRIORITY_HIGH);
+    const unsubBackspace = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleDeleteSelected, COMMAND_PRIORITY_HIGH);
+
+    return () => {
+      unsubDelete();
+      unsubBackspace();
     };
   }, [editor, readOnly, onSelectionChange]);
 
