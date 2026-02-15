@@ -477,12 +477,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       const p5 = createPhase('Assign property values');
       phases.push(p5);
+      console.log('[IMPORT] Phase 5: Starting property assignment');
+      console.log('[IMPORT] titleToNodeInfo has', titleToNodeInfo.size, 'entries');
+      console.log('[IMPORT] Sample titles:', Array.from(titleToNodeInfo.keys()).slice(0, 20));
       for (const page of parsed.pages) {
         if (!page.properties) continue;
         // Look up node by UUID first, then fall back to title
         const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-        if (!nodeInfo) continue;
+        if (!nodeInfo) {
+          console.warn(`[IMPORT] Cannot find node for page: ${page.title}`);
+          continue;
+        }
         const isExisting = existingNodeIds.has(nodeInfo.id);
+        console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
         await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
       }
       for (const page of parsed.pages) {
@@ -1006,26 +1013,50 @@ async function assignProperties(
 
   for (const [logseqPropId, rawValue] of Object.entries(properties)) {
     const noteesPropId = propIdMap.get(logseqPropId);
-    if (!noteesPropId) continue;
+    if (!noteesPropId) {
+      console.warn(`[IMPORT] Property ${logseqPropId} not found in propIdMap`);
+      continue;
+    }
 
     // Additive mode on existing node: skip properties that already have values
     if (isExistingNode && !override && existingProperties && noteesPropId in existingProperties) {
+      console.log(`[IMPORT] Skipping property ${logseqPropId} on ${label} - already has value in additive mode`);
       phase.succeeded++;
       continue;
     }
 
     try {
       const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo);
+      console.log(`[IMPORT] Property ${logseqPropId} on ${label}:`, { 
+        rawValue, 
+        resolved, 
+        resolvedType: typeof resolved,
+        isArray: Array.isArray(resolved),
+        arrayContents: Array.isArray(resolved) ? JSON.stringify(resolved) : 'N/A',
+        isExistingNode, 
+        override 
+      });
       if (resolved !== undefined) {
         setImportStatus(`Setting property on: ${label}`);
-        await setNodePropertyMutation.mutateAsync({
-          nodeId,
-          propertyId: noteesPropId,
-          value: resolved,
-        });
-        phase.succeeded++;
+        try {
+          await setNodePropertyMutation.mutateAsync({
+            nodeId,
+            propertyId: noteesPropId,
+            value: resolved,
+          });
+          console.log(`[IMPORT] ✓ Successfully set property ${logseqPropId} on ${label}`);
+          phase.succeeded++;
+        } catch (propError) {
+          console.error(`[IMPORT] ✗ Failed to set property ${logseqPropId} on ${label}:`, propError);
+          throw propError;
+        }
+      } else {
+        console.warn(`[IMPORT] Skipping property ${logseqPropId} on ${label} - resolved to undefined`);
+        phase.failed++;
+        phase.errors.push({ item: `${label} ← ${logseqPropId}`, message: 'Property value resolved to undefined (referenced page may not exist)' });
       }
     } catch (e) {
+      console.error(`[IMPORT] Error setting property ${logseqPropId} on ${label}:`, e);
       phase.failed++;
       phase.errors.push({ item: `${label} ← ${logseqPropId}`, message: errorMessage(e) });
     }
@@ -1094,6 +1125,9 @@ async function resolvePropertyValueForImport(
     switch (typed.__type) {
       case 'page-ref': {
         const info = titleToNodeInfo.get(typed.title as string);
+        if (!info) {
+          console.warn(`[IMPORT] Page reference not found: "${typed.title}". Available titles:`, Array.from(titleToNodeInfo.keys()).slice(0, 10));
+        }
         return info?.id ?? undefined;
       }
       case 'date-ref': {
@@ -1108,6 +1142,9 @@ async function resolvePropertyValueForImport(
       }
       case 'uuid-ref': {
         const info = uuidMap.get(typed.uuid as string);
+        if (!info) {
+          console.warn(`[IMPORT] UUID reference not found: ${typed.uuid}`);
+        }
         return info?.id ?? undefined;
       }
     }

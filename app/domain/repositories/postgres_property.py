@@ -33,6 +33,10 @@ from .interfaces import PropertyRepository
 from .base import normalize_timestamp
 from ...utils import utc_now
 from ...db.connection import acquire_connection
+from ...logging_config import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class PostgresPropertyRepository(PropertyRepository):
@@ -1006,10 +1010,13 @@ class PostgresPropertyRepository(PropertyRepository):
                 "SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = ANY($2)",
                 node_id, prop_ids
             )
+            logger.info(f"[GET_ALL_PROPERTY_VALUES] Node {node_id}: Found {len(relation_rows)} relation values")
             for row in relation_rows:
                 prop_id = row['property_id']
                 if prop_id in result:
-                    result[prop_id]['values'].append(self._row_to_relation_value(row))
+                    relation_value = self._row_to_relation_value(row)
+                    logger.info(f"[GET_ALL_PROPERTY_VALUES] Adding relation value for prop {prop_id}: target_id={relation_value.target_id}")
+                    result[prop_id]['values'].append(relation_value)
             
             # Get selection values
             selection_rows = await conn.fetch(
@@ -1020,6 +1027,11 @@ class PostgresPropertyRepository(PropertyRepository):
                 prop_id = row['property_id']
                 if prop_id in result:
                     result[prop_id]['values'].append(self._row_to_selection_value(row))
+        
+        # Log the final result
+        logger.info(f"[GET_ALL_PROPERTY_VALUES] Node {node_id}: Returning {len(result)} properties")
+        for prop_id, data in result.items():
+            logger.info(f"[GET_ALL_PROPERTY_VALUES]   Property {prop_id} ({data['property'].name}): {len(data['values'])} values")
         
         return result
     
