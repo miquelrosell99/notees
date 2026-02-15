@@ -612,7 +612,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               if (!thisPageInfo) continue;
               setImportStatus(`Assigning alias: ${page.title} → target UUID ${targetUuid}`);
               try {
-                await addAlias(thisPageInfo.id, targetInfo.id);
+                // :block/alias means THIS page is an alias OF the target,
+                // so target is the main node (first arg) and this page is the alias (second arg)
+                await addAlias(targetInfo.id, thisPageInfo.id);
                 p7.succeeded++;
               } catch (e) {
                 const msg = errorMessage(e);

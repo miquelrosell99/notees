@@ -965,6 +965,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
                   searchMode="aliases"
                   emptyText="Add alias"
                   searchPlaceholder="Search pages..."
+                  excludeNodeId={node.id}
                   onNodeClick={handleNavigateToAlias}
                   onRemove={handleRemoveAlias}
                   onAdd={handleAddAlias}
