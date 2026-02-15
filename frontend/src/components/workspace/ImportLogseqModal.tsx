@@ -510,10 +510,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
         const isExisting = existingNodeIds.has(nodeInfo.id);
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
       }
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
       }
 
       // ──────────────────────────────────────────────────────────
@@ -1009,6 +1009,7 @@ async function assignProperties(
   propIdMap: Map<string, number>,
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
+  classIdMap: Map<string, number>,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -1059,7 +1060,7 @@ async function assignProperties(
     }
 
     try {
-      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo);
+      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap);
       console.log(`[IMPORT] Property ${logseqPropId} on ${label}:`, { 
         rawValue, 
         resolved, 
@@ -1102,6 +1103,7 @@ async function assignBlockProperties(
   propIdMap: Map<string, number>,
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
+  classIdMap: Map<string, number>,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -1115,13 +1117,13 @@ async function assignBlockProperties(
         const isExisting = existingNodeIds.has(nodeInfo.id);
         await assignProperties(
           block.properties, nodeInfo.id, block.title || '(block)',
-          propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase,
+          propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, phase,
           override, isExisting,
         );
       }
     }
     if (block.children) {
-      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
     }
   }
 }
@@ -1139,6 +1141,7 @@ async function resolvePropertyValueForImport(
   value: unknown,
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
+  classIdMap: Map<string, number>,
 ): Promise<unknown> {
   if (value === null || value === undefined) return undefined;
 
@@ -1146,7 +1149,7 @@ async function resolvePropertyValueForImport(
   if (Array.isArray(value)) {
     const resolved = [];
     for (const item of value) {
-      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo);
+      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo, classIdMap);
       if (r !== undefined) resolved.push(r);
     }
     return resolved.length > 0 ? resolved : undefined;
@@ -1157,11 +1160,41 @@ async function resolvePropertyValueForImport(
     const typed = value as { __type: string; [key: string]: unknown };
     switch (typed.__type) {
       case 'page-ref': {
-        const info = titleToNodeInfo.get(typed.title as string);
-        if (!info) {
-          console.warn(`[IMPORT] Page reference not found: "${typed.title}". Available titles:`, Array.from(titleToNodeInfo.keys()).slice(0, 10));
+        const title = typed.title as string;
+        const tags = (typed.tags as string[] | undefined) ?? [];
+        const info = titleToNodeInfo.get(title);
+        if (info) return info.id;
+        // Fallback: search the database for an existing page with this title
+        // (handles pages imported in a previous session)
+        try {
+          const searchResults = await searchNodes(title);
+          const titleMatches = searchResults.filter(
+            n => n.is_page && nodeNameToText(n.name).toLowerCase() === title.toLowerCase()
+          );
+          let existing = titleMatches[0];
+          // If multiple pages match the title, prefer the one whose classes
+          // match the tags declared in the EDN page-ref
+          if (titleMatches.length > 1 && tags.length > 0) {
+            const expectedClassIds = new Set(
+              tags.map(t => classIdMap.get(t)).filter((id): id is number => id !== undefined)
+            );
+            if (expectedClassIds.size > 0) {
+              const best = titleMatches.find(n =>
+                n.classes?.some(cid => expectedClassIds.has(cid))
+              );
+              if (best) existing = best;
+            }
+          }
+          if (existing) {
+            // Cache for future lookups in this import session
+            titleToNodeInfo.set(title, { id: existing.id, uuid: existing.uuid });
+            return existing.id;
+          }
+        } catch {
+          // Search failed, fall through to undefined
         }
-        return info?.id ?? undefined;
+        console.warn(`[IMPORT] Page reference not found: "${title}". Available titles:`, Array.from(titleToNodeInfo.keys()).slice(0, 10));
+        return undefined;
       }
       case 'date-ref': {
         // Create/get day page and return its node ID (dates are relation values)
