@@ -70,6 +70,8 @@ interface NodeSelectorProps {
   canRemove?: (node: Node) => boolean;
   /** Function to determine if a node can be added (filters search results) */
   canAdd?: (node: Node) => boolean;
+  /** Node ID to exclude from search results (e.g., current node) */
+  excludeNodeId?: number;
   /** Whether pills are read-only (hides remove button) */
   readOnly?: boolean;
   /** Additional CSS class */
@@ -95,6 +97,7 @@ export function NodeSelector({
   onClearAll,
   canRemove,
   canAdd,
+  excludeNodeId,
   readOnly = false,
   className = '',
 }: NodeSelectorProps) {
@@ -127,6 +130,7 @@ export function NodeSelector({
   const { allResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(searchQuery, {
     mode: searchMode,
     classFilters,
+    excludeNodeId,
     maxResults: trigger === 'select' ? 15 : 10,
   });
 

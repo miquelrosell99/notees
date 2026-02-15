@@ -172,12 +172,12 @@ export function useNodeSearch(
     }
 
     // Aliases mode - show pages that are NOT already an alias of another node
-    // Exclude class definitions and non-page nodes
+    // Exclude class definitions, non-page nodes, nodes with aliased_id, nodes with aliases array, and self
     if (mode === 'aliases') {
       let results = (searchQuery.length > 0
         ? (searchResults ?? []).filter(n => n.is_page)
         : (allPages ?? []).slice(0, maxResults * 3)
-      ).filter(n => !isClassDef(n) && !n.aliased_id);
+      ).filter(n => !isClassDef(n) && !n.aliased_id && (!n.aliases || n.aliases.length === 0));
       
       // Apply hierarchical filtering if needed
       if (parsed.isHierarchical && allPages) {
