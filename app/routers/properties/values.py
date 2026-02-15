@@ -63,39 +63,49 @@ async def set_property_value(
         elif prop.type in RELATION_TYPES:
             # Relation value (expects node_id or array of node_ids for multi-value)
             # Skip if empty string (placeholder value from frontend)
+            logger.info(f"[SET_PROPERTY] Setting relation value for node {node_id}, prop {request.property_id}, value={repr(request.value)}, type={prop.type}")
             if request.value == '' or request.value is None:
                 # Just assign the property without setting a value
+                logger.info(f"[SET_PROPERTY] Empty/null value - assigning property without value")
                 await repo.assign_property_to_node(node_id, request.property_id)
             elif isinstance(request.value, list):
                 # Multi-value property: clear existing and set all values
+                logger.info(f"[SET_PROPERTY] Array of {len(request.value)} node IDs: {request.value}")
                 # First clear existing values
                 await repo.clear_relation_values(node_id, request.property_id)
                 # Then add each value
                 for target_id in request.value:
                     if not isinstance(target_id, int):
                         raise ValueError(f"Relation property expects node ID, got {type(target_id)} in array")
-                    await repo.set_relation_value(node_id, request.property_id, target_id)
+                    result = await repo.set_relation_value(node_id, request.property_id, target_id)
+                    logger.info(f"[SET_PROPERTY] Set relation to node {target_id}, result: {result}")
             elif isinstance(request.value, int):
-                await repo.set_relation_value(node_id, request.property_id, request.value)
+                result = await repo.set_relation_value(node_id, request.property_id, request.value)
+                logger.info(f"[SET_PROPERTY] Set single relation to node {request.value}, result: {result}")
             else:
                 raise ValueError(f"Relation property expects node ID or array of node IDs, got {type(request.value)}")
         else:
             # Selection value (expects selection_line_id or array for multi-value)
             # Skip if empty string (placeholder value from frontend)
+            logger.info(f"[SET_PROPERTY] Setting selection value for node {node_id}, prop {request.property_id}, value={repr(request.value)}, type={prop.type}")
             if request.value == '' or request.value is None:
                 # Just assign the property without setting a value
+                logger.info(f"[SET_PROPERTY] Empty/null value - assigning property without value")
                 await repo.assign_property_to_node(node_id, request.property_id)
             elif isinstance(request.value, list):
                 # Multi-value property: clear existing and set all values
+                logger.info(f"[SET_PROPERTY] Array of {len(request.value)} selection IDs: {request.value}")
                 # First clear existing values
                 await repo.clear_selection_values(node_id, request.property_id)
                 # Then add each value
                 for selection_id in request.value:
                     if not isinstance(selection_id, int):
                         raise ValueError(f"Selection property expects selection_line_id, got {type(selection_id)} in array")
-                    await repo.set_selection_value(node_id, request.property_id, selection_id)
+                    result = await repo.set_selection_value(node_id, request.property_id, selection_id)
+                    logger.info(f"[SET_PROPERTY] Set selection {selection_id}, result: {result}")
             elif isinstance(request.value, int):
-                await repo.set_selection_value(node_id, request.property_id, request.value)
+                result = await repo.set_selection_value(node_id, request.property_id, request.value)
+                logger.info(f"[SET_PROPERTY] Set single selection {request.value}, result: {result}")
             else:
                 raise ValueError(f"Selection property expects selection_line_id or array of IDs, got {type(request.value)}")
     except ValueError as e:
