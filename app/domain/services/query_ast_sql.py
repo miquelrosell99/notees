@@ -561,9 +561,81 @@ class QueryASTToSQL:
         ))"""
     
     def _generate_reference_path_condition(self, condition: ReferencePathCondition) -> Optional[str]:
-        """Generate SQL for reference path condition (nodes that reference nodes matching criteria)."""
-        # This would need a subquery with the nested group
-        # Simplified for now
+        """Generate SQL for reference path condition.
+        
+        A node N matches reference_path to target T if:
+        - N or any ancestor of N references T (via node_link or property_value_relation)
+        - OR T is an ancestor of N (N is inside T's hierarchy)
+        
+        This uses the node_path closure table (which includes self at depth=0)
+        so the node's own direct references are also captured.
+        """
+        # Static mode: target_uuids specified directly
+        if condition.target_uuids:
+            uuid_list = [u for u in condition.target_uuids if u]
+            if not uuid_list:
+                return None
+            
+            param_name = self._add_param(uuid_list)
+            target_subquery = f"(SELECT id FROM node WHERE uuid = ANY(%({param_name})s) AND workspace_id = %(workspace_id)s)"
+            
+            return f"""(
+                EXISTS (
+                    SELECT 1 FROM node_path np
+                    JOIN node_link nl ON nl.source_id = np.ancestor_id
+                    WHERE np.descendant_id = n.id
+                    AND nl.target_id IN {target_subquery}
+                    AND nl.workspace_id = %(workspace_id)s
+                )
+                OR EXISTS (
+                    SELECT 1 FROM node_path np
+                    JOIN property_value_relation pvr ON pvr.node_id = np.ancestor_id
+                    WHERE np.descendant_id = n.id
+                    AND pvr.target_id IN {target_subquery}
+                )
+                OR EXISTS (
+                    SELECT 1 FROM node_path np
+                    WHERE np.descendant_id = n.id
+                    AND np.ancestor_id IN {target_subquery}
+                    AND np.depth > 0
+                )
+            )"""
+        
+        # Dynamic mode: nested_group with conditions
+        if condition.nested_group and condition.nested_group.children:
+            # Handle UUID block (most common case - e.g., {current_node_uuid})
+            first_block = condition.nested_group.children[0]
+            if hasattr(first_block, 'value'):
+                uuid_value = first_block.value
+                param_name = self._add_param(uuid_value)
+                param_name2 = self._add_param(uuid_value)
+                param_name3 = self._add_param(uuid_value)
+                target_subquery = f"(SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)"
+                target_subquery2 = f"(SELECT id FROM node WHERE uuid = %({param_name2})s AND workspace_id = %(workspace_id)s)"
+                target_subquery3 = f"(SELECT id FROM node WHERE uuid = %({param_name3})s AND workspace_id = %(workspace_id)s)"
+                
+                return f"""(
+                    EXISTS (
+                        SELECT 1 FROM node_path np
+                        JOIN node_link nl ON nl.source_id = np.ancestor_id
+                        WHERE np.descendant_id = n.id
+                        AND nl.target_id = {target_subquery}
+                        AND nl.workspace_id = %(workspace_id)s
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM node_path np
+                        JOIN property_value_relation pvr ON pvr.node_id = np.ancestor_id
+                        WHERE np.descendant_id = n.id
+                        AND pvr.target_id = {target_subquery2}
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM node_path np
+                        WHERE np.descendant_id = n.id
+                        AND np.ancestor_id = {target_subquery3}
+                        AND np.depth > 0
+                    )
+                )"""
+        
         return None
     
     def _generate_parent_path_condition(self, condition: ParentPathCondition) -> Optional[str]:
