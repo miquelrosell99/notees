@@ -23,6 +23,7 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes } from '@/api/nodes';
@@ -148,6 +149,26 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const propIdMap = new Map<string, number>();
       const classIdMap = new Map<string, number>();
       const titleToNodeInfo = new Map<string, NodeInfo>();
+
+      // ── Pre-populate classIdMap with Logseq built-in → Notees system class mappings ──
+      const LOGSEQ_BUILTIN_CLASS_MAP: Record<string, string> = {
+        'logseq.class/Quote-block': SYSTEM_CLASS_UUIDS.quote,
+        'logseq.class/Query': SYSTEM_CLASS_UUIDS.query,
+        'logseq.class/Code': SYSTEM_CLASS_UUIDS.code,
+        'logseq.class/Task': SYSTEM_CLASS_UUIDS.task,
+        'logseq.class/Whiteboard': SYSTEM_CLASS_UUIDS.whiteboard,
+        'logseq.class/Card': SYSTEM_CLASS_UUIDS.card,
+        'logseq.class/Template': SYSTEM_CLASS_UUIDS.template,
+        'logseq.class/Table': SYSTEM_CLASS_UUIDS.table,
+        'logseq.class/Asset': SYSTEM_CLASS_UUIDS.asset,
+      };
+      const existingClasses = await listClasses();
+      for (const [logseqKey, noteesUuid] of Object.entries(LOGSEQ_BUILTIN_CLASS_MAP)) {
+        const systemClass = existingClasses.find(c => c.uuid === noteesUuid);
+        if (systemClass) {
+          classIdMap.set(logseqKey, systemClass.id);
+        }
+      }
       const contentQueue: Array<{ id: number; title: string }> = [];
       /** Track node IDs that already existed before import */
       const existingNodeIds = new Set<number>();
@@ -158,8 +179,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const p1 = createPhase('Create classes');
       phases.push(p1);
       if (classClassId) {
-        // Pre-fetch existing classes to avoid 409 conflicts
-        const existingClasses = await listClasses();
+        // Use the existingClasses already fetched above for system class mapping
         const existingClassByName = new Map(
           existingClasses.map(c => [nodeNameToText(c.name).toLowerCase(), c])
         );

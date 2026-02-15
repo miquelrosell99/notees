@@ -475,6 +475,27 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
     }
   }
 
+  // ── Handle :block export type ──────────────────────────────
+  // When export-type is :block, the actual block data (title, tags, properties)
+  // is in the top-level :logseq.db.sqlite.export/block key, NOT in pages-and-blocks.
+  // We parse it and attach it as a block under the first page.
+  const exportType = mapGet(edn, 'logseq.db.sqlite.export/export-type');
+  if (exportType instanceof EdnKeyword && exportType.value === 'block') {
+    const blockData = mapGet(edn, 'logseq.db.sqlite.export/block');
+    if (blockData instanceof Map) {
+      const block = parseBlock(blockData);
+      // Attach the block to the first page, or create a synthetic page if none
+      if (pages.length > 0) {
+        pages[0].blocks.push(block);
+      } else {
+        pages.push({
+          title: 'Imported Block',
+          blocks: [block],
+        });
+      }
+    }
+  }
+
   return { pages, properties, classes };
 }
 
