@@ -698,23 +698,35 @@ class PostgresNodeRepository(NodeRepository):
             return [self._row_to_node(row) for row in rows]
     
     async def search(self, query: str, limit: int = 50) -> List[Node]:
-        """Search nodes by name using full-text search."""
+        """Search nodes by name using full-text search.
+        
+        Extracts plain text from AST-formatted names for reliable ILIKE matching.
+        """
+        # SQL expression extracting plain text from AST-formatted name column
+        name_text = """(CASE
+            WHEN name IS NOT NULL AND name LIKE '[%' THEN
+                COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(name::jsonb, '$.**.text') AS t), '')
+            ELSE COALESCE(name, '')
+        END)"""
+        
         async with acquire_connection(self._pool) as conn:
             # Use FTS if query is substantial, fall back to ILIKE for short queries
             if len(query) >= 3:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(f"""
                     SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node
                     WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
-                    AND (search_vector @@ plainto_tsquery('english', $1) OR name ILIKE $3)
+                    AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
                     ORDER BY rank DESC, write_date DESC
                     LIMIT $4
                 """, query, self._workspace_id, f'%{query}%', limit)
             else:
-                rows = await conn.fetch(
-                    "SELECT * FROM node WHERE name ILIKE $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE LIMIT $3",
-                    f'%{query}%', self._workspace_id, limit
-                )
+                rows = await conn.fetch(f"""
+                    SELECT * FROM node
+                    WHERE {name_text} ILIKE $1
+                    AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    LIMIT $3
+                """, f'%{query}%', self._workspace_id, limit)
             return [self._row_to_node(row) for row in rows]
     
     async def get_typed_with(self, type_node_id: int) -> List[Node]:
