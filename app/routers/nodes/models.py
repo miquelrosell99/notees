@@ -305,3 +305,23 @@ class BatchNodeDeleteResponse(BaseModel):
     results: List[BatchNodeDeleteResultItem]
     deleted: int
     failed: int
+
+
+class BatchPermanentDeleteRequest(BaseModel):
+    """Request to permanently delete multiple nodes from trash."""
+    ids: List[int]
+
+
+class BatchPermanentDeleteResultItem(BaseModel):
+    """Result for a single permanent node deletion in a batch."""
+    index: int
+    id: int
+    success: bool
+    error: Optional[str] = None
+
+
+class BatchPermanentDeleteResponse(BaseModel):
+    """Response for batch permanent node deletion."""
+    results: List[BatchPermanentDeleteResultItem]
+    deleted: int
+    failed: int

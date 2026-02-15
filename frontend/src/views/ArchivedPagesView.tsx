@@ -10,11 +10,13 @@ import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { useAppStore } from '@/stores';
 import api from '@/api/client';
-import { unarchiveNode, deleteNode } from '@/api/nodes';
+import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback } from 'react';
+import { Button } from '../components/core/Button';
+import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -24,6 +26,7 @@ interface ArchivedPagesViewProps {
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const { openNode } = useAppStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const queryClient = useQueryClient();
   
   // Mutation for unarchiving nodes
@@ -39,6 +42,18 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
     mutationFn: deleteNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+    },
+  });
+  
+  // Mutation for deleting all archived nodes
+  const deleteAllMutation = useMutation({
+    mutationFn: () => {
+      const uuids = (nodes ?? []).map(n => n.uuid);
+      return batchDeleteNodes({ uuids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+      setShowDeleteAllConfirm(false);
     },
   });
   
@@ -89,6 +104,18 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             <h1 className="page-header__title">
               <i className="mdi mdi-archive"></i> Archived Pages
             </h1>
+            <div className="page-header__actions">
+              {!isLoading && nodes && nodes.length > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowDeleteAllConfirm(true)}
+                  disabled={deleteAllMutation.isPending}
+                >
+                  {deleteAllMutation.isPending ? 'Deleting...' : 'Delete All'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -120,6 +147,19 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           />
         )}
       </div>
+      
+      {/* Delete All Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteAllConfirm}
+        title="Delete All Archived Pages"
+        message={`Delete ${nodes?.length ?? 0} archived page${(nodes?.length ?? 0) !== 1 ? 's' : ''}?`}
+        secondaryMessage="These pages will be moved to trash."
+        confirmLabel="Delete All"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => deleteAllMutation.mutate()}
+        onCancel={() => setShowDeleteAllConfirm(false)}
+      />
     </article>
   );
 }

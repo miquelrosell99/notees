@@ -10,12 +10,12 @@ import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar
 import { TrashIcon } from '../components/core/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useAppStore } from '@/stores';
-import { getTrash, restoreNode, permanentDeleteNode, emptyTrash } from '@/api/nodes';
+import { getTrash, restoreNode, permanentDeleteNode, emptyTrash, batchPermanentDelete } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/core/Button';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import './TrashView.css';
@@ -28,6 +28,8 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const { openNode } = useAppStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
+  const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const queryClient = useQueryClient();
   
   // Fetch trash directly from API
@@ -62,14 +64,60 @@ export function TrashView({ className = '' }: TrashViewProps) {
     },
   });
   
+  const batchDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => batchPermanentDelete({ ids }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      setSelectedIds(new Set());
+      setShowDeleteSelectedConfirm(false);
+    },
+  });
+  
   // Handle empty trash confirmation
   const handleEmptyTrashConfirm = useCallback(() => {
     emptyTrashMutation.mutate();
   }, [emptyTrashMutation]);
   
+  // Toggle node selection (shift+click)
+  const handleNodeShiftClick = useCallback((node: Node) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(node.id)) {
+        next.delete(node.id);
+      } else {
+        next.add(node.id);
+      }
+      return next;
+    });
+  }, []);
+  
+  // Select/deselect all
+  const handleToggleSelectAll = useCallback(() => {
+    if (!nodes) return;
+    setSelectedIds(prev => {
+      if (prev.size === nodes.length) return new Set();
+      return new Set(nodes.map(n => n.id));
+    });
+  }, [nodes]);
+  
+  const allSelected = useMemo(() => {
+    return nodes != null && nodes.length > 0 && selectedIds.size === nodes.length;
+  }, [nodes, selectedIds]);
+  
   // Generate context menu items for trash nodes
   const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
+    const isSelected = selectedIds.has(node.id);
     return [
+      {
+        id: 'select',
+        label: isSelected ? 'Deselect' : 'Select',
+        icon: isSelected ? 'mdi mdi-checkbox-marked' : 'mdi mdi-checkbox-blank-outline',
+        onClick: () => {
+          handleNodeShiftClick(node);
+          closeMenu();
+        },
+      },
       {
         id: 'restore',
         label: 'Restore',
@@ -99,7 +147,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         },
       },
     ];
-  }, [restoreMutation, permanentDeleteMutation]);
+  }, [restoreMutation, permanentDeleteMutation, selectedIds, handleNodeShiftClick]);
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -111,15 +159,34 @@ export function TrashView({ className = '' }: TrashViewProps) {
               <TrashIcon size="lg" /> Trash
             </h1>
             <div className="page-header__actions">
-              {!isLoading && nodes && nodes.length > 0 && (
+              {!isLoading && nodes && nodes.length > 0 && selectedIds.size > 0 && (
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => setShowEmptyConfirm(true)}
-                  disabled={emptyTrashMutation.isPending}
+                  onClick={() => setShowDeleteSelectedConfirm(true)}
+                  disabled={batchDeleteMutation.isPending}
                 >
-                  {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
+                  {batchDeleteMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
                 </Button>
+              )}
+              {!isLoading && nodes && nodes.length > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleToggleSelectAll}
+                  >
+                    {allSelected ? 'Deselect All' : 'Select All'}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setShowEmptyConfirm(true)}
+                    disabled={emptyTrashMutation.isPending}
+                  >
+                    {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -150,6 +217,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             customContextMenu={TrashNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.id)}
+            onNodeShiftClick={handleNodeShiftClick}
           />
         )}
       </div>
@@ -165,6 +233,19 @@ export function TrashView({ className = '' }: TrashViewProps) {
         variant="danger"
         onConfirm={handleEmptyTrashConfirm}
         onCancel={() => setShowEmptyConfirm(false)}
+      />
+      
+      {/* Delete Selected Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteSelectedConfirm}
+        title="Delete Selected"
+        message={`Permanently delete ${selectedIds.size} item${selectedIds.size !== 1 ? 's' : ''} from trash?`}
+        secondaryMessage="This action cannot be undone."
+        confirmLabel="Delete Selected"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => batchDeleteMutation.mutate([...selectedIds])}
+        onCancel={() => setShowDeleteSelectedConfirm(false)}
       />
     </article>
   );

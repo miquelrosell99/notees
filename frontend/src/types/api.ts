@@ -353,6 +353,32 @@ export interface BatchNodeDeleteResponse {
   failed: number;
 }
 
+/**
+ * Request to permanently delete multiple nodes from trash
+ */
+export interface BatchPermanentDeleteRequest {
+  ids: number[];
+}
+
+/**
+ * Result for a single permanent delete in a batch
+ */
+export interface BatchPermanentDeleteResultItem {
+  index: number;
+  id: number;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Response for batch permanent deletion
+ */
+export interface BatchPermanentDeleteResponse {
+  results: BatchPermanentDeleteResultItem[];
+  deleted: number;
+  failed: number;
+}
+
 // ==================== Property Types ====================
 
 /**

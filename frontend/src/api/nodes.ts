@@ -17,6 +17,8 @@ import type {
   BatchNodeUpdateResponse,
   BatchNodeDeleteRequest,
   BatchNodeDeleteResponse,
+  BatchPermanentDeleteRequest,
+  BatchPermanentDeleteResponse,
 } from '@/types/api';
 
 const BASE = '/nodes';
@@ -711,5 +713,14 @@ export async function permanentDeleteNode(nodeId: number): Promise<void> {
  */
 export async function emptyTrash(): Promise<{ deleted_count: number }> {
   const response = await api.post(`${BASE}/trash/empty`);
+  return response.data;
+}
+
+/**
+ * Permanently delete multiple nodes from trash by ID.
+ * Each node is processed independently — failures don't block others.
+ */
+export async function batchPermanentDelete(request: BatchPermanentDeleteRequest): Promise<BatchPermanentDeleteResponse> {
+  const response = await api.post<BatchPermanentDeleteResponse>(`${BASE}/trash/batch-delete`, request);
   return response.data;
 }

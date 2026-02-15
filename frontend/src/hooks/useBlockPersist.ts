@@ -25,7 +25,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import { createNode as createNodeApi, updateNode as updateNodeApi, deleteNode as deleteNodeApi } from '@/api/nodes';
+import { createNode as createNodeApi, updateNode as updateNodeApi, batchDeleteNodes as batchDeleteNodesApi } from '@/api/nodes';
 import type { NodeCreate, Node } from '@/types/api';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { nodeKeys } from './queryKeys';
@@ -56,6 +56,35 @@ export function queueContentSave(blockId: string, content: string): void {
 /** Check if a block is currently being persisted or queued */
 export function isBlockPending(blockId: string): boolean {
   return inFlightBlocks.has(blockId) || pendingContentSaves.has(blockId);
+}
+
+/**
+ * Pending batch delete: collects block UUIDs from block_deleted events
+ * within one microtask and flushes them as a single batchDeleteNodes call.
+ */
+let pendingDeleteUuids: string[] = [];
+let deleteFlushScheduled = false;
+
+function scheduleDeleteFlush(): void {
+  if (deleteFlushScheduled) return;
+  deleteFlushScheduled = true;
+  queueMicrotask(() => {
+    deleteFlushScheduled = false;
+    const uuids = pendingDeleteUuids;
+    pendingDeleteUuids = [];
+    if (uuids.length === 0) return;
+    if (uuids.length === 1) {
+      // Single delete — use the simpler endpoint (identified by server id not available here,
+      // so use batch with single uuid)
+      batchDeleteNodesApi({ uuids }).catch((error) => {
+        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
+      });
+    } else {
+      batchDeleteNodesApi({ uuids }).catch((error) => {
+        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
+      });
+    }
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────
@@ -211,10 +240,9 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           }
         }
 
-        // Block was deleted/merged in the editor — persist to API
-        deleteNodeApi(deletedServerId).catch((error) => {
-          console.error('[useBlockPersist] Failed to delete block serverId:', deletedServerId, error);
-        });
+        // Block was deleted/merged in the editor — batch-persist to API
+        pendingDeleteUuids.push(event.blockId);
+        scheduleDeleteFlush();
         // Clean up any queued content save for this block
         pendingContentSaves.delete(event.blockId);
         inFlightBlocks.delete(event.blockId);
