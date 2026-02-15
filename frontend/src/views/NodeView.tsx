@@ -43,7 +43,7 @@ import { PropertiesSection } from '../components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '../components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesEditor';
 import { Modal } from '../components/core/Modal';
-import { TableIcon, PageIcon, LinkIcon } from '../components/core/icons';
+import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
 import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -1178,6 +1178,22 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
             onNodeClick={(targetNodeId) => openNode(targetNodeId)}
             onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
           />
+          
+          {/* Unlinked References - content search for the current node's name (pages only) */}
+          {resolvedType === 'page' && (
+            <QuerySection
+              nodeId={node.id}
+              nodeUuid={node.uuid}
+              nodeName={node.name}
+              viewType="unlinked_references"
+              title="Unlinked References"
+              icon={<SearchIcon size="sm" />}
+              defaultExpanded={false}
+              hideWhenEmpty={true}
+              onNodeClick={(targetNodeId) => openNode(targetNodeId)}
+              onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+            />
+          )}
         </>
       )}
       

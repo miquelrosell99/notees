@@ -58,7 +58,7 @@ class QueryExecutor:
         """Recursively substitute parameters in a group."""
         from ..entities.query_ast import (
             GroupNode, ClassCondition, ExtendsCondition, ReferenceCondition, NotNode, 
-            PropertyCondition, ParentCondition
+            PropertyCondition, ParentCondition, ContentCondition
         )
         
         logger.debug(f"[_substitute_in_group] Processing group with {len(group.children)} children")
@@ -76,6 +76,8 @@ class QueryExecutor:
                     child.child.extends_class_uuid = self._resolve_placeholder(child.child.extends_class_uuid, runtime_params)
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
+                elif isinstance(child.child, ContentCondition):
+                    child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, PropertyCondition):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, ParentCondition):
@@ -93,6 +95,8 @@ class QueryExecutor:
                 child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
             elif isinstance(child, PropertyCondition):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
+            elif isinstance(child, ContentCondition):
+                child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
                 # ParentCondition can have parent_uuid (static) or nested_group (dynamic)
                 logger.info(f"[_substitute_in_group] ParentCondition found, parent_uuid={child.parent_uuid}")
@@ -109,7 +113,12 @@ class QueryExecutor:
             return value
         
         # Replace known placeholders
-        if '{current_node_uuid}' in value:
+        if '{current_node_name}' in value:
+            name_value = runtime_params.get('current_node_name', '')
+            if not name_value:
+                logger.warning(f"Placeholder {{current_node_name}} used but no runtime value provided")
+            return value.replace('{current_node_name}', name_value)
+        elif '{current_node_uuid}' in value:
             uuid_value = runtime_params.get('current_node_uuid', '')
             if not uuid_value:
                 logger.warning(f"Placeholder {{current_node_uuid}} used but no runtime value provided")
