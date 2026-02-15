@@ -737,7 +737,9 @@ export function QueryNodeCollection({
             availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
-            hideToolbar={true}
+            hideToolbar={hideToolbar}
+            toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
+            leftElement={resolvedLeftElement}
             beforeContent={
               propertyRefItems.length > 0 ? (
                 <PropertyReferencesSection
@@ -749,6 +751,7 @@ export function QueryNodeCollection({
                 />
               ) : undefined
             }
+            hideToolbarControls={hideToolbarControls}
             showGroupBy={!hideViewManagement}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
@@ -768,7 +771,7 @@ export function QueryNodeCollection({
           {/* PAGES header - only shown when both blocks and pages exist */}
           <div className="linked-references__pages-header">PAGES</div>
           
-          {/* Pages section */}
+          {/* Pages section - no grouping since pages can't be grouped by page */}
           <NodeCollection
             nodes={linkedReferencesPages}
             viewId={activeView?.id}
@@ -778,9 +781,8 @@ export function QueryNodeCollection({
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             hideToolbar={true}
-            showGroupBy={!hideViewManagement}
-            groupBy={groupBy}
-            onGroupByChange={setGroupBy}
+            showGroupBy={false}
+            groupBy="none"
             can_create={can_create}
             can_edit={can_edit}
             can_delete={can_delete}
