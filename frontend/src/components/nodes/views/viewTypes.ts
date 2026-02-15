@@ -525,57 +525,6 @@ export const findAllShortestPaths = (
   return nodesInPaths;
 };
 
-/**
- * Find path between two nodes using BFS (returns single path)
- * @deprecated Use findAllShortestPaths for better path visualization
- */
-export const findPathBetweenNodes = (
-  startId: number,
-  endId: number,
-  nodes: GraphNode[],
-  links: GraphLink[]
-): number[] => {
-  if (startId === endId) return [startId];
-  
-  const adjacency = new Map<number, number[]>();
-  for (const node of nodes) {
-    adjacency.set(node.id, []);
-  }
-  for (const link of links) {
-    adjacency.get(link.source)?.push(link.target);
-    adjacency.get(link.target)?.push(link.source);
-  }
-  
-  const visited = new Set<number>();
-  const parent = new Map<number, number>();
-  const queue: number[] = [startId];
-  visited.add(startId);
-  
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current === endId) {
-      const path: number[] = [];
-      let nodeId = endId;
-      while (nodeId !== startId) {
-        path.unshift(nodeId);
-        nodeId = parent.get(nodeId)!;
-      }
-      path.unshift(startId);
-      return path;
-    }
-    
-    for (const neighbor of adjacency.get(current) || []) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        parent.set(neighbor, current);
-        queue.push(neighbor);
-      }
-    }
-  }
-  
-  return [];
-};
-
 // ==================== Shared Color Palettes ====================
 
 /** Resolve a CSS variable to its computed value */

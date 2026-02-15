@@ -68,7 +68,6 @@ import {
   pairKey,
   getGlareRadius,
   getNodeRadius,
-  findPathBetweenNodes,
   findAllShortestPaths,
 } from './viewTypes';
 
@@ -2165,5 +2164,5 @@ export function useNodePhysics({
   };
 }
 
-// Re-export path finding functions for use elsewhere
-export { findPathBetweenNodes, findAllShortestPaths } from './viewTypes';
+// Re-export path finding function for use elsewhere
+export { findAllShortestPaths } from './viewTypes';
