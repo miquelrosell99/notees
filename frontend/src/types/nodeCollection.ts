@@ -149,6 +149,9 @@ export interface NodeCollectionProps {
 
   /** Active/current node to include in graph/terrain views (e.g., the page being viewed) */
   activeNode?: { id: number; uuid: string; name: string };
+  
+  /** Element to render between the header and content (e.g., property references section) */
+  beforeContent?: ReactNode;
 }
 
 // ==================== View-Specific Props ====================

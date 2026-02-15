@@ -47,6 +47,20 @@
   font-size: 0.875rem;
 }
 
+/* ==================== Linked References ==================== */
+
+/* PAGES section header in linked references list view */
+.linked-references__pages-header {
+  padding: 1rem 0 0.5rem 0;
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+  text-transform: uppercase;
+}
+
 /* ==================== Query Edit Modal ==================== */
 
 .query-section__edit-modal {

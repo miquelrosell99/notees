@@ -138,6 +138,7 @@ export function NodeCollection({
   hideToolbar = false,
   toolbarPrefix,
   leftElement,
+  beforeContent,
   hideToolbarControls = false,
   hideContent = false,
   showAddButton = false,
@@ -455,6 +456,9 @@ export function NodeCollection({
               />
             </div>
           )}
+          
+          {/* Before Content Element (e.g., property references) */}
+          {!hideContent && beforeContent}
           
           {/* Content */}
           {!hideContent && (
