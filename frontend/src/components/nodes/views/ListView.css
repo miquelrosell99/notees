@@ -86,14 +86,15 @@
   background-color: var(--color-hover-overlay);
 }
 
-/* Dotted underline node-link style for group header page name */
-.node-list-view__group-link {
-  padding: 0 3px;
-  background: none;
-  border-radius: var(--shape-small);
-  border-bottom: 1.5px dotted var(--color-outline);
-  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
-              border-bottom-style var(--motion-duration-short) var(--motion-easing-standard);
+/* Dotted underline node-link style for group header — matches .node-pill-inner in BlockEditor */
+.node-list-view__group-link .node-inline__text {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--color-outline);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+  transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
+              text-decoration-style var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 /* Override NodeInline clickable hover background */
@@ -101,9 +102,10 @@
   background: none;
 }
 
-.node-list-view__group-link:hover {
-  border-bottom-style: solid;
-  border-bottom-color: var(--color-on-surface-variant);
+.node-list-view__group-link:hover .node-inline__text {
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-on-surface);
+  color: var(--color-primary);
 }
 
 .node-list-view__group-content {
