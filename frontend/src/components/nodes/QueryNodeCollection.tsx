@@ -21,6 +21,7 @@ import {
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -346,6 +347,7 @@ export function QueryNodeCollection({
     runtimeParams: { 
       current_node_uuid: nodeUuid,
       current_node_id: nodeId,
+      current_node_name: nodeNameToText(nodeName),
     },
     includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || viewType === 'all_pages' || collectionViewMode === 'card',
     includeProperties: true,
@@ -451,6 +453,7 @@ export function QueryNodeCollection({
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
+        current_node_name: nodeNameToText(nodeName),
       },
       include_children: viewType === 'all_pages' || collectionViewMode === 'card',
       include_properties: true,
@@ -482,6 +485,7 @@ export function QueryNodeCollection({
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
+        current_node_name: nodeNameToText(nodeName),
       },
       include_children: viewType === 'all_pages' || collectionViewMode === 'card',
       include_properties: true,

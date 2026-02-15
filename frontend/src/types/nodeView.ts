@@ -20,6 +20,7 @@ export type NodeViewType =
   | 'classed_nodes'
   | 'extended_by'
   | 'linked_references'
+  | 'unlinked_references'
   | 'main_content'
   | 'all_pages';
 
@@ -88,6 +89,7 @@ export interface QueryExecuteRequest {
 export const QUERY_PLACEHOLDERS = {
   '{current_node_uuid}': 'The UUID of the current node being viewed',
   '{current_node_id}': 'The ID of the current node being viewed',
+  '{current_node_name}': 'The display name (plain text) of the current node being viewed',
   '{current_user_id}': 'The ID of the current user',
   '{today}': "Today's date",
   '{this_week}': 'Start of current week',
