@@ -828,6 +828,30 @@ class NodeService:
         logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(rows)} nodes")
         return deleted_count
     
+    async def batch_permanent_delete(
+        self,
+        ids: List[int],
+    ) -> List[dict]:
+        """Permanently delete multiple nodes from trash by ID.
+        
+        Each ID is processed independently — failures on one do not prevent
+        the others from being deleted. Only works on nodes already in trash.
+        
+        Returns a list of dicts: { "success": bool, "error": str|None }
+        """
+        results: List[dict] = []
+        for node_id in ids:
+            try:
+                success = await self.permanently_delete_node(node_id)
+                if success:
+                    results.append({"success": True, "error": None})
+                else:
+                    results.append({"success": False, "error": "Node not found in trash"})
+            except Exception as e:
+                logger.warning(f"[BATCH_PERMANENT_DELETE] Failed to delete node {node_id}: {e}")
+                results.append({"success": False, "error": str(e)})
+        return results
+    
     async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
         """Replace inline class references ({{nodeId}}) with the node's name.
         

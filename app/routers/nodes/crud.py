@@ -25,6 +25,9 @@ from .models import (
     BatchNodeDeleteRequest,
     BatchNodeDeleteResponse,
     BatchNodeDeleteResultItem,
+    BatchPermanentDeleteRequest,
+    BatchPermanentDeleteResponse,
+    BatchPermanentDeleteResultItem,
 )
 from .helpers import (
     _get_node_service,
@@ -387,6 +390,47 @@ async def empty_trash(
         "status": "success",
         "deleted_count": count
     }
+
+
+@router.post("/trash/batch-delete", name="batch_permanent_delete")
+async def batch_permanent_delete(
+    request: BatchPermanentDeleteRequest,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete multiple nodes from trash by ID.
+    
+    Accepts an array of node IDs and hard-deletes each independently.
+    Only works on nodes that are already soft-deleted (in trash).
+    A failure on one node does not prevent the others from being deleted.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    raw_results = await service.batch_permanent_delete(request.ids)
+    
+    results = []
+    deleted = 0
+    failed = 0
+    for i, r in enumerate(raw_results):
+        if r["success"]:
+            deleted += 1
+            results.append(BatchPermanentDeleteResultItem(
+                index=i,
+                id=request.ids[i],
+                success=True,
+            ))
+        else:
+            failed += 1
+            results.append(BatchPermanentDeleteResultItem(
+                index=i,
+                id=request.ids[i],
+                success=False,
+                error=r["error"],
+            ))
+    
+    logger.info(f"[BATCH_PERMANENT_DELETE] {deleted} deleted, {failed} failed out of {len(request.ids)}")
+    return BatchPermanentDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
 @router.post("/{node_id}/restore", name="restore_node")
