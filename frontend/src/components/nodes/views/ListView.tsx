@@ -6,11 +6,12 @@
  * 
  * Supports groupBy='page' to organize nodes under page headers.
  */
-import { useCallback, useMemo, useId } from 'react';
+import { useState, useCallback, useMemo, useId } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
+import { ChevronRightIcon, ChevronDownIcon } from '../../core/icons';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -203,36 +204,22 @@ export function ListView({
             : `group-${groupIndex}`;
           
           return (
-            <div key={groupKey} className="node-list-view__group">
-              {group.page && (
-                <div className="node-list-view__group-header">
-                  <NodeInline
-                    name={group.page.name}
-                    icon={group.page.icon}
-                    isPage={group.page.is_page}
-                    nodeId={group.page.id}
-                    showBullet={true}
-                    onClick={() => onNodeClick?.(group.page!)}
-                    onShiftClick={() => onNodeShiftClick?.(group.page!)}
-                  />
-                </div>
-              )}
-              <div className="node-list-view__group-content">
-                <BlockEditor
-                  editorId={`list-view-${viewId}-${groupKey}`}
-                  nodes={sortedGroupNodes}
-                  mode="list"
-                  readOnly={!editable}
-                  onNavigateToNode={handleNavigateToNode}
-                  onOpenInSidebar={handleOpenInSidebar}
-                  onContentChange={handleContentChangeBridge}
-                  onAddClass={onAddClass}
-                  pageId={pageId}
-                  pageUuid={pageUuid}
-                  className="node-list-view__editor"
-                />
-              </div>
-            </div>
+            <ListViewGroup
+              key={groupKey}
+              group={group}
+              groupKey={groupKey}
+              sortedGroupNodes={sortedGroupNodes}
+              viewId={viewId}
+              editable={editable}
+              handleNavigateToNode={handleNavigateToNode}
+              handleOpenInSidebar={handleOpenInSidebar}
+              handleContentChangeBridge={handleContentChangeBridge}
+              onAddClass={onAddClass}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+              pageId={pageId}
+              pageUuid={pageUuid}
+            />
           );
         })}
       </div>
@@ -296,6 +283,89 @@ export function ListView({
         pageUuid={pageUuid}
         className="node-list-view__editor"
       />
+    </div>
+  );
+}
+
+// ==================== ListViewGroup ====================
+
+/**
+ * A collapsible group within the grouped ListView.
+ * Shows a page header with collapse arrow and dotted underline node-link style.
+ */
+function ListViewGroup({
+  group,
+  groupKey,
+  sortedGroupNodes,
+  viewId,
+  editable,
+  handleNavigateToNode,
+  handleOpenInSidebar,
+  handleContentChangeBridge,
+  onAddClass,
+  onNodeClick,
+  onNodeShiftClick,
+  pageId,
+  pageUuid,
+}: {
+  group: { page: Node | null; nodes: Node[] };
+  groupKey: string;
+  sortedGroupNodes: Node[];
+  viewId: string;
+  editable: boolean;
+  handleNavigateToNode: (blockId: string) => Promise<void>;
+  handleOpenInSidebar: (blockId: string) => void;
+  handleContentChangeBridge: (blockId: string, content: string) => void;
+  onAddClass?: (nodeId: number, classId: number) => void;
+  onNodeClick?: (node: Node) => void;
+  onNodeShiftClick?: (node: Node) => void;
+  pageId?: number;
+  pageUuid?: string;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  return (
+    <div className={`node-list-view__group ${isCollapsed ? 'node-list-view__group--collapsed' : ''}`}>
+      {group.page && (
+        <div className="node-list-view__group-header">
+          <button
+            type="button"
+            className="node-list-view__group-collapse"
+            onClick={() => setIsCollapsed(prev => !prev)}
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand group' : 'Collapse group'}
+          >
+            {isCollapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
+          </button>
+          <NodeInline
+            name={group.page.name}
+            icon={group.page.icon}
+            isPage={group.page.is_page}
+            nodeId={group.page.id}
+            showBullet={true}
+            onClick={() => onNodeClick?.(group.page!)}
+            onShiftClick={() => onNodeShiftClick?.(group.page!)}
+            className="node-list-view__group-link"
+          />
+        </div>
+      )}
+      {!isCollapsed && (
+        <div className="node-list-view__group-content">
+          <BlockEditor
+            editorId={`list-view-${viewId}-${groupKey}`}
+            nodes={sortedGroupNodes}
+            mode="list"
+            readOnly={!editable}
+            onNavigateToNode={handleNavigateToNode}
+            onOpenInSidebar={handleOpenInSidebar}
+            onContentChange={handleContentChangeBridge}
+            onAddClass={onAddClass}
+            pageId={pageId}
+            pageUuid={pageUuid}
+            className="node-list-view__editor"
+          />
+        </div>
+      )}
     </div>
   );
 }
