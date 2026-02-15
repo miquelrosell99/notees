@@ -327,6 +327,32 @@ export interface BatchNodeUpdateResponse {
   failed: number;
 }
 
+/**
+ * Request to delete multiple nodes by UUID
+ */
+export interface BatchNodeDeleteRequest {
+  uuids: string[];
+}
+
+/**
+ * Result for a single node in a batch delete
+ */
+export interface BatchNodeDeleteResultItem {
+  index: number;
+  uuid: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Response for batch node deletion
+ */
+export interface BatchNodeDeleteResponse {
+  results: BatchNodeDeleteResultItem[];
+  deleted: number;
+  failed: number;
+}
+
 // ==================== Property Types ====================
 
 /**
