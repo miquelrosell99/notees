@@ -155,8 +155,14 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
     case 'reference':
       return `references('${condition.target_uuid}')`;
       
-    case 'reference_path':
-      return `references_matching(...)`;
+    case 'reference_path': {
+      const rpCond = condition as any;
+      if (rpCond.target_uuids?.length > 0) {
+        const uuids = rpCond.target_uuids.map((u: string) => `'${u}'`).join(', ');
+        return `reference_path(${uuids})`;
+      }
+      return `reference_path(...)`;
+    }
       
     case 'parent_path':
       return `inside_page(...)`;

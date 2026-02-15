@@ -238,8 +238,17 @@ class ReferenceCondition(BaseConditionNode):
 
 @dataclass
 class ReferencePathCondition(BaseConditionNode):
-    """Reference path condition - filter by nodes that reference nodes matching criteria."""
+    """Reference path condition - filter by nodes that reference nodes matching criteria.
+    
+    A node N matches reference_path to target T if:
+    - N or any ancestor of N has a reference (link) to T
+    - OR T is an ancestor of N (N is inside T's hierarchy)
+    """
     condition_type: Literal[ConditionType.REFERENCE_PATH] = ConditionType.REFERENCE_PATH
+    # Static mode: specific target node(s) being referenced
+    target_uuids: Optional[List[str]] = None
+    target_ids: Optional[List[int]] = None
+    # Dynamic mode: target nodes matching criteria
     nested_group: Optional["GroupNode"] = None
 
 
@@ -485,7 +494,11 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         nested_group = None
         if "nested_group" in data and data["nested_group"]:
             nested_group = GroupNode.from_dict(data["nested_group"])
-        return ReferencePathCondition(nested_group=nested_group)
+        return ReferencePathCondition(
+            target_uuids=data.get("target_uuids"),
+            target_ids=data.get("target_ids"),
+            nested_group=nested_group,
+        )
     elif condition_type == ConditionType.PARENT_PATH:
         nested_group = None
         if "nested_group" in data and data["nested_group"]:

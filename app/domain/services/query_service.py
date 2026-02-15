@@ -57,7 +57,8 @@ class QueryExecutor:
     def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
         """Recursively substitute parameters in a group."""
         from ..entities.query_ast import (
-            GroupNode, ClassCondition, ExtendsCondition, ReferenceCondition, NotNode, 
+            GroupNode, ClassCondition, ExtendsCondition, ReferenceCondition, 
+            ReferencePathCondition, NotNode, 
             PropertyCondition, ParentCondition, ContentCondition
         )
         
@@ -76,6 +77,11 @@ class QueryExecutor:
                     child.child.extends_class_uuid = self._resolve_placeholder(child.child.extends_class_uuid, runtime_params)
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
+                elif isinstance(child.child, ReferencePathCondition):
+                    if child.child.target_uuids:
+                        child.child.target_uuids = [self._resolve_placeholder(u, runtime_params) for u in child.child.target_uuids]
+                    if child.child.nested_group:
+                        self._substitute_in_group(child.child.nested_group, runtime_params)
                 elif isinstance(child.child, ContentCondition):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, PropertyCondition):
@@ -93,6 +99,12 @@ class QueryExecutor:
                 child.extends_class_uuid = self._resolve_placeholder(child.extends_class_uuid, runtime_params)
             elif isinstance(child, ReferenceCondition):
                 child.target_uuid = self._resolve_placeholder(child.target_uuid, runtime_params)
+            elif isinstance(child, ReferencePathCondition):
+                # ReferencePathCondition can have target_uuids (static) or nested_group (dynamic)
+                if child.target_uuids:
+                    child.target_uuids = [self._resolve_placeholder(u, runtime_params) for u in child.target_uuids]
+                if child.nested_group:
+                    self._substitute_in_group(child.nested_group, runtime_params)
             elif isinstance(child, PropertyCondition):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ContentCondition):

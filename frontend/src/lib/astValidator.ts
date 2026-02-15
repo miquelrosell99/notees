@@ -165,12 +165,48 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
       }
       break;
 
-    // Nested conditions need groups
-    case 'reference_path':
+    // Nested conditions need groups OR static UUIDs
+    case 'reference_path': {
+      const refPathCond = condition as any;
+      const hasStaticTargets = refPathCond.target_uuids?.length > 0;
+      if (!condition.nested_group && !hasStaticTargets) {
+        errors.push({
+          severity: 'error',
+          message: 'Reference path condition requires target_uuids or nested_group',
+          path,
+          suggestion: 'Select target nodes or add nested_group with conditions',
+        });
+      }
+      break;
+    }
+    case 'parent_path': {
+      const ppCond = condition as any;
+      const hasStaticAncestors = ppCond.ancestor_uuids?.length > 0;
+      if (!condition.nested_group && !hasStaticAncestors) {
+        errors.push({
+          severity: 'error',
+          message: 'Parent path condition requires ancestor_uuids or nested_group',
+          path,
+          suggestion: 'Select ancestor nodes or add nested_group with conditions',
+        });
+      }
+      break;
+    }
+    case 'child_path': {
+      const cpCond = condition as any;
+      const hasStaticDescendants = cpCond.descendant_uuids?.length > 0;
+      if (!condition.nested_group && !hasStaticDescendants) {
+        errors.push({
+          severity: 'error',
+          message: 'Child path condition requires descendant_uuids or nested_group',
+          path,
+          suggestion: 'Select descendant nodes or add nested_group with conditions',
+        });
+      }
+      break;
+    }
     case 'parent':
-    case 'parent_path':
     case 'child':
-    case 'child_path':
     case 'class_path':
       if (!condition.nested_group) {
         errors.push({

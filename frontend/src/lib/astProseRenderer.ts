@@ -283,11 +283,17 @@ function renderReferenceProse(condition: ReferenceCondition, nodesMap?: Map<stri
 }
 
 function renderReferencePathProse(condition: ReferencePathCondition, nodesMap?: Map<string, Node>): string {
+  // Static mode: target_uuids specified directly
+  if (condition.target_uuids && condition.target_uuids.length > 0) {
+    const names = condition.target_uuids.map(u => formatNodeReference(u, nodesMap)).join(', ');
+    return `have reference path to ${names}`;
+  }
+  // Dynamic mode: nested_group
   if (condition.nested_group && condition.nested_group.children.length > 0) {
     const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
-    return `reference nodes that ${nested}`;
+    return `have reference path to nodes that ${nested}`;
   }
-  return 'reference nodes matching criteria';
+  return 'have reference path matching criteria';
 }
 
 function renderParentProse(condition: ParentCondition, nodesMap?: Map<string, Node>): string {
