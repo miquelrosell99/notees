@@ -6,11 +6,12 @@
  * 
  * System sections:
  * - linked_references: MUST have reference condition
+ * - unlinked_references: MUST have content condition with current node name
  * - child_pages: MUST have parent_uuid condition (scope handles page filtering)
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/nodeView';
 
@@ -30,6 +31,10 @@ function isParentCondition(node: ConditionNode): node is ParentCondition {
 
 function isExtendsCondition(node: ConditionNode): node is ExtendsCondition {
   return node.condition_type === 'extends';
+}
+
+function isContentCondition(node: ConditionNode): node is ContentCondition {
+  return node.condition_type === 'content';
 }
 
 // ==================== System Section Definitions ====================
@@ -147,6 +152,27 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       );
     },
   },
+  
+  // Unlinked References - content search for the current node's display name
+  {
+    viewType: 'unlinked_references',
+    requiresCondition: (_ast, _context) => {
+      return markAsSystemNode({
+        type: 'condition',
+        condition_type: 'content',
+        operator: 'contains',
+        value: '{current_node_name}',
+      });
+    },
+    hasRequiredCondition: (ast, _context) => {
+      return ast.root_group.children.some(
+        (child) =>
+          child.type === 'condition' &&
+          isContentCondition(child as ConditionNode) &&
+          (child as ContentCondition).value === '{current_node_name}'
+      );
+    },
+  },
 ];
 
 // ==================== Auto-Fix Functions ====================
@@ -186,6 +212,7 @@ export function autoFixSystemQuery(
     'child_pages': 'pages',
     'classed_nodes': 'entire_workspace',
     'extended_by': 'pages',
+    'unlinked_references': 'entire_workspace',
   };
   
   const correctScope: ScopeNode = {
@@ -221,6 +248,11 @@ export function autoFixSystemQuery(
         } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
           const extCond = child as ExtendsCondition;
           if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') {
+            return markAsSystemNode(child);
+          }
+        } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
+          const contentCond = child as ContentCondition;
+          if (contentCond.value === '{current_node_name}') {
             return markAsSystemNode(child);
           }
         }
@@ -274,6 +306,9 @@ export function autoFixSystemQuery(
       } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
         const extCond = child as ExtendsCondition;
         if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') return false;
+      } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
+        const contentCond = child as ContentCondition;
+        if (contentCond.value === '{current_node_name}') return false;
       }
     }
     
@@ -323,6 +358,7 @@ export function getAutoFixDescription(viewType: string): string | null {
     child_pages: 'Add required parent condition',
     classed_nodes: 'Add required class condition',
     extended_by: 'Add required extends condition',
+    unlinked_references: 'Add required content condition',
   };
   return descriptions[viewType] || null;
 }

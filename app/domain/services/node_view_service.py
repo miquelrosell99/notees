@@ -82,6 +82,22 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             is_system=True
         )
     },
+    "unlinked_references": {
+        "name": "Unlinked References",
+        "query_ast": QueryAST(
+            scope=ScopeNode(scope_type=ScopeType.ENTIRE_WORKSPACE),
+            root_group=GroupNode(
+                logic=LogicType.AND,
+                children=[
+                    ContentCondition(
+                        operator=ContentOperator.CONTAINS,
+                        value="{current_node_name}",
+                    )
+                ]
+            ),
+            is_system=True
+        )
+    },
     "main_content": {
         "name": "Content",
         "query_ast": QueryAST(
