@@ -661,7 +661,15 @@ function resolvePropertyValue(v: EdnValue): unknown {
       if (title) {
         const detected = detectDateFromTitle(title);
         if (detected) return { __type: 'date-ref', date: detected };
-        return { __type: 'page-ref', title };
+        // Extract build/tags if present (e.g., [:user.class/persona-hCkxhGT8])
+        const tagsVec = mapGet(innerMap, 'build/tags');
+        const tags: string[] = [];
+        if (Array.isArray(tagsVec)) {
+          for (const t of tagsVec) {
+            if (t instanceof EdnKeyword) tags.push(t.value);
+          }
+        }
+        return { __type: 'page-ref', title, ...(tags.length > 0 ? { tags } : {}) };
       }
     }
     // [:block/uuid #uuid "..."] — a UUID reference (selection/closed value)
@@ -681,7 +689,15 @@ function resolvePropertyValue(v: EdnValue): unknown {
     if (title) {
       const detected = detectDateFromTitle(title);
       if (detected) return { __type: 'date-ref', date: detected };
-      return { __type: 'page-ref', title };
+      // Extract build/tags if present
+      const tagsVec = mapGet(v, 'build/tags');
+      const tags: string[] = [];
+      if (Array.isArray(tagsVec)) {
+        for (const t of tagsVec) {
+          if (t instanceof EdnKeyword) tags.push(t.value);
+        }
+      }
+      return { __type: 'page-ref', title, ...(tags.length > 0 ? { tags } : {}) };
     }
     return Object.fromEntries(
       [...v.entries()].map(([mk, mv]) => [
