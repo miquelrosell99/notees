@@ -26,7 +26,7 @@ import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/edn
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -510,10 +510,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
         const isExisting = existingNodeIds.has(nodeInfo.id);
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
       }
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
       }
 
       // ──────────────────────────────────────────────────────────
@@ -1010,6 +1010,7 @@ async function assignProperties(
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, number>,
+  pageClassId: number,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -1060,7 +1061,7 @@ async function assignProperties(
     }
 
     try {
-      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap);
+      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap, pageClassId);
       console.log(`[IMPORT] Property ${logseqPropId} on ${label}:`, { 
         rawValue, 
         resolved, 
@@ -1104,6 +1105,7 @@ async function assignBlockProperties(
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, number>,
+  pageClassId: number,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -1117,13 +1119,13 @@ async function assignBlockProperties(
         const isExisting = existingNodeIds.has(nodeInfo.id);
         await assignProperties(
           block.properties, nodeInfo.id, block.title || '(block)',
-          propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, phase,
+          propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase,
           override, isExisting,
         );
       }
     }
     if (block.children) {
-      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, classIdMap, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
     }
   }
 }
@@ -1142,6 +1144,7 @@ async function resolvePropertyValueForImport(
   uuidMap: Map<string, NodeInfo>,
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, number>,
+  pageClassId: number,
 ): Promise<unknown> {
   if (value === null || value === undefined) return undefined;
 
@@ -1149,7 +1152,7 @@ async function resolvePropertyValueForImport(
   if (Array.isArray(value)) {
     const resolved = [];
     for (const item of value) {
-      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo, classIdMap);
+      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo, classIdMap, pageClassId);
       if (r !== undefined) resolved.push(r);
     }
     return resolved.length > 0 ? resolved : undefined;
@@ -1164,36 +1167,65 @@ async function resolvePropertyValueForImport(
         const tags = (typed.tags as string[] | undefined) ?? [];
         const info = titleToNodeInfo.get(title);
         if (info) return info.id;
-        // Fallback: search the database for an existing page with this title
+        // Fallback: search the database for an existing node with this title
         // (handles pages imported in a previous session)
         try {
           const searchResults = await searchNodes(title);
-          const titleMatches = searchResults.filter(
-            n => n.is_page && nodeNameToText(n.name).toLowerCase() === title.toLowerCase()
-          );
+          console.log(`[IMPORT] page-ref "${title}": search returned ${searchResults.length} results`);
+          // Match by extracted text name — don't require is_page since the node
+          // might have been created without the page class
+          const titleMatches = searchResults.filter(n => {
+            const nodeName = nodeNameToText(n.name).toLowerCase();
+            const match = nodeName === title.toLowerCase();
+            if (!match) {
+              console.log(`[IMPORT]   candidate id=${n.id} name="${nodeName}" — no match`);
+            }
+            return match;
+          });
+          console.log(`[IMPORT] page-ref "${title}": ${titleMatches.length} exact title matches`);
           let existing = titleMatches[0];
-          // If multiple pages match the title, prefer the one whose classes
-          // match the tags declared in the EDN page-ref
-          if (titleMatches.length > 1 && tags.length > 0) {
-            const expectedClassIds = new Set(
-              tags.map(t => classIdMap.get(t)).filter((id): id is number => id !== undefined)
-            );
-            if (expectedClassIds.size > 0) {
-              const best = titleMatches.find(n =>
-                n.classes?.some(cid => expectedClassIds.has(cid))
-              );
-              if (best) existing = best;
+          // If multiple nodes match the title, prefer pages, then match by tags
+          if (titleMatches.length > 1) {
+            // Prefer pages over blocks
+            const pages = titleMatches.filter(n => n.is_page);
+            if (pages.length > 0) {
+              existing = pages[0];
+              // Further disambiguate by tags if available
+              if (pages.length > 1 && tags.length > 0) {
+                const expectedClassIds = new Set(
+                  tags.map(t => classIdMap.get(t)).filter((id): id is number => id !== undefined)
+                );
+                if (expectedClassIds.size > 0) {
+                  const best = pages.find(n =>
+                    n.classes?.some(cid => expectedClassIds.has(cid))
+                  );
+                  if (best) existing = best;
+                }
+              }
             }
           }
           if (existing) {
-            // Cache for future lookups in this import session
             titleToNodeInfo.set(title, { id: existing.id, uuid: existing.uuid });
             return existing.id;
           }
-        } catch {
-          // Search failed, fall through to undefined
+        } catch (searchErr) {
+          console.error(`[IMPORT] page-ref "${title}": search failed`, searchErr);
         }
-        console.warn(`[IMPORT] Page reference not found: "${title}". Available titles:`, Array.from(titleToNodeInfo.keys()).slice(0, 10));
+        // Auto-create the referenced page if it doesn't exist
+        console.log(`[IMPORT] page-ref "${title}": not found, auto-creating page`);
+        try {
+          const classes = [pageClassId];
+          for (const tag of tags) {
+            const mapped = classIdMap.get(tag);
+            if (mapped) classes.push(mapped);
+          }
+          const newPage = await createNodeApi({ name: title, classes });
+          titleToNodeInfo.set(title, { id: newPage.id, uuid: newPage.uuid });
+          console.log(`[IMPORT] page-ref "${title}": created page id=${newPage.id}`);
+          return newPage.id;
+        } catch (createErr) {
+          console.error(`[IMPORT] page-ref "${title}": failed to create page`, createErr);
+        }
         return undefined;
       }
       case 'date-ref': {
