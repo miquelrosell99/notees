@@ -65,6 +65,15 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'reference') {
       const uuid = (condition as unknown as Record<string, unknown>).target_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+    } else if (condition.condition_type === 'reference_path') {
+      const uuids = (condition as unknown as Record<string, unknown>).target_uuids as string[] | undefined;
+      return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
+    } else if (condition.condition_type === 'parent_path') {
+      const uuids = (condition as unknown as Record<string, unknown>).ancestor_uuids as string[] | undefined;
+      return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
+    } else if (condition.condition_type === 'child_path') {
+      const uuids = (condition as unknown as Record<string, unknown>).descendant_uuids as string[] | undefined;
+      return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
     } else if (condition.condition_type === 'property') {
       const value = (condition as unknown as Record<string, unknown>).value;
       return value === '{current_node_uuid}' || (value && value === currentNodeUuid);
@@ -97,6 +106,15 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'reference') {
         const uuid = (condition as unknown as Record<string, unknown>).target_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+      } else if (condition.condition_type === 'reference_path') {
+        const uuids = (condition as unknown as Record<string, unknown>).target_uuids as string[] | undefined;
+        return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
+      } else if (condition.condition_type === 'parent_path') {
+        const uuids = (condition as unknown as Record<string, unknown>).ancestor_uuids as string[] | undefined;
+        return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
+      } else if (condition.condition_type === 'child_path') {
+        const uuids = (condition as unknown as Record<string, unknown>).descendant_uuids as string[] | undefined;
+        return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
       } else if (condition.condition_type === 'property') {
         const value = (condition as unknown as Record<string, unknown>).value;
         return value === '{current_node_uuid}' || (value && value === currentNodeUuid);
@@ -176,6 +194,15 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'reference') {
         delete (updated as any).target_uuid;
         delete (updated as any).target_id;
+      } else if (condition.condition_type === 'reference_path') {
+        (updated as any).target_uuids = [];
+        (updated as any).target_ids = [];
+      } else if (condition.condition_type === 'parent_path') {
+        (updated as any).ancestor_uuids = [];
+        (updated as any).ancestor_ids = [];
+      } else if (condition.condition_type === 'child_path') {
+        (updated as any).descendant_uuids = [];
+        (updated as any).descendant_ids = [];
       } else if (condition.condition_type === 'property') {
         (updated as any).value = '';
       }
@@ -195,6 +222,15 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'reference') {
         (updated as any).target_uuid = targetUuid;
         delete (updated as any).target_id;
+      } else if (condition.condition_type === 'reference_path') {
+        (updated as any).target_uuids = [targetUuid];
+        delete (updated as any).target_ids;
+      } else if (condition.condition_type === 'parent_path') {
+        (updated as any).ancestor_uuids = [targetUuid];
+        delete (updated as any).ancestor_ids;
+      } else if (condition.condition_type === 'child_path') {
+        (updated as any).descendant_uuids = [targetUuid];
+        delete (updated as any).descendant_ids;
       } else if (condition.condition_type === 'property') {
         (updated as any).value = targetUuid;
       } else if (condition.condition_type === 'class') {
@@ -238,6 +274,49 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'reference') {
       updates.target_id = nodeId ?? undefined;
       updates.target_uuid = node?.uuid ?? '';
+    } else if (condition.condition_type === 'reference_path') {
+      // Multi-select: append to target_uuids/target_ids arrays
+      const existing = condition as any;
+      if (nodeId && node?.uuid) {
+        const currentUuids = existing.target_uuids || [];
+        const currentIds = existing.target_ids || [];
+        if (!currentUuids.includes(node.uuid)) {
+          updates.target_uuids = [...currentUuids, node.uuid];
+          updates.target_ids = [...currentIds, nodeId];
+        }
+      } else {
+        // Remove: nodeId is null means clearing
+        updates.target_uuids = [];
+        updates.target_ids = [];
+      }
+    } else if (condition.condition_type === 'parent_path') {
+      // Multi-select: append to ancestor_uuids/ancestor_ids arrays
+      const existing = condition as any;
+      if (nodeId && node?.uuid) {
+        const currentUuids = existing.ancestor_uuids || [];
+        const currentIds = existing.ancestor_ids || [];
+        if (!currentUuids.includes(node.uuid)) {
+          updates.ancestor_uuids = [...currentUuids, node.uuid];
+          updates.ancestor_ids = [...currentIds, nodeId];
+        }
+      } else {
+        updates.ancestor_uuids = [];
+        updates.ancestor_ids = [];
+      }
+    } else if (condition.condition_type === 'child_path') {
+      // Multi-select: append to descendant_uuids/descendant_ids arrays
+      const existing = condition as any;
+      if (nodeId && node?.uuid) {
+        const currentUuids = existing.descendant_uuids || [];
+        const currentIds = existing.descendant_ids || [];
+        if (!currentUuids.includes(node.uuid)) {
+          updates.descendant_uuids = [...currentUuids, node.uuid];
+          updates.descendant_ids = [...currentIds, nodeId];
+        }
+      } else {
+        updates.descendant_uuids = [];
+        updates.descendant_ids = [];
+      }
     } else if (condition.condition_type === 'parent') {
       updates.parent_id = nodeId ?? undefined;
       updates.parent_uuid = node?.uuid ?? '';
@@ -318,6 +397,36 @@ export function GenericConditionRenderer({
       }
       
       case 'node-selector': {
+        // Path conditions use plural arrays (target_uuids, ancestor_uuids, descendant_uuids)
+        const isPathCondition = ['reference_path', 'parent_path', 'child_path'].includes(condition.condition_type);
+        
+        if (isPathCondition) {
+          // Multi-select mode for path conditions
+          const getPathIds = (): number[] => {
+            const c = condition as any;
+            if (condition.condition_type === 'reference_path') return c.target_ids || [];
+            if (condition.condition_type === 'parent_path') return c.ancestor_ids || [];
+            if (condition.condition_type === 'child_path') return c.descendant_ids || [];
+            return [];
+          };
+          const selectedIds = getPathIds();
+          
+          return (
+            <NodeSelector
+              trigger="select"
+              searchMode="pages"
+              value={selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null}
+              onChange={(newValue) => {
+                const nodeId = Array.isArray(newValue) ? newValue[0] : newValue;
+                handleNodeSelect(nodeId);
+              }}
+              placeholder={config.staticMode.placeholder}
+              readOnly={readOnly}
+            />
+          );
+        }
+        
+        // Single-select for non-path conditions
         const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
         return (
           <NodeSelector
