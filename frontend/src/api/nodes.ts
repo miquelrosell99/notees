@@ -15,6 +15,8 @@ import type {
   BatchNodeCreateResponse,
   BatchNodeUpdateRequest,
   BatchNodeUpdateResponse,
+  BatchNodeDeleteRequest,
+  BatchNodeDeleteResponse,
 } from '@/types/api';
 
 const BASE = '/nodes';
@@ -173,6 +175,15 @@ export async function batchCreateNodes(request: BatchNodeCreateRequest): Promise
  */
 export async function batchUpdateNodes(request: BatchNodeUpdateRequest): Promise<BatchNodeUpdateResponse> {
   const response = await api.put<BatchNodeUpdateResponse>(`${BASE}/batch`, request);
+  return response.data;
+}
+
+/**
+ * Delete multiple nodes by UUID in a single batch.
+ * Each node is processed independently — failures don't block others.
+ */
+export async function batchDeleteNodes(request: BatchNodeDeleteRequest): Promise<BatchNodeDeleteResponse> {
+  const response = await api.delete<BatchNodeDeleteResponse>(`${BASE}/batch`, { data: request });
   return response.data;
 }
 

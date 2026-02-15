@@ -285,3 +285,23 @@ class BatchNodeUpdateResponse(BaseModel):
     results: List[BatchNodeUpdateResultItem]
     updated: int
     failed: int
+
+
+class BatchNodeDeleteRequest(BaseModel):
+    """Request to delete multiple nodes by UUID."""
+    uuids: List[str]
+
+
+class BatchNodeDeleteResultItem(BaseModel):
+    """Result for a single node deletion in a batch."""
+    index: int
+    uuid: str
+    success: bool
+    error: Optional[str] = None
+
+
+class BatchNodeDeleteResponse(BaseModel):
+    """Response for batch node deletion."""
+    results: List[BatchNodeDeleteResultItem]
+    deleted: int
+    failed: int

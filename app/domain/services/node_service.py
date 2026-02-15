@@ -1280,6 +1280,37 @@ class NodeService:
                 results.append({"success": False, "node": None, "error": str(e)})
         return results
 
+    async def batch_delete_nodes(
+        self,
+        uuids: List[str],
+        user_id: Optional[int] = None,
+    ) -> List[dict]:
+        """Delete multiple nodes by UUID in a single batch.
+        
+        Each UUID is resolved and deleted independently — failures on one
+        do not prevent the others from being deleted.
+        
+        Returns a list of dicts: { "success": bool, "error": str|None }
+        """
+        results: List[dict] = []
+        for uuid in uuids:
+            try:
+                node = await self._node_repo.get_by_uuid(uuid)
+                if not node or node.id is None:
+                    results.append({"success": False, "error": f"Node with uuid '{uuid}' not found"})
+                    continue
+                success = await self.delete_node(node.id, user_id=user_id)
+                if success:
+                    results.append({"success": True, "error": None})
+                else:
+                    results.append({"success": False, "error": "Delete returned false"})
+            except DatePageDeletionError as e:
+                results.append({"success": False, "error": e.message})
+            except Exception as e:
+                logger.warning(f"[BATCH_DELETE] Failed to delete node {uuid}: {e}")
+                results.append({"success": False, "error": str(e)})
+        return results
+
     async def batch_update_nodes(
         self,
         items: List[dict],

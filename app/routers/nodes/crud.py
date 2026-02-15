@@ -22,6 +22,9 @@ from .models import (
     BatchNodeUpdateRequest,
     BatchNodeUpdateResponse,
     BatchNodeUpdateResultItem,
+    BatchNodeDeleteRequest,
+    BatchNodeDeleteResponse,
+    BatchNodeDeleteResultItem,
 )
 from .helpers import (
     _get_node_service,
@@ -224,6 +227,46 @@ async def batch_update_nodes(
     
     logger.info(f"[BATCH_UPDATE] {updated} updated, {failed} failed out of {len(request.nodes)}")
     return BatchNodeUpdateResponse(results=results, updated=updated, failed=failed)
+
+
+@router.delete("/batch", name="batch_delete_nodes")
+async def batch_delete_nodes(
+    request: BatchNodeDeleteRequest,
+    user: User = Depends(get_current_user),
+):
+    """Delete multiple nodes by UUID in a single batch.
+    
+    Accepts an array of UUIDs and soft-deletes each node independently.
+    A failure on one node does not prevent the others from being deleted.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    raw_results = await service.batch_delete_nodes(request.uuids)
+    
+    results = []
+    deleted = 0
+    failed = 0
+    for i, r in enumerate(raw_results):
+        if r["success"]:
+            deleted += 1
+            results.append(BatchNodeDeleteResultItem(
+                index=i,
+                uuid=request.uuids[i],
+                success=True,
+            ))
+        else:
+            failed += 1
+            results.append(BatchNodeDeleteResultItem(
+                index=i,
+                uuid=request.uuids[i],
+                success=False,
+                error=r["error"],
+            ))
+    
+    logger.info(f"[BATCH_DELETE] {deleted} deleted, {failed} failed out of {len(request.uuids)}")
+    return BatchNodeDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
 @router.post("/page")
