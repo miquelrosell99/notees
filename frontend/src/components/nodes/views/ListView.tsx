@@ -342,7 +342,7 @@ function ListViewGroup({
             icon={group.page.icon}
             isPage={group.page.is_page}
             nodeId={group.page.id}
-            showBullet={true}
+            showBullet={false}
             onClick={() => onNodeClick?.(group.page!)}
             onShiftClick={() => onNodeShiftClick?.(group.page!)}
             className="node-list-view__group-link"
