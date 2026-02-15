@@ -473,6 +473,30 @@ export function QueryNodeCollection({
     ? linkedReferencesLoading 
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
+  // Separate blocks and pages for list/document views (non-linked_references)
+  // Skip for page-only views like child_pages and all_pages
+  const { resultBlocks, resultPages } = useMemo(() => {
+    if (viewType === 'linked_references') {
+      // Linked references already handles its own separation
+      return { resultBlocks: resultNodes, resultPages: [] as Node[] };
+    }
+    const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
+    const isPageOnlyView = viewType === 'child_pages' || viewType === 'all_pages' || viewType === 'classed_nodes' || viewType === 'extended_by';
+    if (!isListView || isPageOnlyView) {
+      return { resultBlocks: resultNodes, resultPages: [] as Node[] };
+    }
+    const blocks: Node[] = [];
+    const pages: Node[] = [];
+    for (const node of resultNodes) {
+      if (node.is_page) {
+        pages.push(node);
+      } else {
+        blocks.push(node);
+      }
+    }
+    return { resultBlocks: blocks, resultPages: pages };
+  }, [resultNodes, collectionViewMode, viewType]);
+
   // Preview query for edit modal
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
 
@@ -801,6 +825,69 @@ export function QueryNodeCollection({
               onAddClass={handleAddClass}
             />
           )}
+        </>
+      ) : resultPages.length > 0 && resultBlocks.length > 0 ? (
+        // Generic block/page separation for any query with mixed results in list/document view
+        <>
+          {/* Blocks section (with toolbar) */}
+          <NodeCollection
+            nodes={resultBlocks}
+            viewId={activeView?.id}
+            view={activeView}
+            viewMode={collectionViewMode}
+            availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
+            onViewModeChange={handleViewModeChange}
+            editable={can_edit}
+            hideToolbar={hideToolbar}
+            toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
+            leftElement={resolvedLeftElement}
+            hideToolbarControls={hideToolbarControls}
+            showGroupBy={!hideViewManagement}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
+            onAdd={effectiveCanCreate ? handleAddNode : undefined}
+            can_create={can_create}
+            can_edit={can_edit}
+            can_delete={can_delete}
+            showClasses={showClasses}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={handlePropertyColumnsChange}
+            onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+            showEmpty={false}
+            autoCollapse={true}
+            containerCard={false}
+            activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
+            onAddClass={handleAddClass}
+          />
+          
+          {/* PAGES header */}
+          <div className="linked-references__pages-header">PAGES</div>
+          
+          {/* Pages section */}
+          <NodeCollection
+            nodes={resultPages}
+            viewId={activeView?.id}
+            view={activeView}
+            viewMode={collectionViewMode}
+            availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
+            onViewModeChange={handleViewModeChange}
+            editable={can_edit}
+            hideToolbar={true}
+            showGroupBy={false}
+            groupBy="none"
+            can_create={can_create}
+            can_edit={can_edit}
+            can_delete={can_delete}
+            showClasses={showClasses}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={handlePropertyColumnsChange}
+            onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+            showEmpty={false}
+            autoCollapse={true}
+            containerCard={false}
+            onAddClass={handleAddClass}
+          />
         </>
       ) : (
         // Standard rendering for all other cases (non-list views, no pages)

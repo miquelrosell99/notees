@@ -92,7 +92,12 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                     ContentCondition(
                         operator=ContentOperator.CONTAINS,
                         value="{current_node_name}",
-                    )
+                    ),
+                    PropertyCondition(
+                        property_name="uuid",
+                        operator=PropertyOperator.NOT_EQUALS,
+                        value="{current_node_uuid}",
+                    ),
                 ]
             ),
             is_system=True

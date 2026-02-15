@@ -11,7 +11,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/nodeView';
 
@@ -35,6 +35,10 @@ function isExtendsCondition(node: ConditionNode): node is ExtendsCondition {
 
 function isContentCondition(node: ConditionNode): node is ContentCondition {
   return node.condition_type === 'content';
+}
+
+function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
+  return node.condition_type === 'property';
 }
 
 // ==================== System Section Definitions ====================
@@ -173,6 +177,31 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       );
     },
   },
+
+  // Unlinked References - exclude the current node itself
+  {
+    viewType: 'unlinked_references',
+    requiresCondition: (_ast, _context) => {
+      return markAsSystemNode({
+        type: 'condition',
+        condition_type: 'property',
+        property_name: 'uuid',
+        property_type: 'text',
+        operator: 'not_equals',
+        value: '{current_node_uuid}',
+      } as PropertyCondition);
+    },
+    hasRequiredCondition: (ast, _context) => {
+      return ast.root_group.children.some(
+        (child) =>
+          child.type === 'condition' &&
+          isPropertyCondition(child as ConditionNode) &&
+          (child as PropertyCondition).property_name === 'uuid' &&
+          (child as PropertyCondition).operator === 'not_equals' &&
+          (child as PropertyCondition).value === '{current_node_uuid}'
+      );
+    },
+  },
 ];
 
 // ==================== Auto-Fix Functions ====================
@@ -200,8 +229,8 @@ export function autoFixSystemQuery(
   viewType: string,
   context: SystemContext
 ): QueryAST {
-  const section = SYSTEM_SECTIONS.find((s) => s.viewType === viewType);
-  if (!section) {
+  const sections = SYSTEM_SECTIONS.filter((s) => s.viewType === viewType);
+  if (sections.length === 0) {
     // Not a system section, return as-is
     return ast;
   }
@@ -220,109 +249,115 @@ export function autoFixSystemQuery(
     scope_type: defaultScopes[viewType] || 'entire_workspace',
   };
   
-  // Check if required condition already exists
-  if (section.hasRequiredCondition(ast, context)) {
-    // Condition exists - ensure it's marked as system and scope is correct
-    const updatedChildren = ast.root_group.children.map((child) => {
-      // Check if this is the system condition that needs marking
-      if (child.type === 'condition') {
-        if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
-          const parentCond = child as ParentCondition;
-          if (parentCond.parent_uuid && (
-            parentCond.parent_uuid === '{current_node_uuid}' ||
-            parentCond.parent_uuid === context.parentUuid ||
-            parentCond.parent_uuid === context.nodeUuid
-          )) {
-            return markAsSystemNode(child);
-          }
-        } else if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
-          const refCond = child as ReferenceCondition;
-          if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') {
-            return markAsSystemNode(child);
-          }
-        } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
-          const classCond = child as ClassCondition;
-          if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') {
-            return markAsSystemNode(child);
-          }
-        } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
-          const extCond = child as ExtendsCondition;
-          if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') {
-            return markAsSystemNode(child);
-          }
-        } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
-          const contentCond = child as ContentCondition;
-          if (contentCond.value === '{current_node_name}') {
-            return markAsSystemNode(child);
+  // Process each section requirement sequentially
+  let currentAst = { ...ast, scope: correctScope };
+  
+  for (const section of sections) {
+    if (section.hasRequiredCondition(currentAst, context)) {
+      // Condition exists - ensure it's marked as system
+      const updatedChildren = currentAst.root_group.children.map((child) => {
+        if (child.type === 'condition') {
+          if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
+            const parentCond = child as ParentCondition;
+            if (parentCond.parent_uuid && (
+              parentCond.parent_uuid === '{current_node_uuid}' ||
+              parentCond.parent_uuid === context.parentUuid ||
+              parentCond.parent_uuid === context.nodeUuid
+            )) {
+              return markAsSystemNode(child);
+            }
+          } else if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
+            const refCond = child as ReferenceCondition;
+            if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') {
+              return markAsSystemNode(child);
+            }
+          } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
+            const classCond = child as ClassCondition;
+            if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') {
+              return markAsSystemNode(child);
+            }
+          } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
+            const extCond = child as ExtendsCondition;
+            if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') {
+              return markAsSystemNode(child);
+            }
+          } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
+            const contentCond = child as ContentCondition;
+            if (contentCond.value === '{current_node_name}') {
+              return markAsSystemNode(child);
+            }
+          } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
+            const propCond = child as PropertyCondition;
+            if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') {
+              return markAsSystemNode(child);
+            }
           }
         }
+        return child;
+      });
+      
+      currentAst = {
+        ...currentAst,
+        root_group: {
+          ...currentAst.root_group,
+          children: updatedChildren,
+        },
+      };
+    } else {
+      // Condition doesn't exist - add it
+      const requiredCondition = section.requiresCondition(currentAst, context);
+      if (!requiredCondition) {
+        console.warn(`Cannot auto-fix ${viewType}: missing context data`);
+        continue;
       }
-      return child;
-    });
-    
-    return {
-      ...ast,
-      scope: correctScope,
-      root_group: {
-        ...ast.root_group,
-        children: updatedChildren,
-      },
-    };
-  }
-  
-  // Condition doesn't exist or isn't marked - add it
-  const requiredCondition = section.requiresCondition(ast, context);
-  if (!requiredCondition) {
-    // Can't generate condition without context
-    console.warn(`Cannot auto-fix ${viewType}: missing context data`);
-    return {
-      ...ast,
-      scope: correctScope,
-    };
-  }
-  
-  // Remove any old system-marked conditions AND any conditions that match the system condition pattern
-  // This prevents duplicates when conditions exist but aren't properly marked
-  const nonSystemChildren = ast.root_group.children.filter((child) => {
-    // Remove conditions already marked as system
-    if (isSystemNode(child)) return false;
-    
-    // Also remove conditions that match the system condition pattern
-    // to prevent duplicates when unmarked system conditions exist
-    if (child.type === 'condition') {
-      if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
-        const refCond = child as ReferenceCondition;
-        if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') return false;
-      } else if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
-        const parentCond = child as ParentCondition;
-        if (parentCond.parent_uuid && (
-          parentCond.parent_uuid === '{current_node_uuid}' ||
-          parentCond.parent_uuid === context.parentUuid ||
-          parentCond.parent_uuid === context.nodeUuid
+      
+      // Remove any old system-marked conditions AND any conditions that match this specific system condition pattern
+      const nonSystemChildren = currentAst.root_group.children.filter((child) => {
+        if (isSystemNode(child) && section.hasRequiredCondition(
+          { ...currentAst, root_group: { ...currentAst.root_group, children: [child] } },
+          context
         )) return false;
-      } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
-        const classCond = child as ClassCondition;
-        if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') return false;
-      } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
-        const extCond = child as ExtendsCondition;
-        if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') return false;
-      } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
-        const contentCond = child as ContentCondition;
-        if (contentCond.value === '{current_node_name}') return false;
-      }
+        
+        if (child.type === 'condition') {
+          if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
+            const refCond = child as ReferenceCondition;
+            if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') return false;
+          } else if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
+            const parentCond = child as ParentCondition;
+            if (parentCond.parent_uuid && (
+              parentCond.parent_uuid === '{current_node_uuid}' ||
+              parentCond.parent_uuid === context.parentUuid ||
+              parentCond.parent_uuid === context.nodeUuid
+            )) return false;
+          } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
+            const classCond = child as ClassCondition;
+            if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') return false;
+          } else if (viewType === 'extended_by' && isExtendsCondition(child as ConditionNode)) {
+            const extCond = child as ExtendsCondition;
+            if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') return false;
+          } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
+            const contentCond = child as ContentCondition;
+            if (contentCond.value === '{current_node_name}') return false;
+          } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
+            const propCond = child as PropertyCondition;
+            if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') return false;
+          }
+        }
+        
+        return true;
+      });
+      
+      currentAst = {
+        ...currentAst,
+        root_group: {
+          ...currentAst.root_group,
+          children: [requiredCondition, ...nonSystemChildren],
+        },
+      };
     }
-    
-    return true;
-  });
+  }
   
-  return {
-    ...ast,
-    scope: correctScope,
-    root_group: {
-      ...ast.root_group,
-      children: [requiredCondition, ...nonSystemChildren],
-    },
-  };
+  return currentAst;
 }
 
 /**
@@ -344,9 +379,9 @@ export function needsAutoFix(
   viewType: string,
   context: SystemContext
 ): boolean {
-  const section = SYSTEM_SECTIONS.find((s) => s.viewType === viewType);
-  if (!section) return false;
-  return !section.hasRequiredCondition(ast, context);
+  const sections = SYSTEM_SECTIONS.filter((s) => s.viewType === viewType);
+  if (sections.length === 0) return false;
+  return sections.some((section) => !section.hasRequiredCondition(ast, context));
 }
 
 /**
