@@ -45,6 +45,7 @@ import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
 import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
+import { TableBlockPlugin } from './plugins/TableBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
@@ -491,6 +492,9 @@ export function BlockEditor({
 
           {/* Asset previews — renders image/audio/file previews on asset blocks */}
           <AssetBlockPlugin />
+
+          {/* Table previews — renders table element on table-class blocks */}
+          <TableBlockPlugin />
         </VirtualizationPlugin>
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}

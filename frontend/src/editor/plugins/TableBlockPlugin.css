@@ -1,0 +1,38 @@
+/* ─── Table Block Plugin ──────────────────────────────────────── */
+
+.table-block-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 4px;
+}
+
+.table-block-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font-size: 0.9em;
+}
+
+.table-block-row--header {
+  background: var(--color-surface-container);
+}
+
+.table-block-cell {
+  padding: 6px 10px;
+  border: 1px solid var(--color-outline-variant);
+  min-width: 80px;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.table-block-row--header .table-block-cell {
+  font-weight: 600;
+}
+
+.table-block-empty {
+  padding: 12px 16px;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  font-size: 0.9em;
+}
