@@ -354,6 +354,17 @@ export class BlockNode extends ElementNode {
       dom.appendChild(assetPreview);
     }
 
+    // ── Table preview container ────────────────────────────────
+    // Non-editable portal target for TableBlockPlugin to render
+    // table element with rows and cells.
+    if (this.__nodeType === 'table') {
+      const tablePreview = document.createElement('div');
+      tablePreview.className = 'node-block-table-preview';
+      tablePreview.contentEditable = 'false';
+      setDOMUnmanaged(tablePreview);
+      dom.appendChild(tablePreview);
+    }
+
     return dom;
   }
 
@@ -398,6 +409,18 @@ export class BlockNode extends ElementNode {
         dom.appendChild(assetPreview);
       } else if (this.__nodeType !== 'asset' && existingPreview) {
         existingPreview.remove();
+      }
+
+      // Add/remove table preview container when type changes
+      const existingTable = dom.querySelector('.node-block-table-preview');
+      if (this.__nodeType === 'table' && !existingTable) {
+        const tablePreview = document.createElement('div');
+        tablePreview.className = 'node-block-table-preview';
+        tablePreview.contentEditable = 'false';
+        setDOMUnmanaged(tablePreview);
+        dom.appendChild(tablePreview);
+      } else if (this.__nodeType !== 'table' && existingTable) {
+        existingTable.remove();
       }
     }
 
