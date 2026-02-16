@@ -7,16 +7,13 @@
  * Shown at the top of linked references, separated by a horizontal divider,
  * outside of any group-by grouping.
  * 
- * Each page is shown collapsed by default. When expanded, it shows
- * PropertiesSection filtered to only the relevant property — the exact same
- * component used in the main node view.
+ * Uses standard Lexical BlockEditor for rendering pages with their content,
+ * providing consistent block interactions (bullets, collapse arrows, etc.).
  */
-import { useState, useCallback } from 'react';
+import { useMemo, useCallback, useId } from 'react';
 import type { Node, LinkedReference } from '@/types';
-import { NodeInline } from '../blocks/NodeInline';
-import { PropertiesSection } from '../properties/PropertiesSection';
-import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
-import { useAppStore } from '@/stores';
+import { BlockEditor } from '@/editor/BlockEditor';
+import { useSettingsStore } from '@/stores';
 import './PropertyReferencesSection.css';
 
 interface PropertyRefItem {
@@ -44,98 +41,132 @@ interface PropertyReferencesSectionProps {
 }
 
 /**
- * A single collapsible property reference page item.
- * Uses the same PropertiesSection as the main node view, filtered to the relevant property.
+ * Apply collapse level to node children recursively
+ * Children at depth >= collapseLevel will be marked as collapsed
  */
-function PropertyRefPageItem({
-  item,
-  editable = false,
-  onNodeClick,
-  onNodeShiftClick,
-}: {
-  item: PropertyRefItem;
-  editable?: boolean;
-  onNodeClick?: (node: Node) => void;
-  onNodeShiftClick?: (node: Node) => void;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const openNode = useAppStore(state => state.openNode);
+function applyCollapseLevelToChildren(node: Node, collapseLevel: number, currentDepth: number = 0): Node {
+  if (!node.children || node.children.length === 0 || collapseLevel === 0) {
+    return node;
+  }
 
-  const { pageNode, propertyId, ref } = item;
+  const processedChildren = node.children.map(child => {
+    const childDepth = currentDepth + 1;
+    const shouldCollapse = childDepth >= collapseLevel;
+    
+    return applyCollapseLevelToChildren(
+      {
+        ...child,
+        collapsed: shouldCollapse,
+      },
+      collapseLevel,
+      childDepth
+    );
+  });
 
-  const handleNavigateToPage = useCallback(() => {
-    onNodeClick?.(pageNode);
-  }, [onNodeClick, pageNode]);
+  return {
+    ...node,
+    children: processedChildren,
+  };
+}
 
-  const handleOpenPageInSidebar = useCallback(() => {
-    onNodeShiftClick?.(pageNode);
-  }, [onNodeShiftClick, pageNode]);
-
-  return (
-    <div className={`property-ref-item ${isExpanded ? 'property-ref-item--expanded' : ''}`}>
-      <div className="property-ref-item__header">
-        <button
-          type="button"
-          className="property-ref-item__toggle"
-          onClick={() => setIsExpanded(!isExpanded)}
-          aria-expanded={isExpanded}
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-        </button>
-        <NodeInline
-          name={pageNode.name}
-          icon={pageNode.icon}
-          isPage={pageNode.is_page}
-          nodeId={pageNode.id}
-          showBullet={true}
-          onClick={handleNavigateToPage}
-          onShiftClick={handleOpenPageInSidebar}
-        />
-      </div>
-      
-      {isExpanded && (
-        <div className="property-ref-item__content">
-          <PropertiesSection
-            nodeId={ref.source_node.id}
-            variant="block"
-            readOnly={!editable}
-            inline={true}
-            filterPropertyIds={[propertyId]}
-            showAddProperty={false}
-            showHiddenSection={false}
-            onNavigateToNode={(id) => openNode(id)}
-          />
-        </div>
-      )}
-    </div>
-  );
+/**
+ * Flatten a node tree into a flat array while preserving parent-child relationships
+ */
+function flattenNodes(nodes: Node[]): Node[] {
+  const result: Node[] = [];
+  const collect = (n: Node) => {
+    result.push(n);
+    if (n.children) {
+      for (const child of n.children) {
+        collect(child);
+      }
+    }
+  };
+  for (const n of nodes) {
+    collect(n);
+  }
+  return result;
 }
 
 /**
  * Section displaying pages that reference via relation properties.
- * Renders above regular linked references, separated by a horizontal divider.
+ * Uses BlockEditor for standard block rendering with collapse support.
  */
 export function PropertyReferencesSection({
   items,
   editable = false,
   onNodeClick,
   onNodeShiftClick,
+  onAddClass,
 }: PropertyReferencesSectionProps) {
+  const viewId = useId();
+  const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
+
+  // Process items into page nodes with collapsed children
+  const pageNodes = useMemo(() => {
+    return items.map(item => {
+      // Get the source node which has the children
+      const sourceNode = item.ref.source_node;
+      
+      // Create a page node from source_page or source_node
+      const pageNode = item.pageNode;
+      
+      // Build the node with its children, applying collapse level
+      // The page itself starts collapsed (depth 0), children start at depth 1
+      const nodeWithChildren: Node = {
+        ...pageNode,
+        // Use source_node's children if available
+        children: sourceNode.children || [],
+        // Page itself is collapsed initially
+        collapsed: true,
+      };
+      
+      // Apply collapse level to children (they will be collapsed when page is expanded)
+      return applyCollapseLevelToChildren(nodeWithChildren, linkedRefsCollapseLevel, 0);
+    });
+  }, [items, linkedRefsCollapseLevel]);
+
+  // Flatten all nodes for BlockEditor
+  const allNodes = useMemo(() => {
+    return flattenNodes(pageNodes);
+  }, [pageNodes]);
+
+  // Handle navigation
+  const handleNavigateToNode = useCallback((blockId: string) => {
+    const node = allNodes.find(n => n.uuid === blockId);
+    if (node) {
+      onNodeClick?.(node);
+    }
+  }, [allNodes, onNodeClick]);
+
+  // Handle shift-click (open in sidebar)
+  const handleOpenInSidebar = useCallback((blockId: string) => {
+    const node = allNodes.find(n => n.uuid === blockId);
+    if (node) {
+      onNodeShiftClick?.(node);
+    }
+  }, [allNodes, onNodeShiftClick]);
+
+  // Handle content changes (for editable mode)
+  const handleContentChange = useCallback((_blockId: string, _content: string) => {
+    // Content changes are handled by the editor's internal persistence
+  }, []);
+
   if (items.length === 0) return null;
 
   return (
     <div className="property-references-section">
       <div className="property-references-section__list">
-        {items.map((item) => (
-          <PropertyRefPageItem
-            key={`${item.pageNode.id}-${item.propertyId}`}
-            item={item}
-            editable={editable}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-          />
-        ))}
+        <BlockEditor
+          editorId={`prop-refs-${viewId}`}
+          nodes={allNodes}
+          mode="list"
+          readOnly={!editable}
+          onNavigateToNode={handleNavigateToNode}
+          onOpenInSidebar={handleOpenInSidebar}
+          onContentChange={handleContentChange}
+          onAddClass={onAddClass}
+        />
       </div>
       <hr className="property-references-section__divider" />
     </div>
