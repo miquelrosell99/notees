@@ -255,7 +255,7 @@ class LinkParsingService:
         
         Returns: [Node Name](notees:uuid)
         """
-        text = LinkService._node_name_to_text(name)
+        text = LinkParsingService._node_name_to_text(name)
         return f"[{text}](notees:{uuid})"
 
     async def _log_link_activity(
