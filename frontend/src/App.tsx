@@ -15,6 +15,7 @@ import { getSettings } from './api/workspaces';
 import { Layout } from './components/layout/Layout';
 import { LoginView } from './views/LoginView';
 import { WorkspaceManagementView } from './views/WorkspaceManagementView';
+import { EnrollmentView } from './views/EnrollmentView';
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -47,6 +48,29 @@ function AppContent() {
     enabled: isAuthenticated,
     staleTime: 10000,
   });
+  
+  // Check enrollment status from user settings
+  const [enrollmentChecked, setEnrollmentChecked] = useState(false);
+  const [needsEnrollment, setNeedsEnrollment] = useState(false);
+  
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setEnrollmentChecked(false);
+      setNeedsEnrollment(false);
+      return;
+    }
+    
+    // Fetch user settings to check enrollment status
+    getSettings().then((settings) => {
+      const completed = settings['enrollment_completed'];
+      setNeedsEnrollment(completed !== 'true' && completed !== true as any);
+      setEnrollmentChecked(true);
+    }).catch(() => {
+      // If settings fetch fails, skip enrollment
+      setEnrollmentChecked(true);
+      setNeedsEnrollment(false);
+    });
+  }, [isAuthenticated]);
   
   // Listen for unauthorized events and logout
   useEffect(() => {
@@ -170,6 +194,21 @@ function AppContent() {
     const intendedUrl = sessionStorage.getItem('intendedUrl');
     sessionStorage.removeItem('intendedUrl');
     window.history.replaceState(null, '', intendedUrl || '/');
+  }
+  
+  // Show enrollment for first-time users
+  if (!enrollmentChecked) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (needsEnrollment) {
+    return (
+      <EnrollmentView onComplete={() => setNeedsEnrollment(false)} />
+    );
   }
   
   // Show loading while checking workspaces

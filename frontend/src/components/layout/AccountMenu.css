@@ -1,0 +1,130 @@
+/**
+ * AccountMenu Component Styles
+ */
+
+/* ==================== Container ==================== */
+.account-menu {
+  position: relative;
+}
+
+/* ==================== Trigger Button ==================== */
+.account-menu__trigger {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  padding: 0;
+}
+
+.account-menu__trigger:hover {
+  border-color: var(--color-outline);
+  background: var(--color-surface-container-high);
+}
+
+.account-menu__trigger--open {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.account-menu__avatar {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.account-menu__trigger--open .account-menu__avatar {
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== Dropdown Menu ==================== */
+.account-menu__dropdown {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-2));
+  left: 0;
+  min-width: 200px;
+  z-index: 1000;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+/* ==================== User Info Section ==================== */
+.account-menu__user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+.account-menu__user-avatar {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--shape-full);
+  font: var(--font-label-large);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.account-menu__username {
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Divider ==================== */
+.account-menu__divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: var(--spacing-1) 0;
+}
+
+/* ==================== Menu Items ==================== */
+.account-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-4);
+  border: none;
+  background: none;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  text-align: left;
+}
+
+.account-menu__item:hover {
+  background: var(--color-hover-overlay);
+}
+
+.account-menu__item svg {
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.account-menu__item--danger {
+  color: var(--color-error);
+}
+
+.account-menu__item--danger svg {
+  color: var(--color-error);
+}
+
+.account-menu__item--danger:hover {
+  background: var(--color-error-container);
+}

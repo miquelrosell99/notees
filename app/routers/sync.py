@@ -78,3 +78,62 @@ async def set_setting(key: str, request: Request, user: User = Depends(get_curre
         """, user_id, key, json_value, now)
     
     return {"status": "ok"}
+
+@router.get("/workspace-settings")
+async def get_workspace_settings(user: User = Depends(get_current_user)):
+    """Get all settings for the user's active workspace."""
+    from ..database import get_active_workspace_id
+    pool = await get_pool()
+    user_id = int(user.id)
+    active_uuid = get_active_workspace_id(str(user_id))
+    if not active_uuid:
+        return {}
+    
+    async with acquire_connection(pool) as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM workspace WHERE uuid::text = $1", active_uuid
+        )
+        if not row:
+            return {}
+        workspace_id = row["id"]
+        rows = await conn.fetch(
+            "SELECT key, value FROM setting_workspace WHERE workspace_id = $1",
+            workspace_id
+        )
+        settings = {r["key"]: r["value"] for r in rows}
+        return settings
+
+
+@router.put("/workspace-settings/{key}")
+async def set_workspace_setting(key: str, request: Request, user: User = Depends(get_current_user)):
+    """Set a workspace setting."""
+    import json
+    from ..database import get_active_workspace_id
+    data = await request.json()
+    value = data.get("value")
+    
+    pool = await get_pool()
+    user_id = int(user.id)
+    active_uuid = get_active_workspace_id(str(user_id))
+    if not active_uuid:
+        raise HTTPException(status_code=404, detail="No active workspace")
+    
+    json_value = json.dumps(value) if value is not None else 'null'
+    now = utc_now()
+    
+    async with acquire_connection(pool) as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM workspace WHERE uuid::text = $1", active_uuid
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        workspace_id = row["id"]
+        
+        await conn.execute("""
+            INSERT INTO setting_workspace (workspace_id, key, value, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, $3::jsonb, $4, $4, $5, $5)
+            ON CONFLICT (workspace_id, key) 
+            DO UPDATE SET value = $3::jsonb, write_date = $4, write_uid = $5
+        """, workspace_id, key, json_value, now, user_id)
+    
+    return {"status": "ok"}

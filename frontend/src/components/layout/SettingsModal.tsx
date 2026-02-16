@@ -1,17 +1,17 @@
 /**
  * SettingsModal Component
  * 
- * Modal for app settings, user info, and account management.
+ * Modal for graph/workspace-level settings only.
+ * User-level settings (theme, account) are in UserSettingsModal.
  */
 import { useState } from 'react';
-import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
-import type { ThemePreference, DateFormat, QuickAddDestination } from '@/stores';
+import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
+import type { DateFormat, QuickAddDestination } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
-import { Separator } from '../core/Separator';
 import { BooleanToggle } from '../core/BooleanToggle';
 import './SettingsModal.css';
 
@@ -20,12 +20,11 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'account' | 'appearance' | 'about';
+type SettingsTab = 'general';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const { user, logout } = useAuthStore();
-  const { theme, dateFormat, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { dateFormat, defaultView, quickAddDestination, linkedRefsCollapseLevel, setDateFormat, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
@@ -33,20 +32,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   if (!isOpen) return null;
 
-  const handleLogout = () => {
-    logout();
-    onClose();
-  };
-
-  const handleThemeChange = (newTheme: ThemePreference) => {
-    setTheme(newTheme);
-    applyTheme(newTheme);
-  };
-
   const handleDateFormatChange = async (newFormat: DateFormat) => {
     if (newFormat === dateFormat) return;
-    
-    // Show confirmation modal
     setPendingDateFormat(newFormat);
     setShowDateFormatConfirm(true);
   };
@@ -61,7 +48,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const result = await updateDateFormat(pendingDateFormat);
       if (result.status === 'success') {
         setDateFormat(pendingDateFormat);
-        // Invalidate queries to refresh node names
         queryClient.invalidateQueries({ queryKey: ['nodes'] });
         queryClient.invalidateQueries({ queryKey: ['page'] });
       }
@@ -84,9 +70,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const tabs: { id: SettingsTab; label: string; }[] = [
     { id: 'general', label: 'General'},
-    { id: 'appearance', label: 'Appearance'},
-    { id: 'account', label: 'Account'},
-    { id: 'about', label: 'About'},
   ];
 
   return (
@@ -119,13 +102,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className="settings-modal__content">
             {activeTab === 'general' && (
               <div className="settings-section">
-                <h3 className="settings-section__title">General Settings</h3>
+                <h3 className="settings-section__title">Graph Settings</h3>
                 
                 <div className="settings-item">
                   <div className="settings-item__info">
                     <label className="settings-item__label">Date format</label>
                     <p className="settings-item__description">
-                      Format used for daily and monthly notes
+                      Format used for daily and monthly notes in this graph
                     </p>
                   </div>
                   <select 
@@ -149,7 +132,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div className="settings-item__info">
                     <label className="settings-item__label">Default view</label>
                     <p className="settings-item__description">
-                      Choose what to show when opening the app
+                      Choose what to show when opening this graph
                     </p>
                   </div>
                   <select 
@@ -212,117 +195,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onChange={() => {}}
                     size="md"
                   />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'appearance' && (
-              <div className="settings-section">
-                <h3 className="settings-section__title">Appearance</h3>
-                
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Theme</label>
-                    <p className="settings-item__description">
-                      Choose your preferred color theme
-                    </p>
-                  </div>
-                  <div className="settings-theme-buttons">
-                    <Button
-                      className="settings-theme-btn"
-                      variant={theme === 'light' ? 'default' : 'ghost'}
-                      size="sm"
-                      active={theme === 'light'}
-                      onClick={() => handleThemeChange('light')}
-                    >
-                      Light
-                    </Button>
-                    <Button
-                      className="settings-theme-btn"
-                      variant={theme === 'dark' ? 'default' : 'ghost'}
-                      size="sm"
-                      active={theme === 'dark'}
-                      onClick={() => handleThemeChange('dark')}
-                    >
-                      Dark
-                    </Button>
-                    <Button
-                      className="settings-theme-btn"
-                      variant={theme === 'system' ? 'default' : 'ghost'}
-                      size="sm"
-                      active={theme === 'system'}
-                      onClick={() => handleThemeChange('system')}
-                    >
-                      System
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Font size</label>
-                    <p className="settings-item__description">
-                      Adjust the base font size
-                    </p>
-                  </div>
-                  <select className="settings-item__select">
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'account' && (
-              <div className="settings-section">
-                <h3 className="settings-section__title">Account</h3>
-                
-                <div className="settings-user-info">
-                  <div className="settings-user-avatar">
-                    {user?.username?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div className="settings-user-details">
-                    <p className="settings-user-name">{user?.username || 'User'}</p>
-                    <p className="settings-user-id">ID: {user?.id || 'Unknown'}</p>
-                  </div>
-                </div>
-
-                <Separator orientation="horizontal" size="lg" spacing="md" />
-
-                <Button className="settings-btn" variant="danger" size="md" onClick={handleLogout}>
-                  <span></span>
-                  Log out
-                </Button>
-              </div>
-            )}
-
-            {activeTab === 'about' && (
-              <div className="settings-section">
-                <h3 className="settings-section__title">About Notees</h3>
-                
-                <div className="settings-about">
-                  <div className="settings-about__logo">N</div>
-                  <h4 className="settings-about__name">Notees</h4>
-                  <p className="settings-about__version">Version 1.0.0</p>
-                  <p className="settings-about__description">
-                    A powerful note-taking app with graph visualization, 
-                    bidirectional linking, and more.
-                  </p>
-                </div>
-
-                <Separator orientation="horizontal" size="lg" spacing="md" />
-
-                <div className="settings-links">
-                  <a href="#" className="settings-link">
-                    Documentation
-                  </a>
-                  <a href="#" className="settings-link">
-                    Report a bug
-                  </a>
-                  <a href="#" className="settings-link">
-                    Feature request
-                  </a>
                 </div>
               </div>
             )}

@@ -116,3 +116,18 @@ export async function getSetting(key: string): Promise<string | null> {
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await api.put(`/settings/${encodeURIComponent(key)}`, { value });
 }
+
+/**
+ * Get all settings for the current workspace (graph)
+ */
+export async function getWorkspaceSettings(): Promise<Record<string, string>> {
+  const response = await api.get('/workspace-settings');
+  return response.data;
+}
+
+/**
+ * Set a workspace setting value
+ */
+export async function setWorkspaceSetting(key: string, value: unknown): Promise<void> {
+  await api.put(`/workspace-settings/${encodeURIComponent(key)}`, { value });
+}
