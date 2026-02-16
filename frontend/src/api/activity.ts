@@ -16,6 +16,7 @@ export interface NodeActivity {
   details?: string;
   target_node_id?: number;
   target_node_name?: string;
+  target_node_uuid?: string;
   create_date: string;
 }
 
