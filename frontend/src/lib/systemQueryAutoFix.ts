@@ -202,6 +202,28 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       );
     },
   },
+
+  // Unlinked References - exclude pages (class does not contain page)
+  {
+    viewType: 'unlinked_references',
+    requiresCondition: (_ast, _context) => {
+      return markAsSystemNode({
+        type: 'condition',
+        condition_type: 'class',
+        class_uuid: '00000000-0000-0000-0001-000000000002',  // Page class UUID
+        operator: 'does_not_contain',
+      } as ClassCondition);
+    },
+    hasRequiredCondition: (ast, _context) => {
+      return ast.root_group.children.some(
+        (child) =>
+          child.type === 'condition' &&
+          isClassCondition(child as ConditionNode) &&
+          (child as ClassCondition).class_uuid === '00000000-0000-0000-0001-000000000002' &&
+          (child as ClassCondition).operator === 'does_not_contain'
+      );
+    },
+  },
 ];
 
 // ==================== Auto-Fix Functions ====================

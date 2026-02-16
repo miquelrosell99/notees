@@ -98,6 +98,10 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                         operator=PropertyOperator.NOT_EQUALS,
                         value="{current_node_uuid}",
                     ),
+                    ClassCondition(
+                        class_uuid="00000000-0000-0000-0001-000000000002",  # Page class UUID
+                        operator="does_not_contain"
+                    ),
                 ]
             ),
             is_system=True
