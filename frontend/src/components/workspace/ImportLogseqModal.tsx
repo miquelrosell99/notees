@@ -1057,11 +1057,17 @@ async function assignProperties(
       continue;
     }
 
-    // Additive mode on existing node: skip properties that already have values
+    // Additive mode on existing node: skip properties that already have a non-empty value
     if (isExistingNode && !override && existingProperties && noteesPropId in existingProperties) {
-      console.log(`[IMPORT] Skipping property ${logseqPropId} on ${label} - already has value in additive mode`);
-      phase.succeeded++;
-      continue;
+      const existingVal = existingProperties[noteesPropId];
+      const hasValue = existingVal !== null && existingVal !== undefined && existingVal !== ''
+        && !(Array.isArray(existingVal) && existingVal.length === 0);
+      if (hasValue) {
+        console.log(`[IMPORT] Skipping property ${logseqPropId} on ${label} - already has value in additive mode`);
+        phase.succeeded++;
+        continue;
+      }
+      console.log(`[IMPORT] Property ${logseqPropId} on ${label} exists but is empty — will set from import`);
     }
 
     try {
