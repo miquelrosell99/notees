@@ -141,6 +141,7 @@ SYSTEM_CLASS_ICONS = {
     "whiteboard": "draw",
     "card": "card-outline",
     "template": "file-document-outline",
+    "task": "checkbox-marked-circle-outline",
     "comment": "comment-outline",
     "table": "table",
 }
@@ -155,7 +156,30 @@ SYSTEM_PROPERTY_UUIDS = {
     "banner": "00000000-0000-0000-0000-000000000006",
     "_query_ast": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
     # "extends" removed - now stored directly in class_extend table
+    # Task class properties
+    "task_status": "00000000-0000-0000-0003-000000000001",
+    "task_deadline": "00000000-0000-0000-0003-000000000002",
+    "task_scheduled": "00000000-0000-0000-0003-000000000003",
+    "task_priority": "00000000-0000-0000-0003-000000000004",
 }
+
+# Task status options with their icons
+TASK_STATUS_OPTIONS = [
+    {"name": "Backlog", "icon": "mdi:circle-outline"},
+    {"name": "Pending", "icon": "mdi:circle-half-full"},
+    {"name": "Doing", "icon": "mdi:circle-slice-4"},
+    {"name": "Reviewing", "icon": "mdi:circle-slice-6"},
+    {"name": "Done", "icon": "mdi:check-circle"},
+    {"name": "Cancelled", "icon": "mdi:close-circle"},
+]
+
+# Task priority options with their icons  
+TASK_PRIORITY_OPTIONS = [
+    {"name": "Low", "icon": "mdi:chevron-down"},
+    {"name": "Medium", "icon": "mdi:equal"},
+    {"name": "High", "icon": "mdi:chevron-up"},
+    {"name": "Urgent", "icon": "mdi:chevron-double-up"},
+]
 
 SYSTEM_PROPERTIES = [
     {"name": "Tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},

@@ -1,5 +1,5 @@
 """Node property value endpoints (scalar, relation, selection)."""
-from typing import Any, Union
+from typing import Any, Dict, List, Union
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
@@ -26,6 +26,32 @@ logger = get_logger(__name__)
 
 
 router = APIRouter()
+
+
+class BatchPropertiesRequest(BaseModel):
+    """Request body for batch property values."""
+    node_ids: List[int]
+
+
+@router.post("/batch/properties")
+async def get_batch_property_values(
+    request: BatchPropertiesRequest,
+    user: User = Depends(get_current_user),
+) -> Dict[str, Dict[str, Any]]:
+    """Get property values for multiple nodes in one request.
+    
+    Returns a dict of { node_id -> { property_id -> value } }.
+    Uses batched SQL queries (3 total) instead of N*3.
+    """
+    repo = await _get_property_repo(user)
+    
+    batch_result = await repo.get_all_property_values_batch(request.node_ids)
+    
+    response: Dict[str, Dict[str, Any]] = {}
+    for nid, prop_values in batch_result.items():
+        response[str(nid)] = extract_properties_dict(prop_values)
+    
+    return response
 
 
 class SetPropertyRequest(BaseModel):
