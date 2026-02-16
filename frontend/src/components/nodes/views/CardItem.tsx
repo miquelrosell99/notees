@@ -545,6 +545,11 @@ export const NodeCard = memo(function NodeCard({
         if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
         break;
       }
+      case 'code': {
+        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.code);
+        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        break;
+      }
       case 'image':
       case 'audio':
       case 'file':

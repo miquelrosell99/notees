@@ -424,6 +424,31 @@
   display: block;
 }
 
+/* ─── Code block ───────────────────────────────────────────────── */
+
+.node-block--code {
+  flex-wrap: wrap;
+}
+
+.node-block--code .node-block-content {
+  width: 100%;
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.node-block--code .node-block-code-wrapper {
+  width: 100%;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  padding: 12px 16px;
+  margin-top: 2px;
+  border: 1px solid var(--color-outline-variant);
+  overflow-x: auto;
+}
+
 /* ─── Node block heading ───────────────────────────────────────── */
 
 .node-block-heading {
