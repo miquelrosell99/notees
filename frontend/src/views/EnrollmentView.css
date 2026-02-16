@@ -44,17 +44,36 @@
   height: 8px;
   border-radius: var(--shape-full);
   background: var(--color-outline-variant);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1);
 }
 
 .enrollment__progress-dot--active {
   background: var(--color-primary);
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px var(--color-primary-container);
+  animation: dotPulse 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dotPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--color-primary-container);
+  }
+  50% {
+    transform: scale(1.4);
+    box-shadow: 0 0 0 6px var(--color-primary-container);
+  }
+  100% {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 4px var(--color-primary-container);
+  }
 }
 
 /* ==================== Card ==================== */
 .enrollment__card {
   width: 100%;
-  padding: var(--spacing-8);
+  padding: var(--spacing-10) var(--spacing-8) var(--spacing-10) var(--spacing-8);
 }
 
 /* ==================== Step Content ==================== */
@@ -265,5 +284,47 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-2);
-  margin-top: var(--spacing-3);
+  margin-top: var(--spacing-4);
+  padding-bottom: var(--spacing-2);
+}
+
+/* ==================== Animations ==================== */
+.enrollment__step-container {
+  width: 100%;
+  position: relative;
+}
+
+.enrollment__step-container--entering {
+  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.enrollment__step-container--active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.enrollment__step-container--exiting {
+  animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
 }
