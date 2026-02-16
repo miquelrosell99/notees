@@ -106,6 +106,13 @@ export function NodeContent({
         }
         break;
       }
+      case 'code': {
+        const classId = systemClassMap?.code;
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeId: blockServerId, classId });
+        }
+        break;
+      }
       case 'image':
         setTargetBlockId(blockServerId ?? node.id);
         setConvertToAsset(true);
