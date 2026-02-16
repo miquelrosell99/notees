@@ -302,41 +302,14 @@
 
 /* ─── Selected state (block drag selection) ──────────────────────── */
 
-/* Selection parent — create stacking context so ::after paints as a background */
-.node-block--selected-first,
-.node-block--selected-single {
-  isolation: isolate;
-}
-
-/* Selection card background — single overlay on the parent that extends to cover children */
-.node-block--selected-first::after,
-.node-block--selected-single::after {
-  content: '';
+/* Real overlay element inserted by selectionUtils.ts */
+.block-selection-card {
   position: absolute;
-  top: -2px;
-  left: -6px;
-  right: -6px;
-  height: var(--selection-card-height, calc(100% + 4px));
   background-color: var(--color-hover-overlay);
   border-radius: var(--shape-medium);
-  z-index: -1;
   pointer-events: none;
-}
-
-/* Subtle left accent border for the selection card */
-.node-block--selected-first::before,
-.node-block--selected-single::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: -2px;
-  height: var(--selection-card-height, calc(100% + 4px));
-  width: 3px;
-  background-color: var(--color-accent);
-  opacity: 0.3;
-  border-top-left-radius: var(--shape-medium);
-  border-bottom-left-radius: var(--shape-medium);
   z-index: 0;
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Selected block bullets are highlighted */
@@ -349,11 +322,6 @@
 .node-block--selected-child .bullet-dot {
   opacity: 0.9;
   background-color: var(--color-accent);
-}
-
-/* Child blocks — no individual background, covered by parent overlay */
-.node-block--selected-child {
-  /* Background handled by parent's ::after pseudo-element */
 }
 
 /* ─── Collapse animations ──────────────────────────────────────────── */
