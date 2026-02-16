@@ -316,7 +316,7 @@ function PropertyValue({
           placeholder="Select node..."
           searchPlaceholder="Search pages..."
           readOnly={readOnly}
-          onNodeClick={onNavigateToNode}
+          onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.id) : undefined}
           onChange={(newValue) => onChange(newValue)}
           onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
         />
