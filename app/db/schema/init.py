@@ -211,10 +211,10 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
             pending_option_id = None
             for i, opt in enumerate(TASK_STATUS_OPTIONS):
                 opt_row = await conn.fetchrow("""
-                    INSERT INTO property_selection_line (property_id, name, icon, "order")
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO property_selection_line (property_id, name, icon)
+                    VALUES ($1, $2, $3)
                     RETURNING id
-                """, status_property_id, opt["name"], opt["icon"], i)
+                """, status_property_id, opt["name"], opt["icon"])
                 if opt_row and opt["name"] == "Pending":
                     pending_option_id = opt_row['id']
             
@@ -264,9 +264,9 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
             priority_property_id = priority_row['id']
             for i, opt in enumerate(TASK_PRIORITY_OPTIONS):
                 await conn.execute("""
-                    INSERT INTO property_selection_line (property_id, name, icon, "order")
-                    VALUES ($1, $2, $3, $4)
-                """, priority_property_id, opt["name"], opt["icon"], i)
+                    INSERT INTO property_selection_line (property_id, name, icon)
+                    VALUES ($1, $2, $3)
+                """, priority_property_id, opt["name"], opt["icon"])
             
             # Link priority property to task class (no default)
             await conn.execute("""
