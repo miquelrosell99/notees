@@ -128,7 +128,7 @@ async def get_node_activity(
             details=row['details'],
             target_node_id=row['target_node_id'],
             target_node_name=_ast_to_text(row['target_node_name']),
-            target_node_uuid=row['target_node_uuid'],
+            target_node_uuid=str(row['target_node_uuid']) if row['target_node_uuid'] else None,
             create_date=row['create_date'].isoformat() if row['create_date'] else "",
         )
         for row in rows

@@ -629,14 +629,24 @@ export class NodeGraphRuntime {
     const formerSiblings = this.getChildren(oldParentId);
     const myOldIndex = formerSiblings.findIndex(s => s.blockId === blockId);
     const subsequentSiblings = formerSiblings.filter((_, i) => i > myOldIndex);
+    
+    // Get existing children to append subsequent siblings after them
+    const existingChildren = this.getChildren(blockId);
+    const startIndex = existingChildren.length;
+    
     for (let i = 0; i < subsequentSiblings.length; i++) {
       subsequentSiblings[i].parentId = blockId;
-      subsequentSiblings[i].orderIndex = i;
+      subsequentSiblings[i].orderIndex = startIndex + i;
     }
 
     this.rebuildChildrenIndex();
     this.scheduleEmit(blockId, oldParentId);
     this.scheduleEmit(blockId, grandparentId);
+    
+    // Emit structure change for the outdented block if its children changed
+    if (subsequentSiblings.length > 0 || existingChildren.length > 0) {
+      this.scheduleEmit(null, blockId);
+    }
   }
 
   private execToggleCollapsed(blockId: string): void {
