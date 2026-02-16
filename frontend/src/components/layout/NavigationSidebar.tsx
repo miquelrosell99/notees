@@ -14,6 +14,8 @@ import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTr
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
+import { UserSettingsModal } from './UserSettingsModal';
+import { AccountMenu } from './AccountMenu';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
@@ -159,6 +161,7 @@ function SortableFavoriteItem({
 export function Sidebar({ collapsed }: SidebarProps) {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [favoritesExpanded, setFavoritesExpanded] = useState(true);
   const [recentsExpanded, setRecentsExpanded] = useState(true);
   const [contextMenuNode, setContextMenuNode] = useState<number | null>(null);
@@ -555,7 +558,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           
         </div>
         
-        {/* Footer - Trash & Settings */}
+        {/* Footer - Trash, Settings & Account */}
         <div className="sidebar-footer">
           <Button 
             className="sidebar-nav-item"
@@ -576,10 +579,13 @@ export function Sidebar({ collapsed }: SidebarProps) {
             icon={mdiCog}
             fullWidth
             onClick={() => setIsSettingsModalOpen(true)}
-            title="Settings"
+            title="Graph Settings"
           >
             Settings
           </Button>
+          <AccountMenu 
+            onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+          />
         </div>
       </Card>
 
@@ -591,6 +597,10 @@ export function Sidebar({ collapsed }: SidebarProps) {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+      />
+      <UserSettingsModal
+        isOpen={isUserSettingsOpen}
+        onClose={() => setIsUserSettingsOpen(false)}
       />
       
       {/* Context Menu for favorites and recents */}
