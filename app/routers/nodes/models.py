@@ -85,6 +85,8 @@ class LinkedReferenceResponse(BaseModel):
     # For property-type links
     property_id: Optional[int] = None
     property_name: Optional[str] = None
+    # For text-property-context links: root block ID of the text property
+    text_property_root_block_id: Optional[int] = None
 
 
 class PropertyValueResponse(BaseModel):

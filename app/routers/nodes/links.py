@@ -320,6 +320,7 @@ async def get_linked_references(
             breadcrumb_path=breadcrumb_segments,
             property_id=link.property_id,
             property_name=link.property_name,
+            text_property_root_block_id=getattr(link, 'text_property_root_block_id', None),
         ))
     
     return {"linked_references": result}

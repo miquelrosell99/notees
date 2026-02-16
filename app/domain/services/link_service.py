@@ -728,6 +728,99 @@ class LinkParsingService:
             )
             backlinks.append(backlink_info)
         
+        # ── Detect text property context ──────────────────────────────
+        # For text links from non-page blocks, check if the block (or an
+        # ancestor) is the root block of a text-type property.  If so,
+        # enrich the backlink with property provenance so the frontend
+        # can display it like a property reference.
+        
+        text_link_backlinks = [
+            b for b in backlinks
+            if b.property_id is None and not b.source_is_page
+        ]
+        
+        if text_link_backlinks:
+            # Collect all unique source block IDs and their ancestors
+            all_ancestor_ids: set[int] = set()
+            source_ancestor_map: dict[int, list[int]] = {}
+            
+            for b in text_link_backlinks:
+                ancestors = await self._node_repo.get_ancestors(
+                    b.source_node_id, include_self=True
+                )
+                source_ancestor_map[b.source_node_id] = ancestors
+                all_ancestor_ids.update(ancestors)
+            
+            if all_ancestor_ids:
+                # Find which of these ancestor IDs are text property root blocks
+                # i.e. they appear as target_id in property_value_relation
+                # for a text-type property
+                text_prop_rows = await pool.fetch("""
+                    SELECT pvr.target_id AS root_block_id,
+                           pvr.node_id   AS owner_id,
+                           pvr.property_id,
+                           p.name        AS property_name,
+                           owner.name    AS owner_name,
+                           owner.uuid    AS owner_uuid,
+                           owner.is_page AS owner_is_page,
+                           owner.page_id AS owner_page_id,
+                           page.name     AS owner_page_name,
+                           page.uuid     AS owner_page_uuid
+                    FROM property_value_relation pvr
+                    JOIN property p ON pvr.property_id = p.id
+                    JOIN node owner ON pvr.node_id = owner.id
+                    LEFT JOIN node page ON owner.page_id = page.id
+                    WHERE pvr.target_id = ANY($1)
+                      AND p.type = 'text'
+                """, list(all_ancestor_ids))
+                
+                # Build lookup: root_block_id → text property info
+                text_prop_lookup: dict[int, dict] = {}
+                for tpr in text_prop_rows:
+                    text_prop_lookup[tpr['root_block_id']] = {
+                        'owner_id': tpr['owner_id'],
+                        'owner_name': tpr['owner_name'],
+                        'owner_uuid': tpr['owner_uuid'],
+                        'owner_is_page': tpr['owner_is_page'],
+                        'owner_page_id': tpr['owner_page_id'],
+                        'owner_page_name': tpr['owner_page_name'],
+                        'owner_page_uuid': tpr['owner_page_uuid'],
+                        'property_id': tpr['property_id'],
+                        'property_name': tpr['property_name'],
+                        'root_block_id': tpr['root_block_id'],
+                    }
+                
+                if text_prop_lookup:
+                    for b in text_link_backlinks:
+                        ancestors = source_ancestor_map.get(b.source_node_id, [])
+                        # Check ancestors (including self) for a text property root
+                        for anc_id in ancestors:
+                            if anc_id in text_prop_lookup:
+                                info = text_prop_lookup[anc_id]
+                                b.property_id = info['property_id']
+                                b.property_name = info['property_name']
+                                b.text_property_root_block_id = info['root_block_id']
+                                # Set source to the property owner (page/block
+                                # that has the text property)
+                                b.source_node_id = info['owner_id']
+                                b.source_node_name = info['owner_name'] or ''
+                                b.source_node_uuid = info['owner_uuid'] or ''
+                                b.source_is_page = bool(info['owner_is_page'])
+                                if info['owner_is_page']:
+                                    b.source_page_id = info['owner_id']
+                                    b.source_page_name = info['owner_name']
+                                    b.source_page_uuid = info['owner_uuid']
+                                else:
+                                    b.source_page_id = info['owner_page_id']
+                                    b.source_page_name = info['owner_page_name']
+                                    b.source_page_uuid = info['owner_page_uuid']
+                                # Rebuild breadcrumb with property context
+                                b.breadcrumb_path = await self._build_breadcrumb_path(
+                                    source_node_id=info['owner_id'],
+                                    property_name=info['property_name'],
+                                )
+                                break
+        
         return backlinks
     
     async def _build_breadcrumb_path(

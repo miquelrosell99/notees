@@ -85,6 +85,10 @@ class BacklinkInfo:
     property_id: Optional[int] = None
     property_name: Optional[str] = None
     
+    # Text property context: if the link is inside a text property's
+    # block hierarchy, this is the root block ID of the text property
+    text_property_root_block_id: Optional[int] = None
+    
     # Breadcrumb path from source to page ancestor
     # Format: [(node_id, name, is_property_segment), ...]
     # Property names are included as breadcrumb segments

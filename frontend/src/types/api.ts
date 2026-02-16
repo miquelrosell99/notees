@@ -206,6 +206,8 @@ export interface LinkedReference {
   breadcrumb_path: BreadcrumbSegment[];
   property_id?: number;
   property_name?: string;
+  /** For text-property-context links: root block ID of the text property */
+  text_property_root_block_id?: number;
 }
 
 export type LinkType = 'page' | 'block';
