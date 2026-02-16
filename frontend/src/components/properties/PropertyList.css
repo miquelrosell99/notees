@@ -31,6 +31,20 @@
   min-height: 28px;
 }
 
+/* Text property rows need top-aligned layout for multi-line editors */
+.property-row:has(.text-property-block--has-content) {
+  align-items: flex-start;
+}
+
+.property-row:has(.text-property-block--has-content) .property-row__label {
+  padding-top: var(--spacing-1);
+}
+
+.property-row:has(.text-property-block--has-content) .property-row__value-container,
+.property-row:has(.text-property-block--has-content) .property-row__value-wrapper {
+  align-items: flex-start;
+}
+
 /* Property Label */
 .property-row__label {
   display: flex;

@@ -376,24 +376,35 @@
   align-items: center;
 }
 
+.text-property-block--has-content {
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container-lowest);
+  padding: var(--spacing-1) 0;
+}
+
 .text-property-block__spinner {
   color: var(--color-on-surface-variant);
   font: var(--font-body-small);
 }
 
-.text-property-block__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-}
-
-.text-property-block__content {
+.text-property-block__editor {
   flex: 1;
   min-width: 0;
 }
 
-.text-property-block__content .block-editor {
+/* Hide the NodeCollection toolbar and empty state padding */
+.text-property-block__editor .node-collection-toolbar {
+  display: none;
+}
+
+.text-property-block__editor .node-list-view {
   min-height: 24px;
+}
+
+/* Target the empty state message inside the editor */
+.text-property-block__editor .node-list-view--empty {
+  min-height: 0;
+  padding: 0;
 }
 
 .text-property-block__add-btn {
@@ -419,19 +430,6 @@
 .text-property-block__add-btn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.text-property-block__children {
-  margin-left: calc(var(--spacing-4) + 6px); /* Align with parent content */
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.text-property-block__child {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-2);
 }
 
 .text-property-add-btn {

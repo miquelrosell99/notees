@@ -622,12 +622,11 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
     if (!node?.properties || !allProperties) return new Set<number>();
     
     const blockIds = new Set<number>();
-    const nodeProps = node.properties as Record<string, unknown>;
+    const nodeProps = node.properties as Record<number, unknown>;
     
     for (const prop of allProperties) {
       if (prop.type === 'text') {
-        const key = prop.name.toLowerCase().replace(/\s+/g, '_');
-        const value = nodeProps[key];
+        const value = nodeProps[prop.id];
         if (typeof value === 'number') {
           blockIds.add(value);
         }

@@ -1,11 +1,14 @@
 /**
  * TextPropertyBlock - Component for text-type properties that behave as block nodes
  * 
- * Text properties are stored as node references (blocks), displayed using the BlockEditor.
- * - Single block with child block support (via Lexical)
- * - Draggable to other locations (clears property on drag)
- * - Shift-click opens in sidebar
- * - Empty state shows "+ Add text" button
+ * Text properties are stored as node references (blocks), displayed using a
+ * full Lexical BlockEditor embedded in the property value section.
+ * 
+ * The text property block acts as a miniature "focused block view":
+ * - Shows a parent block (the text property value) with its own content
+ * - Allows child blocks to be created inside it (nested editing)
+ * - Uses NodeCollection → ListView → BlockEditor for consistent UX
+ * - Supports drag & drop, shift-click sidebar, and all editor features
  * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
@@ -13,12 +16,15 @@ import { useState, useCallback, useRef } from 'react';
 import { 
   useNode, 
   useCreateNode, 
-  useUpdateNode, 
-  useMoveNode 
+  useMoveNode,
+  useContentSave,
+  useNodeNavigation,
 } from '@/hooks';
+import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { mdiPlus } from '@mdi/js';
 import type { Property } from '@/types/api';
-import { BlockEditor } from '@/editor/BlockEditor';
+import type { Node } from '@/types/api';
+import { NodeCollection } from '../nodes/NodeCollection';
 import { Button } from '../core/Button';
 
 interface TextPropertyBlockProps {
@@ -53,14 +59,18 @@ export function TextPropertyBlock({
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Fetch the block node if it exists
+  // Fetch the block node if it exists (with children for nested blocks)
   const { data: blockNode, isLoading: blockLoading } = useNode(blockNodeId, {
     include_children: true,
   });
   
   const createNode = useCreateNode();
-  const updateNode = useUpdateNode();
   const moveNode = useMoveNode();
+  const { handleNodeClick } = useNodeNavigation();
+  const { handleContentChange } = useContentSave();
+
+  // Ensure blocks created via the Add Block button get persisted
+  useBlockPersist();
   
   // Handle creating a new text block
   const handleAddText = useCallback(async () => {
@@ -88,15 +98,10 @@ export function TextPropertyBlock({
     }
   }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange]);
   
-  // Handle content change
-  const handleContentChange = useCallback((_content: string) => {
-    // Content changes are handled by BlockEditor → NodeGraphRuntime
-  }, []);
-  
   // Handle shift-click to open in sidebar
-  const handleShiftClick = useCallback((_blockId: number) => {
-    // Will be wired through BlockEditor navigation
-  }, []);
+  const handleNodeShiftClick = useCallback((clickedNode: Node) => {
+    onOpenInSidebar?.(clickedNode.id);
+  }, [onOpenInSidebar]);
   
   // Handle drop on this property (to receive a block)
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -144,7 +149,6 @@ export function TextPropertyBlock({
   }
   
   // Show empty state with "Add text" button
-  // Note: No bullet here - the bullet is rendered by PropertiesSection
   if (!blockNodeId || !blockNode) {
     return (
       <div 
@@ -167,24 +171,28 @@ export function TextPropertyBlock({
     );
   }
   
-  // Show the block with Lexical-based BlockEditor
+  // Show the block with a full Lexical-based editor (like FocusedBlockContent)
+  // NodeCollection → ListView → BlockEditor handles runtime sync, projection, and editing
   return (
     <div 
       ref={containerRef}
-      className="text-property-block"
+      className="text-property-block text-property-block--has-content"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      <div className="text-property-block__row">
-        <div className="text-property-block__content">
-          <BlockEditor
-            editorId={`text-prop-${blockNode.id}`}
-            rootBlockId={String(blockNode.uuid || blockNode.id)}
-            mode="list"
-            readOnly={readOnly}
-            placeholder="Type here…"
-          />
-        </div>
+      <div className="text-property-block__editor">
+        <NodeCollection
+          nodes={[blockNode]}
+          viewMode="list"
+          availableViewModes={['list']}
+          editable={!readOnly}
+          onNodeClick={handleNodeClick}
+          onNodeShiftClick={handleNodeShiftClick}
+          onContentChange={handleContentChange}
+          pageId={blockNode.id}
+          pageUuid={blockNode.uuid}
+          hideToolbar={true}
+        />
       </div>
     </div>
   );
