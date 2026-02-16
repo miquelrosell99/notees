@@ -26,6 +26,7 @@ import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
 import { createNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import { TableCreationModal, type TableCreationConfig } from './TableCreationModal';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -90,6 +91,10 @@ export function NodeContent({
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
+  // Table creation modal state
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
+
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
     switch (commandId) {
@@ -101,30 +106,9 @@ export function NodeContent({
         break;
       }
       case 'table': {
-        const classId = systemClassMap?.table;
-        if (classId != null && blockServerId != null) {
-          addClass.mutate({ nodeId: blockServerId, classId });
-          // Create initial table structure: 2 rows × 3 cells
-          (async () => {
-            try {
-              const headerRow = await createNode({ name: '', parent_id: blockServerId, sequence: 0 });
-              const dataRow = await createNode({ name: '', parent_id: blockServerId, sequence: 1 });
-              // Create header cells
-              await Promise.all([
-                createNode({ name: 'Header 1', parent_id: headerRow.id, sequence: 0 }),
-                createNode({ name: 'Header 2', parent_id: headerRow.id, sequence: 1 }),
-                createNode({ name: 'Header 3', parent_id: headerRow.id, sequence: 2 }),
-              ]);
-              // Create data cells
-              await Promise.all([
-                createNode({ name: '', parent_id: dataRow.id, sequence: 0 }),
-                createNode({ name: '', parent_id: dataRow.id, sequence: 1 }),
-                createNode({ name: '', parent_id: dataRow.id, sequence: 2 }),
-              ]);
-            } catch (err) {
-              console.error('[NodeContent] Failed to create table structure:', err);
-            }
-          })();
+        if (blockServerId != null) {
+          setTableTargetBlockId(blockServerId);
+          setIsTableModalOpen(true);
         }
         break;
       }
@@ -164,6 +148,37 @@ export function NodeContent({
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
   useBlockPersist();
+
+  // Handle table creation from modal
+  const handleTableCreate = useCallback(async (config: TableCreationConfig) => {
+    if (tableTargetBlockId == null) return;
+    const classId = systemClassMap?.table;
+    if (classId == null) return;
+
+    addClass.mutate({ nodeId: tableTargetBlockId, classId });
+
+    try {
+      // Create header row with labelled cells
+      const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
+      await Promise.all(
+        config.headers.map((header, i) =>
+          createNode({ name: header || `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+        )
+      );
+      // Create data rows (rows - 1 since header is the first row)
+      for (let r = 1; r < config.rows; r++) {
+        const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
+        await Promise.all(
+          Array.from({ length: config.columns }, (_, c) =>
+            createNode({ name: '', parent_id: row.id, sequence: c })
+          )
+        );
+      }
+    } catch (err) {
+      console.error('[NodeContent] Failed to create table structure:', err);
+    }
+    setTableTargetBlockId(null);
+  }, [tableTargetBlockId, systemClassMap, addClass]);
 
   const handleAddBlock = useCallback(() => {
     console.log('[NodeContent] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: children.length });
@@ -278,6 +293,13 @@ export function NodeContent({
         existingNodeId={convertToAsset ? targetBlockId || undefined : undefined}
         acceptedTypes={assetTypeFilter}
         initialFile={pendingFile}
+      />
+      
+      {/* Table Creation Modal */}
+      <TableCreationModal
+        isOpen={isTableModalOpen}
+        onClose={() => { setIsTableModalOpen(false); setTableTargetBlockId(null); }}
+        onCreate={handleTableCreate}
       />
     </div>
   );

@@ -65,9 +65,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { uploadAsset } from '@/api/assets';
+import { createNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
+import { TableCreationModal, type TableCreationConfig } from '@/components/nodes/TableCreationModal';
 
 import './CardItem.css';
 
@@ -318,6 +320,10 @@ export const NodeCard = memo(function NodeCard({
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
 
+  // Table creation modal state
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
+
   // Property hooks for cover
   const { data: allProperties } = useProperties();
   const setNodeProperty = useSetNodeProperty();
@@ -541,8 +547,10 @@ export const NodeCard = memo(function NodeCard({
         break;
       }
       case 'table': {
-        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
-        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        if (blockServerId != null) {
+          setTableTargetBlockId(blockServerId);
+          setIsTableModalOpen(true);
+        }
         break;
       }
       case 'code': {
@@ -564,6 +572,35 @@ export const NodeCard = memo(function NodeCard({
       }
     }
   }, [_propsAllClasses, addClass]);
+
+  // Handle table creation from modal
+  const handleTableCreate = useCallback(async (config: TableCreationConfig) => {
+    if (tableTargetBlockId == null || !_propsAllClasses) return;
+    const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
+    if (!cls) return;
+
+    addClass.mutate({ nodeId: tableTargetBlockId, classId: cls.id });
+
+    try {
+      const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
+      await Promise.all(
+        config.headers.map((header, i) =>
+          createNode({ name: header || `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+        )
+      );
+      for (let r = 1; r < config.rows; r++) {
+        const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
+        await Promise.all(
+          Array.from({ length: config.columns }, (_, c) =>
+            createNode({ name: '', parent_id: row.id, sequence: c })
+          )
+        );
+      }
+    } catch (err) {
+      console.error('[CardItem] Failed to create table structure:', err);
+    }
+    setTableTargetBlockId(null);
+  }, [tableTargetBlockId, _propsAllClasses, addClass]);
 
   // ─── Style & className ─────────────────────────────────────
 
@@ -799,6 +836,13 @@ export const NodeCard = memo(function NodeCard({
         onClose={() => setIsAssetUploadOpen(false)}
         onUpload={handleCoverUploaded}
         acceptedTypes={['image']}
+      />
+
+      {/* Table Creation Modal */}
+      <TableCreationModal
+        isOpen={isTableModalOpen}
+        onClose={() => { setIsTableModalOpen(false); setTableTargetBlockId(null); }}
+        onCreate={handleTableCreate}
       />
     </>
   );
