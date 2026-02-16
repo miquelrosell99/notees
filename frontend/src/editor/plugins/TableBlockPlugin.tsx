@@ -26,6 +26,7 @@ import { useNode } from '@/hooks';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import type { Node } from '@/types';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import './TableBlockPlugin.css';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     const CellTag = isHeader ? 'th' : 'td';
     return (
       <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
-        <CellTag className="table-block-cell">{row.name || '\u00A0'}</CellTag>
+        <CellTag className="table-block-cell">{nodeNameToText(row.name) || '\u00A0'}</CellTag>
       </tr>
     );
   }
@@ -104,7 +105,7 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
       {cells.map(cell => (
         <CellTag key={cell.id} className="table-block-cell">
-          {cell.name || '\u00A0'}
+          {nodeNameToText(cell.name) || '\u00A0'}
         </CellTag>
       ))}
     </tr>
