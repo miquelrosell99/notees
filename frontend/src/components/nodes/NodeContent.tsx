@@ -70,6 +70,18 @@ export function NodeContent({
   const addClass = useAddClass();
   const removeClass = useRemoveClass();
 
+  // Resolve system class IDs for slash commands
+  const { data: allClasses } = useClasses();
+  const systemClassMap = useMemo(() => {
+    if (!allClasses) return null;
+    const map: Record<string, number | undefined> = {};
+    for (const [key, uuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
+      const found = allClasses.find(c => c.uuid === uuid);
+      if (found) map[key] = found.id;
+    }
+    return map;
+  }, [allClasses]);
+
   // State for manual asset class addition
   const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
   const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
@@ -94,18 +106,6 @@ export function NodeContent({
     }
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass, systemClassMap, children]);
-
-  // Resolve system class IDs for slash commands
-  const { data: allClasses } = useClasses();
-  const systemClassMap = useMemo(() => {
-    if (!allClasses) return null;
-    const map: Record<string, number | undefined> = {};
-    for (const [key, uuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
-      const found = allClasses.find(c => c.uuid === uuid);
-      if (found) map[key] = found.id;
-    }
-    return map;
-  }, [allClasses]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
