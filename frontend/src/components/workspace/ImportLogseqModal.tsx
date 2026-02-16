@@ -988,8 +988,11 @@ function buildAstFromLogseqText(
     } else if (linkName) {
       // Name-based link with no matching node — keep as plain text without brackets
       children.push(astText(linkName));
+    } else {
+      // Unresolved UUID reference — keep original syntax as plain text
+      // so the block doesn't end up empty
+      children.push(astText(match[0]));
     }
-    // If UUID target not found, skip the link entirely (remove dead link)
 
     lastIndex = matchStart + match[0].length;
   }
