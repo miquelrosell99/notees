@@ -27,6 +27,7 @@ export function DocumentView({
   onContentChange,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   pageId,
   pageUuid,
   className = '',
@@ -116,6 +117,7 @@ export function DocumentView({
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
+        onPasteImage={onPasteImage}
         pageId={pageId}
         pageUuid={pageUuid}
         placeholder="Start writing…"

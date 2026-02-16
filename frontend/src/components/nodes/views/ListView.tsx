@@ -38,6 +38,7 @@ export function ListView({
   onContentChange,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   pageId,
   pageUuid,
   className = '',
@@ -217,6 +218,7 @@ export function ListView({
               handleContentChangeBridge={handleContentChangeBridge}
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
+              onPasteImage={onPasteImage}
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               pageId={pageId}
@@ -282,6 +284,7 @@ export function ListView({
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
+        onPasteImage={onPasteImage}
         pageId={pageId}
         pageUuid={pageUuid}
         className="node-list-view__editor"
@@ -307,6 +310,7 @@ function ListViewGroup({
   handleContentChangeBridge,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   onNodeClick,
   onNodeShiftClick,
   pageId,
@@ -322,6 +326,7 @@ function ListViewGroup({
   handleContentChangeBridge: (blockId: string, content: string) => void;
   onAddClass?: (nodeId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   pageId?: number;
@@ -366,6 +371,7 @@ function ListViewGroup({
             onContentChange={handleContentChangeBridge}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
             pageId={pageId}
             pageUuid={pageUuid}
             className="node-list-view__editor"

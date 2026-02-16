@@ -159,6 +159,7 @@ export function NodeCollection({
   pageUuid,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -295,6 +296,7 @@ export function NodeCollection({
             enableGrouping={enableGrouping}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
           />
         );
       
@@ -311,6 +313,7 @@ export function NodeCollection({
             className={viewProps.className}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
           />
         );
       
@@ -331,6 +334,7 @@ export function NodeCollection({
             groupBy={groupBy}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
           />
         );
       
@@ -350,6 +354,7 @@ export function NodeCollection({
             className={viewProps.className}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
           />
         );
       

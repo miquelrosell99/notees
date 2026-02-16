@@ -45,9 +45,11 @@ import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
 import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
+import { AssetLinkImagePlugin } from './plugins/AssetLinkImagePlugin';
 import { TableBlockPlugin } from './plugins/TableBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
+import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -112,6 +114,8 @@ export interface BlockEditorProps {
   onAddClass?: (blockId: number, classId: number) => void;
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  /** Called when an image is pasted into a block */
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   /** Custom class name */
   className?: string;
   /** Placeholder text */
@@ -166,6 +170,7 @@ export function BlockEditor({
   onContentChange: onContentChangeCallback,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   className,
   placeholder = 'Type / for commands…',
   includeRoot,
@@ -467,6 +472,9 @@ export function BlockEditor({
           onSlashCommand={onSlashCommand}
         />
 
+        {/* Paste image handler */}
+        <PasteImagePlugin onPasteImage={onPasteImage} />
+
         {/* Floating toolbar */}
         <FloatingToolbarPlugin />
 
@@ -492,6 +500,9 @@ export function BlockEditor({
 
           {/* Asset previews — renders image/audio/file previews on asset blocks */}
           <AssetBlockPlugin />
+
+          {/* Inline asset link previews — renders images below blocks that link to asset nodes */}
+          <AssetLinkImagePlugin />
 
           {/* Table previews — renders table element on table-class blocks */}
           <TableBlockPlugin />

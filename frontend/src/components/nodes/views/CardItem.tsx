@@ -31,6 +31,7 @@ import { TriggerPlugin } from '@/editor/plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from '@/editor/plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from '@/editor/plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from '@/editor/plugins/BlurOnClickOutsidePlugin';
+import { PasteImagePlugin } from '@/editor/plugins/PasteImagePlugin';
 
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
@@ -65,11 +66,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { uploadAsset } from '@/api/assets';
-import { createNode } from '@/api/nodes';
+import { createNode, getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
-import { TableCreationModal, type TableCreationConfig } from '@/components/nodes/TableCreationModal';
+import { TableCreationModal, type TableSize } from '@/components/core/TableCreationModal';
 
 import './CardItem.css';
 
@@ -122,6 +123,7 @@ interface CardChildrenEditorProps {
   onOpenInSidebar?: (blockId: string) => void;
   onAddClass?: (blockId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
 }
 
 /**
@@ -136,6 +138,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
   onOpenInSidebar,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
 }: CardChildrenEditorProps): JSX.Element {
   const editorId = `card-children-${rootBlockId}`;
 
@@ -216,6 +219,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onAddClass={onAddClass}
           onSlashCommand={onSlashCommand}
         />
+        <PasteImagePlugin onPasteImage={onPasteImage} />
         <FloatingToolbarPlugin />
         <ContextMenuPlugin
           onNavigateToNode={onNavigateToNode}
@@ -532,10 +536,26 @@ export const NodeCard = memo(function NodeCard({
     }
   }, [onNodeShiftClick, addSidebarCard]);
 
+  // Manual asset class state
+  const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
+  const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
+
   // Add class to block (uses API mutation)
   const handleAddClass = useCallback((blockId: number, classId: number) => {
-    addClass.mutate({ nodeId: blockId, classId });
-  }, [addClass]);
+    // Check if this is adding the asset class manually
+    const assetCls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset);
+    if (assetCls && classId === assetCls.id) {
+      addClass.mutate({ nodeId: blockId, classId });
+      const block = children.find(c => c.id === blockId);
+      const blockContent = block?.name || '';
+      setManualAssetBlockId(blockId);
+      setManualAssetBlockContent(blockContent);
+      // Cards don't have a full asset upload flow currently — just add the class
+      // (future: open modal)
+    } else {
+      addClass.mutate({ nodeId: blockId, classId });
+    }
+  }, [addClass, _propsAllClasses, children]);
 
   // Handle slash commands from editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
@@ -573,8 +593,8 @@ export const NodeCard = memo(function NodeCard({
     }
   }, [_propsAllClasses, addClass]);
 
-  // Handle table creation from modal
-  const handleTableCreate = useCallback(async (config: TableCreationConfig) => {
+  // Handle table creation from modal — new table
+  const handleTableConfirm = useCallback(async (size: TableSize) => {
     if (tableTargetBlockId == null || !_propsAllClasses) return;
     const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
     if (!cls) return;
@@ -584,14 +604,14 @@ export const NodeCard = memo(function NodeCard({
     try {
       const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
       await Promise.all(
-        config.headers.map((header, i) =>
-          createNode({ name: header || `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+        Array.from({ length: size.columns }, (_, i) =>
+          createNode({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
         )
       );
-      for (let r = 1; r < config.rows; r++) {
+      for (let r = 1; r < size.rows; r++) {
         const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
         await Promise.all(
-          Array.from({ length: config.columns }, (_, c) =>
+          Array.from({ length: size.columns }, (_, c) =>
             createNode({ name: '', parent_id: row.id, sequence: c })
           )
         );
@@ -599,8 +619,46 @@ export const NodeCard = memo(function NodeCard({
     } catch (err) {
       console.error('[CardItem] Failed to create table structure:', err);
     }
+    setIsTableModalOpen(false);
     setTableTargetBlockId(null);
   }, [tableTargetBlockId, _propsAllClasses, addClass]);
+
+  // Handle table creation — adapt existing children
+  const handleTableAdaptExisting = useCallback(() => {
+    if (tableTargetBlockId == null || !_propsAllClasses) return;
+    const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
+    if (cls) addClass.mutate({ nodeId: tableTargetBlockId, classId: cls.id });
+    setIsTableModalOpen(false);
+    setTableTargetBlockId(null);
+  }, [tableTargetBlockId, _propsAllClasses, addClass]);
+
+  const handleTableCancel = useCallback(() => {
+    setIsTableModalOpen(false);
+    setTableTargetBlockId(null);
+  }, []);
+
+  // Handle image paste in a block
+  const handlePasteImage = useCallback(async (blockServerId: number, file: File, hasContent: boolean) => {
+    try {
+      if (!hasContent) {
+        // Empty block: convert to asset directly
+        await uploadAsset(file, node.id, blockServerId);
+      } else {
+        // Block has content: upload as new asset node, then insert link
+        const asset = await uploadAsset(file, node.id);
+        const assetNode = await getNode(asset.node_id);
+        if (assetNode?.uuid) {
+          const block = children.find(c => c.id === blockServerId);
+          const currentContent = block?.name || '';
+          const link = `[[${assetNode.uuid}]]`;
+          const newContent = currentContent ? `${currentContent} ${link}` : link;
+          saveContent(blockServerId, newContent);
+        }
+      }
+    } catch (err) {
+      console.error('[CardItem] Failed to handle pasted image:', err);
+    }
+  }, [node.id, children, saveContent]);
 
   // ─── Style & className ─────────────────────────────────────
 
@@ -802,6 +860,7 @@ export const NodeCard = memo(function NodeCard({
                 onOpenInSidebar={handleOpenBlockInSidebar}
                 onAddClass={handleAddClass}
                 onSlashCommand={handleSlashCommand}
+                onPasteImage={handlePasteImage}
               />
             )}
             {editable && (
@@ -841,8 +900,9 @@ export const NodeCard = memo(function NodeCard({
       {/* Table Creation Modal */}
       <TableCreationModal
         isOpen={isTableModalOpen}
-        onClose={() => { setIsTableModalOpen(false); setTableTargetBlockId(null); }}
-        onCreate={handleTableCreate}
+        onConfirm={handleTableConfirm}
+        onAdaptExisting={handleTableAdaptExisting}
+        onCancel={handleTableCancel}
       />
     </>
   );

@@ -424,6 +424,27 @@
   display: block;
 }
 
+/* ─── Linked asset preview (inline image for [[asset]] links) ──── */
+
+.node-block-linked-asset-preview {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.node-block-linked-asset-preview .node-block-linked-asset-image {
+  max-width: 100%;
+}
+
+.node-block-linked-asset-preview .image-node__img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: var(--shape-small);
+  display: block;
+}
+
 /* ─── Code block ───────────────────────────────────────────────── */
 
 .node-block--code {
