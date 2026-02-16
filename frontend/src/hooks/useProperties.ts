@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
 import * as nodesApi from '@/api/nodes';
+import type { BatchPropertiesResult } from '@/api/nodes';
 import type { PropertyCreate, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
 
@@ -29,6 +30,20 @@ export function useProperty(id: number | null) {
     queryKey: propertyKeys.detail(id ?? 0),
     queryFn: () => propertiesApi.getProperty(id!),
     enabled: !!id,
+  });
+}
+
+/**
+ * Batch-fetch property values for multiple nodes in one request.
+ * Returns { nodeId -> { propertyId -> value } }.
+ * Only fires when nodeIds is non-empty; staleTime prevents re-fetching on every render.
+ */
+export function useBatchPropertyValues(nodeIds: number[]) {
+  return useQuery<BatchPropertiesResult>({
+    queryKey: nodeKeys.batchProperties(nodeIds),
+    queryFn: () => nodesApi.getBatchPropertyValues(nodeIds),
+    enabled: nodeIds.length > 0,
+    staleTime: 30_000,
   });
 }
 
@@ -212,28 +227,92 @@ export function useValidateClassExtends() {
 }
 
 /**
- * Hook to set node property value
- * When value is null, removes the property instead of setting it to null
+ * Hook to set node property value with optimistic batch-cache patching.
+ * When value is null, removes the property instead of setting it to null.
+ *
+ * Mutation flow:
+ *   onMutate  → cancel in-flight batch queries, snapshot, patch cache in O(1)
+ *   onError   → rollback to snapshot
+ *   onSettled → background-refetch non-batch caches (detail, pageContent)
  */
 export function useSetNodeProperty() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ nodeId, propertyId, value }: { nodeId: number; propertyId: number; value: unknown }) => {
-      // If value is null, remove the property instead of setting it
       if (value === null) {
         return nodesApi.removeProperty(nodeId, propertyId);
       }
       return nodesApi.setProperty(nodeId, propertyId, value);
     },
-    onSuccess: (_, { nodeId }) => {
-      // Invalidate both detail and page content queries since properties
-      // are used in page headers (cover, banner) and node details
+
+    onMutate: async ({ nodeId, propertyId, value }) => {
+      // Cancel any in-flight batch-properties queries so they don't overwrite
+      // our optimistic update when they land.
+      const batchQueries = queryClient.getQueriesData<BatchPropertiesResult>({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes('batch-properties'),
+      });
+
+      await queryClient.cancelQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes('batch-properties'),
+      });
+
+      // Snapshot every matching batch-properties cache entry for rollback.
+      const snapshots: [readonly unknown[], BatchPropertiesResult | undefined][] = [];
+
+      for (const [queryKey, data] of batchQueries) {
+        snapshots.push([queryKey, data]);
+
+        if (!data) continue;
+
+        const nodeEntry = data[String(nodeId)];
+        if (!nodeEntry) continue;
+
+        // Shallow-clone only the root object and the affected node entry.
+        // Every other nodeId entry keeps its reference — no unnecessary work.
+        queryClient.setQueryData<BatchPropertiesResult>(queryKey, {
+          ...data,
+          [String(nodeId)]: value === null
+            ? (() => {
+                const { [String(propertyId)]: _, ...rest } = nodeEntry;
+                return rest;
+              })()
+            : {
+                ...nodeEntry,
+                [String(propertyId)]: value,
+              },
+        });
+      }
+
+      return { snapshots };
+    },
+
+    onError: (error, { nodeId, propertyId }, context) => {
+      console.error(`Failed to set property ${propertyId} on node ${nodeId}:`, error);
+
+      // Rollback every batch-properties cache entry to its pre-mutation state.
+      if (context?.snapshots) {
+        for (const [queryKey, previous] of context.snapshots) {
+          queryClient.setQueryData(queryKey, previous);
+        }
+      }
+    },
+
+    onSettled: (_, __, { nodeId }) => {
+      // Background-refetch non-batch caches that also carry property data.
+      // These are cheap and keep page headers / detail panels in sync.
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
-    },
-    onError: (error, variables) => {
-      console.error(`Failed to set property ${variables.propertyId} on node ${variables.nodeId}:`, error);
+
+      // Silently re-validate batch caches in the background (inactive only)
+      // so they converge with server truth without blocking the UI.
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes('batch-properties'),
+        refetchType: 'none',
+      });
     },
   });
 }

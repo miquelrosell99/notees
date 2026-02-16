@@ -43,6 +43,8 @@ import { EditablePlugin } from './plugins/EditablePlugin';
 import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
+import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
+import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -474,6 +476,12 @@ export function BlockEditor({
 
         {/* Block class pills — renders class badges on each block */}
         <BlockClassPillsPlugin onNavigateToNode={onNavigateToNode} />
+
+        {/* Property icons on blocks (page-level index, zero per-block queries) */}
+        <BlockPropertyIconsPlugin />
+
+        {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
+        <TaskCyclePlugin />
 
         {/* Constrain text selection to active block + custom copy/cut */}
         <SelectionConstraintPlugin readOnly={readOnly} />

@@ -75,6 +75,7 @@ export {
 export {
   useProperties,
   useProperty,
+  useBatchPropertyValues,
   useCreateProperty,
   useUpdateProperty,
   useClassProperties,

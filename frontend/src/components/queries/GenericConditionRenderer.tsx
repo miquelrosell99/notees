@@ -415,10 +415,39 @@ export function GenericConditionRenderer({
             <NodeSelector
               trigger="select"
               searchMode="pages"
-              value={selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null}
-              onChange={(newValue) => {
-                const nodeId = Array.isArray(newValue) ? newValue[0] : newValue;
-                handleNodeSelect(nodeId);
+              value={selectedIds.length > 0 ? selectedIds : null}
+              multi
+              onAdd={(node) => handleNodeSelect(node.id, node)}
+              onRemove={(node) => {
+                const c = condition as any;
+                if (condition.condition_type === 'reference_path') {
+                  const idx = (c.target_ids || []).indexOf(node.id);
+                  if (idx >= 0) {
+                    const newIds = [...(c.target_ids || [])];
+                    const newUuids = [...(c.target_uuids || [])];
+                    newIds.splice(idx, 1);
+                    newUuids.splice(idx, 1);
+                    onUpdate({ ...condition, target_ids: newIds, target_uuids: newUuids, nested_group: undefined } as any);
+                  }
+                } else if (condition.condition_type === 'parent_path') {
+                  const idx = (c.ancestor_ids || []).indexOf(node.id);
+                  if (idx >= 0) {
+                    const newIds = [...(c.ancestor_ids || [])];
+                    const newUuids = [...(c.ancestor_uuids || [])];
+                    newIds.splice(idx, 1);
+                    newUuids.splice(idx, 1);
+                    onUpdate({ ...condition, ancestor_ids: newIds, ancestor_uuids: newUuids, nested_group: undefined } as any);
+                  }
+                } else if (condition.condition_type === 'child_path') {
+                  const idx = (c.descendant_ids || []).indexOf(node.id);
+                  if (idx >= 0) {
+                    const newIds = [...(c.descendant_ids || [])];
+                    const newUuids = [...(c.descendant_uuids || [])];
+                    newIds.splice(idx, 1);
+                    newUuids.splice(idx, 1);
+                    onUpdate({ ...condition, descendant_ids: newIds, descendant_uuids: newUuids, nested_group: undefined } as any);
+                  }
+                }
               }}
               placeholder={config.staticMode.placeholder}
               readOnly={readOnly}
@@ -426,17 +455,14 @@ export function GenericConditionRenderer({
           );
         }
         
-        // Single-select for non-path conditions
+        // Single-select for non-path conditions (reference, parent, etc.)
         const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
         return (
           <NodeSelector
             trigger="select"
             searchMode="pages"
             value={selectedId}
-            onChange={(newValue) => {
-              const nodeId = Array.isArray(newValue) ? newValue[0] : newValue;
-              handleNodeSelect(nodeId);
-            }}
+            onAdd={(node) => handleNodeSelect(node.id, node)}
             placeholder={config.staticMode.placeholder}
             readOnly={readOnly}
           />
@@ -529,8 +555,8 @@ export function GenericConditionRenderer({
         <span className="prose-condition__word">{displayLabel}</span>
       )}
       {renderOperator()}
-      {renderModeToggle()}
       {renderStaticInput()}
+      {renderModeToggle()}
     </div>
   );
 }
