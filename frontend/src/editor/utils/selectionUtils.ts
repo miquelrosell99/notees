@@ -16,11 +16,13 @@ export function selectBlockWithChildren(
   blockId: string,
   selectedBlocks: Set<string>,
 ): void {
-  const blockEl = rootEl.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement;
+  const blockEl = rootEl.querySelector(`.node-block[data-block-id="${blockId}"]`) as HTMLElement;
   if (!blockEl) return;
 
   const blockDepth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
-  const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
+  // Use .node-block selector to avoid matching bullet-wrapper elements
+  // which also carry data-block-id but lack data-depth
+  const allBlocks = Array.from(rootEl.querySelectorAll('.node-block[data-block-id]')) as HTMLElement[];
   const blockIndex = allBlocks.indexOf(blockEl);
 
   // Add the block itself
@@ -52,25 +54,59 @@ export function selectBlockWithChildren(
     children[children.length - 1].classList.add('node-block--selected-last');
   }
 
-  // Create a real overlay div inside the .notees-editor wrapper.
-  // Pseudo-elements on the parent can't reliably cover flat siblings because
-  // each .node-block has position:relative and paints over them.
-  const editorWrapper = rootEl.closest('.notees-editor') as HTMLElement;
-  if (editorWrapper) {
-    const wrapperRect = editorWrapper.getBoundingClientRect();
-    const parentRect = blockEl.getBoundingClientRect();
-    const lastRect = children.length > 0
-      ? children[children.length - 1].getBoundingClientRect()
-      : parentRect;
+  // Update the selection overlay to cover all selected blocks
+  updateSelectionOverlay(rootEl);
+}
 
-    const overlay = document.createElement('div');
-    overlay.className = 'block-selection-card';
-    overlay.style.top = `${parentRect.top - wrapperRect.top - 2}px`;
-    overlay.style.left = `${parentRect.left - wrapperRect.left - 6}px`;
-    overlay.style.right = '0';
-    overlay.style.height = `${lastRect.bottom - parentRect.top + 4}px`;
-    editorWrapper.appendChild(overlay);
-  }
+/**
+ * Create/update the selection card overlay to cover all currently selected blocks.
+ * Uses offset-based positioning relative to .notees-editor (position:relative ancestor).
+ */
+function updateSelectionOverlay(rootEl: HTMLElement): void {
+  const editorWrapper = rootEl.closest('.notees-editor') as HTMLElement;
+  if (!editorWrapper) return;
+
+  // Remove existing overlay
+  editorWrapper.querySelectorAll('.block-selection-card').forEach(el => el.remove());
+
+  // Find all currently selected blocks (including children)
+  const allSelected = rootEl.querySelectorAll(
+    '.node-block--selected, .node-block--selected-child'
+  ) as NodeListOf<HTMLElement>;
+  if (allSelected.length === 0) return;
+
+  const firstEl = allSelected[0];
+  const lastEl = allSelected[allSelected.length - 1];
+
+  // Walk offsetParent chain to compute position relative to editorWrapper
+  const getOffsetRelativeTo = (el: HTMLElement, ancestor: HTMLElement) => {
+    let top = 0;
+    let left = 0;
+    let current: HTMLElement | null = el;
+    while (current && current !== ancestor) {
+      top += current.offsetTop;
+      left += current.offsetLeft;
+      current = current.offsetParent as HTMLElement | null;
+    }
+    return { top, left };
+  };
+
+  const firstOffset = getOffsetRelativeTo(firstEl, editorWrapper);
+  const lastOffset = getOffsetRelativeTo(lastEl, editorWrapper);
+
+  // Find the leftmost edge — use the primary selected block's left position
+  const parentSelected = rootEl.querySelector('.node-block--selected') as HTMLElement;
+  const leftOffset = parentSelected
+    ? getOffsetRelativeTo(parentSelected, editorWrapper).left
+    : firstOffset.left;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'block-selection-card';
+  overlay.style.top = `${firstOffset.top - 2}px`;
+  overlay.style.left = `${leftOffset - 6}px`;
+  overlay.style.right = '0';
+  overlay.style.height = `${(lastOffset.top + lastEl.offsetHeight) - firstOffset.top + 4}px`;
+  editorWrapper.appendChild(overlay);
 }
 
 /**
