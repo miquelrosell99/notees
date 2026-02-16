@@ -14,6 +14,8 @@ import { useMemo, useCallback, useId } from 'react';
 import type { Node, LinkedReference } from '@/types';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { useSettingsStore } from '@/stores';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { useContentSave } from '@/hooks';
 import './PropertyReferencesSection.css';
 
 interface PropertyRefItem {
@@ -101,6 +103,9 @@ export function PropertyReferencesSection({
 }: PropertyReferencesSectionProps) {
   const viewId = useId();
   const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
+  
+  // Use content save hook for persistence
+  const { handleContentChange: saveContent } = useContentSave();
 
   // Process items into page nodes with collapsed children
   const pageNodes = useMemo(() => {
@@ -147,10 +152,15 @@ export function PropertyReferencesSection({
     }
   }, [allNodes, onNodeShiftClick]);
 
-  // Handle content changes (for editable mode)
-  const handleContentChange = useCallback((_blockId: string, _content: string) => {
-    // Content changes are handled by the editor's internal persistence
-  }, []);
+  // Handle content changes (bridge from UUID to serverId for persistence)
+  const handleContentChange = useCallback((blockId: string, content: string) => {
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    const serverId = graphNode?.serverId;
+    if (serverId != null) {
+      saveContent(serverId, content);
+    }
+  }, [saveContent]);
 
   if (items.length === 0) return null;
 
