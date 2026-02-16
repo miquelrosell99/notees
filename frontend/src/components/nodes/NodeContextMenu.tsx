@@ -8,7 +8,7 @@
  * 
  * The menus are composable - page and block menus include the common items.
  */
-import { useMemo, useCallback, useState, useRef } from 'react';
+import { useMemo, useCallback, useState, useRef, useLayoutEffect } from 'react';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore, useFavoritesStore } from '@/stores';
@@ -21,6 +21,55 @@ import { SearchBox } from '../core/SearchBox';
 import type { Node, NodeUpdate } from '@/types';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import './NodeContextMenu.css';
+
+// ==================== Viewport Position Hook ====================
+
+/**
+ * Adjusts a fixed-position element so it stays within the viewport.
+ * If it overflows the bottom, shifts it upward. Same for right edge.
+ */
+function useViewportAdjustedPosition(
+  wrapperRef: React.RefObject<HTMLElement | null>,
+  position: { x: number; y: number },
+  isVisible: boolean
+): { x: number; y: number } {
+  const [adjusted, setAdjusted] = useState(position);
+
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      setAdjusted(position);
+      return;
+    }
+    // Defer to next frame so the element is rendered and measurable
+    const rafId = requestAnimationFrame(() => {
+      if (!wrapperRef.current) {
+        setAdjusted(position);
+        return;
+      }
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const padding = 8;
+      let x = position.x;
+      let y = position.y;
+
+      // If menu overflows bottom, open upward from click point
+      if (y + rect.height > window.innerHeight) {
+        y = position.y - rect.height;
+      }
+      // If menu overflows right
+      if (x + rect.width > window.innerWidth) {
+        x = window.innerWidth - rect.width - padding;
+      }
+      // Clamp to viewport edges
+      if (x < padding) x = padding;
+      if (y < padding) y = padding;
+
+      setAdjusted({ x, y });
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [position, isVisible, wrapperRef]);
+
+  return adjusted;
+}
 
 // ==================== Common Context Menu Items ====================
 
@@ -248,10 +297,13 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
     onClose();
   }, [onClose]);
   
+  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal;
+  const adjustedPos = useViewportAdjustedPosition(wrapperRef, position, menuVisible);
+
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && !showASTModal && (
-        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
+      {menuVisible && (
+        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: adjustedPos.x, top: adjustedPos.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={commonItems}
@@ -573,10 +625,13 @@ export function BlockContextMenu({
     onClose();
   }, [onClose]);
   
+  const menuVisible = !showArchiveModal && !showASTModal;
+  const adjustedPos = useViewportAdjustedPosition(wrapperRef, position, menuVisible);
+
   return (
     <>
-      {!showArchiveModal && !showASTModal && (
-        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
+      {menuVisible && (
+        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ left: adjustedPos.x, top: adjustedPos.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
             items={blockItems}
