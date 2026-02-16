@@ -431,9 +431,19 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     const anchorEl = startContainer.nodeType === Node.TEXT_NODE
       ? startContainer.parentElement
       : startContainer as Element;
-    const contentWrapper = anchorEl?.closest('.node-block-content') as HTMLElement | null;
-    if (contentWrapper) {
-      const contentLeft = contentWrapper.getBoundingClientRect().left;
+    // Try finding .node-block-content by traversing up (normal case: selection
+    // is on a text node or element *inside* the content wrapper).
+    let contentEl = anchorEl?.closest('.node-block-content') as HTMLElement | null;
+    if (!contentEl) {
+      // Selection may be on .node-block itself (happens when Lexical resolves
+      // an element-level selection on an empty BlockNode). In that case
+      // closest() won't find .node-block-content because it's a *child*, not
+      // an ancestor. Fall back to querySelector on the parent block.
+      const blockEl = anchorEl?.closest('.node-block') as HTMLElement | null;
+      contentEl = blockEl?.querySelector('.node-block-content') as HTMLElement | null;
+    }
+    if (contentEl) {
+      const contentLeft = contentEl.getBoundingClientRect().left;
       if (rect.left < contentLeft) {
         rect = new DOMRect(contentLeft, rect.top, rect.width, rect.height);
       }
