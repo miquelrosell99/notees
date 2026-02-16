@@ -309,7 +309,6 @@
   border-radius: var(--shape-medium);
   pointer-events: none;
   z-index: 0;
-  border-left: 3px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Selected block bullets are highlighted */
