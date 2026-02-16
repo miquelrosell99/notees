@@ -409,21 +409,40 @@ export class NodeGraphRuntime {
     node.contentAST = before;
     node.updatedAt = new Date().toISOString();
 
-    // Create new node with content after split
-    const parentId = node.parentId;
-    const siblings = parentId ? (this.childrenIndex.get(parentId) || []) : [];
-    const myIndex = siblings.indexOf(blockId);
-    const orderIndex = myIndex >= 0 ? myIndex + 1 : siblings.length;
+    // Check if block has children
+    const children = this.getChildren(blockId);
+    const hasChildren = children.length > 0;
 
-    // Shift subsequent siblings
-    for (let i = orderIndex; i < siblings.length; i++) {
-      const sib = this.nodes.get(siblings[i]);
-      if (sib) sib.orderIndex = i + 1;
+    // Determine where to create the new block
+    let newParentId: string | null;
+    let orderIndex: number;
+
+    if (hasChildren) {
+      // Block has children: create new block as FIRST CHILD
+      newParentId = blockId;
+      orderIndex = 0;
+      
+      // Shift all existing children down
+      for (const child of children) {
+        child.orderIndex += 1;
+      }
+    } else {
+      // Block has no children: create new block as SIBLING
+      newParentId = node.parentId;
+      const siblings = newParentId ? (this.childrenIndex.get(newParentId) || []) : [];
+      const myIndex = siblings.indexOf(blockId);
+      orderIndex = myIndex >= 0 ? myIndex + 1 : siblings.length;
+
+      // Shift subsequent siblings
+      for (let i = orderIndex; i < siblings.length; i++) {
+        const sib = this.nodes.get(siblings[i]);
+        if (sib) sib.orderIndex = i + 1;
+      }
     }
 
     const newNode: GraphNode = {
       blockId: newBlockId,
-      parentId,
+      parentId: newParentId,
       orderIndex,
       nodeType: 'block',
       contentAST: after,
@@ -439,7 +458,7 @@ export class NodeGraphRuntime {
 
     this.nodes.set(newBlockId, newNode);
     this.rebuildChildrenIndex();
-    this.scheduleEmit(blockId, parentId);
+    this.scheduleEmit(blockId, newParentId);
     this.scheduleEmit(newBlockId, null);
   }
 
