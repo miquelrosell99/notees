@@ -40,7 +40,7 @@ export interface TriggerPluginProps {
   onLinkSelect?: (linkId: string) => void;
   /** Called when a class should be added to block's class_ids (not inline) */
   onAddClass?: (blockServerId: number, classId: number) => void;
-  /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
+  /** Called when an action-type slash command is selected (table, query, code, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
 }
 

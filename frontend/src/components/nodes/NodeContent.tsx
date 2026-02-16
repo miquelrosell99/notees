@@ -24,6 +24,7 @@ import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
+import { createNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import './NodeContent.css';
 
@@ -103,6 +104,27 @@ export function NodeContent({
         const classId = systemClassMap?.table;
         if (classId != null && blockServerId != null) {
           addClass.mutate({ nodeId: blockServerId, classId });
+          // Create initial table structure: 2 rows × 3 cells
+          (async () => {
+            try {
+              const headerRow = await createNode({ name: '', parent_id: blockServerId, sequence: 0 });
+              const dataRow = await createNode({ name: '', parent_id: blockServerId, sequence: 1 });
+              // Create header cells
+              await Promise.all([
+                createNode({ name: 'Header 1', parent_id: headerRow.id, sequence: 0 }),
+                createNode({ name: 'Header 2', parent_id: headerRow.id, sequence: 1 }),
+                createNode({ name: 'Header 3', parent_id: headerRow.id, sequence: 2 }),
+              ]);
+              // Create data cells
+              await Promise.all([
+                createNode({ name: '', parent_id: dataRow.id, sequence: 0 }),
+                createNode({ name: '', parent_id: dataRow.id, sequence: 1 }),
+                createNode({ name: '', parent_id: dataRow.id, sequence: 2 }),
+              ]);
+            } catch (err) {
+              console.error('[NodeContent] Failed to create table structure:', err);
+            }
+          })();
         }
         break;
       }

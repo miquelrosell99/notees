@@ -754,7 +754,8 @@ export class NodeGraphRuntime {
       result.push(projected);
 
       // Recurse if not collapsed
-      if (!isCollapsed) {
+      // Skip children of table blocks — they are rendered by TableBlockPlugin portal
+      if (!isCollapsed && child.nodeType !== 'table') {
         this.projectChildren(child.blockId, depth + 1, maxDepth, result, query);
       }
     }
