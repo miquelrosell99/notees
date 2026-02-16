@@ -1,0 +1,118 @@
+/* ─── Block property icon containers ──────────────────────────── */
+
+.node-block-prop-icons {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* After bullet: sits between bullet and content */
+.node-block-prop-icons--after-bullet {
+  margin-right: 2px;
+}
+
+/* Before content: sits after class pills */
+.node-block-prop-icons--before-content {
+  margin-left: 4px;
+}
+
+/* ─── Inner wrapper ──────────────────────────────────────────── */
+
+.block-prop-icons-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+/* ─── Icon button ────────────────────────────────────────────── */
+
+.block-prop-icon-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.block-prop-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-extra-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block-prop-icon-btn:hover {
+  background-color: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.block-prop-icon-empty {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--color-outline-variant);
+}
+
+/* ─── Selection dropdown ─────────────────────────────────────── */
+
+.block-prop-icon-dropdown {
+  min-width: 140px;
+  max-width: 220px;
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  box-shadow: var(--elevation-2);
+  overflow: hidden;
+  animation: prop-icon-dropdown-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@keyframes prop-icon-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.block-prop-icon-dropdown-inner {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.block-prop-icon-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-extra-small);
+  cursor: pointer;
+  font-size: var(--text-body-small);
+  color: var(--color-on-surface);
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block-prop-icon-dropdown-item:hover {
+  background-color: var(--color-hover-overlay);
+}
+
+.block-prop-icon-dropdown-item--active {
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  font-weight: 500;
+}

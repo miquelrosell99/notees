@@ -257,6 +257,22 @@ export async function removeProperty(
 }
 
 /**
+ * Batch-fetch property values for multiple nodes in a single request.
+ * Returns { nodeId -> { propertyId -> value } }.
+ */
+export type BatchPropertiesResult = Record<string, Record<string, unknown>>;
+
+export async function getBatchPropertyValues(
+  nodeIds: number[]
+): Promise<BatchPropertiesResult> {
+  const response = await api.post<BatchPropertiesResult>(
+    `${BASE}/batch/properties`,
+    { node_ids: nodeIds }
+  );
+  return response.data;
+}
+
+/**
  * Get backlinks to a node
  */
 export async function getBacklinks(

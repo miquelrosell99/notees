@@ -49,3 +49,52 @@
   margin-top: 16px;
   border-top: 1px solid var(--color-outline-variant);
 }
+
+/* Icon visibility setting */
+.property-config-section__visibility {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.property-config-section__visibility-label {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.property-config-section__visibility-buttons {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-variant);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.property-config-section__visibility-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.property-config-section__visibility-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.property-config-section__visibility-btn--active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+}

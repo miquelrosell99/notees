@@ -1035,6 +1035,101 @@ class PostgresPropertyRepository(PropertyRepository):
         
         return result
     
+    async def get_all_property_values_batch(self, node_ids: List[int]) -> dict[int, dict[int, dict[str, Any]]]:
+        """Get all property values for multiple nodes in 3 queries (not N*3).
+        
+        Returns: {node_id -> {property_id -> {'property': ..., 'node_property': ..., 'values': [...]}}}
+        """
+        if not node_ids:
+            return {}
+        
+        result: dict[int, dict[int, dict[str, Any]]] = {nid: {} for nid in node_ids}
+        
+        async with acquire_connection(self._pool) as conn:
+            # 1. Get all node_property assignments for all nodes
+            np_rows = await conn.fetch("""
+                SELECT np.*, p.uuid as p_uuid, p.name as p_name, p.icon as p_icon,
+                       p.type as p_type, p.is_multi as p_is_multi, p.is_system as p_is_system,
+                       p.is_local as p_is_local, p.node_id as p_node_id,
+                       p.create_date as p_create_date, p.write_date as p_write_date
+                FROM node_property np
+                JOIN property p ON np.property_id = p.id
+                WHERE np.node_id = ANY($1) AND p.active = TRUE
+            """, node_ids)
+            
+            # Collect all property IDs we need values for
+            all_prop_ids: set[int] = set()
+            
+            for np_row in np_rows:
+                nid = np_row['node_id']
+                prop_id = np_row['property_id']
+                all_prop_ids.add(prop_id)
+                
+                p_create_date = np_row['p_create_date']
+                p_write_date = np_row['p_write_date']
+                if isinstance(p_create_date, datetime):
+                    p_create_date = p_create_date.isoformat()
+                if isinstance(p_write_date, datetime):
+                    p_write_date = p_write_date.isoformat()
+                
+                prop = Property(
+                    id=prop_id,
+                    uuid=str(np_row['p_uuid']),
+                    name=np_row['p_name'],
+                    icon=np_row['p_icon'],
+                    type=PropertyType(np_row['p_type']),
+                    is_multi=np_row['p_is_multi'],
+                    is_system=np_row['p_is_system'],
+                    is_local=np_row['p_is_local'],
+                    node_id=np_row['p_node_id'],
+                    create_date=p_create_date,
+                    write_date=p_write_date,
+                )
+                node_property = self._row_to_node_property(np_row)
+                
+                result[nid][prop_id] = {
+                    'property': prop,
+                    'node_property': node_property,
+                    'values': [],
+                }
+            
+            if not all_prop_ids:
+                return result
+            
+            prop_ids_list = list(all_prop_ids)
+            
+            # 2. Get all scalar values
+            scalar_rows = await conn.fetch(
+                "SELECT * FROM property_value_scalar WHERE node_id = ANY($1) AND property_id = ANY($2)",
+                node_ids, prop_ids_list
+            )
+            for row in scalar_rows:
+                nid, prop_id = row['node_id'], row['property_id']
+                if nid in result and prop_id in result[nid]:
+                    result[nid][prop_id]['values'].append(self._row_to_scalar_value(row))
+            
+            # 3. Get all relation values
+            relation_rows = await conn.fetch(
+                "SELECT * FROM property_value_relation WHERE node_id = ANY($1) AND property_id = ANY($2)",
+                node_ids, prop_ids_list
+            )
+            for row in relation_rows:
+                nid, prop_id = row['node_id'], row['property_id']
+                if nid in result and prop_id in result[nid]:
+                    result[nid][prop_id]['values'].append(self._row_to_relation_value(row))
+            
+            # 4. Get all selection values
+            selection_rows = await conn.fetch(
+                "SELECT * FROM property_value_selection WHERE node_id = ANY($1) AND property_id = ANY($2)",
+                node_ids, prop_ids_list
+            )
+            for row in selection_rows:
+                nid, prop_id = row['node_id'], row['property_id']
+                if nid in result and prop_id in result[nid]:
+                    result[nid][prop_id]['values'].append(self._row_to_selection_value(row))
+        
+        return result
+    
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
         async with acquire_connection(self._pool) as conn:

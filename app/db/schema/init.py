@@ -19,6 +19,8 @@ from .constants import (
     SYSTEM_CLASS_ICONS,
     SYSTEM_PROPERTY_UUIDS,
     DEFAULT_PAGES,
+    TASK_STATUS_OPTIONS,
+    TASK_PRIORITY_OPTIONS,
 )
 from .sql import SCHEMA_SQL
 
@@ -145,6 +147,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
     
     # Create remaining system classes
     asset_type_id = None
+    task_class_id = None
     
     for class_name in SYSTEM_CLASSES:
         if class_name in ("class", "page"):
@@ -164,6 +167,8 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         
         if class_name == "asset":
             asset_type_id = new_class_id
+        if class_name == "task":
+            task_class_id = new_class_id
         
         # Assign 'class' and 'page' classes using direct UPDATE to class_ids column
         await conn.execute("""
@@ -182,6 +187,85 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING
         """, banner_property_id, asset_type_id)
+    
+    # Create task class properties (Status, Deadline, Scheduled, Priority)
+    if task_class_id:
+        # 1. Create 'Status' selection property
+        status_row = await conn.fetchrow("""
+            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, icon_visibility, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, 'Status', 'mdi:list-status', 'selection', FALSE, FALSE, 'after_bullet', $3, $3, $4, $4)
+            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+            RETURNING id
+        """, SYSTEM_PROPERTY_UUIDS["task_status"], workspace_id, now, user_id)
+        if status_row:
+            status_property_id = status_row['id']
+            # Create status options
+            pending_option_id = None
+            for i, opt in enumerate(TASK_STATUS_OPTIONS):
+                opt_row = await conn.fetchrow("""
+                    INSERT INTO property_selection_line (property_id, name, icon, "order")
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING id
+                """, status_property_id, opt["name"], opt["icon"], i)
+                if opt_row and opt["name"] == "Pending":
+                    pending_option_id = opt_row['id']
+            
+            # Link status property to task class with "Pending" as default
+            await conn.execute("""
+                INSERT INTO class_property (class_node_id, property_id, sequence, default_selection_id)
+                VALUES ($1, $2, 0, $3)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING
+            """, task_class_id, status_property_id, pending_option_id)
+        
+        # 2. Create 'Deadline' date property
+        deadline_row = await conn.fetchrow("""
+            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, 'Deadline', 'mdi:calendar-clock', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+            RETURNING id
+        """, SYSTEM_PROPERTY_UUIDS["task_deadline"], workspace_id, now, user_id)
+        if deadline_row:
+            await conn.execute("""
+                INSERT INTO class_property (class_node_id, property_id, sequence)
+                VALUES ($1, $2, 1)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING
+            """, task_class_id, deadline_row['id'])
+        
+        # 3. Create 'Scheduled' date property
+        scheduled_row = await conn.fetchrow("""
+            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, 'Scheduled', 'mdi:calendar-check', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+            RETURNING id
+        """, SYSTEM_PROPERTY_UUIDS["task_scheduled"], workspace_id, now, user_id)
+        if scheduled_row:
+            await conn.execute("""
+                INSERT INTO class_property (class_node_id, property_id, sequence)
+                VALUES ($1, $2, 2)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING
+            """, task_class_id, scheduled_row['id'])
+        
+        # 4. Create 'Priority' selection property
+        priority_row = await conn.fetchrow("""
+            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, 'Priority', 'mdi:flag', 'selection', FALSE, FALSE, $3, $3, $4, $4)
+            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+            RETURNING id
+        """, SYSTEM_PROPERTY_UUIDS["task_priority"], workspace_id, now, user_id)
+        if priority_row:
+            priority_property_id = priority_row['id']
+            for i, opt in enumerate(TASK_PRIORITY_OPTIONS):
+                await conn.execute("""
+                    INSERT INTO property_selection_line (property_id, name, icon, "order")
+                    VALUES ($1, $2, $3, $4)
+                """, priority_property_id, opt["name"], opt["icon"], i)
+            
+            # Link priority property to task class (no default)
+            await conn.execute("""
+                INSERT INTO class_property (class_node_id, property_id, sequence)
+                VALUES ($1, $2, 3)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING
+            """, task_class_id, priority_property_id)
     
     # Create default pages
     for page_name in DEFAULT_PAGES:

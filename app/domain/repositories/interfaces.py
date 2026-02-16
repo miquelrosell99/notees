@@ -396,6 +396,14 @@ class PropertyRepository(ABC):
         pass
     
     @abstractmethod
+    async def get_all_property_values_batch(self, node_ids: List[int]) -> dict[int, dict[int, dict[str, Any]]]:
+        """Get all property values for multiple nodes at once.
+        
+        Returns: {node_id -> {property_id -> {'property': ..., 'node_property': ..., 'values': [...]}}}
+        """
+        pass
+    
+    @abstractmethod
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
         pass

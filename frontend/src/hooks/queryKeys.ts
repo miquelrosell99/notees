@@ -41,6 +41,7 @@ export const nodeKeys = {
   metadata: (id: number) => [...nodeKeys.all, 'metadata', id] as const,
   childrenOnly: (id: number) => [...nodeKeys.all, 'children-only', id] as const,
   breadcrumbs: (id: number) => [...nodeKeys.all, 'breadcrumbs', id] as const,
+  batchProperties: (ids: number[]) => [...nodeKeys.all, 'batch-properties', ...ids.sort()] as const,
 };
 
 // ==================== Property Query Keys ====================

@@ -76,7 +76,7 @@
 }
 
 .node-selector__dropdown--portal {
-  z-index: 1000;
+  z-index: 10002;
 }
 
 .node-selector__search-wrapper {
@@ -173,7 +173,7 @@
 
 .node-selector__picker {
   position: fixed;
-  z-index: 1001;
+  z-index: 10002;
   min-width: 200px;
   max-width: 280px;
   background: var(--color-surface-container);

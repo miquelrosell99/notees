@@ -13,7 +13,15 @@ export const SYSTEM_PROPERTY_UUIDS = {
   cover: '00000000-0000-0000-0000-000000000005',
   banner: '00000000-0000-0000-0000-000000000006',
   extends: '00000000-0000-0000-0000-000000000008',
+  // Task class properties
+  task_status: '00000000-0000-0000-0003-000000000001',
+  task_deadline: '00000000-0000-0000-0003-000000000002',
+  task_scheduled: '00000000-0000-0000-0003-000000000003',
+  task_priority: '00000000-0000-0000-0003-000000000004',
 } as const;
+
+/** Task status cycle order for Ctrl+Enter */
+export const TASK_STATUS_CYCLE = ['Pending', 'Doing', 'Done'] as const;
 
 /**
  * System class UUIDs - these match the fixed UUIDs in the backend schema.

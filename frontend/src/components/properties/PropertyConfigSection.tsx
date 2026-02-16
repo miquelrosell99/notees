@@ -12,13 +12,15 @@
  * - Delete property action
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import type { Property, Node } from '@/types/api';
+import Icon from '@mdi/react';
+import { mdiTrashCan, mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
+import type { Property, Node, PropertyIconVisibility } from '@/types/api';
+import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, addClassFilter, removeClassFilter } from '@/api/properties';
 import { useDeleteProperty, useUpdateProperty, useClasses } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
-import { mdiTrashCan } from '@mdi/js';
 import './PropertyConfigSection.css';
 
 interface SelectionOptionWithId {
@@ -264,6 +266,39 @@ export function PropertyConfigSection({
         </div>
       )}
       
+      {/* Icon visibility setting - only for selection properties */}
+      {ICON_VISIBILITY_PROPERTY_TYPES.includes(property.type) && (
+        <div className="property-config-section__visibility">
+          <label className="property-config-section__visibility-label">Value icon display</label>
+          <div className="property-config-section__visibility-buttons">
+            {([
+              { value: 'hidden' as PropertyIconVisibility, icon: mdiEyeOff, title: 'Hidden (only in properties section)' },
+              { value: 'after_bullet' as PropertyIconVisibility, icon: mdiCircleSmall, title: 'After bullet' },
+              { value: 'before_content' as PropertyIconVisibility, icon: mdiTextBoxOutline, title: 'Before text (next to class pills)' },
+            ]).map(opt => (
+              <button
+                key={opt.value}
+                className={`property-config-section__visibility-btn ${property.icon_visibility === opt.value ? 'property-config-section__visibility-btn--active' : ''}`}
+                onClick={async () => {
+                  try {
+                    const updated = await updatePropertyMutation.mutateAsync({
+                      id: property.id,
+                      data: { icon_visibility: opt.value },
+                    });
+                    onUpdate(updated);
+                  } catch (err) {
+                    setError('Failed to update icon visibility');
+                  }
+                }}
+                title={opt.title}
+              >
+                <Icon path={opt.icon} size={0.7} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <PropertyForm
         icon=""
         onIconChange={() => {}}

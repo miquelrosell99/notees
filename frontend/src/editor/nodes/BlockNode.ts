@@ -294,6 +294,13 @@ export class BlockNode extends ElementNode {
     bullet.appendChild(bulletContainer);
     dom.appendChild(bullet);
 
+    // Property icons container (after_bullet position) — React portal target
+    const propIconsAfterBullet = document.createElement('div');
+    propIconsAfterBullet.className = 'node-block-prop-icons node-block-prop-icons--after-bullet';
+    propIconsAfterBullet.contentEditable = 'false';
+    setDOMUnmanaged(propIconsAfterBullet);
+    dom.appendChild(propIconsAfterBullet);
+
     // Content wrapper — Lexical inserts managed (text) children here
     // This keeps inline spans flowing as text rather than flex items
     const content = document.createElement('div');
@@ -310,6 +317,13 @@ export class BlockNode extends ElementNode {
       classPills.style.display = 'none';
     }
     dom.appendChild(classPills);
+
+    // Property icons container (before_content position = after text) — React portal target
+    const propIconsBeforeContent = document.createElement('div');
+    propIconsBeforeContent.className = 'node-block-prop-icons node-block-prop-icons--before-content';
+    propIconsBeforeContent.contentEditable = 'false';
+    setDOMUnmanaged(propIconsBeforeContent);
+    dom.appendChild(propIconsBeforeContent);
 
     return dom;
   }
