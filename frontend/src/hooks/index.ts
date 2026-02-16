@@ -9,6 +9,7 @@
  */
 export * from './useNodes';
 export * from './useNodeViews';
+export * from './useVirtualizedQuery';
 export * from './useRouter';
 export { RouterSync } from './RouterSync';
 export * from './useKeyboardListNav';

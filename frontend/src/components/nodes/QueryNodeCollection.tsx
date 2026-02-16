@@ -8,7 +8,7 @@
  * - Query blocks (inline mode with headless=true)
  * - Page sections (wrapped in NodeViewSection)
  */
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   useNodeViews, 
   useNodeViewQuery,
@@ -473,16 +473,43 @@ export function QueryNodeCollection({
     ? linkedReferencesLoading 
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
+  // Virtualization: for large result sets (>500 nodes), render in windows
+  // to keep DOM size manageable and perceived latency <100ms
+  const WINDOW_SIZE = 500;
+  const [renderWindow, setRenderWindow] = useState(WINDOW_SIZE);
+  
+  // Reset window when results change
+  const prevResultLenRef = useRef(0);
+  useEffect(() => {
+    if (resultNodes.length !== prevResultLenRef.current) {
+      prevResultLenRef.current = resultNodes.length;
+      setRenderWindow(WINDOW_SIZE);
+    }
+  }, [resultNodes.length]);
+  
+  // Windowed result set
+  const windowedResultNodes = useMemo(() => {
+    if (resultNodes.length <= WINDOW_SIZE) return resultNodes;
+    return resultNodes.slice(0, renderWindow);
+  }, [resultNodes, renderWindow]);
+  
+  const hasMoreResults = renderWindow < resultNodes.length;
+  
+  const handleLoadMore = useCallback(() => {
+    setRenderWindow(prev => Math.min(prev + WINDOW_SIZE, resultNodes.length));
+  }, [resultNodes.length]);
+
   // Always separate blocks and pages
   // In list/document view they render as separate sections; other views show all together
   // Skip separation for page-scope queries (results are all pages anyway)
   const { resultBlocks, resultPages } = useMemo(() => {
+    const nodesForDisplay = windowedResultNodes;
     if (activeAST?.scope?.scope_type === 'pages') {
-      return { resultBlocks: resultNodes, resultPages: [] as Node[] };
+      return { resultBlocks: nodesForDisplay, resultPages: [] as Node[] };
     }
     const blocks: Node[] = [];
     const pages: Node[] = [];
-    for (const node of resultNodes) {
+    for (const node of nodesForDisplay) {
       if (node.is_page) {
         pages.push(node);
       } else {
@@ -490,20 +517,27 @@ export function QueryNodeCollection({
       }
     }
     return { resultBlocks: blocks, resultPages: pages };
-  }, [resultNodes, activeAST?.scope?.scope_type]);
+  }, [windowedResultNodes, activeAST?.scope?.scope_type]);
 
   // Only render blocks/pages as separate sections in list/document view
   const showPageSeparation = (collectionViewMode === 'list' || collectionViewMode === 'document') && resultPages.length > 0;
 
-  // Preview query for edit modal
+  // Preview query for edit modal — debounced to avoid excessive backend calls
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
+
+  // Debounce the preview AST (300ms) so rapid condition changes don't hammer the backend
+  const [debouncedPreviewAST, setDebouncedPreviewAST] = useState(previewAST);
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedPreviewAST(previewAST), 300);
+    return () => clearTimeout(handle);
+  }, [previewAST]);
 
   const {
     data: previewResults,
     isLoading: previewLoading,
   } = useQuery_(
     {
-      query_ast: previewAST,
+      query_ast: debouncedPreviewAST,
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeId,
@@ -513,8 +547,8 @@ export function QueryNodeCollection({
       include_properties: true,
     },
     {
-      enabled: !!previewAST,
-      queryKey: ['preview-query', nodeId, previewAST, collectionViewMode],
+      enabled: !!debouncedPreviewAST,
+      queryKey: ['preview-query', nodeId, debouncedPreviewAST, collectionViewMode],
     }
   );
 
@@ -755,7 +789,7 @@ export function QueryNodeCollection({
         <>
           {/* Main results - blocks only when separating, all results otherwise */}
           <NodeCollection
-            nodes={showPageSeparation ? resultBlocks : resultNodes}
+            nodes={showPageSeparation ? resultBlocks : windowedResultNodes}
             viewId={activeView?.id}
             view={activeView}
             viewMode={collectionViewMode}
@@ -789,6 +823,19 @@ export function QueryNodeCollection({
             activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
           />
+
+          {/* Load more button for windowed results */}
+          {hasMoreResults && (
+            <div className="query-section__load-more">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLoadMore}
+              >
+                Show more ({resultNodes.length - renderWindow} remaining)
+              </Button>
+            </div>
+          )}
 
           {/* Pages section - only in list/document view */}
           {showPageSeparation && (

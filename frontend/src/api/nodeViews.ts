@@ -10,6 +10,7 @@ import type {
   NodeViewCreate, 
   NodeViewUpdate, 
   QueryExecuteRequest,
+  QueryExecuteResponse,
 } from '@/types/nodeView';
 
 const BASE = '/nodes/views';
@@ -20,8 +21,10 @@ interface NodeViewsResponse {
   views: NodeView[];
 }
 
-interface QueryExecuteResponse {
+interface QueryExecuteAPIResponse {
   nodes: Node[];
+  total_count?: number;
+  metrics?: QueryExecuteResponse['metrics'];
 }
 
 interface QueryCountResponse {
@@ -124,6 +127,7 @@ export async function reorderNodeViews(
 
 /**
  * Execute a NodeView's query
+ * Returns full response with nodes, optional total_count, and metrics.
  */
 export async function executeNodeViewQuery(
   viewId: number,
@@ -134,21 +138,31 @@ export async function executeNodeViewQuery(
     order_by?: string;
     include_children?: boolean;
     include_properties?: boolean;
+    enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
   }
-): Promise<Node[]> {
-  const response = await api.post<QueryExecuteResponse>(
+): Promise<QueryExecuteResponse> {
+  const response = await api.post<QueryExecuteAPIResponse>(
     `${BASE}/${viewId}/execute`,
     options
   );
-  return response.data.nodes;
+  return {
+    nodes: response.data.nodes,
+    total_count: response.data.total_count,
+    metrics: response.data.metrics,
+  };
 }
 
 /**
- * Execute a query block tree directly (without saving)
+ * Execute a query directly (without saving)
+ * Returns full response with nodes, optional total_count, and metrics.
  */
-export async function executeQuery(request: QueryExecuteRequest): Promise<Node[]> {
-  const response = await api.post<QueryExecuteResponse>(`${BASE}/execute`, request);
-  return response.data.nodes;
+export async function executeQuery(request: QueryExecuteRequest): Promise<QueryExecuteResponse> {
+  const response = await api.post<QueryExecuteAPIResponse>(`${BASE}/execute`, request);
+  return {
+    nodes: response.data.nodes,
+    total_count: response.data.total_count,
+    metrics: response.data.metrics,
+  };
 }
 
 /**
