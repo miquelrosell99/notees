@@ -12,8 +12,8 @@
  * 
  * Used by both page view and block view.
  */
-import { useRef, useCallback, useState } from 'react';
-import { useContentSave, useNodeNavigation, useAddClass } from '@/hooks';
+import { useRef, useCallback, useState, useMemo } from 'react';
+import { useContentSave, useNodeNavigation, useAddClass, useClasses } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -24,6 +24,7 @@ import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
 import { type Asset, type AssetCategory } from '@/api/assets';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -56,7 +57,7 @@ export function NodeContent({
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const { addSidebarCard } = useAppStore();
+  const { addSidebarCard, openCommentsForNode } = useAppStore();
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Debounced content save - batches rapid edits to reduce API calls
@@ -69,12 +70,67 @@ export function NodeContent({
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
 
+  // Resolve system class IDs for slash commands
+  const { data: allClasses } = useClasses();
+  const systemClassMap = useMemo(() => {
+    if (!allClasses) return null;
+    const map: Record<string, number | undefined> = {};
+    for (const [key, uuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
+      const found = allClasses.find(c => c.uuid === uuid);
+      if (found) map[key] = found.id;
+    }
+    return map;
+  }, [allClasses]);
+
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
   const [targetBlockId, setTargetBlockId] = useState<number | null>(null);
   const [convertToAsset, setConvertToAsset] = useState(false); // Whether to convert block to asset
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  // Handle slash commands from the editor
+  const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
+    switch (commandId) {
+      case 'query': {
+        const classId = systemClassMap?.query;
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeId: blockServerId, classId });
+        }
+        break;
+      }
+      case 'table': {
+        const classId = systemClassMap?.table;
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeId: blockServerId, classId });
+        }
+        break;
+      }
+      case 'image':
+        setTargetBlockId(blockServerId ?? node.id);
+        setConvertToAsset(true);
+        setAssetTypeFilter(['image']);
+        setIsAssetUploadOpen(true);
+        break;
+      case 'audio':
+        setTargetBlockId(blockServerId ?? node.id);
+        setConvertToAsset(true);
+        setAssetTypeFilter(['audio']);
+        setIsAssetUploadOpen(true);
+        break;
+      case 'file':
+        setTargetBlockId(blockServerId ?? node.id);
+        setConvertToAsset(true);
+        setAssetTypeFilter(undefined);
+        setIsAssetUploadOpen(true);
+        break;
+      case 'comment':
+        if (blockServerId != null) {
+          openCommentsForNode(blockServerId);
+        }
+        break;
+    }
+  }, [systemClassMap, addClass, node.id, openCommentsForNode]);
 
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
@@ -156,6 +212,7 @@ export function NodeContent({
             pageId={node.id}
             pageUuid={node.uuid}
             onAddClass={handleAddClass}
+            onSlashCommand={handleSlashCommand}
           />
         </section>
       )}
