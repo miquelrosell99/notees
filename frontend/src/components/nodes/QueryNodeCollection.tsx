@@ -471,21 +471,6 @@ export function QueryNodeCollection({
       // This ensures that when a page is expanded, its children are collapsed according to the settings
       const nodeWithCollapsedChildren = applyCollapseLevelToChildren(node, linkedRefsCollapseLevel, 0);
       
-      // Debug: Log the first page node to inspect its structure
-      if (displayNode.is_page && pages.length === 0) {
-        console.log('[LinkedRefs] First page node:', {
-          name: nodeWithCollapsedChildren.name,
-          collapsed: nodeWithCollapsedChildren.collapsed,
-          childrenCount: nodeWithCollapsedChildren.children?.length || 0,
-          collapseLevel: linkedRefsCollapseLevel,
-          firstChild: nodeWithCollapsedChildren.children?.[0] ? {
-            name: nodeWithCollapsedChildren.children[0].name,
-            collapsed: nodeWithCollapsedChildren.children[0].collapsed,
-            childrenCount: nodeWithCollapsedChildren.children[0].children?.length || 0,
-          } : null,
-        });
-      }
-      
       // Separate blocks and pages for list view
       if (isListView) {
         if (displayNode.is_page) {
