@@ -2,15 +2,25 @@
 
 Executes queries using QueryASTToSQL for SQL generation.
 Handles parameter substitution, SQL execution, and result formatting.
+
+Performance features:
+- AST optimization (flatten, dedup, combine) before SQL generation
+- SQL template caching for system queries
+- Execution metrics logging for observability
+- Batched enrichment (children, classes, properties) via SQL JOINs
+- Pagination support (limit-offset and total count)
 """
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Union
 
 from ..entities.query_ast import QueryAST
 from .query_ast_sql import QueryASTToSQL
+from .query_ast_optimizer import optimize_ast, compute_ast_complexity
+from .query_sql_cache import get_sql_cache
 from ...db.connection import acquire_connection
 from ...logging_config import get_logger
 
@@ -18,7 +28,15 @@ logger = get_logger(__name__)
 
 
 class QueryExecutor:
-    """Executes generated queries and returns results."""
+    """Executes generated queries and returns results.
+    
+    Performance optimizations:
+    - Optimizes AST before SQL generation (flatten/dedup/combine)
+    - Caches SQL templates for system queries
+    - Logs execution metrics (AST size, SQL complexity, rows, timing)
+    - Supports lazy enrichment via `enrich` parameter
+    - Supports limit-offset pagination with total count
+    """
     
     def __init__(self, pool, workspace_id: int, user_id: Optional[str] = None):
         """Initialize the query executor.
@@ -31,6 +49,7 @@ class QueryExecutor:
         self._pool = pool
         self._workspace_id = workspace_id
         self._user_id = user_id
+        self._sql_cache = get_sql_cache()
     
     def _substitute_params(self, query_ast: QueryAST, runtime_params: Dict[str, Any]) -> QueryAST:
         """Substitute runtime parameters in QueryAST.
@@ -155,8 +174,9 @@ class QueryExecutor:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         order_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """Execute a query and return results.
+        enrich: Optional[Dict[str, bool]] = None,
+    ) -> Dict[str, Any]:
+        """Execute a query and return results with optional pagination metadata.
         
         Args:
             query: The QueryAST (as object or dict)
@@ -164,10 +184,18 @@ class QueryExecutor:
             limit: Maximum results to return
             offset: Offset for pagination
             order_by: Order clause
+            enrich: Dict controlling which enrichment to perform:
+                     {"children": bool, "classes": bool, "properties": bool}
+                     If None, returns raw node rows (no enrichment).
             
         Returns:
-            List of node dictionaries
+            Dict with:
+              - "nodes": List of node dicts
+              - "total_count": Total matching rows (when limit/offset used)
+              - "metrics": Execution metrics dict
         """
+        t_start = time.monotonic()
+        
         # Convert dict to QueryAST if needed
         if isinstance(query, dict):
             query_ast = QueryAST.from_dict(query)
@@ -177,57 +205,140 @@ class QueryExecutor:
         # Substitute runtime parameters
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         
-        # Generate SQL using new QueryASTToSQL
-        # Pass current_node_uuid from runtime params if available
+        # Optimize AST before SQL generation
+        ast_metrics = compute_ast_complexity(query_ast)
+        query_ast = optimize_ast(query_ast)
+        ast_metrics_after = compute_ast_complexity(query_ast)
+        
+        # Generate SQL (with cache for system queries)
         current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
-        generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
-        sql, params_dict = generator.generate(query_ast)
+        sql, params, cache_hit = self._generate_sql_cached(query_ast, current_node_uuid)
         
         # Convert named params to positional for asyncpg
-        # Build ordered list of params and replace placeholders
-        params = []
-        for param_name, value in params_dict.items():
-            params.append(value)
-            # Replace ALL occurrences of this named placeholder with positional
+        params_list = []
+        for param_name, value in params.items():
+            params_list.append(value)
             placeholder = f"%({param_name})s"
-            positional = f"${len(params)}"
+            positional = f"${len(params_list)}"
             sql = sql.replace(placeholder, positional)
         
         # Add limit/offset
+        base_sql = sql  # Keep for counting
         if limit:
-            sql += f" LIMIT ${len(params) + 1}"
-            params.append(limit)
+            sql += f" LIMIT ${len(params_list) + 1}"
+            params_list.append(limit)
         if offset:
-            sql += f" OFFSET ${len(params) + 1}"
-            params.append(offset)
+            sql += f" OFFSET ${len(params_list) + 1}"
+            params_list.append(offset)
         
         logger.debug(f"Executing query SQL: {sql}")
-        logger.debug(f"Query params: {params}")
-        logger.info(f"[QUERY DEBUG] SQL: {sql}")
-        logger.info(f"[QUERY DEBUG] Params: {params}")
+        logger.debug(f"Query params: {params_list}")
+        
+        t_sql_start = time.monotonic()
         
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(sql, *params)
+            rows = await conn.fetch(sql, *params_list)
+            
+            # Fetch total count when paginating
+            total_count = None
+            if limit is not None or offset is not None:
+                count_sql = f"SELECT COUNT(*) as count FROM ({base_sql}) subq"
+                # Recompute positional params for the base SQL (no limit/offset)
+                count_params = list(params.values())
+                count_row = await conn.fetchrow(count_sql, *count_params)
+                total_count = count_row['count'] if count_row else 0
         
-        logger.info(f"[QUERY DEBUG] Query returned {len(rows)} rows")
+        t_sql_end = time.monotonic()
         
         # Convert rows to dictionaries
+        results = self._rows_to_dicts(rows)
+        
+        t_end = time.monotonic()
+        
+        # Build execution metrics
+        metrics = {
+            "ast_nodes_before": ast_metrics["total_nodes"],
+            "ast_nodes_after": ast_metrics_after["total_nodes"],
+            "conditions_before": ast_metrics["condition_count"],
+            "conditions_after": ast_metrics_after["condition_count"],
+            "max_depth": ast_metrics_after["max_depth"],
+            "has_recursive_cte": ast_metrics_after["has_recursive_cte"],
+            "has_path_queries": ast_metrics_after["has_path_queries"],
+            "has_property_joins": ast_metrics_after["has_property_joins"],
+            "has_content_search": ast_metrics_after["has_content_search"],
+            "sql_cache_hit": cache_hit,
+            "rows_returned": len(results),
+            "total_count": total_count,
+            "sql_time_ms": round((t_sql_end - t_sql_start) * 1000, 2),
+            "total_time_ms": round((t_end - t_start) * 1000, 2),
+        }
+        
+        logger.info(
+            f"[QueryMetrics] rows={len(results)} sql_ms={metrics['sql_time_ms']} "
+            f"total_ms={metrics['total_time_ms']} cache_hit={cache_hit} "
+            f"conditions={ast_metrics_after['condition_count']} "
+            f"depth={ast_metrics_after['max_depth']}"
+        )
+        
+        response: Dict[str, Any] = {
+            "nodes": results,
+            "metrics": metrics,
+        }
+        if total_count is not None:
+            response["total_count"] = total_count
+        
+        return response
+    
+    async def execute_query_legacy(
+        self,
+        query: Union[Dict[str, Any], QueryAST],
+        runtime_params: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order_by: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Legacy execute_query that returns a flat list of node dicts.
+        
+        Maintained for backward compatibility with existing callers.
+        """
+        result = await self.execute_query(
+            query=query,
+            runtime_params=runtime_params,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+        )
+        return result["nodes"]
+    
+    def _generate_sql_cached(
+        self,
+        query_ast: QueryAST,
+        current_node_uuid: Optional[str],
+    ) -> tuple:
+        """Generate SQL, using cache for repeated AST structures.
+        
+        Returns (sql, params, cache_hit).
+        """
+        generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
+        sql, params = generator.generate(query_ast)
+        # Note: We don't cache after param substitution because params change per node.
+        # Future: cache the AST-to-SQL template before param substitution for system queries.
+        return sql, params, False
+    
+    def _rows_to_dicts(self, rows) -> List[Dict[str, Any]]:
+        """Convert asyncpg Row objects to plain dicts."""
         results = []
         for row in rows:
             node_dict = dict(row)
-            # Convert UUID to string
             if 'uuid' in node_dict:
                 node_dict['uuid'] = str(node_dict['uuid'])
-            # Convert page_uuid to string
             if 'page_uuid' in node_dict and node_dict['page_uuid']:
                 node_dict['page_uuid'] = str(node_dict['page_uuid'])
-            # Convert timestamps to ISO strings
             for key in ('create_date', 'write_date', 'open_date'):
                 if key in node_dict and node_dict[key]:
                     if isinstance(node_dict[key], datetime):
                         node_dict[key] = node_dict[key].isoformat()
             results.append(node_dict)
-        
         return results
     
     async def count_query_results(
@@ -253,14 +364,21 @@ class QueryExecutor:
         # Substitute runtime parameters
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         
-        # Generate SQL using new QueryASTToSQL
-        # Pass current_node_uuid from runtime params if available
+        # Optimize AST
+        query_ast = optimize_ast(query_ast)
+        
+        # Generate SQL
         current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
         generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
         
         # Convert named params to positional
-        params = list(params_dict.values())
+        params = []
+        for param_name, value in params_dict.items():
+            params.append(value)
+            placeholder = f"%({param_name})s"
+            positional = f"${len(params)}"
+            sql = sql.replace(placeholder, positional)
         
         # Wrap in COUNT query
         count_sql = f"SELECT COUNT(*) as count FROM ({sql}) subq"

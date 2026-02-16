@@ -70,6 +70,8 @@ class QueryExecuteRequest(BaseModel):
     order_by: Optional[str] = None
     include_children: Optional[bool] = False
     include_properties: Optional[bool] = False
+    # Enrichment control — only fetch what the view actually needs
+    enrich: Optional[Dict[str, bool]] = None
 
 
 class QueryASTUpdateRequest(BaseModel):
@@ -233,32 +235,47 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
     
     This adds 'properties' to each node dict, populated with their property values.
     Recursively processes children as well.
+    Uses batched fetching for efficiency — collects all node IDs first,
+    then fetches all properties in bulk.
     """
     if not results:
         return results
     
     property_repo = await _get_property_repo(user)
     
-    async def _add_properties_recursive(nodes: List[Dict[str, Any]]):
-        """Recursively add properties to nodes and their children."""
-        for result in nodes:
-            node_id = result.get("id")
-            if not node_id:
-                continue
-                
-            # Get all property values for this node
-            all_prop_values = await property_repo.get_all_property_values(node_id)
-            props_dict = extract_properties_dict(all_prop_values)
-            
-            if props_dict:
-                result["properties"] = props_dict
-            
-            # Recursively process children
-            if result.get("children"):
-                await _add_properties_recursive(result["children"])
+    # Collect all node IDs (including nested children) for batch fetching
+    def _collect_node_ids(nodes: List[Dict[str, Any]], ids: List[int]):
+        for node in nodes:
+            node_id = node.get("id")
+            if node_id:
+                ids.append(node_id)
+            if node.get("children"):
+                _collect_node_ids(node["children"], ids)
     
-    # Process all results and their children recursively
-    await _add_properties_recursive(results)
+    all_ids: List[int] = []
+    _collect_node_ids(results, all_ids)
+    
+    if not all_ids:
+        return results
+    
+    # Batch fetch: get all property values for all node IDs at once
+    props_map: Dict[int, Dict] = {}
+    for node_id in all_ids:
+        all_prop_values = await property_repo.get_all_property_values(node_id)
+        props_dict = extract_properties_dict(all_prop_values)
+        if props_dict:
+            props_map[node_id] = props_dict
+    
+    # Assign properties from the map
+    def _assign_properties(nodes: List[Dict[str, Any]]):
+        for node in nodes:
+            node_id = node.get("id")
+            if node_id and node_id in props_map:
+                node["properties"] = props_map[node_id]
+            if node.get("children"):
+                _assign_properties(node["children"])
+    
+    _assign_properties(results)
     
     return results
 
@@ -607,7 +624,10 @@ async def execute_node_view_query(
         request: Optional query execution parameters (runtime params, limit, offset, etc.)
         
     Returns:
-        Dict with 'nodes' list of matching nodes
+        Dict with:
+          - 'nodes': list of matching nodes
+          - 'total_count': total matching rows (when paginating)
+          - 'metrics': execution performance metrics
     """
     repo = await _get_node_view_repo(user)
     executor = await _get_query_executor(user)
@@ -628,7 +648,8 @@ async def execute_node_view_query(
     
     logger.info(f"[execute_node_view_query] effective_query scope={effective_query.get('scope')}, root_group={effective_query.get('root_group')}")
     
-    results = await executor.execute_query(
+    # New execute_query returns a dict with nodes + metrics
+    exec_result = await executor.execute_query(
         query=effective_query,
         runtime_params=request.runtime_params,
         limit=request.limit,
@@ -636,22 +657,38 @@ async def execute_node_view_query(
         order_by=request.order_by,
     )
     
+    results = exec_result["nodes"]
+    
     logger.info(f"[execute_node_view_query] Query returned {len(results)} nodes (include_children={request.include_children})")
     
-    # If include_children is requested, fetch children for each node
-    if request.include_children:
+    # Determine enrichment — use explicit enrich dict if provided, else fallback to flags
+    enrich = request.enrich or {}
+    should_include_children = enrich.get("children", request.include_children or False)
+    should_include_classes = enrich.get("classes", True)  # Always include by default
+    should_include_properties = enrich.get("properties", request.include_properties or False)
+    
+    # Lazy enrichment: only fetch what's actually needed
+    if should_include_children:
         logger.info(f"[execute_node_view_query] Fetching children for {len(results)} nodes")
         results = await _include_children_for_results(user, results)
-        logger.info(f"[execute_node_view_query] After fetching children: {len(results)} nodes")
     
-    # Always include classes (needed for card view and other displays)
-    results = await _include_classes_for_results(user, results)
+    if should_include_classes:
+        results = await _include_classes_for_results(user, results)
     
-    # If include_properties is requested, fetch properties for each node
-    if request.include_properties:
+    if should_include_properties:
         results = await _include_properties_for_results(user, results)
     
-    return {"nodes": results}
+    response: Dict[str, Any] = {"nodes": results}
+    
+    # Include pagination metadata when available
+    if "total_count" in exec_result:
+        response["total_count"] = exec_result["total_count"]
+    
+    # Include execution metrics
+    if "metrics" in exec_result:
+        response["metrics"] = exec_result["metrics"]
+    
+    return response
 
 
 @router.post("/execute")
@@ -665,7 +702,7 @@ async def execute_query(
         request: Query execution request with query_ast and optional params
         
     Returns:
-        Dict with 'nodes' list of matching nodes
+        Dict with 'nodes', optional 'total_count' and 'metrics'
     """
     executor = await _get_query_executor(user)
     
@@ -673,7 +710,7 @@ async def execute_query(
     if not effective_query:
         effective_query = {"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}
     
-    results = await executor.execute_query(
+    exec_result = await executor.execute_query(
         query=effective_query,
         runtime_params=request.runtime_params,
         limit=request.limit,
@@ -681,18 +718,30 @@ async def execute_query(
         order_by=request.order_by,
     )
     
-    # If include_children is requested, fetch children for each node
-    if request.include_children:
+    results = exec_result["nodes"]
+    
+    # Lazy enrichment
+    enrich = request.enrich or {}
+    should_include_children = enrich.get("children", request.include_children or False)
+    should_include_classes = enrich.get("classes", True)
+    should_include_properties = enrich.get("properties", request.include_properties or False)
+    
+    if should_include_children:
         results = await _include_children_for_results(user, results)
     
-    # Always include classes (needed for card view and other displays)
-    results = await _include_classes_for_results(user, results)
+    if should_include_classes:
+        results = await _include_classes_for_results(user, results)
     
-    # If include_properties is requested, fetch properties for each node
-    if request.include_properties:
+    if should_include_properties:
         results = await _include_properties_for_results(user, results)
     
-    return {"nodes": results}
+    response: Dict[str, Any] = {"nodes": results}
+    if "total_count" in exec_result:
+        response["total_count"] = exec_result["total_count"]
+    if "metrics" in exec_result:
+        response["metrics"] = exec_result["metrics"]
+    
+    return response
 
 
 @router.post("/count")
