@@ -16,6 +16,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { useVirtualization } from './VirtualizationPlugin';
 import {
   useProperties,
   useBatchPropertyValues,
@@ -135,6 +136,7 @@ export function BlockPropertyIconsPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const { data: allProperties } = useProperties();
   const [blockDOMs, setBlockDOMs] = useState<BlockDOMInfo[]>([]);
+  const { visibleBlockIds, enabled: virtualizationEnabled } = useVirtualization();
 
   // ── Step 0: Which properties care about icon visibility? ──────
   const visibleAfterBullet = useMemo(
@@ -167,6 +169,10 @@ export function BlockPropertyIconsPlugin(): JSX.Element | null {
         if (!$isBlockNode(child)) continue;
 
         const blockId = child.getBlockId();
+
+        // Skip off-screen blocks when virtualization is active
+        if (virtualizationEnabled && !visibleBlockIds.has(blockId)) continue;
+
         const graphNode = runtime.getNode(blockId);
         if (!graphNode?.serverId) continue;
 
@@ -187,7 +193,7 @@ export function BlockPropertyIconsPlugin(): JSX.Element | null {
 
       setBlockDOMs(infos);
     });
-  }, [editor, hasVisibleProps]);
+  }, [editor, hasVisibleProps, virtualizationEnabled, visibleBlockIds]);
 
   // ── Step 2: Listen — only rescan on relevant structural changes ─
   useEffect(() => {
@@ -198,7 +204,7 @@ export function BlockPropertyIconsPlugin(): JSX.Element | null {
       if (dirtyElements.size === 0 && !tags.has('runtime-sync')) return;
       Promise.resolve().then(scanBlocks);
     });
-  }, [editor, scanBlocks, hasVisibleProps]);
+  }, [editor, scanBlocks, hasVisibleProps, visibleBlockIds]);
 
   // ── Step 3: ONE batch query for all block property values ─────
   const serverIds = useMemo(
