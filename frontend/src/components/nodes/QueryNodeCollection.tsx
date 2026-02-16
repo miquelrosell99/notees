@@ -43,11 +43,48 @@ import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { useAppStore } from '@/stores';
+import { useAppStore, useSettingsStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
 import './QueryNodeCollection.css';
 
 // ==================== Helper Functions ====================
+
+/**
+ * Apply collapse level to node children recursively
+ * Used to automatically collapse children based on their depth level
+ * 
+ * @param node - The node to process
+ * @param collapseLevel - Level at which to collapse (0 = disabled, 1 = collapse at level 1, etc.)
+ * @param currentDepth - Current depth in the tree (starts at 0 for the root node being processed)
+ * @returns Node with collapsed state applied to children
+ */
+function applyCollapseLevelToChildren(node: Node, collapseLevel: number, currentDepth: number = 0): Node {
+  if (!node.children || node.children.length === 0 || collapseLevel === 0) {
+    return node;
+  }
+
+  const processedChildren = node.children.map(child => {
+    const childDepth = currentDepth + 1;
+    const shouldCollapse = childDepth >= collapseLevel;
+    
+    // Recursively process this child's children
+    const processedChild = applyCollapseLevelToChildren(
+      {
+        ...child,
+        collapsed: shouldCollapse,
+      },
+      collapseLevel,
+      childDepth
+    );
+    
+    return processedChild;
+  });
+
+  return {
+    ...node,
+    children: processedChildren,
+  };
+}
 
 /**
  * Render prose text with clickable markdown links
@@ -360,6 +397,9 @@ export function QueryNodeCollection({
     isLoading: linkedReferencesLoading,
   } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
 
+  // Get collapse level setting for linked references
+  const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
+
   // Extract nodes from linked references and attach metadata
   // Show page collapsed only when link comes from a property on a PAGE
   // For links in blocks (including text properties of blocks), show the block
@@ -427,21 +467,40 @@ export function QueryNodeCollection({
         },
       } as Node;
       
+      // Apply collapse level to children based on settings (independent of page's collapsed state)
+      // This ensures that when a page is expanded, its children are collapsed according to the settings
+      const nodeWithCollapsedChildren = applyCollapseLevelToChildren(node, linkedRefsCollapseLevel, 0);
+      
+      // Debug: Log the first page node to inspect its structure
+      if (displayNode.is_page && pages.length === 0) {
+        console.log('[LinkedRefs] First page node:', {
+          name: nodeWithCollapsedChildren.name,
+          collapsed: nodeWithCollapsedChildren.collapsed,
+          childrenCount: nodeWithCollapsedChildren.children?.length || 0,
+          collapseLevel: linkedRefsCollapseLevel,
+          firstChild: nodeWithCollapsedChildren.children?.[0] ? {
+            name: nodeWithCollapsedChildren.children[0].name,
+            collapsed: nodeWithCollapsedChildren.children[0].collapsed,
+            childrenCount: nodeWithCollapsedChildren.children[0].children?.length || 0,
+          } : null,
+        });
+      }
+      
       // Separate blocks and pages for list view
       if (isListView) {
         if (displayNode.is_page) {
-          pages.push(node);
+          pages.push(nodeWithCollapsedChildren);
         } else {
-          blocks.push(node);
+          blocks.push(nodeWithCollapsedChildren);
         }
       } else {
         // For non-list views, keep everything together as blocks
-        blocks.push(node);
+        blocks.push(nodeWithCollapsedChildren);
       }
     }
     
     return { linkedReferencesBlocks: blocks, linkedReferencesPages: pages, propertyRefItems: propRefItems };
-  }, [linkedReferencesData, nodeId, collectionViewMode]);
+  }, [linkedReferencesData, nodeId, collectionViewMode, linkedRefsCollapseLevel]);
 
   // Execute ad-hoc query for pseudo-nodes
   const {
@@ -855,7 +914,6 @@ export function QueryNodeCollection({
                   editable={can_edit}
                   onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
                   onNodeShiftClick={(node) => onNodeClick?.(node.id, node.is_page)}
-                  onAddClass={handleAddClass}
                 />
               )}
 

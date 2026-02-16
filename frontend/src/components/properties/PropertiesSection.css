@@ -401,6 +401,16 @@
   min-height: 24px;
 }
 
+/* Remove default editor padding so blocks start tight to the container top */
+.text-property-block__editor .notees-editor-root {
+  min-height: 0;
+}
+
+.text-property-block__editor .notees-editor-content {
+  padding: 0;
+  min-height: 0;
+}
+
 /* Target the empty state message inside the editor */
 .text-property-block__editor .node-list-view--empty {
   min-height: 0;

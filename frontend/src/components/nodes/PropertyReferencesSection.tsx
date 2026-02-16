@@ -7,21 +7,16 @@
  * Shown at the top of linked references, separated by a horizontal divider,
  * outside of any group-by grouping.
  * 
- * Each page is shown collapsed by default. When expanded, it shows:
- * - The properties section filtered to only the property containing the reference
- * - All child blocks of the page
+ * Each page is shown collapsed by default. When expanded, it shows
+ * PropertiesSection filtered to only the relevant property — the exact same
+ * component used in the main node view.
  */
-import { useState, useCallback, useId } from 'react';
+import { useState, useCallback } from 'react';
 import type { Node, LinkedReference } from '@/types';
 import { NodeInline } from '../blocks/NodeInline';
 import { PropertiesSection } from '../properties/PropertiesSection';
-import { BlockEditor } from '@/editor/BlockEditor';
 import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
 import { useAppStore } from '@/stores';
-import { sortBySequence } from '@/utils/nodeSort';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { queueContentSave } from '@/hooks/useBlockPersist';
-import { getNodeByUuid } from '@/api/nodes';
 import './PropertyReferencesSection.css';
 
 interface PropertyRefItem {
@@ -44,88 +39,29 @@ interface PropertyReferencesSectionProps {
   onNodeClick?: (node: Node) => void;
   /** Callback when a node is shift-clicked (open in sidebar) */
   onNodeShiftClick?: (node: Node) => void;
-  /** Callback when node content changes */
-  onContentChange?: (nodeId: number, content: string) => void;
   /** Callback when a class is added to a block */
   onAddClass?: (blockId: number, classId: number) => void;
 }
 
 /**
  * A single collapsible property reference page item.
+ * Uses the same PropertiesSection as the main node view, filtered to the relevant property.
  */
 function PropertyRefPageItem({
   item,
   editable = false,
   onNodeClick,
   onNodeShiftClick,
-  onContentChange,
-  onAddClass,
 }: {
   item: PropertyRefItem;
   editable?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number, content: string) => void;
-  onAddClass?: (blockId: number, classId: number) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const viewId = useId();
   const openNode = useAppStore(state => state.openNode);
 
   const { pageNode, propertyId, ref } = item;
-
-  // Whether this is a text-property-context reference
-  // If so, the PropertiesSection already renders the block hierarchy
-  // via TextPropertyBlock, so we don't show child blocks separately
-  const isTextPropertyRef = !!ref.text_property_root_block_id;
-
-  // Get all children nodes sorted by sequence (skip for text property refs)
-  const childNodes = isTextPropertyRef ? [] : sortBySequence(
-    (ref.source_node.children ?? []).flatMap(function collectAll(n: Node): Node[] {
-      return [n, ...(n.children ?? []).flatMap(collectAll)];
-    })
-  );
-
-  // Handler for navigation from editor
-  const handleNavigateToNode = useCallback(async (blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    
-    if (graphNode?.serverId) {
-      onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
-      return;
-    }
-
-    try {
-      const { parseLinkId } = await import('@/lib/astBuilder');
-      const { nodeUuid } = parseLinkId(blockId);
-      const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(node);
-    } catch {
-      // Node not found
-    }
-  }, [onNodeClick]);
-
-  // Handler for shift-click from editor
-  const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    if (!graphNode?.serverId) return;
-    
-    onNodeShiftClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
-  }, [onNodeShiftClick]);
-
-  // Handler for content changes
-  const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    const serverId = graphNode?.serverId;
-    if (serverId != null) {
-      onContentChange?.(serverId, content);
-    } else if (graphNode) {
-      queueContentSave(blockId, content);
-    }
-  }, [onContentChange]);
 
   const handleNavigateToPage = useCallback(() => {
     onNodeClick?.(pageNode);
@@ -160,38 +96,16 @@ function PropertyRefPageItem({
       
       {isExpanded && (
         <div className="property-ref-item__content">
-          {/* Filtered properties - only show the property that contains the reference */}
-          <div className="property-ref-item__properties">
-            <PropertiesSection
-              nodeId={ref.source_node.id}
-              variant="block"
-              readOnly={!editable}
-              inline={true}
-              filterPropertyIds={[propertyId]}
-              showAddProperty={false}
-              showHiddenSection={false}
-              onNavigateToNode={(id) => openNode(id)}
-            />
-          </div>
-
-          {/* Child blocks */}
-          {childNodes.length > 0 && (
-            <div className="property-ref-item__children">
-              <BlockEditor
-                editorId={`property-ref-${viewId}-${pageNode.id}`}
-                nodes={childNodes}
-                mode="list"
-                readOnly={!editable}
-                onNavigateToNode={handleNavigateToNode}
-                onOpenInSidebar={handleOpenInSidebar}
-                onContentChange={handleContentChangeBridge}
-                onAddClass={onAddClass}
-                pageId={pageNode.id}
-                pageUuid={pageNode.uuid}
-                className="property-ref-item__editor"
-              />
-            </div>
-          )}
+          <PropertiesSection
+            nodeId={ref.source_node.id}
+            variant="block"
+            readOnly={!editable}
+            inline={true}
+            filterPropertyIds={[propertyId]}
+            showAddProperty={false}
+            showHiddenSection={false}
+            onNavigateToNode={(id) => openNode(id)}
+          />
         </div>
       )}
     </div>
@@ -207,8 +121,6 @@ export function PropertyReferencesSection({
   editable = false,
   onNodeClick,
   onNodeShiftClick,
-  onContentChange,
-  onAddClass,
 }: PropertyReferencesSectionProps) {
   if (items.length === 0) return null;
 
@@ -222,8 +134,6 @@ export function PropertyReferencesSection({
             editable={editable}
             onNodeClick={onNodeClick}
             onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
-            onAddClass={onAddClass}
           />
         ))}
       </div>
