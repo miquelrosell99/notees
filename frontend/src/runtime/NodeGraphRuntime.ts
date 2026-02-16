@@ -59,6 +59,13 @@ export class NodeGraphRuntime {
    */
   private parentServerIds = new Map<string, number>();
 
+  /**
+   * Table blocks currently in outline mode.
+   * When in outline mode, table children are projected normally as blocks
+   * instead of being hidden and rendered by TableBlockPlugin.
+   */
+  private tableOutlineBlockIds = new Set<string>();
+
   // ─── Initialization ───────────────────────────────────────────
 
   /**
@@ -754,8 +761,9 @@ export class NodeGraphRuntime {
       result.push(projected);
 
       // Recurse if not collapsed
-      // Skip children of table blocks — they are rendered by TableBlockPlugin portal
-      if (!isCollapsed && child.nodeType !== 'table') {
+      // Skip children of table blocks unless they are in outline mode
+      const isTableHidden = child.nodeType === 'table' && !this.tableOutlineBlockIds.has(child.blockId);
+      if (!isCollapsed && !isTableHidden) {
         this.projectChildren(child.blockId, depth + 1, maxDepth, result, query);
       }
     }
@@ -905,6 +913,25 @@ export class NodeGraphRuntime {
   subscribe(handler: RuntimeEventHandler): () => void {
     this.listeners.add(handler);
     return () => this.listeners.delete(handler);
+  }
+
+  /**
+   * Toggle a table block between table view (children hidden) and outline
+   * view (children projected as normal blocks).
+   */
+  setTableOutlineMode(blockId: string, isOutline: boolean): void {
+    const changed = isOutline
+      ? !this.tableOutlineBlockIds.has(blockId) && (this.tableOutlineBlockIds.add(blockId), true)
+      : this.tableOutlineBlockIds.delete(blockId);
+    if (changed) {
+      // Emit structure change to trigger re-projection
+      this.emit({ type: 'structure_changed', parentIds: [blockId], source: 'intent' });
+    }
+  }
+
+  /** Check if a table block is in outline mode. */
+  isTableOutlineMode(blockId: string): boolean {
+    return this.tableOutlineBlockIds.has(blockId);
   }
 
   private emit(event: RuntimeEvent): void {
