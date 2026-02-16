@@ -171,21 +171,37 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
             <div className="settings-section">
               <h3 className="settings-section__title">Account</h3>
 
-              <div className="settings-user-info">
-                <div className="settings-user-avatar">
-                  {user?.username?.charAt(0).toUpperCase() || '?'}
+              <div className="settings-user-card">
+                <div className="settings-user-info">
+                  <div className="settings-user-avatar">
+                    {user?.username?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                  <div className="settings-user-details">
+                    <p className="settings-user-name">{user?.username || 'User'}</p>
+                    <p className="settings-user-id">User ID: {user?.id || 'Unknown'}</p>
+                  </div>
                 </div>
-                <div className="settings-user-details">
-                  <p className="settings-user-name">{user?.username || 'User'}</p>
-                  <p className="settings-user-id">ID: {user?.id || 'Unknown'}</p>
+
+                <div className="settings-account-meta">
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Account Type</span>
+                    <span className="settings-meta-value">Standard</span>
+                  </div>
+                  <div className="settings-meta-item">
+                    <span className="settings-meta-label">Status</span>
+                    <span className="settings-meta-value settings-meta-value--active">Active</span>
+                  </div>
                 </div>
               </div>
 
-              <Separator orientation="horizontal" size="lg" spacing="md" />
+              <Separator orientation="horizontal" size="lg" spacing="lg" />
 
-              <Button className="settings-btn" variant="danger" size="md" onClick={handleLogout}>
-                Log out
-              </Button>
+              <div className="settings-actions">
+                <h4 className="settings-actions__title">Account Actions</h4>
+                <Button className="settings-btn settings-btn--logout" variant="danger" size="md" onClick={handleLogout}>
+                  Log out
+                </Button>
+              </div>
             </div>
           )}
 
