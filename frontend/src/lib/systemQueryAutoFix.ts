@@ -6,7 +6,7 @@
  * 
  * System sections:
  * - linked_references: MUST have reference condition
- * - unlinked_references: MUST have content condition with current node name
+ * - unlinked_references: MUST have content condition with current node name, exclude current node, and exclude pages
  * - child_pages: MUST have parent_uuid condition (scope handles page filtering)
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
