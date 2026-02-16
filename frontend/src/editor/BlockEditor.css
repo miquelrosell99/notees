@@ -226,9 +226,7 @@
   z-index: 10;
   background: var(--color-on-surface);
   display: none;
-  transition: top 0.1s var(--motion-easing-standard),
-              left 0.1s var(--motion-easing-standard),
-              width 0.12s var(--motion-easing-standard),
+  transition: width 0.12s var(--motion-easing-standard),
               height 0.1s var(--motion-easing-standard),
               border-radius 0.12s var(--motion-easing-standard),
               opacity 0.12s var(--motion-easing-standard);
