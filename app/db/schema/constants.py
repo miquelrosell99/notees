@@ -154,7 +154,9 @@ SYSTEM_PROPERTY_UUIDS = {
     "used_in": "00000000-0000-0000-0000-000000000004",
     "cover": "00000000-0000-0000-0000-000000000005",
     "banner": "00000000-0000-0000-0000-000000000006",
-    "_query_ast": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes    "description":   "00000000-0000-0000-0000-000000000009",  # text, multi    # "extends" removed - now stored directly in class_extend table
+    "_query_ast": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
+    "description": "00000000-0000-0000-0000-000000000009",  # text, multi
+    # "extends" removed - now stored directly in class_extend table
     # Task class properties
     "task_status": "00000000-0000-0000-0003-000000000001",
     "task_deadline": "00000000-0000-0000-0003-000000000002",
