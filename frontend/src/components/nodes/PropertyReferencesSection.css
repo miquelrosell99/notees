@@ -68,23 +68,9 @@
   display: flex;
   flex-direction: column;
   padding-left: var(--spacing-5);
-  gap: var(--spacing-1);
 }
 
-.property-ref-item__properties {
-  padding: var(--spacing-1) var(--spacing-2);
-}
-
-.property-ref-item__properties .properties-inline {
+.property-ref-item__content .properties-inline {
   /* Ensure inline properties fit the compact style */
   font-size: 0.8125rem;
-}
-
-.property-ref-item__children {
-  /* minimal indent for children blocks */
-  padding-left: var(--spacing-1);
-}
-
-.property-ref-item__editor {
-  /* No extra margin needed */
 }
