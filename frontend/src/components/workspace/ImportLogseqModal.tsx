@@ -23,7 +23,7 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi } from '@/api/nodes';
@@ -310,6 +310,12 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           p2.failed++;
           p2.errors.push({ item: prop.title, message: errorMessage(e) });
         }
+      }
+
+      // Map logseq.property/description → Notees description system property
+      const descriptionProp = existingProperties.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.description);
+      if (descriptionProp) {
+        propIdMap.set('logseq.property/description', descriptionProp.id);
       }
 
       // ──────────────────────────────────────────────────────────

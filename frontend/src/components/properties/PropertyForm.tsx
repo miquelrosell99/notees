@@ -23,7 +23,7 @@ export interface PropertyTypeOption {
 }
 
 export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
-  { type: 'text', label: 'Text', description: 'Single or multi-line text', supportsMultiValue: false },
+  { type: 'text', label: 'Text', description: 'Single or multi-line text', supportsMultiValue: true },
   { type: 'integer', label: 'Number', description: 'Whole numbers', supportsMultiValue: false },
   { type: 'float', label: 'Decimal', description: 'Numbers with decimals', supportsMultiValue: false },
   { type: 'boolean', label: 'Checkbox', description: 'True/false value', supportsMultiValue: false },

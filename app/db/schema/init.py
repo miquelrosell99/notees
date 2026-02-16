@@ -143,6 +143,14 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         raise RuntimeError("Failed to create 'Banner' property")
     banner_property_id = banner_row['id']
     
+    # Create 'Description' property (multi text)
+    description_uuid = SYSTEM_PROPERTY_UUIDS["description"]
+    await conn.execute("""
+        INSERT INTO property (uuid, workspace_id, name, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, 'Description', 'text', TRUE, TRUE, $3, $3, $4, $4)
+        ON CONFLICT (workspace_id, uuid) DO NOTHING
+    """, description_uuid, workspace_id, now, user_id)
+    
     # Note: 'extends' property removed - class inheritance now uses class_extend table directly
     
     # Create remaining system classes

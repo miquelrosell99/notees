@@ -443,8 +443,8 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
             }
             continue;
           }
-          // Skip other logseq system properties
-          if (pk.value.startsWith('logseq.property')) continue;
+          // Skip other logseq system properties (but allow description through)
+          if (pk.value.startsWith('logseq.property') && pk.value !== 'logseq.property/description') continue;
           pageProperties[pk.value] = resolvePropertyValue(pv);
         }
       }
@@ -622,7 +622,7 @@ function parseBlock(raw: EdnValue): LogseqBlock {
   if (propsOnBlock instanceof Map) {
     for (const [pk, pv] of propsOnBlock.entries()) {
       if (!(pk instanceof EdnKeyword)) continue;
-      if (pk.value.startsWith('logseq.property')) continue;
+      if (pk.value.startsWith('logseq.property') && pk.value !== 'logseq.property/description') continue;
       blockProperties[pk.value] = resolvePropertyValue(pv);
     }
   }
