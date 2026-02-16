@@ -931,19 +931,23 @@ function mapPropertyType(logseqType: string): PropertyType {
 }
 
 /**
- * Build AST document from Logseq block text, converting [[uuid]] references
- * to proper node_link AST nodes with compound link_id (nodeUuid:linkUuid).
+ * Build AST document from Logseq block text, converting [[uuid]] and ((uuid))
+ * references to proper node_link AST nodes with compound link_id (nodeUuid:linkUuid).
  *
  * Also handles labeled links: [label]([[uuid]]) → node_link (label is dropped
  * since the AST doesn't carry labels; the pill will show the target node name).
+ *
+ * ((uuid)) is Logseq's block reference syntax — these are resolved to the same
+ * node_link AST nodes as [[uuid]] since Notees treats all references uniformly.
  *
  * The backend will parse these node_link entries and automatically create
  * records in the node_link DB table.
  */
 const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-// Matches [label]([[uuid]]), bare [[uuid]], and bare [[name]] — labeled form first so it takes priority
+// Matches [label]([[uuid]]), bare [[uuid]], ((uuid)) block refs, and bare [[name]]
+// Group 1 = labeled form uuid, Group 2 = bare [[uuid]], Group 3 = ((uuid)) block ref, Group 4 = [[name]]
 const NODE_LINK_RE = new RegExp(
-  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\[\\[([^\\]]+)\\]\\]`,
+  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\(\\((${UUID_RE})\\)\\)|\\[\\[([^\\]]+)\\]\\]`,
   'gi'
 );
 
@@ -957,11 +961,11 @@ function buildAstFromLogseqText(
   const children: ASTInlineNode[] = [];
   let lastIndex = 0;
 
-  // Find all [[uuid]], [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
+  // Find all [[uuid]], ((uuid)), [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
   for (const match of rawText.matchAll(NODE_LINK_RE)) {
-    // Group 1 = labeled form uuid, Group 2 = bare form uuid, Group 3 = name-based link
-    const logseqUuid = match[1] ?? match[2];
-    const linkName = match[3];
+    // Group 1 = labeled form uuid, Group 2 = bare [[uuid]], Group 3 = ((uuid)) block ref, Group 4 = name-based link
+    const logseqUuid = match[1] ?? match[2] ?? match[3];
+    const linkName = match[4];
     const matchStart = match.index ?? 0;
 
     // Add preceding plain text
