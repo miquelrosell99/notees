@@ -34,6 +34,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const [overwriteMode, setOverwriteMode] = useState(false);
   const caretRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number>(0);
+  // Microtask-based batching flag for critical update paths
+  const microPendingRef = useRef(false);
   // Track whether we've set an initial position (skip transition on first placement)
   const hasPositionedRef = useRef(false);
   // Track previous Y position for elastic bounce on block jumps
@@ -488,26 +490,30 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
   // ─── Listen for selection changes ────────────────────────────
 
+  // Schedule caret update via microtask (runs before next paint, no 1-frame lag)
+  const scheduleCaretMicrotask = useCallback(() => {
+    if (!microPendingRef.current) {
+      microPendingRef.current = true;
+      queueMicrotask(() => {
+        microPendingRef.current = false;
+        updateCaretPosition();
+        updateActiveBlock();
+      });
+    }
+  }, [updateCaretPosition, updateActiveBlock]);
+
   useEffect(() => {
     const unregisterSelection = editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(() => {
-          updateCaretPosition();
-          updateActiveBlock();
-        });
+        scheduleCaretMicrotask();
         return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
 
     const unregisterUpdate = editor.registerUpdateListener(() => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        updateCaretPosition();
-        updateActiveBlock();
-      });
+      scheduleCaretMicrotask();
     });
 
     // Initial position
@@ -521,7 +527,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       unregisterUpdate();
       cancelAnimationFrame(rafRef.current);
     };
-  }, [editor, updateCaretPosition, updateActiveBlock]);
+  }, [editor, scheduleCaretMicrotask, updateCaretPosition, updateActiveBlock]);
 
   // ─── Mark active on any keypress ────────────────────────────
 
