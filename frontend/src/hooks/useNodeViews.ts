@@ -25,6 +25,7 @@ import type {
   NodeViewCreate,
   NodeViewUpdate,
   QueryExecuteRequest,
+  QueryExecuteResponse,
 } from '@/types/nodeView';
 
 // ==================== Query Keys ====================
@@ -137,24 +138,29 @@ export function useNodeViewQuery(
     orderBy?: string;
     includeChildren?: boolean;
     includeProperties?: boolean;
+    enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
     enabled?: boolean;
   }
 ) {
-  const { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties, enabled = true } = options ?? {};
+  const { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties, enrich, enabled = true } = options ?? {};
 
   return useQuery({
-    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties }),
-    queryFn: () =>
-      executeNodeViewQuery(viewId, {
+    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeProperties, enrich }),
+    queryFn: async () => {
+      const response = await executeNodeViewQuery(viewId, {
         runtime_params: runtimeParams,
         limit,
         offset,
         order_by: orderBy,
         include_children: includeChildren,
         include_properties: includeProperties,
-      }),
+        enrich,
+      });
+      // Return nodes for backward compatibility, but store full response
+      return response.nodes;
+    },
     enabled: enabled && viewId > 0,
-    staleTime: 0,
+    staleTime: 30_000,  // 30s stale time for view queries
   });
 }
 
@@ -172,7 +178,10 @@ export function useQuery_(
 
   return useQuery({
     queryKey: queryKey ?? [...nodeViewKeys.queryResults(), 'adhoc', request],
-    queryFn: () => executeQuery(request),
+    queryFn: async () => {
+      const response = await executeQuery(request);
+      return response.nodes;
+    },
     enabled,
     staleTime: 0,
   });

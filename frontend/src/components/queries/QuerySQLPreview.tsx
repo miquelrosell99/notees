@@ -179,7 +179,8 @@ export function QuerySQLPreview({ ast, disabled = false }: QuerySQLPreviewProps)
     return null;
   }
   
-  const sql = generateSQL(ast);
+  // Lazy SQL generation: only compute when expanded to avoid blocking UI
+  const sql = isExpanded ? generateSQL(ast) : '';
   
   return (
     <div className="query-sql-preview">

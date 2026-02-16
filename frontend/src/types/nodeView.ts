@@ -79,6 +79,43 @@ export interface QueryExecuteRequest {
   order_by?: string;
   include_children?: boolean;
   include_properties?: boolean;
+  /** Fine-grained enrichment control */
+  enrich?: {
+    children?: boolean;
+    classes?: boolean;
+    properties?: boolean;
+  };
+}
+
+/**
+ * Response from query execution (extended with pagination + metrics)
+ */
+export interface QueryExecuteResponse {
+  nodes: import('@/types/api').Node[];
+  /** Total matching rows (present when limit/offset used) */
+  total_count?: number;
+  /** Execution metrics from backend */
+  metrics?: QueryExecutionMetrics;
+}
+
+/**
+ * Backend query execution metrics
+ */
+export interface QueryExecutionMetrics {
+  ast_nodes_before: number;
+  ast_nodes_after: number;
+  conditions_before: number;
+  conditions_after: number;
+  max_depth: number;
+  has_recursive_cte: boolean;
+  has_path_queries: boolean;
+  has_property_joins: boolean;
+  has_content_search: boolean;
+  sql_cache_hit: boolean;
+  rows_returned: number;
+  total_count: number | null;
+  sql_time_ms: number;
+  total_time_ms: number;
 }
 
 // ==================== Runtime Parameters ====================
