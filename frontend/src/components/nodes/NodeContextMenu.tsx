@@ -562,6 +562,10 @@ export function BlockContextMenu({
   const archiveNode = useArchiveNode();
   
   const handleDeleteClick = useCallback(() => {
+    // Blur active element so Lexical doesn't auto-focus the previous block
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     deleteNode.mutate(node.id);
     onClose();
   }, [node.id, deleteNode, onClose]);
