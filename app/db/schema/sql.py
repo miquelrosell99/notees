@@ -942,4 +942,66 @@ CREATE TRIGGER property_write_date
     BEFORE UPDATE ON property
     FOR EACH ROW
     EXECUTE FUNCTION update_write_date();
+
+-- Function to update workspace's write_date when nodes are modified
+CREATE OR REPLACE FUNCTION update_workspace_write_date()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- For INSERT and UPDATE, use NEW.workspace_id
+    -- For DELETE, use OLD.workspace_id
+    IF (TG_OP = 'DELETE') THEN
+        UPDATE workspace SET write_date = NOW() WHERE id = OLD.workspace_id;
+        RETURN OLD;
+    ELSE
+        UPDATE workspace SET write_date = NOW() WHERE id = NEW.workspace_id;
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update workspace write_date on node changes
+DROP TRIGGER IF EXISTS node_update_workspace_write_date ON node;
+CREATE TRIGGER node_update_workspace_write_date
+    AFTER INSERT OR UPDATE OR DELETE ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION update_workspace_write_date();
+
+-- ============================================================
+-- EXAMPLE USAGE: BREADCRUMBS
+-- ============================================================
+-- 
+-- Example 1: Get full breadcrumb path from root to a document node
+--   SELECT * FROM get_breadcrumbs(123);
+--   
+--   This returns all ancestors from the root down to node 123:
+--   | id  | uuid | name        | is_page | depth |
+--   |-----|------|-------------|---------|-------|
+--   | 1   | ...  | Root Page   | true    | 3     |
+--   | 45  | ...  | Chapter 1   | true    | 2     |
+--   | 89  | ...  | Section A   | false   | 1     |
+--   | 123 | ...  | My Document | false   | 0     |
+--
+-- Example 2: Get breadcrumb path starting from a specific ancestor
+--   SELECT * FROM get_breadcrumbs(123, 45);
+--   
+--   This returns the path from node 45 down to node 123:
+--   | id  | uuid | name        | is_page | depth |
+--   |-----|------|-------------|---------|-------|
+--   | 45  | ...  | Chapter 1   | true    | 2     |
+--   | 89  | ...  | Section A   | false   | 1     |
+--   | 123 | ...  | My Document | false   | 0     |
+--
+-- Example 3: Get only page ancestors (filter in app layer)
+--   SELECT * FROM get_breadcrumbs(123) WHERE is_page = TRUE;
+--
+-- Example 4: Get all descendants of a node (useful for subtree operations)
+--   SELECT n.* FROM node_path np
+--   JOIN node n ON n.id = np.descendant_id
+--   WHERE np.ancestor_id = 45 AND np.depth > 0;
+--
+-- Example 5: Check if node A is an ancestor of node B
+--   SELECT EXISTS(
+--     SELECT 1 FROM node_path 
+--     WHERE ancestor_id = A AND descendant_id = B
+--   );
 """
