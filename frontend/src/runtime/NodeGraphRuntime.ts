@@ -1018,19 +1018,22 @@ function splitContentASTAtOffset(
   let charCount = 0;
   let splitParaIndex = 0;
   let splitCharOffset = 0;
+  let found = false;
 
   for (let i = 0; i < content.length; i++) {
     const para = content[i];
+    const paraStart = charCount;
     for (const child of para.children) {
       const len = getInlineLength(child);
       if (charCount + len >= offset) {
         splitParaIndex = i;
-        splitCharOffset = offset - charCount;
+        splitCharOffset = offset - paraStart;
+        found = true;
         break;
       }
       charCount += len;
     }
-    if (charCount >= offset) break;
+    if (found) break;
     charCount++; // paragraph break
   }
 
@@ -1150,6 +1153,17 @@ function splitInlinesAtOffset(
       if (node.type === 'text') {
         before.push({ type: 'text', text: node.text.slice(0, remaining) });
         after.push({ type: 'text', text: node.text.slice(remaining) });
+      } else if ('children' in node && Array.isArray(node.children)) {
+        // Recursively split wrapper nodes (strong, em, strikethrough, etc.)
+        const { beforeInlines, afterInlines } = splitInlinesAtOffset(node.children, remaining);
+        const hasBeforeContent = beforeInlines.length > 0 && !(beforeInlines.length === 1 && beforeInlines[0].type === 'text' && beforeInlines[0].text === '');
+        const hasAfterContent = afterInlines.length > 0 && !(afterInlines.length === 1 && afterInlines[0].type === 'text' && afterInlines[0].text === '');
+        if (hasBeforeContent) {
+          before.push({ ...node, children: beforeInlines } as ASTInlineNode);
+        }
+        if (hasAfterContent) {
+          after.push({ ...node, children: afterInlines } as ASTInlineNode);
+        }
       } else {
         before.push(node);
       }
