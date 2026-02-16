@@ -521,7 +521,12 @@ export function QueryNodeCollection({
 
   // Only render blocks/pages as separate sections in list/document view when BOTH exist
   // When only blocks or only pages, show everything in a single section (no PAGES header needed)
-  const showPageSeparation = (collectionViewMode === 'list' || collectionViewMode === 'document') && resultBlocks.length > 0 && resultPages.length > 0;
+  const isListOrDocView = collectionViewMode === 'list' || collectionViewMode === 'document';
+  const showPageSeparation = isListOrDocView && resultBlocks.length > 0 && resultPages.length > 0;
+
+  // Show the PAGES section when there are pages to show OR property ref items to display
+  // Property ref items are extracted from regular results, so they need their own rendering path
+  const showPagesSection = showPageSeparation || (isListOrDocView && viewType === 'linked_references' && propertyRefItems.length > 0);
 
   // Preview query for edit modal — debounced to avoid excessive backend calls
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
@@ -818,9 +823,9 @@ export function QueryNodeCollection({
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
             emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
-            showEmpty={!showPageSeparation}
+            showEmpty={!showPagesSection}
             autoCollapse={true}
-            containerCard={showPageSeparation ? false : viewType !== 'all_pages'}
+            containerCard={showPagesSection ? false : viewType !== 'all_pages'}
             activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
           />
@@ -838,8 +843,8 @@ export function QueryNodeCollection({
             </div>
           )}
 
-          {/* Pages section - only in list/document view */}
-          {showPageSeparation && (
+          {/* Pages section - shows when there are pages OR property ref items */}
+          {showPagesSection && (
             <>
               <div className="linked-references__pages-header">PAGES</div>
 
@@ -854,7 +859,7 @@ export function QueryNodeCollection({
                 />
               )}
 
-              <NodeCollection
+              {resultPages.length > 0 && <NodeCollection
                 nodes={resultPages}
                 viewId={activeView?.id}
                 view={activeView}
@@ -876,7 +881,7 @@ export function QueryNodeCollection({
                 autoCollapse={true}
                 containerCard={false}
                 onAddClass={handleAddClass}
-              />
+              />}
             </>
           )}
         </>
