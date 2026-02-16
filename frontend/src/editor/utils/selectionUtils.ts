@@ -50,13 +50,26 @@ export function selectBlockWithChildren(
   } else {
     blockEl.classList.add('node-block--selected-first');
     children[children.length - 1].classList.add('node-block--selected-last');
+  }
 
-    // Calculate total height so the selection card overlay covers all children.
-    // getBoundingClientRect triggers a synchronous reflow, giving correct positions.
+  // Create a real overlay div inside the .notees-editor wrapper.
+  // Pseudo-elements on the parent can't reliably cover flat siblings because
+  // each .node-block has position:relative and paints over them.
+  const editorWrapper = rootEl.closest('.notees-editor') as HTMLElement;
+  if (editorWrapper) {
+    const wrapperRect = editorWrapper.getBoundingClientRect();
     const parentRect = blockEl.getBoundingClientRect();
-    const lastChildRect = children[children.length - 1].getBoundingClientRect();
-    const totalHeight = lastChildRect.bottom - parentRect.top + 4; // +4px breathing room
-    blockEl.style.setProperty('--selection-card-height', `${totalHeight}px`);
+    const lastRect = children.length > 0
+      ? children[children.length - 1].getBoundingClientRect()
+      : parentRect;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'block-selection-card';
+    overlay.style.top = `${parentRect.top - wrapperRect.top - 2}px`;
+    overlay.style.left = `${parentRect.left - wrapperRect.left - 6}px`;
+    overlay.style.right = '0';
+    overlay.style.height = `${lastRect.bottom - parentRect.top + 4}px`;
+    editorWrapper.appendChild(overlay);
   }
 }
 
@@ -74,8 +87,13 @@ export function clearBlockSelection(rootEl: HTMLElement): void {
   const selector = selectionClasses.map(c => `.${c}`).join(', ');
   rootEl.querySelectorAll(selector).forEach(el => {
     el.classList.remove(...selectionClasses);
-    (el as HTMLElement).style.removeProperty('--selection-card-height');
   });
+
+  // Remove overlay div(s)
+  const editorWrapper = rootEl.closest('.notees-editor');
+  if (editorWrapper) {
+    editorWrapper.querySelectorAll('.block-selection-card').forEach(el => el.remove());
+  }
 }
 
 /**
