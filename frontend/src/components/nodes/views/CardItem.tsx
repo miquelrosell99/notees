@@ -533,15 +533,15 @@ export const NodeCard = memo(function NodeCard({
 
   // Handle slash commands from editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
-    if (!allClasses) return;
+    if (!_propsAllClasses) return;
     switch (commandId) {
       case 'query': {
-        const cls = allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query);
+        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query);
         if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
         break;
       }
       case 'table': {
-        const cls = allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
+        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
         if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
         break;
       }
@@ -558,7 +558,7 @@ export const NodeCard = memo(function NodeCard({
         break;
       }
     }
-  }, [allClasses, addClass]);
+  }, [_propsAllClasses, addClass]);
 
   // ─── Style & className ─────────────────────────────────────
 
