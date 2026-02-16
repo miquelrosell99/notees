@@ -36,8 +36,10 @@
   align-items: flex-start;
 }
 
+/* Align label with the first block's text line:
+   container padding (--spacing-1) + block margin (3px) */
 .property-row:has(.text-property-block--has-content) .property-row__label {
-  padding-top: var(--spacing-1);
+  padding-top: calc(var(--spacing-1) + 3px);
 }
 
 .property-row:has(.text-property-block--has-content) .property-row__value-container,
