@@ -92,12 +92,32 @@
   pointer-events: auto;
 }
 
+/* ─── Block UI container (non-editable) ─────────────────────────── */
+
+.block-ui {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
+
+.block-ui--after-content {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
+
 /* ─── Bullet wrapper ─────────────────────────────────────────────
    Base styles are in Bullet.css. Block-specific overrides below.
    ──────────────────────────────────────────────────────────────── */
 
 /* Block bullet specific: right margin for spacing from content */
-.node-block > .bullet-wrapper {
+.block-ui > .bullet-wrapper {
   margin-right: 6px;
   /* Align bullet with text baseline on first line */
   margin-top: 2px;
@@ -119,7 +139,7 @@
 }
 
 /* Bullet glow pulse when block is being edited — hover circle breathes */
-.node-block--editing > .bullet-wrapper {
+.node-block--editing > .block-ui > .bullet-wrapper {
   animation: bullet-glow-breathe 2s ease-in-out infinite;
 }
 
@@ -643,4 +663,23 @@ th.node-block-table-cell {
 .notees-editor-paragraph {
   margin: 0;
   line-height: 1.6;
+}
+
+/* ─── Virtualization ───────────────────────────────────────────── */
+
+/* Off-screen blocks: hide content but preserve measured height.
+   IntersectionObserver sets min-height inline before adding this class
+   so scroll position stays stable. */
+.node-block--virtualized > .node-block-content {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Hide portal targets on virtualized blocks to prevent React rendering */
+.node-block--virtualized .block-ui,
+.node-block--virtualized .block-ui--after-content {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
 }

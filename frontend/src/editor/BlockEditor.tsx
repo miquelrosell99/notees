@@ -45,6 +45,7 @@ import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
+import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -474,11 +475,15 @@ export function BlockEditor({
         {/* Blur editor when clicking outside */}
         <BlurOnClickOutsidePlugin readOnly={readOnly} />
 
-        {/* Block class pills — renders class badges on each block */}
-        <BlockClassPillsPlugin onNavigateToNode={onNavigateToNode} />
+        {/* Virtualization — provides viewport awareness to portal plugins.
+            Automatically activates for pages with 80+ blocks. */}
+        <VirtualizationPlugin>
+          {/* Block class pills — renders class badges on each block */}
+          <BlockClassPillsPlugin onNavigateToNode={onNavigateToNode} />
 
-        {/* Property icons on blocks (page-level index, zero per-block queries) */}
-        <BlockPropertyIconsPlugin />
+          {/* Property icons on blocks (page-level index, zero per-block queries) */}
+          <BlockPropertyIconsPlugin />
+        </VirtualizationPlugin>
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />

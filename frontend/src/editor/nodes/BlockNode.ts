@@ -242,6 +242,22 @@ export class BlockNode extends ElementNode {
       dom.classList.add('node-block--projection-root');
     }
 
+    // ── Block UI container ─────────────────────────────────────
+    // Non-editable area for bullet, property icons, class pills.
+    // Consolidated portal target that prevents mouse events from
+    // interfering with Lexical's contentEditable selection engine.
+    const blockUI = document.createElement('div');
+    blockUI.className = 'block-ui';
+    blockUI.contentEditable = 'false';
+    setDOMUnmanaged(blockUI);
+    // Prevent mousedown from stealing focus/selection from editor
+    blockUI.addEventListener('mousedown', (e: MouseEvent) => {
+      // Allow clicks on buttons/interactive elements within block-ui
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, [role="button"], .block-prop-icon-btn')) return;
+      e.preventDefault();
+    });
+
     // Create bullet wrapper - uses shared bullet-* classes from Bullet component
     const bullet = document.createElement('div');
     bullet.className = 'bullet-wrapper bullet-sm bullet-interactive';
@@ -249,15 +265,6 @@ export class BlockNode extends ElementNode {
     if (this.__collapsed) bullet.classList.add('bullet-collapsed');
     bullet.dataset.blockId = this.__blockId;
     bullet.draggable = !this.__isProjectionRoot;
-    // Mark bullet as non-editable so the browser's contentEditable engine
-    // won't treat it as mutable content during Backspace/Delete operations
-    bullet.contentEditable = 'false';
-    setDOMUnmanaged(bullet);
-    
-    // Prevent text selection when mousedown on bullet
-    bullet.addEventListener('mousedown', (e: MouseEvent) => {
-      e.preventDefault();
-    });
     
     // Collapse arrow (only create if has children)
     if (this.__hasChildren) {
@@ -292,56 +299,70 @@ export class BlockNode extends ElementNode {
     }
     
     bullet.appendChild(bulletContainer);
-    dom.appendChild(bullet);
+    blockUI.appendChild(bullet);
 
     // Property icons container (after_bullet position) — React portal target
     const propIconsAfterBullet = document.createElement('div');
     propIconsAfterBullet.className = 'node-block-prop-icons node-block-prop-icons--after-bullet';
-    propIconsAfterBullet.contentEditable = 'false';
-    setDOMUnmanaged(propIconsAfterBullet);
-    dom.appendChild(propIconsAfterBullet);
+    blockUI.appendChild(propIconsAfterBullet);
 
-    // Content wrapper — Lexical inserts managed (text) children here
-    // This keeps inline spans flowing as text rather than flex items
+    dom.appendChild(blockUI);
+
+    // ── Block content ──────────────────────────────────────────
+    // Lexical inserts managed (text) children here.
+    // This keeps inline spans flowing as text rather than flex items.
     const content = document.createElement('div');
     content.className = 'node-block-content';
     dom.appendChild(content);
 
+    // ── After-content UI ───────────────────────────────────────
+    // Non-editable containers for class pills and trailing property icons.
+    const afterContentUI = document.createElement('div');
+    afterContentUI.className = 'block-ui block-ui--after-content';
+    afterContentUI.contentEditable = 'false';
+    setDOMUnmanaged(afterContentUI);
+    afterContentUI.addEventListener('mousedown', (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, [role="button"], .block-prop-icon-btn')) return;
+      e.preventDefault();
+    });
+
     // Class pills container — React portal target for BlockClassPillsPlugin
     const classPills = document.createElement('div');
     classPills.className = 'node-block-class-pills';
-    classPills.contentEditable = 'false';
-    setDOMUnmanaged(classPills);
     // Hide if no classes
     if (this.__classIds.length === 0) {
       classPills.style.display = 'none';
     }
-    dom.appendChild(classPills);
+    afterContentUI.appendChild(classPills);
 
     // Property icons container (before_content position = after text) — React portal target
     const propIconsBeforeContent = document.createElement('div');
     propIconsBeforeContent.className = 'node-block-prop-icons node-block-prop-icons--before-content';
-    propIconsBeforeContent.contentEditable = 'false';
-    setDOMUnmanaged(propIconsBeforeContent);
-    dom.appendChild(propIconsBeforeContent);
+    afterContentUI.appendChild(propIconsBeforeContent);
+
+    dom.appendChild(afterContentUI);
 
     return dom;
   }
 
   updateDOM(prevNode: BlockNode, dom: HTMLElement, _config: EditorConfig): boolean {
-    // Update depth
+    // ── Shallow updates only — never return true ──────────────
+    // Each check mutates the existing DOM in-place. We never recreate
+    // the wrapper, preserving referential equality for child nodes,
+    // IntersectionObserver entries, and React portal mount points.
+
+    // Depth (CSS custom property + data attribute)
     if (prevNode.__depth !== this.__depth) {
       dom.dataset.depth = String(this.__depth);
       dom.style.setProperty('--node-block-depth', String(this.__depth));
     }
 
-    // Update collapsed
+    // Collapsed
     if (prevNode.__collapsed !== this.__collapsed) {
       dom.classList.toggle('node-block--collapsed', this.__collapsed);
-      // Update bullet collapsed class
       const bullet = dom.querySelector('.bullet-wrapper');
       if (bullet) bullet.classList.toggle('bullet-collapsed', this.__collapsed);
-      // Update collapse arrow icon
       const collapseArrow = dom.querySelector('.bullet-collapse-arrow');
       if (collapseArrow) {
         collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
@@ -351,24 +372,22 @@ export class BlockNode extends ElementNode {
       }
     }
 
-    // Update node type
+    // Node type
     if (prevNode.__nodeType !== this.__nodeType) {
       dom.classList.remove(`node-block--${prevNode.__nodeType}`);
       dom.classList.add(`node-block--${this.__nodeType}`);
     }
 
-    // Update hasChildren
+    // Has children (bullet + collapse arrow)
     if (prevNode.__hasChildren !== this.__hasChildren) {
       dom.classList.toggle('node-block--has-children', this.__hasChildren);
       
-      // Add or remove collapse arrow
       const bullet = dom.querySelector('.bullet-wrapper');
       if (bullet) {
         bullet.classList.toggle('bullet-has-children', this.__hasChildren);
         const existingArrow = bullet.querySelector('.bullet-collapse-arrow');
         
         if (this.__hasChildren && !existingArrow) {
-          // Add collapse arrow
           const collapseArrow = document.createElement('button');
           collapseArrow.className = 'bullet-collapse-arrow';
           collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
@@ -377,20 +396,19 @@ export class BlockNode extends ElementNode {
             : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
           bullet.insertBefore(collapseArrow, bullet.firstChild);
         } else if (!this.__hasChildren && existingArrow) {
-          // Remove collapse arrow
           existingArrow.remove();
         }
       }
     }
 
-    // Update isProjectionRoot
+    // Projection root
     if (prevNode.__isProjectionRoot !== this.__isProjectionRoot) {
       dom.classList.toggle('node-block--projection-root', this.__isProjectionRoot);
       const bullet = dom.querySelector('.bullet-wrapper') as HTMLElement | null;
       if (bullet) bullet.draggable = !this.__isProjectionRoot;
     }
 
-    // Update color
+    // Color (CSS custom properties only — no reflow)
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
         dom.style.setProperty('--node-block-color', this.__color);
@@ -404,17 +422,15 @@ export class BlockNode extends ElementNode {
       }
     }
 
-    // Update icon
+    // Icon (swap dot/icon inside bullet-container)
     if (prevNode.__icon !== this.__icon) {
       const bulletContainer = dom.querySelector('.bullet-container');
       if (bulletContainer) {
-        // Remove old dot/icon
         const oldDot = bulletContainer.querySelector('.bullet-dot');
         const oldIcon = bulletContainer.querySelector('.bullet-icon');
         if (oldDot) oldDot.remove();
         if (oldIcon) oldIcon.remove();
         
-        // Add new dot/icon
         if (this.__icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = 'bullet-icon';
@@ -428,17 +444,16 @@ export class BlockNode extends ElementNode {
       }
     }
 
-    // Update classIds - show/hide the pills container
-    const prevClassIdsStr = prevNode.__classIds.join(',');
-    const currClassIdsStr = this.__classIds.join(',');
-    if (prevClassIdsStr !== currClassIdsStr) {
+    // Class IDs — toggle pills container visibility
+    if (prevNode.__classIds.join(',') !== this.__classIds.join(',')) {
       const classPills = dom.querySelector('.node-block-class-pills') as HTMLElement | null;
       if (classPills) {
         classPills.style.display = this.__classIds.length === 0 ? 'none' : '';
       }
     }
 
-    return false; // Don't recreate DOM
+    // NEVER return true — DOM structure is stable, only attributes/classes change
+    return false;
   }
 
   exportDOM(_editor: LexicalEditor): DOMExportOutput {

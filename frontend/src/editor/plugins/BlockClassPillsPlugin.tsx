@@ -17,6 +17,7 @@ import { NodePill } from '@/components/nodes/NodePill';
 import type { Node } from '@/types';
 import { useClasses, useRemoveClass } from '@/hooks';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { useVirtualization } from './VirtualizationPlugin';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export function BlockClassPillsPlugin({
   const { data: allClasses } = useClasses();
   const removeClass = useRemoveClass();
   const [blockClasses, setBlockClasses] = useState<BlockClassInfo[]>([]);
+  const { visibleBlockIds, enabled: virtualizationEnabled } = useVirtualization();
 
   // Build a lookup map from class UUID to Node object
   const classMap = new Map<string, Node>();
@@ -63,6 +65,10 @@ export function BlockClassPillsPlugin({
         if (classIds.length === 0) continue;
 
         const blockId = child.getBlockId();
+
+        // Skip off-screen blocks when virtualization is active
+        if (virtualizationEnabled && !visibleBlockIds.has(blockId)) continue;
+
         const blockEl = rootEl.querySelector(`[data-block-id="${blockId}"]`);
         if (!blockEl) continue;
 
@@ -74,7 +80,7 @@ export function BlockClassPillsPlugin({
 
       setBlockClasses(infos);
     });
-  }, [editor]);
+  }, [editor, virtualizationEnabled, visibleBlockIds]);
 
   // Re-scan when editor state changes (class additions, block changes)
   useEffect(() => {
@@ -88,7 +94,7 @@ export function BlockClassPillsPlugin({
       // Defer to next microtask so DOM is up-to-date
       Promise.resolve().then(scanBlocks);
     });
-  }, [editor, scanBlocks]);
+  }, [editor, scanBlocks, visibleBlockIds]);
 
   // Render portals
   if (!allClasses || blockClasses.length === 0) return null;
