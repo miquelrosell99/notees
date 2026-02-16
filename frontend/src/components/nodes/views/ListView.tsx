@@ -37,6 +37,7 @@ export function ListView({
   onNodeShiftClick,
   onContentChange,
   onAddClass,
+  onSlashCommand,
   pageId,
   pageUuid,
   className = '',
@@ -215,6 +216,7 @@ export function ListView({
               handleOpenInSidebar={handleOpenInSidebar}
               handleContentChangeBridge={handleContentChangeBridge}
               onAddClass={onAddClass}
+              onSlashCommand={onSlashCommand}
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               pageId={pageId}
@@ -279,6 +281,7 @@ export function ListView({
         onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
+        onSlashCommand={onSlashCommand}
         pageId={pageId}
         pageUuid={pageUuid}
         className="node-list-view__editor"
@@ -303,6 +306,7 @@ function ListViewGroup({
   handleOpenInSidebar,
   handleContentChangeBridge,
   onAddClass,
+  onSlashCommand,
   onNodeClick,
   onNodeShiftClick,
   pageId,
@@ -317,6 +321,7 @@ function ListViewGroup({
   handleOpenInSidebar: (blockId: string) => void;
   handleContentChangeBridge: (blockId: string, content: string) => void;
   onAddClass?: (nodeId: number, classId: number) => void;
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   pageId?: number;
@@ -360,6 +365,7 @@ function ListViewGroup({
             onOpenInSidebar={handleOpenInSidebar}
             onContentChange={handleContentChangeBridge}
             onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
             pageId={pageId}
             pageUuid={pageUuid}
             className="node-list-view__editor"

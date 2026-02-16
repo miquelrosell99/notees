@@ -44,6 +44,7 @@ import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
+import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
@@ -108,6 +109,8 @@ export interface BlockEditorProps {
   onContentChange?: (blockId: string, content: string) => void;
   /** Called when a class should be added to a block via @ menu (plain Enter) */
   onAddClass?: (blockId: number, classId: number) => void;
+  /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   /** Custom class name */
   className?: string;
   /** Placeholder text */
@@ -161,6 +164,7 @@ export function BlockEditor({
   onSelectionChange,
   onContentChange: onContentChangeCallback,
   onAddClass,
+  onSlashCommand,
   className,
   placeholder = 'Type / for commands…',
   includeRoot,
@@ -459,6 +463,7 @@ export function BlockEditor({
         <TriggerPlugin
           onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
+          onSlashCommand={onSlashCommand}
         />
 
         {/* Floating toolbar */}
@@ -483,6 +488,9 @@ export function BlockEditor({
 
           {/* Property icons on blocks (page-level index, zero per-block queries) */}
           <BlockPropertyIconsPlugin />
+
+          {/* Asset previews — renders image/audio/file previews on asset blocks */}
+          <AssetBlockPlugin />
         </VirtualizationPlugin>
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
