@@ -519,8 +519,9 @@ export function QueryNodeCollection({
     return { resultBlocks: blocks, resultPages: pages };
   }, [windowedResultNodes, activeAST?.scope?.scope_type]);
 
-  // Only render blocks/pages as separate sections in list/document view
-  const showPageSeparation = (collectionViewMode === 'list' || collectionViewMode === 'document') && resultPages.length > 0;
+  // Only render blocks/pages as separate sections in list/document view when BOTH exist
+  // When only blocks or only pages, show everything in a single section (no PAGES header needed)
+  const showPageSeparation = (collectionViewMode === 'list' || collectionViewMode === 'document') && resultBlocks.length > 0 && resultPages.length > 0;
 
   // Preview query for edit modal — debounced to avoid excessive backend calls
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
