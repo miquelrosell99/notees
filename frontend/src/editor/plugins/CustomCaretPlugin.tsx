@@ -407,17 +407,26 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     }
 
     // Height fallback for format boundaries
+    // Use computed line height rather than full parent height to avoid
+    // spanning the caret over images or other content below the text
     if (rect.height < 1) {
       const parentEl = startContainer.nodeType === Node.TEXT_NODE
         ? startContainer.parentElement
         : startContainer as Element;
       if (parentEl) {
         const parentRect = parentEl.getBoundingClientRect();
+        // Get line height from computed style instead of using full parent height
+        const computedStyle = getComputedStyle(parentEl);
+        const lineHeight = parseFloat(computedStyle.lineHeight);
+        const fontSize = parseFloat(computedStyle.fontSize);
+        // Use line height if valid, otherwise calculate from font size or use default
+        const fallbackHeight = !isNaN(lineHeight) ? lineHeight : 
+                              (!isNaN(fontSize) ? fontSize * 1.6 : 20);
         rect = new DOMRect(
           rect.left || parentRect.left,
           parentRect.top,
           rect.width || 2,
-          parentRect.height || 20
+          fallbackHeight
         );
       } else {
         rect = new DOMRect(rect.left, rect.top, rect.width || 2, 20);
@@ -451,7 +460,25 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     const top = rect.top - editorRect.top;
     const left = rect.left - editorRect.left;
-    const height = rect.height > 1 ? rect.height : 20;
+    
+    // Calculate caret height, clamping to line height to prevent spanning over images
+    // Find the text node or closest element to get proper line height
+    const textEl = startContainer.nodeType === Node.TEXT_NODE
+      ? startContainer.parentElement
+      : startContainer as Element;
+    let maxLineHeight = 40; // Default max to prevent extreme heights
+    if (textEl) {
+      const computedStyle = getComputedStyle(textEl);
+      const lineHeight = parseFloat(computedStyle.lineHeight);
+      const fontSize = parseFloat(computedStyle.fontSize);
+      if (!isNaN(lineHeight)) {
+        maxLineHeight = lineHeight;
+      } else if (!isNaN(fontSize)) {
+        maxLineHeight = fontSize * 1.6; // Standard line height multiplier
+      }
+    }
+    // Use rect height but clamp to line height to avoid spanning images below text
+    const height = rect.height > 1 ? Math.min(rect.height, maxLineHeight) : 20;
 
     // Disable position transitions on first placement
     if (!hasPositionedRef.current) {
