@@ -11,12 +11,19 @@ import type { GraphNode, GraphNodeType, ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 import { parseAST } from '@/lib/astBuilder';
 import { nodeNameToText } from './useStringifyAST';
+import { queryClient } from '@/lib/queryClient';
+import { nodeKeys } from './queryKeys';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 
 /**
  * Convert an API Node to a GraphNode for the runtime.
  * Note: parentId will be set as the parent's UUID if idToUuidMap is provided.
  */
-export function apiNodeToGraphNode(node: Node, idToUuidMap?: Map<number, string>): GraphNode {
+export function apiNodeToGraphNode(
+  node: Node,
+  idToUuidMap?: Map<number, string>,
+  classIdToUuidMap?: Map<number, string>,
+): GraphNode {
   // Convert parent_id (server ID) to parent UUID
   let parentUuid: string | null = null;
   if (node.parent_id) {
@@ -32,7 +39,7 @@ export function apiNodeToGraphNode(node: Node, idToUuidMap?: Map<number, string>
     serverId: node.id,
     parentId: parentUuid,
     orderIndex: node.sequence ?? 0,
-    nodeType: inferNodeType(node),
+    nodeType: inferNodeType(node, classIdToUuidMap),
     contentAST: parseAST(node.name) as ContentAST,
     collapsed: node.collapsed ?? false,
     isDeleted: node.is_deleted ?? false,
@@ -57,7 +64,8 @@ function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
   for (const node of nodes) {
     idToUuidMap.set(node.id, node.uuid);
   }
-  return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap));
+  const classIdToUuidMap = buildClassIdToUuidMap();
+  return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap));
 }
 
 /**
@@ -77,6 +85,7 @@ export function apiNodesToGraphNodes(
 ): { graphNodes: GraphNode[]; rootBlockId: string } {
   const idToUuidMap = new Map<number, string>();
   const nodeIdSet = new Set<number>();
+  const classIdToUuidMap = buildClassIdToUuidMap();
 
   // Include parent/page in map so children's parent_id resolves to pageUuid
   if (pageId != null && pageUuid) {
@@ -105,7 +114,7 @@ export function apiNodesToGraphNodes(
   }
 
   const graphNodes = nodes.map(n => {
-    const gn = apiNodeToGraphNode(n, idToUuidMap);
+    const gn = apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap);
     // If this node was reconciled, rewrite its blockId to the runtime's blockId
     const runtimeBlockId = serverIdToRuntimeBlockId.get(n.id);
     if (runtimeBlockId) {
@@ -154,22 +163,50 @@ export function apiNodesToGraphNodes(
   return { graphNodes, rootBlockId: nodes[0]?.uuid || '' };
 }
 
-function inferNodeType(node: Node): GraphNodeType {
+/**
+ * UUID → GraphNodeType mapping for system classes that define special block types.
+ */
+const CLASS_UUID_TO_NODE_TYPE: Partial<Record<string, GraphNodeType>> = {
+  [SYSTEM_CLASS_UUIDS.query]: 'query',
+  [SYSTEM_CLASS_UUIDS.table]: 'table',
+  [SYSTEM_CLASS_UUIDS.code]: 'code',
+  [SYSTEM_CLASS_UUIDS.asset]: 'asset',
+  [SYSTEM_CLASS_UUIDS.card]: 'card',
+  [SYSTEM_CLASS_UUIDS.template]: 'template',
+  [SYSTEM_CLASS_UUIDS.comment]: 'comment',
+};
+
+/**
+ * Build a class server-ID → UUID map from the TanStack Query cache.
+ * Used to resolve numeric class IDs to UUIDs for type inference.
+ */
+function buildClassIdToUuidMap(): Map<number, string> {
+  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+  if (!allClasses) return new Map();
+  const map = new Map<number, string>();
+  for (const cls of allClasses) {
+    map.set(cls.id, cls.uuid);
+  }
+  return map;
+}
+
+function inferNodeType(node: Node, classIdToUuidMap?: Map<number, string>): GraphNodeType {
   if (node.is_page) return 'page';
   if (node.is_daily) return 'day';
   if (node.is_monthly) return 'month';
   if (node.is_yearly) return 'year';
   // Check classes for special types
   const classes = node.classes || [];
-  for (const cls of classes) {
-    const name = typeof cls === 'string' ? cls : String(cls);
-    if (name.includes('query')) return 'query';
-    if (name.includes('table')) return 'table';
-    if (name.includes('code')) return 'code';
-    if (name.includes('asset')) return 'asset';
-    if (name.includes('card')) return 'card';
-    if (name.includes('template')) return 'template';
-    if (name.includes('comment')) return 'comment';
+  if (classes.length === 0) return 'block';
+
+  // Resolve class server IDs to UUIDs via the cached class list
+  const map = classIdToUuidMap || buildClassIdToUuidMap();
+  for (const classId of classes) {
+    const uuid = map.get(classId);
+    if (uuid) {
+      const nodeType = CLASS_UUID_TO_NODE_TYPE[uuid];
+      if (nodeType) return nodeType;
+    }
   }
   return 'block';
 }
