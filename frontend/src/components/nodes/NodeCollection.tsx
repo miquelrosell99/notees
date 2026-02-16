@@ -158,6 +158,7 @@ export function NodeCollection({
   pageId,
   pageUuid,
   onAddClass,
+  onSlashCommand,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -293,6 +294,7 @@ export function NodeCollection({
             groupBy={groupBy}
             enableGrouping={enableGrouping}
             onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
           />
         );
       
@@ -308,6 +310,7 @@ export function NodeCollection({
             pageUuid={pageUuid}
             className={viewProps.className}
             onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
           />
         );
       
@@ -327,6 +330,7 @@ export function NodeCollection({
             className={viewProps.className}
             groupBy={groupBy}
             onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
           />
         );
       
@@ -345,6 +349,7 @@ export function NodeCollection({
             customContextMenu={customContextMenu}
             className={viewProps.className}
             onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
           />
         );
       

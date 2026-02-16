@@ -399,6 +399,31 @@
   border-left: 3px solid var(--color-on-surface-variant);
 }
 
+/* ─── Asset block ──────────────────────────────────────────────── */
+
+.node-block--asset {
+  flex-wrap: wrap;
+}
+
+.node-block--asset .node-block-asset-preview {
+  width: 100%;
+  margin-top: 4px;
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.node-block--asset .node-block-asset-preview .image-node {
+  max-width: 100%;
+}
+
+.node-block--asset .node-block-asset-preview .image-node__img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: var(--shape-small);
+  display: block;
+}
+
 /* ─── Node block heading ───────────────────────────────────────── */
 
 .node-block-heading {

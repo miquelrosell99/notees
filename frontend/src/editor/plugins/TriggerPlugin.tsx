@@ -40,11 +40,14 @@ export interface TriggerPluginProps {
   onLinkSelect?: (linkId: string) => void;
   /** Called when a class should be added to block's class_ids (not inline) */
   onAddClass?: (blockServerId: number, classId: number) => void;
+  /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
 }
 
 export function TriggerPlugin({
   onLinkSelect,
   onAddClass,
+  onSlashCommand,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [trigger, setTrigger] = useState<TriggerState>({
@@ -156,11 +159,52 @@ export function TriggerPlugin({
         // Don't call onLinkSelect here - that's for clicking existing pills,
         // not for inserting new ones. Calling it would trigger navigation.
         // onLinkSelect?.(value);
+      } else if (trigger.type === 'slash') {
+        // For link/type/tag slash commands, re-trigger those popups
+        if (value === 'link') {
+          const newText = beforeTrigger + '[[' + afterCursor;
+          (anchorNode as any).setTextContent(newText || '\u200B');
+          const newOffset = beforeTrigger.length + 2;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        } else if (value === 'type') {
+          const newText = beforeTrigger + '@' + afterCursor;
+          (anchorNode as any).setTextContent(newText || '\u200B');
+          const newOffset = beforeTrigger.length + 1;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        } else if (value === 'tag') {
+          const newText = beforeTrigger + '#' + afterCursor;
+          (anchorNode as any).setTextContent(newText || '\u200B');
+          const newOffset = beforeTrigger.length + 1;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        } else {
+          // Action-type slash commands: remove trigger text and fire callback
+          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+          (anchorNode as any).setTextContent(newText);
+          const newOffset = beforeTrigger.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+          // Resolve the parent block's server ID
+          if (onSlashCommand) {
+            const blockNode = findParentNodeBlock(anchorNode);
+            let blockServerId: number | undefined;
+            if (blockNode) {
+              const runtime = getNodeGraphRuntime();
+              const graphNode = runtime.getNode(blockNode.getBlockId());
+              blockServerId = graphNode?.serverId;
+            }
+            // Defer callback to after the editor update completes
+            setTimeout(() => onSlashCommand(value, blockServerId), 0);
+          }
+        }
       }
     });
 
     setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [editor, trigger]);
+  }, [editor, trigger, onSlashCommand]);
 
   const handleClose = useCallback(() => {
     setTrigger(prev => ({ ...prev, isOpen: false }));

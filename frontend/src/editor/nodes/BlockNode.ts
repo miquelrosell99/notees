@@ -343,6 +343,17 @@ export class BlockNode extends ElementNode {
 
     dom.appendChild(afterContentUI);
 
+    // ── Asset preview container ────────────────────────────────
+    // Non-editable portal target for AssetBlockPlugin to render
+    // image/audio/file previews below the block content.
+    if (this.__nodeType === 'asset') {
+      const assetPreview = document.createElement('div');
+      assetPreview.className = 'node-block-asset-preview';
+      assetPreview.contentEditable = 'false';
+      setDOMUnmanaged(assetPreview);
+      dom.appendChild(assetPreview);
+    }
+
     return dom;
   }
 
@@ -376,6 +387,18 @@ export class BlockNode extends ElementNode {
     if (prevNode.__nodeType !== this.__nodeType) {
       dom.classList.remove(`node-block--${prevNode.__nodeType}`);
       dom.classList.add(`node-block--${this.__nodeType}`);
+
+      // Add/remove asset preview container when type changes
+      const existingPreview = dom.querySelector('.node-block-asset-preview');
+      if (this.__nodeType === 'asset' && !existingPreview) {
+        const assetPreview = document.createElement('div');
+        assetPreview.className = 'node-block-asset-preview';
+        assetPreview.contentEditable = 'false';
+        setDOMUnmanaged(assetPreview);
+        dom.appendChild(assetPreview);
+      } else if (this.__nodeType !== 'asset' && existingPreview) {
+        existingPreview.remove();
+      }
     }
 
     // Has children (bullet + collapse arrow)

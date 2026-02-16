@@ -60,7 +60,7 @@ import { ImageNode } from '@/components/nodes/ImageNode';
 import { AddCoverButton } from '@/components/core/AddCoverButton';
 import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '@/components/nodes/NodeContextMenu';
-import { SYSTEM_PROPERTY_UUIDS, isNonRemovableClass } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -119,6 +119,7 @@ interface CardChildrenEditorProps {
   onNavigateToNode?: (linkId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
   onAddClass?: (blockId: number, classId: number) => void;
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
 }
 
 /**
@@ -132,6 +133,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
   onNavigateToNode,
   onOpenInSidebar,
   onAddClass,
+  onSlashCommand,
 }: CardChildrenEditorProps): JSX.Element {
   const editorId = `card-children-${rootBlockId}`;
 
@@ -210,6 +212,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
         <TriggerPlugin
           onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
+          onSlashCommand={onSlashCommand}
         />
         <FloatingToolbarPlugin />
         <ContextMenuPlugin
@@ -528,6 +531,35 @@ export const NodeCard = memo(function NodeCard({
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
 
+  // Handle slash commands from editor
+  const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
+    if (!allClasses) return;
+    switch (commandId) {
+      case 'query': {
+        const cls = allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query);
+        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        break;
+      }
+      case 'table': {
+        const cls = allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
+        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        break;
+      }
+      case 'image':
+      case 'audio':
+      case 'file':
+        // Cards don't currently support inline asset upload from slash commands
+        break;
+      case 'comment': {
+        if (blockServerId != null) {
+          const { openCommentsForNode } = useAppStore.getState();
+          openCommentsForNode(blockServerId);
+        }
+        break;
+      }
+    }
+  }, [allClasses, addClass]);
+
   // ─── Style & className ─────────────────────────────────────
 
   const cardStyle = useMemo(() => {
@@ -727,6 +759,7 @@ export const NodeCard = memo(function NodeCard({
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenBlockInSidebar}
                 onAddClass={handleAddClass}
+                onSlashCommand={handleSlashCommand}
               />
             )}
             {editable && (

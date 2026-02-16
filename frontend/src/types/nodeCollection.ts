@@ -112,6 +112,9 @@ export interface NodeCollectionProps {
   /** Called when a class is added to a node via @ menu (plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
   
+  /** Called when an action-type slash command is selected (table, query, image, audio, file, comment) */
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  
   /** Additional CSS class */
   className?: string;
   
@@ -188,6 +191,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Add class handler (called when @ menu adds class via plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
+  
+  /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
+  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   
   /** Custom node renderer */
   renderNode?: (node: Node, editable: boolean) => ReactNode;

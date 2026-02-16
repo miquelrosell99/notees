@@ -26,6 +26,7 @@ export function DocumentView({
   onNodeClick,
   onContentChange,
   onAddClass,
+  onSlashCommand,
   pageId,
   pageUuid,
   className = '',
@@ -114,6 +115,7 @@ export function DocumentView({
         onNavigateToNode={handleNavigateToNode}
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
+        onSlashCommand={onSlashCommand}
         pageId={pageId}
         pageUuid={pageUuid}
         placeholder="Start writing…"
