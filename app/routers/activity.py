@@ -14,6 +14,7 @@ from ..db.connection import acquire_connection, get_pool
 from ..db.schema import get_or_create_user_workspace
 from ..logging_config import get_logger
 from ..utils import utc_now
+from ..domain.stringify_ast import stringify_ast, parse_ast, StringifyOptions, StringifyMode, ParseMode
 
 
 router = APIRouter(prefix="/api/activity", tags=["Activity"])
@@ -30,6 +31,7 @@ class NodeActivityResponse(BaseModel):
     details: Optional[str] = None
     target_node_id: Optional[int] = None
     target_node_name: Optional[str] = None
+    target_node_uuid: Optional[str] = None
     create_date: str
 
 
@@ -96,6 +98,7 @@ async def get_node_activity(
                 a.details,
                 a.target_node_id,
                 t.name as target_node_name,
+                t.uuid as target_node_uuid,
                 a.create_date
             FROM node_activity a
             LEFT JOIN node t ON a.target_node_id = t.id AND t.workspace_id = $2
@@ -106,6 +109,17 @@ async def get_node_activity(
             node_id, workspace_id, limit
         )
     
+    def _ast_to_text(raw_name: str | None) -> str | None:
+        """Convert raw AST name to plain text."""
+        if not raw_name:
+            return None
+        try:
+            ast = parse_ast(raw_name, ParseMode.JSON)
+            text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+            return text.strip() or None
+        except Exception:
+            return raw_name
+    
     return [
         NodeActivityResponse(
             id=row['id'],
@@ -113,7 +127,8 @@ async def get_node_activity(
             action=row['action'],
             details=row['details'],
             target_node_id=row['target_node_id'],
-            target_node_name=row['target_node_name'],
+            target_node_name=_ast_to_text(row['target_node_name']),
+            target_node_uuid=row['target_node_uuid'],
             create_date=row['create_date'].isoformat() if row['create_date'] else "",
         )
         for row in rows
@@ -155,15 +170,23 @@ async def create_node_activity(
             node_id, data.action, data.details, data.target_node_id, now
         )
         
-        # Get target node name if exists
+        # Get target node name and uuid if exists
         target_name = None
+        target_uuid = None
         if data.target_node_id:
             row = await conn.fetchrow(
-                "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
+                "SELECT name, uuid FROM node WHERE id = $1 AND workspace_id = $2",
                 data.target_node_id, workspace_id
             )
             if row:
-                target_name = row['name']
+                raw_name = row['name']
+                target_uuid = row['uuid']
+                if raw_name:
+                    try:
+                        ast = parse_ast(raw_name, ParseMode.JSON)
+                        target_name = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)).strip() or None
+                    except Exception:
+                        target_name = raw_name
     
     return NodeActivityResponse(
         id=activity_id,
@@ -172,6 +195,7 @@ async def create_node_activity(
         details=data.details,
         target_node_id=data.target_node_id,
         target_node_name=target_name,
+        target_node_uuid=target_uuid,
         create_date=now.isoformat(),
     )
 

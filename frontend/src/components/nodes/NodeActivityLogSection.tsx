@@ -9,9 +9,11 @@
 import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiTrashCanOutline } from '@mdi/js';
-import { NodeInline } from '../blocks/NodeInline';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import type { Node } from '@/types';
+import { splitTextWithLinks } from '@/lib/noteesUri';
+import { getNodeByUuid } from '@/api/nodes';
+import { useAppStore } from '@/stores';
+import { Bullet } from '../blocks/Bullet';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
@@ -25,6 +27,7 @@ export interface NodeActivity {
   details?: string;
   target_node_id?: number;
   target_node_name?: string;
+  target_node_uuid?: string;
   create_date: string;
 }
 
@@ -70,12 +73,18 @@ function formatDate(dateStr: string): string {
 }
 
 function formatActivityMessage(activity: NodeActivity): string {
-  // For link_inserted, we store the full message in details
+  // For link_inserted, details now contain markdown links with notees: URIs
+  // e.g. "Link to [Node Name](notees:uuid) inserted"
   if (activity.action === 'link_inserted' && activity.details) {
     return activity.details;
   }
   
   const label = ACTION_LABELS[activity.action] || activity.action;
+  
+  // Build a notees: markdown link if we have target node info
+  if (activity.target_node_name && activity.target_node_uuid) {
+    return `${label} [${activity.target_node_name}](notees:${activity.target_node_uuid})`;
+  }
   
   if (activity.target_node_name) {
     return `${label} "${activity.target_node_name}"`;
@@ -89,27 +98,51 @@ function formatActivityMessage(activity: NodeActivity): string {
 }
 
 /**
- * Convert an activity entry to a pseudo-node for BlockPreview
+ * Render an activity message with clickable notees: links.
+ * Splits the text into segments and renders links as clickable spans
+ * that navigate to the target node by UUID.
  */
-function activityToNode(activity: NodeActivity): Node {
+function ActivityMessage({ activity }: { activity: NodeActivity }) {
+  const openNode = useAppStore(state => state.openNode);
   const message = formatActivityMessage(activity);
   const time = formatDate(activity.create_date);
-  
-  return {
-    id: activity.id,
-    uuid: `activity-${activity.id}`,
-    name: `${message} — ${time}`,
-    icon: null,
-    color: null,
-    parent_id: null,
-    page_id: null,
-    sequence: 0,
-    collapsed: false,
-    is_page: false,
-    active: true,
-    create_date: activity.create_date,
-    write_date: activity.create_date,
-  };
+  const segments = splitTextWithLinks(message);
+
+  const handleLinkClick = useCallback(async (uuid: string) => {
+    try {
+      const node = await getNodeByUuid(uuid);
+      if (node?.id) {
+        openNode(node.id);
+      }
+    } catch {
+      // Node may have been deleted
+    }
+  }, [openNode]);
+
+  return (
+    <span className="node-inline">
+      <Bullet nodeId={activity.id} interactive={false} size="sm" />
+      <span className="node-inline__text">
+        {segments.map((seg, i) =>
+          seg.type === 'link' ? (
+            <span
+              key={i}
+              className="activity-node-link"
+              role="button"
+              tabIndex={0}
+              onClick={() => handleLinkClick(seg.uuid)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleLinkClick(seg.uuid); }}
+            >
+              {seg.label}
+            </span>
+          ) : (
+            <span key={i}>{seg.text}</span>
+          )
+        )}
+        <span className="activity-time"> — {time}</span>
+      </span>
+    </span>
+  );
 }
 
 /**
@@ -170,11 +203,7 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
               className="node-activity-item"
               onContextMenu={(e) => handleContextMenu(activity.id, e)}
             >
-              <NodeInline
-                name={activityToNode(activity).name}
-                nodeId={activity.id}
-                showBullet={true}
-              />
+              <ActivityMessage activity={activity} />
             </div>
           ))
         )}
