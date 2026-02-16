@@ -17,6 +17,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodePill } from './NodePill';
@@ -25,7 +26,8 @@ import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { SelectTrigger } from '../core/SelectTrigger';
 import { mdiPlus } from '@mdi/js';
-import { useNodeSearch, type NodeSearchMode, usePages, useNodes } from '@/hooks';
+import { useNodeSearch, type NodeSearchMode, nodeKeys } from '@/hooks';
+import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
@@ -110,18 +112,28 @@ export function NodeSelector({
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch data for node lookups (for 'select' mode with value prop)
-  const { data: allPages } = usePages();
-  const { data: allNodes } = useNodes();
+  // Compute value IDs for fetching and exclusion
+  const valueIds = useMemo(() => {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+  }, [value]);
 
-  // Resolve nodes from value prop if using value-based API
+  // Fetch each node by ID individually - reliable regardless of pagination
+  const nodeQueries = useQueries({
+    queries: nodesProp ? [] : valueIds.map((nodeId) => ({
+      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
+      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
+      staleTime: 5 * 60 * 1000,
+      enabled: !!nodeId,
+    })),
+  });
+
+  // Resolve nodes from individual queries
   const resolvedNodesFromValue = useMemo(() => {
-    if (!value || !allPages) return [];
-    const ids = Array.isArray(value) ? value : [value];
-    return ids
-      .map(id => allPages.find(n => n.id === id) || allNodes?.find(n => n.id === id))
+    return nodeQueries
+      .map(query => query.data)
       .filter((n): n is Node => n !== undefined);
-  }, [value, allPages, allNodes]);
+  }, [nodeQueries]);
 
   // Use either nodes prop or resolved nodes from value
   const nodes = nodesProp ?? resolvedNodesFromValue;
@@ -140,7 +152,15 @@ export function NodeSelector({
   }, [allResults]);
 
   // Filter out already assigned nodes and nodes that cannot be added
-  const assignedIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes]);
+  // Use raw value IDs (not resolved nodes) to ensure exclusion works even when nodes haven't loaded
+  const assignedIds = useMemo(() => {
+    const ids = new Set(nodes.map(n => n.id));
+    // Also include raw value IDs to cover unresolved nodes
+    for (const id of valueIds) {
+      ids.add(id);
+    }
+    return ids;
+  }, [nodes, valueIds]);
   
   const filteredResults = useMemo(() => {
     return searchResults
@@ -215,6 +235,9 @@ export function NodeSelector({
   }, [isPickerOpen, pickerPos, menuPosition]);
 
   const handleAdd = useCallback((node: Node) => {
+    // Prevent adding duplicates
+    if (assignedIds.has(node.id)) return;
+    
     if (onChange) {
       // Value-based API: update value
       const newValue = multi
@@ -230,7 +253,7 @@ export function NodeSelector({
       setIsPickerOpen(false);
       setSearchQuery('');
     }
-  }, [onChange, onAdd, multi, trigger, value]);
+  }, [onChange, onAdd, multi, trigger, value, assignedIds]);
 
   const handleRemove = useCallback((node: Node) => {
     if (onChange) {
