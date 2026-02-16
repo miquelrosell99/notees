@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import List, Tuple, Optional, Any, TYPE_CHECKING
 
 from ..entities import NodeLink, BacklinkInfo
+from ..stringify_ast import stringify_ast, parse_ast, StringifyOptions, StringifyMode, ParseMode
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, LinkRepository, PropertyRepository
@@ -236,6 +237,27 @@ class LinkParsingService:
                 existing.add(row['target_id'])
         return existing
     
+    @staticmethod
+    def _node_name_to_text(name: str | None) -> str:
+        """Convert a node's raw AST name to plain text."""
+        if not name:
+            return 'Untitled'
+        try:
+            ast = parse_ast(name, ParseMode.JSON)
+            text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+            return text.strip() or 'Untitled'
+        except Exception:
+            return name or 'Untitled'
+
+    @staticmethod
+    def _notees_link(name: str | None, uuid: str) -> str:
+        """Build a markdown-style link with notees: URI.
+        
+        Returns: [Node Name](notees:uuid)
+        """
+        text = LinkService._node_name_to_text(name)
+        return f"[{text}](notees:{uuid})"
+
     async def _log_link_activity(
         self, 
         source_node_id: int, 
@@ -246,9 +268,10 @@ class LinkParsingService:
         """Log activity for a new page link insertion.
         
         Creates two activity entries:
-        1. On source page: "Link to [target page name] inserted"
-        2. On target page: "Linked in [source page name]"
+        1. On source page: "Link to [target page name](notees:uuid) inserted"
+        2. On target page: "Linked in [source page name](notees:uuid)"
         
+        Uses notees: URI scheme with node UUID for stable, navigable links.
         Only logs for page links (target is a page).
         """
         if not target_node.is_page:
@@ -262,20 +285,24 @@ class LinkParsingService:
         if source_page_id:
             source_page = await self._node_repo.get_by_id(source_page_id)
         
-        # 1. Log on source page: "Link to [target] inserted"
+        # Build markdown links with notees: URI
+        target_link = self._notees_link(target_node.name, target_node.uuid)
+        
+        # 1. Log on source page: "Link to [target](notees:uuid) inserted"
         if source_page_id:
             await conn.execute(
                 """INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
                    VALUES ($1, 'link_inserted', $2, $3, $4)""",
-                source_page_id, f"Link to {target_node.name or 'Untitled'} inserted", target_node_id, now
+                source_page_id, f"Link to {target_link} inserted", target_node_id, now
             )
         
-        # 2. Log on target page: "Linked in [source page]"
+        # 2. Log on target page: "Linked in [source page](notees:uuid)"
         if source_page:
+            source_link = self._notees_link(source_page.name, source_page.uuid)
             await conn.execute(
                 """INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
                    VALUES ($1, 'link_inserted', $2, $3, $4)""",
-                target_node_id, f"Linked in {source_page.name or 'Untitled'}", source_page_id, now
+                target_node_id, f"Linked in {source_link}", source_page_id, now
             )
     
     async def _get_utc_now(self) -> datetime:
