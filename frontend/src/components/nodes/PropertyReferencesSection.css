@@ -3,6 +3,8 @@
  * 
  * Styles for the property references section shown at the top
  * of linked references. Pages that reference via relation properties.
+ * 
+ * Uses BlockEditor for rendering, minimal custom styling needed.
  */
 
 .property-references-section {
@@ -13,7 +15,6 @@
 .property-references-section__list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
 }
 
 .property-references-section__divider {
@@ -21,56 +22,4 @@
   border-top: 1px solid var(--color-border-subtle, var(--color-border));
   margin: var(--spacing-3) 0;
   opacity: 0.5;
-}
-
-/* ==================== Property Ref Item ==================== */
-
-.property-ref-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.property-ref-item__header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-sm, 4px);
-  transition: background-color 0.15s ease;
-}
-
-.property-ref-item__header:hover {
-  background-color: var(--color-hover-overlay);
-}
-
-.property-ref-item__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  background: none;
-  border-radius: var(--radius-sm, 4px);
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  flex-shrink: 0;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-.property-ref-item__toggle:hover {
-  color: var(--color-on-surface);
-  background-color: var(--color-hover-overlay);
-}
-
-.property-ref-item__content {
-  display: flex;
-  flex-direction: column;
-  padding-left: var(--spacing-5);
-}
-
-.property-ref-item__content .properties-inline {
-  /* Ensure inline properties fit the compact style */
-  font-size: 0.8125rem;
 }
