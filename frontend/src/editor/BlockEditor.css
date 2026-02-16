@@ -302,41 +302,41 @@
 
 /* ─── Selected state (block drag selection) ──────────────────────── */
 
-/* Selection creates a card-like appearance encompassing block + children */
-.node-block--selected {
-  background-color: var(--color-hover-overlay);
-  position: relative;
-}
-
-/* First selected block gets top border radius */
-.node-block--selected-first {
-  border-top-left-radius: var(--shape-medium);
-  border-top-right-radius: var(--shape-medium);
-}
-
-/* Last selected block (or child) gets bottom border radius */
-.node-block--selected-last {
-  border-bottom-left-radius: var(--shape-medium);
-  border-bottom-right-radius: var(--shape-medium);
-}
-
-/* Single selected block without children */
+/* Selection parent — create stacking context so ::after paints as a background */
+.node-block--selected-first,
 .node-block--selected-single {
-  border-radius: var(--shape-medium);
+  isolation: isolate;
 }
 
-/* Subtle left border for the selection card */
-.node-block--selected-first::before {
+/* Selection card background — single overlay on the parent that extends to cover children */
+.node-block--selected-first::after,
+.node-block--selected-single::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
+  top: -2px;
+  left: -6px;
+  right: -6px;
+  height: var(--selection-card-height, calc(100% + 4px));
+  background-color: var(--color-hover-overlay);
+  border-radius: var(--shape-medium);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Subtle left accent border for the selection card */
+.node-block--selected-first::before,
+.node-block--selected-single::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: -2px;
+  height: var(--selection-card-height, calc(100% + 4px));
   width: 3px;
   background-color: var(--color-accent);
   opacity: 0.3;
   border-top-left-radius: var(--shape-medium);
   border-bottom-left-radius: var(--shape-medium);
+  z-index: 0;
 }
 
 /* Selected block bullets are highlighted */
@@ -351,10 +351,9 @@
   background-color: var(--color-accent);
 }
 
-/* Child blocks of a selected block share the background */
+/* Child blocks — no individual background, covered by parent overlay */
 .node-block--selected-child {
-  background-color: var(--color-hover-overlay);
-  margin: 0;
+  /* Background handled by parent's ::after pseudo-element */
 }
 
 /* ─── Collapse animations ──────────────────────────────────────────── */
@@ -398,9 +397,10 @@
 
 /* ─── Selection state ──────────────────────────────────────────── */
 
+/* Background handled by ::after pseudo on selection root — see above */
 .node-block--selected,
 .node-block.selected {
-  background-color: var(--color-hover-overlay);
+  /* No direct background — selection card overlay handles it */
 }
 
 /* No hover background on the entire block - only on bullet */
