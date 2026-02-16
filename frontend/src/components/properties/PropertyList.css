@@ -149,6 +149,11 @@
   align-items: center;
 }
 
+/* Text property rows override block variant center alignment */
+.property-list--block .property-row:has(.text-property-block--has-content) {
+  align-items: flex-start;
+}
+
 .property-list--block .property-row__label {
   min-width: 100px;
   max-width: 140px;
