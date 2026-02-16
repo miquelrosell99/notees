@@ -19,6 +19,7 @@ import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal } from '../components/workspace/ImportOptionsModal';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
+import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
   ArrowRightIcon,
   CheckIcon, 
@@ -27,7 +28,7 @@ import {
   EditIcon,
 } from '../components/core/icons';
 import Icon from '@mdi/react';
-import { mdiExport } from '@mdi/js';
+import { mdiExport, mdiCogOutline } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
@@ -63,6 +64,7 @@ export function WorkspaceManagementView({
     workspaceName: string | null;
   }>({ isOpen: false, workspaceName: null });
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
 
@@ -236,6 +238,14 @@ export function WorkspaceManagementView({
           </div>
           <div className="workspace-management__user-info">
             <span className="workspace-management__username">{user?.username}</span>
+            <Button 
+              className="workspace-management__user-settings" 
+              variant="ghost" 
+              size="sm"
+              icon={mdiCogOutline}
+              onClick={() => setIsUserSettingsOpen(true)}
+              title="User Settings"
+            />
             <Button className="workspace-management__logout" variant="ghost" size="sm" onClick={logout}>
               Logout
             </Button>
@@ -414,6 +424,12 @@ export function WorkspaceManagementView({
         submitLabel="Rename Workspace"
         isLoading={renameMutation.isPending}
         error={renameError}
+      />
+
+      {/* User Settings Modal */}
+      <UserSettingsModal
+        isOpen={isUserSettingsOpen}
+        onClose={() => setIsUserSettingsOpen(false)}
       />
     </div>
   );

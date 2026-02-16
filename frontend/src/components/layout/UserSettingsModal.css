@@ -1,0 +1,10 @@
+/**
+ * UserSettingsModal styles
+ * Reuses settings-modal classes from SettingsModal.css
+ */
+
+.settings-section__subtitle {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: 0 0 var(--spacing-4) 0;
+}

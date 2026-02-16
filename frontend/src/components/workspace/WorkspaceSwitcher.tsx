@@ -1,28 +1,32 @@
 /**
  * WorkspaceSwitcher Component
  * 
- * Dropdown at the top of the sidebar showing current workspace,
- * sync status, and ability to switch or add workspaces.
+ * Searchable dropdown for switching between graphs (workspaces).
+ * Typing a non-existing name prompts the user to create a new graph.
+ * Has a plus button to the right for quick graph creation.
  */
-import { useState, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiSync, mdiAlertCircleOutline, mdiWifiOff, mdiChevronDown, mdiPlus, mdiCog } from '@mdi/js';
-import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
+import { mdiChevronDown, mdiPlus, mdiDatabaseOutline } from '@mdi/js';
+import { listWorkspaces, switchWorkspace, createWorkspace, type WorkspaceInfo } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
-import { Dropdown, type DropdownOption } from '../core/Dropdown';
+import { Card } from '../core/Card';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './WorkspaceSwitcher.css';
 
 interface WorkspaceSwitcherProps {
   onAddWorkspace: () => void;
 }
 
-type SyncStatus = 'synced' | 'syncing' | 'error' | 'offline';
-
 export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const { setShowDbManagement } = useAppStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['workspaces'],
@@ -30,150 +34,188 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     staleTime: 30000,
   });
 
+  useClickOutside(containerRef, () => { setIsOpen(false); setSearchQuery(''); });
+  useEscapeKey(() => { setIsOpen(false); setSearchQuery(''); });
+
+  const clearCacheOnSwitch = useCallback(() => {
+    const currentState = useAppStore.getState();
+    useAppStore.setState({
+      currentNodeId: null,
+      activeNode: null,
+      activeNodeId: null,
+      sidebarNode: null,
+      localGraphNodeId: null,
+    });
+    useFavoritesStore.getState().clear();
+    useFavoritesStore.getState().refresh();
+    const viewPath = currentState.mainViewType === 'node' ? '' :
+      currentState.mainViewType === 'all-pages' ? 'pages' :
+      currentState.mainViewType === 'journals' ? 'journal' :
+      currentState.mainViewType === 'graph' ? 'graph' :
+      currentState.mainViewType === 'archived' ? 'archived' :
+      currentState.mainViewType === 'assets' ? 'assets' : '';
+    const newUrl = viewPath ? `/${viewPath}` : '/';
+    window.history.replaceState(null, '', newUrl);
+    queryClient.removeQueries({ queryKey: ['nodes'] });
+    queryClient.removeQueries({ queryKey: ['graph'] });
+    queryClient.removeQueries({ queryKey: ['assets'] });
+    queryClient.removeQueries({ queryKey: ['properties'] });
+    queryClient.removeQueries({ queryKey: ['property-nodes'] });
+    queryClient.removeQueries({ queryKey: ['page'] });
+    queryClient.removeQueries({ queryKey: ['trash'] });
+    queryClient.removeQueries({ queryKey: ['archived-pages'] });
+    queryClient.removeQueries({ queryKey: ['nodeViews'] });
+    queryClient.removeQueries({ queryKey: ['inlineClasses'] });
+    queryClient.removeQueries({ queryKey: ['textLinks'] });
+    queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+  }, [queryClient]);
+
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
     onSuccess: () => {
-      const currentState = useAppStore.getState();
-      
-      // Reset node state to prevent showing stale data from previous workspace
-      useAppStore.setState({
-        currentNodeId: null,
-        activeNode: null,
-        activeNodeId: null,
-        sidebarNode: null,
-        localGraphNodeId: null,
-      });
-      
-      // Clear favorites/recents immediately, then refresh to get new workspace data
-      useFavoritesStore.getState().clear();
-      useFavoritesStore.getState().refresh();
-      
-      // Update URL - preserve view type but without database in path
-      const viewPath = currentState.mainViewType === 'node' ? '' : 
-        currentState.mainViewType === 'all-pages' ? 'pages' :
-        currentState.mainViewType === 'journals' ? 'journal' :
-        currentState.mainViewType === 'graph' ? 'graph' :
-        currentState.mainViewType === 'archived' ? 'archived' :
-        currentState.mainViewType === 'assets' ? 'assets' : '';
-      
-      const newUrl = viewPath ? `/${viewPath}` : '/';
-      window.history.replaceState(null, '', newUrl);
-      
-      // Remove ALL cached data from previous workspace to prevent stale data
-      // Using removeQueries instead of invalidateQueries clears the cache immediately
-      queryClient.removeQueries({ queryKey: ['nodes'] });
-      queryClient.removeQueries({ queryKey: ['graph'] });
-      queryClient.removeQueries({ queryKey: ['assets'] });
-      queryClient.removeQueries({ queryKey: ['properties'] });
-      queryClient.removeQueries({ queryKey: ['property-nodes'] });
-      queryClient.removeQueries({ queryKey: ['page'] });
-      queryClient.removeQueries({ queryKey: ['trash'] });
-      queryClient.removeQueries({ queryKey: ['archived-pages'] });
-      queryClient.removeQueries({ queryKey: ['nodeViews'] });
-      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
-      queryClient.removeQueries({ queryKey: ['textLinks'] });
-      
-      // Invalidate workspaces query to refetch the list (keep cache for smoother UX)
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      clearCacheOnSwitch();
+      setIsOpen(false);
+      setSearchQuery('');
     },
   });
 
-  // Simulate sync status changes (replace with real sync logic)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // In a real app, this would check actual sync status
-      setSyncStatus('synced');
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const createMutation = useMutation({
+    mutationFn: createWorkspace,
+    onSuccess: async (newWorkspace: WorkspaceInfo) => {
+      await switchMutation.mutateAsync(newWorkspace.uuid);
+    },
+  });
 
-  const handleSwitch = (value: string | null) => {
-    if (value && value !== data?.active) {
-      switchMutation.mutate(value);
+  const filteredWorkspaces = useMemo(() => {
+    if (!data?.workspaces) return [];
+    if (!searchQuery.trim()) return data.workspaces;
+    const q = searchQuery.toLowerCase();
+    return data.workspaces.filter(w => w.name.toLowerCase().includes(q));
+  }, [data?.workspaces, searchQuery]);
+
+  const showCreateOption = useMemo(() => {
+    if (!searchQuery.trim()) return false;
+    const q = searchQuery.trim().toLowerCase();
+    return !data?.workspaces?.some(w => w.name.toLowerCase() === q);
+  }, [searchQuery, data?.workspaces]);
+
+  const totalItems = filteredWorkspaces.length + (showCreateOption ? 1 : 0);
+
+  const handleSelect = (workspace: WorkspaceInfo) => {
+    if (workspace.uuid !== data?.active) {
+      switchMutation.mutate(workspace.uuid);
+    } else {
+      setIsOpen(false);
+      setSearchQuery('');
     }
   };
 
-  const getSyncIcon = () => {
-    switch (syncStatus) {
-      case 'syncing':
-        return (
-          <span className="workspace-switcher__sync-icon workspace-switcher__sync-icon--syncing" title="Syncing">
-            <Icon path={mdiSync} size={0.6} spin />
-          </span>
-        );
-      case 'error':
-        return (
-          <span className="workspace-switcher__sync-icon workspace-switcher__sync-icon--error" title="Sync error">
-            <Icon path={mdiAlertCircleOutline} size={0.6} />
-          </span>
-        );
-      case 'offline':
-        return (
-          <span className="workspace-switcher__sync-icon workspace-switcher__sync-icon--offline" title="Offline">
-            <Icon path={mdiWifiOff} size={0.6} />
-          </span>
-        );
-      default:
-        // No icon for synced state
-        return null;
+  const handleCreate = () => {
+    const name = searchQuery.trim();
+    if (name) {
+      createMutation.mutate(name);
     }
   };
 
-  // Build dropdown options from workspaces (use uuid as value, name as label)
-  const workspaceOptions: DropdownOption<string>[] = data?.workspaces.map(workspace => ({
-    value: workspace.uuid,
-    label: workspace.name,
-  })) || [];
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (showCreateOption && selectedIndex === filteredWorkspaces.length) {
+        handleCreate();
+      } else if (filteredWorkspaces[selectedIndex]) {
+        handleSelect(filteredWorkspaces[selectedIndex]);
+      }
+    }
+  };
 
-  // Add separator options for actions
-  const actionOptions: DropdownOption<string>[] = [
-    { value: '__add__', label: 'Add Workspace', icon: mdiPlus },
-    { value: '__manage__', label: 'Manage Workspaces', icon: mdiCog },
-  ];
-
-  const allOptions = [
-    ...workspaceOptions,
-    ...(workspaceOptions.length > 0 ? [{ value: '__divider__', label: '─────────', disabled: true }] : []),
-    ...actionOptions,
-  ];
-
-  const handleChange = (value: string | null) => {
-    if (value === '__add__') {
-      onAddWorkspace();
-    } else if (value === '__manage__') {
-      setShowDbManagement(true);
-    } else if (value && !value.startsWith('__')) {
-      handleSwitch(value);
+  const handleToggle = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    setSearchQuery('');
+    setSelectedIndex(0);
+    if (next) {
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
   const activeWorkspace = data?.workspaces.find(w => w.uuid === data?.active);
-  const displayName = isLoading 
-    ? 'Loading...' 
-    : (activeWorkspace?.name || 'No Workspace');
+  const displayName = isLoading ? 'Loading...' : (activeWorkspace?.name || 'No Graph');
 
   return (
-    <div className="workspace-switcher">
-      <Dropdown
-        options={allOptions}
-        value={data?.active || null}
-        onChange={handleChange}
-        placeholder="Select workspace..."
-        disabled={isLoading}
-        size="md"
-        className="workspace-switcher__dropdown"
-        renderTrigger={({ isOpen }) => (
-          <div className={`workspace-switcher__trigger ${isOpen ? 'workspace-switcher__trigger--open' : ''}`}>
-            <div className="workspace-switcher__current">
-              <span className="workspace-switcher__name">{displayName}</span>
-            </div>
-            <div className="workspace-switcher__status">
-              {getSyncIcon()}
-              <Icon path={mdiChevronDown} size={0.7} className="workspace-switcher__chevron" />
-            </div>
+    <div className="workspace-switcher" ref={containerRef}>
+      <div className="workspace-switcher__row">
+        <button
+          className={`workspace-switcher__trigger ${isOpen ? 'workspace-switcher__trigger--open' : ''}`}
+          onClick={handleToggle}
+        >
+          <div className="workspace-switcher__current">
+            <Icon path={mdiDatabaseOutline} size={0.7} className="workspace-switcher__graph-icon" />
+            <span className="workspace-switcher__name">{displayName}</span>
           </div>
-        )}
-      />
+          <Icon path={mdiChevronDown} size={0.7} className="workspace-switcher__chevron" />
+        </button>
+        <button
+          className="workspace-switcher__add-btn"
+          onClick={() => onAddWorkspace()}
+          title="Create new graph"
+        >
+          <Icon path={mdiPlus} size={0.7} />
+        </button>
+      </div>
+
+      {isOpen && (
+        <Card className="workspace-switcher__popup" elevation="high" padding={false}>
+          <div className="workspace-switcher__search">
+            <input
+              ref={inputRef}
+              type="text"
+              className="workspace-switcher__search-input"
+              placeholder="Search or create graph..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSelectedIndex(0); }}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
+          </div>
+          <div className="workspace-switcher__list">
+            {filteredWorkspaces.map((workspace, index) => (
+              <button
+                key={workspace.uuid}
+                className={`workspace-switcher__item ${workspace.uuid === data?.active ? 'workspace-switcher__item--active' : ''} ${index === selectedIndex ? 'workspace-switcher__item--selected' : ''}`}
+                onClick={() => handleSelect(workspace)}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                <Icon path={mdiDatabaseOutline} size={0.6} className="workspace-switcher__item-icon" />
+                <span className="workspace-switcher__item-name">{workspace.name}</span>
+                {workspace.uuid === data?.active && (
+                  <span className="workspace-switcher__item-badge">Active</span>
+                )}
+              </button>
+            ))}
+            {showCreateOption && (
+              <button
+                className={`workspace-switcher__item workspace-switcher__item--create ${selectedIndex === filteredWorkspaces.length ? 'workspace-switcher__item--selected' : ''}`}
+                onClick={handleCreate}
+                onMouseEnter={() => setSelectedIndex(filteredWorkspaces.length)}
+              >
+                <Icon path={mdiPlus} size={0.6} className="workspace-switcher__item-icon" />
+                <span className="workspace-switcher__item-name">
+                  Create "<strong>{searchQuery.trim()}</strong>"
+                </span>
+              </button>
+            )}
+            {filteredWorkspaces.length === 0 && !showCreateOption && (
+              <div className="workspace-switcher__empty">No graphs found</div>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

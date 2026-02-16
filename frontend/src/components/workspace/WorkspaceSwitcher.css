@@ -1,7 +1,7 @@
 /**
  * Workspace Switcher Component Styles
  * 
- * Uses Dropdown component, these are custom trigger styles.
+ * Searchable dropdown for graph selection with create-new functionality.
  */
 
 /* ==================== Container ==================== */
@@ -9,16 +9,20 @@
   position: relative;
 }
 
-.workspace-switcher .dropdown {
-  width: 100%;
+/* ==================== Row with trigger + add button ==================== */
+.workspace-switcher__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
 }
 
-/* ==================== Custom Trigger ==================== */
+/* ==================== Trigger Button ==================== */
 .workspace-switcher__trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
@@ -36,7 +40,7 @@
   border-color: var(--color-primary);
 }
 
-/* ==================== Current Database Display ==================== */
+/* ==================== Current Graph Display ==================== */
 .workspace-switcher__current {
   display: flex;
   align-items: center;
@@ -44,7 +48,7 @@
   overflow: hidden;
 }
 
-.workspace-switcher__icon {
+.workspace-switcher__graph-icon {
   flex-shrink: 0;
   color: var(--color-on-surface-variant);
 }
@@ -57,36 +61,153 @@
   white-space: nowrap;
 }
 
-/* ==================== Status Indicators ==================== */
-.workspace-switcher__status {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-}
-
-.workspace-switcher__sync-icon {
-  display: flex;
-  align-items: center;
-}
-
-.workspace-switcher__sync-icon--syncing {
-  color: var(--color-primary);
-}
-
-.workspace-switcher__sync-icon--error {
-  color: var(--color-error);
-}
-
-.workspace-switcher__sync-icon--offline {
-  color: var(--color-on-surface-variant);
-}
-
 .workspace-switcher__chevron {
   color: var(--color-on-surface-variant);
+  flex-shrink: 0;
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .workspace-switcher__trigger--open .workspace-switcher__chevron {
   transform: rotate(180deg);
+}
+
+/* ==================== Add Button ==================== */
+.workspace-switcher__add-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  padding: 0;
+}
+
+.workspace-switcher__add-btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== Popup ==================== */
+.workspace-switcher__popup {
+  position: absolute;
+  top: calc(100% + var(--spacing-1));
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==================== Search ==================== */
+.workspace-switcher__search {
+  padding: var(--spacing-2);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.workspace-switcher__search-input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.workspace-switcher__search-input:focus {
+  border-color: var(--color-primary);
+}
+
+.workspace-switcher__search-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== List ==================== */
+.workspace-switcher__list {
+  overflow-y: auto;
+  max-height: 240px;
+  padding: var(--spacing-1);
+}
+
+/* ==================== Items ==================== */
+.workspace-switcher__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.workspace-switcher__item:hover,
+.workspace-switcher__item--selected {
+  background: var(--color-hover-overlay);
+}
+
+.workspace-switcher__item--active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.workspace-switcher__item--active:hover,
+.workspace-switcher__item--active.workspace-switcher__item--selected {
+  background: var(--color-primary-container);
+}
+
+.workspace-switcher__item--create {
+  color: var(--color-primary);
+}
+
+.workspace-switcher__item-icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.workspace-switcher__item--create .workspace-switcher__item-icon {
+  color: var(--color-primary);
+}
+
+.workspace-switcher__item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-switcher__item-badge {
+  font: var(--font-label-small);
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+  padding: 1px var(--spacing-2);
+  border-radius: var(--shape-full);
+  flex-shrink: 0;
+}
+
+/* ==================== Empty State ==================== */
+.workspace-switcher__empty {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
 }
