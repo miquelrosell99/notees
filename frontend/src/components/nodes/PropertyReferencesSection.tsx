@@ -74,8 +74,13 @@ function PropertyRefPageItem({
 
   const { pageNode, propertyId, ref } = item;
 
-  // Get all children nodes sorted by sequence
-  const childNodes = sortBySequence(
+  // Whether this is a text-property-context reference
+  // If so, the PropertiesSection already renders the block hierarchy
+  // via TextPropertyBlock, so we don't show child blocks separately
+  const isTextPropertyRef = !!ref.text_property_root_block_id;
+
+  // Get all children nodes sorted by sequence (skip for text property refs)
+  const childNodes = isTextPropertyRef ? [] : sortBySequence(
     (ref.source_node.children ?? []).flatMap(function collectAll(n: Node): Node[] {
       return [n, ...(n.children ?? []).flatMap(collectAll)];
     })
