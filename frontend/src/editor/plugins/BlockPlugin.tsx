@@ -487,6 +487,38 @@ export function BlockPlugin({
     );
   }, [editor, readOnly, includeRoot, rootBlockId]);
 
+  // ─── Merge guard: check hierarchy constraints ────────────
+  //
+  // A merge is only allowed when the source block (the one being deleted):
+  //   1. Is a sibling of the target block AND has no children, OR
+  //   2. Is the only child of the target block
+  //
+  // This prevents accidentally merging blocks that would lose hierarchy.
+
+  const canMergeInHierarchy = useCallback((sourceBlockId: string, targetBlockId: string): boolean => {
+    const runtime = getNodeGraphRuntime();
+    const source = runtime.getNode(sourceBlockId);
+    const target = runtime.getNode(targetBlockId);
+    if (!source || !target) return false;
+
+    const sourceChildren = runtime.getChildren(sourceBlockId);
+
+    // Case 1: source is sibling of target (same parent) and has no children
+    if (source.parentId === target.parentId && sourceChildren.length === 0) {
+      return true;
+    }
+
+    // Case 2: source is the only child of target
+    if (source.parentId === targetBlockId) {
+      const targetChildren = runtime.getChildren(targetBlockId);
+      if (targetChildren.length === 1) {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
+
   // ─── Backspace at start: merge with previous ──────────────
 
   useEffect(() => {
@@ -562,8 +594,14 @@ export function BlockPlugin({
 
         const prevBlock = children[blockIndex - 1];
         if ($isBlockNode(prevBlock)) {
+          const sourceId = blockNode.getBlockId();
+          const targetId = prevBlock.getBlockId();
+          if (!canMergeInHierarchy(sourceId, targetId)) {
+            event?.preventDefault();
+            return true;
+          }
           event?.preventDefault();
-          onBlockMerge?.(blockNode.getBlockId(), prevBlock.getBlockId());
+          onBlockMerge?.(sourceId, targetId);
           return true;
         }
 
@@ -571,7 +609,7 @@ export function BlockPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, onBlockMerge, onBlockDelete]);
+  }, [editor, readOnly, onBlockMerge, onBlockDelete, canMergeInHierarchy]);
 
   // ─── Delete at end: merge with next ───────────────────────
 
@@ -607,8 +645,14 @@ export function BlockPlugin({
 
         const nextBlock = children[blockIndex + 1];
         if ($isBlockNode(nextBlock)) {
+          const sourceId = nextBlock.getBlockId();
+          const targetId = blockNode.getBlockId();
+          if (!canMergeInHierarchy(sourceId, targetId)) {
+            event?.preventDefault();
+            return true;
+          }
           event?.preventDefault();
-          onBlockMerge?.(nextBlock.getBlockId(), blockNode.getBlockId());
+          onBlockMerge?.(sourceId, targetId);
           return true;
         }
 
@@ -616,7 +660,7 @@ export function BlockPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, onBlockMerge]);
+  }, [editor, readOnly, onBlockMerge, canMergeInHierarchy]);
 
   // ─── Tab/Shift+Tab: indent/outdent ────────────────────────
 
