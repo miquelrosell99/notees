@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useContentSave, useNodeNavigation, useAddClass, useClasses } from '@/hooks';
+import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -23,10 +23,10 @@ import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
-import { type Asset, type AssetCategory } from '@/api/assets';
-import { createNode } from '@/api/nodes';
+import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
+import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { TableCreationModal, type TableCreationConfig } from './TableCreationModal';
+import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -66,11 +66,34 @@ export function NodeContent({
   // saveImmediate bypasses debounce for operations like asset uploads
   const { handleContentChange: handleBlockChange, saveImmediate } = useContentSave();
 
-  // Add class mutation
+  // Add/remove class mutations
   const addClass = useAddClass();
+  const removeClass = useRemoveClass();
+
+  // State for manual asset class addition
+  const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
+  const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
+
   const handleAddClass = useCallback((blockId: number, classId: number) => {
+    // Check if this is adding the asset class manually
+    if (systemClassMap?.asset != null && classId === systemClassMap.asset) {
+      // Add the class first
+      addClass.mutate({ nodeId: blockId, classId });
+      // Find the block to check its content
+      const block = children.find(c => c.id === blockId);
+      const blockContent = block?.name || '';
+      // Store state for the upload modal
+      setManualAssetBlockId(blockId);
+      setManualAssetBlockContent(blockContent);
+      // Open asset upload modal
+      setTargetBlockId(blockId);
+      setConvertToAsset(true);
+      setAssetTypeFilter(undefined);
+      setIsAssetUploadOpen(true);
+      return;
+    }
     addClass.mutate({ nodeId: blockId, classId });
-  }, [addClass]);
+  }, [addClass, systemClassMap, children]);
 
   // Resolve system class IDs for slash commands
   const { data: allClasses } = useClasses();
@@ -149,8 +172,8 @@ export function NodeContent({
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
   useBlockPersist();
 
-  // Handle table creation from modal
-  const handleTableCreate = useCallback(async (config: TableCreationConfig) => {
+  // Handle table creation from modal — new table with selected dimensions
+  const handleTableConfirm = useCallback(async (size: TableSize) => {
     if (tableTargetBlockId == null) return;
     const classId = systemClassMap?.table;
     if (classId == null) return;
@@ -158,18 +181,18 @@ export function NodeContent({
     addClass.mutate({ nodeId: tableTargetBlockId, classId });
 
     try {
-      // Create header row with labelled cells
+      // Create header row
       const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
       await Promise.all(
-        config.headers.map((header, i) =>
-          createNode({ name: header || `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+        Array.from({ length: size.columns }, (_, i) =>
+          createNode({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
         )
       );
-      // Create data rows (rows - 1 since header is the first row)
-      for (let r = 1; r < config.rows; r++) {
+      // Create data rows
+      for (let r = 1; r < size.rows; r++) {
         const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
         await Promise.all(
-          Array.from({ length: config.columns }, (_, c) =>
+          Array.from({ length: size.columns }, (_, c) =>
             createNode({ name: '', parent_id: row.id, sequence: c })
           )
         );
@@ -177,8 +200,26 @@ export function NodeContent({
     } catch (err) {
       console.error('[NodeContent] Failed to create table structure:', err);
     }
+    setIsTableModalOpen(false);
     setTableTargetBlockId(null);
   }, [tableTargetBlockId, systemClassMap, addClass]);
+
+  // Handle table creation — adapt existing children as columns
+  const handleTableAdaptExisting = useCallback(() => {
+    if (tableTargetBlockId == null) return;
+    const classId = systemClassMap?.table;
+    if (classId != null) {
+      addClass.mutate({ nodeId: tableTargetBlockId, classId });
+    }
+    setIsTableModalOpen(false);
+    setTableTargetBlockId(null);
+  }, [tableTargetBlockId, systemClassMap, addClass]);
+
+  // Handle table creation cancel
+  const handleTableCancel = useCallback(() => {
+    setIsTableModalOpen(false);
+    setTableTargetBlockId(null);
+  }, []);
 
   const handleAddBlock = useCallback(() => {
     console.log('[NodeContent] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: children.length });
@@ -210,7 +251,7 @@ export function NodeContent({
 
   // Handle successful asset upload
   // Strategy:
-  // - If block was converted to asset: do nothing (block is now the asset)
+  // - If block was converted to asset: handle manual asset class flow (name vs filename)
   // - If block has content: insert [[assetNodeId]] link at end
   const handleAssetUploaded = useCallback(async (asset: Asset) => {
     if (targetBlockId && !convertToAsset) {
@@ -222,12 +263,49 @@ export function NodeContent({
         saveImmediate(targetBlockId, newContent);
       }
     }
+    // Manual asset class flow: if block had no content, use filename as content
+    if (manualAssetBlockId && targetBlockId === manualAssetBlockId) {
+      if (!manualAssetBlockContent) {
+        // Block was empty — use the uploaded file's name as content
+        saveImmediate(manualAssetBlockId, asset.filename);
+      }
+      // If block had content, the content is already preserved (it was passed as existingNodeId)
+    }
     setIsAssetUploadOpen(false);
     setTargetBlockId(null);
     setConvertToAsset(false);
     setAssetTypeFilter(undefined);
     setPendingFile(null);
-  }, [targetBlockId, convertToAsset, children, saveImmediate]);
+    setManualAssetBlockId(null);
+    setManualAssetBlockContent('');
+  }, [targetBlockId, convertToAsset, children, saveImmediate, manualAssetBlockId, manualAssetBlockContent]);
+
+  // Handle image paste in a block
+  // - If block has NO content: convert block directly to asset (upload with existingNodeId)
+  // - If block HAS content: upload as new asset, insert [[uuid]] link into content
+  const handlePasteImage = useCallback(async (blockServerId: number, file: File, hasContent: boolean) => {
+    try {
+      if (!hasContent) {
+        // Empty block: convert to asset directly
+        await uploadAsset(file, node.id, blockServerId);
+      } else {
+        // Block has content: upload as new asset node, then insert link
+        const asset = await uploadAsset(file, node.id);
+        // Get the asset node to obtain its UUID for the link
+        const assetNode = await getNode(asset.node_id);
+        if (assetNode?.uuid) {
+          // Insert [[uuid]] link at the end of the block content
+          const block = children.find(c => c.id === blockServerId);
+          const currentContent = block?.name || '';
+          const link = `[[${assetNode.uuid}]]`;
+          const newContent = currentContent ? `${currentContent} ${link}` : link;
+          saveImmediate(blockServerId, newContent);
+        }
+      }
+    } catch (err) {
+      console.error('[NodeContent] Failed to handle pasted image:', err);
+    }
+  }, [node.id, children, saveImmediate]);
 
   const viewMode = toViewMode(displayMode);
 
@@ -257,6 +335,7 @@ export function NodeContent({
             pageUuid={node.uuid}
             onAddClass={handleAddClass}
             onSlashCommand={handleSlashCommand}
+            onPasteImage={handlePasteImage}
           />
         </section>
       )}
@@ -283,10 +362,17 @@ export function NodeContent({
       <AssetUploadModal
         isOpen={isAssetUploadOpen}
         onClose={() => { 
+          // If this was a manual asset class addition, remove the class on cancel
+          if (manualAssetBlockId && systemClassMap?.asset != null) {
+            removeClass.mutate({ nodeId: manualAssetBlockId, classId: systemClassMap.asset });
+          }
           setIsAssetUploadOpen(false);
+          setTargetBlockId(null);
           setConvertToAsset(false);
           setAssetTypeFilter(undefined); 
-          setPendingFile(null); 
+          setPendingFile(null);
+          setManualAssetBlockId(null);
+          setManualAssetBlockContent('');
         }}
         onUpload={handleAssetUploaded}
         parentId={targetBlockId || node.id}
@@ -298,8 +384,9 @@ export function NodeContent({
       {/* Table Creation Modal */}
       <TableCreationModal
         isOpen={isTableModalOpen}
-        onClose={() => { setIsTableModalOpen(false); setTableTargetBlockId(null); }}
-        onCreate={handleTableCreate}
+        onConfirm={handleTableConfirm}
+        onAdaptExisting={handleTableAdaptExisting}
+        onCancel={handleTableCancel}
       />
     </div>
   );

@@ -115,6 +115,9 @@ export interface NodeCollectionProps {
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   
+  /** Called when an image is pasted into a block */
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  
   /** Additional CSS class */
   className?: string;
   
@@ -194,6 +197,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  
+  /** Called when an image is pasted into a block */
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   
   /** Custom node renderer */
   renderNode?: (node: Node, editable: boolean) => ReactNode;

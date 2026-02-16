@@ -5,6 +5,8 @@
  * (rows → cells) from TanStack Query and renders a proper HTML table
  * into the `.node-block-table-preview` portal container.
  *
+ * Includes a table/outline view mode toggle using SelectionButton.
+ *
  * Table structure in Notees:
  *   Table block (class: table)
  *   ├── Row 1 block
@@ -17,7 +19,7 @@
  * Follows the portal pattern of BlockClassPillsPlugin and AssetBlockPlugin.
  */
 
-import { useEffect, useState, useCallback, type JSX } from 'react';
+import { useEffect, useState, useCallback, useMemo, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
@@ -27,6 +29,8 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import type { Node } from '@/types';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import './TableBlockPlugin.css';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -37,43 +41,57 @@ interface TableBlockInfo {
   container: HTMLElement;
 }
 
+type TableViewMode = 'table' | 'outline';
+
+const TABLE_VIEW_OPTIONS = [
+  { value: 'table', icon: mdiTable, label: 'Table view' },
+  { value: 'outline', icon: mdiFormatListBulleted, label: 'Outline view' },
+];
+
 // ─── Inner Component (per table) ──────────────────────────────────
 
 interface TablePreviewProps {
   serverId: number;
+  viewMode: TableViewMode;
+  onViewModeChange: (mode: TableViewMode) => void;
 }
 
 /**
  * Renders a single table's content by fetching the node with children.
  */
-function TablePreview({ serverId }: TablePreviewProps): JSX.Element | null {
+function TablePreview({ serverId, viewMode, onViewModeChange }: TablePreviewProps): JSX.Element | null {
   const { data: tableNode } = useNode(serverId, { include_children: true });
 
-  if (!tableNode?.children || tableNode.children.length === 0) {
-    return (
-      <div className="table-block-empty">
-        <span className="table-block-empty-text">Empty table</span>
-      </div>
-    );
-  }
-
-  // Build table data: rows → cells
-  const rows = tableNode.children
-    .slice()
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-
-  // Determine if first row is a header (check if it has children with header-like content)
-  const isFirstRowHeader = rows.length > 0;
+  const rows = useMemo(() => {
+    if (!tableNode?.children) return [];
+    return tableNode.children.slice().sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  }, [tableNode?.children]);
 
   return (
-    <div className="table-block-wrapper">
-      <table className="table-block-table">
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <TableRow key={row.id} row={row} isHeader={rowIndex === 0 && isFirstRowHeader} />
-          ))}
-        </tbody>
-      </table>
+    <div className="table-block-container">
+      <div className="table-block-toolbar">
+        <SelectionButton
+          options={TABLE_VIEW_OPTIONS}
+          value={viewMode}
+          onChange={(v) => onViewModeChange(v as TableViewMode)}
+          size="sm"
+        />
+      </div>
+      {viewMode === 'outline' ? null : rows.length === 0 ? (
+        <div className="table-block-empty">
+          <span className="table-block-empty-text">Empty table</span>
+        </div>
+      ) : (
+        <div className="table-block-wrapper">
+          <table className="table-block-table">
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <TableRow key={row.id} row={row} isHeader={rowIndex === 0} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -90,7 +108,6 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     ? rowNode.children.slice().sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
     : [];
 
-  // If the row has no children, render the row's own content as a single cell
   if (cells.length === 0) {
     const CellTag = isHeader ? 'th' : 'td';
     return (
@@ -117,7 +134,21 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
 export function TableBlockPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [tableBlocks, setTableBlocks] = useState<TableBlockInfo[]>([]);
+  // Per-block view mode state (persisted across re-scans)
+  const [viewModes, setViewModes] = useState<Map<string, TableViewMode>>(new Map());
   const { visibleBlockIds, enabled: virtualizationEnabled } = useVirtualization();
+
+  const handleViewModeChange = useCallback((blockId: string, mode: TableViewMode) => {
+    setViewModes(prev => {
+      const next = new Map(prev);
+      next.set(blockId, mode);
+      return next;
+    });
+
+    // Tell the runtime whether to project table children as normal blocks
+    const runtime = getNodeGraphRuntime();
+    runtime.setTableOutlineMode(blockId, mode === 'outline');
+  }, []);
 
   // Scan all BlockNodes and extract table blocks with DOM containers
   const scanBlocks = useCallback(() => {
@@ -173,7 +204,12 @@ export function TableBlockPlugin(): JSX.Element | null {
     <>
       {tableBlocks.map(({ blockId, serverId, container }) =>
         createPortal(
-          <TablePreview key={blockId} serverId={serverId} />,
+          <TablePreview
+            key={blockId}
+            serverId={serverId}
+            viewMode={viewModes.get(blockId) || 'table'}
+            onViewModeChange={(mode) => handleViewModeChange(blockId, mode)}
+          />,
           container,
         ),
       )}
