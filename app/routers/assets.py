@@ -277,7 +277,7 @@ async def upload_asset(
         
         # If existing_node_id is provided, convert that node to an asset
         if existing_node_id:
-            node = await node_repo.get(existing_node_id)
+            node = await node_repo.get_by_id(existing_node_id)
             if not node:
                 raise HTTPException(status_code=404, detail=f"Node {existing_node_id} not found")
             
@@ -299,7 +299,7 @@ async def upload_asset(
                     """, [asset_type_id], now, existing_node_id)
             
             # Fetch updated node
-            node = await node_repo.get(existing_node_id)
+            node = await node_repo.get_by_id(existing_node_id)
             if not node:
                 raise HTTPException(status_code=500, detail="Failed to update node to asset")
         else:

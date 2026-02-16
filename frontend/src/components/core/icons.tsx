@@ -56,6 +56,7 @@ import {
   mdiClockOutline,
   mdiTable,
   mdiDrag,
+  mdiCodeTags,
   // Graph view icons
   mdiVectorPolygon,
   mdiCircleOutline,
@@ -311,6 +312,10 @@ export const ClockIcon = ({ size = 'md', className, color, title }: IconProps) =
 
 export const TableIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path={mdiTable} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const CodeIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiCodeTags} size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const PinIcon = ({ size = 'md', className, color, title }: IconProps) => (

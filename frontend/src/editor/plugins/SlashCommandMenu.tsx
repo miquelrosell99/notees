@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, PropertiesIcon } from '../../components/core/icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon } from '../../components/core/icons';
 import './SlashCommandMenu.css';
 
 // ─── Slash Command Definitions ───────────────────────────────────
@@ -60,6 +60,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     label: 'Table',
     description: 'Convert block to table',
     icon: <TableIcon size="sm" />,
+  },
+  {
+    id: 'code',
+    label: 'Code Block',
+    description: 'Convert block to code block',
+    icon: <CodeIcon size="sm" />,
   },
   {
     id: 'comment',
