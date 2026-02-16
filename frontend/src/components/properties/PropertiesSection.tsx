@@ -304,8 +304,6 @@ function PropertyValue({
         return newPage;
       }, [onCreatePage, property.class_filters]);
       
-      console.log('[PropertyValue] Node property:', property.name, 'multi:', property.multi, 'value:', value, 'type:', typeof value, 'isArray:', Array.isArray(value));
-      
       return (
         <NodeSelector
           trigger="select"
@@ -422,12 +420,6 @@ export function PropertiesSection({
   const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
   const { pageClassId } = usePageClass();
-  
-  // DEBUG: Log node properties
-  if (node && node.properties) {
-    console.log('[PropertiesSection] node.properties:', node.properties);
-    console.log('[PropertiesSection] Property 55 (Autor):', (node.properties as Record<string, unknown>)['55']);
-  }
   
   // Get class properties for all classes the node has (with inheritance)
   // We need to fetch properties for each class

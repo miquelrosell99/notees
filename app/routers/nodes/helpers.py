@@ -50,11 +50,15 @@ def extract_properties_dict(all_prop_values: Dict[int, Dict[str, Any]]) -> Dict[
         values = prop_data['values']
         if values:
             if prop.is_multi:
-                # Multi-value: always return array
-                props_dict[str(prop_id)] = [
-                    _extract_property_value(v) for v in values
-                    if _extract_property_value(v) is not None
-                ]
+                # Multi-value: always return array, deduplicated to avoid import artifacts
+                seen: set = set()
+                unique_values: list = []
+                for v in values:
+                    extracted = _extract_property_value(v)
+                    if extracted is not None and extracted not in seen:
+                        seen.add(extracted)
+                        unique_values.append(extracted)
+                props_dict[str(prop_id)] = unique_values
             else:
                 # Single-value: return scalar
                 extracted = _extract_property_value(values[0])
