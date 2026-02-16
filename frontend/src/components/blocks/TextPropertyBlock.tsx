@@ -10,6 +10,9 @@
  * - Uses NodeCollection → ListView → BlockEditor for consistent UX
  * - Supports drag & drop, shift-click sidebar, and all editor features
  * 
+ * Supports multi-value text properties: renders one row per block node,
+ * with an "Add text" button at the end to add more blocks.
+ * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
 import { useState, useCallback, useRef } from 'react';
@@ -32,16 +35,69 @@ interface TextPropertyBlockProps {
   property: Property;
   /** The node ID that has this property */
   nodeId: number;
-  /** The block node ID stored as the text property value (null if empty) */
+  /** The block node ID stored as the text property value (null if empty) — for single mode */
   blockNodeId: number | null;
+  /** Array of block node IDs — for multi mode */
+  blockNodeIds?: number[];
   /** Whether the component is read-only */
   readOnly?: boolean;
   /** Callback when the block is shift-clicked */
   onOpenInSidebar?: (blockId: number) => void;
-  /** Callback when property value changes */
-  onPropertyChange: (propertyId: number, value: number | null) => void;
+  /** Callback when property value changes (single mode) */
+  onPropertyChange: (propertyId: number, value: number | number[] | null) => void;
   /** Callback when bullet is clicked (opens focused block view) */
   onBulletClick?: (blockId: number) => void;
+}
+
+/**
+ * Single text block row - renders one block with its NodeCollection editor
+ */
+function SingleTextBlock({
+  blockNodeId,
+  readOnly,
+  onOpenInSidebar,
+}: {
+  blockNodeId: number;
+  readOnly: boolean;
+  onOpenInSidebar?: (blockId: number) => void;
+}) {
+  const { data: blockNode, isLoading } = useNode(blockNodeId, {
+    include_children: true,
+  });
+  const { handleNodeClick } = useNodeNavigation();
+  const { handleContentChange } = useContentSave();
+  useBlockPersist();
+
+  const handleNodeShiftClick = useCallback((clickedNode: Node) => {
+    onOpenInSidebar?.(clickedNode.id);
+  }, [onOpenInSidebar]);
+
+  if (isLoading) {
+    return (
+      <div className="text-property-block text-property-block--loading">
+        <span className="text-property-block__spinner">Loading...</span>
+      </div>
+    );
+  }
+
+  if (!blockNode) return null;
+
+  return (
+    <div className="text-property-block__editor">
+      <NodeCollection
+        nodes={[blockNode]}
+        viewMode="list"
+        availableViewModes={['list']}
+        editable={!readOnly}
+        onNodeClick={handleNodeClick}
+        onNodeShiftClick={handleNodeShiftClick}
+        onContentChange={handleContentChange}
+        pageId={blockNode.id}
+        pageUuid={blockNode.uuid}
+        hideToolbar={true}
+      />
+    </div>
+  );
 }
 
 /**
@@ -51,6 +107,7 @@ export function TextPropertyBlock({
   property,
   nodeId,
   blockNodeId,
+  blockNodeIds,
   readOnly = false,
   onOpenInSidebar,
   onPropertyChange,
@@ -59,17 +116,20 @@ export function TextPropertyBlock({
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Fetch the block node if it exists (with children for nested blocks)
-  const { data: blockNode, isLoading: blockLoading } = useNode(blockNodeId, {
-    include_children: true,
-  });
+  const isMulti = property.multi;
+  const ids = isMulti ? (blockNodeIds ?? []) : (blockNodeId != null ? [blockNodeId] : []);
+  
+  // For single mode, still fetch the node for legacy compatibility
+  const { data: singleBlockNode, isLoading: blockLoading } = useNode(
+    !isMulti ? blockNodeId : null, 
+    { include_children: true }
+  );
   
   const createNode = useCreateNode();
   const moveNode = useMoveNode();
   const { handleNodeClick } = useNodeNavigation();
   const { handleContentChange } = useContentSave();
 
-  // Ensure blocks created via the Add Block button get persisted
   useBlockPersist();
   
   // Handle creating a new text block
@@ -78,14 +138,19 @@ export function TextPropertyBlock({
     
     setIsCreating(true);
     try {
-      // Create a new block node as child of the current node
       createNode.mutate({
         name: '',
         parent_id: nodeId,
       }, {
         onSuccess: (newBlock) => {
-          // Set the property value to the new block's ID
-          onPropertyChange(property.id, newBlock.id);
+          if (isMulti) {
+            // Multi: append new block ID to the array
+            const newIds = [...ids, newBlock.id];
+            onPropertyChange(property.id, newIds);
+          } else {
+            // Single: set the property value to the new block's ID
+            onPropertyChange(property.id, newBlock.id);
+          }
           setIsCreating(false);
         },
         onError: () => {
@@ -96,7 +161,7 @@ export function TextPropertyBlock({
       console.error('Failed to create text block:', error);
       setIsCreating(false);
     }
-  }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange]);
+  }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange, isMulti, ids]);
   
   // Handle shift-click to open in sidebar
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
@@ -115,7 +180,7 @@ export function TextPropertyBlock({
       const { blockId } = JSON.parse(data);
       
       // Don't allow dropping on self
-      if (blockId === blockNodeId) return;
+      if (ids.includes(blockId)) return;
       
       // Move the block to be a child of this node
       moveNode.mutate({
@@ -123,12 +188,18 @@ export function TextPropertyBlock({
         parentId: nodeId,
       });
       
-      // Set this property to the dropped block
-      onPropertyChange(property.id, blockId);
+      if (isMulti) {
+        // Multi: append dropped block to the array
+        const newIds = [...ids, blockId];
+        onPropertyChange(property.id, newIds);
+      } else {
+        // Single: set this property to the dropped block
+        onPropertyChange(property.id, blockId);
+      }
     } catch (error) {
       console.error('Failed to handle drop:', error);
     }
-  }, [readOnly, blockNodeId, nodeId, property.id, moveNode, onPropertyChange]);
+  }, [readOnly, ids, nodeId, property.id, moveNode, onPropertyChange, isMulti]);
   
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (readOnly) return;
@@ -138,6 +209,64 @@ export function TextPropertyBlock({
       e.dataTransfer.dropEffect = 'move';
     }
   }, [readOnly]);
+
+  // === Multi mode rendering ===
+  if (isMulti) {
+    if (ids.length === 0) {
+      return (
+        <div 
+          className="text-property-block text-property-block--empty"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          <Button
+            icon={mdiPlus}
+            className="text-property-block__add-btn"
+            onClick={handleAddText}
+            disabled={readOnly || isCreating}
+            title="Add text"
+            size="xs"
+            variant="ghost"
+          >
+            {isCreating ? 'Creating...' : 'Add text'}
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        ref={containerRef}
+        className="text-property-block text-property-block--has-content text-property-block--multi"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
+        {ids.map((id) => (
+          <SingleTextBlock
+            key={id}
+            blockNodeId={id}
+            readOnly={readOnly}
+            onOpenInSidebar={onOpenInSidebar}
+          />
+        ))}
+        {!readOnly && (
+          <Button
+            icon={mdiPlus}
+            className="text-property-block__add-btn"
+            onClick={handleAddText}
+            disabled={isCreating}
+            title="Add text block"
+            size="xs"
+            variant="ghost"
+          >
+            {isCreating ? 'Creating...' : 'Add text'}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // === Single mode rendering (legacy) ===
 
   // Show loading state
   if (blockLoading && blockNodeId) {
@@ -149,7 +278,7 @@ export function TextPropertyBlock({
   }
   
   // Show empty state with "Add text" button
-  if (!blockNodeId || !blockNode) {
+  if (!blockNodeId || !singleBlockNode) {
     return (
       <div 
         className="text-property-block text-property-block--empty"
@@ -172,7 +301,6 @@ export function TextPropertyBlock({
   }
   
   // Show the block with a full Lexical-based editor (like FocusedBlockContent)
-  // NodeCollection → ListView → BlockEditor handles runtime sync, projection, and editing
   return (
     <div 
       ref={containerRef}
@@ -182,15 +310,15 @@ export function TextPropertyBlock({
     >
       <div className="text-property-block__editor">
         <NodeCollection
-          nodes={[blockNode]}
+          nodes={[singleBlockNode]}
           viewMode="list"
           availableViewModes={['list']}
           editable={!readOnly}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
           onContentChange={handleContentChange}
-          pageId={blockNode.id}
-          pageUuid={blockNode.uuid}
+          pageId={singleBlockNode.id}
+          pageUuid={singleBlockNode.uuid}
           hideToolbar={true}
         />
       </div>

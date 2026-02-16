@@ -156,8 +156,24 @@ export function PropertyCell({
     }
   }, [isEditing]);
 
-  // Text-type property: value is a block node ID, render as Block
+  // Text-type property: value is a block node ID or array of block node IDs (multi)
   if (property.type === 'text') {
+    if (property.multi && Array.isArray(value)) {
+      if (value.length === 0) {
+        return (
+          <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
+            {editable ? '—' : ''}
+          </div>
+        );
+      }
+      return (
+        <div className="property-cell property-cell--multi-text">
+          {(value as number[]).map((id) => (
+            <InlineBlock key={id} nodeId={id} />
+          ))}
+        </div>
+      );
+    }
     if (value === null || value === undefined || typeof value !== 'number') {
       return (
         <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>

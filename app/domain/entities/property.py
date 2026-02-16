@@ -55,7 +55,7 @@ SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN}
 RELATION_TYPES = {PropertyType.NODE, PropertyType.TEXT, PropertyType.IMAGE, PropertyType.DATE}
 
 # Property types that are always single value (never multi)
-ALWAYS_SINGLE_TYPES = {PropertyType.TEXT, PropertyType.IMAGE}
+ALWAYS_SINGLE_TYPES = {PropertyType.IMAGE}
 
 
 @dataclass

@@ -282,12 +282,14 @@ function PropertyValue({
 
     case 'text':
       // Text properties are stored as block node references
-      // Value is the block node ID (number) or null
+      // Single: value is a block node ID (number) or null
+      // Multi: value is an array of block node IDs (number[])
       return (
         <TextPropertyBlock
           property={property}
           nodeId={nodeId}
-          blockNodeId={typeof value === 'number' ? value : null}
+          blockNodeId={!property.multi && typeof value === 'number' ? value : null}
+          blockNodeIds={property.multi && Array.isArray(value) ? value as number[] : undefined}
           readOnly={readOnly}
           onOpenInSidebar={onOpenInSidebar}
           onPropertyChange={onPropertyChange}

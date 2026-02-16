@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS property (
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     CHECK (is_local = FALSE OR node_id IS NOT NULL),
-    CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)
+    CHECK (type NOT IN ('image') OR is_multi = FALSE)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_property_workspace_uuid ON property(workspace_id, uuid);
@@ -599,6 +599,38 @@ END $$;
 
 -- Ensure aliased_id index exists (safe to run even if column was just created)
 CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
+
+-- Migration: Update property CHECK constraint to allow multi text properties
+-- Old constraint: CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)
+-- New constraint: CHECK (type NOT IN ('image') OR is_multi = FALSE)
+DO $$
+DECLARE
+    constraint_name TEXT;
+BEGIN
+    -- Find and drop old CHECK constraint that blocks multi text
+    SELECT conname INTO constraint_name
+    FROM pg_constraint
+    WHERE conrelid = 'property'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) LIKE '%text%image%is_multi%';
+    
+    IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE property DROP CONSTRAINT %I', constraint_name);
+        ALTER TABLE property ADD CHECK (type NOT IN ('image') OR is_multi = FALSE);
+    END IF;
+END $$;
+
+-- Migration: Create 'Description' system property for all existing workspaces
+DO $$
+DECLARE
+    ws RECORD;
+BEGIN
+    FOR ws IN SELECT id FROM workspace LOOP
+        INSERT INTO property (uuid, workspace_id, name, type, is_multi, is_system, create_date, write_date)
+        VALUES ('00000000-0000-0000-0000-000000000009', ws.id, 'Description', 'text', TRUE, TRUE, NOW(), NOW())
+        ON CONFLICT (workspace_id, uuid) DO NOTHING;
+    END LOOP;
+END $$;
 
 -- ============================================================
 -- SCHEMA METADATA

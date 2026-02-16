@@ -31,7 +31,7 @@ import './PropertyView.css';
 
 /** Property type display info */
 const PROPERTY_TYPES: Record<string, { label: string; icon: string; supportsMulti: boolean }> = {
-  text: { label: 'Text', icon: '', supportsMulti: false },
+  text: { label: 'Text', icon: '', supportsMulti: true },
   integer: { label: 'Number', icon: '', supportsMulti: false },
   float: { label: 'Decimal', icon: '', supportsMulti: false },
   boolean: { label: 'Checkbox', icon: '', supportsMulti: false },
