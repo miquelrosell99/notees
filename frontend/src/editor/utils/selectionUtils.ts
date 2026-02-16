@@ -50,6 +50,13 @@ export function selectBlockWithChildren(
   } else {
     blockEl.classList.add('node-block--selected-first');
     children[children.length - 1].classList.add('node-block--selected-last');
+
+    // Calculate total height so the selection card overlay covers all children.
+    // getBoundingClientRect triggers a synchronous reflow, giving correct positions.
+    const parentRect = blockEl.getBoundingClientRect();
+    const lastChildRect = children[children.length - 1].getBoundingClientRect();
+    const totalHeight = lastChildRect.bottom - parentRect.top + 4; // +4px breathing room
+    blockEl.style.setProperty('--selection-card-height', `${totalHeight}px`);
   }
 }
 
@@ -67,6 +74,7 @@ export function clearBlockSelection(rootEl: HTMLElement): void {
   const selector = selectionClasses.map(c => `.${c}`).join(', ');
   rootEl.querySelectorAll(selector).forEach(el => {
     el.classList.remove(...selectionClasses);
+    (el as HTMLElement).style.removeProperty('--selection-card-height');
   });
 }
 
