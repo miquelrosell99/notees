@@ -22,6 +22,7 @@ import {
 import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useContentSave } from '@/hooks';
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -221,6 +222,10 @@ export function QueryNodeCollection({
   // Compute effective capabilities
   // can_create controls both toolbar add button and card view add card
   const effectiveCanCreate = can_create && showAddButton;
+  
+  // Use content save hook for editable collections
+  const { handleContentChange: saveContent } = useContentSave();
+  
   // State
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
@@ -846,6 +851,7 @@ export function QueryNodeCollection({
             availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
+            onContentChange={saveContent}
             hideToolbar={hideToolbar}
             toolbarPrefix={hideToolbar ? undefined : toolbarPrefix}
             leftElement={resolvedLeftElement}
@@ -910,6 +916,7 @@ export function QueryNodeCollection({
                 availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
+                onContentChange={saveContent}
                 hideToolbar={true}
                 showGroupBy={false}
                 groupBy="none"
