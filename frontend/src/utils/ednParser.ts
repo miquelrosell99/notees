@@ -359,6 +359,15 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
     }
   }
 
+  // Build UUID→class title map so pages without a title can inherit
+  // the class title when their UUID matches a class UUID.
+  const classUuidToTitle = new Map<string, string>();
+  for (const cls of classes) {
+    if (cls.uuid && cls.title) {
+      classUuidToTitle.set(cls.uuid, cls.title);
+    }
+  }
+
   // ── Pages & Blocks ───────────────────────────────
   const pagesVec = mapGet(edn, 'pages-and-blocks');
   const pages: LogseqPage[] = [];
@@ -383,15 +392,18 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         }
       }
 
+      const uuidTagged = mapGet(pageMap, 'block/uuid');
+      const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
+
       const rawTitle = asString(mapGet(pageMap, 'block/title'));
-      const title = rawTitle ?? (journalDate ?? '');
+      // Fallback: if the page has no title but its UUID matches a class,
+      // use the class title (class pages often have title only in :classes)
+      const title = rawTitle ?? classUuidToTitle.get(uuid ?? '') ?? (journalDate ?? '');
 
       // 2. If no build/journal, detect date pages from title format
       if (!journalDate && rawTitle) {
         journalDate = detectDateFromTitle(rawTitle);
       }
-      const uuidTagged = mapGet(pageMap, 'block/uuid');
-      const uuid = uuidTagged instanceof EdnTagged ? String(uuidTagged.value) : undefined;
 
       // Tags (classes assigned to this page)
       const tagsVec = mapGet(pageMap, 'build/tags');
