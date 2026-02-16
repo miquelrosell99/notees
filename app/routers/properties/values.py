@@ -96,11 +96,13 @@ async def set_property_value(
                 await repo.assign_property_to_node(node_id, request.property_id)
             elif isinstance(request.value, list):
                 # Multi-value property: clear existing and set all values
-                logger.info(f"[SET_PROPERTY] Array of {len(request.value)} node IDs: {request.value}")
+                # Deduplicate to prevent duplicate entries
+                unique_values = list(dict.fromkeys(request.value))
+                logger.info(f"[SET_PROPERTY] Array of {len(unique_values)} unique node IDs (from {len(request.value)}): {unique_values}")
                 # First clear existing values
                 await repo.clear_relation_values(node_id, request.property_id)
                 # Then add each value
-                for target_id in request.value:
+                for target_id in unique_values:
                     if not isinstance(target_id, int):
                         raise ValueError(f"Relation property expects node ID, got {type(target_id)} in array")
                     result = await repo.set_relation_value(node_id, request.property_id, target_id)
@@ -120,11 +122,13 @@ async def set_property_value(
                 await repo.assign_property_to_node(node_id, request.property_id)
             elif isinstance(request.value, list):
                 # Multi-value property: clear existing and set all values
-                logger.info(f"[SET_PROPERTY] Array of {len(request.value)} selection IDs: {request.value}")
+                # Deduplicate to prevent duplicate entries
+                unique_values = list(dict.fromkeys(request.value))
+                logger.info(f"[SET_PROPERTY] Array of {len(unique_values)} unique selection IDs (from {len(request.value)}): {unique_values}")
                 # First clear existing values
                 await repo.clear_selection_values(node_id, request.property_id)
                 # Then add each value
-                for selection_id in request.value:
+                for selection_id in unique_values:
                     if not isinstance(selection_id, int):
                         raise ValueError(f"Selection property expects selection_line_id, got {type(selection_id)} in array")
                     result = await repo.set_selection_value(node_id, request.property_id, selection_id)
