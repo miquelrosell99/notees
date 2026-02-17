@@ -992,13 +992,12 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
               </div>
             )}
             
-            {/* Cover Image - spans rows 1-3 (skip in compact mode) */}
-            {!compactMode && (
-              <div 
-                className={`node-view__cover ${isCoverDragging ? 'node-view__cover--dragging' : ''}`}
-                onMouseEnter={() => setIsCoverHovered(true)}
-                onMouseLeave={() => setIsCoverHovered(false)}
-              >
+            {/* Cover Image - spans rows 1-3 */}
+            <div 
+              className={`node-view__cover ${isCoverDragging ? 'node-view__cover--dragging' : ''}`}
+              onMouseEnter={() => setIsCoverHovered(true)}
+              onMouseLeave={() => setIsCoverHovered(false)}
+            >
               <button
                 className="node-view__cover-collapse-btn"
                 onClick={handleToggleCoverCollapse}
@@ -1042,7 +1041,6 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
                 )}
               </div>
             </div>
-            )}
           </div>
           
           {/* Properties Section - full width row below header section (skip in compact mode) */}
