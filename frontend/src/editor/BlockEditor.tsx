@@ -231,13 +231,30 @@ export function BlockEditor({
       runtime.registerParentServerId(derivedRootId, pageId);
     }
 
-    // Upsert nodes into the shared runtime
-    // NOTE: We do NOT automatically clean up nodes that aren't in this editor's
-    // nodes array, because:
-    // 1. Other editors (e.g., sidebar cards) may be displaying those nodes
-    // 2. The runtime is shared across all editor instances
-    // 3. Node removal should only happen through explicit delete intents
+    // Upsert FIRST so that new/real nodes are already present in the
+    // runtime before we remove stale ones. Both calls emit events
+    // that drive syncProjection; doing upsert-then-remove ensures
+    // the first (non-coalesced) sync sees the new block immediately.
     runtime.upsertNodes(graphNodes);
+
+    // Clean up stale children that are no longer in the API response
+    // but keep optimistic blocks (no serverId) that haven't been persisted yet.
+    // 
+    // IMPORTANT: Only clean up when displaying a page's children, not when:
+    // - Displaying a focused block (includeRoot is true, the block itself is in nodes)
+    // - Displaying shared content (sidebar without pageId)
+    // This prevents one editor from removing nodes that another editor is displaying.
+    const isFocusedBlock = nodes?.some(n => n.uuid === derivedRootId);
+    if (pageId != null && derivedRootId && !isFocusedBlock) {
+      const newBlockIds = new Set(graphNodes.map(n => n.blockId));
+      const currentChildren = runtime.getChildren(derivedRootId);
+      const staleIds = currentChildren
+        .filter(child => !newBlockIds.has(child.blockId) && child.serverId != null)
+        .map(child => child.blockId);
+      if (staleIds.length > 0) {
+        runtime.removeNodes(staleIds);
+      }
+    }
   }, [nodes, pageId, pageUuid]);
 
   // Auto-detect includeRoot: if the rootBlockId corresponds to a node
