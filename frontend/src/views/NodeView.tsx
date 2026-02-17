@@ -192,6 +192,19 @@ interface NodeViewProps {
   compactMode?: boolean;
   /** If true, hides banner and page header section but keeps properties and queries (for sidebar cards) */
   sidebarMode?: boolean;
+  
+  // Granular section visibility controls (override compactMode/sidebarMode defaults)
+  /** If true, hides the banner image section */
+  hideBanner?: boolean;
+  /** If true, hides the page header section (title, icon, classes, tags, aliases, cover) */
+  hidePageHeader?: boolean;
+  /** If true, hides the properties section */
+  hideProperties?: boolean;
+  /** If true, hides all query sections (linked refs, unlinked refs, etc.) */
+  hideQueries?: boolean;
+  /** If true, hides the footer */
+  hideFooter?: boolean;
+  
   /** Whether the properties section is collapsed by default */
   propertiesCollapsed?: boolean;
   /** Whether the linked references section is collapsed by default */
@@ -203,12 +216,31 @@ export interface NodeViewResult {
   content: React.ReactNode;
 }
 
-export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = false, propertiesCollapsed = false, linkedRefsCollapsed = false }: NodeViewProps): NodeViewResult {
-  // Fetch the node — compact mode (journal entries) skips properties & backlinks to reduce requests, sidebar mode includes them
+export function NodeView({ 
+  nodeId, 
+  viewMode, 
+  compactMode = false, 
+  sidebarMode = false,
+  hideBanner,
+  hidePageHeader,
+  hideProperties,
+  hideQueries,
+  hideFooter,
+  propertiesCollapsed = false, 
+  linkedRefsCollapsed = false 
+}: NodeViewProps): NodeViewResult {
+  // Compute section visibility from mode flags and explicit overrides
+  const showBanner = hideBanner !== undefined ? !hideBanner : !(compactMode || sidebarMode);
+  const showPageHeader = hidePageHeader !== undefined ? !hidePageHeader : !sidebarMode;
+  const showProperties = hideProperties !== undefined ? !hideProperties : (!compactMode || sidebarMode);
+  const showQueries = hideQueries !== undefined ? !hideQueries : (!compactMode || sidebarMode);
+  const showFooter = hideFooter !== undefined ? !hideFooter : (!compactMode || sidebarMode);
+  
+  // Fetch the node — include properties/backlinks if we're showing properties or queries
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
-    include_properties: !compactMode || sidebarMode,
-    include_backlinks: !compactMode || sidebarMode
+    include_properties: showProperties || showQueries,
+    include_backlinks: showProperties || showQueries
   });
   
   // Hooks (needed for page header sections)
@@ -440,11 +472,11 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
       .filter((n): n is Node => n !== undefined);
   }, [extendsData, allNodes]);
   
-  // Check if node is used as a class — skip in compact mode (journal) to avoid per-node API call, but enabled in sidebar
-  const { data: classedNodes } = useNodesWithClass((compactMode && !sidebarMode) ? null : (node?.id ?? 0));
+  // Check if node is used as a class — skip if queries are hidden to avoid API call
+  const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.id ?? 0) : null);
   
-  // Section metadata hooks — skip in compact mode to avoid linked-refs + property-backlinks requests, but enabled in sidebar
-  useLinkedReferencesCount((compactMode && !sidebarMode) ? 0 : nodeId);
+  // Section metadata hooks — skip if queries are hidden to avoid API calls
+  useLinkedReferencesCount(showQueries ? nodeId : 0);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -859,8 +891,8 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
       {/* Page Header or Block Header based on variant */}
       {resolvedType === 'page' ? (
         <>
-          {/* Banner Image - before entire header section (skip in compact mode or sidebar mode) */}
-          {!compactMode && !sidebarMode && (
+          {/* Banner Image - before entire header section */}
+          {showBanner && (
             <div 
               className={`node-view__banner ${isBannerDragging ? 'node-view__banner--dragging' : ''}`}
               onMouseEnter={() => setIsBannerHovered(true)}
@@ -914,8 +946,8 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
           </div>
           )}
           
-          {/* Grid layout: Header content on left | Cover spanning all rows on right (skip in sidebar mode) */}
-          {!sidebarMode && (
+          {/* Grid layout: Header content on left | Cover spanning all rows on right */}
+          {showPageHeader && (
           <div className="page-header-section">
             {/* Row 1: Page Header (title + icon) */}
             <div className="page-header-section__header">
@@ -1047,8 +1079,8 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
           </div>
           )}
           
-          {/* Properties Section - full width row below header section (skip in compact mode but shown in sidebar mode) */}
-          {(!compactMode || sidebarMode) && (
+          {/* Properties Section - full width row below header section */}
+          {showProperties && (
             <div className="page-properties-section">
               <PropertiesSection 
                 nodeId={node.id}
@@ -1100,6 +1132,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
         /* Focused Block View - renders the block itself as a top-level list item */
         <>
           {/* Properties Section for focused block */}
+          {showProperties && (
           <PropertiesSection 
             nodeId={node.id}
             variant="block"
@@ -1109,6 +1142,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
             onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
             defaultCollapsed={propertiesCollapsed}
           />
+          )}
           <FocusedBlockContent
             node={node}
             onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
@@ -1116,8 +1150,8 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
         </>
       )}
       
-      {/* Query sections — skipped in compact mode (journal entries) to avoid request flood, but shown in sidebar mode */}
-      {(!compactMode || sidebarMode) && (
+      {/* Query sections */}
+      {showQueries && (
         <>
           {/* Extended By section - shows classes that extend this class (class nodes only) */}
           {isClassNode && (
@@ -1203,8 +1237,8 @@ export function NodeView({ nodeId, viewMode, compactMode = false, sidebarMode = 
         </>
       )}
       
-      {/* Footer - hidden in compact mode but shown in sidebar mode */}
-      {(!compactMode || sidebarMode) && (
+      {/* Footer */}
+      {showFooter && (
         <footer className="node-view-footer">
           <div className="node-view-metadata">
             <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
