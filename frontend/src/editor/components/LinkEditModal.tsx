@@ -8,7 +8,7 @@
  * Both modes share a custom display-label field.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { mdiLinkVariant, mdiWeb } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
@@ -18,6 +18,7 @@ import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { parseLinkId } from '@/lib/astBuilder';
 import type { PillRefType } from '../nodes/PillNode';
 import type { Node } from '@/types/api';
+import { useClasses } from '@/hooks';
 import './LinkEditModal.css';
 
 export interface LinkEditModalProps {
@@ -68,13 +69,24 @@ export function LinkEditModal({
 }: LinkEditModalProps) {
   const { nodeUuid } = parseLinkId(linkId);
   const { data: currentNode } = useNodeByUuid(nodeUuid);
+  const { data: allClasses } = useClasses();
 
+  // Check if this is an inline class link
+  const isInlineClassLink = refType === 'class';
+  
   // ─── State ─────────────────────────────────────────────────
 
   const [linkMode, setLinkMode] = useState<LinkMode>(refType === 'url' ? 'url' : 'node');
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [url, setUrl] = useState(currentUrl ?? '');
   const [label, setLabel] = useState(currentLabel ?? '');
+  
+  // Check if the target node (current or selected) is a class
+  const isTargetNodeClass = useMemo(() => {
+    const targetNode = selectedNode || currentNode;
+    if (!targetNode || !allClasses) return false;
+    return allClasses.some(cls => cls.id === targetNode.id);
+  }, [selectedNode, currentNode, allClasses]);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -153,6 +165,16 @@ export function LinkEditModal({
       className="link-edit-modal"
     >
       <div className="link-edit-modal__body" onKeyDown={handleKeyDown}>
+        {/* Inline class indicator */}
+        {isInlineClassLink && (
+          <div className="link-edit-modal__info">
+            <span className="link-edit-modal__info-icon">🏷️</span>
+            <span className="link-edit-modal__info-text">
+              This is an <strong>inline class link</strong>. Editing this will also update the block's classes.
+            </span>
+          </div>
+        )}
+        
         {/* Mode toggle */}
         <div className="link-edit-modal__section link-edit-modal__mode-section">
           <SelectionButton
@@ -169,15 +191,22 @@ export function LinkEditModal({
             {linkMode === 'node' ? 'Link Target' : 'URL'}
           </label>
           {linkMode === 'node' ? (
-            <NodeSelector
-              trigger="select"
-              value={effectiveNodeId}
-              searchMode="pages"
-              placeholder="Select a node..."
-              searchPlaceholder="Search pages..."
-              onChange={handleNodeChange}
-              onAdd={handleNodeAdd}
-            />
+            <>
+              <NodeSelector
+                trigger="select"
+                value={effectiveNodeId}
+                searchMode="pages"
+                placeholder="Select a node..."
+                searchPlaceholder="Search pages..."
+                onChange={handleNodeChange}
+                onAdd={handleNodeAdd}
+              />
+              {isInlineClassLink && !isTargetNodeClass && (
+                <span className="link-edit-modal__hint link-edit-modal__hint--warning">
+                  ⚠️ If you select a node that is not a class, the "Class" class will be added to it.
+                </span>
+              )}
+            </>
           ) : (
             <input
               type="text"

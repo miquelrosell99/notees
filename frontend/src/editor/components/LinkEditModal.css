@@ -55,6 +55,37 @@
   color: var(--text-tertiary);
 }
 
+.link-edit-modal__hint--warning {
+  color: var(--color-warning, #f59e0b);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  margin-top: var(--spacing-xs, 4px);
+}
+
+/* ─── Info box ────────────────────────────────────────────────── */
+
+.link-edit-modal__info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-sm, 8px);
+  background: var(--color-surface-container-high, #e8f0fe);
+  border-radius: var(--radius-md, 6px);
+  border-left: 3px solid var(--accent-color, #4f8ff7);
+}
+
+.link-edit-modal__info-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.link-edit-modal__info-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 /* ─── Footer ──────────────────────────────────────────────────── */
 
 .link-edit-modal__footer {

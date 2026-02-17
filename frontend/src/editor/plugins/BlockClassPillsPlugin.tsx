@@ -12,12 +12,14 @@ import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
+import { $isPillNode } from '../nodes/PillNode';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodePill } from '@/components/nodes/NodePill';
 import type { Node } from '@/types';
 import { useClasses, useRemoveClass } from '@/hooks';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
+import { parseLinkId } from '@/lib/astBuilder';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -25,6 +27,7 @@ interface BlockClassInfo {
   blockId: string;
   classIds: string[];
   container: HTMLElement;
+  inlineClassUuids: Set<string>; // Class UUIDs that are also present inline
 }
 
 // ─── Plugin ─────────────────────────────────────────────────────
@@ -75,7 +78,18 @@ export function BlockClassPillsPlugin({
         const container = blockEl.querySelector('.node-block-class-pills') as HTMLElement;
         if (!container) continue;
 
-        infos.push({ blockId, classIds, container });
+        // Scan for inline class pills in this block's content
+        const inlineClassUuids = new Set<string>();
+        const blockChildren = child.getChildren();
+        for (const blockChild of blockChildren) {
+          if ($isPillNode(blockChild) && blockChild.getRefType() === 'class') {
+            const linkId = blockChild.getLinkId();
+            const { nodeUuid } = parseLinkId(linkId);
+            inlineClassUuids.add(nodeUuid);
+          }
+        }
+
+        infos.push({ blockId, classIds, container, inlineClassUuids });
       }
 
       setBlockClasses(infos);
@@ -101,12 +115,15 @@ export function BlockClassPillsPlugin({
 
   return (
     <>
-      {blockClasses.map(({ blockId, classIds, container }) => {
+      {blockClasses.map(({ blockId, classIds, container, inlineClassUuids }) => {
         // Resolve class IDs to Node objects, filtering out the implicit "page" class
+        // AND filtering out classes that are also present inline
         const resolvedClasses = classIds
           .map(id => classMap.get(id))
           .filter((cls): cls is Node =>
-            cls !== undefined && cls.uuid !== SYSTEM_CLASS_UUIDS.page
+            cls !== undefined && 
+            cls.uuid !== SYSTEM_CLASS_UUIDS.page &&
+            !inlineClassUuids.has(cls.uuid) // Hide if also inline
           );
 
         if (resolvedClasses.length === 0) return null;
