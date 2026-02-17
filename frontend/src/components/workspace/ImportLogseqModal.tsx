@@ -350,9 +350,12 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p3.succeeded++;
 
               if (page.blocks.length > 0) {
+                // Fetch existing children to append after them
+                const fullDay = await getNode(dayNode.id, { include_children: true });
+                const startSeq = fullDay.children?.length ?? 0;
                 setImportStatus(`Creating blocks for journal: ${page.journal}`);
                 await createBlocksRecursively(
-                  page.blocks, dayNode.id, 0, uuidMap, classIdMap, contentQueue, p3,
+                  page.blocks, dayNode.id, startSeq, uuidMap, classIdMap, contentQueue, p3,
                 );
               }
             } catch (e) {
@@ -448,8 +451,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
 
         if (parentId) {
           try {
+            // Fetch existing children to append after them
+            const parentNode = await getNode(parentId, { include_children: true });
+            const startSeq = parentNode.children?.length ?? 0;
             await createBlocksRecursively(
-              parsed.standaloneBlocks, parentId, 0, uuidMap, classIdMap, contentQueue, p3,
+              parsed.standaloneBlocks, parentId, startSeq, uuidMap, classIdMap, contentQueue, p3,
             );
           } catch (e) {
             p3.failed++;
