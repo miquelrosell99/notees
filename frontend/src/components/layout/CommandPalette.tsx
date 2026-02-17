@@ -16,7 +16,7 @@ import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHier
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
-import { useAppStore, useSettingsStore } from '@/stores';
+import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
@@ -269,7 +269,7 @@ export function CommandPalette({
   const containerRef = useRef<HTMLDivElement>(null);
   
   const { openNode, openPropertyView } = useAppStore();
-  const { quickAddDestination } = useSettingsStore();
+  const { quickAddDestination, dateFormat } = useSettingsStore();
   const { navigateToNode } = useNodeNavigation();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -323,6 +323,21 @@ export function CommandPalette({
   // Query client for cache invalidation after date page creation
   const queryClient = useQueryClient();
   
+  // Format date label using user's date format preference
+  const formatParsedDateLabel = useCallback((pd: ParsedDate): string => {
+    if (pd.type === 'year') {
+      return formatYear(pd.year);
+    }
+    if (pd.type === 'month' && pd.month) {
+      return formatMonth(pd.year, pd.month, dateFormat);
+    }
+    if (pd.type === 'day' && pd.month && pd.day) {
+      const date = new Date(pd.year, pd.month - 1, pd.day);
+      return formatDateWithPreference(date, dateFormat);
+    }
+    return pd.label;
+  }, [dateFormat]);
+  
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
@@ -339,11 +354,12 @@ export function CommandPalette({
     
     // Date suggestion (shown at top if query matches a date format)
     if (parsedDate) {
+      const formattedDate = formatParsedDateLabel(parsedDate);
       const dateTypeLabel = parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly';
       if (existingDateNode) {
-        items.push({ type: 'date', label: `Go to ${dateTypeLabel} page: ${nodeNameToText(existingDateNode.name) || parsedDate.label}`, parsedDate, existingNode: existingDateNode });
+        items.push({ type: 'date', label: `Go to ${dateTypeLabel} page: ${formattedDate}`, parsedDate, existingNode: existingDateNode });
       } else {
-        items.push({ type: 'date', label: `Create ${dateTypeLabel} page: ${parsedDate.label}`, parsedDate });
+        items.push({ type: 'date', label: `Create ${dateTypeLabel} page: ${formattedDate}`, parsedDate });
       }
     }
     
@@ -384,7 +400,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands]);
+  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel]);
   
   // Focus input when opened
   useEffect(() => {
@@ -689,8 +705,8 @@ export function CommandPalette({
           />
         )}
         
-        {/* Hierarchical path preview */}
-        {pathInfo && !isTypingClass && (
+        {/* Hierarchical path preview — hidden when date is detected */}
+        {pathInfo && !isTypingClass && !parsedDate && (
           <div className="command-palette__path-preview">
             <span className="command-palette__path-label">Will create:</span>
             <span className="command-palette__path-segments">
@@ -752,8 +768,8 @@ export function CommandPalette({
                 </div>
               )}
               
-              {/* Pages section */}
-              {pageItems.length > 0 && (
+              {/* Pages section — hidden when date is detected */}
+              {pageItems.length > 0 && !parsedDate && (
             <div className="command-palette__section">
               <div className="command-palette__section-header">Pages</div>
               {pageItems.map((item) => {
