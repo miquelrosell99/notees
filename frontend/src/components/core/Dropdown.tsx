@@ -114,10 +114,13 @@ export function Dropdown<T = string>({
   // Close on click outside
   useClickOutside([containerRef, menuRef], handleClose, isOpen);
 
-  // Focus search input when opened
+  // Focus search input when opened (delayed for portal rendering)
   useEffect(() => {
-    if (isOpen && searchable && searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (isOpen && searchable) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, searchable]);
 
