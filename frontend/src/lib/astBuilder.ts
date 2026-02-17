@@ -58,8 +58,12 @@ export function hardBreak(): ASTHardBreak {
   return { type: 'hard_break' };
 }
 
-export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node'): ASTNodeLink {
-  return { type: 'node_link', link_id: linkId, ref_type: refType };
+export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
+  const link: ASTNodeLink = { type: 'node_link', link_id: linkId, ref_type: refType };
+  if (label !== undefined && label !== null) {
+    (link as any).label = label;
+  }
+  return link;
 }
 
 // ─── Link ID utilities ─────────────────────────────────────────────

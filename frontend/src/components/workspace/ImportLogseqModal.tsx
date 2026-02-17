@@ -1003,10 +1003,14 @@ function mapPropertyType(logseqType: string): PropertyType {
  */
 const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 // Matches #[[uuid]] (inline class), [label]([[uuid]]), bare [[uuid]], ((uuid)) block refs, and bare [[name]]
-// Group 1 = #[[uuid]] inline class, Group 2 = labeled form uuid, Group 3 = bare [[uuid]],
-// Group 4 = ((uuid)) block ref, Group 5 = [[name]]
+// Group 1 = #[[uuid]] inline class
+// Group 2 = label from [label]([[uuid]])
+// Group 3 = uuid from [label]([[uuid]])
+// Group 4 = bare [[uuid]]
+// Group 5 = ((uuid)) block ref
+// Group 6 = [[name]]
 const NODE_LINK_RE = new RegExp(
-  `#\\[\\[(${UUID_RE})\\]\\]|\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\(\\((${UUID_RE})\\)\\)|\\[\\[([^\\]]+)\\]\\]`,
+  `#\\[\\[(${UUID_RE})\\]\\]|\\[([^\\]]+)\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\(\\((${UUID_RE})\\)\\)|\\[\\[([^\\]]+)\\]\\]`,
   'gi'
 );
 
@@ -1022,11 +1026,20 @@ function buildAstFromLogseqText(
 
   // Find all #[[uuid]] (inline class), [[uuid]], ((uuid)), [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
   for (const match of rawText.matchAll(NODE_LINK_RE)) {
-    // Group 1 = #[[uuid]] inline class, Group 2 = labeled form uuid,
-    // Group 3 = bare [[uuid]], Group 4 = ((uuid)) block ref, Group 5 = name-based link
+    // Group 1 = #[[uuid]] inline class
+    // Group 2 = label from [label]([[uuid]])
+    // Group 3 = uuid from [label]([[uuid]])
+    // Group 4 = bare [[uuid]]
+    // Group 5 = ((uuid)) block ref
+    // Group 6 = [[name]]
     const inlineClassUuid = match[1];
-    const logseqUuid = match[2] ?? match[3] ?? match[4];
-    const linkName = match[5];
+    const labeledLink_label = match[2];
+    const labeledLink_uuid = match[3];
+    const bareUuid = match[4];
+    const blockRefUuid = match[5];
+    const linkName = match[6];
+    
+    const logseqUuid = labeledLink_uuid ?? bareUuid ?? blockRefUuid;
     const matchStart = match.index ?? 0;
 
     // Add preceding plain text
@@ -1056,7 +1069,9 @@ function buildAstFromLogseqText(
         // Build compound link_id: "targetNodeUuid:newLinkInstanceUuid"
         const linkInstanceUuid = crypto.randomUUID();
         const linkId = buildLinkId(target.uuid, linkInstanceUuid);
-        children.push(nodeLink(linkId, 'node'));
+        // Pass label if this is a [label]([[uuid]]) pattern
+        const label = labeledLink_label ?? null;
+        children.push(nodeLink(linkId, 'node', label));
       } else if (linkName) {
         // Name-based link with no matching node — keep as plain text without brackets
         children.push(astText(linkName));

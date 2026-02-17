@@ -33,11 +33,15 @@ export interface ASTHardBreak {
  * `ref_type` distinguishes rendering:
  *   - 'node' — regular page/block reference
  *   - 'class' — class reference that keeps text inline
+ *
+ * `label` is an optional custom display text (e.g., [custom label]([[uuid]]))
+ * that gets stored in the node_link.name column.
  */
 export interface ASTNodeLink {
   readonly type: 'node_link';
   readonly link_id: string;
   readonly ref_type: 'node' | 'class';
+  readonly label?: string | null;
 }
 
 // ─── Mark (formatting) nodes ───────────────────────────────────────
