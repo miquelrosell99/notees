@@ -160,12 +160,6 @@ class NodeLinkResponse(BaseModel):
     name: Optional[str] = None  # Custom display text for the link
 
 
-class UpdateLinkNameRequest(BaseModel):
-    """Request to update a link's custom display name."""
-    link_uuid: str
-    name: Optional[str] = None  # None or empty string to clear custom name
-
-
 class InlineClassResponse(BaseModel):
     """Inline class reference in content."""
     class_node_id: int

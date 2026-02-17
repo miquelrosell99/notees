@@ -21,7 +21,7 @@ import type { Node } from '@/types';
 export interface LinkMapEntry {
   /** The target node (with its name AST). */
   targetNode: Node;
-  /** Custom label from node_link.name (null = use target node's name). */
+  /** Fallback label (null = use target node's name; AST label takes precedence). */
   label: string | null;
 }
 

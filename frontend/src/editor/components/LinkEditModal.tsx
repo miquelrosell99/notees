@@ -30,7 +30,7 @@ export interface LinkEditModalProps {
   refType: PillRefType;
   /** Current URL (for URL pills) */
   currentUrl?: string;
-  /** Current custom label (from node_link.name) */
+  /** Current custom label (from AST) */
   currentLabel?: string | null;
   /** Called when saving changes */
   onSave: (result: LinkEditResult) => void;

@@ -203,7 +203,7 @@ export function TableView({
         if (targetNode) {
           linkMap.set(link.uuid, {
             targetNode,
-            label: link.name || null,
+            label: null, // Label lives in the AST, not in the DB
           });
         }
       }

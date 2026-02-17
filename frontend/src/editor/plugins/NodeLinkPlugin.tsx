@@ -36,6 +36,8 @@ export interface PendingPillUpdate {
   newLinkId: string;
   newRefType: PillRefType;
   newUrl?: string;
+  /** Updated label (undefined = keep existing, null = clear, string = set). */
+  newLabel?: string | null;
 }
 
 export interface NodeLinkPluginProps {
@@ -100,11 +102,15 @@ export function NodeLinkPlugin({
       const findAndReplacePill = (parent: ReturnType<typeof $getRoot>) => {
         for (const child of parent.getChildren()) {
           if ($isPillNode(child) && child.getLinkId() === pendingPillUpdate.oldLinkId) {
-            // Replace with a new PillNode with the updated linkId
+            // Replace with a new PillNode with the updated linkId/label
+            const label = pendingPillUpdate.newLabel !== undefined
+              ? (pendingPillUpdate.newLabel || undefined)
+              : child.getLabel() || undefined;
             const newPill = $createPillNode(
               pendingPillUpdate.newLinkId,
               pendingPillUpdate.newRefType,
               pendingPillUpdate.newUrl,
+              label,
             );
             child.replace(newPill);
             return true;
