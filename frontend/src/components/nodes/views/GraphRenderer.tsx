@@ -35,7 +35,7 @@ import {
   LINE_DASH_DOTTED,
   // Helpers
   pairKey,
-  linkTypeId,
+  linkclassId,
   getNodeRadius,
   getGlareRadius,
   getNodeColor,
@@ -228,7 +228,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
       
-      const linkKey = pairKey(link.source, link.target) * 10 + linkTypeId(link.type);
+      const linkKey = pairKey(link.source, link.target) * 10 + linkclassId(link.type);
       if (drawnLinks.has(linkKey)) continue;
       drawnLinks.add(linkKey);
       
