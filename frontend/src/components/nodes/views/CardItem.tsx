@@ -179,6 +179,16 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
     runtime.applyIntent({ type: 'outdent_block', blockId });
   }, []);
 
+  const handleMoveUp = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'move_up', blockId });
+  }, []);
+
+  const handleMoveDown = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'move_down', blockId });
+  }, []);
+
   const handlePillClick = useCallback((linkId: string) => {
     onNavigateToNode?.(linkId);
   }, [onNavigateToNode]);
@@ -207,6 +217,8 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
           onBlockDelete={handleBlockDelete}
           onIndent={handleIndent}
           onOutdent={handleOutdent}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
           readOnly={readOnly}
         />
         <NodeLinkPlugin

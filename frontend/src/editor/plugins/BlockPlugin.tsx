@@ -63,6 +63,9 @@ export interface BlockPluginProps {
   /** Called for indent/outdent */
   onIndent?: (blockId: string) => void;
   onOutdent?: (blockId: string) => void;
+  /** Called for move up/down */
+  onMoveUp?: (blockId: string) => void;
+  onMoveDown?: (blockId: string) => void;
   /** Called on escape */
   onEscape?: () => void;
   /** Read-only mode */
@@ -89,6 +92,8 @@ export function BlockPlugin({
   onBlockDelete,
   onIndent,
   onOutdent,
+  onMoveUp,
+  onMoveDown,
   // onEscape is handled by KeyboardSelectionPlugin (COMMAND_PRIORITY_HIGH)
   onEscape: _onEscape,
   readOnly = false,
@@ -724,6 +729,66 @@ export function BlockPlugin({
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly, onIndent, onOutdent]);
+
+  // ─── Alt+Shift+Up/Down: move block up/down ────────────────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleMoveUpKey = (event: KeyboardEvent) => {
+      // Only handle Alt+Shift+ArrowUp
+      if (!event.altKey || !event.shiftKey) return false;
+      
+      // Command handlers run inside a Lexical state context —
+      // call $getSelection() directly (NOT inside editor.read()).
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+
+      const anchorNode = selection.anchor.getNode();
+      const blockNode = findParentNodeBlock(anchorNode);
+      if (!blockNode) return false;
+
+      const blockId = blockNode.getBlockId();
+      event.preventDefault();
+      onMoveUp?.(blockId);
+      return true;
+    };
+
+    const handleMoveDownKey = (event: KeyboardEvent) => {
+      // Only handle Alt+Shift+ArrowDown
+      if (!event.altKey || !event.shiftKey) return false;
+      
+      // Command handlers run inside a Lexical state context —
+      // call $getSelection() directly (NOT inside editor.read()).
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+
+      const anchorNode = selection.anchor.getNode();
+      const blockNode = findParentNodeBlock(anchorNode);
+      if (!blockNode) return false;
+
+      const blockId = blockNode.getBlockId();
+      event.preventDefault();
+      onMoveDown?.(blockId);
+      return true;
+    };
+
+    const unsubUp = editor.registerCommand(
+      KEY_ARROW_UP_COMMAND, 
+      handleMoveUpKey, 
+      COMMAND_PRIORITY_HIGH
+    );
+    const unsubDown = editor.registerCommand(
+      KEY_ARROW_DOWN_COMMAND, 
+      handleMoveDownKey, 
+      COMMAND_PRIORITY_HIGH
+    );
+
+    return () => {
+      unsubUp();
+      unsubDown();
+    };
+  }, [editor, readOnly, onMoveUp, onMoveDown]);
 
   // ─── Left/Right: navigate between blocks ──────────────────
 

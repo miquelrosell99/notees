@@ -318,6 +318,16 @@ export function BlockEditor({
     runtime.applyIntent({ type: 'outdent_block', blockId });
   }, [canOutdent]);
 
+  const handleMoveUp = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'move_up', blockId });
+  }, []);
+
+  const handleMoveDown = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    runtime.applyIntent({ type: 'move_down', blockId });
+  }, []);
+
   const handlePillClick = useCallback((linkId: string, _refType?: PillRefType) => {
     onNavigateToNode?.(linkId);
   }, [onNavigateToNode]);
@@ -455,6 +465,8 @@ export function BlockEditor({
           onBlockDelete={handleBlockDelete}
           onIndent={handleIndent}
           onOutdent={handleOutdent}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
           onEscape={onEscape}
           readOnly={readOnly}
           includeRoot={effectiveIncludeRoot}
