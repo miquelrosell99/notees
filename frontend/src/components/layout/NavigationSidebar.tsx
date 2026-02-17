@@ -441,18 +441,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
               className="sidebar-nav-item"
               variant="ghost"
               size="sm"
-              icon={mdiArchive}
-              fullWidth
-              active={mainViewType === 'archived'}
-              onClick={() => setMainViewType('archived')}
-            >
-              Archived
-            </Button>
-            
-            <Button 
-              className="sidebar-nav-item"
-              variant="ghost"
-              size="sm"
               icon={mdiGraphOutline}
               fullWidth
               active={mainViewType === 'graph'}
@@ -558,8 +546,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
           
         </div>
         
-        {/* Footer - Trash, Settings & Account */}
+        {/* Footer - Archived, Trash, Settings & Account */}
         <div className="sidebar-footer">
+          <Button 
+            className="sidebar-nav-item"
+            variant="ghost"
+            size="sm"
+            icon={mdiArchive}
+            fullWidth
+            onClick={() => setMainViewType('archived')}
+            active={mainViewType === 'archived'}
+            title="Archived"
+          >
+            Archived
+          </Button>
           <Button 
             className="sidebar-nav-item"
             variant="ghost"
@@ -572,20 +572,22 @@ export function Sidebar({ collapsed }: SidebarProps) {
           >
             Trash
           </Button>
-          <Button 
-            className="sidebar-nav-item"
-            variant="ghost"
-            size="sm"
-            icon={mdiCog}
-            fullWidth
-            onClick={() => setIsSettingsModalOpen(true)}
-            title="Graph Settings"
-          >
-            Settings
-          </Button>
-          <AccountMenu 
-            onOpenUserSettings={() => setIsUserSettingsOpen(true)}
-          />
+          <div className="sidebar-footer__row">
+            <Button 
+              className="sidebar-nav-item"
+              variant="ghost"
+              size="sm"
+              icon={mdiCog}
+              fullWidth
+              onClick={() => setIsSettingsModalOpen(true)}
+              title="Graph Settings"
+            >
+              Settings
+            </Button>
+            <AccountMenu 
+              onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+            />
+          </div>
         </div>
       </Card>
 

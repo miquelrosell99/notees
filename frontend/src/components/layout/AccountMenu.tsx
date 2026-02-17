@@ -4,7 +4,8 @@
  * Square button with user profile initial that shows a dropdown menu
  * with User Settings, Manage Graphs, and Log Out actions.
  */
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuthStore, useAppStore } from '@/stores';
 import { mdiCog, mdiLogout, mdiDatabaseOutline } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -19,12 +20,30 @@ interface AccountMenuProps {
 
 export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
   const { setShowDbManagement } = useAppStore();
 
-  useClickOutside(menuRef, () => setIsOpen(false));
+  useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
   useEscapeKey(() => setIsOpen(false));
+
+  // Compute portal position when opened
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom - /* menu approx height */ 0,
+      left: rect.right + 8,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen, updatePosition]);
 
   const handleUserSettings = () => {
     setIsOpen(false);
@@ -44,8 +63,9 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
   const initial = user?.username?.charAt(0).toUpperCase() || '?';
 
   return (
-    <div className="account-menu" ref={menuRef}>
+    <div className="account-menu">
       <button
+        ref={triggerRef}
         className={`account-menu__trigger ${isOpen ? 'account-menu__trigger--open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         title={user?.username || 'Account'}
@@ -53,8 +73,18 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
         <span className="account-menu__avatar">{initial}</span>
       </button>
 
-      {isOpen && (
-        <Card className="account-menu__dropdown" elevation="high" padding={false}>
+      {isOpen && menuPos && createPortal(
+        <Card
+          ref={menuRef}
+          className="account-menu__dropdown"
+          elevation="high"
+          padding={false}
+          style={{
+            position: 'fixed',
+            bottom: `${window.innerHeight - menuPos.top}px`,
+            left: `${menuPos.left}px`,
+          }}
+        >
           <div className="account-menu__user-info">
             <span className="account-menu__user-avatar">{initial}</span>
             <span className="account-menu__username">{user?.username || 'User'}</span>
@@ -73,7 +103,8 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
             <Icon path={mdiLogout} size={0.7} />
             <span>Log out</span>
           </button>
-        </Card>
+        </Card>,
+        document.body
       )}
     </div>
   );

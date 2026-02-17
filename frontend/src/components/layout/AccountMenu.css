@@ -45,11 +45,8 @@
 
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
-  position: absolute;
-  bottom: calc(100% + var(--spacing-2));
-  left: 0;
   min-width: 200px;
-  z-index: 1000;
+  z-index: 10000;
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
