@@ -51,6 +51,7 @@ import { TableBlockPlugin } from './plugins/TableBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
+import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -476,6 +477,9 @@ export function BlockEditor({
 
         {/* Paste image handler */}
         <PasteImagePlugin onPasteImage={onPasteImage} />
+
+        {/* Multi-line paste handler — creates hierarchical blocks with [[link]] and #tag resolution */}
+        <PasteBlocksPlugin onContentChange={handleContentChange} />
 
         {/* Floating toolbar */}
         <FloatingToolbarPlugin />

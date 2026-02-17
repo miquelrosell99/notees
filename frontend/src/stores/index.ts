@@ -25,6 +25,7 @@ export {
   type DateFormat,
   type DateFormatOption,
   type QuickAddDestination,
+  type HashtagPasteMode,
 } from './settingsStore';
 export {
   useFavoritesStore,

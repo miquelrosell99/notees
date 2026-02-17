@@ -33,6 +33,13 @@ export const DATE_FORMAT_OPTIONS: DateFormatOption[] = [
 
 export type QuickAddDestination = 'inbox' | 'today';
 
+/**
+ * How `#hashtag` patterns in pasted text should be interpreted:
+ * - 'inline-tag': Insert as an inline tag link (PillNode with refType 'node', is_tag=true)
+ * - 'inline-class': Insert as an inline class reference (PillNode with refType 'class')
+ */
+export type HashtagPasteMode = 'inline-tag' | 'inline-class';
+
 interface SettingsState {
   // Theme
   theme: ThemePreference;
@@ -47,6 +54,8 @@ interface SettingsState {
   quickAddDestination: QuickAddDestination;
   /** Level at which to collapse nodes in linked references (0 = disabled, 1 = collapse at level 1, 2 = at level 2, etc.) */
   linkedRefsCollapseLevel: number;
+  /** How #hashtag patterns in pasted text should be interpreted */
+  hashtagPasteMode: HashtagPasteMode;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -56,6 +65,7 @@ interface SettingsState {
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setQuickAddDestination: (destination: QuickAddDestination) => void;
   setLinkedRefsCollapseLevel: (level: number) => void;
+  setHashtagPasteMode: (mode: HashtagPasteMode) => void;
 }
 
 /**
@@ -170,6 +180,7 @@ export const useSettingsStore = create<SettingsState>()(
       fontSize: 'medium',
       quickAddDestination: 'today',
       linkedRefsCollapseLevel: 1,
+      hashtagPasteMode: 'inline-tag',
       
       // Actions
       setTheme: (theme) => {
@@ -200,7 +211,9 @@ export const useSettingsStore = create<SettingsState>()(
       setLinkedRefsCollapseLevel: (linkedRefsCollapseLevel) => {
         set({ linkedRefsCollapseLevel });
       },
-    }),
+      setHashtagPasteMode: (hashtagPasteMode) => {
+        set({ hashtagPasteMode });
+      },    }),
     {
       name: 'notees-settings',
       // Initialize theme on rehydration
