@@ -35,8 +35,8 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setMenuPos({
-      top: rect.bottom - /* menu approx height */ 0,
-      left: rect.right + 8,
+      top: rect.bottom + 8,
+      left: rect.right,
     });
   }, []);
 
@@ -84,8 +84,8 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
           padding={false}
           style={{
             position: 'fixed',
-            bottom: `${window.innerHeight - menuPos.top}px`,
-            left: `${menuPos.left}px`,
+            top: `${menuPos.top}px`,
+            right: `${window.innerWidth - menuPos.left}px`,
           }}
         >
           <div className="account-menu__user-info">
