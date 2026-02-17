@@ -149,8 +149,8 @@ interface NodesState {
   setLateNightThoughtsFilter: (enabled: boolean) => void;
   
   // Per-node view mode actions
-  setNodeViewMode: (nodeId: number, mode: NodeCollectionViewMode) => void;
-  getNodeViewMode: (nodeId: number) => NodeCollectionViewMode | undefined;
+  setNodeViewMode: (nodeId: number, viewType: string, mode: NodeCollectionViewMode) => void;
+  getNodeViewMode: (nodeId: number, viewType: string) => NodeCollectionViewMode | undefined;
 }
 
 export const useAppStore = create<NodesState>()(persist((set, get) => ({
@@ -372,10 +372,10 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   setLateNightThoughtsFilter: (enabled) => set({ lateNightThoughtsFilter: enabled }),
   
   // Per-node view mode actions
-  setNodeViewMode: (nodeId, mode) => set((state) => ({
-    nodeViewModes: { ...state.nodeViewModes, [nodeId]: mode }
+  setNodeViewMode: (nodeId, viewType, mode) => set((state) => ({
+    nodeViewModes: { ...state.nodeViewModes, [`${nodeId}-${viewType}`]: mode }
   })),
-  getNodeViewMode: (nodeId) => get().nodeViewModes[nodeId],
+  getNodeViewMode: (nodeId, viewType) => get().nodeViewModes[`${nodeId}-${viewType}`],
 }), {
   name: 'notees-node-view-modes',
   partialize: (state) => ({ 
