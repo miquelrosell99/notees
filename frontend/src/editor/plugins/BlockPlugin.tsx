@@ -31,6 +31,8 @@ import {
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
+  MOVE_TO_START,
+  MOVE_TO_END,
   $createLineBreakNode,
 } from 'lexical';
 
@@ -457,6 +459,33 @@ export function BlockPlugin({
 
         const runtime = getNodeGraphRuntime();
         const newBlockId = crypto.randomUUID();
+
+        // Special case: Enter at offset 0 should create a new empty block BEFORE current
+        // (keeping current block unchanged with its UUID, content, links, etc.)
+        if (cursorOffset === 0 && !(includeRoot && blockId === rootBlockId)) {
+          const currentNode = runtime.getNode(blockId);
+          if (currentNode && currentNode.parentId) {
+            const siblings = runtime.getChildren(currentNode.parentId);
+            const currentIndex = siblings.findIndex(s => s.blockId === blockId);
+            const prevSiblingId = currentIndex > 0 ? siblings[currentIndex - 1].blockId : null;
+
+            // Create empty block before current
+            runtime.applyIntent({
+              type: 'create_block',
+              parentId: currentNode.parentId,
+              afterBlockId: prevSiblingId,
+              blockId: newBlockId,
+              contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+            });
+            
+            // Keep focus on current block (not the new one)
+            runtime.requestFocus(blockId);
+            runtime.flushEvents();
+            return true;
+          }
+        }
+
+        // Normal case: split block or create child
         runtime.requestFocus(newBlockId);
 
         if (includeRoot && blockId === rootBlockId) {
@@ -835,6 +864,108 @@ export function BlockPlugin({
     return () => {
       unsubUp();
       unsubDown();
+    };
+  }, [editor]);
+
+  // ─── Home/End: navigate to first/last block ───────────────────
+
+  useEffect(() => {
+    const handleMoveToStart = (event: KeyboardEvent) => {
+      // Command handlers run inside a Lexical state context —
+      // call $getSelection() directly (NOT inside editor.read()).
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+      if (!selection.isCollapsed()) return false;
+
+      const anchor = selection.anchor;
+      const anchorNode = anchor.getNode();
+      const blockNode = findParentNodeBlock(anchorNode);
+      if (!blockNode) return false;
+
+      // Check if cursor is at the start of the block
+      const isAtBlockStart = (() => {
+        if (anchor.type === 'text') {
+          const firstDescendant = blockNode.getFirstDescendant();
+          return anchorNode === firstDescendant && anchor.offset === 0;
+        } else {
+          return anchorNode === blockNode && anchor.offset === 0;
+        }
+      })();
+
+      // If not at start of current block, let default behavior move to start of current block
+      if (!isAtBlockStart) return false;
+
+      // If already at start of current block, jump to first block
+      const root = $getRoot();
+      const children = root.getChildren();
+      if (children.length === 0) return false;
+
+      const firstBlock = children[0];
+      if (!$isBlockNode(firstBlock)) return false;
+      if (firstBlock === blockNode) return true; // Already at first block
+
+      event.preventDefault();
+      editor.update(() => {
+        const firstChild = firstBlock.getFirstDescendant();
+        if (firstChild) {
+          firstChild.selectStart();
+        }
+      });
+
+      return true;
+    };
+
+    const handleMoveToEnd = (event: KeyboardEvent) => {
+      // Command handlers run inside a Lexical state context —
+      // call $getSelection() directly (NOT inside editor.read()).
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+      if (!selection.isCollapsed()) return false;
+
+      const anchor = selection.anchor;
+      const anchorNode = anchor.getNode();
+      const blockNode = findParentNodeBlock(anchorNode);
+      if (!blockNode) return false;
+
+      // Check if cursor is at the end of the block
+      const isAtBlockEnd = (() => {
+        if (anchor.type === 'text') {
+          const lastDescendant = blockNode.getLastDescendant();
+          return anchorNode === lastDescendant && anchor.offset >= anchorNode.getTextContentSize();
+        } else {
+          return anchorNode === blockNode && anchor.offset >= blockNode.getChildrenSize();
+        }
+      })();
+
+      // If not at end of current block, let default behavior move to end of current block
+      if (!isAtBlockEnd) return false;
+
+      // If already at end of current block, jump to last block
+      const root = $getRoot();
+      const children = root.getChildren();
+      if (children.length === 0) return false;
+
+      const lastBlock = children[children.length - 1];
+      if (!$isBlockNode(lastBlock)) return false;
+      if (lastBlock === blockNode) return true; // Already at last block
+
+      event.preventDefault();
+      editor.update(() => {
+        const lastChild = lastBlock.getLastDescendant();
+        if (lastChild) {
+          lastChild.selectEnd();
+        }
+      });
+
+      return true;
+    };
+
+    const unsubHome = editor.registerCommand(MOVE_TO_START, handleMoveToStart, COMMAND_PRIORITY_NORMAL);
+    const unsubEnd = editor.registerCommand(MOVE_TO_END, handleMoveToEnd, COMMAND_PRIORITY_NORMAL);
+
+    return () => {
+      unsubHome();
+      unsubEnd();
     };
   }, [editor]);
 
