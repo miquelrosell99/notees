@@ -365,6 +365,17 @@ export class BlockNode extends ElementNode {
       dom.appendChild(tablePreview);
     }
 
+    // ── Query preview container ────────────────────────────────
+    // Non-editable portal target for QueryBlockPlugin to render
+    // query results below the block content.
+    if (this.__nodeType === 'query') {
+      const queryPreview = document.createElement('div');
+      queryPreview.className = 'node-block-query-preview';
+      queryPreview.contentEditable = 'false';
+      setDOMUnmanaged(queryPreview);
+      dom.appendChild(queryPreview);
+    }
+
     return dom;
   }
 
@@ -421,6 +432,18 @@ export class BlockNode extends ElementNode {
         dom.appendChild(tablePreview);
       } else if (this.__nodeType !== 'table' && existingTable) {
         existingTable.remove();
+      }
+
+      // Add/remove query preview container when type changes
+      const existingQuery = dom.querySelector('.node-block-query-preview');
+      if (this.__nodeType === 'query' && !existingQuery) {
+        const queryPreview = document.createElement('div');
+        queryPreview.className = 'node-block-query-preview';
+        queryPreview.contentEditable = 'false';
+        setDOMUnmanaged(queryPreview);
+        dom.appendChild(queryPreview);
+      } else if (this.__nodeType !== 'query' && existingQuery) {
+        existingQuery.remove();
       }
     }
 
