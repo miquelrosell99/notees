@@ -4,7 +4,7 @@
  * Fullscreen view for managing workspaces. Shown when user has no workspaces
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   listWorkspaces, 
@@ -13,11 +13,12 @@ import {
   renameWorkspace,
   getWorkspaceExportUrl,
   importWorkspace,
+  restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
-import { ImportOptionsModal } from '../components/workspace/ImportOptionsModal';
+import { ImportOptionsModal, type ImportType } from '../components/workspace/ImportOptionsModal';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
@@ -28,13 +29,11 @@ import {
   EditIcon,
 } from '../components/core/icons';
 import Icon from '@mdi/react';
-import { mdiExport, mdiCogOutline } from '@mdi/js';
+import { mdiExport, mdiCogOutline, mdiBackupRestore } from '@mdi/js';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import './WorkspaceManagementView.css';
-
-type ImportType = 'sqlite' | 'zip';
 
 interface WorkspaceManagementViewProps {
   /** Called when a workspace is selected/activated */
@@ -65,6 +64,13 @@ export function WorkspaceManagementView({
   }>({ isOpen: false, workspaceName: null });
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [restoreState, setRestoreState] = useState<{
+    confirming: string | null; // workspace uuid being confirmed
+    file: File | null;
+  }>({ confirming: null, file: null });
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
 
@@ -159,6 +165,32 @@ export function WorkspaceManagementView({
     },
   });
 
+  // Restore mutation
+  const restoreMutation = useMutation({
+    mutationFn: ({ uuid, file }: { uuid: string; file: File }) => restoreWorkspace(uuid, file),
+    onSuccess: () => {
+      // Clear all cached data since workspace content has changed
+      queryClient.removeQueries({ queryKey: ['nodes'] });
+      queryClient.removeQueries({ queryKey: ['graph'] });
+      queryClient.removeQueries({ queryKey: ['assets'] });
+      queryClient.removeQueries({ queryKey: ['properties'] });
+      queryClient.removeQueries({ queryKey: ['property-nodes'] });
+      queryClient.removeQueries({ queryKey: ['page'] });
+      queryClient.removeQueries({ queryKey: ['trash'] });
+      queryClient.removeQueries({ queryKey: ['archived-pages'] });
+      queryClient.removeQueries({ queryKey: ['nodeViews'] });
+      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
+      queryClient.removeQueries({ queryKey: ['textLinks'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      setRestoreState({ confirming: null, file: null });
+      setRestoreError(null);
+    },
+    onError: (err: Error) => {
+      setRestoreError(err.message || 'Failed to restore workspace');
+      setRestoreState({ confirming: null, file: null });
+    },
+  });
+
   // Handle successful workspace creation from modal
   const handleWorkspaceCreated = async (newWorkspace: WorkspaceInfo) => {
     // Auto-switch to the new workspace
@@ -216,6 +248,37 @@ export function WorkspaceManagementView({
 
   const handleExport = (name: string) => {
     window.open(getWorkspaceExportUrl(name), '_blank');
+  };
+
+  // Handle restore: open file picker for a specific workspace
+  const handleRestoreClick = (workspaceUuid: string) => {
+    restoreTargetRef.current = workspaceUuid;
+    restoreInputRef.current?.click();
+  };
+
+  // Handle restore file selection
+  const handleRestoreFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const uuid = restoreTargetRef.current;
+    if (file && uuid) {
+      setRestoreState({ confirming: uuid, file });
+      setRestoreError(null);
+    }
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  // Confirm restore
+  const handleRestoreConfirm = () => {
+    if (restoreState.confirming && restoreState.file) {
+      restoreMutation.mutate({ uuid: restoreState.confirming, file: restoreState.file });
+    }
+  };
+
+  // Cancel restore
+  const handleRestoreCancel = () => {
+    setRestoreState({ confirming: null, file: null });
+    setRestoreError(null);
   };
 
   const workspaces = data?.workspaces || [];
@@ -329,6 +392,15 @@ export function WorkspaceManagementView({
                       >
                         <Icon path={mdiExport} size={0.7} />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRestoreClick(workspace.uuid)}
+                        title="Restore from dump"
+                        disabled={restoreMutation.isPending}
+                      >
+                        <Icon path={mdiBackupRestore} size={0.7} />
+                      </Button>
                       {deleteConfirm === workspace.name ? (
                         <>
                           <Button
@@ -370,6 +442,34 @@ export function WorkspaceManagementView({
                     </div>
                   </div>
                   <div className="workspace-management__card-content">
+                    {restoreState.confirming === workspace.uuid && (
+                      <div className="workspace-management__restore-confirm">
+                        <span className="workspace-management__restore-warn">
+                          Restore from <strong>{restoreState.file?.name}</strong>? This will replace ALL data in this workspace.
+                        </span>
+                        {restoreError && (
+                          <span className="workspace-management__restore-error">{restoreError}</span>
+                        )}
+                        <div className="workspace-management__restore-actions">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={handleRestoreConfirm}
+                            disabled={restoreMutation.isPending}
+                          >
+                            {restoreMutation.isPending ? 'Restoring...' : 'Confirm Restore'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRestoreCancel}
+                            disabled={restoreMutation.isPending}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="workspace-management__card-meta">
                       <span>Created {formatDate(workspace.created_at)}</span>
                       <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
@@ -385,6 +485,15 @@ export function WorkspaceManagementView({
         <footer className="workspace-management__footer">
           <p>Notees - Your personal knowledge base</p>
         </footer>
+
+        {/* Hidden file input for restore */}
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept=".json"
+          style={{ display: 'none' }}
+          onChange={handleRestoreFileSelected}
+        />
       </div>
 
       {/* Create Workspace Modal */}
@@ -406,10 +515,7 @@ export function WorkspaceManagementView({
         isOpen={importNameModalState.isOpen}
         onClose={handleImportNameModalClose}
         onSubmit={handleImportNameSubmit}
-        title={importNameModalState.type === 'zip' 
-          ? 'Name Your Imported Workspace' 
-          : 'Name Your Imported Workspace'
-        }
+        title="Name Your Imported Workspace"
         submitLabel="Import Workspace"
         isLoading={importMutation.isPending}
         error={importError}
