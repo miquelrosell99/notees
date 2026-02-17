@@ -461,6 +461,12 @@
   margin-top: auto;
 }
 
+.sidebar-footer__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
 .new-page-btn {
   width: 100%;
 }
