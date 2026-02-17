@@ -14,8 +14,6 @@ import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTr
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
-import { UserSettingsModal } from './UserSettingsModal';
-import { AccountMenu } from './AccountMenu';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
@@ -161,7 +159,6 @@ function SortableFavoriteItem({
 export function Sidebar({ collapsed }: SidebarProps) {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [favoritesExpanded, setFavoritesExpanded] = useState(true);
   const [recentsExpanded, setRecentsExpanded] = useState(true);
   const [contextMenuNode, setContextMenuNode] = useState<number | null>(null);
@@ -572,22 +569,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
           >
             Trash
           </Button>
-          <div className="sidebar-footer__row">
-            <Button 
-              className="sidebar-nav-item"
-              variant="ghost"
-              size="sm"
-              icon={mdiCog}
-              fullWidth
-              onClick={() => setIsSettingsModalOpen(true)}
-              title="Graph Settings"
-            >
-              Settings
-            </Button>
-            <AccountMenu 
-              onOpenUserSettings={() => setIsUserSettingsOpen(true)}
-            />
-          </div>
+          <Button 
+            className="sidebar-nav-item"
+            variant="ghost"
+            size="sm"
+            icon={mdiCog}
+            fullWidth
+            onClick={() => setIsSettingsModalOpen(true)}
+            title="Graph Settings"
+          >
+            Settings
+          </Button>
         </div>
       </Card>
 
@@ -599,10 +591,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-      />
-      <UserSettingsModal
-        isOpen={isUserSettingsOpen}
-        onClose={() => setIsUserSettingsOpen(false)}
       />
       
       {/* Context Menu for favorites and recents */}
