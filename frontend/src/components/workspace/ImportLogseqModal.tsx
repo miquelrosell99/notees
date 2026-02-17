@@ -749,17 +749,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       queryClient.invalidateQueries({ queryKey: nodeKeys.all });
       queryClient.invalidateQueries({ queryKey: propertyKeys.all });
 
-      // Single-page import: navigate directly to the page and close
-      if (parsed.pages.length === 1 && totalFailed === 0) {
-        const singlePage = parsed.pages[0];
-        const info = singlePage.uuid ? uuidMap.get(singlePage.uuid) : titleToNodeInfo.get(singlePage.title);
-        if (info) {
-          openNode(info.id);
-          onClose();
-          return;
-        }
-      }
-
       setReport({ phases, totalSucceeded, totalFailed });
       setImportStatus('');
     } catch (e) {
