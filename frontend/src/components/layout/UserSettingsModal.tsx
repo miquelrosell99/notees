@@ -104,11 +104,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
         <div className="settings-modal__content">
           {activeTab === 'preferences' && (
             <div className="settings-section">
-              <h3 className="settings-section__title">User Preferences</h3>
-              <p className="settings-section__subtitle">
-                These settings apply to your account across all graphs.
-              </p>
-
               <div className="settings-item">
                 <div className="settings-item__info">
                   <label className="settings-item__label">Theme</label>
