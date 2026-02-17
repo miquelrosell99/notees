@@ -18,7 +18,7 @@ import { JournalsView } from '../../views/JournalsView';
 import { AllPagesGraphView } from '../../views/AllPagesGraphView';
 import { AllPagesTerrainView } from '../../views/AllPagesTerrainView';
 import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
-import { PropertyViewWrapper, PropertyViewContent } from '../../views/PropertyView';
+import { PropertyViewFull } from '../../views/PropertyView';
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
@@ -113,18 +113,11 @@ export function MainContent() {
   if (mainViewType === 'property' && currentPropertyId) {
     return (
       <div className="main-content-wrapper">
-        <PropertyViewWrapper
+        <PropertyViewFull
           propertyId={currentPropertyId}
           onNavigateToNode={(nodeId) => openNode(nodeId)}
           onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
         />
-        <main className="main-content">
-          <PropertyViewContent
-            propertyId={currentPropertyId}
-            onNavigateToNode={(nodeId) => openNode(nodeId)}
-            onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
-          />
-        </main>
       </div>
     );
   }

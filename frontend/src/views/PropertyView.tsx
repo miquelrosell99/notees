@@ -314,6 +314,7 @@ export function PropertyView({
       <PropertyConfigSection
         property={property}
         onUpdate={handlePropertyUpdate}
+        onDelete={() => openNode(1)}
       />
       
       {/* Nodes with this property */}
@@ -401,6 +402,20 @@ export function PropertyViewWrapper(props: PropertyViewProps) {
 export function PropertyViewContent(props: PropertyViewProps) {
   const { content } = PropertyView(props);
   return content;
+}
+
+/**
+ * PropertyViewFull - Renders both header and content from a single PropertyView call
+ * so that all state (e.g. delete modal) is shared between header and content.
+ */
+export function PropertyViewFull(props: PropertyViewProps) {
+  const { header, content } = PropertyView(props);
+  return (
+    <>
+      {header}
+      {content}
+    </>
+  );
 }
 
 export default PropertyView;
