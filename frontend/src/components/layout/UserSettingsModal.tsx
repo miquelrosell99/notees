@@ -8,8 +8,10 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
+import { SelectionButton } from '../core/SelectionButton';
 import { Separator } from '../core/Separator';
 import './UserSettingsModal.css';
 
@@ -111,35 +113,16 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     Choose your preferred color theme
                   </p>
                 </div>
-                <div className="settings-theme-buttons">
-                  <Button
-                    className="settings-theme-btn"
-                    variant={theme === 'light' ? 'default' : 'ghost'}
-                    size="sm"
-                    active={theme === 'light'}
-                    onClick={() => handleThemeChange('light')}
-                  >
-                    Light
-                  </Button>
-                  <Button
-                    className="settings-theme-btn"
-                    variant={theme === 'dark' ? 'default' : 'ghost'}
-                    size="sm"
-                    active={theme === 'dark'}
-                    onClick={() => handleThemeChange('dark')}
-                  >
-                    Dark
-                  </Button>
-                  <Button
-                    className="settings-theme-btn"
-                    variant={theme === 'system' ? 'default' : 'ghost'}
-                    size="sm"
-                    active={theme === 'system'}
-                    onClick={() => handleThemeChange('system')}
-                  >
-                    System
-                  </Button>
-                </div>
+                <SelectionButton
+                  options={[
+                    { value: 'light', icon: mdiWeatherSunny, label: 'Light theme' },
+                    { value: 'dark', icon: mdiWeatherNight, label: 'Dark theme' },
+                    { value: 'system', icon: mdiMonitor, label: 'System theme' },
+                  ]}
+                  value={theme}
+                  onChange={(value) => handleThemeChange(value as ThemePreference)}
+                  size="md"
+                />
               </div>
 
               <div className="settings-item">
