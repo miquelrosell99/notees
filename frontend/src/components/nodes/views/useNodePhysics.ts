@@ -1356,8 +1356,13 @@ export function useNodePhysics({
           const sfx = (dx / dist) * netForce;
           const sfy = (dy / dist) * netForce;
           
+          // Repulsion compensation: cancel Barnes-Hut repulsion between linked
+          // pairs so the spring alone determines their equilibrium distance.
+          // Only applied when dist >= restDist — below the rest distance we let
+          // the natural BH repulsion push nodes apart, preventing linked nodes
+          // (especially children) from crowding their parents.
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
-          if (dist < UNLINKED_REPULSION_DISTANCE) {
+          if (dist >= restDist && dist < UNLINKED_REPULSION_DISTANCE) {
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
             const dirX = dx / dist;
