@@ -5,13 +5,14 @@
  * new workspaces and naming imported workspaces.
  */
 import { useState, useEffect } from 'react';
-import './WorkspaceModal.css';
 import { useQuery } from '@tanstack/react-query';
 import { checkWorkspaceName } from '@/api/workspaces';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
+import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
 
 interface WorkspaceNameModalProps {
   isOpen: boolean;
@@ -84,99 +85,57 @@ export function WorkspaceNameModal({
     onSubmit(name.trim());
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
-  if (!isOpen) return null;
-
   const nameIsValid = name.length >= 2 && nameCheck?.available !== false;
 
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="workspace-modal">
-        <div className="workspace-modal__header">
-          <h2 className="workspace-modal__title">{title}</h2>
-          <Button icon={mdiClose} iconOnly className="workspace-modal__close" onClick={handleClose} size="sm" variant="ghost" aria-label="Close dialog" />
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={title}
+      size="sm"
+      footer={
+        <>
+          <Button type="button" variant="default" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading || !nameIsValid}
+            onClick={handleSubmit}
+          >
+            {isLoading ? 'Processing...' : submitLabel}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        <TextField
+          label="Workspace Name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="my-notes"
+          autoFocus
+          error={name.length >= 2 && nameCheck?.available === false}
+          errorMessage={name.length >= 2 && nameCheck?.available === false ? 'This name is already taken' : undefined}
+          containerClassName={name.length >= 2 && nameCheck?.available && !isCheckingName ? 'text-field__container--valid' : ''}
+          icon={
+            isCheckingName ? (
+              <SyncIcon size="xs" />
+            ) : name.length >= 2 ? (
+              <Icon path={nameCheck?.available ? mdiCheck : mdiClose} size={0.6} />
+            ) : undefined
+          }
+        />
 
-        <form className="workspace-modal__form" onSubmit={handleSubmit}>
-          <div className="workspace-modal__field">
-            <label className="workspace-modal__label">Workspace Name</label>
-            <div className="workspace-modal__input-wrapper">
-              <input
-                type="text"
-                className={`workspace-modal__input ${
-                  name.length >= 2 
-                    ? nameCheck?.available === false 
-                      ? 'workspace-modal__input--error' 
-                      : 'workspace-modal__input--valid'
-                    : ''
-                }`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="my-notes"
-                autoFocus
-              />
-              {isCheckingName && (
-                <span className="workspace-modal__input-status workspace-modal__input-status--loading">
-                  <SyncIcon size="xs" />
-                </span>
-              )}
-              {!isCheckingName && name.length >= 2 && (
-                <span className={`workspace-modal__input-status ${
-                  nameCheck?.available 
-                    ? 'workspace-modal__input-status--valid' 
-                    : 'workspace-modal__input-status--error'
-                }`}>
-                  {nameCheck?.available 
-                    ? <Icon path={mdiCheck} size={0.6} /> 
-                    : <Icon path={mdiClose} size={0.6} />
-                  }
-                </span>
-              )}
-            </div>
-            {name.length >= 2 && nameCheck?.available === false && (
-              <p className="workspace-modal__field-error">
-                This name is already taken
-              </p>
-            )}
+        {error && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', padding: 'var(--spacing-3)', background: 'var(--color-error-container)', borderRadius: 'var(--radius-sm)', color: 'var(--color-error)', fontSize: '0.875rem', marginTop: 'var(--spacing-3)' }}>
+            <AlertIcon size="sm" /> {error}
           </div>
-
-          {error && (
-            <div className="workspace-modal__error">
-              <AlertIcon size="sm" /> {error}
-            </div>
-          )}
-
-          <div className="workspace-modal__actions">
-            <Button
-              type="button"
-              variant="default"
-              onClick={handleClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isLoading || !nameIsValid}
-            >
-              {isLoading ? (
-                <>
-                  <span className="workspace-modal__spinner" />
-                  Processing...
-                </>
-              ) : (
-                submitLabel
-              )}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </Modal>
   );
 }
 

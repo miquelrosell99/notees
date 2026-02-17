@@ -304,7 +304,8 @@ async def delete_workspace(user_id: str, name: str) -> bool:
 async def export_workspace(user_id: str, name: str) -> Path:
     """Export a workspace to a JSON file.
     
-    Exports all nodes, links, and properties in the workspace.
+    Exports all nodes, links, properties, property values, class definitions,
+    node views, and settings in the workspace.
     
     Args:
         user_id: User ID
@@ -316,94 +317,30 @@ async def export_workspace(user_id: str, name: str) -> Path:
     Raises:
         ValueError: If user or workspace not found
     """
-    import json
-    
-    numeric_user_id = await _get_numeric_user_id(user_id)
-    if not numeric_user_id:
-        raise ValueError(f"User not found: {user_id}")
-    
-    async with get_connection() as conn:
-        # Find workspace
-        workspace = await conn.fetchrow(
-            """
-            SELECT g.id, g.uuid, g.name 
-            FROM workspace g
-            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
-            WHERE g.name = $2 AND g.active = TRUE
-              AND (g.create_uid = $1 OR gs.user_id = $1)
-            """,
-            numeric_user_id, name
-        )
-        if not workspace:
-            raise ValueError(f"Workspace '{name}' not found")
-        
-        workspace_id = workspace['id']
-        
-        # Fetch nodes
-        nodes = await conn.fetch(
-            """
-            SELECT uuid, name, icon, color, parent_id, page_id, sequence,
-                   collapsed, active, version, is_class, is_page, is_day,
-                   is_month, is_year, is_asset, is_template, is_comment,
-                   classes_path, open_date, create_date, write_date, aliased_id
-            FROM node WHERE workspace_id = $1
-            """,
-            workspace_id
-        )
-        
-        # Fetch links
-        links = await conn.fetch(
-            """
-            SELECT nl.uuid, nl.source_id, nl.target_id, nl.is_tag, nl.position
-            FROM node_link nl
-            WHERE nl.workspace_id = $1
-            """,
-            workspace_id
-        )
-        
-        # Fetch properties
-        properties = await conn.fetch(
-            """
-            SELECT uuid, name, icon, type, is_multi, is_system
-            FROM property WHERE workspace_id = $1 OR workspace_id IS NULL
-            """,
-            workspace_id
-        )
-        
-        export_data = {
-            "version": 2,
-            "workspace": {"uuid": str(workspace['uuid']), "name": workspace['name']},
-            "nodes": [dict(row) for row in nodes],
-            "links": [dict(row) for row in links],
-            "properties": [dict(row) for row in properties],
-        }
-        
-        # Create export directory
-        export_dir = DATA_DIR / "users" / user_id / "export"
-        export_dir.mkdir(parents=True, exist_ok=True)
-        export_path = export_dir / f"{name}_export.json"
-        
-        with open(export_path, 'w') as f:
-            json.dump(export_data, f, default=str, indent=2)
-        
-        return export_path
+    from .workspace_io import export_workspace_to_file
+    return await export_workspace_to_file(user_id, name)
 
 
 async def import_workspace(user_id: str, file_path: Path, name: str) -> Dict[str, Any]:
-    """Import a workspace from a JSON file.
+    """Import a workspace from a JSON dump file.
     
-    Currently creates an empty workspace - full import not implemented.
+    Creates a new workspace with all UUIDs remapped to new unique values.
     
     Args:
         user_id: User ID
-        file_path: Path to import file
+        file_path: Path to the JSON dump file
         name: Name for the new workspace
         
     Returns:
-        Dict with new workspace info
+        Dict with new workspace info and import stats
     """
-    logger.warning(f"Import not fully implemented - creating empty workspace '{name}'")
-    return await create_workspace(user_id, name)
+    import json
+    from .workspace_io import import_dump_to_new_workspace
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        dump_data = json.load(f)
+    
+    return await import_dump_to_new_workspace(user_id, dump_data, name)
 
 
 async def export_nodes(

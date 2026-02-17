@@ -1,17 +1,16 @@
 /**
  * ImportOptionsModal Component
  * 
- * Modal that displays import options for workspaces:
- * - Import db.sqlite file
- * - Import zip file with db.sqlite and assets folder
+ * Modal for importing workspaces from JSON dump files.
+ * The dump file is produced by the workspace export feature.
  */
 import { useRef } from 'react';
-import './ImportOptionsModal.css';
 import Icon from '@mdi/react';
-import { mdiClose, mdiDatabaseImport, mdiFolderZipOutline } from '@mdi/js';
+import { mdiDatabaseImport } from '@mdi/js';
+import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 
-type ImportType = 'sqlite' | 'zip';
+type ImportType = 'json';
 
 interface ImportOptionsModalProps {
   isOpen: boolean;
@@ -20,109 +19,51 @@ interface ImportOptionsModalProps {
 }
 
 export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOptionsModalProps) {
-  const sqliteInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const handleJsonClick = () => {
+    jsonInputRef.current?.click();
   };
 
-  const handleSqliteClick = () => {
-    sqliteInputRef.current?.click();
-  };
-
-  const handleZipClick = () => {
-    zipInputRef.current?.click();
-  };
-
-  const handleSqliteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleJsonChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onSelectOption('sqlite', file);
-      // Reset input so same file can be selected again
+      onSelectOption('json', file);
       e.target.value = '';
     }
   };
-
-  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onSelectOption('zip', file);
-      // Reset input so same file can be selected again
-      e.target.value = '';
-    }
-  };
-
-  if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="import-options-modal">
-        <div className="import-options-modal__header">
-          <h2 className="import-options-modal__title">Import Workspace</h2>
-          <Button icon={mdiClose} iconOnly className="import-options-modal__close" onClick={onClose} size="sm" variant="ghost" aria-label="Close import dialog" />
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Import Workspace"
+      size="sm"
+    >
+      <p style={{ margin: '0 0 var(--spacing-4) 0', color: 'var(--color-on-surface-variant)', fontSize: '0.875rem' }}>
+        Import a workspace from a JSON dump file. All data will be assigned
+        new identifiers so the imported workspace is independent from the original.
+      </p>
 
-        <div className="import-options-modal__content">
-          <p className="import-options-modal__description">
-            Choose how you want to import your workspace:
-          </p>
+      <Button
+        variant="default"
+        onClick={handleJsonClick}
+        style={{ width: '100%', justifyContent: 'flex-start', gap: 'var(--spacing-3)' }}
+      >
+        <Icon path={mdiDatabaseImport} size={0.9} />
+        Select JSON Dump File
+      </Button>
 
-          <div className="import-options-modal__options">
-            <Button 
-              className="import-options-modal__option"
-              variant="ghost"
-              onClick={handleSqliteClick}
-            >
-              <div className="import-options-modal__option-icon">
-                <Icon path={mdiDatabaseImport} size={1.5} />
-              </div>
-              <div className="import-options-modal__option-content">
-                <span className="import-options-modal__option-title">Import db.sqlite</span>
-                <span className="import-options-modal__option-desc">
-                  Import a SQLite database file only
-                </span>
-              </div>
-            </Button>
-
-            <Button 
-              className="import-options-modal__option"
-              variant="ghost"
-              onClick={handleZipClick}
-            >
-              <div className="import-options-modal__option-icon">
-                <Icon path={mdiFolderZipOutline} size={1.5} />
-              </div>
-              <div className="import-options-modal__option-content">
-                <span className="import-options-modal__option-title">Import ZIP archive</span>
-                <span className="import-options-modal__option-desc">
-                  Import a ZIP file containing db.sqlite and assets folder
-                </span>
-              </div>
-            </Button>
-          </div>
-
-          {/* Hidden file inputs */}
-          <input
-            ref={sqliteInputRef}
-            type="file"
-            accept=".sqlite,.db"
-            style={{ display: 'none' }}
-            onChange={handleSqliteChange}
-          />
-          <input
-            ref={zipInputRef}
-            type="file"
-            accept=".zip"
-            style={{ display: 'none' }}
-            onChange={handleZipChange}
-          />
-        </div>
-      </div>
-    </div>
+      <input
+        ref={jsonInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={handleJsonChange}
+      />
+    </Modal>
   );
 }
 
 export default ImportOptionsModal;
+export type { ImportType };
