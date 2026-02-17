@@ -61,6 +61,12 @@
   text-transform: uppercase;
 }
 
+/* Remove gap when no blocks above (first element after section header) */
+.linked-references__pages-header--no-blocks {
+  padding-top: 0;
+  margin-top: 0;
+}
+
 /* ==================== Query Edit Modal ==================== */
 
 .query-section__edit-modal {
