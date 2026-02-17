@@ -61,6 +61,11 @@ import {
   TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
+  BH_THETA,
+  COLLISION_PADDING,
+  COLLISION_RESOLVE,
+  COLLISION_VEL_DAMPENING,
+  TANGENTIAL_OVERLAP_RESOLVE,
   LINK_TYPE_PRIORITY,
   // Helpers
   getMaxSimulationFrames,
@@ -861,6 +866,12 @@ export function useNodePhysics({
     return root;
   };
   
+  // Stable ref for buildQuadtree — prevents startSimulation from being
+  // recreated on every render (buildQuadtree is a plain function whose
+  // identity changes each render, but it only accesses refs internally).
+  const buildQuadtreeRef = useRef(buildQuadtree);
+  buildQuadtreeRef.current = buildQuadtree;
+  
   // ==================== Node Management ====================
   
   const createNode = useCallback((node: GraphNode) => {
@@ -1241,7 +1252,6 @@ export function useNodePhysics({
       
       // Barnes-Hut N-body simulation
       if (usePhysics) {
-        const THETA = 0.7;
         
         const normalizedMasses = new Map<number, number>();
         if (useMass) {
@@ -1250,7 +1260,7 @@ export function useNodePhysics({
             normalizedMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
           }
         }
-        const tree = buildQuadtree(nodes, useMass ? normalizedMasses : massCacheRef.current);
+        const tree = buildQuadtreeRef.current(nodes, useMass ? normalizedMasses : massCacheRef.current);
         
         if (tree) {
           for (let i = 0; i < nodes.length; i++) {
@@ -1276,7 +1286,7 @@ export function useNodePhysics({
               
               const cellSize = cell.x1 - cell.x0;
               
-              if (cell.nodeIdx >= 0 || (cellSize / dist) < THETA) {
+              if (cell.nodeIdx >= 0 || (cellSize / dist) < BH_THETA) {
                 if (dist < UNLINKED_REPULSION_DISTANCE) {
                   const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
                   const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * warmupMultiplier;
@@ -1373,8 +1383,8 @@ export function useNodePhysics({
             nodeA.vy += sfy / massA + compAy;
           }
           if (!nodeB.pinned) {
-            nodeB.vx -= sfx / massB - compBx;
-            nodeB.vy -= sfy / massB - compBy;
+            nodeB.vx -= sfx / massB + compBx;
+            nodeB.vy -= sfy / massB + compBy;
           }
         }
       }
@@ -1510,7 +1520,7 @@ export function useNodePhysics({
             const tangY = radialX * sign;
             
             const overlap = minGlareDist - dist;
-            const correction = overlap * 0.15;
+            const correction = overlap * TANGENTIAL_OVERLAP_RESOLVE;
             
             const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
             const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
@@ -1574,9 +1584,9 @@ export function useNodePhysics({
         }
       }
       
-      // Collision force
-      const COLLISION_PADDING = 1.05;
-      const COLLISION_STRENGTH = 1.0;
+      // Collision resolution (position-based + velocity dampening)
+      // Uses direct position correction instead of velocity impulses to
+      // prevent oscillation that would keep the simulation awake forever.
       const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
       if (!skipCollisions) {
@@ -1606,20 +1616,42 @@ export function useNodePhysics({
             const nx = dx / dist;
             const ny = dy / dist;
             
-            const impulse = overlap * COLLISION_STRENGTH;
+            // Position-based correction (no energy injection)
+            const correction = overlap * COLLISION_RESOLVE;
             
             if (aImmovable) {
-              b.vx += nx * impulse;
-              b.vy += ny * impulse;
+              b.x += nx * correction;
+              b.y += ny * correction;
             } else if (bImmovable) {
-              a.vx -= nx * impulse;
-              a.vy -= ny * impulse;
+              a.x -= nx * correction;
+              a.y -= ny * correction;
             } else {
-              const halfImpulse = impulse * 0.5;
-              a.vx -= nx * halfImpulse;
-              a.vy -= ny * halfImpulse;
-              b.vx += nx * halfImpulse;
-              b.vy += ny * halfImpulse;
+              const halfCorrection = correction * 0.5;
+              a.x -= nx * halfCorrection;
+              a.y -= ny * halfCorrection;
+              b.x += nx * halfCorrection;
+              b.y += ny * halfCorrection;
+            }
+            
+            // Dampen approaching velocity along collision normal
+            // to prevent nodes from immediately re-overlapping
+            const relVelNormal = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+            if (relVelNormal < 0) {
+              // Nodes are approaching — absorb the approaching component
+              const dampFactor = COLLISION_VEL_DAMPENING;
+              if (!aImmovable && !bImmovable) {
+                const halfAbsorb = relVelNormal * dampFactor * 0.5;
+                a.vx += nx * halfAbsorb;
+                a.vy += ny * halfAbsorb;
+                b.vx -= nx * halfAbsorb;
+                b.vy -= ny * halfAbsorb;
+              } else if (aImmovable) {
+                b.vx -= nx * relVelNormal * dampFactor;
+                b.vy -= ny * relVelNormal * dampFactor;
+              } else {
+                a.vx += nx * relVelNormal * dampFactor;
+                a.vy += ny * relVelNormal * dampFactor;
+              }
             }
           }
         }
@@ -1834,7 +1866,8 @@ export function useNodePhysics({
     };
     
     simulate();
-  }, [rebuildTopologyCache, shouldLinkBeActive, buildQuadtree]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- buildQuadtreeRef is stable
+  }, [rebuildTopologyCache, shouldLinkBeActive]);
   
   // ==================== Effects ====================
   
