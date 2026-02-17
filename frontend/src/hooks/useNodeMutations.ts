@@ -1163,6 +1163,15 @@ export function useAddClass() {
         }
       );
       
+      // Also optimistically update query results so query section list views update immediately
+      queryClient.setQueriesData<Node[]>(
+        { queryKey: nodeViewKeys.queryResults(), exact: false },
+        (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return updateNodeInTreeImmutable(old, nodeId, { classes: newClasses });
+        }
+      );
+      
       return { oldNode };
     },
     onError: (_err, { nodeId }, context) => {
@@ -1179,6 +1188,14 @@ export function useAddClass() {
             if (!old?.children) return old;
             const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: context.oldNode!.classes });
             return newChildren !== old.children ? { ...old, children: newChildren } : old;
+          }
+        );
+        // Also rollback query results
+        queryClient.setQueriesData<Node[]>(
+          { queryKey: nodeViewKeys.queryResults(), exact: false },
+          (old) => {
+            if (!old || !Array.isArray(old)) return old;
+            return updateNodeInTreeImmutable(old, nodeId, { classes: context.oldNode!.classes });
           }
         );
       }
@@ -1309,6 +1326,15 @@ export function useRemoveClass() {
         }
       );
       
+      // Also optimistically update query results so query section list views update immediately
+      queryClient.setQueriesData<Node[]>(
+        { queryKey: nodeViewKeys.queryResults(), exact: false },
+        (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return updateNodeInTreeImmutable(old, nodeId, { classes: newClasses });
+        }
+      );
+      
       return { oldNode };
     },
     onError: (_err, { nodeId }, context) => {
@@ -1325,6 +1351,14 @@ export function useRemoveClass() {
             if (!old?.children) return old;
             const newChildren = updateNodeInTreeImmutable(old.children, nodeId, { classes: context.oldNode!.classes });
             return newChildren !== old.children ? { ...old, children: newChildren } : old;
+          }
+        );
+        // Also rollback query results
+        queryClient.setQueriesData<Node[]>(
+          { queryKey: nodeViewKeys.queryResults(), exact: false },
+          (old) => {
+            if (!old || !Array.isArray(old)) return old;
+            return updateNodeInTreeImmutable(old, nodeId, { classes: context.oldNode!.classes });
           }
         );
       }
@@ -1356,6 +1390,15 @@ export function useRemoveClass() {
           if (!old?.children) return old;
           const newChildren = updateNodeInTreeImmutable(old.children, nodeId, classUpdates);
           return newChildren !== old.children ? { ...old, children: newChildren } : old;
+        }
+      );
+      
+      // Also update query results with the server-confirmed class data
+      queryClient.setQueriesData<Node[]>(
+        { queryKey: nodeViewKeys.queryResults(), exact: false },
+        (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return updateNodeInTreeImmutable(old, nodeId, classUpdates);
         }
       );
       
