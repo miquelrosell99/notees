@@ -113,7 +113,7 @@ export function getNodeColor(node: GraphNode, classColors: ClassColor[], accentC
   
   if (node.types && node.types.length > 0 && classColors.length > 0) {
     for (const classColor of classColors) {
-      if (node.types.includes(classColor.typeId)) {
+      if (node.types.includes(classColor.classId)) {
         return classColor.color;
       }
     }
@@ -143,7 +143,7 @@ export function getGlareRadius(
 /**
  * Link type to numeric id for dedup key
  */
-export function linkTypeId(t: string): number {
+export function linkclassId(t: string): number {
   switch (t) { 
     case 'parent': return 0; 
     case 'class': return 1; 

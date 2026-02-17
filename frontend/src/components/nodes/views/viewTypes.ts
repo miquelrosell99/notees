@@ -79,7 +79,7 @@ export interface GraphLink {
  * Class color configuration
  */
 export interface ClassColor {
-  typeId: number;
+  classId: number;
   className: string;
   color: string;
   order: number;
@@ -363,7 +363,7 @@ export const pairKey = (a: number, b: number): number => {
 /**
  * Convert link type to numeric id for cache keys
  */
-export const linkTypeId = (type: GraphLink['type']): number => {
+export const linkclassId = (type: GraphLink['type']): number => {
   switch (type) {
     case 'parent': return 0;
     case 'reference': return 1;
@@ -430,8 +430,8 @@ export const getNodeColor = (
   if (node.color) return node.color;
   
   // Check class colors by type ID (node.types array)
-  for (const typeId of node.types || []) {
-    const classColor = classColors.find(cc => cc.typeId === typeId);
+  for (const classId of node.types || []) {
+    const classColor = classColors.find(cc => cc.classId === classId);
     if (classColor) return classColor.color;
   }
   

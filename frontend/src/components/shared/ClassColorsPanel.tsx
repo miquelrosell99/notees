@@ -23,7 +23,7 @@ import './ClassColorsPanel.css';
 import { getClassColorPalette } from '@/components/nodes/views/viewTypes';
 
 export interface ClassColor {
-  typeId: number;
+  classId: number;
   className: string;
   color: string;
   order: number;
@@ -47,7 +47,7 @@ export function ClassColorsPanel({
   const addClassColor = (classNode: Node) => {
     const converted = nodeNameToText(classNode.name);
     const newClassColor: ClassColor = {
-      typeId: classNode.id,
+      classId: classNode.id,
       className: converted || 'Untitled',
       color: resolvedDefaults[classColors.length % resolvedDefaults.length],
       order: classColors.length,
@@ -55,14 +55,14 @@ export function ClassColorsPanel({
     onChange([...classColors, newClassColor]);
   };
 
-  const updateClassColor = (typeId: number, color: string) => {
+  const updateClassColor = (classId: number, color: string) => {
     onChange(
-      classColors.map(cc => cc.typeId === typeId ? { ...cc, color } : cc)
+      classColors.map(cc => cc.classId === classId ? { ...cc, color } : cc)
     );
   };
 
-  const removeClassColor = (typeId: number) => {
-    onChange(classColors.filter(cc => cc.typeId !== typeId));
+  const removeClassColor = (classId: number) => {
+    onChange(classColors.filter(cc => cc.classId !== classId));
   };
 
   const moveClassColor = (fromIndex: number, toIndex: number) => {
@@ -88,7 +88,7 @@ export function ClassColorsPanel({
           placeholder="Search classes to add..."
           filterFn={(node) => 
             node.is_class === true && 
-            !classColors.some(cc => cc.typeId === node.id)
+            !classColors.some(cc => cc.classId === node.id)
           }
           onSelect={addClassColor}
         />
@@ -97,7 +97,7 @@ export function ClassColorsPanel({
       <div className="class-colors-list">
         {classColors.length > 0 ? (
           <ListSortable
-            items={classColors.map(cc => ({ id: cc.typeId, ...cc }))}
+            items={classColors.map(cc => ({ id: cc.classId, ...cc }))}
             onReorder={moveClassColor}
             itemClassName="class-color-item"
             renderText={(item) => (
