@@ -62,6 +62,8 @@ export interface DropdownProps<T = string> {
   renderTrigger?: (props: { isOpen: boolean; selectedLabel: string }) => ReactNode;
   /** Custom option renderer */
   renderOption?: (option: DropdownOption<T>, isSelected: boolean) => ReactNode;
+  /** Extra content rendered next to the search input */
+  searchExtra?: ReactNode;
   /** Empty state content */
   emptyContent?: ReactNode;
   /** Additional className */
@@ -87,6 +89,7 @@ export function Dropdown<T = string>({
   errorMessage,
   renderTrigger,
   renderOption,
+  searchExtra,
   emptyContent = 'No options',
   className = '',
 }: DropdownProps<T>) {
@@ -244,6 +247,7 @@ export function Dropdown<T = string>({
                   placeholder="Search..."
                   className="dropdown-search-input"
                 />
+                {searchExtra}
               </div>
             )}
 
