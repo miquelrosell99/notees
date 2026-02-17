@@ -1216,10 +1216,12 @@ export function useNodePhysics({
         }
         
         // Phase 2 (sustained): center-of-mass drift correction.
-        // Compute the centroid of all movable nodes and nudge every node
-        // so the centroid drifts back toward the canvas center.  Because
-        // the same velocity delta is applied to every node the relative
-        // layout is not distorted — only the global drift is corrected.
+        // Compute the centroid of all movable nodes and shift every node
+        // so the centroid moves back toward the canvas center.  Applied as
+        // a direct position correction (not velocity) to avoid injecting
+        // kinetic energy that would keep nodes perpetually moving.
+        // The same delta is applied to every node so the relative layout
+        // is not distorted — only the global drift is corrected.
         {
           let comX = 0, comY = 0, count = 0;
           for (const node of nodes) {
@@ -1235,8 +1237,8 @@ export function useNodePhysics({
             const driftY = (cy - comY) * CENTER_GRAVITY_SUSTAINED;
             for (const node of nodes) {
               if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-              node.vx += driftX;
-              node.vy += driftY;
+              node.x += driftX;
+              node.y += driftY;
             }
           }
         }
@@ -1599,9 +1601,54 @@ export function useNodePhysics({
         }
       }
       
+      // Update positions
+      const velDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
+      const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
+      const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
+      for (const node of nodes) {
+        if (dragNodeRef.current?.id !== node.id && !node.pinned) {
+          const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+          if (speed > maxVel) {
+            const scale = maxVel / speed;
+            node.vx *= scale;
+            node.vy *= scale;
+          }
+          node.x += node.vx;
+          node.y += node.vy;
+          node.vx *= velDamping;
+          node.vy *= velDamping;
+          
+          if (Math.abs(node.vx) < velDeadzone) node.vx = 0;
+          if (Math.abs(node.vy) < velDeadzone) node.vy = 0;
+          
+          if (isConstrainedMode) {
+            const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
+            if (treeRadius !== undefined) {
+              const cx = dimensionsRef.current.width / 2;
+              const cy = dimensionsRef.current.height / 2;
+              const nodeToCenter_dx = node.x - cx;
+              const nodeToCenter_dy = node.y - cy;
+              const distToCenter = Math.sqrt(nodeToCenter_dx * nodeToCenter_dx + nodeToCenter_dy * nodeToCenter_dy) || 1;
+              const radialX = nodeToCenter_dx / distToCenter;
+              const radialY = nodeToCenter_dy / distToCenter;
+              const radiusError = Math.abs(distToCenter - treeRadius);
+              
+              const radialV = node.vx * radialX + node.vy * radialY;
+              node.vx -= radialV * radialX;
+              node.vy -= radialV * radialY;
+              
+              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
+              const newDist = distToCenter + (treeRadius - distToCenter) * blendRate;
+              node.x = cx + radialX * newDist;
+              node.y = cy + radialY * newDist;
+            }
+          }
+        }
+      }
+      
       // Collision resolution (position-based + velocity dampening)
-      // Uses direct position correction instead of velocity impulses to
-      // prevent oscillation that would keep the simulation awake forever.
+      // Runs AFTER velocity integration so position corrections are the
+      // final authority and aren't partially undone by node.x += node.vx.
       const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
       if (!skipCollisions) {
@@ -1667,51 +1714,6 @@ export function useNodePhysics({
                 a.vx += nx * relVelNormal * dampFactor;
                 a.vy += ny * relVelNormal * dampFactor;
               }
-            }
-          }
-        }
-      }
-      
-      // Update positions
-      const velDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
-      const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
-      const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
-      for (const node of nodes) {
-        if (dragNodeRef.current?.id !== node.id && !node.pinned) {
-          const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-          if (speed > maxVel) {
-            const scale = maxVel / speed;
-            node.vx *= scale;
-            node.vy *= scale;
-          }
-          node.x += node.vx;
-          node.y += node.vy;
-          node.vx *= velDamping;
-          node.vy *= velDamping;
-          
-          if (Math.abs(node.vx) < velDeadzone) node.vx = 0;
-          if (Math.abs(node.vy) < velDeadzone) node.vy = 0;
-          
-          if (isConstrainedMode) {
-            const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
-            if (treeRadius !== undefined) {
-              const cx = dimensionsRef.current.width / 2;
-              const cy = dimensionsRef.current.height / 2;
-              const nodeToCenter_dx = node.x - cx;
-              const nodeToCenter_dy = node.y - cy;
-              const distToCenter = Math.sqrt(nodeToCenter_dx * nodeToCenter_dx + nodeToCenter_dy * nodeToCenter_dy) || 1;
-              const radialX = nodeToCenter_dx / distToCenter;
-              const radialY = nodeToCenter_dy / distToCenter;
-              const radiusError = Math.abs(distToCenter - treeRadius);
-              
-              const radialV = node.vx * radialX + node.vy * radialY;
-              node.vx -= radialV * radialX;
-              node.vy -= radialV * radialY;
-              
-              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
-              const newDist = distToCenter + (treeRadius - distToCenter) * blendRate;
-              node.x = cx + radialX * newDist;
-              node.y = cy + radialY * newDist;
             }
           }
         }
