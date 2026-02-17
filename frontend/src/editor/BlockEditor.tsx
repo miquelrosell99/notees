@@ -48,6 +48,7 @@ import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
 import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
 import { AssetLinkImagePlugin } from './plugins/AssetLinkImagePlugin';
 import { TableBlockPlugin } from './plugins/TableBlockPlugin';
+import { QueryBlockPlugin } from './plugins/QueryBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
@@ -554,6 +555,9 @@ export function BlockEditor({
 
           {/* Table previews — renders table element on table-class blocks */}
           <TableBlockPlugin />
+
+          {/* Query previews — renders query results on query-class blocks */}
+          <QueryBlockPlugin />
         </VirtualizationPlugin>
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
