@@ -3,7 +3,7 @@
  * 
  * A sidebar card that displays a node (page or block) with full NodeView.
  * - Pages: Show page name as the card title
- * - Blocks: No title in the header (empty)
+ * - Blocks: Show "Block" as the card title
  */
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -23,8 +23,8 @@ interface SidebarCardNodeProps {
 export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodeProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
   
-  // Pages show the name, blocks show no title
-  const title = cardType === 'page' ? (nodeNameToText(node?.name) || 'Untitled') : undefined;
+  // Pages show the name, blocks show "Block"
+  const title = cardType === 'page' ? (nodeNameToText(node?.name) || 'Untitled') : 'Block';
   
   return (
     <SidebarCard
