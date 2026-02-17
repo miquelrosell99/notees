@@ -26,6 +26,7 @@
   display: flex;
   flex-direction: column;
   max-height: 90vh;
+  min-height: min-content;
   animation: modalSlideIn var(--motion-duration-medium) var(--motion-easing-decelerate);
 }
 
