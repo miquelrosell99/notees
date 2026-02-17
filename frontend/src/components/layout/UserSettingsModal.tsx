@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3 } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -207,16 +207,17 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     Auto-collapse nodes at this depth in linked references (0 = disabled)
                   </p>
                 </div>
-                <select
-                  className="settings-item__select"
-                  value={linkedRefsCollapseLevel}
-                  onChange={(e) => handleLinkedRefsCollapseLevelChange(parseInt(e.target.value, 10))}
-                >
-                  <option value="0">Disabled</option>
-                  <option value="1">Level 1</option>
-                  <option value="2">Level 2</option>
-                  <option value="3">Level 3</option>
-                </select>
+                <SelectionButton
+                  options={[
+                    { value: '0', icon: mdiCloseCircleOutline, label: 'Disabled' },
+                    { value: '1', icon: mdiNumeric1, label: 'Level 1' },
+                    { value: '2', icon: mdiNumeric2, label: 'Level 2' },
+                    { value: '3', icon: mdiNumeric3, label: 'Level 3' },
+                  ]}
+                  value={linkedRefsCollapseLevel.toString()}
+                  onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
+                  size="md"
+                />
               </div>
 
               <div className="settings-item">
