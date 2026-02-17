@@ -24,7 +24,7 @@ type SettingsTab = 'general';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const { dateFormat, linkedRefsCollapseLevel, setDateFormat, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { dateFormat, setDateFormat } = useSettingsStore();
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
@@ -126,25 +126,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {isUpdatingDateFormat && (
                     <span className="settings-item__loading">Updating...</span>
                   )}
-                </div>
-
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Linked refs collapse level</label>
-                    <p className="settings-item__description">
-                      Auto-collapse nodes at this depth in linked references (0 = disabled)
-                    </p>
-                  </div>
-                  <select 
-                    className="settings-item__select"
-                    value={linkedRefsCollapseLevel}
-                    onChange={(e) => setLinkedRefsCollapseLevel(parseInt(e.target.value, 10))}
-                  >
-                    <option value="0">Disabled</option>
-                    <option value="1">Level 1</option>
-                    <option value="2">Level 2</option>
-                    <option value="3">Level 3</option>
-                  </select>
                 </div>
 
                 <div className="settings-item">
