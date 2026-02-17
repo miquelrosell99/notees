@@ -2,19 +2,16 @@
  * WorkspaceSwitcher Component
  * 
  * Searchable dropdown for switching between graphs (workspaces).
- * Typing a non-existing name prompts the user to create a new graph.
- * Has a plus button to the right for quick graph creation.
+ * Has a plus button to the right for graph creation.
  */
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiChevronDown, mdiPlus, mdiDatabaseOutline } from '@mdi/js';
-import { listWorkspaces, switchWorkspace, createWorkspace, type WorkspaceInfo } from '@/api/workspaces';
+import { mdiPlus, mdiDatabaseOutline } from '@mdi/js';
+import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
-import { Card } from '../core/Card';
 import { Button } from '../core/Button';
-import { useClickOutside } from '@/hooks/useClickOutside';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { Dropdown, type DropdownOption } from '../core/Dropdown';
 import './WorkspaceSwitcher.css';
 
 interface WorkspaceSwitcherProps {
@@ -22,21 +19,13 @@ interface WorkspaceSwitcherProps {
 }
 
 export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ['workspaces'],
     queryFn: listWorkspaces,
     staleTime: 30000,
   });
-
-  useClickOutside(containerRef, () => { setIsOpen(false); setSearchQuery(''); });
-  useEscapeKey(() => { setIsOpen(false); setSearchQuery(''); });
 
   const clearCacheOnSwitch = useCallback(() => {
     const currentState = useAppStore.getState();
@@ -75,93 +64,48 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     mutationFn: switchWorkspace,
     onSuccess: () => {
       clearCacheOnSwitch();
-      setIsOpen(false);
-      setSearchQuery('');
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: createWorkspace,
-    onSuccess: async (newWorkspace: WorkspaceInfo) => {
-      await switchMutation.mutateAsync(newWorkspace.uuid);
-    },
-  });
-
-  const filteredWorkspaces = useMemo(() => {
+  // Convert workspaces to dropdown options
+  const options: DropdownOption<string>[] = useMemo(() => {
     if (!data?.workspaces) return [];
-    if (!searchQuery.trim()) return data.workspaces;
-    const q = searchQuery.toLowerCase();
-    return data.workspaces.filter(w => w.name.toLowerCase().includes(q));
-  }, [data?.workspaces, searchQuery]);
+    return data.workspaces.map(w => ({
+      value: w.uuid,
+      label: w.name,
+      icon: mdiDatabaseOutline,
+    }));
+  }, [data?.workspaces]);
 
-  const showCreateOption = useMemo(() => {
-    if (!searchQuery.trim()) return false;
-    const q = searchQuery.trim().toLowerCase();
-    return !data?.workspaces?.some(w => w.name.toLowerCase() === q);
-  }, [searchQuery, data?.workspaces]);
+  const handleChange = useCallback((value: string | null) => {
+    if (!value || value === data?.active) return;
+    switchMutation.mutate(value);
+  }, [data?.active, switchMutation]);
 
-  const totalItems = filteredWorkspaces.length + (showCreateOption ? 1 : 0);
-
-  const handleSelect = (workspace: WorkspaceInfo) => {
-    if (workspace.uuid !== data?.active) {
-      switchMutation.mutate(workspace.uuid);
-    } else {
-      setIsOpen(false);
-      setSearchQuery('');
-    }
-  };
-
-  const handleCreate = () => {
-    const name = searchQuery.trim();
-    if (name) {
-      createMutation.mutate(name);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(i => Math.min(i + 1, totalItems - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(i => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (showCreateOption && selectedIndex === filteredWorkspaces.length) {
-        handleCreate();
-      } else if (filteredWorkspaces[selectedIndex]) {
-        handleSelect(filteredWorkspaces[selectedIndex]);
-      }
-    }
-  };
-
-  const handleToggle = () => {
-    const next = !isOpen;
-    setIsOpen(next);
-    setSearchQuery('');
-    setSelectedIndex(0);
-    if (next) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  };
-
-  const activeWorkspace = data?.workspaces.find(w => w.uuid === data?.active);
-  const displayName = isLoading ? 'Loading...' : (activeWorkspace?.name || 'No Graph');
+  // Custom option renderer  
+  const renderOption = useCallback((option: DropdownOption<string>, isSelected: boolean) => (
+    <>
+      <Icon path={mdiDatabaseOutline} size={0.6} className="workspace-switcher__item-icon" />
+      <span className="workspace-switcher__item-name">{option.label}</span>
+      {isSelected && (
+        <span className="workspace-switcher__item-badge">Active</span>
+      )}
+    </>
+  ), []);
 
   return (
-    <div className="workspace-switcher" ref={containerRef}>
+    <div className="workspace-switcher">
       <div className="workspace-switcher__row">
-        <Button
-          className={`workspace-switcher__trigger ${isOpen ? 'workspace-switcher__trigger--open' : ''}`}
-          onClick={handleToggle}
-          variant="ghost"
-        >
-          <div className="workspace-switcher__current">
-            <Icon path={mdiDatabaseOutline} size={0.7} className="workspace-switcher__graph-icon" />
-            <span className="workspace-switcher__name">{displayName}</span>
-          </div>
-          <Icon path={mdiChevronDown} size={0.7} className="workspace-switcher__chevron" />
-        </Button>
+        <Dropdown
+          options={options}
+          value={data?.active || null}
+          onChange={handleChange}
+          placeholder="Select graph..."
+          searchable
+          size="sm"
+          renderOption={renderOption}
+          className="workspace-switcher__dropdown"
+        />
         <Button
           className="workspace-switcher__add-btn"
           onClick={() => onAddWorkspace()}
@@ -172,56 +116,6 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           variant="ghost"
         />
       </div>
-
-      {isOpen && (
-        <Card className="workspace-switcher__popup" elevation="high" padding={false}>
-          <div className="workspace-switcher__search">
-            <input
-              ref={inputRef}
-              type="text"
-              className="workspace-switcher__search-input"
-              placeholder="Search or create graph..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setSelectedIndex(0); }}
-              onKeyDown={handleKeyDown}
-              autoFocus
-            />
-          </div>
-          <div className="workspace-switcher__list">
-            {filteredWorkspaces.map((workspace, index) => (
-              <Button
-                key={workspace.uuid}
-                className={`workspace-switcher__item ${workspace.uuid === data?.active ? 'workspace-switcher__item--active' : ''} ${index === selectedIndex ? 'workspace-switcher__item--selected' : ''}`}
-                onClick={() => handleSelect(workspace)}
-                onMouseEnter={() => setSelectedIndex(index)}
-                variant="ghost"
-              >
-                <Icon path={mdiDatabaseOutline} size={0.6} className="workspace-switcher__item-icon" />
-                <span className="workspace-switcher__item-name">{workspace.name}</span>
-                {workspace.uuid === data?.active && (
-                  <span className="workspace-switcher__item-badge">Active</span>
-                )}
-              </Button>
-            ))}
-            {showCreateOption && (
-              <Button
-                className={`workspace-switcher__item workspace-switcher__item--create ${selectedIndex === filteredWorkspaces.length ? 'workspace-switcher__item--selected' : ''}`}
-                onClick={handleCreate}
-                onMouseEnter={() => setSelectedIndex(filteredWorkspaces.length)}
-                variant="ghost"
-              >
-                <Icon path={mdiPlus} size={0.6} className="workspace-switcher__item-icon" />
-                <span className="workspace-switcher__item-name">
-                  Create "<strong>{searchQuery.trim()}</strong>"
-                </span>
-              </Button>
-            )}
-            {filteredWorkspaces.length === 0 && !showCreateOption && (
-              <div className="workspace-switcher__empty">No graphs found</div>
-            )}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
