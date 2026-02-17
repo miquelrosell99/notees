@@ -161,6 +161,73 @@ export interface NodeCollectionProps {
   
   /** Element to render between the header and content (e.g., property references section) */
   beforeContent?: ReactNode;
+  
+  /** Controlled property UUIDs to show as table columns */
+  selectedPropertyUuids?: string[];
+  
+  /** Called when property column selection changes */
+  onPropertyColumnsChange?: (uuids: string[]) => void;
+  
+  /** Whether to hide the built-in toolbar (use when rendering toolbar externally) */
+  hideToolbar?: boolean;
+  
+  /** Element(s) to render before the default toolbar controls */
+  toolbarPrefix?: ReactNode;
+  
+  /** Element to render at left side of toolbar */
+  leftElement?: ReactNode;
+  
+  /** Hide toolbar controls while keeping leftElement visible */
+  hideToolbarControls?: boolean;
+  
+  /** Hide the content area while keeping toolbar visible */
+  hideContent?: boolean;
+  
+  /** Show the add button in toolbar */
+  showAddButton?: boolean;
+  
+  /** Callback when add button is clicked */
+  onAdd?: () => void;
+  
+  /** Whether new items can be created (default: true) */
+  can_create?: boolean;
+  
+  /** Whether items can be edited (default: true) */
+  can_edit?: boolean;
+  
+  /** Whether items can be deleted (default: true) */
+  can_delete?: boolean;
+  
+  /** Whether to show empty state message (default: true) */
+  showEmpty?: boolean;
+  
+  /** Custom empty state message */
+  emptyMessage?: string;
+  
+  /** Maximum recursion depth for nested views */
+  maxDepth?: number;
+  
+  /** Use isolated block state (for blocks in multiple places like linked refs) */
+  isolatedBlockState?: boolean;
+  
+  /** Suppress color styling on root-level nodes */
+  suppressRootColor?: boolean;
+  
+  /** Card layout style */
+  cardLayout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
+  
+  /** Called when card layout changes */
+  onCardLayoutChange?: (layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right') => void;
+  
+  /** Custom context menu component */
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
+  
+  /** Custom context menu items generator */
+  customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
 }
 
 // ==================== View-Specific Props ====================
