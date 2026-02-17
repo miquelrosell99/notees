@@ -6,8 +6,9 @@
  * 
  * Built on top of the core Card component for consistent styling.
  */
-import type { ReactNode } from 'react';
-import { mdiClose } from '@mdi/js';
+import { useState, type ReactNode } from 'react';
+import { mdiClose, mdiChevronDown } from '@mdi/js';
+import Icon from '@mdi/react';
 import './SidebarCard.css';
 import { AlertIcon } from '../core/icons';
 import { Button } from '../core/Button';
@@ -36,6 +37,8 @@ interface SidebarCardProps {
   error?: string;
   /** Retry handler for error state */
   onRetry?: () => void;
+  /** Whether the card starts collapsed */
+  defaultCollapsed?: boolean;
 }
 
 export function SidebarCard({
@@ -50,7 +53,9 @@ export function SidebarCard({
   loading = false,
   error,
   onRetry,
+  defaultCollapsed = false,
 }: SidebarCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   if (loading) {
     return (
       <Card 
@@ -92,7 +97,7 @@ export function SidebarCard({
 
   return (
     <Card 
-      className={`sidebar-card ${className}`}
+      className={`sidebar-card ${isCollapsed ? 'sidebar-card--collapsed' : ''} ${className}`}
       elevation="low"
       variant="default"
       padding={false}
@@ -100,6 +105,15 @@ export function SidebarCard({
     >
       {showHeader && (title || onClose) && (
         <div className="sidebar-card__header">
+          <button
+            className="sidebar-card__collapse-btn"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? "Expand" : "Collapse"}
+            aria-label={isCollapsed ? "Expand card" : "Collapse card"}
+            aria-expanded={!isCollapsed}
+          >
+            <Icon path={mdiChevronDown} size={0.6} rotate={isCollapsed ? -90 : 0} />
+          </button>
           <div className="sidebar-card__title-section">
             {icon && <span className="sidebar-card__icon">{icon}</span>}
             <div className="sidebar-card__titles">
@@ -120,9 +134,11 @@ export function SidebarCard({
           )}
         </div>
       )}
-      <div className={`sidebar-card__content ${scrollable ? 'sidebar-card__content--scrollable' : ''}`}>
-        {children}
-      </div>
+      {!isCollapsed && (
+        <div className={`sidebar-card__content ${scrollable ? 'sidebar-card__content--scrollable' : ''}`}>
+          {children}
+        </div>
+      )}
     </Card>
   );
 }
