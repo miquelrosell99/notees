@@ -237,9 +237,8 @@ export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
 export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
 export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
 
-// Simulation warmup & limits
+// Simulation warmup
 export const WARMUP_DURATION_FRAMES = 45;
-export const MAX_SIMULATION_TIME_MS = 0; // 0 = unlimited
 
 // ==================== Terrain Physics Constants ====================
 
@@ -336,16 +335,6 @@ export const LINE_DASH_NONE: number[] = [];
 export const LINE_DASH_DOTTED = [3, 3];
 
 // ==================== Helper Functions ====================
-
-/**
- * Get max simulation frames based on node count to prevent runaway
- */
-export const getMaxSimulationFrames = (nodeCount: number): number => {
-  if (nodeCount < 50) return 0; // No limit for small graphs
-  if (nodeCount < 200) return 3000;
-  if (nodeCount < 500) return 2000;
-  return 1500;
-};
 
 /**
  * Get render skip interval based on node count

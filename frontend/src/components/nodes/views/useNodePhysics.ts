@@ -53,7 +53,6 @@ import {
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
   WARMUP_DURATION_FRAMES,
-  MAX_SIMULATION_TIME_MS,
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
@@ -68,7 +67,6 @@ import {
   TANGENTIAL_OVERLAP_RESOLVE,
   LINK_TYPE_PRIORITY,
   // Helpers
-  getMaxSimulationFrames,
   getRenderSkip,
   getTerrainRenderSkip,
   pairKey,
@@ -1114,18 +1112,12 @@ export function useNodePhysics({
     const thisGeneration = ++simulationGenerationRef.current;
     
     let totalFrames = 0;
-    const simulationStartTime = performance.now();
     
     const wake = () => {
       if (simulationGenerationRef.current !== thisGeneration) return;
       sleepCounterRef.current = 0;
       if (simulationSleepingRef.current) {
         simulationSleepingRef.current = false;
-        const maxFrames = getMaxSimulationFrames(nodesRef.current.length);
-        if (maxFrames > 0) {
-          const burst = Math.min(300, Math.floor(maxFrames * 0.5));
-          totalFrames = Math.min(totalFrames, maxFrames - burst);
-        }
         animationRef.current = requestAnimationFrame(simulate);
       }
     };
@@ -1822,20 +1814,6 @@ export function useNodePhysics({
       const usedPoolSize = quadPoolIdxRef.current;
       for (let i = usedPoolSize, len = pool.length; i < len; i++) {
         pool[i].c0 = pool[i].c1 = pool[i].c2 = pool[i].c3 = null;
-      }
-      
-      // Force stop check
-      const maxFrames = getMaxSimulationFrames(nodes.length);
-      const forceStop = (maxFrames > 0 && totalFrames >= maxFrames) ||
-        (MAX_SIMULATION_TIME_MS > 0 && (performance.now() - simulationStartTime) > MAX_SIMULATION_TIME_MS);
-      
-      if (forceStop) {
-        simulationSleepingRef.current = true;
-        sleepCounterRef.current = 0;
-        if (ctxRef.current && renderRef.current) {
-          renderRef.current(ctxRef.current);
-        }
-        return;
       }
       
       // Sleep detection: put simulation to sleep when total kinetic energy is negligible
