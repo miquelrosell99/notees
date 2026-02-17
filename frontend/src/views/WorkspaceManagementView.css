@@ -333,6 +333,36 @@
   color: var(--color-error);
 }
 
+/* Restore confirmation */
+.workspace-management__restore-confirm {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.workspace-management__restore-warn {
+  font-size: 0.75rem;
+  color: var(--color-error);
+  line-height: 1.4;
+}
+
+.workspace-management__restore-error {
+  font-size: 0.75rem;
+  color: var(--color-error);
+  font-weight: 500;
+}
+
+.workspace-management__restore-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 /* Form container */
 .workspace-management__form-container {
   max-width: 500px;

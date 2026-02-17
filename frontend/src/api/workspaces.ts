@@ -88,6 +88,19 @@ export async function importWorkspace(name: string, file: File): Promise<Workspa
 }
 
 /**
+ * Restore a workspace from a dump file.
+ * WARNING: This replaces ALL data in the workspace.
+ */
+export async function restoreWorkspace(uuid: string, file: File): Promise<{ uuid: string; name: string; stats: Record<string, number> }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/workspaces/${encodeURIComponent(uuid)}/restore`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+}
+
+/**
  * Get export URL for a workspace
  */
 export function getWorkspaceExportUrl(name: string): string {
