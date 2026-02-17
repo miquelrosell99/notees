@@ -1409,7 +1409,23 @@ async function resolvePropertyValueForImport(
 
   // Primitives: boolean, number, string
   if (typeof value === 'boolean' || typeof value === 'number') return value;
-  if (typeof value === 'string') return value || undefined;
+  if (typeof value === 'string') {
+    if (!value) return undefined;
+    // Handle [[uuid]] references in strings (e.g. logseq.property/description)
+    // These are node references encoded as wiki-link strings
+    const uuidLinkMatch = value.match(/^\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]$/i);
+    if (uuidLinkMatch) {
+      const refUuid = uuidLinkMatch[1];
+      const info = uuidMap.get(refUuid);
+      if (info) {
+        console.log(`[IMPORT] Resolved [[${refUuid}]] to node id=${info.id}`);
+        return info.id;
+      }
+      // Try to find by title in titleToNodeInfo via search
+      console.warn(`[IMPORT] UUID link [[${refUuid}]] not found in uuidMap, passing as string`);
+    }
+    return value;
+  }
 
   return undefined;
 }
