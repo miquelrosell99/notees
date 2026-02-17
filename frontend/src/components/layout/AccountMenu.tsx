@@ -10,6 +10,7 @@ import { useAuthStore, useAppStore } from '@/stores';
 import { mdiCog, mdiLogout, mdiDatabaseOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Card } from '../core/Card';
+import { Button } from '../core/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './AccountMenu.css';
@@ -64,14 +65,16 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
 
   return (
     <div className="account-menu">
-      <button
+      <Button
         ref={triggerRef}
-        className={`account-menu__trigger ${isOpen ? 'account-menu__trigger--open' : ''}`}
+        variant="ghost"
+        size="sm"
         onClick={() => setIsOpen(!isOpen)}
         title={user?.username || 'Account'}
+        active={isOpen}
       >
-        <span className="account-menu__avatar">{initial}</span>
-      </button>
+        {initial}
+      </Button>
 
       {isOpen && menuPos && createPortal(
         <Card
