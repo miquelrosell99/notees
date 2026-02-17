@@ -752,3 +752,27 @@ export async function batchPermanentDelete(request: BatchPermanentDeleteRequest)
   const response = await api.post<BatchPermanentDeleteResponse>(`${BASE}/trash/batch-delete`, request);
   return response.data;
 }
+
+/**
+ * Rebuild all node_link records from AST content.
+ * 
+ * This command:
+ * 1. Deletes all existing text links and inline class links
+ * 2. Re-parses all nodes' AST content to rebuild both types of links
+ * 3. Returns statistics about the operation
+ * 
+ * Use this when link data may have become inconsistent.
+ */
+export interface RebuildLinksResponse {
+  success: boolean;
+  nodes_processed: number;
+  links_created: number;
+  inline_classes_created: number;
+  errors: string[];
+  total_errors: number;
+}
+
+export async function rebuildAllLinks(): Promise<RebuildLinksResponse> {
+  const response = await api.post<RebuildLinksResponse>(`${BASE}/rebuild-links`);
+  return response.data;
+}

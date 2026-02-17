@@ -29,6 +29,7 @@ import { ImportDataModal } from '../workspace/ImportDataModal';
 import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
 import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
+import { RebuildLinksModal } from '../maintenance/RebuildLinksModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -50,6 +51,8 @@ export function Layout() {
     setImportMarkdownModalOpen,
     isExportPageModalOpen,
     setExportPageModalOpen,
+    isRebuildLinksModalOpen,
+    setRebuildLinksModalOpen,
     isMinimapOpen,
     setMinimapOpen,
     commentsSidebarOpen,
@@ -315,6 +318,12 @@ export function Layout() {
             nodeId={currentNodeId}
           />
         )}
+
+        {/* Rebuild Links Modal */}
+        <RebuildLinksModal
+          isOpen={isRebuildLinksModalOpen}
+          onClose={() => setRebuildLinksModalOpen(false)}
+        />
       </div>
     </RouterSync>
   );
