@@ -313,7 +313,6 @@ export function PropertyView({
       <PropertyConfigSection
         property={property}
         onUpdate={handlePropertyUpdate}
-        onDelete={() => openNode(1)}
       />
       
       {/* Nodes with this property */}
