@@ -28,8 +28,6 @@ import './PageHeader.css';
 interface PageHeaderProps {
   /** The page node to display */
   page: Node;
-  /** Whether clicking the title navigates instead of editing (compact mode) */
-  compactMode?: boolean;
   /** Callback when right-clicking the header (for context menu) */
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Custom handler for name changes (overrides default node update) */
@@ -40,7 +38,6 @@ interface PageHeaderProps {
 
 export function PageHeader({ 
   page, 
-  compactMode = false, 
   onContextMenu,
   onNameChange,
   onIconChange,
@@ -425,42 +422,30 @@ export function PageHeader({
           </button>
           
           <div className="page-title-container">
-            {compactMode ? (
-              <h1
-                className="page-title-input page-title-clickable"
-                onClick={(e) => { e.stopPropagation(); openNode(page.id); }}
-                title="Click to open page"
-              >
-                {nodeNameToText(page.name) || 'Untitled'}
-              </h1>
-            ) : (
-              <>
-                <textarea
-                  ref={titleRef}
-                  className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
-                  value={inputValue}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  onBlur={(e) => handleNameChange(e.target.value)}
-                  onKeyDown={handlePageTitleKeyDown}
-                  placeholder="Untitled"
-                  onClick={(e) => e.stopPropagation()}
-                  readOnly={!isNameEditable}
-                  title={!isNameEditable ? 'System page names cannot be edited' : undefined}
-                  rows={1}
-                />
-                {renamePreview && (
-                  <span className="page-title-child-preview">
-                    {renamePreview.type === 'create-child' && `→ will create child: ${renamePreview.path}`}
-                    {renamePreview.type === 'move-to-parent' && `→ will move under: ${renamePreview.parent}`}
-                    {renamePreview.type === 'rename-and-move' && (
-                      renamePreview.parent 
-                        ? `→ will rename to "${renamePreview.newName}" and move under: ${renamePreview.parent}`
-                        : `→ will rename to "${renamePreview.newName}"`
-                    )}
-                  </span>
-                )}
-              </>
-            )}
+            <textarea
+              ref={titleRef}
+              className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
+              value={inputValue}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onBlur={(e) => handleNameChange(e.target.value)}
+              onKeyDown={handlePageTitleKeyDown}
+              placeholder="Untitled"
+              onClick={(e) => e.stopPropagation()}
+              readOnly={!isNameEditable}
+              title={!isNameEditable ? 'System page names cannot be edited' : undefined}
+              rows={1}
+            />
+              {renamePreview && (
+                <span className="page-title-child-preview">
+                  {renamePreview.type === 'create-child' && `→ will create child: ${renamePreview.path}`}
+                  {renamePreview.type === 'move-to-parent' && `→ will move under: ${renamePreview.parent}`}
+                  {renamePreview.type === 'rename-and-move' && (
+                    renamePreview.parent 
+                      ? `→ will rename to "${renamePreview.newName}" and move under: ${renamePreview.parent}`
+                      : `→ will rename to "${renamePreview.newName}"`
+                  )}
+                </span>
+              )}
             {page.active === false && (
               <span className="archived-badge">Archived</span>
             )}

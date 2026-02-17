@@ -287,7 +287,6 @@ export function PropertyView({
           <div className="page-header-section__header">
             <PageHeader
               page={property as unknown as Node}
-              compactMode={false}
               onContextMenu={handleContextMenu}
               onNameChange={handlePropertyNameChange}
               onIconChange={handlePropertyIconChange}

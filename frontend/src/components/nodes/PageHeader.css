@@ -135,17 +135,6 @@
   outline: none;
 }
 
-/* Clickable page title (journal compact mode) */
-.page-title-clickable {
-  cursor: pointer;
-  margin: 0;
-  transition: color 0.15s;
-}
-
-.page-title-clickable:hover {
-  color: var(--color-primary);
-}
-
 .archived-badge {
   display: inline-flex;
   align-items: center;
