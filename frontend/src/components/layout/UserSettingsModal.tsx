@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
-import type { ThemePreference, DateFormat, HashtagPasteMode } from '@/stores';
+import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView } from '@/stores';
 import { setSetting } from '@/api/workspaces';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -23,7 +23,7 @@ type UserSettingsTab = 'preferences' | 'account' | 'about';
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('preferences');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, fontSize, hashtagPasteMode, setTheme, setDateFormat, setFontSize, setHashtagPasteMode } = useSettingsStore();
+  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -52,6 +52,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleHashtagPasteModeChange = (mode: HashtagPasteMode) => {
     setHashtagPasteMode(mode);
     setSetting('hashtag_paste_mode', mode).catch(console.error);
+  };
+
+  const handleDefaultViewChange = (view: DefaultView) => {
+    setDefaultView(view);
+    setSetting('default_view', view).catch(console.error);
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
@@ -167,6 +172,25 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   <option value="small">Small</option>
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
+                </select>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Default view</label>
+                  <p className="settings-item__description">
+                    Choose what to show when opening a graph
+                  </p>
+                </div>
+                <select
+                  className="settings-item__select"
+                  value={defaultView}
+                  onChange={(e) => handleDefaultViewChange(e.target.value as DefaultView)}
+                >
+                  <option value="today">Today's Page</option>
+                  <option value="journal">Journal</option>
+                  <option value="all-pages">All Pages</option>
+                  <option value="graph">Graph View</option>
                 </select>
               </div>
 
