@@ -478,8 +478,8 @@ export function BlockPlugin({
               contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
             });
             
-            // Keep focus on current block (not the new one)
-            runtime.requestFocus(blockId);
+            // Focus the new empty block
+            runtime.requestFocus(newBlockId);
             runtime.flushEvents();
             return true;
           }
