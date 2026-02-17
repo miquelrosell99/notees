@@ -226,7 +226,7 @@ export function Layout() {
           </div>
           
           {/* Floating Main Container */}
-          <Card className="main-container" padding={false} elevation="medium" variant="filled">
+          <Card className="main-container" padding={false} elevation="medium">
             <MainContent />
           </Card>
           
