@@ -5,6 +5,7 @@
  * Shows the page name as the card title and renders SidebarLocalGraph in the content.
  */
 import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { SidebarCard } from './SidebarCard';
 import { SidebarLocalGraph } from './SidebarLocalGraph';
 import './SidebarCardLocalGraph.css';
@@ -19,7 +20,7 @@ interface SidebarCardLocalGraphProps {
 export function SidebarCardLocalGraph({ nodeId, onClose }: SidebarCardLocalGraphProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
   
-  const title = node?.name || 'Local Graph';
+  const title = nodeNameToText(node?.name) || 'Local Graph';
   
   return (
     <SidebarCard
