@@ -36,6 +36,8 @@ export interface NodeInlineProps {
   propertyName?: string;
   /** Suppress node color */
   suppressColor?: boolean;
+  /** Pre-resolved display text (bypasses nodeNameToText, used when links need resolution) */
+  displayText?: string;
 }
 
 /**
@@ -54,8 +56,9 @@ export function NodeInline({
   className = '',
   propertyName,
   suppressColor: _suppressColor = false,
+  displayText: providedDisplayText,
 }: NodeInlineProps) {
-  const displayText = propertyName || nodeNameToText(name) || 'Untitled';
+  const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (e.shiftKey && onShiftClick) {

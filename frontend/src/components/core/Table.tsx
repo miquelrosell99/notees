@@ -492,6 +492,7 @@ export function Table<T>({
                         isPage={cellValue.is_page}
                         nodeId={cellValue.id}
                         showIcon={false}
+                        displayText={(cellValue as any)._resolvedText}
                       />
                     </span>
                     <div className="table-node-cell__actions">
