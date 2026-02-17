@@ -123,7 +123,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={theme}
                   onChange={(value) => handleThemeChange(value as ThemePreference)}
-                  size="md"
+                  size="sm"
                 />
               </div>
 
@@ -142,7 +142,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={fontSize}
                   onChange={(value) => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
-                  size="md"
+                  size="sm"
                 />
               </div>
             </div>
@@ -166,7 +166,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={linkedRefsCollapseLevel.toString()}
                   onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
-                  size="md"
+                  size="sm"
                 />
               </div>
 
@@ -184,7 +184,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={hashtagPasteMode}
                   onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
-                  size="md"
+                  size="sm"
                 />
               </div>
             </div>
@@ -245,7 +245,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={quickAddDestination}
                   onChange={(value) => handleQuickAddDestinationChange(value as QuickAddDestination)}
-                  size="md"
+                  size="sm"
                 />
               </div>
             </div>
