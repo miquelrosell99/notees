@@ -375,6 +375,12 @@ export class NodeGraphRuntime {
       case 'outdent_block':
         this.execOutdent(intent.blockId);
         break;
+      case 'move_up':
+        this.execMoveUp(intent.blockId);
+        break;
+      case 'move_down':
+        this.execMoveDown(intent.blockId);
+        break;
       case 'toggle_collapsed':
         this.execToggleCollapsed(intent.blockId);
         break;
@@ -653,6 +659,109 @@ export class NodeGraphRuntime {
     // Emit structure change for the outdented block if its children changed
     if (subsequentSiblings.length > 0 || existingChildren.length > 0) {
       this.scheduleEmit(null, blockId);
+    }
+  }
+
+  /**
+   * Move block up among siblings, or to previous parent's last position if first sibling.
+   * Maintains hierarchy level - only moves to parents at the same depth.
+   */
+  private execMoveUp(blockId: string): void {
+    const node = this.nodes.get(blockId);
+    if (!node?.parentId) return;
+
+    const parent = this.nodes.get(node.parentId);
+    if (!parent) return;
+
+    const siblings = this.getChildren(node.parentId);
+    const myIndex = siblings.findIndex(s => s.blockId === blockId);
+    
+    if (myIndex > 0) {
+      // Not first sibling - swap with previous sibling
+      const prevSibling = siblings[myIndex - 1];
+      node.orderIndex = myIndex - 1;
+      prevSibling.orderIndex = myIndex;
+      node.updatedAt = new Date().toISOString();
+      prevSibling.updatedAt = new Date().toISOString();
+      
+      this.rebuildChildrenIndex();
+      this.scheduleEmit(blockId, node.parentId);
+    } else if (myIndex === 0 && parent.parentId) {
+      // First sibling - try to move to previous parent at same level
+      const grandparent = this.nodes.get(parent.parentId);
+      if (!grandparent) return;
+      
+      const parentSiblings = this.getChildren(parent.parentId);
+      const parentIndex = parentSiblings.findIndex(s => s.blockId === node.parentId);
+      
+      if (parentIndex > 0) {
+        // There's a previous parent sibling - move to it as last child
+        const prevParentId = parentSiblings[parentIndex - 1].blockId;
+        const prevParentChildren = this.getChildren(prevParentId);
+        
+        const oldParentId = node.parentId;
+        node.parentId = prevParentId;
+        node.orderIndex = prevParentChildren.length;
+        node.updatedAt = new Date().toISOString();
+        
+        this.rebuildChildrenIndex();
+        this.scheduleEmit(blockId, oldParentId);
+        this.scheduleEmit(blockId, prevParentId);
+      }
+    }
+  }
+
+  /**
+   * Move block down among siblings, or to next parent's first position if last sibling.
+   * Maintains hierarchy level - only moves to parents at the same depth.
+   */
+  private execMoveDown(blockId: string): void {
+    const node = this.nodes.get(blockId);
+    if (!node?.parentId) return;
+
+    const parent = this.nodes.get(node.parentId);
+    if (!parent) return;
+
+    const siblings = this.getChildren(node.parentId);
+    const myIndex = siblings.findIndex(s => s.blockId === blockId);
+    
+    if (myIndex < siblings.length - 1) {
+      // Not last sibling - swap with next sibling
+      const nextSibling = siblings[myIndex + 1];
+      node.orderIndex = myIndex + 1;
+      nextSibling.orderIndex = myIndex;
+      node.updatedAt = new Date().toISOString();
+      nextSibling.updatedAt = new Date().toISOString();
+      
+      this.rebuildChildrenIndex();
+      this.scheduleEmit(blockId, node.parentId);
+    } else if (myIndex === siblings.length - 1 && parent.parentId) {
+      // Last sibling - try to move to next parent at same level
+      const grandparent = this.nodes.get(parent.parentId);
+      if (!grandparent) return;
+      
+      const parentSiblings = this.getChildren(parent.parentId);
+      const parentIndex = parentSiblings.findIndex(s => s.blockId === node.parentId);
+      
+      if (parentIndex < parentSiblings.length - 1) {
+        // There's a next parent sibling - move to it as first child
+        const nextParentId = parentSiblings[parentIndex + 1].blockId;
+        
+        const oldParentId = node.parentId;
+        node.parentId = nextParentId;
+        node.orderIndex = 0;
+        node.updatedAt = new Date().toISOString();
+        
+        // Shift existing children of next parent down
+        const nextParentChildren = this.getChildren(nextParentId);
+        for (const child of nextParentChildren) {
+          child.orderIndex += 1;
+        }
+        
+        this.rebuildChildrenIndex();
+        this.scheduleEmit(blockId, oldParentId);
+        this.scheduleEmit(blockId, nextParentId);
+      }
     }
   }
 
@@ -1037,6 +1146,10 @@ export class NodeGraphRuntime {
         return { type: 'outdent_block', blockId: intent.blockId };
       case 'outdent_block':
         return { type: 'indent_block', blockId: intent.blockId };
+      case 'move_up':
+        return { type: 'move_down', blockId: intent.blockId };
+      case 'move_down':
+        return { type: 'move_up', blockId: intent.blockId };
       case 'toggle_collapsed':
         return { type: 'toggle_collapsed', blockId: intent.blockId };
       case 'set_collapsed': {
