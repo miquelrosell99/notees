@@ -424,6 +424,40 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
       }
 
+      // ── Standalone blocks (block-only EDN export) ──────────────
+      // Attach to the currently active node, or today's daily page if none.
+      if (parsed.standaloneBlocks && parsed.standaloneBlocks.length > 0) {
+        let parentId: number | undefined;
+        const activeNodeId = useAppStore.getState().currentNodeId;
+
+        if (activeNodeId) {
+          parentId = activeNodeId;
+          setImportStatus('Adding block to current node…');
+        } else {
+          // No active node → use today's daily page
+          const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+          setImportStatus(`Adding block to today's page (${today})…`);
+          try {
+            const dayNode = await getOrCreateDaily(today);
+            parentId = dayNode.id;
+          } catch (e) {
+            p3.failed++;
+            p3.errors.push({ item: 'Standalone block (daily page)', message: errorMessage(e) });
+          }
+        }
+
+        if (parentId) {
+          try {
+            await createBlocksRecursively(
+              parsed.standaloneBlocks, parentId, 0, uuidMap, classIdMap, contentQueue, p3,
+            );
+          } catch (e) {
+            p3.failed++;
+            p3.errors.push({ item: 'Standalone block', message: errorMessage(e) });
+          }
+        }
+      }
+
       // ──────────────────────────────────────────────────────────
       // PHASE 3b: Set page parents (namespace hierarchy) — batched
       // ──────────────────────────────────────────────────────────
@@ -523,6 +557,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
       for (const page of parsed.pages) {
         await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
+      }
+      // Also assign properties for standalone blocks (block-only EDN)
+      if (parsed.standaloneBlocks) {
+        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
       }
 
       // ──────────────────────────────────────────────────────────
@@ -753,7 +791,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const classCount = parsed?.classes.length ?? 0;
   const propCount = parsed?.properties.length ?? 0;
   const blockCount =
-    parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0;
+    (parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0)
+    + (parsed?.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
 
   // ── Report view (shown after import completes) ────────────────
   if (report) {
@@ -957,10 +996,11 @@ function mapPropertyType(logseqType: string): PropertyType {
  * records in the node_link DB table.
  */
 const UUID_RE = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-// Matches [label]([[uuid]]), bare [[uuid]], ((uuid)) block refs, and bare [[name]]
-// Group 1 = labeled form uuid, Group 2 = bare [[uuid]], Group 3 = ((uuid)) block ref, Group 4 = [[name]]
+// Matches #[[uuid]] (inline class), [label]([[uuid]]), bare [[uuid]], ((uuid)) block refs, and bare [[name]]
+// Group 1 = #[[uuid]] inline class, Group 2 = labeled form uuid, Group 3 = bare [[uuid]],
+// Group 4 = ((uuid)) block ref, Group 5 = [[name]]
 const NODE_LINK_RE = new RegExp(
-  `\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\(\\((${UUID_RE})\\)\\)|\\[\\[([^\\]]+)\\]\\]`,
+  `#\\[\\[(${UUID_RE})\\]\\]|\\[[^\\]]+\\]\\(\\[\\[(${UUID_RE})\\]\\]\\)|\\[\\[(${UUID_RE})\\]\\]|\\(\\((${UUID_RE})\\)\\)|\\[\\[([^\\]]+)\\]\\]`,
   'gi'
 );
 
@@ -974,11 +1014,13 @@ function buildAstFromLogseqText(
   const children: ASTInlineNode[] = [];
   let lastIndex = 0;
 
-  // Find all [[uuid]], ((uuid)), [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
+  // Find all #[[uuid]] (inline class), [[uuid]], ((uuid)), [label]([[uuid]]), and [[name]] patterns → node_link AST nodes
   for (const match of rawText.matchAll(NODE_LINK_RE)) {
-    // Group 1 = labeled form uuid, Group 2 = bare [[uuid]], Group 3 = ((uuid)) block ref, Group 4 = name-based link
-    const logseqUuid = match[1] ?? match[2] ?? match[3];
-    const linkName = match[4];
+    // Group 1 = #[[uuid]] inline class, Group 2 = labeled form uuid,
+    // Group 3 = bare [[uuid]], Group 4 = ((uuid)) block ref, Group 5 = name-based link
+    const inlineClassUuid = match[1];
+    const logseqUuid = match[2] ?? match[3] ?? match[4];
+    const linkName = match[5];
     const matchStart = match.index ?? 0;
 
     // Add preceding plain text
@@ -986,25 +1028,37 @@ function buildAstFromLogseqText(
       children.push(astText(rawText.slice(lastIndex, matchStart)));
     }
 
-    let target: NodeInfo | undefined;
-    if (logseqUuid) {
-      target = uuidMap.get(logseqUuid);
-    } else if (linkName && titleToNodeInfo) {
-      target = titleToNodeInfo.get(linkName);
-    }
-
-    if (target) {
-      // Build compound link_id: "targetNodeUuid:newLinkInstanceUuid"
-      const linkInstanceUuid = crypto.randomUUID();
-      const linkId = buildLinkId(target.uuid, linkInstanceUuid);
-      children.push(nodeLink(linkId, 'node'));
-    } else if (linkName) {
-      // Name-based link with no matching node — keep as plain text without brackets
-      children.push(astText(linkName));
+    if (inlineClassUuid) {
+      // #[[uuid]] → inline class reference (ref_type: 'class')
+      const target = uuidMap.get(inlineClassUuid);
+      if (target) {
+        const linkInstanceUuid = crypto.randomUUID();
+        const linkId = buildLinkId(target.uuid, linkInstanceUuid);
+        children.push(nodeLink(linkId, 'class'));
+      } else {
+        children.push(astText(match[0]));
+      }
     } else {
-      // Unresolved UUID reference — keep original syntax as plain text
-      // so the block doesn't end up empty
-      children.push(astText(match[0]));
+      let target: NodeInfo | undefined;
+      if (logseqUuid) {
+        target = uuidMap.get(logseqUuid);
+      } else if (linkName && titleToNodeInfo) {
+        target = titleToNodeInfo.get(linkName);
+      }
+
+      if (target) {
+        // Build compound link_id: "targetNodeUuid:newLinkInstanceUuid"
+        const linkInstanceUuid = crypto.randomUUID();
+        const linkId = buildLinkId(target.uuid, linkInstanceUuid);
+        children.push(nodeLink(linkId, 'node'));
+      } else if (linkName) {
+        // Name-based link with no matching node — keep as plain text without brackets
+        children.push(astText(linkName));
+      } else {
+        // Unresolved UUID reference — keep original syntax as plain text
+        // so the block doesn't end up empty
+        children.push(astText(match[0]));
+      }
     }
 
     lastIndex = matchStart + match[0].length;

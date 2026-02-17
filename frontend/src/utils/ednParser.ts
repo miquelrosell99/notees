@@ -271,6 +271,10 @@ export interface LogseqExport {
   pages: LogseqPage[];
   properties: LogseqProperty[];
   classes: LogseqClass[];
+  /** 'block' when the EDN is a single-block export (no parent page) */
+  exportType?: 'block' | 'page';
+  /** Standalone blocks from a :block export (not attached to any page) */
+  standaloneBlocks?: LogseqBlock[];
 }
 
 /**
@@ -490,25 +494,26 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
   // ── Handle :block export type ──────────────────────────────
   // When export-type is :block, the actual block data (title, tags, properties)
   // is in the top-level :logseq.db.sqlite.export/block key, NOT in pages-and-blocks.
-  // We parse it and attach it as a block under the first page.
+  // We store it as a standalone block — the import modal will attach it to the
+  // currently active node or today's page.
   const exportType = mapGet(edn, 'logseq.db.sqlite.export/export-type');
+  let detectedExportType: 'block' | 'page' | undefined;
+  const standaloneBlocks: LogseqBlock[] = [];
   if (exportType instanceof EdnKeyword && exportType.value === 'block') {
+    detectedExportType = 'block';
     const blockData = mapGet(edn, 'logseq.db.sqlite.export/block');
     if (blockData instanceof Map) {
-      const block = parseBlock(blockData);
-      // Attach the block to the first page, or create a synthetic page if none
-      if (pages.length > 0) {
-        pages[0].blocks.push(block);
-      } else {
-        pages.push({
-          title: 'Imported Block',
-          blocks: [block],
-        });
-      }
+      standaloneBlocks.push(parseBlock(blockData));
     }
   }
 
-  return { pages, properties, classes };
+  return {
+    pages,
+    properties,
+    classes,
+    ...(detectedExportType ? { exportType: detectedExportType } : {}),
+    ...(standaloneBlocks.length > 0 ? { standaloneBlocks } : {}),
+  };
 }
 
 // ── Internal helpers ───────────────────────────────────────────
