@@ -392,11 +392,12 @@
 }
 
 .node-block--query {
-  background: var(--color-surface-container);
-  border-radius: var(--shape-small);
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-left: 3px solid var(--color-on-surface-variant);
+  flex-wrap: wrap;
+}
+
+.node-block--query .node-block-query-preview {
+  width: 100%;
+  margin-top: 4px;
 }
 
 /* ─── Asset block ──────────────────────────────────────────────── */
