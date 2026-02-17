@@ -69,6 +69,56 @@ async def get_text_links(
     }
 
 
+@router.post("/batch-text-links")
+async def get_batch_text_links(
+    body: dict,
+    user: User = Depends(get_current_user),
+):
+    """Get text links for multiple nodes in a single request.
+    
+    Request body: { "node_ids": [1, 2, 3, ...] }
+    Returns: { "links_by_node": { "1": [...], "2": [...], ... } }
+    
+    Used for efficiently resolving node names in table views.
+    """
+    node_ids = body.get("node_ids", [])
+    if not node_ids or not isinstance(node_ids, list):
+        return {"links_by_node": {}}
+    
+    # Limit to prevent abuse
+    if len(node_ids) > 5000:
+        raise HTTPException(status_code=400, detail="Too many node IDs (max 5000)")
+    
+    service = await _get_node_service(user)
+    async with acquire_connection(service._pool) as conn:
+        rows = await conn.fetch("""
+            SELECT id, uuid, source_id, target_id, is_tag, position, name
+            FROM node_link
+            WHERE source_id = ANY($1) AND property_id IS NULL
+            ORDER BY source_id, position
+        """, node_ids)
+    
+    # Group links by source node ID
+    links_by_node = {}
+    for row in rows:
+        source_id = str(row['source_id'])
+        if source_id not in links_by_node:
+            links_by_node[source_id] = []
+        links_by_node[source_id].append(
+            NodeLinkResponse(
+                id=row['id'],
+                uuid=str(row['uuid']),
+                source_node_id=row['source_id'],
+                target_node_id=row['target_id'],
+                is_tag=row['is_tag'],
+                position=row['position'],
+                name=row['name'],
+            )
+        )
+    
+    return {"links_by_node": links_by_node}
+
+
 @router.post("/{node_id}/tag-links")
 async def add_tag_link(
     node_id: int,

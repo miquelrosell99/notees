@@ -30,6 +30,10 @@ import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
+import { useQuery } from '@tanstack/react-query';
+import { parseAST } from '@/lib/astBuilder';
+import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
+import { buildResolver } from '@/hooks/useStringifyAST';
 import './TableView.css';
 
 // Virtual column UUIDs (match PropertyColumnSelector)
@@ -64,7 +68,7 @@ function getDefaultColumns(): NodeTableColumn[] {
  * Convert NodeTableColumn to TableColumn<Node>
  * Adds sorting support for known column keys.
  */
-function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
+function convertColumns(nodeColumns: NodeTableColumn[], resolvedNames?: Map<number, string>): TableColumn<Node>[] {
   return nodeColumns.map(col => ({
     key: col.key,
     header: col.label,
@@ -73,7 +77,15 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     accessor: col.render
       ? col.render
       : col.key === 'name'
-        ? (node: Node) => node as unknown as ReactNode  // Return full Node so core Table's isNode() detects it for nav buttons
+        ? (node: Node) => {
+            // For name column, wrap node with resolved text if available
+            const resolvedText = resolvedNames?.get(node.id);
+            if (resolvedText) {
+              // Return a custom object that includes both node and resolved text
+              return { ...node, _resolvedText: resolvedText } as unknown as ReactNode;
+            }
+            return node as unknown as ReactNode;
+          }
         : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
@@ -137,6 +149,79 @@ export function TableView({
   // Context menu state
   const [contextMenuNode, setContextMenuNode] = useState<Node | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+
+  // Collect all node IDs (including children) for batch text link fetching
+  const allNodeIds = useMemo(() => {
+    const collectIds = (nodes: Node[]): number[] => {
+      const ids: number[] = [];
+      for (const node of nodes) {
+        ids.push(node.id);
+        if (node.children) {
+          ids.push(...collectIds(node.children));
+        }
+      }
+      return ids;
+    };
+    return collectIds(nodes);
+  }, [nodes]);
+
+  // Fetch batch text links for all nodes
+  const { data: batchTextLinks = {} } = useQuery({
+    queryKey: ['batchTextLinks', allNodeIds],
+    queryFn: () => nodesApi.getBatchTextLinks(allNodeIds),
+    enabled: allNodeIds.length > 0,
+    staleTime: 30000,
+  });
+
+  // Fetch all nodes that might be link targets (for resolving links)
+  const { data: allNodes = [] } = useQuery({
+    queryKey: ['nodes'],
+    queryFn: () => nodesApi.getNodes({ pages_only: false }),
+    staleTime: 60000,
+  });
+
+  // Build a map of node ID → resolved display text
+  const resolvedNames = useMemo(() => {
+    const nameMap = new Map<number, string>();
+    
+    // Build a lookup map for quick node access
+    const nodeLookup = new Map<number, Node>();
+    for (const node of allNodes) {
+      nodeLookup.set(node.id, node);
+    }
+    
+    // Resolve names for each node that has text links
+    for (const [nodeIdStr, links] of Object.entries(batchTextLinks)) {
+      const nodeId = parseInt(nodeIdStr, 10);
+      const node = nodeLookup.get(nodeId);
+      if (!node) continue;
+      
+      // Build link map for this node's resolver
+      const linkMap = new Map();
+      for (const link of links) {
+        const targetNode = nodeLookup.get(link.target_node_id);
+        if (targetNode) {
+          linkMap.set(link.uuid, {
+            targetNode,
+            label: link.name || null,
+          });
+        }
+      }
+      
+      // If node has links, resolve its name
+      if (linkMap.size > 0) {
+        const resolver = buildResolver(linkMap);
+        const ast = parseAST(node.name);
+        const resolved = stringifyAST(ast, {
+          mode: StringifyMode.TEXT_ONLY,
+          resolveNodeLink: resolver,
+        });
+        nameMap.set(nodeId, resolved);
+      }
+    }
+    
+    return nameMap;
+  }, [batchTextLinks, allNodes]);
 
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
@@ -314,7 +399,7 @@ export function TableView({
   }, [customColumns, dateColumnRenderer, propertyColumns]);
 
   // Convert NodeTableColumn to TableColumn<Node>
-  const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
+  const tableColumns = useMemo(() => convertColumns(nodeColumns, resolvedNames), [nodeColumns, resolvedNames]);
 
   // Default sort: write_date descending (most recently modified first)
   const defaultSort = useMemo<SortEntry[]>(() => {

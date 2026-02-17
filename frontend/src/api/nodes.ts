@@ -563,6 +563,18 @@ export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
 }
 
 /**
+ * Get text links for multiple nodes in a single request.
+ * Returns a map of node ID to its text links.
+ */
+export async function getBatchTextLinks(nodeIds: number[]): Promise<Record<string, TextLink[]>> {
+  if (nodeIds.length === 0) return {};
+  const response = await api.post<{ links_by_node: Record<string, TextLink[]> }>(`${BASE}/batch-text-links`, {
+    node_ids: nodeIds,
+  });
+  return response.data.links_by_node ?? {};
+}
+
+/**
  * Add a tag link from a node to a target page
  */
 export async function addTagLink(nodeId: number, targetNodeId: number): Promise<TextLink> {
