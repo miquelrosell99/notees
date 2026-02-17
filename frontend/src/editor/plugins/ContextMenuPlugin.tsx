@@ -28,7 +28,7 @@ export interface ContextMenuPluginProps {
   /** Called when bullet is clicked (for navigation) */
   onNavigateToNode?: (blockId: string) => void;
   /** Called when "Edit link" is chosen from the pill context menu */
-  onPillEdit?: (linkId: string, refType: PillRefType, url?: string) => void;
+  onPillEdit?: (linkId: string, refType: PillRefType, url?: string, label?: string) => void;
   /** Called when "Delete link" is chosen from the pill context menu */
   onPillRemove?: (linkId: string) => void;
 }
@@ -43,6 +43,8 @@ interface ContextMenuState {
   pillRefType?: PillRefType;
   /** URL for URL pills */
   pillUrl?: string;
+  /** Custom label for the pill */
+  pillLabel?: string;
 }
 
 export function ContextMenuPlugin({
@@ -168,6 +170,7 @@ export function ContextMenuPlugin({
           event.stopPropagation();
           const refType = (pillWrapper.getAttribute('data-ref-type') as PillRefType) || 'node';
           const pillUrl = pillWrapper.getAttribute('data-url') || undefined;
+          const pillLabel = pillWrapper.getAttribute('data-label') || undefined;
           setContextMenu({
             position: { x: event.clientX, y: event.clientY },
             blockId: linkId,
@@ -175,6 +178,7 @@ export function ContextMenuPlugin({
             pillLinkId: linkId,
             pillRefType: refType,
             pillUrl,
+            pillLabel,
           });
         }
         return;
@@ -246,13 +250,14 @@ export function ContextMenuPlugin({
     const linkId = contextMenu.pillLinkId;
     const refType = contextMenu.pillRefType || 'node';
     const pillUrl = contextMenu.pillUrl;
+    const pillLabel = contextMenu.pillLabel;
     return [
       {
         id: 'edit-link',
         label: 'Edit link',
         icon: mdiPencilOutline,
         onClick: () => {
-          onPillEdit?.(linkId, refType, pillUrl);
+          onPillEdit?.(linkId, refType, pillUrl, pillLabel);
           handleCloseContextMenu();
         },
       },
