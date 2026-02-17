@@ -6,8 +6,13 @@
  * - # triggers tag selection (any page)
  * - [[ triggers link selection (pages first, then blocks)
  * 
- * Enter: Add to property only (for @ and #) or insert link (for [[)
- * Ctrl+Enter: Add to property AND keep inline
+ * Keyboard shortcuts for @ class:
+ * - Enter: Add to class_ids only (pill displayed below block)
+ * - Ctrl+Enter: Add to class_ids AND show inline (inline pill in content)
+ *   Note: System hides the below-block pill when class is also inline
+ * 
+ * Keyboard shortcuts for # tag and [[ link:
+ * - Enter: Insert inline
  * 
  * Multi-select mode:
  * - Shows checkboxes next to each item
@@ -40,11 +45,11 @@ export interface SuggestionPopupProps {
   /** Position to render the popup */
   position: { top: number; left: number };
   /** Callback when an item is selected */
-  onSelect: (node: Node, keepInline: boolean) => void;
+  onSelect: (node: Node, addInline: boolean) => void;
   /** Callback to close the popup */
   onClose: () => void;
   /** Callback to create a new item if none exist */
-  onCreate?: (name: string, keepInline: boolean) => void;
+  onCreate?: (name: string, addInline: boolean) => void;
   /** Node ID to exclude from link results (used for non-page blocks) */
   excludeNodeId?: number;
   /** Enable multi-select mode with checkboxes */
@@ -171,7 +176,9 @@ export function SuggestionPopup({
       case 'Enter':
         e.preventDefault();
         e.stopPropagation();
-        const keepInline = e.shiftKey;
+        // For @ class: Ctrl+Enter adds inline pill too, plain Enter just adds to class_ids
+        // For # tag and [[ link: always insert inline
+        const addInline = e.ctrlKey;
         
         // Date suggestion at the very top
         if (hasDateSuggestion && selectedIndex === 0) {
@@ -194,11 +201,11 @@ export function SuggestionPopup({
           if (multiSelect && onToggleSelect) {
             onToggleSelect(allItems[adjustedIndex].node);
           } else {
-            onSelect(allItems[adjustedIndex].node, keepInline);
+            onSelect(allItems[adjustedIndex].node, addInline);
           }
         } else if (showCreateOption && onCreate) {
           // Create new item
-          onCreate(query.trim(), keepInline);
+          onCreate(query.trim(), addInline);
         }
         break;
         
@@ -618,7 +625,7 @@ export function SuggestionPopup({
         ) : showInlineOption ? (
           <>
             <span className="suggestion-popup__hint">
-              <kbd>Enter</kbd> add to property
+              <kbd>Enter</kbd> add class
             </span>
             <span className="suggestion-popup__hint">
               <kbd>Ctrl+Enter</kbd> add inline too

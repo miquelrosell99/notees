@@ -217,50 +217,75 @@ export function TriggerPlugin({
   if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
     const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
 
-    const handleSuggestionSelect = (node: Node, keepInline: boolean) => {
-      // For @ type trigger with plain Enter (not Shift+Enter), add to class_ids instead of inline
-      if (trigger.type === 'type' && !keepInline && onAddClass) {
-        // Remove trigger text without inserting a Pill, and resolve block server ID
+    const handleSuggestionSelect = (node: Node, addInline: boolean) => {
+      // For @ type trigger: ALWAYS add to class_ids
+      if (trigger.type === 'type' && onAddClass) {
         let blockServerId: number | undefined;
-        editor.update(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
+        
+        if (addInline) {
+          // Ctrl+Enter: Add to class_ids AND insert inline pill
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
 
-          const anchorNode = selection.anchor.getNode();
-          const rawText = anchorNode.getTextContent();
-          const text = rawText.replace(/\u200B/g, '');
-          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-          const cursorClean = selection.anchor.offset - zwsBefore;
+            const anchorNode = selection.anchor.getNode();
+            const blockNode = findParentNodeBlock(anchorNode);
+            if (blockNode) {
+              const runtime = getNodeGraphRuntime();
+              const graphNode = runtime.getNode(blockNode.getBlockId());
+              blockServerId = graphNode?.serverId;
+            }
+          });
 
-          // Remove trigger text
-          const beforeTrigger = text.slice(0, trigger.triggerOffset);
-          const afterCursor = text.slice(cursorClean);
-          
-          // Just set the text without the trigger, no Pill
-          const newText = beforeTrigger + afterCursor;
-          (anchorNode as any).setTextContent(newText || '\u200B');
-          
-          // Position cursor where trigger was
-          const newOffset = beforeTrigger.length;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-          // Resolve the parent block's server ID for the onAddClass call
-          const blockNode = findParentNodeBlock(anchorNode);
-          if (blockNode) {
-            const runtime = getNodeGraphRuntime();
-            const graphNode = runtime.getNode(blockNode.getBlockId());
-            blockServerId = graphNode?.serverId;
+          // Add class to block's class_ids
+          if (blockServerId != null) {
+            onAddClass(blockServerId, node.id);
           }
-        });
+          
+          // Also insert as inline pill
+          handleSelect(node.uuid, { node, type: suggestionType });
+        } else {
+          // Plain Enter: Add to class_ids only (no inline pill)
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
 
-        // Add class to block's class_ids (only if we resolved the block)
-        if (blockServerId != null) {
-          onAddClass(blockServerId, node.id);
+            const anchorNode = selection.anchor.getNode();
+            const rawText = anchorNode.getTextContent();
+            const text = rawText.replace(/\u200B/g, '');
+            const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+            const cursorClean = selection.anchor.offset - zwsBefore;
+
+            // Remove trigger text
+            const beforeTrigger = text.slice(0, trigger.triggerOffset);
+            const afterCursor = text.slice(cursorClean);
+            
+            // Just set the text without the trigger, no Pill
+            const newText = beforeTrigger + afterCursor;
+            (anchorNode as any).setTextContent(newText || '\u200B');
+            
+            // Position cursor where trigger was
+            const newOffset = beforeTrigger.length;
+            selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+            selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+            // Resolve the parent block's server ID for the onAddClass call
+            const blockNode = findParentNodeBlock(anchorNode);
+            if (blockNode) {
+              const runtime = getNodeGraphRuntime();
+              const graphNode = runtime.getNode(blockNode.getBlockId());
+              blockServerId = graphNode?.serverId;
+            }
+          });
+
+          // Add class to block's class_ids
+          if (blockServerId != null) {
+            onAddClass(blockServerId, node.id);
+          }
+          setTrigger(prev => ({ ...prev, isOpen: false }));
         }
-        setTrigger(prev => ({ ...prev, isOpen: false }));
       } else {
-        // Insert as Pill inline (for Shift+Enter or for link/tag triggers)
+        // For # tag and [[ link triggers: always insert as inline pill
         handleSelect(node.uuid, { node, type: suggestionType });
       }
     };
