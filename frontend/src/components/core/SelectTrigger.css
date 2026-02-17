@@ -29,6 +29,11 @@
 
 .select-trigger:hover:not(.select-trigger--disabled) {
   border-color: var(--color-outline);
+  transform: none;
+}
+
+.select-trigger:active {
+  transform: none;
 }
 
 .select-trigger:focus {
