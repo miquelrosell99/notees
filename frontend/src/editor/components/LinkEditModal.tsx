@@ -165,15 +165,6 @@ export function LinkEditModal({
       className="link-edit-modal"
     >
       <div className="link-edit-modal__body" onKeyDown={handleKeyDown}>
-        {/* Inline class indicator */}
-        {isInlineClassLink && (
-          <div className="link-edit-modal__info">
-            <span className="link-edit-modal__info-icon">🏷️</span>
-            <span className="link-edit-modal__info-text">
-              This is an <strong>inline class link</strong>. Editing this will also update the block's classes.
-            </span>
-          </div>
-        )}
         
         {/* Mode toggle */}
         <div className="link-edit-modal__section link-edit-modal__mode-section">
@@ -183,6 +174,14 @@ export function LinkEditModal({
             onChange={(v) => setLinkMode(v as LinkMode)}
             size="sm"
           />
+        {/* Inline class indicator */}
+        {isInlineClassLink && (
+          <div className="link-edit-modal__info">
+            <span className="link-edit-modal__info-text">
+              This is an <strong>inline class link</strong>. Editing this will also update the block's classes.
+            </span>
+          </div>
+        )}
         </div>
 
         {/* Link target section */}
@@ -203,7 +202,7 @@ export function LinkEditModal({
               />
               {isInlineClassLink && !isTargetNodeClass && (
                 <span className="link-edit-modal__hint link-edit-modal__hint--warning">
-                  ⚠️ If you select a node that is not a class, the "Class" class will be added to it.
+                  If you select a node that is not a class, the "class" class will be added to it.
                 </span>
               )}
             </>
