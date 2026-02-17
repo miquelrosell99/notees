@@ -896,7 +896,9 @@ export function QueryNodeCollection({
           {/* Pages section - shows when there are pages OR property ref items */}
           {showPagesSection && (
             <>
-              <div className="linked-references__pages-header">PAGES</div>
+              <div className={`linked-references__pages-header ${
+                resultBlocks.length === 0 ? 'linked-references__pages-header--no-blocks' : ''
+              }`}>PAGES</div>
 
               {/* Property references section - linked_references only */}
               {viewType === 'linked_references' && propertyRefItems.length > 0 && (
