@@ -23,7 +23,7 @@ type UserSettingsTab = 'preferences' | 'account' | 'about';
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('preferences');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, quickAddDestination, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView, setQuickAddDestination } = useSettingsStore();
+  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -62,6 +62,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleQuickAddDestinationChange = (destination: QuickAddDestination) => {
     setQuickAddDestination(destination);
     setSetting('quick_add_destination', destination).catch(console.error);
+  };
+
+  const handleLinkedRefsCollapseLevelChange = (level: number) => {
+    setLinkedRefsCollapseLevel(level);
+    setSetting('linked_refs_collapse_level', level).catch(console.error);
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
@@ -213,6 +218,25 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 >
                   <option value="today">Today's Page</option>
                   <option value="inbox">Inbox</option>
+                </select>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Linked refs collapse level</label>
+                  <p className="settings-item__description">
+                    Auto-collapse nodes at this depth in linked references (0 = disabled)
+                  </p>
+                </div>
+                <select
+                  className="settings-item__select"
+                  value={linkedRefsCollapseLevel}
+                  onChange={(e) => handleLinkedRefsCollapseLevelChange(parseInt(e.target.value, 10))}
+                >
+                  <option value="0">Disabled</option>
+                  <option value="1">Level 1</option>
+                  <option value="2">Level 2</option>
+                  <option value="3">Level 3</option>
                 </select>
               </div>
 
