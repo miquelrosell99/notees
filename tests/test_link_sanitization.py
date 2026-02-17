@@ -60,7 +60,7 @@ class TestLinkSanitization:
         assert sanitize_content(input_text) == expected
     
     def test_preserve_inline_types(self):
-        """Test that {{typeId}} patterns are not affected by link sanitization."""
+        """Test that {{classId}} patterns are not affected by link sanitization."""
         input_text = "Type reference {{123}} should remain intact"
         expected = "Type reference {{123}} should remain intact"
         assert sanitize_content(input_text) == expected

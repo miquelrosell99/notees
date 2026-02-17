@@ -136,7 +136,7 @@ export function TerrainView({
             const migrated = parsed.map((cc: ClassColor) => {
               const rawName = cc.className || '';
               return {
-                typeId: cc.typeId,
+                classId: cc.classId,
                 className: nodeNameToText(rawName) || rawName || 'Untitled',
                 color: cc.color,
                 order: cc.order,
