@@ -40,16 +40,14 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
           <NodeViewContent 
             nodeId={dailyPageId} 
             nodeType="page" 
-            viewMode={viewMode} 
-            compactMode={true} 
+            viewMode={viewMode}
           />
         </Card>
       ) : (
         <NodeViewContent 
           nodeId={dailyPageId} 
           nodeType="page" 
-          viewMode={viewMode} 
-          compactMode={true} 
+          viewMode={viewMode}
         />
       )}
     </article>
