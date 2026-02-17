@@ -80,6 +80,8 @@ export interface BlockPluginProps {
   sliceRecursiveLevel?: number;
   /** Slice projection: whether to show parent nodes as locked projection roots */
   sliceShowParent?: boolean;
+  /** Called when Enter is pressed on the root block (instead of creating a child) */
+  onEnterAtRoot?: () => void;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -102,6 +104,7 @@ export function BlockPlugin({
   sliceBlockIds,
   sliceRecursiveLevel,
   sliceShowParent,
+  onEnterAtRoot,
 }: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -494,6 +497,11 @@ export function BlockPlugin({
         runtime.requestFocus(newBlockId);
 
         if (includeRoot && blockId === rootBlockId) {
+          if (onEnterAtRoot) {
+            // Delegate to external handler (e.g., multi-text property adds sibling entry)
+            onEnterAtRoot();
+            return true;
+          }
           // Projection root: create a new first child instead of splitting
           // (splitting would create a sibling outside the projection)
           runtime.applyIntent({
@@ -519,7 +527,7 @@ export function BlockPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, readOnly, includeRoot, rootBlockId]);
+  }, [editor, readOnly, includeRoot, rootBlockId, onEnterAtRoot]);
 
   // ─── Merge guard: check hierarchy constraints ────────────
   //

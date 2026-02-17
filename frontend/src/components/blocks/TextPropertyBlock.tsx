@@ -56,10 +56,12 @@ function SingleTextBlock({
   blockNodeId,
   readOnly,
   onOpenInSidebar,
+  onEnterAtRoot,
 }: {
   blockNodeId: number;
   readOnly: boolean;
   onOpenInSidebar?: (blockId: number) => void;
+  onEnterAtRoot?: () => void;
 }) {
   const { data: blockNode, isLoading } = useNode(blockNodeId, {
     include_children: true,
@@ -95,6 +97,7 @@ function SingleTextBlock({
         pageId={blockNode.id}
         pageUuid={blockNode.uuid}
         hideToolbar={true}
+        onEnterAtRoot={onEnterAtRoot}
       />
     </div>
   );
@@ -247,21 +250,9 @@ export function TextPropertyBlock({
             blockNodeId={id}
             readOnly={readOnly}
             onOpenInSidebar={onOpenInSidebar}
+            onEnterAtRoot={handleAddText}
           />
         ))}
-        {!readOnly && (
-          <Button
-            icon={mdiPlus}
-            className="text-property-block__add-btn"
-            onClick={handleAddText}
-            disabled={isCreating}
-            title="Add text block"
-            size="xs"
-            variant="ghost"
-          >
-            {isCreating ? 'Creating...' : 'Add text'}
-          </Button>
-        )}
       </div>
     );
   }

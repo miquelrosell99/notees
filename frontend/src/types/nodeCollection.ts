@@ -118,6 +118,9 @@ export interface NodeCollectionProps {
   /** Called when an image is pasted into a block */
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   
+  /** Called when Enter is pressed on the root block (instead of creating a child) */
+  onEnterAtRoot?: () => void;
+  
   /** Additional CSS class */
   className?: string;
   
@@ -200,6 +203,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Called when an image is pasted into a block */
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  
+  /** Called when Enter is pressed on the root block (instead of creating a child) */
+  onEnterAtRoot?: () => void;
   
   /** Custom node renderer */
   renderNode?: (node: Node, editable: boolean) => ReactNode;
