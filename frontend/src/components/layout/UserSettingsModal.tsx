@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -152,15 +152,16 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     Adjust the base font size
                   </p>
                 </div>
-                <select
-                  className="settings-item__select"
+                <SelectionButton
+                  options={[
+                    { value: 'small', icon: mdiFormatFontSizeDecrease, label: 'Small font size' },
+                    { value: 'medium', icon: mdiFormatSize, label: 'Medium font size' },
+                    { value: 'large', icon: mdiFormatFontSizeIncrease, label: 'Large font size' },
+                  ]}
                   value={fontSize}
-                  onChange={(e) => handleFontSizeChange(e.target.value as 'small' | 'medium' | 'large')}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
+                  onChange={(value) => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
+                  size="md"
+                />
               </div>
 
               <div className="settings-item">
