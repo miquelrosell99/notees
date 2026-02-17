@@ -19,7 +19,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { mdiImport, mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
 import Icon from '@mdi/react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
@@ -89,7 +89,7 @@ function collectChildUuids(node: Node): string[] {
  * Delete all children of a page in override mode.
  * Returns number of blocks deleted.
  */
-async function deleteExistingBlocks(pageId: number): Promise<number> {
+async function deleteExistingBlocks(pageId: number, queryClient: QueryClient): Promise<number> {
   // Fetch the page with all children
   const fullPage = await getNode(pageId, { include_children: true });
   const childUuids = collectChildUuids(fullPage);
@@ -100,6 +100,10 @@ async function deleteExistingBlocks(pageId: number): Promise<number> {
 
   // Delete all children in a single batch
   const result = await batchDeleteNodes({ uuids: childUuids });
+  
+  // Invalidate queries for this page to ensure UI updates
+  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(pageId) });
+  
   return result.deleted;
 }
 
@@ -388,7 +392,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 if (override) {
                   setImportStatus(`Deleting existing blocks for journal: ${page.journal}`);
                   try {
-                    await deleteExistingBlocks(dayNode.id);
+                    await deleteExistingBlocks(dayNode.id, queryClient);
                   } catch (e) {
                     console.error('Failed to delete existing blocks:', e);
                   }
@@ -445,7 +449,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               if (override) {
                 setImportStatus(`Deleting existing blocks for: ${page.title}`);
                 try {
-                  await deleteExistingBlocks(existingPage.id);
+                  await deleteExistingBlocks(existingPage.id, queryClient);
                 } catch (e) {
                   console.error('Failed to delete existing blocks:', e);
                 }
