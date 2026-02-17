@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
-import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView } from '@/stores';
+import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -23,7 +23,7 @@ type UserSettingsTab = 'preferences' | 'account' | 'about';
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('preferences');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView } = useSettingsStore();
+  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, quickAddDestination, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView, setQuickAddDestination } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -57,6 +57,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleDefaultViewChange = (view: DefaultView) => {
     setDefaultView(view);
     setSetting('default_view', view).catch(console.error);
+  };
+
+  const handleQuickAddDestinationChange = (destination: QuickAddDestination) => {
+    setQuickAddDestination(destination);
+    setSetting('quick_add_destination', destination).catch(console.error);
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
@@ -191,6 +196,23 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   <option value="journal">Journal</option>
                   <option value="all-pages">All Pages</option>
                   <option value="graph">Graph View</option>
+                </select>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Quick add destination</label>
+                  <p className="settings-item__description">
+                    Where to send quick add notes
+                  </p>
+                </div>
+                <select
+                  className="settings-item__select"
+                  value={quickAddDestination}
+                  onChange={(e) => handleQuickAddDestinationChange(e.target.value as QuickAddDestination)}
+                >
+                  <option value="today">Today's Page</option>
+                  <option value="inbox">Inbox</option>
                 </select>
               </div>
 

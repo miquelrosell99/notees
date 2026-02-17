@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
-import type { DateFormat, QuickAddDestination } from '@/stores';
+import type { DateFormat } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmationModal } from '../core/ConfirmationModal';
@@ -24,7 +24,7 @@ type SettingsTab = 'general';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const { dateFormat, quickAddDestination, linkedRefsCollapseLevel, setDateFormat, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { dateFormat, linkedRefsCollapseLevel, setDateFormat, setLinkedRefsCollapseLevel } = useSettingsStore();
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
@@ -126,23 +126,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {isUpdatingDateFormat && (
                     <span className="settings-item__loading">Updating...</span>
                   )}
-                </div>
-
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Quick add destination</label>
-                    <p className="settings-item__description">
-                      Where to send quick add notes
-                    </p>
-                  </div>
-                  <select 
-                    className="settings-item__select"
-                    value={quickAddDestination}
-                    onChange={(e) => setQuickAddDestination(e.target.value as QuickAddDestination)}
-                  >
-                    <option value="today">Today's Page</option>
-                    <option value="inbox">Inbox</option>
-                  </select>
                 </div>
 
                 <div className="settings-item">
