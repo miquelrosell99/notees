@@ -383,7 +383,7 @@ export function WorkspaceManagementView({
 
         {/* Footer */}
         <footer className="workspace-management__footer">
-          <p>Notees ÔÇö Your personal knowledge base</p>
+          <p>Notees - Your personal knowledge base</p>
         </footer>
       </div>
 
