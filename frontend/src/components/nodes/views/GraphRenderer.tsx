@@ -562,7 +562,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const dimOp = node.glare === 'dim' ? 0.12 : 1;
       ctx.fillStyle = textColor; ctx.globalAlpha = zoomOpacity * dimOp;
       ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const displayName = node.name.length > 35 ? node.name.slice(0, 35) + '...' : node.name;
+      const displayName = node.displayName.length > 35 ? node.displayName.slice(0, 35) + '...' : node.displayName;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
