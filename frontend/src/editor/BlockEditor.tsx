@@ -35,6 +35,7 @@ import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
+import { AutoWrapPlugin } from './plugins/AutoWrapPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
@@ -409,6 +410,7 @@ export function BlockEditor({
         <EditablePlugin readOnly={readOnly} />
         <HistoryPlugin />
         <FormattingPlugin />
+        <AutoWrapPlugin />
         <CollapsePlugin />
 
         {/* Block projection plugin */}
