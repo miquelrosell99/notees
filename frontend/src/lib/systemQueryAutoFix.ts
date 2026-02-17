@@ -51,7 +51,7 @@ interface SystemSectionRequirement {
 
 interface SystemContext {
   nodeUuid?: string;
-  typeUuid?: string;
+  classUuid?: string;
   parentUuid?: string;
 }
 
@@ -243,7 +243,7 @@ export function isSystemSection(viewType: string): boolean {
  * 
  * @param ast The QueryAST to fix
  * @param viewType The view type (e.g., 'linked_references')
- * @param context Context data (nodeUuid, typeUuid, etc.)
+ * @param context Context data (nodeUuid, classUuid, etc.)
  * @returns Fixed QueryAST with system conditions restored
  */
 export function autoFixSystemQuery(
