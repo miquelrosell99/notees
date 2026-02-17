@@ -15,8 +15,10 @@ import { useState, useMemo, useCallback } from 'react';
 import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { useProperty, useNodesWithProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
+import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
+import { useQuery_ } from '@/hooks/useNodeViews';
 import { useAppStore } from '@/stores';
+import { createEmptyQueryAST, createPropertyCondition } from '@/types/queryAST';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
@@ -170,9 +172,26 @@ export function PropertyView({
     setShowDeleteModal(false);
   }, []);
   
-  // Fetch nodes with this property using property ID
-  const { data: nodesWithProperty, isLoading: nodesLoading } = useNodesWithProperty(
-    property ? propertyId : null
+  // Build a query AST: scope=entire_workspace, condition=property is_not_empty
+  const propertyQueryAST = useMemo(() => {
+    if (!property) return undefined;
+    const ast = createEmptyQueryAST();
+    ast.scope.scope_type = 'entire_workspace';
+    ast.root_group.children.push(
+      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any)
+    );
+    return ast;
+  }, [property]);
+
+  const { data: nodesWithProperty, isLoading: nodesLoading } = useQuery_(
+    {
+      query_ast: propertyQueryAST,
+      include_properties: true,
+    },
+    {
+      enabled: !!propertyQueryAST,
+      queryKey: ['property-nodes', propertyId],
+    }
   );
   
   // Property column UUIDs for the table view
