@@ -28,12 +28,12 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
-import type { PropertyType } from '@/types/api';
+import type { PropertyType, Node } from '@/types/api';
 import './ImportLogseqModal.css';
 
 // ── Error tracking types ───────────────────────────────────────
@@ -68,6 +68,39 @@ function errorMessage(e: unknown): string {
   }
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+/**
+ * Recursively collect all child UUIDs from a node tree.
+ * Used in override mode to delete existing blocks before importing.
+ */
+function collectChildUuids(node: Node): string[] {
+  const uuids: string[] = [];
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      uuids.push(child.uuid);
+      uuids.push(...collectChildUuids(child));
+    }
+  }
+  return uuids;
+}
+
+/**
+ * Delete all children of a page in override mode.
+ * Returns number of blocks deleted.
+ */
+async function deleteExistingBlocks(pageId: number): Promise<number> {
+  // Fetch the page with all children
+  const fullPage = await getNode(pageId, { include_children: true });
+  const childUuids = collectChildUuids(fullPage);
+  
+  if (childUuids.length === 0) {
+    return 0;
+  }
+
+  // Delete all children in a single batch
+  const result = await batchDeleteNodes({ uuids: childUuids });
+  return result.deleted;
 }
 
 /** Info stored per created Notees node, keyed by Logseq UUID */
@@ -350,9 +383,20 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p3.succeeded++;
 
               if (page.blocks.length > 0) {
-                // Fetch existing children to append after them
-                const fullDay = await getNode(dayNode.id, { include_children: true });
-                const startSeq = fullDay.children?.length ?? 0;
+                // In override mode, delete existing blocks before importing
+                let startSeq = 0;
+                if (override) {
+                  setImportStatus(`Deleting existing blocks for journal: ${page.journal}`);
+                  try {
+                    await deleteExistingBlocks(dayNode.id);
+                  } catch (e) {
+                    console.error('Failed to delete existing blocks:', e);
+                  }
+                } else {
+                  // In additive mode, append after existing children
+                  const fullDay = await getNode(dayNode.id, { include_children: true });
+                  startSeq = fullDay.children?.length ?? 0;
+                }
                 setImportStatus(`Creating blocks for journal: ${page.journal}`);
                 await createBlocksRecursively(
                   page.blocks, dayNode.id, startSeq, uuidMap, classIdMap, contentQueue, p3,
@@ -395,8 +439,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
 
             p3.succeeded++;
 
-            // Still create blocks under the existing page
+            // Create blocks under the existing page
             if (page.blocks.length > 0) {
+              // In override mode, delete existing blocks before importing
+              if (override) {
+                setImportStatus(`Deleting existing blocks for: ${page.title}`);
+                try {
+                  await deleteExistingBlocks(existingPage.id);
+                } catch (e) {
+                  console.error('Failed to delete existing blocks:', e);
+                }
+              }
               setImportStatus(`Creating blocks for: ${page.title}`);
               await createBlocksRecursively(
                 page.blocks, existingPage.id, 0, uuidMap, classIdMap, contentQueue, p3,
