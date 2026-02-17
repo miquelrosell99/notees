@@ -122,8 +122,6 @@ export function KeyboardSelectionPlugin({
         const rootEl = editor.getRootElement();
         if (!rootEl) return false;
 
-        const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
-
         // If no blocks selected yet, select current block
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
@@ -143,42 +141,51 @@ export function KeyboardSelectionPlugin({
             queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
-          // Extend/shrink existing selection
-          const anchorEl = anchorBlockId.current ? 
-            rootEl.querySelector(`[data-block-id="${anchorBlockId.current}"]`) as HTMLElement : null;
-          const selectedElements = allBlocks.filter(el => 
-            selectedBlocks.current.has(el.getAttribute('data-block-id')!)
+          // Extend/shrink existing selection - only navigate among siblings
+          const runtime = getNodeGraphRuntime();
+          const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
+          
+          if (!anchorBlock) return false;
+          
+          // Get siblings at the same parent level
+          const siblings = runtime.getSiblings(anchorBlock.blockId);
+          const siblingIds = siblings.map(s => s.blockId);
+          
+          if (siblingIds.length === 0) return false;
+          
+          // Find anchor position in sibling list
+          const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
+          if (anchorIndex === -1) return false;
+          
+          // Determine current selection range within siblings
+          const selectedSiblingIds = siblingIds.filter(id => 
+            selectedBlocks.current.has(id)
           );
           
-          if (selectedElements.length === 0) return false;
-
-          const topElement = selectedElements[0];
-          const bottomElement = selectedElements[selectedElements.length - 1];
-          const topIndex = allBlocks.indexOf(topElement);
-          const bottomIndex = allBlocks.indexOf(bottomElement);
-          const anchorIndex = anchorEl ? allBlocks.indexOf(anchorEl) : topIndex;
-
-          // If anchor is at top, extend upward
-          if (anchorIndex === topIndex && topIndex > 0) {
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            for (let i = topIndex - 1; i <= bottomIndex; i++) {
-              const blockId = allBlocks[i].getAttribute('data-block-id');
-              if (blockId) {
-                selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-              }
-            }
-            onSelectionChange?.([...selectedBlocks.current]);
+          if (selectedSiblingIds.length === 0) return false;
+          
+          const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
+          const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
+          
+          let newSelection: string[] = [];
+          
+          // Shift+Up: Prioritize shrinking toward anchor, then extending
+          if (lastSelectedIndex > anchorIndex) {
+            // Selection extends below anchor, shrink from bottom (move bottom toward anchor)
+            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
+          } else if (firstSelectedIndex === anchorIndex && firstSelectedIndex > 0) {
+            // At anchor and can extend upward
+            newSelection = siblingIds.slice(firstSelectedIndex - 1, lastSelectedIndex + 1);
+          } else if (firstSelectedIndex < anchorIndex) {
+            // Selection extends above anchor, shrink from top (move top toward anchor)
+            newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
           }
-          // If anchor is at bottom, shrink selection from bottom
-          else if (anchorIndex === bottomIndex && selectedElements.length > 1) {
+          
+          if (newSelection.length > 0) {
             clearBlockSelection(rootEl);
             selectedBlocks.current.clear();
-            for (let i = topIndex; i < bottomIndex; i++) {
-              const blockId = allBlocks[i].getAttribute('data-block-id');
-              if (blockId) {
-                selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-              }
+            for (const blockId of newSelection) {
+              selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
             }
             onSelectionChange?.([...selectedBlocks.current]);
           }
@@ -205,8 +212,6 @@ export function KeyboardSelectionPlugin({
         const rootEl = editor.getRootElement();
         if (!rootEl) return false;
 
-        const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
-
         // If no blocks selected yet, select current block
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
@@ -226,42 +231,51 @@ export function KeyboardSelectionPlugin({
             queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
-          // Extend/shrink existing selection
-          const anchorEl = anchorBlockId.current ? 
-            rootEl.querySelector(`[data-block-id="${anchorBlockId.current}"]`) as HTMLElement : null;
-          const selectedElements = allBlocks.filter(el => 
-            selectedBlocks.current.has(el.getAttribute('data-block-id')!)
+          // Extend/shrink existing selection - only navigate among siblings
+          const runtime = getNodeGraphRuntime();
+          const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
+          
+          if (!anchorBlock) return false;
+          
+          // Get siblings at the same parent level
+          const siblings = runtime.getSiblings(anchorBlock.blockId);
+          const siblingIds = siblings.map(s => s.blockId);
+          
+          if (siblingIds.length === 0) return false;
+          
+          // Find anchor position in sibling list
+          const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
+          if (anchorIndex === -1) return false;
+          
+          // Determine current selection range within siblings
+          const selectedSiblingIds = siblingIds.filter(id => 
+            selectedBlocks.current.has(id)
           );
           
-          if (selectedElements.length === 0) return false;
-
-          const topElement = selectedElements[0];
-          const bottomElement = selectedElements[selectedElements.length - 1];
-          const topIndex = allBlocks.indexOf(topElement);
-          const bottomIndex = allBlocks.indexOf(bottomElement);
-          const anchorIndex = anchorEl ? allBlocks.indexOf(anchorEl) : bottomIndex;
-
-          // If anchor is at bottom, extend downward
-          if (anchorIndex === bottomIndex && bottomIndex < allBlocks.length - 1) {
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            for (let i = topIndex; i <= bottomIndex + 1; i++) {
-              const blockId = allBlocks[i].getAttribute('data-block-id');
-              if (blockId) {
-                selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-              }
-            }
-            onSelectionChange?.([...selectedBlocks.current]);
+          if (selectedSiblingIds.length === 0) return false;
+          
+          const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
+          const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
+          
+          let newSelection: string[] = [];
+          
+          // Shift+Down: Prioritize shrinking toward anchor, then extending
+          if (firstSelectedIndex < anchorIndex) {
+            // Selection extends above anchor, shrink from top (move top toward anchor)
+            newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
+          } else if (lastSelectedIndex === anchorIndex && lastSelectedIndex < siblingIds.length - 1) {
+            // At anchor and can extend downward
+            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex + 2);
+          } else if (lastSelectedIndex > anchorIndex) {
+            // Selection extends below anchor, shrink from bottom (move bottom toward anchor)
+            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
           }
-          // If anchor is at top, shrink selection from top
-          else if (anchorIndex === topIndex && selectedElements.length > 1) {
+          
+          if (newSelection.length > 0) {
             clearBlockSelection(rootEl);
             selectedBlocks.current.clear();
-            for (let i = topIndex + 1; i <= bottomIndex; i++) {
-              const blockId = allBlocks[i].getAttribute('data-block-id');
-              if (blockId) {
-                selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-              }
+            for (const blockId of newSelection) {
+              selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
             }
             onSelectionChange?.([...selectedBlocks.current]);
           }
