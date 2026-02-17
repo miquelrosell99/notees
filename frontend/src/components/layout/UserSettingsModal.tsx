@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
-import type { ThemePreference, DateFormat } from '@/stores';
+import type { ThemePreference, DateFormat, HashtagPasteMode } from '@/stores';
 import { setSetting } from '@/api/workspaces';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -23,7 +23,7 @@ type UserSettingsTab = 'preferences' | 'account' | 'about';
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('preferences');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, fontSize, setTheme, setDateFormat, setFontSize } = useSettingsStore();
+  const { theme, dateFormat, fontSize, hashtagPasteMode, setTheme, setDateFormat, setFontSize, setHashtagPasteMode } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -47,6 +47,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleFontSizeChange = (newSize: 'small' | 'medium' | 'large') => {
     setFontSize(newSize);
     setSetting('font_size', newSize).catch(console.error);
+  };
+
+  const handleHashtagPasteModeChange = (mode: HashtagPasteMode) => {
+    setHashtagPasteMode(mode);
+    setSetting('hashtag_paste_mode', mode).catch(console.error);
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
@@ -162,6 +167,23 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   <option value="small">Small</option>
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
+                </select>
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Hashtag paste behavior</label>
+                  <p className="settings-item__description">
+                    How #hashtag patterns in pasted text should be interpreted
+                  </p>
+                </div>
+                <select
+                  className="settings-item__select"
+                  value={hashtagPasteMode}
+                  onChange={(e) => handleHashtagPasteModeChange(e.target.value as HashtagPasteMode)}
+                >
+                  <option value="inline-tag">Inline tag (node link with is_tag)</option>
+                  <option value="inline-class">Inline class (class reference)</option>
                 </select>
               </div>
             </div>
