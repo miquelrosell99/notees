@@ -13,11 +13,11 @@
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import Icon from '@mdi/react';
-import { mdiTrashCan, mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
+import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, addClassFilter, removeClassFilter } from '@/api/properties';
-import { useDeleteProperty, useUpdateProperty, useClasses } from '@/hooks';
+import { useUpdateProperty, useClasses } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
@@ -32,13 +32,11 @@ interface SelectionOptionWithId {
 interface PropertyConfigSectionProps {
   property: Property;
   onUpdate: (property: Property) => void;
-  onDelete?: (propertyId: number) => void;
 }
 
 export function PropertyConfigSection({
   property,
   onUpdate,
-  onDelete,
 }: PropertyConfigSectionProps) {
   // Form state (name and icon removed - they're in PageHeader now)
   const [isLocal] = useState(property.is_local || false);
@@ -50,10 +48,8 @@ export function PropertyConfigSection({
   const [showAddOption, setShowAddOption] = useState(false);
   const [allowedClasses, setAllowedClasses] = useState<Node[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Mutations
-  const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
   
   // Get all classes to resolve class_filters IDs to Node objects
@@ -223,30 +219,6 @@ export function PropertyConfigSection({
     setShowMultiValueConfirm(false);
   }, []);
   
-  // Delete the property
-  const handleDeleteClick = useCallback(() => {
-    if (!onDelete) return;
-    setShowDeleteModal(true);
-  }, [onDelete]);
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!onDelete) return;
-    
-    try {
-      await deletePropertyMutation.mutateAsync(property.id);
-      onDelete(property.id);
-      setShowDeleteModal(false);
-    } catch (err) {
-      setError('Failed to delete property');
-      console.error(err);
-      setShowDeleteModal(false);
-    }
-  }, [property, onDelete, deletePropertyMutation]);
-
-  const handleCancelDelete = useCallback(() => {
-    setShowDeleteModal(false);
-  }, []);
-  
   return (
     <div className="property-config-section">
       {/* Scope Display (for local properties only) */}
@@ -339,45 +311,6 @@ export function PropertyConfigSection({
         <div className="property-config-section__error">
           {error}
         </div>
-      )}
-      
-      {onDelete && (
-        <>
-          <div className="property-config-section__delete">
-            <Button
-              onClick={handleDeleteClick}
-              variant="ghost"
-              icon={mdiTrashCan}
-            >
-              Delete Property
-            </Button>
-          </div>
-          
-          {showDeleteModal && (
-            <Modal
-              isOpen={showDeleteModal}
-              title="Delete Property"
-              onClose={handleCancelDelete}
-              footer={
-                <>
-                  <Button onClick={handleCancelDelete}>Cancel</Button>
-                  <Button 
-                    onClick={handleConfirmDelete}
-                    variant="danger"
-                    disabled={deletePropertyMutation.isPending}
-                  >
-                    {deletePropertyMutation.isPending ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </>
-              }
-            >
-              <p>
-                Are you sure you want to delete the property &quot;{property.name}&quot;?
-                This will remove the property and all its values from all nodes.
-              </p>
-            </Modal>
-          )}
-        </>
       )}
       
       {/* Multi-value Change Confirmation Modal */}
