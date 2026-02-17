@@ -1045,7 +1045,7 @@ export function NodeView({ nodeId, viewMode, compactMode = false, propertiesColl
             )}
           </div>
           
-          {/* Properties Section - full width row below header section (skip in compact mode) */
+          {/* Properties Section - full width row below header section (skip in compact mode) */}
           {!compactMode && (
             <div className="page-properties-section">
               <PropertiesSection 
