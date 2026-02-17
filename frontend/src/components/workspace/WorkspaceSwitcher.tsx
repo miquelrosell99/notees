@@ -12,6 +12,7 @@ import { mdiChevronDown, mdiPlus, mdiDatabaseOutline } from '@mdi/js';
 import { listWorkspaces, switchWorkspace, createWorkspace, type WorkspaceInfo } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
 import { Card } from '../core/Card';
+import { Button } from '../core/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import './WorkspaceSwitcher.css';
@@ -150,23 +151,26 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   return (
     <div className="workspace-switcher" ref={containerRef}>
       <div className="workspace-switcher__row">
-        <button
+        <Button
           className={`workspace-switcher__trigger ${isOpen ? 'workspace-switcher__trigger--open' : ''}`}
           onClick={handleToggle}
+          variant="ghost"
         >
           <div className="workspace-switcher__current">
             <Icon path={mdiDatabaseOutline} size={0.7} className="workspace-switcher__graph-icon" />
             <span className="workspace-switcher__name">{displayName}</span>
           </div>
           <Icon path={mdiChevronDown} size={0.7} className="workspace-switcher__chevron" />
-        </button>
-        <button
+        </Button>
+        <Button
           className="workspace-switcher__add-btn"
           onClick={() => onAddWorkspace()}
           title="Create new graph"
-        >
-          <Icon path={mdiPlus} size={0.7} />
-        </button>
+          icon={mdiPlus}
+          iconOnly
+          size="sm"
+          variant="ghost"
+        />
       </div>
 
       {isOpen && (
@@ -185,30 +189,32 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           </div>
           <div className="workspace-switcher__list">
             {filteredWorkspaces.map((workspace, index) => (
-              <button
+              <Button
                 key={workspace.uuid}
                 className={`workspace-switcher__item ${workspace.uuid === data?.active ? 'workspace-switcher__item--active' : ''} ${index === selectedIndex ? 'workspace-switcher__item--selected' : ''}`}
                 onClick={() => handleSelect(workspace)}
                 onMouseEnter={() => setSelectedIndex(index)}
+                variant="ghost"
               >
                 <Icon path={mdiDatabaseOutline} size={0.6} className="workspace-switcher__item-icon" />
                 <span className="workspace-switcher__item-name">{workspace.name}</span>
                 {workspace.uuid === data?.active && (
                   <span className="workspace-switcher__item-badge">Active</span>
                 )}
-              </button>
+              </Button>
             ))}
             {showCreateOption && (
-              <button
+              <Button
                 className={`workspace-switcher__item workspace-switcher__item--create ${selectedIndex === filteredWorkspaces.length ? 'workspace-switcher__item--selected' : ''}`}
                 onClick={handleCreate}
                 onMouseEnter={() => setSelectedIndex(filteredWorkspaces.length)}
+                variant="ghost"
               >
                 <Icon path={mdiPlus} size={0.6} className="workspace-switcher__item-icon" />
                 <span className="workspace-switcher__item-name">
                   Create "<strong>{searchQuery.trim()}</strong>"
                 </span>
-              </button>
+              </Button>
             )}
             {filteredWorkspaces.length === 0 && !showCreateOption && (
               <div className="workspace-switcher__empty">No graphs found</div>
