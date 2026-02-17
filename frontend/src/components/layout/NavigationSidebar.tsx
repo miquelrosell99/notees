@@ -9,7 +9,8 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAppStore, useFavoritesStore } from '@/stores';
-import { useNode } from '@/hooks';
+import { useNode, useClasses } from '@/hooks';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
@@ -40,6 +41,8 @@ interface RecentItemProps {
 function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProps) {
   // Fetch the node directly using useNode for real-time updates
   const { data: node } = useNode(nodeId);
+  const { data: allClasses } = useClasses();
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
   // Don't render if node not yet loaded
   if (!node) return null;
@@ -48,7 +51,7 @@ function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProp
     <div onContextMenu={onContextMenu}>
       <NodeInline
         name={node.name}
-        icon={node.icon}
+        icon={effectiveIcon}
         isPage={node.is_page}
         nodeId={node.id}
         showBullet={true}
