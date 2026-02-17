@@ -753,6 +753,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // Invalidate queries to refresh UI with imported data
       queryClient.invalidateQueries({ queryKey: nodeKeys.all });
       queryClient.invalidateQueries({ queryKey: propertyKeys.all });
+      // Invalidate "nodes with this property" queries (uses separate key prefix)
+      queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
 
       setReport({ phases, totalSucceeded, totalFailed });
       setImportStatus('');
