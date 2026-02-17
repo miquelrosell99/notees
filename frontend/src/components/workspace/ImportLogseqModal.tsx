@@ -941,7 +941,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             <span className="import-logseq__mode-hint">
               {importMode === 'additive'
                 ? 'Adds new entities and merges new properties into existing nodes'
-                : 'Replaces existing node properties with imported data'}
+                : 'Replaces existing blocks and properties with imported data'}
             </span>
           </div>
         )}
