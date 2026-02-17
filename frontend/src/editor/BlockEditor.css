@@ -583,6 +583,13 @@ th.node-block-table-cell {
               color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+/* Class pills — wavy underline, italic */
+.node-pill-wrapper .node-pill-inner[data-ref-type="class"] {
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1px;
+  font-style: italic;
+}
+
 .node-pill-wrapper:hover .node-pill-inner {
   text-decoration-style: solid;
   text-decoration-color: var(--color-on-surface);
