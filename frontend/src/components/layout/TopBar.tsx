@@ -8,7 +8,7 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
@@ -25,6 +25,8 @@ import { CalendarPopup } from '../core/CalendarPopup';
 import { QuickAddPanel } from '../quickadd/QuickAddPanel';
 import { Card } from '../core/Card';
 import { Scratchpad } from './Scratchpad';
+import { AccountMenu } from './AccountMenu';
+import { UserSettingsModal } from './UserSettingsModal';
 import './TopBar.css';
 
 export function TopBar() {
@@ -45,6 +47,7 @@ export function TopBar() {
     setScratchpadOpen,
   } = useAppStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   
   // Pre-fetch today's note (this will create it if needed when accessed)
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -166,12 +169,23 @@ export function TopBar() {
           title="Toggle right sidebar"
           className="toolbar-btn"
         />
+        
+        {/* Account menu */}
+        <AccountMenu 
+          onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+        />
       </div>
       </header>
       
       <Scratchpad
         isOpen={isScratchpadOpen}
         onClose={() => setScratchpadOpen(false)}
+      />
+      
+      {/* User Settings Modal */}
+      <UserSettingsModal
+        isOpen={isUserSettingsOpen}
+        onClose={() => setIsUserSettingsOpen(false)}
       />
     </Card>
   );
