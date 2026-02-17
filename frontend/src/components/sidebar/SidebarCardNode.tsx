@@ -6,6 +6,7 @@
  * - Blocks: No title in the header (empty)
  */
 import { useNode } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
 import './SidebarCardNode.css';
@@ -23,7 +24,7 @@ export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodePr
   const { data: node, isLoading, error } = useNode(nodeId);
   
   // Pages show the name, blocks show no title
-  const title = cardType === 'page' ? (node?.name || 'Untitled') : undefined;
+  const title = cardType === 'page' ? (nodeNameToText(node?.name) || 'Untitled') : undefined;
   
   return (
     <SidebarCard
