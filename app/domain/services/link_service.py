@@ -47,13 +47,14 @@ def generate_link_uuid() -> str:
     return str(uuid_module.uuid4())
 
 
-def _parse_links_from_ast(content: str) -> Optional[List[Tuple[str, int, Optional[str]]]]:
+def _parse_links_from_ast(content: str) -> Optional[List[Tuple[str, int, Optional[str], Optional[str]]]]:
     """Try to parse content as AST JSON and extract node links (ref_type='node').
     
     Returns None if content is not valid AST JSON, otherwise returns
-    list of (target_node_uuid, position, link_uuid) tuples.
+    list of (target_node_uuid, position, link_uuid, label) tuples.
     
     The link_id format is "nodeUuid:linkUuid" (or legacy "nodeId:linkUuid").
+    Label is the custom display text from the 'label' field in the AST node.
     """
     try:
         ast = json.loads(content)
@@ -67,7 +68,7 @@ def _parse_links_from_ast(content: str) -> Optional[List[Tuple[str, int, Optiona
     if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
         return None
     
-    links: List[Tuple[str, int, Optional[str]]] = []
+    links: List[Tuple[str, int, Optional[str], Optional[str]]] = []
     position = 0
     
     def walk(nodes: Any) -> None:
@@ -85,7 +86,9 @@ def _parse_links_from_ast(content: str) -> Optional[List[Tuple[str, int, Optiona
                     continue
                 node_identifier = parts[0]  # UUID string (or legacy numeric ID)
                 link_uuid = parts[1] if len(parts) > 1 else None
-                links.append((node_identifier, position, link_uuid))
+                # Extract custom label if present
+                label = node.get('label')
+                links.append((node_identifier, position, link_uuid, label))
                 position += 1
             # Recurse into children
             if 'children' in node:
@@ -207,12 +210,13 @@ class LinkParsingService:
         self._link_repo = link_repository
         self._property_repo = property_repository
     
-    def parse_links(self, content: str) -> List[Tuple[str, int, Optional[str]]]:
+    def parse_links(self, content: str) -> List[Tuple[str, int, Optional[str], Optional[str]]]:
         """Parse content and extract all links.
         
-        Returns list of tuples: (target_node_uuid, position, link_uuid)
+        Returns list of tuples: (target_node_uuid, position, link_uuid, label)
         Extracts node_link entries with ref_type='node' from AST JSON content.
         The first element is the node UUID (or legacy numeric ID string).
+        Label is the custom display text if present.
         """
         return _parse_links_from_ast(content) or []
     
@@ -348,7 +352,7 @@ class LinkParsingService:
         
         created_links = []
         
-        for node_identifier, position, link_uuid in parsed:
+        for node_identifier, position, link_uuid, label in parsed:
             # Resolve the target node — try UUID first, fall back to numeric ID
             target_node = None
             try:
@@ -373,6 +377,7 @@ class LinkParsingService:
                 uuid=link_uuid,
                 is_tag=is_tag,
                 position=position,
+                name=label,  # Custom display text (e.g., "[laboral]([[uuid]])")
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
