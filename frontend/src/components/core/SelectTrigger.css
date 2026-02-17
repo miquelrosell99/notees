@@ -57,8 +57,24 @@
   justify-content: space-between;
   gap: var(--spacing-1);
   width: 100%;
-  padding: 0 var(--spacing-2);
-  min-height: 28px;
+  padding: 0 var(--spacing-3);
+  min-height: 32px;
+}
+
+/* Size variants */
+.select-trigger--sm .select-trigger__content {
+  padding: 0 var(--spacing-3);
+  min-height: 32px;
+}
+
+.select-trigger--md .select-trigger__content {
+  padding: 0 var(--spacing-4);
+  min-height: 38px;
+}
+
+.select-trigger--lg .select-trigger__content {
+  padding: 0 var(--spacing-5);
+  min-height: 46px;
 }
 
 /* Value area (main content) */
