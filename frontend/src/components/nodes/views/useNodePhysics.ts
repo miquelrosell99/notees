@@ -1252,7 +1252,15 @@ export function useNodePhysics({
             normalizedMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
           }
         }
-        const tree = buildQuadtreeRef.current(nodes, useMass ? normalizedMasses : massCacheRef.current);
+        // When mass mode is off, use uniform mass 1 for all nodes so the
+        // tree and per-node division are consistent.  Previously this path
+        // passed massCacheRef (raw hierarchy masses) into the tree while
+        // dividing by 1, making parents super-repulsive and inflating
+        // spacing.  Switching to mass mode then appeared to shrink links
+        // because normalized masses are much smaller than the raw ones.
+        const uniformMasses = useMass ? normalizedMasses : null;
+        const treeMasses = uniformMasses ?? new Map<number, number>(nodes.map(n => [n.id, 1]));
+        const tree = buildQuadtreeRef.current(nodes, treeMasses);
         
         if (tree) {
           for (let i = 0; i < nodes.length; i++) {
