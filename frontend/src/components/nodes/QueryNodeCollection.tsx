@@ -254,7 +254,7 @@ export function QueryNodeCollection({
   const getNodeViewMode = useAppStore(state => state.getNodeViewMode);
   const setNodeViewMode = useAppStore(state => state.setNodeViewMode);
   const openNode = useAppStore(state => state.openNode);
-  const persistedViewMode = getNodeViewMode(nodeId);
+  const persistedViewMode = getNodeViewMode(nodeId, viewType);
   
   // Default to 'table' for classed_nodes, 'list' for others
   const defaultViewMode: NodeCollectionViewMode = viewType === 'classed_nodes' ? 'table' : 'list';
@@ -265,7 +265,7 @@ export function QueryNodeCollection({
   
   const handleViewModeChange = (mode: NodeCollectionViewMode) => {
     setCollectionViewMode(mode);
-    setNodeViewMode(nodeId, mode);
+    setNodeViewMode(nodeId, viewType, mode);
   };
   
   const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
