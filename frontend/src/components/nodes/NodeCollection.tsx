@@ -160,6 +160,7 @@ export function NodeCollection({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onEnterAtRoot,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -298,6 +299,7 @@ export function NodeCollection({
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
+            onEnterAtRoot={onEnterAtRoot}
           />
         );
       

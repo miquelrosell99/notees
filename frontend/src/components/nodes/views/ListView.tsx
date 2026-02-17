@@ -39,6 +39,7 @@ export function ListView({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onEnterAtRoot,
   pageId,
   pageUuid,
   className = '',
@@ -276,6 +277,7 @@ export function ListView({
         pageId={pageId}
         pageUuid={pageUuid}
         className="node-list-view__editor"
+        onEnterAtRoot={onEnterAtRoot}
       />
     </div>
   );
