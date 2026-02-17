@@ -1366,19 +1366,29 @@ export function useNodePhysics({
           
           // Repulsion compensation: cancel Barnes-Hut repulsion between linked
           // pairs so the spring alone determines their equilibrium distance.
-          // Only applied when dist >= restDist — below the rest distance we let
-          // the natural BH repulsion push nodes apart, preventing linked nodes
-          // (especially children) from crowding their parents.
+          // Below restDist the BH repulsion is allowed through to prevent
+          // crowding.  A smooth blend zone around restDist avoids a force
+          // discontinuity that would cause oscillation (especially with
+          // mass-mode where heavier nodes overshoot the boundary).
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
-          if (dist >= restDist && dist < UNLINKED_REPULSION_DISTANCE) {
+          if (dist < UNLINKED_REPULSION_DISTANCE) {
+            // Blend factor: 0 at (restDist - zone) → 1 at restDist
+            // This smoothly transitions from full BH repulsion to full
+            // compensation over a 30-unit transition zone.
+            const blendZone = 30;
+            const blendStart = restDist - blendZone;
+            const blend = dist <= blendStart ? 0
+              : dist >= restDist ? 1
+              : (dist - blendStart) / blendZone;
+            
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
             const dirX = dx / dist;
             const dirY = dy / dist;
-            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier;
+            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier * blend;
             compAx = dirX * compA / massA;
             compAy = dirY * compA / massA;
-            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier;
+            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier * blend;
             compBx = dirX * compB / massB;
             compBy = dirY * compB / massB;
           }
