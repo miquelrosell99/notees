@@ -20,10 +20,10 @@ interface UserSettingsModalProps {
   onClose: () => void;
 }
 
-type UserSettingsTab = 'preferences' | 'account' | 'about';
+type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about';
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<UserSettingsTab>('preferences');
+  const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
   const { user, logout } = useAuthStore();
   const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
 
@@ -72,7 +72,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
-    { id: 'preferences', label: 'Preferences' },
+    { id: 'appearance', label: 'Appearance' },
+    { id: 'editor', label: 'Editor' },
+    { id: 'general', label: 'General' },
     { id: 'account', label: 'Account' },
     { id: 'about', label: 'About' },
   ];
@@ -104,7 +106,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
         </nav>
 
         <div className="settings-modal__content">
-          {activeTab === 'preferences' && (
+          {activeTab === 'appearance' && (
             <div className="settings-section">
               <div className="settings-item">
                 <div className="settings-item__info">
@@ -127,6 +129,71 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
+                  <label className="settings-item__label">Font size</label>
+                  <p className="settings-item__description">
+                    Adjust the base font size
+                  </p>
+                </div>
+                <SelectionButton
+                  options={[
+                    { value: 'small', icon: mdiFormatFontSizeDecrease, label: 'Small font size' },
+                    { value: 'medium', icon: mdiFormatSize, label: 'Medium font size' },
+                    { value: 'large', icon: mdiFormatFontSizeIncrease, label: 'Large font size' },
+                  ]}
+                  value={fontSize}
+                  onChange={(value) => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
+                  size="md"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'editor' && (
+            <div className="settings-section">
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Linked refs collapse level</label>
+                  <p className="settings-item__description">
+                    Auto-collapse nodes at this depth in linked references (0 = disabled)
+                  </p>
+                </div>
+                <SelectionButton
+                  options={[
+                    { value: '0', icon: mdiCloseCircleOutline, label: 'Disabled' },
+                    { value: '1', icon: mdiNumeric1, label: 'Level 1' },
+                    { value: '2', icon: mdiNumeric2, label: 'Level 2' },
+                    { value: '3', icon: mdiNumeric3, label: 'Level 3' },
+                  ]}
+                  value={linkedRefsCollapseLevel.toString()}
+                  onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
+                  size="md"
+                />
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Hashtag paste behavior</label>
+                  <p className="settings-item__description">
+                    How #hashtag patterns in pasted text should be interpreted
+                  </p>
+                </div>
+                <SelectionButton
+                  options={[
+                    { value: 'inline-tag', icon: mdiTag, label: 'Inline tag (node link with is_tag)' },
+                    { value: 'inline-class', icon: mdiShapeOutline, label: 'Inline class (class reference)' },
+                  ]}
+                  value={hashtagPasteMode}
+                  onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
+                  size="md"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'general' && (
+            <div className="settings-section">
+              <div className="settings-item">
+                <div className="settings-item__info">
                   <label className="settings-item__label">Default date format</label>
                   <p className="settings-item__description">
                     Default format for new graphs. Each graph can override this.
@@ -143,25 +210,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label className="settings-item__label">Font size</label>
-                  <p className="settings-item__description">
-                    Adjust the base font size
-                  </p>
-                </div>
-                <SelectionButton
-                  options={[
-                    { value: 'small', icon: mdiFormatFontSizeDecrease, label: 'Small font size' },
-                    { value: 'medium', icon: mdiFormatSize, label: 'Medium font size' },
-                    { value: 'large', icon: mdiFormatFontSizeIncrease, label: 'Large font size' },
-                  ]}
-                  value={fontSize}
-                  onChange={(value) => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
-                  size="md"
-                />
               </div>
 
               <div className="settings-item">
@@ -197,44 +245,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={quickAddDestination}
                   onChange={(value) => handleQuickAddDestinationChange(value as QuickAddDestination)}
-                  size="md"
-                />
-              </div>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label className="settings-item__label">Linked refs collapse level</label>
-                  <p className="settings-item__description">
-                    Auto-collapse nodes at this depth in linked references (0 = disabled)
-                  </p>
-                </div>
-                <SelectionButton
-                  options={[
-                    { value: '0', icon: mdiCloseCircleOutline, label: 'Disabled' },
-                    { value: '1', icon: mdiNumeric1, label: 'Level 1' },
-                    { value: '2', icon: mdiNumeric2, label: 'Level 2' },
-                    { value: '3', icon: mdiNumeric3, label: 'Level 3' },
-                  ]}
-                  value={linkedRefsCollapseLevel.toString()}
-                  onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
-                  size="md"
-                />
-              </div>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label className="settings-item__label">Hashtag paste behavior</label>
-                  <p className="settings-item__description">
-                    How #hashtag patterns in pasted text should be interpreted
-                  </p>
-                </div>
-                <SelectionButton
-                  options={[
-                    { value: 'inline-tag', icon: mdiTag, label: 'Inline tag (node link with is_tag)' },
-                    { value: 'inline-class', icon: mdiShapeOutline, label: 'Inline class (class reference)' },
-                  ]}
-                  value={hashtagPasteMode}
-                  onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
                   size="md"
                 />
               </div>
