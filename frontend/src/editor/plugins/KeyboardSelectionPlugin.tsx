@@ -179,6 +179,18 @@ export function KeyboardSelectionPlugin({
           } else if (firstSelectedIndex < anchorIndex) {
             // Selection extends above anchor, shrink from top (move top toward anchor)
             newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
+          } else if (firstSelectedIndex === 0 && anchorIndex === 0 && anchorBlock.parentId) {
+            // At first sibling - select parent block instead
+            const parentBlock = runtime.getNode(anchorBlock.parentId);
+            if (parentBlock) {
+              clearBlockSelection(rootEl);
+              selectedBlocks.current.clear();
+              selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
+              anchorBlockId.current = parentBlock.blockId;
+              onSelectionChange?.([...selectedBlocks.current]);
+              event.preventDefault();
+              return true;
+            }
           }
           
           if (newSelection.length > 0) {
@@ -269,6 +281,18 @@ export function KeyboardSelectionPlugin({
           } else if (lastSelectedIndex > anchorIndex) {
             // Selection extends below anchor, shrink from bottom (move bottom toward anchor)
             newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
+          } else if (lastSelectedIndex === siblingIds.length - 1 && anchorIndex === lastSelectedIndex) {
+            // At last sibling - try to select first child of current block
+            const children = runtime.getChildren(anchorBlock.blockId);
+            if (children.length > 0) {
+              clearBlockSelection(rootEl);
+              selectedBlocks.current.clear();
+              selectBlockWithChildren(rootEl, children[0].blockId, selectedBlocks.current);
+              anchorBlockId.current = children[0].blockId;
+              onSelectionChange?.([...selectedBlocks.current]);
+              event.preventDefault();
+              return true;
+            }
           }
           
           if (newSelection.length > 0) {
