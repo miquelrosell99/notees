@@ -45,6 +45,48 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     };
   }, [editor]);
 
+  // ─── Bridge native drag events to Lexical commands ────────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
+
+    // Listen for native dragstart events and dispatch Lexical command
+    const handleNativeDragStart = (event: Event) => {
+      const dragEvent = event as DragEvent;
+      editor.dispatchCommand(DRAGSTART_COMMAND, dragEvent);
+    };
+
+    const handleNativeDragOver = (event: Event) => {
+      const dragEvent = event as DragEvent;
+      editor.dispatchCommand(DRAGOVER_COMMAND, dragEvent);
+    };
+
+    const handleNativeDrop = (event: Event) => {
+      const dragEvent = event as DragEvent;
+      editor.dispatchCommand(DROP_COMMAND, dragEvent);
+    };
+
+    const handleNativeDragEnd = (event: Event) => {
+      const dragEvent = event as DragEvent;
+      editor.dispatchCommand(DRAGEND_COMMAND, dragEvent);
+    };
+
+    rootEl.addEventListener('dragstart', handleNativeDragStart, true);
+    rootEl.addEventListener('dragover', handleNativeDragOver, true);
+    rootEl.addEventListener('drop', handleNativeDrop, true);
+    rootEl.addEventListener('dragend', handleNativeDragEnd, true);
+
+    return () => {
+      rootEl.removeEventListener('dragstart', handleNativeDragStart, true);
+      rootEl.removeEventListener('dragover', handleNativeDragOver, true);
+      rootEl.removeEventListener('drop', handleNativeDrop, true);
+      rootEl.removeEventListener('dragend', handleNativeDragEnd, true);
+    };
+  }, [editor, readOnly]);
+
   // ─── Drag start ────────────────────────────────────────────
 
   useEffect(() => {
