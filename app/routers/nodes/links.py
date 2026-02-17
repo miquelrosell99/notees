@@ -428,20 +428,15 @@ async def get_property_backlinks(
     # Check if target is a day node (UUID format YYYYMMDD with non-zero day)
     date_info = parse_date_uuid(target.uuid)
     if date_info and date_info.get("type") == "day":
-        # Get date string in YYYY-MM-DD format
-        year = date_info["year"]
-        month = date_info["month"]
-        day = date_info["day"]
-        date_str = f"{year:04d}-{month:02d}-{day:02d}"
-        
-        # Find all property values with this date
+        # Find all date property values that reference this day page
+        # Date properties are stored in property_value_relation (not scalar)
         pool = service._node_repo.get_connection()
         rows = await pool.fetch("""
-            SELECT DISTINCT pvs.node_id, pvs.property_id, p.name as property_name
-            FROM property_value_scalar pvs
-            JOIN property p ON pvs.property_id = p.id
-            WHERE pvs.value_text = $1 AND p.type = 'date'
-        """, date_str)
+            SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
+            FROM property_value_relation pvr
+            JOIN property p ON pvr.property_id = p.id
+            WHERE pvr.target_id = $1 AND p.type = 'date'
+        """, node_id)
         
         for row in rows:
             # Get the page for this node
