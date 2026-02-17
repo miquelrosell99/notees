@@ -17,7 +17,7 @@ export interface TriggerSuggestionPopupProps {
   triggerType: TriggerType;
   query: string;
   position: { top: number; left: number };
-  onSelect: (node: Node, keepInline: boolean) => void;
+  onSelect: (node: Node, addInline: boolean) => void;
   onClose: () => void;
   onSelectDatePage?: (pageId: string, pageName: string) => void;
 }
@@ -35,7 +35,7 @@ export function TriggerSuggestionPopup({
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
 
-  const handleCreate = useCallback((name: string, keepInline: boolean) => {
+  const handleCreate = useCallback((name: string, addInline: boolean) => {
     if (!pageClassId) return;
 
     // Determine classes based on trigger type
@@ -46,7 +46,7 @@ export function TriggerSuggestionPopup({
 
     createNode.mutate({ name, classes }, {
       onSuccess: (newNode) => {
-        onSelect(newNode, keepInline);
+        onSelect(newNode, addInline);
       },
     });
   }, [createNode, pageClassId, classClassId, triggerType, onSelect]);
@@ -61,6 +61,7 @@ export function TriggerSuggestionPopup({
       onClose={onClose}
       onCreate={handleCreate}
       onSelectDatePage={onSelectDatePage}
+      showInlineOption={suggestionType === 'class'}
     />
   );
 }
