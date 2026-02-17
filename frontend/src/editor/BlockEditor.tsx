@@ -140,6 +140,8 @@ export interface BlockEditorProps {
   canMerge?: (sourceBlockId: string, targetBlockId: string) => boolean;
   /** Structural guard — return false to prevent delete */
   canDelete?: (blockId: string) => boolean;
+  /** Called when Enter is pressed on the root block (instead of creating a child) */
+  onEnterAtRoot?: () => void;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -184,6 +186,7 @@ export function BlockEditor({
   canOutdent,
   canMerge,
   canDelete,
+  onEnterAtRoot,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -468,6 +471,7 @@ export function BlockEditor({
           sliceBlockIds={sliceBlockIds}
           sliceRecursiveLevel={sliceRecursiveLevel}
           sliceShowParent={sliceShowParent}
+          onEnterAtRoot={onEnterAtRoot}
         />
 
         {/* Pill plugin */}
