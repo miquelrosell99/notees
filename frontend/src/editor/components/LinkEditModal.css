@@ -72,12 +72,6 @@
   padding: var(--spacing-sm, 8px);
   background: var(--color-surface-container-high, #e8f0fe);
   border-radius: var(--radius-md, 6px);
-  border-left: 3px solid var(--accent-color, #4f8ff7);
-}
-
-.link-edit-modal__info-icon {
-  font-size: 1.2rem;
-  line-height: 1;
 }
 
 .link-edit-modal__info-text {
