@@ -358,6 +358,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         propIdMap.set('logseq.property/description', descriptionProp.id);
       }
 
+      // Build set of notees property IDs that are text-type (stored as block node references)
+      const textPropIds = new Set<number>(
+        existingProperties.filter(p => p.type === 'text').map(p => p.id)
+      );
+
       // ──────────────────────────────────────────────────────────
       // PHASE 3: Create all nodes (pages + blocks) with classes
       // ──────────────────────────────────────────────────────────
@@ -617,14 +622,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
         const isExisting = existingNodeIds.has(nodeInfo.id);
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, isExisting);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, isExisting, textPropIds);
       }
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds, textPropIds);
       }
       // Also assign properties for standalone blocks (block-only EDN)
       if (parsed.standaloneBlocks) {
-        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds);
+        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds, textPropIds);
       }
 
       // ──────────────────────────────────────────────────────────
@@ -1158,6 +1163,7 @@ async function assignProperties(
   phase: PhaseResult,
   override: boolean = false,
   isExistingNode: boolean = false,
+  textPropIds: Set<number> = new Set(),
 ) {
   // For existing nodes, fetch current properties to determine what to skip/delete
   let existingProperties: Record<number, unknown> | undefined;
@@ -1209,7 +1215,35 @@ async function assignProperties(
     }
 
     try {
-      const resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap, pageClassId);
+      let resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap, pageClassId);
+
+      // Text-type properties are stored as block node references.
+      // If the resolved value is a string, create a block node with AST content.
+      if (resolved !== undefined && textPropIds.has(noteesPropId)) {
+        const strValues = Array.isArray(resolved) ? resolved.filter((v): v is string => typeof v === 'string') : (typeof resolved === 'string' ? [resolved] : []);
+        if (strValues.length > 0) {
+          const blockIds: number[] = [];
+          for (const strVal of strValues) {
+            try {
+              const ast = buildAstFromLogseqText(strVal, uuidMap, titleToNodeInfo);
+              const astName = ast.length > 0 ? JSON.stringify(ast) : strVal;
+              const textBlock = await createNodeApi({ name: astName, parent_id: nodeId });
+              blockIds.push(textBlock.id);
+              console.log(`[IMPORT] Created text block id=${textBlock.id} for text property ${logseqPropId} on ${label}`);
+            } catch (blockErr) {
+              console.error(`[IMPORT] Failed to create text block for ${logseqPropId} on ${label}:`, blockErr);
+            }
+          }
+          if (blockIds.length === 1) {
+            resolved = blockIds[0];
+          } else if (blockIds.length > 1) {
+            resolved = blockIds;
+          } else {
+            resolved = undefined;
+          }
+        }
+      }
+
       console.log(`[IMPORT] Property ${logseqPropId} on ${label}:`, { 
         rawValue, 
         resolved, 
@@ -1259,6 +1293,7 @@ async function assignBlockProperties(
   phase: PhaseResult,
   override: boolean = false,
   existingNodeIds: Set<number> = new Set(),
+  textPropIds: Set<number> = new Set(),
 ) {
   for (const block of blocks) {
     if (block.properties && block.uuid) {
@@ -1268,12 +1303,12 @@ async function assignBlockProperties(
         await assignProperties(
           block.properties, nodeInfo.id, block.title || '(block)',
           propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase,
-          override, isExisting,
+          override, isExisting, textPropIds,
         );
       }
     }
     if (block.children) {
-      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds);
+      await assignBlockProperties(block.children, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase, override, existingNodeIds, textPropIds);
     }
   }
 }
@@ -1398,23 +1433,7 @@ async function resolvePropertyValueForImport(
 
   // Primitives: boolean, number, string
   if (typeof value === 'boolean' || typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    if (!value) return undefined;
-    // Handle [[uuid]] references in strings (e.g. logseq.property/description)
-    // These are node references encoded as wiki-link strings
-    const uuidLinkMatch = value.match(/^\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]$/i);
-    if (uuidLinkMatch) {
-      const refUuid = uuidLinkMatch[1];
-      const info = uuidMap.get(refUuid);
-      if (info) {
-        console.log(`[IMPORT] Resolved [[${refUuid}]] to node id=${info.id}`);
-        return info.id;
-      }
-      // Try to find by title in titleToNodeInfo via search
-      console.warn(`[IMPORT] UUID link [[${refUuid}]] not found in uuidMap, passing as string`);
-    }
-    return value;
-  }
+  if (typeof value === 'string') return value || undefined;
 
   return undefined;
 }
