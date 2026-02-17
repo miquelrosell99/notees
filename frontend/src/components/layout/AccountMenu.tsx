@@ -2,7 +2,7 @@
  * AccountMenu Component
  * 
  * Square button with user profile initial that shows a dropdown menu
- * with User Settings, Manage Graphs, and Log Out actions.
+ * with User Settings, Workspaces, and Log Out actions.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -99,7 +99,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
           </button>
           <button className="account-menu__item" onClick={handleManageGraphs}>
             <Icon path={mdiDatabaseOutline} size={0.7} />
-            <span>Manage Graphs</span>
+            <span>Workspaces</span>
           </button>
           <div className="account-menu__divider" />
           <button className="account-menu__item account-menu__item--danger" onClick={handleLogout}>
