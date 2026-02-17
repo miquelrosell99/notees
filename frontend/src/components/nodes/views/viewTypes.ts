@@ -198,8 +198,11 @@ export const MIN_REPULSION_DISTANCE = 20;
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
 
-// Centering gravity (initial warmup)
+// Centering gravity
+// Warmup gravity: per-node pull toward canvas center during initial layout (ramps with warmup)
 export const CENTER_GRAVITY = 0.001;
+// Sustained gravity: permanent center-of-mass drift correction to prevent eternal expansion
+export const CENTER_GRAVITY_SUSTAINED = 0.003;
 
 // Velocity constraints
 export const MAX_VELOCITY = 15;

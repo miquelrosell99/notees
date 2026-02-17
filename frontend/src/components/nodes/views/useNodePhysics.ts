@@ -37,6 +37,7 @@ import {
   MIN_REPULSION_DISTANCE,
   RETURN_FORCE,
   CENTER_GRAVITY,
+  CENTER_GRAVITY_SUSTAINED,
   MAX_VELOCITY,
   VELOCITY_DAMPING,
   VELOCITY_DEADZONE,
@@ -182,7 +183,6 @@ export function useNodePhysics({
   const animationRef = useRef<number>(0);
   const warmupFrameRef = useRef(0);
   const initialFitDoneRef = useRef(false);
-  const centerGravityActiveRef = useRef(true);
   const topologyDirtyRef = useRef(true);
   
   // Drag state
@@ -1195,19 +1195,47 @@ export function useNodePhysics({
         }
       }
       
-      // Centering gravity
-      if (!isConstrainedMode && centerGravityActiveRef.current) {
-        if (warmupT >= 1) {
-          centerGravityActiveRef.current = false;
-        }
+      // Centering gravity (two phases)
+      if (!isConstrainedMode) {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
-        for (const node of nodes) {
-          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-          const dx = cx - node.x;
-          const dy = cy - node.y;
-          node.vx += dx * CENTER_GRAVITY * warmupMultiplier;
-          node.vy += dy * CENTER_GRAVITY * warmupMultiplier;
+        
+        // Phase 1 (warmup): per-node pull toward canvas center, ramps up
+        // to help the initial layout converge quickly.
+        if (warmupT < 1) {
+          for (const node of nodes) {
+            if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+            const dx = cx - node.x;
+            const dy = cy - node.y;
+            node.vx += dx * CENTER_GRAVITY * warmupMultiplier;
+            node.vy += dy * CENTER_GRAVITY * warmupMultiplier;
+          }
+        }
+        
+        // Phase 2 (sustained): center-of-mass drift correction.
+        // Compute the centroid of all movable nodes and nudge every node
+        // so the centroid drifts back toward the canvas center.  Because
+        // the same velocity delta is applied to every node the relative
+        // layout is not distorted — only the global drift is corrected.
+        {
+          let comX = 0, comY = 0, count = 0;
+          for (const node of nodes) {
+            if (node.pinned) continue;
+            comX += node.x;
+            comY += node.y;
+            count++;
+          }
+          if (count > 0) {
+            comX /= count;
+            comY /= count;
+            const driftX = (cx - comX) * CENTER_GRAVITY_SUSTAINED;
+            const driftY = (cy - comY) * CENTER_GRAVITY_SUSTAINED;
+            for (const node of nodes) {
+              if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+              node.vx += driftX;
+              node.vy += driftY;
+            }
+          }
         }
       }
       
