@@ -396,5 +396,101 @@ export function KeyboardSelectionPlugin({
     };
   }, [editor, readOnly, onSelectionChange]);
 
+  // ─── Alt+Shift+Up/Down: Move selected blocks ────────────────────
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleMoveUp = (event: KeyboardEvent) => {
+      // Only handle Alt+Shift+ArrowUp
+      if (!event.altKey || !event.shiftKey) return false;
+      if (selectedBlocks.current.size === 0) return false; // Not in selection mode
+
+      event.preventDefault();
+
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return true;
+
+      // Get all blocks in document order
+      const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
+      const allSelectedIds = [...selectedBlocks.current];
+      
+      // Get runtime and filter to only top-level selected blocks (exclude children)
+      const runtime = getNodeGraphRuntime();
+      const topLevelSelected = allSelectedIds.filter(blockId => {
+        const node = runtime.getNode(blockId);
+        if (!node?.parentId) return true;
+        return !selectedBlocks.current.has(node.parentId);
+      });
+
+      // Sort by document order (top to bottom)
+      const sortedBlocks = topLevelSelected.sort((a, b) => {
+        const aEl = allBlocks.find(el => el.getAttribute('data-block-id') === a);
+        const bEl = allBlocks.find(el => el.getAttribute('data-block-id') === b);
+        if (!aEl || !bEl) return 0;
+        return allBlocks.indexOf(aEl) - allBlocks.indexOf(bEl);
+      });
+
+      // Move each block up (process top to bottom)
+      runtime.applyIntent({
+        type: 'batch',
+        intents: sortedBlocks.map(blockId => ({ type: 'move_up' as const, blockId })),
+      });
+      runtime.flushEvents();
+
+      return true;
+    };
+
+    const handleMoveDown = (event: KeyboardEvent) => {
+      // Only handle Alt+Shift+ArrowDown
+      if (!event.altKey || !event.shiftKey) return false;
+      if (selectedBlocks.current.size === 0) return false; // Not in selection mode
+
+      event.preventDefault();
+
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return true;
+
+      // Get all blocks in document order
+      const allBlocks = Array.from(rootEl.querySelectorAll('[data-block-id]')) as HTMLElement[];
+      const allSelectedIds = [...selectedBlocks.current];
+      
+      // Get runtime and filter to only top-level selected blocks (exclude children)
+      const runtime = getNodeGraphRuntime();
+      const topLevelSelected = allSelectedIds.filter(blockId => {
+        const node = runtime.getNode(blockId);
+        if (!node?.parentId) return true;
+        return !selectedBlocks.current.has(node.parentId);
+      });
+
+      // Sort by document order (top to bottom), then reverse for bottom-to-top processing
+      const sortedBlocks = topLevelSelected
+        .sort((a, b) => {
+          const aEl = allBlocks.find(el => el.getAttribute('data-block-id') === a);
+          const bEl = allBlocks.find(el => el.getAttribute('data-block-id') === b);
+          if (!aEl || !bEl) return 0;
+          return allBlocks.indexOf(aEl) - allBlocks.indexOf(bEl);
+        })
+        .reverse();
+
+      // Move each block down (process bottom to top)
+      runtime.applyIntent({
+        type: 'batch',
+        intents: sortedBlocks.map(blockId => ({ type: 'move_down' as const, blockId })),
+      });
+      runtime.flushEvents();
+
+      return true;
+    };
+
+    const unsubUp = editor.registerCommand(KEY_ARROW_UP_COMMAND, handleMoveUp, COMMAND_PRIORITY_HIGH);
+    const unsubDown = editor.registerCommand(KEY_ARROW_DOWN_COMMAND, handleMoveDown, COMMAND_PRIORITY_HIGH);
+
+    return () => {
+      unsubUp();
+      unsubDown();
+    };
+  }, [editor, readOnly]);
+
   return null;
 }

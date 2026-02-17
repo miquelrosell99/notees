@@ -114,6 +114,8 @@ export type MutationIntent =
   | { type: 'move_block'; blockId: string; newParentId: string; afterBlockId: string | null }
   | { type: 'indent_block'; blockId: string }
   | { type: 'outdent_block'; blockId: string }
+  | { type: 'move_up'; blockId: string }
+  | { type: 'move_down'; blockId: string }
   | { type: 'toggle_collapsed'; blockId: string }
   | { type: 'set_collapsed'; blockId: string; collapsed: boolean }
   | { type: 'reorder_blocks'; parentId: string; orderedBlockIds: string[] }

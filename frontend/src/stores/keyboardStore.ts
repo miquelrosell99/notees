@@ -125,8 +125,8 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   { id: SHORTCUT_IDS.OUTDENT, description: 'Outdent Block', key: 'Tab', modifiers: { shift: true }, context: 'editor' },
   { id: SHORTCUT_IDS.SPLIT_BLOCK, description: 'Split Block (New Line)', key: 'Enter', modifiers: {}, context: 'editor' },
   { id: SHORTCUT_IDS.MERGE_UP, description: 'Merge with Block Above', key: 'Backspace', modifiers: {}, context: 'editor' },
-  { id: SHORTCUT_IDS.MOVE_UP, description: 'Move Block Up', key: 'ArrowUp', modifiers: { ctrl: true, shift: true }, context: 'editor', configurable: true },
-  { id: SHORTCUT_IDS.MOVE_DOWN, description: 'Move Block Down', key: 'ArrowDown', modifiers: { ctrl: true, shift: true }, context: 'editor', configurable: true },
+  { id: SHORTCUT_IDS.MOVE_UP, description: 'Move Block Up', key: 'ArrowUp', modifiers: { alt: true, shift: true }, context: 'editor', configurable: true },
+  { id: SHORTCUT_IDS.MOVE_DOWN, description: 'Move Block Down', key: 'ArrowDown', modifiers: { alt: true, shift: true }, context: 'editor', configurable: true },
   
   // Selection shortcuts
   { id: SHORTCUT_IDS.SELECT_ALL, description: 'Select All Blocks', key: 'a', modifiers: { ctrl: true }, context: 'selection' },
