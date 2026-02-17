@@ -19,12 +19,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { mdiImport, mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
 import Icon from '@mdi/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
+import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
@@ -92,6 +94,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [importMode, setImportMode] = useState<ImportMode>('additive');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const queryClient = useQueryClient();
   const createNodeMutation = useCreateNode();
   const updateNodeMutation = useUpdateNode();
   const createPropertyMutation = useCreateProperty();
@@ -639,6 +642,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ── Build final report ────────────────────────────────────
       const totalSucceeded = phases.reduce((s, p) => s + p.succeeded, 0);
       const totalFailed = phases.reduce((s, p) => s + p.failed, 0);
+
+      // Invalidate queries to refresh UI with imported data
+      queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.all });
 
       // Single-page import: navigate directly to the page and close
       if (parsed.pages.length === 1 && totalFailed === 0) {
