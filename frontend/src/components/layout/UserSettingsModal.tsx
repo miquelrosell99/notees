@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -190,14 +190,15 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     Where to send quick add notes
                   </p>
                 </div>
-                <select
-                  className="settings-item__select"
+                <SelectionButton
+                  options={[
+                    { value: 'today', icon: mdiCalendarToday, label: "Today's Page" },
+                    { value: 'inbox', icon: mdiInbox, label: 'Inbox' },
+                  ]}
                   value={quickAddDestination}
-                  onChange={(e) => handleQuickAddDestinationChange(e.target.value as QuickAddDestination)}
-                >
-                  <option value="today">Today's Page</option>
-                  <option value="inbox">Inbox</option>
-                </select>
+                  onChange={(value) => handleQuickAddDestinationChange(value as QuickAddDestination)}
+                  size="md"
+                />
               </div>
 
               <div className="settings-item">
