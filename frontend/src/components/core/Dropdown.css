@@ -100,7 +100,7 @@
 
 .dropdown-search-input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-outline);
 }
 
 .dropdown-search-input::placeholder {
