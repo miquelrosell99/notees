@@ -9,6 +9,7 @@ import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import type { PropertyCreate, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
+import { nodeViewKeys } from './useNodeViews';
 
 // ==================== Property Queries ====================
 
@@ -167,9 +168,13 @@ export function useAddClassExtends() {
   return useMutation({
     mutationFn: ({ classId, extendsClassId }: { classId: number; extendsClassId: number }) => 
       propertiesApi.addClassExtends(classId, extendsClassId),
-    onSuccess: (_, { classId }) => {
+    onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      // Invalidate "extended by" cache on the target class
+      queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
+      // Invalidate query-based views (e.g. "extended by" QuerySection)
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       // Invalidate nodes list so resolved extends details update in UI
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
@@ -185,9 +190,13 @@ export function useRemoveClassExtends() {
   return useMutation({
     mutationFn: ({ classId, extendsClassId }: { classId: number; extendsClassId: number }) => 
       propertiesApi.removeClassExtends(classId, extendsClassId),
-    onSuccess: (_, { classId }) => {
+    onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      // Invalidate "extended by" cache on the target class
+      queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
+      // Invalidate query-based views (e.g. "extended by" QuerySection)
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       // Invalidate nodes list so resolved extends details update in UI
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
