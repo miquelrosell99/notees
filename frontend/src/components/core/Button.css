@@ -70,13 +70,27 @@
   aspect-ratio: 1;
 }
 
-/* Icon + Text buttons - icon on side, text centered */
+/* Icon + Text buttons - use grid for proper centering */
 .btn--icon-text {
-  justify-content: center;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
 }
 
-.btn--icon-text .btn__icon {
-  flex-shrink: 0;
+.btn--icon-text .btn__icon--left {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.btn--icon-text .btn__icon--right {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.btn--icon-text .btn__text {
+  grid-column: 2;
+  text-align: center;
+  justify-self: center;
 }
 
 .btn--icon-only.btn--xs {
