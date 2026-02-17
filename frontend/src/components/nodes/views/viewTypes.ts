@@ -228,6 +228,15 @@ export const PARENT_MASS_PER_CHILD = 1.0;
 // Reference link force multiplier (weaker than parent/class)
 export const REFERENCE_LINK_FORCE_MULTIPLIER = 0.3;
 
+// Barnes-Hut
+export const BH_THETA = 0.7;
+
+// Collision resolution (position-based)
+export const COLLISION_PADDING = 1.05;
+export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
+export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
+export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
+
 // Simulation warmup & limits
 export const WARMUP_DURATION_FRAMES = 45;
 export const MAX_SIMULATION_TIME_MS = 0; // 0 = unlimited
