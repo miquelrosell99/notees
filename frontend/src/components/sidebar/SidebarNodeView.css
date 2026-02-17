@@ -89,9 +89,9 @@
   overflow-y: auto;
 }
 
-/* Compact mode adjustments for NodeViewContent when in sidebar */
+/* Sidebar mode adjustments for NodeViewContent */
 .sidebar-node-view .node-view-content {
-  /* Allow NodeViewContent to use its own compact styling */
+  /* NodeViewContent uses sidebarMode to hide banner and header */
 }
 
 /* Override some NodeViewContent styles for sidebar context */

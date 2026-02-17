@@ -188,12 +188,10 @@ interface NodeViewProps {
 
   /** View mode (document, etc.) */
   viewMode: ViewMode;
-  /** If true, clicking the title navigates to the page instead of editing (for journal compact mode) */
-  compactMode?: boolean;
   /** If true, hides banner and page header section but keeps properties and queries (for sidebar cards) */
   sidebarMode?: boolean;
   
-  // Granular section visibility controls (override compactMode/sidebarMode defaults)
+  // Granular section visibility controls (override sidebarMode defaults)
   /** If true, hides the banner image section */
   hideBanner?: boolean;
   /** If true, hides the page header section (title, icon, classes, tags, aliases, cover) */
@@ -219,7 +217,6 @@ export interface NodeViewResult {
 export function NodeView({ 
   nodeId, 
   viewMode, 
-  compactMode = false, 
   sidebarMode = false,
   hideBanner,
   hidePageHeader,
@@ -230,11 +227,11 @@ export function NodeView({
   linkedRefsCollapsed = false 
 }: NodeViewProps): NodeViewResult {
   // Compute section visibility from mode flags and explicit overrides
-  const showBanner = hideBanner !== undefined ? !hideBanner : !(compactMode || sidebarMode);
+  const showBanner = hideBanner !== undefined ? !hideBanner : !sidebarMode;
   const showPageHeader = hidePageHeader !== undefined ? !hidePageHeader : !sidebarMode;
-  const showProperties = hideProperties !== undefined ? !hideProperties : (!compactMode || sidebarMode);
-  const showQueries = hideQueries !== undefined ? !hideQueries : (!compactMode || sidebarMode);
-  const showFooter = hideFooter !== undefined ? !hideFooter : (!compactMode || sidebarMode);
+  const showProperties = hideProperties !== undefined ? !hideProperties : true;
+  const showQueries = hideQueries !== undefined ? !hideQueries : true;
+  const showFooter = hideFooter !== undefined ? !hideFooter : true;
   
   // Fetch the node — include properties/backlinks if we're showing properties or queries
   const { data: node, isLoading, error } = useNode(nodeId, { 
@@ -953,7 +950,6 @@ export function NodeView({
             <div className="page-header-section__header">
               <PageHeader
                 page={node}
-                compactMode={compactMode}
                 onContextMenu={handleContextMenu}
               />
             </div>

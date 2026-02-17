@@ -3,7 +3,7 @@
  * 
  * Wraps NodeViewContent to display nodes in the sidebar.
  * Uses the same NodeView component as the main view, just in a compact container.
- * - Pages: Uses NodeViewContent with compactMode for a condensed page view
+ * - Pages: Uses NodeViewContent with sidebarMode for a condensed page view
  * - Blocks: Uses NodeViewContent for focused block view
  */
 import { useCallback } from 'react';
