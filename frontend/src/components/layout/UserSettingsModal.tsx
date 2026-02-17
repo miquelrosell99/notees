@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3 } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -227,14 +227,15 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     How #hashtag patterns in pasted text should be interpreted
                   </p>
                 </div>
-                <select
-                  className="settings-item__select"
+                <SelectionButton
+                  options={[
+                    { value: 'inline-tag', icon: mdiTag, label: 'Inline tag (node link with is_tag)' },
+                    { value: 'inline-class', icon: mdiShapeOutline, label: 'Inline class (class reference)' },
+                  ]}
                   value={hashtagPasteMode}
-                  onChange={(e) => handleHashtagPasteModeChange(e.target.value as HashtagPasteMode)}
-                >
-                  <option value="inline-tag">Inline tag (node link with is_tag)</option>
-                  <option value="inline-class">Inline class (class reference)</option>
-                </select>
+                  onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
+                  size="md"
+                />
               </div>
             </div>
           )}
