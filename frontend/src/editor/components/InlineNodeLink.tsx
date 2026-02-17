@@ -24,9 +24,11 @@ export interface InlineNodeLinkProps {
   refType: PillRefType;
   /** URL for external-link pills. */
   url?: string;
+  /** Custom display label — overrides target node name when set. */
+  label?: string;
 }
 
-export function InlineNodeLink({ linkId, refType, url }: InlineNodeLinkProps) {
+export function InlineNodeLink({ linkId, refType, url, label }: InlineNodeLinkProps) {
   // ─── URL pill ──────────────────────────────────────────────
   if (refType === 'url') {
     const displayText = url
@@ -44,11 +46,11 @@ export function InlineNodeLink({ linkId, refType, url }: InlineNodeLinkProps) {
   }
 
   // ─── Node / class pill ─────────────────────────────────────
-  return <NodePill linkId={linkId} refType={refType} />;
+  return <NodePill linkId={linkId} refType={refType} label={label} />;
 }
 
 /** Inner component for node/class pills — uses hooks that need stable renders. */
-function NodePill({ linkId, refType }: { linkId: string; refType: 'node' | 'class' }) {
+function NodePill({ linkId, refType, label }: { linkId: string; refType: 'node' | 'class'; label?: string }) {
   const { nodeUuid } = parseLinkId(linkId);
   const { data: node } = useNodeByUuid(nodeUuid);
   const { data: allClasses } = useClasses();
@@ -56,6 +58,8 @@ function NodePill({ linkId, refType }: { linkId: string; refType: 'node' | 'clas
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
 
   const displayText = useMemo(() => {
+    // Custom label overrides the target node's name
+    if (label) return label;
     if (!node) return linkId.slice(0, 8) + '…';
     const text = nodeNameToText(node.name);
     if (!text || text.trim() === '') {
@@ -65,7 +69,7 @@ function NodePill({ linkId, refType }: { linkId: string; refType: 'node' | 'clas
       return text.slice(0, 50) + '…';
     }
     return text;
-  }, [node, linkId]);
+  }, [node, linkId, label]);
 
   const isPage = node?.is_page ?? true;
   const nodeColor = node?.color || undefined;

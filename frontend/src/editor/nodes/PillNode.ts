@@ -33,6 +33,8 @@ export interface SerializedPillNode extends SerializedLexicalNode {
   refType: PillRefType;
   /** URL for external-link pills (refType === 'url'). */
   url?: string;
+  /** Custom display label (e.g., [laboral]([[uuid]])) — overrides target node name. */
+  label?: string;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -42,20 +44,23 @@ export class PillNode extends DecoratorNode<JSX.Element> {
   __refType: PillRefType;
   /** URL for external-link pills. */
   __url: string;
+  /** Custom display label — overrides target node name when set. */
+  __label: string;
 
   static getType(): string {
     return 'node-pill';
   }
 
   static clone(node: PillNode): PillNode {
-    return new PillNode(node.__linkId, node.__refType, node.__key, node.__url);
+    return new PillNode(node.__linkId, node.__refType, node.__key, node.__url, node.__label);
   }
 
-  constructor(linkId: string, refType: PillRefType = 'node', key?: NodeKey, url = '') {
+  constructor(linkId: string, refType: PillRefType = 'node', key?: NodeKey, url = '', label = '') {
     super(key);
     this.__linkId = linkId;
     this.__refType = refType;
     this.__url = url;
+    this.__label = label;
   }
 
   // ─── Getters ──────────────────────────────────────────────────
@@ -72,6 +77,10 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return this.__url;
   }
 
+  getLabel(): string {
+    return this.__label;
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -80,6 +89,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     span.dataset.linkId = this.__linkId;
     span.dataset.refType = this.__refType;
     if (this.__url) span.dataset.url = this.__url;
+    if (this.__label) span.dataset.label = this.__label;
     span.contentEditable = 'false';
     span.setAttribute('tabindex', '-1');
     return span;
@@ -95,6 +105,10 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     if (prevNode.__url !== this.__url) {
       if (this.__url) dom.dataset.url = this.__url;
       else delete dom.dataset.url;
+    }
+    if (prevNode.__label !== this.__label) {
+      if (this.__label) dom.dataset.label = this.__label;
+      else delete dom.dataset.label;
     }
     return false;
   }
@@ -121,11 +135,12 @@ export class PillNode extends DecoratorNode<JSX.Element> {
       refType: this.__refType,
     };
     if (this.__url) json.url = this.__url;
+    if (this.__label) json.label = this.__label;
     return json;
   }
 
   static importJSON(json: SerializedPillNode): PillNode {
-    return $createPillNode(json.linkId, json.refType, json.url);
+    return $createPillNode(json.linkId, json.refType, json.url, json.label);
   }
 
   // ─── Behavior ─────────────────────────────────────────────────
@@ -155,6 +170,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
       linkId: this.__linkId,
       refType: this.__refType,
       url: this.__url || undefined,
+      label: this.__label || undefined,
     });
   }
 }
@@ -165,8 +181,9 @@ export function $createPillNode(
   linkId: string,
   refType: PillRefType = 'node',
   url?: string,
+  label?: string,
 ): PillNode {
-  return $applyNodeReplacement(new PillNode(linkId, refType, undefined, url));
+  return $applyNodeReplacement(new PillNode(linkId, refType, undefined, url ?? '', label));
 }
 
 export function $isPillNode(

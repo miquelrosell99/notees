@@ -1103,7 +1103,7 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       if (children.length === 0 || $isPillNode(lastChild)) {
         parent.append($createTextNode('\u200B'));
       }
-      const pill = $createPillNode(inline.link_id, inline.ref_type);
+      const pill = $createPillNode(inline.link_id, inline.ref_type, undefined, inline.label ?? undefined);
       parent.append(pill);
       break;
     }
@@ -1179,11 +1179,14 @@ function extractBlockContent(block: BlockNode): ContentAST {
             : [],
         });
       } else {
-        inlines.push({
+        const nodeLink: Record<string, unknown> = {
           type: 'node_link',
           link_id: child.getLinkId(),
           ref_type: rt,
-        });
+        };
+        const pillLabel = child.getLabel();
+        if (pillLabel) nodeLink.label = pillLabel;
+        inlines.push(nodeLink as ASTInlineNode);
       }
     } else if ($isLineBreakNode(child)) {
       inlines.push({ type: 'hard_break' });
