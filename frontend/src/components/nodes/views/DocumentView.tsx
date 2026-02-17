@@ -24,6 +24,7 @@ export function DocumentView({
   editable,
   maxDepth = Infinity,
   onNodeClick,
+  onNodeShiftClick,
   onContentChange,
   onAddClass,
   onSlashCommand,
@@ -84,6 +85,25 @@ export function DocumentView({
     }
   }, [allNodes, onNodeClick, resolveAlias]);
 
+  // Handler for shift-click (open in sidebar)
+  const handleOpenInSidebar = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    
+    if (!graphNode) return;
+    
+    const serverId = graphNode.serverId;
+    if (!serverId) return;
+    
+    // Find node in allNodes or create stub
+    const targetNode = allNodes.find(n => n.id === serverId);
+    if (targetNode) {
+      onNodeShiftClick?.(targetNode);
+    } else {
+      onNodeShiftClick?.({ id: serverId, is_page: graphNode.isPage } as Node);
+    }
+  }, [allNodes, onNodeShiftClick]);
+
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
     const runtime = getNodeGraphRuntime();
@@ -114,6 +134,7 @@ export function DocumentView({
         mode="document"
         readOnly={!editable}
         onNavigateToNode={handleNavigateToNode}
+        onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}

@@ -288,6 +288,7 @@ export function NodeCollection({
             onReorder={onReorder}
             renderItemAction={renderItemAction}
             onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
             pageId={pageId}
             pageUuid={pageUuid}
@@ -307,6 +308,7 @@ export function NodeCollection({
             editable={editable}
             maxDepth={maxDepth}
             onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
             onContentChange={onContentChange}
             pageId={pageId}
             pageUuid={pageUuid}
