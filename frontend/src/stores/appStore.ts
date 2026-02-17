@@ -85,6 +85,7 @@ interface NodesState {
   isImportLogseqModalOpen: boolean;
   isImportMarkdownModalOpen: boolean;
   isExportPageModalOpen: boolean;
+  isRebuildLinksModalOpen: boolean;
   showDbManagement: boolean;
   isMinimapOpen: boolean;
   
@@ -120,6 +121,7 @@ interface NodesState {
   setImportLogseqModalOpen: (open: boolean) => void;
   setImportMarkdownModalOpen: (open: boolean) => void;
   setExportPageModalOpen: (open: boolean) => void;
+  setRebuildLinksModalOpen: (open: boolean) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
@@ -178,6 +180,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isImportLogseqModalOpen: false,
   isImportMarkdownModalOpen: false,
   isExportPageModalOpen: false,
+  isRebuildLinksModalOpen: false,
   showDbManagement: false,
   isMinimapOpen: false,
   // New features state
@@ -211,6 +214,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   setImportLogseqModalOpen: (open) => set({ isImportLogseqModalOpen: open }),
   setImportMarkdownModalOpen: (open) => set({ isImportMarkdownModalOpen: open }),
   setExportPageModalOpen: (open) => set({ isExportPageModalOpen: open }),
+  setRebuildLinksModalOpen: (open) => set({ isRebuildLinksModalOpen: open }),
   openNodeInSidebar: (nodeId, nodeType) => set({ 
     rightSidebarOpen: true, 
     rightSidebarContent: 'node',

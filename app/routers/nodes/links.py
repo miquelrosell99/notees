@@ -656,3 +656,95 @@ async def remove_alias(
         raise HTTPException(404, "Alias relationship not found")
     
     return {"removed": True}
+
+
+@router.post("/rebuild-links")
+async def rebuild_all_links(
+    user: User = Depends(get_current_user),
+):
+    """Rebuild all node_link records from AST content.
+    
+    This command:
+    1. Deletes all existing text links and inline class links
+    2. Re-parses all nodes' AST content to rebuild both types of links
+    3. Returns statistics about the operation
+    
+    Use this when link data may have become inconsistent (e.g., after a migration).
+    Tag links are preserved. Property links are managed separately.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    
+    nodes_processed = 0
+    links_created = 0
+    inline_classes_created = 0
+    errors = []
+    
+    try:
+        # Step 1: Delete existing text links and inline classes (preserve tags)
+        async with acquire_connection(service._pool) as conn:
+            delete_result = await conn.execute("""
+                DELETE FROM node_link 
+                WHERE workspace_id = $1 
+                  AND property_id IS NULL 
+                  AND is_tag = FALSE
+            """, service._workspace_id)
+            logger.info(f"[REBUILD_LINKS] Deleted existing text links and inline classes for workspace {service._workspace_id}")
+        
+        # Step 2: Get all nodes in the workspace
+        async with acquire_connection(service._pool) as conn:
+            nodes = await conn.fetch("""
+                SELECT id, name 
+                FROM node 
+                WHERE workspace_id = $1 AND active = TRUE
+                ORDER BY id
+            """, service._workspace_id)
+        
+        logger.info(f"[REBUILD_LINKS] Processing {len(nodes)} nodes")
+        
+        # Step 3: Re-parse each node and rebuild links and inline classes
+        for node_row in nodes:
+            node_id = node_row['id']
+            content = node_row['name']
+            
+            if not content:
+                nodes_processed += 1
+                continue
+            
+            try:
+                # Rebuild text links
+                created_links = await service._link_service.update_node_links(node_id, content)
+                links_created += len(created_links)
+                
+                # Rebuild inline classes
+                created_classes = await service._link_service.update_inline_classes(node_id, content)
+                inline_classes_created += len(created_classes)
+                
+                nodes_processed += 1
+                
+                # Log progress every 100 nodes
+                if nodes_processed % 100 == 0:
+                    logger.info(f"[REBUILD_LINKS] Progress: {nodes_processed}/{len(nodes)} nodes")
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[REBUILD_LINKS] Error processing node {node_id}: {e}")
+                nodes_processed += 1
+                continue
+        
+        logger.info(f"[REBUILD_LINKS] Completed: {nodes_processed} nodes, {links_created} links + {inline_classes_created} inline classes created, {len(errors)} errors")
+        
+        return {
+            "success": True,
+            "nodes_processed": nodes_processed,
+            "links_created": links_created,
+            "inline_classes_created": inline_classes_created,
+            "errors": errors[:100],  # Limit error list to first 100
+            "total_errors": len(errors),
+        }
+    
+    except Exception as e:
+        logger.error(f"[REBUILD_LINKS] Fatal error: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to rebuild links: {str(e)}")
