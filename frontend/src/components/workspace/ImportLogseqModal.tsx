@@ -575,7 +575,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         const noteesClassId = classIdMap.get(cls.id);
         if (!noteesClassId || !cls.properties) continue;
         for (const logseqPropId of cls.properties) {
-          if (logseqPropId.startsWith('logseq.property')) continue;
+          // Skip logseq system properties, but allow description through
+          if (logseqPropId.startsWith('logseq.property') && logseqPropId !== 'logseq.property/description') continue;
           const noteesPropId = propIdMap.get(logseqPropId);
           if (!noteesPropId) continue;
           setImportStatus(`Binding property to class: ${cls.title}`);
