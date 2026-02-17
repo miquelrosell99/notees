@@ -24,7 +24,7 @@ type SettingsTab = 'general';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const { dateFormat, defaultView, quickAddDestination, linkedRefsCollapseLevel, setDateFormat, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { dateFormat, quickAddDestination, linkedRefsCollapseLevel, setDateFormat, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
@@ -126,25 +126,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {isUpdatingDateFormat && (
                     <span className="settings-item__loading">Updating...</span>
                   )}
-                </div>
-
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Default view</label>
-                    <p className="settings-item__description">
-                      Choose what to show when opening this graph
-                    </p>
-                  </div>
-                  <select 
-                    className="settings-item__select"
-                    value={defaultView}
-                    onChange={(e) => setDefaultView(e.target.value as 'journal' | 'all-pages' | 'graph' | 'today')}
-                  >
-                    <option value="today">Today's Page</option>
-                    <option value="journal">Journal</option>
-                    <option value="all-pages">All Pages</option>
-                    <option value="graph">Graph View</option>
-                  </select>
                 </div>
 
                 <div className="settings-item">

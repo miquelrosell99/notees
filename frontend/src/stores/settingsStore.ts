@@ -33,6 +33,8 @@ export const DATE_FORMAT_OPTIONS: DateFormatOption[] = [
 
 export type QuickAddDestination = 'inbox' | 'today';
 
+export type DefaultView = 'journal' | 'all-pages' | 'graph' | 'today';
+
 /**
  * How `#hashtag` patterns in pasted text should be interpreted:
  * - 'inline-tag': Insert as an inline tag link (PillNode with refType 'node', is_tag=true)
@@ -48,7 +50,7 @@ interface SettingsState {
   dateFormat: DateFormat;
   
   // Other settings
-  defaultView: 'journal' | 'all-pages' | 'graph' | 'today';
+  defaultView: DefaultView;
   showDailyNotes: boolean;
   fontSize: 'small' | 'medium' | 'large';
   quickAddDestination: QuickAddDestination;
@@ -60,7 +62,7 @@ interface SettingsState {
   // Actions
   setTheme: (theme: ThemePreference) => void;
   setDateFormat: (format: DateFormat) => void;
-  setDefaultView: (view: 'journal' | 'all-pages' | 'graph' | 'today') => void;
+  setDefaultView: (view: DefaultView) => void;
   setShowDailyNotes: (show: boolean) => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setQuickAddDestination: (destination: QuickAddDestination) => void;
