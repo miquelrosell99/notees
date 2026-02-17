@@ -23,7 +23,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SuggestionPopup.css';
-import { useNodeSearch, usePages, type NodeSearchMode } from '@/hooks';
+import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '../core/icons';
 import { Checkbox } from '../core/Checkbox';
@@ -109,6 +109,9 @@ export function SuggestionPopup({
   const parsedDate = useMemo(() => type === 'link' ? parseDate(query) : null, [query, type]);
   const { data: allPagesForDate } = usePages({ includeChildren: true });
   
+  // Fetch all classes to show class names for pages
+  const { data: allClasses = [] } = useClasses();
+  
   // Check if the date page already exists by looking up its deterministic UUID
   const existingDateNode = useMemo(() => {
     if (!parsedDate || !allPagesForDate) return null;
@@ -136,6 +139,17 @@ export function SuggestionPopup({
     const aliasedNode = allSearchNodes.find(n => n.id === node.aliased_id) || allNodes.find(n => n.id === node.aliased_id);
     return aliasedNode ? (nodeNameToText(aliasedNode.name) || 'Unknown') : null;
   }, [allSearchNodes, allNodes]);
+  
+  // Helper to get class names for a page node
+  const getClassNames = useCallback((node: Node): string[] => {
+    if (!node.classes || node.classes.length === 0) return [];
+    return node.classes
+      .map(classId => {
+        const classNode = allClasses.find(c => c.id === classId);
+        return classNode ? nodeNameToText(classNode.name) || '' : '';
+      })
+      .filter(name => name !== '');
+  }, [allClasses]);
   
   // Combined list for navigation (in multi-select mode, exclude already selected)
   const allItems = useMemo(() => {
@@ -457,6 +471,7 @@ export function SuggestionPopup({
                 {pageResults.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
                   const aliasedName = getAliasedNodeName(item.node);
+                  const classNames = getClassNames(item.node);
                   return (
                     <button
                       key={`page-${item.node.id}`}
@@ -473,6 +488,11 @@ export function SuggestionPopup({
                       {aliasedName && (
                         <span className="suggestion-popup__item-alias">
                           alias of: {aliasedName}
+                        </span>
+                      )}
+                      {classNames.length > 0 && (
+                        <span className="suggestion-popup__item-classes">
+                          {classNames.join(', ')}
                         </span>
                       )}
                     </button>
