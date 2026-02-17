@@ -62,6 +62,7 @@ import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 import { updateLinkName } from '../api/nodes';
 import { parseLinkId, buildLinkId } from '../lib/astBuilder';
+import { useAddClass, useRemoveClass, useClassClass } from '@/hooks';
 
 import './BlockEditor.css';
 
@@ -187,6 +188,11 @@ export function BlockEditor({
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
+
+  // Hooks for class management  
+  const addClassMutation = useAddClass();
+  const removeClassMutation = useRemoveClass();
+  const { classClassId } = useClassClass();
 
   // ─── Sync structural changes to database ───────────────────
   // Listens to runtime structure_changed events (indent, outdent, reorder)
@@ -336,7 +342,7 @@ export function BlockEditor({
     setLinkEditState(null);
   }, []);
 
-  const handleLinkEditSave = useCallback((result: LinkEditResult) => {
+  const handleLinkEditSave = useCallback(async (result: LinkEditResult) => {
     if (result.mode === 'url') {
       // URL mode: replace the PillNode with a URL pill
       setPendingPillUpdate({
@@ -348,6 +354,7 @@ export function BlockEditor({
     } else {
       // Node mode: keep existing behaviour
       const { nodeUuid: origNodeUuid, linkUuid } = parseLinkId(result.originalLinkId);
+      const isInlineClassLink = linkEditState?.refType === 'class';
 
       // Update custom label via API if we have a linkUuid
       if (linkUuid) {
@@ -366,13 +373,38 @@ export function BlockEditor({
         setPendingPillUpdate({
           oldLinkId: result.originalLinkId,
           newLinkId,
-          newRefType: linkEditState?.refType === 'class' ? 'class' : 'node',
+          newRefType: isInlineClassLink ? 'class' : 'node',
         });
+
+        // If this is an inline class link, sync the block's class_ids
+        if (isInlineClassLink && result.targetNode) {
+          // Find the block that contains this inline class link
+          // We need to get the blockServerId from the pill's parent block
+          const runtime = getNodeGraphRuntime();
+          // Find the block node via the runtime
+          // For now, we'll use pageId as the block ID if it's the page-level editor
+          if (pageId != null) {
+            // Remove old class from block
+            // Parse the original UUID to find which class to remove
+            const origNode = nodes?.find(n => n.uuid === origNodeUuid);
+            if (origNode) {
+              removeClassMutation.mutate({ nodeId: pageId, classId: origNode.id });
+            }
+
+            // Add new class to block
+            addClassMutation.mutate({ nodeId: pageId, classId: result.targetNode.id });
+            
+            // If target node is not a class, add the "Class" class to it
+            if (classClassId && !result.targetNode.class_ids?.includes(classClassId)) {
+              addClassMutation.mutate({ nodeId: result.targetNode.id, classId: classClassId });
+            }
+          }
+        }
       }
     }
 
     setLinkEditState(null);
-  }, [linkEditState]);
+  }, [linkEditState, pageId, nodes, addClassMutation, removeClassMutation, classClassId]);
 
   // Pending pill update (applied by a useEffect that has editor access)
   const [pendingPillUpdate, setPendingPillUpdate] = useState<{
