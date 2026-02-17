@@ -591,17 +591,6 @@ export async function removeTagLink(nodeId: number, targetId: number): Promise<v
   await api.delete(`${BASE}/${nodeId}/tag-links/${targetId}`);
 }
 
-/**
- * Update the custom display name for a link
- */
-export async function updateLinkName(linkUuid: string, name: string | null): Promise<TextLink> {
-  const response = await api.patch<TextLink>(`${BASE}/link/name`, {
-    link_uuid: linkUuid,
-    name: name,
-  });
-  return response.data;
-}
-
 // ==================== Aliases ====================
 
 /**

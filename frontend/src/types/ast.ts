@@ -35,7 +35,7 @@ export interface ASTHardBreak {
  *   - 'class' — class reference that keeps text inline
  *
  * `label` is an optional custom display text (e.g., [custom label]([[uuid]]))
- * that gets stored in the node_link.name column.
+ * stored inline in the AST.
  */
 export interface ASTNodeLink {
   readonly type: 'node_link';

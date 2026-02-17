@@ -38,7 +38,7 @@ export type StringifyMode = (typeof StringifyMode)[keyof typeof StringifyMode];
  *
  * Given a `link_id` (node_link UUID), return:
  *   - `targetAST`  – the target node's name AST (for recursive stringification)
- *   - `label`      – the custom label from `node_link.name` (may be null)
+ *   - `label`      – optional fallback label (may be null; AST label takes precedence)
  *   - `targetId`   – opaque node identifier used only for cycle detection
  *
  * Return `null` if the link cannot be resolved (deleted node, etc.).
@@ -166,7 +166,7 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
     }
 
     case 'node_link':
-      return renderNodeLink(node.link_id, node.ref_type, opts);
+      return renderNodeLink(node.link_id, node.ref_type, opts, node.label);
 
     default:
       // Unknown inline node — return empty string (stable, deterministic).
@@ -187,25 +187,32 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
  *   label if present, otherwise resolved node text.
  *
  * Cycle-safe: if the target was already visited, emits "…".
+ *
+ * @param astLabel - label from the AST node itself (single source of truth)
  */
 function renderNodeLink(
   linkId: string,
   refType: 'node' | 'class',
   opts: StringifyOptions,
+  astLabel?: string | null,
 ): string {
   const resolver = opts.resolveNodeLink;
   if (!resolver) {
-    // No resolver available — emit stable placeholder.
+    // No resolver available — use AST label if present, otherwise stable placeholder.
+    if (astLabel) return opts.mode === StringifyMode.NODE_MARKDOWN ? `[${astLabel}]([[…]])` : astLabel;
     return opts.mode === StringifyMode.NODE_MARKDOWN ? '[[…]]' : '…';
   }
 
   const resolution = resolver(linkId);
   if (!resolution) {
-    // Link target deleted or unresolvable.
+    // Link target deleted or unresolvable — use AST label if present.
+    if (astLabel) return opts.mode === StringifyMode.NODE_MARKDOWN ? `[${astLabel}]([[…]])` : astLabel;
     return opts.mode === StringifyMode.NODE_MARKDOWN ? '[[…]]' : '…';
   }
 
-  const { targetAST, label, targetId } = resolution;
+  // AST label takes precedence over DB label
+  const label = astLabel ?? resolution.label;
+  const { targetAST, targetId } = resolution;
 
   // ── Cycle detection ──
   const visited = opts._visited ?? new Set<string>();

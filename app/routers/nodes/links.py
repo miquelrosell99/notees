@@ -10,7 +10,6 @@ from ...models import User
 from .models import (
     NodeLinkResponse,
     TagLinkRequest,
-    UpdateLinkNameRequest,
     PropertyRequest,
     BacklinkResponse,
     LinkedReferenceResponse,
@@ -510,47 +509,7 @@ async def get_property_backlinks(
     return {"property_backlinks": result}
 
 
-@router.patch("/link/name")
-async def update_link_name(
-    request: UpdateLinkNameRequest,
-    user: User = Depends(get_current_user),
-):
-    """Update the custom display name for a link.
-    
-    Args:
-        request: Contains link_uuid and name (None or empty to clear)
-    
-    Returns:
-        Updated link response
-    """
-    service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
-        # Normalize empty string to None
-        name_value = request.name if request.name and request.name.strip() else None
-        
-        # Update the link name
-        row = await conn.fetchrow("""
-            UPDATE node_link 
-            SET name = $1
-            WHERE uuid::text = $2 AND workspace_id = $3
-            RETURNING id, uuid, source_id, target_id, is_tag, position, name
-        """, name_value, request.link_uuid, service._workspace_id)
-        
-        if not row:
-            raise HTTPException(404, "Link not found")
-        
-        return NodeLinkResponse(
-            id=row['id'],
-            uuid=str(row['uuid']),
-            source_node_id=row['source_id'],
-            target_node_id=row['target_id'],
-            is_tag=row['is_tag'],
-            position=row['position'],
-            name=row['name'],
-        )
-
-
-# ==================== ALIAS ENDPOINTS ====================
+# ==================== ALIAS ENDPOINTS ==
 
 
 @router.get("/{node_id}/aliases")

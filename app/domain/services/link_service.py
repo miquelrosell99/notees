@@ -377,7 +377,7 @@ class LinkParsingService:
                 uuid=link_uuid,
                 is_tag=is_tag,
                 position=position,
-                name=label,  # Custom display text (e.g., "[laboral]([[uuid]])")
+                name=None,  # Label lives in the AST, not in the DB
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)

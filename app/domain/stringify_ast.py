@@ -89,7 +89,7 @@ class NodeLinkResolution:
     """The target node's name AST."""
 
     label: Optional[str]
-    """Custom label from node_link.name (may be None)."""
+    """Fallback label (may be None; AST label takes precedence)."""
 
     target_id: str
     """Opaque node identifier for cycle detection."""
@@ -244,7 +244,8 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
     if node_type == "node_link":
         link_id = node.get("link_id", "")
         ref_type = node.get("ref_type", "node")
-        return _render_node_link(link_id, ref_type, opts)
+        ast_label = node.get("label") or None
+        return _render_node_link(link_id, ref_type, opts, ast_label=ast_label)
 
     # Unknown inline node — ignore silently.
     return ""
@@ -253,7 +254,7 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
 # ── Node link rendering ────────────────────────────────────────────
 
 
-def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions) -> str:
+def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, ast_label: str | None = None) -> str:
     """Render a node_link AST node according to the current mode.
 
     NODE_MARKDOWN:
@@ -263,21 +264,35 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions) -> st
     PLAIN_MARKDOWN / TEXT_ONLY:
         label if present, otherwise resolved node text.
 
+    AST label takes precedence over the resolution (DB) label.
     Cycle-safe: if the target was already visited, emits "…".
     """
     resolver = opts.resolve_node_link
     placeholder_md = "[[…]]" if opts.mode is StringifyMode.NODE_MARKDOWN else "…"
 
     if resolver is None:
+        # No resolver — use AST label if available
+        if ast_label:
+            if opts.mode is StringifyMode.NODE_MARKDOWN:
+                if ref_type == "class":
+                    return ast_label
+                return f"[{ast_label}]([[{link_id}]])"
+            return ast_label
         return placeholder_md
 
     resolution = resolver(link_id)
     if resolution is None:
+        if ast_label:
+            if opts.mode is StringifyMode.NODE_MARKDOWN:
+                if ref_type == "class":
+                    return ast_label
+                return f"[{ast_label}]([[{link_id}]])"
+            return ast_label
         return placeholder_md
 
     target_ast, label, target_id = (
         resolution.target_ast,
-        resolution.label,
+        ast_label if ast_label is not None else resolution.label,
         resolution.target_id,
     )
 

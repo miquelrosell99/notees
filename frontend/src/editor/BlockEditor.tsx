@@ -60,7 +60,6 @@ import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
-import { updateLinkName } from '../api/nodes';
 import { parseLinkId, buildLinkId } from '../lib/astBuilder';
 import { useAddClass, useRemoveClass, useClassClass } from '@/hooks';
 
@@ -342,10 +341,11 @@ export function BlockEditor({
     linkId: string;
     refType: PillRefType;
     url?: string;
+    label?: string;
   } | null>(null);
 
-  const handlePillEdit = useCallback((linkId: string, refType: PillRefType, url?: string) => {
-    setLinkEditState({ linkId, refType, url });
+  const handlePillEdit = useCallback((linkId: string, refType: PillRefType, url?: string, label?: string) => {
+    setLinkEditState({ linkId, refType, url, label });
   }, []);
 
   const handleLinkEditClose = useCallback(() => {
@@ -362,52 +362,37 @@ export function BlockEditor({
         newUrl: result.url,
       });
     } else {
-      // Node mode: keep existing behaviour
+      // Node mode
       const { nodeUuid: origNodeUuid, linkUuid } = parseLinkId(result.originalLinkId);
       const isInlineClassLink = linkEditState?.refType === 'class';
 
-      // Update custom label via API if we have a linkUuid
-      if (linkUuid) {
-        updateLinkName(linkUuid, result.label).catch(err => {
-          console.error('[BlockEditor] Failed to update link name:', err);
-        });
-      }
+      const targetChanged = result.targetNode && result.targetNode.uuid !== origNodeUuid;
+      const labelChanged = result.label !== (linkEditState?.label ?? null);
 
-      // If the target node changed, update the PillNode in the Lexical tree
-      if (result.targetNode && result.targetNode.uuid !== origNodeUuid) {
-        const newNodeUuid = result.targetNode.uuid;
+      if (targetChanged || labelChanged) {
+        const newNodeUuid = targetChanged ? result.targetNode!.uuid : origNodeUuid;
         const newLinkId = linkUuid
           ? buildLinkId(newNodeUuid, linkUuid)
           : newNodeUuid;
 
         setPendingPillUpdate({
           oldLinkId: result.originalLinkId,
-          newLinkId,
+          newLinkId: targetChanged ? newLinkId : result.originalLinkId,
           newRefType: isInlineClassLink ? 'class' : 'node',
+          newLabel: result.label,
         });
+      }
 
-        // If this is an inline class link, sync the block's class_ids
-        if (isInlineClassLink && result.targetNode) {
-          // Find the block that contains this inline class link
-          // We need to get the blockServerId from the pill's parent block
-          const runtime = getNodeGraphRuntime();
-          // Find the block node via the runtime
-          // For now, we'll use pageId as the block ID if it's the page-level editor
-          if (pageId != null) {
-            // Remove old class from block
-            // Parse the original UUID to find which class to remove
-            const origNode = nodes?.find(n => n.uuid === origNodeUuid);
-            if (origNode) {
-              removeClassMutation.mutate({ nodeId: pageId, classId: origNode.id });
-            }
-
-            // Add new class to block
-            addClassMutation.mutate({ nodeId: pageId, classId: result.targetNode.id });
-            
-            // If target node is not a class, add the "Class" class to it
-            if (classClassId && !result.targetNode.class_ids?.includes(classClassId)) {
-              addClassMutation.mutate({ nodeId: result.targetNode.id, classId: classClassId });
-            }
+      // If this is an inline class link and target changed, sync the block's class_ids
+      if (targetChanged && isInlineClassLink && result.targetNode) {
+        if (pageId != null) {
+          const origNode = nodes?.find(n => n.uuid === origNodeUuid);
+          if (origNode) {
+            removeClassMutation.mutate({ nodeId: pageId, classId: origNode.id });
+          }
+          addClassMutation.mutate({ nodeId: pageId, classId: result.targetNode.id });
+          if (classClassId && !result.targetNode.class_ids?.includes(classClassId)) {
+            addClassMutation.mutate({ nodeId: result.targetNode.id, classId: classClassId });
           }
         }
       }
@@ -422,6 +407,7 @@ export function BlockEditor({
     newLinkId: string;
     newRefType: PillRefType;
     newUrl?: string;
+    newLabel?: string | null;
   } | null>(null);
 
   // ─── Render ────────────────────────────────────────────────
@@ -575,6 +561,7 @@ export function BlockEditor({
           linkId={linkEditState.linkId}
           refType={linkEditState.refType}
           currentUrl={linkEditState.url}
+          currentLabel={linkEditState.label}
           onSave={handleLinkEditSave}
           onClose={handleLinkEditClose}
         />
