@@ -262,7 +262,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           const selectionLines = prop.selectionOptions
             ? prop.selectionOptions.map(o => String(o.value))
             : [];
-          const finalType = noteesType === 'float' && prop.selectionOptions
+          const finalType = prop.selectionOptions
             ? 'selection' as PropertyType
             : noteesType;
 
