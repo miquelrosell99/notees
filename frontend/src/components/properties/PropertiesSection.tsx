@@ -459,6 +459,9 @@ export function PropertiesSection({
       // Skip the system 'banner' property - it has its own UI element (BannerImage)
       if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
       
+      // Skip hidden system properties (e.g. _query_ast, _whiteboard_data)
+      if (prop.name.startsWith('_')) continue;
+      
       // Get value from node properties if it exists
       const value = node?.properties && String(prop.id) in (node.properties as Record<string, unknown>)
         ? (node.properties as Record<string, unknown>)[String(prop.id)]
@@ -483,6 +486,9 @@ export function PropertiesSection({
         
         // Skip the system 'Banner' property - it has its own UI element (BannerImage)
         if (prop.uuid === SYSTEM_PROPERTY_UUIDS.banner) continue;
+        
+        // Skip hidden system properties (e.g. _query_ast, _whiteboard_data)
+        if (prop.name.startsWith('_')) continue;
         
         const hasProperty = String(prop.id) in (node.properties as Record<string, unknown>);
         if (hasProperty) {

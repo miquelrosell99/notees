@@ -23,6 +23,8 @@ const HIDDEN_PROPERTY_UUIDS = new Set<string>([
   SYSTEM_PROPERTY_UUIDS.cover,
   SYSTEM_PROPERTY_UUIDS.show_hierarchy,
   SYSTEM_PROPERTY_UUIDS.banner,
+  SYSTEM_PROPERTY_UUIDS._query_ast,
+  SYSTEM_PROPERTY_UUIDS._whiteboard_data,
 ]);
 
 export interface PropertySuggestionPopupProps {
