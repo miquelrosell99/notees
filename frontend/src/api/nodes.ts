@@ -19,6 +19,9 @@ import type {
   BatchNodeDeleteResponse,
   BatchPermanentDeleteRequest,
   BatchPermanentDeleteResponse,
+  BatchGetNodesRequest,
+  BatchGetNodesResponse,
+  BreadcrumbsResponse,
 } from '@/types/api';
 
 const BASE = '/nodes';
@@ -82,6 +85,26 @@ export async function getNodeByUuid(
  */
 export async function getPageContent(pageId: number): Promise<Node> {
   const response = await api.get<Node>(`${BASE}/page/${pageId}/content`);
+  return response.data;
+}
+
+/**
+ * Fetch multiple nodes by ID in a single call.
+ * Returns a map of node_id (string) -> Node for all found nodes.
+ * Missing or inaccessible IDs are silently omitted.
+ */
+export async function batchGetNodes(request: BatchGetNodesRequest): Promise<BatchGetNodesResponse> {
+  const response = await api.post<BatchGetNodesResponse>(`${BASE}/batch-get`, request);
+  return response.data;
+}
+
+/**
+ * Get the ancestor breadcrumb chain for a node.
+ * Returns ordered list from root ancestor to immediate parent.
+ * Uses closure table for O(1) lookup — much faster than chaining GET requests.
+ */
+export async function getBreadcrumbs(nodeId: number): Promise<BreadcrumbsResponse> {
+  const response = await api.get<BreadcrumbsResponse>(`${BASE}/${nodeId}/breadcrumbs`);
   return response.data;
 }
 

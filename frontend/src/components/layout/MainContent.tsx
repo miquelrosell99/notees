@@ -7,6 +7,7 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores';
 import { useNode } from '@/hooks';
+import { useSystemClasses } from '@/hooks/usePageClass';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -19,11 +20,13 @@ import { AllPagesGraphView } from '../../views/AllPagesGraphView';
 import { AllPagesTerrainView } from '../../views/AllPagesTerrainView';
 import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
 import { PropertyViewFull } from '../../views/PropertyView';
+import { WhiteboardView } from '../nodes/views/WhiteboardView';
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
   const queryClient = useQueryClient();
   const prevViewRef = useRef(mainViewType);
+  const { systemClassIds } = useSystemClasses();
 
   // Cancel in-flight per-node queries when navigating away from a view.
   // This prevents journal's ~50+ requests from blocking graph/settings responses.
@@ -130,6 +133,18 @@ export function MainContent() {
           <h2>Welcome to Notees</h2>
           <p>Select a page from the sidebar or create a new one.</p>
         </div>
+      </main>
+    );
+  }
+
+  // Whiteboard view: if the current node has the whiteboard class, show WhiteboardView
+  const isWhiteboard = currentNode && systemClassIds?.whiteboard &&
+    currentNode.classes?.includes(systemClassIds.whiteboard);
+
+  if (isWhiteboard && currentNode) {
+    return (
+      <main className="main-content" style={{ padding: 0, overflow: 'hidden' }}>
+        <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
       </main>
     );
   }

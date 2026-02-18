@@ -1115,12 +1115,6 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       parent.append(pill);
       break;
     }
-    case 'code': {
-      const codeText = $createTextNode(inline.text);
-      codeText.setFormat(format | 16); // IS_CODE
-      parent.append(codeText);
-      break;
-    }
     case 'strong': {
       // Recurse into children with bold flag added
       for (const child of inline.children) {
@@ -1207,14 +1201,11 @@ function extractBlockContent(block: BlockNode): ContentAST {
       // Build the AST node with nested marks
       let node: ASTInlineNode = { type: 'text', text };
       
-      if (format & 16) {
-        node = { type: 'code', text };
-      } else {
-        if (format & 8) node = { type: 'underline', children: [node] };
-        if (format & 4) node = { type: 'strikethrough', children: [node] };
-        if (format & 2) node = { type: 'em', children: [node] };
-        if (format & 1) node = { type: 'strong', children: [node] };
-      }
+      // Apply formatting marks (not code - that's kept as plain text with backticks)
+      if (format & 8) node = { type: 'underline', children: [node] };
+      if (format & 4) node = { type: 'strikethrough', children: [node] };
+      if (format & 2) node = { type: 'em', children: [node] };
+      if (format & 1) node = { type: 'strong', children: [node] };
       
       inlines.push(node);
     }

@@ -213,7 +213,33 @@ class DateFormatUpdateRequest(BaseModel):
     new_format: str  # e.g., "YYYY/MM/DD", "DD-MM-YYYY", etc.
 
 
-# ==================== Batch Operations ====================
+# ==================== Batch Read Operations ====================
+
+class BatchGetNodesRequest(BaseModel):
+    """Request to fetch multiple nodes by ID in a single call."""
+    ids: List[int]
+    include_properties: bool = False
+
+
+class BatchGetNodesResponse(BaseModel):
+    """Response for batch node fetch."""
+    nodes: Dict[str, NodeResponse]  # Keyed by node ID (as string for JSON compat)
+
+
+class BreadcrumbItem(BaseModel):
+    """A single breadcrumb in the ancestor chain."""
+    id: int
+    name: str
+    icon: Optional[str] = None
+    is_page: bool = False
+
+
+class BreadcrumbsResponse(BaseModel):
+    """Response for breadcrumbs endpoint."""
+    breadcrumbs: List[BreadcrumbItem]
+
+
+# ==================== Batch Write Operations ====================
 
 class BatchNodeCreateItem(BaseModel):
     """A single node to create in a batch operation."""

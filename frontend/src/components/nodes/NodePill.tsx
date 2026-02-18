@@ -18,7 +18,7 @@ import { Pill } from '../core/Pill';
 import { NodeIcon, CloseIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ColorPickerRow } from './NodeContextMenu';
-import { useNode, useClasses } from '@/hooks';
+import { useBatchedNode, useClasses } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore } from '@/stores';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -82,7 +82,7 @@ export function NodePill({
   // Always fetch node to subscribe to cache updates
   // Use providedNode's id if available, otherwise use nodeId prop
   const effectiveNodeId = providedNode?.id ?? nodeId ?? null;
-  const { data: fetchedNode } = useNode(effectiveNodeId);
+  const { data: fetchedNode } = useBatchedNode(effectiveNodeId);
   
   // Prefer fetched node (has latest cache data) over provided node
   const node = fetchedNode ?? providedNode;

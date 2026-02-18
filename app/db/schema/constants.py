@@ -155,6 +155,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "cover": "00000000-0000-0000-0000-000000000005",
     "banner": "00000000-0000-0000-0000-000000000006",
     "_query_ast": "00000000-0000-0000-0000-000000000007",  # Hidden system property for query nodes
+    "_whiteboard_data": "00000000-0000-0000-0000-000000000010",  # Hidden system property for whiteboard layout
     "description": "00000000-0000-0000-0000-000000000009",  # text, multi
     # "extends" removed - now stored directly in class_extend table
     # Task class properties
@@ -190,6 +191,7 @@ SYSTEM_PROPERTIES = [
     {"name": "Cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "Banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
     {"name": "_query_ast", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_ast"]},
+    {"name": "_whiteboard_data", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_whiteboard_data"]},
     {"name": "Description", "type": "text", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["description"]},
     # "extends" removed - now stored directly in class_extend table
 ]

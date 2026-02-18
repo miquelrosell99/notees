@@ -28,10 +28,6 @@ function em(...children: ASTDocument[0]['children']) {
   return { type: 'em' as const, children };
 }
 
-function code(t: string) {
-  return { type: 'code' as const, text: t };
-}
-
 function hardBreak() {
   return { type: 'hard_break' as const };
 }
@@ -119,14 +115,14 @@ describe('stringifyAST', () => {
     });
   });
 
-  describe('code', () => {
-    const ast = p(text('run '), code('npm install'));
+  describe('inline code (plain text with backticks)', () => {
+    const ast = p(text('run `npm install`'));
 
-    it('NODE_MARKDOWN', () => {
+    it('NODE_MARKDOWN preserves backticks', () => {
       expect(stringifyAST(ast, { mode: StringifyMode.NODE_MARKDOWN })).toBe('run `npm install`');
     });
-    it('TEXT_ONLY strips backticks', () => {
-      expect(stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY })).toBe('run npm install');
+    it('TEXT_ONLY preserves backticks', () => {
+      expect(stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY })).toBe('run `npm install`');
     });
   });
 

@@ -29,6 +29,14 @@ class NodeRepository(ABC):
         pass
     
     @abstractmethod
+    async def get_by_ids(self, node_ids: List[int]) -> List[Node]:
+        """Get multiple nodes by internal IDs in a single query.
+        
+        Returns nodes in no particular order. Missing/inaccessible IDs are silently skipped.
+        """
+        pass
+    
+    @abstractmethod
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
         pass

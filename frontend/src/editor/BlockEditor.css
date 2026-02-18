@@ -553,13 +553,20 @@ th.node-block-table-cell {
   text-decoration: underline line-through;
 }
 
-.notees-text-code {
+/* ─── Inline code (backtick-wrapped text) ──────────────────────── */
+
+.inline-code {
   background: var(--color-surface-container-high);
   border-radius: 3px;
   padding: 1px 4px;
   font-family: var(--font-family-mono);
   font-size: 0.9em;
   color: var(--color-on-surface);
+  /* Keep backticks visible as part of the content */
+}
+
+.has-inline-code {
+  /* Wrapper for text nodes containing inline code */
 }
 
 /* ─── Node pill (inline link, dotted underline style) ──────────── */

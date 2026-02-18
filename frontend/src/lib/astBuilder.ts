@@ -19,7 +19,6 @@ import type {
   ASTNodeLink,
   ASTStrong,
   ASTEm,
-  ASTCode,
   ASTStrikethrough,
   ASTHighlight,
   ASTUnderline,
@@ -42,7 +41,7 @@ export const ParseMode = {
   JSON: 'JSON',
   /** Wrap plain text as-is in a single text node (no formatting). */
   PLAIN: 'PLAIN',
-  /** Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, __underline__, [text](url). */
+  /** Parse inline Markdown: **bold**, *italic*, ~~strike~~, ==highlight==, __underline__, [text](url). Backtick-wrapped code like `code` is kept as plain text. */
   MARKDOWN: 'MARKDOWN',
 } as const;
 
@@ -103,10 +102,6 @@ export function parseLinkId(linkId: string): ParsedLinkId {
     };
   }
   return { nodeUuid: linkId, linkUuid: undefined };
-}
-
-export function code(t: string): ASTCode {
-  return { type: 'code', text: t };
 }
 
 // ─── Mark builders ─────────────────────────────────────────────────
@@ -268,8 +263,9 @@ function parseMdInline(input: string): ASTInlineNode[] {
     }
 
     if (m.groups?.code) {
+      // Inline code is kept as plain text with backticks visible
       const raw = m.groups.code;
-      nodes.push(code(raw.slice(1, -1)));
+      nodes.push(text(raw));
     } else if (m.groups?.bold_italic) {
       const inner = m.groups.bi!;
       nodes.push(strong(em(text(inner))));

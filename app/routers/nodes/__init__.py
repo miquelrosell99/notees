@@ -46,6 +46,10 @@ from .models import (
     CommentResponse,
     CommentsResponse,
     DateFormatUpdateRequest,
+    BatchGetNodesRequest,
+    BatchGetNodesResponse,
+    BreadcrumbItem,
+    BreadcrumbsResponse,
 )
 
 # Re-export helpers that may be used elsewhere

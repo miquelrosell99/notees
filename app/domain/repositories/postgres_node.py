@@ -418,6 +418,21 @@ class PostgresNodeRepository(NodeRepository):
             
             return self._row_to_node(row)
     
+    async def get_by_ids(self, node_ids: List[int]) -> List[Node]:
+        """Get multiple nodes by internal IDs in a single query.
+        
+        Returns nodes in no particular order. Missing/inaccessible IDs are silently skipped.
+        """
+        if not node_ids:
+            return []
+        
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM node WHERE id = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                node_ids, self._workspace_id
+            )
+            return [self._row_to_node(row) for row in rows]
+    
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
         async with acquire_connection(self._pool) as conn:

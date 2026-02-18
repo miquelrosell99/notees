@@ -14,6 +14,7 @@ export const SYSTEM_PROPERTY_UUIDS = {
   banner: '00000000-0000-0000-0000-000000000006',
   description: '00000000-0000-0000-0000-000000000009',
   extends: '00000000-0000-0000-0000-000000000008',
+  _whiteboard_data: '00000000-0000-0000-0000-000000000010',  // Whiteboard layout JSON
   // Task class properties
   task_status: '00000000-0000-0000-0003-000000000001',
   task_deadline: '00000000-0000-0000-0003-000000000002',

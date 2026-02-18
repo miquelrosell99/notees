@@ -56,11 +56,6 @@ export interface ASTEm {
   readonly children: ASTInlineNode[];
 }
 
-export interface ASTCode {
-  readonly type: 'code';
-  readonly text: string;
-}
-
 export interface ASTStrikethrough {
   readonly type: 'strikethrough';
   readonly children: ASTInlineNode[];
@@ -100,7 +95,6 @@ export type ASTInlineNode =
   | ASTNodeLink
   | ASTStrong
   | ASTEm
-  | ASTCode
   | ASTStrikethrough
   | ASTHighlight
   | ASTUnderline
@@ -120,6 +114,6 @@ export type ASTDocument = ASTBlockNode[];
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Type guard: is the node a leaf (no children array)? */
-export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTNodeLink | ASTCode {
-  return node.type === 'text' || node.type === 'hard_break' || node.type === 'node_link' || node.type === 'code';
+export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTNodeLink {
+  return node.type === 'text' || node.type === 'hard_break' || node.type === 'node_link';
 }

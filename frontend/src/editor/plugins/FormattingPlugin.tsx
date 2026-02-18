@@ -45,10 +45,6 @@ export function FormattingPlugin(): null {
           case 'd':
             if (shiftKey) format = 'strikethrough';
             break;
-          case '`':
-          case 'e':
-            format = 'code';
-            break;
         }
 
         if (format) {
