@@ -1,0 +1,213 @@
+/**
+ * WhiteboardContextMenu — Right-click context menu for whiteboard elements and canvas.
+ */
+import React from 'react';
+import { ContextMenu } from '@/components/core/ContextMenu';
+import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { WhiteboardCardElement } from '@/types/whiteboard';
+
+interface WhiteboardContextMenuProps {
+  wb: UseWhiteboardReturn;
+  position: { x: number; y: number } | null;
+  elementId: string | null;
+  onClose: () => void;
+  onOpenNode: (nodeId: number) => void;
+  onAddCardAtPosition: (x: number, y: number) => void;
+}
+
+export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
+  wb,
+  position,
+  elementId,
+  onClose,
+  onOpenNode,
+  onAddCardAtPosition,
+}) => {
+  if (!position) return null;
+
+  const element = elementId ? wb.data.elements.find(el => el.id === elementId) : null;
+  const selectedIds = [...wb.interaction.selectedIds];
+  const selectedCount = selectedIds.length;
+
+  // Build menu items based on context
+  const items: Array<{
+    id: string;
+    label: string;
+    icon?: string;
+    shortcut?: string;
+    danger?: boolean;
+    separator?: boolean;
+    disabled?: boolean;
+    onClick?: () => void;
+  }> = [];
+
+  if (element) {
+    // Element context
+    if (element.type === 'card') {
+      items.push({
+        id: 'open-node',
+        label: 'Open Page',
+        icon: 'open-in-new',
+        onClick: () => { onOpenNode((element as WhiteboardCardElement).nodeId); onClose(); },
+      });
+      items.push({
+        id: 'toggle-collapse',
+        label: (element as any).collapsed ? 'Expand Card' : 'Collapse Card',
+        icon: (element as any).collapsed ? 'chevron-down' : 'chevron-up',
+        onClick: () => { wb.updateElement(element.id, { collapsed: !(element as any).collapsed }); onClose(); },
+      });
+      items.push({ id: 'sep-card', label: '', separator: true });
+    }
+
+    // Color submenu for shapes
+    if (element.type === 'shape') {
+      items.push({
+        id: 'edit-text',
+        label: 'Edit Text',
+        icon: 'pencil',
+        onClick: () => { onClose(); /* editing handled by double-click */ },
+      });
+      items.push({ id: 'sep-shape', label: '', separator: true });
+    }
+
+    // Common element actions
+    items.push({
+      id: 'duplicate',
+      label: `Duplicate${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
+      icon: 'content-duplicate',
+      shortcut: 'Ctrl+D',
+      onClick: () => { wb.duplicateElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
+    });
+
+    items.push({
+      id: 'lock',
+      label: element.locked ? 'Unlock' : 'Lock',
+      icon: element.locked ? 'lock-open-outline' : 'lock-outline',
+      onClick: () => {
+        const ids = selectedIds.length > 0 ? selectedIds : [element.id];
+        for (const id of ids) {
+          wb.updateElement(id, { locked: !element.locked });
+        }
+        onClose();
+      },
+    });
+
+    items.push({ id: 'sep-z', label: '', separator: true });
+
+    items.push({
+      id: 'bring-front',
+      label: 'Bring to Front',
+      icon: 'arrange-bring-to-front',
+      shortcut: ']',
+      onClick: () => { wb.bringToFront(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
+    });
+
+    items.push({
+      id: 'send-back',
+      label: 'Send to Back',
+      icon: 'arrange-send-to-back',
+      shortcut: '[',
+      onClick: () => { wb.sendToBack(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
+    });
+
+    items.push({ id: 'sep-delete', label: '', separator: true });
+
+    items.push({
+      id: 'delete',
+      label: `Delete${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
+      icon: 'delete-outline',
+      shortcut: 'Del',
+      danger: true,
+      onClick: () => { wb.removeElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
+    });
+  } else {
+    // Canvas context (no element selected)
+    items.push({
+      id: 'add-card',
+      label: 'Add Card',
+      icon: 'card-outline',
+      onClick: () => {
+        onAddCardAtPosition(position.x, position.y);
+        onClose();
+      },
+    });
+
+    items.push({
+      id: 'add-text',
+      label: 'Add Text',
+      icon: 'format-text',
+      shortcut: 'T',
+      onClick: () => { wb.setTool('text'); onClose(); },
+    });
+
+    items.push({
+      id: 'add-shape',
+      label: 'Add Shape',
+      icon: 'rectangle-outline',
+      shortcut: 'R',
+      onClick: () => { wb.setTool('rectangle'); onClose(); },
+    });
+
+    items.push({ id: 'sep-canvas-1', label: '', separator: true });
+
+    items.push({
+      id: 'paste',
+      label: 'Paste',
+      icon: 'content-paste',
+      shortcut: 'Ctrl+V',
+      disabled: true, // TODO: implement clipboard
+      onClick: () => { onClose(); },
+    });
+
+    items.push({ id: 'sep-canvas-2', label: '', separator: true });
+
+    items.push({
+      id: 'select-all',
+      label: 'Select All',
+      icon: 'select-all',
+      shortcut: 'Ctrl+A',
+      onClick: () => { wb.selectElements(wb.data.elements.map(el => el.id)); onClose(); },
+    });
+
+    items.push({
+      id: 'zoom-fit',
+      label: 'Zoom to Fit',
+      icon: 'fit-to-screen',
+      shortcut: 'Ctrl+1',
+      onClick: () => { wb.zoomToFit(); onClose(); },
+    });
+
+    items.push({
+      id: 'zoom-reset',
+      label: 'Reset Zoom',
+      icon: 'magnify',
+      shortcut: 'Ctrl+0',
+      onClick: () => { wb.setViewport({ x: 0, y: 0, zoom: 1 }); onClose(); },
+    });
+
+    items.push({ id: 'sep-canvas-3', label: '', separator: true });
+
+    items.push({
+      id: 'toggle-grid',
+      label: wb.data.grid.visible ? 'Hide Grid' : 'Show Grid',
+      icon: 'grid',
+      shortcut: 'G',
+      onClick: () => { wb.toggleGrid(); onClose(); },
+    });
+
+    items.push({
+      id: 'toggle-snap',
+      label: wb.data.grid.snap ? 'Disable Snap' : 'Enable Snap',
+      icon: 'magnet',
+      onClick: () => { wb.toggleSnap(); onClose(); },
+    });
+  }
+
+  return (
+    <ContextMenu
+      items={items}
+      position={position}
+      onClose={onClose}
+    />
+  );
+};

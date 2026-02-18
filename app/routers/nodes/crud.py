@@ -28,6 +28,10 @@ from .models import (
     BatchPermanentDeleteRequest,
     BatchPermanentDeleteResponse,
     BatchPermanentDeleteResultItem,
+    BatchGetNodesRequest,
+    BatchGetNodesResponse,
+    BreadcrumbItem,
+    BreadcrumbsResponse,
 )
 from .helpers import (
     _get_node_service,
@@ -451,6 +455,107 @@ async def restore_node(
     
     types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
+
+
+@router.post("/batch-get", name="batch_get_nodes")
+async def batch_get_nodes(
+    request: BatchGetNodesRequest,
+    user: User = Depends(get_current_user),
+):
+    """Fetch multiple nodes by ID in a single call.
+    
+    Returns a dictionary of node_id -> NodeResponse for all found nodes.
+    Missing or inaccessible nodes are silently omitted.
+    Includes tags, classes, backlink counts, and optionally properties for each node.
+    
+    This is much more efficient than making N individual GET requests,
+    especially for pages with many inline links or NodePill components.
+    """
+    service = await _get_node_service(user)
+    pool = service._node_repo.get_connection()
+    workspace_id = service._workspace_id or 0
+    
+    # Fetch all nodes in a single query
+    nodes = await service._node_repo.get_by_ids(request.ids)
+    
+    if not nodes:
+        return BatchGetNodesResponse(nodes={})
+    
+    node_ids = [n.id for n in nodes if n.id is not None]
+    
+    # Batch-fetch metadata for all nodes in parallel
+    class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
+    tag_map = await _get_tag_ids_batch(pool, workspace_id, node_ids)
+    
+    # Batch-fetch backlink counts
+    backlink_counts: Dict[int, int] = {}
+    if node_ids:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT target_id, COUNT(*) as count 
+                FROM node_link 
+                WHERE target_id = ANY($1)
+                GROUP BY target_id
+            """, node_ids)
+            for row in rows:
+                backlink_counts[row['target_id']] = row['count']
+    
+    # Batch-fetch properties if requested
+    node_properties_map: Dict[int, Dict[str, any]] = {}
+    if request.include_properties and node_ids:
+        # Batch fetch all property values for all nodes
+        for nid in node_ids:
+            all_prop_values = await service._property_repo.get_all_property_values(nid)
+            node_properties_map[nid] = extract_properties_dict(all_prop_values)
+    
+    # Build response dict
+    result: Dict[str, NodeResponse] = {}
+    for node in nodes:
+        if node.id is None:
+            continue
+        nid = node.id
+        response = _node_to_response(
+            node,
+            tags=tag_map.get(nid, []),
+            classes=class_map.get(nid, []),
+            backlink_count=backlink_counts.get(nid, 0),
+        )
+        if request.include_properties and nid in node_properties_map:
+            response.properties = node_properties_map[nid]
+        result[str(nid)] = response
+    
+    return BatchGetNodesResponse(nodes=result)
+
+
+@router.get("/{node_id}/breadcrumbs", name="get_node_breadcrumbs")
+async def get_node_breadcrumbs(
+    node_id: int = Path(..., ge=1, description="Node ID"),
+    user: User = Depends(get_current_user),
+):
+    """Get the ancestor breadcrumb chain for a node.
+    
+    Returns an ordered list of ancestors from root to the node's immediate parent.
+    Uses the closure table for O(1) ancestor lookup — much faster than
+    chaining individual GET requests.
+    """
+    service = await _get_node_service(user)
+    
+    # Use the repository's get_breadcrumbs which queries the closure table
+    breadcrumb_nodes = await service._node_repo.get_breadcrumbs(node_id)
+    
+    # The breadcrumbs include the node itself at the end — exclude it
+    items = []
+    for node in breadcrumb_nodes:
+        if node.id == node_id:
+            continue
+        items.append(BreadcrumbItem(
+            id=node.id or 0,
+            name=node.name or '',
+            icon=node.icon,
+            is_page=node.is_page,
+        ))
+    
+    return BreadcrumbsResponse(breadcrumbs=items)
 
 
 @router.get("/{node_id}")

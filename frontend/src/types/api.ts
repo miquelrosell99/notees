@@ -246,7 +246,41 @@ export interface NodeUpdate {
   expected_version?: number;  // For optimistic locking
 }
 
-// ==================== Batch Operations ====================
+// ==================== Batch Read Operations ====================
+
+/**
+ * Request to fetch multiple nodes by ID in a single call
+ */
+export interface BatchGetNodesRequest {
+  ids: number[];
+  include_properties?: boolean;
+}
+
+/**
+ * Response for batch node fetch — keyed by node ID
+ */
+export interface BatchGetNodesResponse {
+  nodes: Record<string, Node>;
+}
+
+/**
+ * A single breadcrumb in the ancestor chain
+ */
+export interface BreadcrumbItemResponse {
+  id: number;
+  name: string;
+  icon: string | null;
+  is_page: boolean;
+}
+
+/**
+ * Response for breadcrumbs endpoint
+ */
+export interface BreadcrumbsResponse {
+  breadcrumbs: BreadcrumbItemResponse[];
+}
+
+// ==================== Batch Write Operations ====================
 
 /**
  * A single node to create in a batch operation

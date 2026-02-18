@@ -133,12 +133,6 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
       }
       return `*${renderInlineSequence(node.children, opts)}*`;
 
-    case 'code':
-      if (opts.mode === StringifyMode.TEXT_ONLY) {
-        return node.text;
-      }
-      return `\`${node.text}\``;
-
     case 'strikethrough':
       if (opts.mode === StringifyMode.TEXT_ONLY) {
         return renderInlineSequence(node.children, opts);

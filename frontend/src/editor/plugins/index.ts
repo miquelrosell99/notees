@@ -20,6 +20,7 @@ export type { SelectionPluginProps } from './SelectionPlugin';
 
 export { CollapsePlugin } from './CollapsePlugin';
 export { FormattingPlugin } from './FormattingPlugin';
+export { InlineCodePlugin } from './InlineCodePlugin';
 export { TriggerPlugin } from './TriggerPlugin';
 export type { TriggerPluginProps, TriggerType } from './TriggerPlugin';
 
