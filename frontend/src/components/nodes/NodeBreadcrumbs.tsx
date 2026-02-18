@@ -11,7 +11,7 @@
  * Clicking "..." opens a popup with the hidden items.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useNode } from '@/hooks';
+import { useBreadcrumbs } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
@@ -111,57 +111,40 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcr
 // ─── Ancestor chain hook ─────────────────────────────────────────────────────
 
 /**
- * Walks the full parent chain for a node using chained useNode hooks.
+ * Fetches the ancestor chain for a node using the dedicated breadcrumbs API.
  * Returns breadcrumb items from root ancestor → immediate parent
- * (the current node itself is excluded).
+ * (the current node itself is excluded by the API).
  *
- * For pages: walks the full parent_id chain (page → parent page → …).
- * For blocks: walks up to (and including) the containing page, then stops.
- *
- * Uses a fixed number of hook slots (20 max levels) — hooks beyond
- * the actual depth are disabled via null IDs.
+ * For blocks: stops at the containing page.
+ * Uses the closure table for O(1) lookup — a single API call regardless of depth.
  */
 function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): BreadcrumbItem[] {
-  const { data: n0 } = useNode(nodeId);
-  const { data: n1 } = useNode(n0?.parent_id ?? null);
-  const { data: n2 } = useNode(n1?.parent_id ?? null);
-  const { data: n3 } = useNode(n2?.parent_id ?? null);
-  const { data: n4 } = useNode(n3?.parent_id ?? null);
-  const { data: n5 } = useNode(n4?.parent_id ?? null);
-  const { data: n6 } = useNode(n5?.parent_id ?? null);
-  const { data: n7 } = useNode(n6?.parent_id ?? null);
-  const { data: n8 } = useNode(n7?.parent_id ?? null);
-  const { data: n9 } = useNode(n8?.parent_id ?? null);
-  const { data: n10 } = useNode(n9?.parent_id ?? null);
-  const { data: n11 } = useNode(n10?.parent_id ?? null);
-  const { data: n12 } = useNode(n11?.parent_id ?? null);
-  const { data: n13 } = useNode(n12?.parent_id ?? null);
-  const { data: n14 } = useNode(n13?.parent_id ?? null);
-  const { data: n15 } = useNode(n14?.parent_id ?? null);
-  const { data: n16 } = useNode(n15?.parent_id ?? null);
-  const { data: n17 } = useNode(n16?.parent_id ?? null);
-  const { data: n18 } = useNode(n17?.parent_id ?? null);
-  const { data: n19 } = useNode(n18?.parent_id ?? null);
+  const { data: breadcrumbs } = useBreadcrumbs(nodeId);
 
   return useMemo(() => {
-    const ancestors = [n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19];
+    if (!breadcrumbs || breadcrumbs.length === 0) return [];
+
     const chain: BreadcrumbItem[] = [];
-    for (const node of ancestors) {
-      if (!node) break;
+    for (const item of breadcrumbs) {
       chain.push({
-        id: node.id,
-        name: node.name || '',
-        icon: node.icon,
-        isPage: node.is_page,
+        id: item.id,
+        name: item.name || '',
+        icon: item.icon,
+        isPage: item.is_page,
       });
-      // For blocks, stop once we reach the containing page
-      if (nodeType === 'block' && node.is_page) break;
     }
-    // Reverse: we walked child→root, we want root→child
-    chain.reverse();
+
+    // For blocks, trim to stop at the containing page (inclusive)
+    if (nodeType === 'block') {
+      // Find the last page in the chain (closest to the node)
+      const lastPageIndex = chain.findLastIndex(item => item.isPage);
+      if (lastPageIndex >= 0) {
+        return chain.slice(0, lastPageIndex + 1);
+      }
+    }
+
     return chain;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, nodeType]);
+  }, [breadcrumbs, nodeType]);
 }
 
 // ─── NodeBreadcrumbs (main) ──────────────────────────────────────────────────

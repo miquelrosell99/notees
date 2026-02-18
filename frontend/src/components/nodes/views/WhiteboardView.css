@@ -1,0 +1,635 @@
+/* ─── Whiteboard View ─────────────────────────────────────────────── */
+
+.whiteboard-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.whiteboard-view--grid {
+  background-image:
+    linear-gradient(var(--border-secondary) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-secondary) 1px, transparent 1px);
+  background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
+}
+
+/* ─── Canvas container ──────────────────────────────────────────── */
+
+.whiteboard-view__canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.whiteboard-view__canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.whiteboard-view__canvas svg.whiteboard-view__strokes-svg {
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─── Elements layer ────────────────────────────────────────────── */
+
+.whiteboard-view__elements {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* ─── Element wrapper ───────────────────────────────────────────── */
+
+.whiteboard-element {
+  position: absolute;
+  cursor: default;
+  transform-origin: center center;
+}
+
+.whiteboard-element--selected {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.whiteboard-element--hovered:not(.whiteboard-element--selected) {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 1px;
+  opacity: 0.95;
+}
+
+.whiteboard-element--locked {
+  cursor: not-allowed;
+}
+
+.whiteboard-element--dragging {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+/* ─── Resize handles ────────────────────────────────────────────── */
+
+.whiteboard-element__resize-handles {
+  position: absolute;
+  inset: -5px;
+  pointer-events: none;
+}
+
+.whiteboard-element__resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-primary);
+  border: 2px solid var(--accent-primary);
+  border-radius: 2px;
+  pointer-events: all;
+  z-index: 10;
+}
+
+.whiteboard-element__resize-handle--nw { top: -5px; left: -5px; cursor: nw-resize; }
+.whiteboard-element__resize-handle--n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.whiteboard-element__resize-handle--ne { top: -5px; right: -5px; cursor: ne-resize; }
+.whiteboard-element__resize-handle--e  { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
+.whiteboard-element__resize-handle--se { bottom: -5px; right: -5px; cursor: se-resize; }
+.whiteboard-element__resize-handle--s  { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.whiteboard-element__resize-handle--sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.whiteboard-element__resize-handle--w  { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+
+/* ─── Rotation handle ───────────────────────────────────────────── */
+
+.whiteboard-element__rotation-handle {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: var(--bg-primary);
+  border: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  cursor: grab;
+  z-index: 10;
+}
+
+.whiteboard-element__rotation-handle::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 18px;
+  background: var(--accent-primary);
+}
+
+/* ─── Card element ──────────────────────────────────────────────── */
+
+.whiteboard-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.whiteboard-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-primary);
+  min-height: 36px;
+  cursor: grab;
+}
+
+.whiteboard-card__icon {
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.whiteboard-card__title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whiteboard-card__collapse-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.whiteboard-card__collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.whiteboard-card__body {
+  flex: 1;
+  padding: 8px 12px;
+  overflow: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.whiteboard-card__body--collapsed {
+  display: none;
+}
+
+.whiteboard-card__children {
+  margin-top: 4px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-primary);
+}
+
+.whiteboard-card__child {
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ─── Shape element ─────────────────────────────────────────────── */
+
+.whiteboard-shape {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.whiteboard-shape svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: all;
+}
+
+.whiteboard-shape__text {
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  word-break: break-word;
+  overflow: hidden;
+}
+
+.whiteboard-shape__text-input {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: inherit;
+  pointer-events: all;
+}
+
+/* ─── Text element ──────────────────────────────────────────────── */
+
+.whiteboard-text {
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.whiteboard-text textarea {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  color: inherit;
+  text-align: inherit;
+  line-height: 1.4;
+}
+
+.whiteboard-text--editing {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 0;
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+/* ─── Connector element ─────────────────────────────────────────── */
+
+.whiteboard-connector {
+  position: absolute;
+  pointer-events: none;
+}
+
+.whiteboard-connector svg {
+  overflow: visible;
+}
+
+.whiteboard-connector path {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.whiteboard-connector__label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: all;
+}
+
+/* ─── Image element ─────────────────────────────────────────────── */
+
+.whiteboard-image {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.whiteboard-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ─── Selection box ─────────────────────────────────────────────── */
+
+.whiteboard-view__selection-box {
+  position: absolute;
+  border: 1px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────── */
+
+.whiteboard-toolbar {
+  position: absolute;
+  z-index: 100;
+}
+
+.whiteboard-toolbar--bottom-center {
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.whiteboard-toolbar--top-left {
+  top: 16px;
+  left: 16px;
+}
+
+.whiteboard-toolbar--top-right {
+  top: 16px;
+  right: 16px;
+}
+
+.whiteboard-toolbar--bottom-left {
+  bottom: 16px;
+  left: 16px;
+}
+
+.whiteboard-toolbar--bottom-right {
+  bottom: 16px;
+  right: 16px;
+}
+
+.whiteboard-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.whiteboard-toolbar__separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border-primary);
+  margin: 0 4px;
+}
+
+.whiteboard-toolbar__divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border-primary);
+  margin: 4px 0;
+}
+
+/* ─── Tool button ───────────────────────────────────────────────── */
+
+.whiteboard-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.whiteboard-tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.whiteboard-tool-btn--active {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+}
+
+.whiteboard-tool-btn--active:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+}
+
+.whiteboard-tool-btn__shortcut {
+  position: absolute;
+  bottom: 1px;
+  right: 2px;
+  font-size: 8px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+/* ─── Context menu ──────────────────────────────────────────────── */
+
+.whiteboard-context-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 180px;
+}
+
+/* ─── Color picker in toolbar ───────────────────────────────────── */
+
+.whiteboard-color-picker {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 8px;
+}
+
+.whiteboard-color-picker__swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.whiteboard-color-picker__swatch:hover {
+  transform: scale(1.2);
+}
+
+.whiteboard-color-picker__swatch--active {
+  border-color: var(--accent-primary);
+}
+
+/* ─── Minimap ───────────────────────────────────────────────────── */
+
+.whiteboard-minimap {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 160px;
+  height: 100px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 100;
+  opacity: 0.8;
+}
+
+.whiteboard-minimap:hover {
+  opacity: 1;
+}
+
+.whiteboard-minimap__viewport {
+  position: absolute;
+  border: 2px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  pointer-events: none;
+}
+
+.whiteboard-minimap__element {
+  position: absolute;
+  background: var(--text-tertiary);
+  opacity: 0.4;
+  border-radius: 1px;
+}
+
+/* ─── Zoom controls ─────────────────────────────────────────────── */
+
+.whiteboard-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.whiteboard-zoom__level {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 40px;
+  text-align: center;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.whiteboard-zoom__level:hover {
+  background: var(--bg-hover);
+}
+
+/* ─── Connector anchor points ───────────────────────────────────── */
+
+.whiteboard-element__anchor-points {
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+}
+
+.whiteboard-element__anchor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--accent-primary);
+  border: 2px solid var(--bg-primary);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: crosshair;
+  pointer-events: all;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.whiteboard-element:hover .whiteboard-element__anchor,
+.whiteboard-element--selected .whiteboard-element__anchor {
+  opacity: 1;
+}
+
+.whiteboard-element__anchor--top    { top: 0; left: 50%; }
+.whiteboard-element__anchor--right  { top: 50%; left: calc(100% + 12px); }
+.whiteboard-element__anchor--bottom { top: calc(100% + 12px); left: 50%; }
+.whiteboard-element__anchor--left   { top: 50%; left: 0; }
+
+/* ─── Pen cursor ────────────────────────────────────────────────── */
+
+.whiteboard-view--drawing {
+  cursor: crosshair;
+}
+
+.whiteboard-view--panning {
+  cursor: grab;
+}
+
+.whiteboard-view--panning-active {
+  cursor: grabbing;
+}
+
+/* ─── Properties panel ──────────────────────────────────────────── */
+
+.whiteboard-properties {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.whiteboard-properties__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.whiteboard-properties__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.whiteboard-properties__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whiteboard-properties__input {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.whiteboard-properties__input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* ─── Stroke width preview ──────────────────────────────────────── */
+
+.whiteboard-stroke-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.whiteboard-stroke-preview__line {
+  flex: 1;
+  height: var(--preview-height, 2px);
+  background: var(--text-primary);
+  border-radius: 999px;
+}
+
+.whiteboard-stroke-preview__value {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  min-width: 24px;
+  text-align: right;
+}

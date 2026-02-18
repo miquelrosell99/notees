@@ -17,6 +17,7 @@ export type { GraphViewProps } from './GraphView';
 export { TerrainView } from './TerrainView';
 export type { TerrainViewProps } from './TerrainView';
 export { TimelineView } from './TimelineView';
+export { WhiteboardView } from './WhiteboardView';
 export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
 export { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 
