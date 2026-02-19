@@ -361,6 +361,7 @@ async def export_nodes(
     properties: str = "none",  # "none" | "main" | "all"
     density: str = "comfortable",  # "comfortable" | "compact"
     numbering: str = "none",  # "none" | "hierarchical"
+    measure: str = "full",   # "full" | "readable" | "book" | "two-column"
     show_uuid: bool = False,
 ) -> tuple:
     """Export nodes to various formats.
@@ -774,11 +775,11 @@ async def export_nodes(
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -985,6 +986,7 @@ _EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 EXPORT_THEMES    = {"minimal", "technical"}
 EXPORT_DENSITIES = {"comfortable", "compact"}
 EXPORT_NUMBERING = {"none", "hierarchical"}
+EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}
 
 
 def _get_export_css_single() -> str:
@@ -1004,6 +1006,7 @@ def _build_body_class(
     layout: str,
     density: str,
     numbering: str,
+    measure: str = "full",
 ) -> str:
     """Return the body class string encoding all render axes.
 
@@ -1011,12 +1014,14 @@ def _build_body_class(
     - structure-flat / structure-indented  (layout: 'flat' | 'outline')
     - density-comfortable / density-compact
     - numbering-none / numbering-hierarchical
+    - layout-full / layout-readable / layout-book / layout-two-column
     """
     theme     = style if style in EXPORT_THEMES else "minimal"
     structure = "flat" if layout == "flat" else "indented"
     dens      = density if density in EXPORT_DENSITIES else "comfortable"
     num       = numbering if numbering in EXPORT_NUMBERING else "none"
-    return f"theme-{theme} structure-{structure} density-{dens} numbering-{num}"
+    msr       = measure if measure in EXPORT_MEASURES else "full"
+    return f"theme-{theme} structure-{structure} density-{dens} numbering-{num} layout-{msr}"
 
 
 def _html_style_tag() -> str:
@@ -1034,6 +1039,7 @@ def _export_to_html(
     properties_data: Dict[str, list] | None = None,
     density: str = "comfortable",
     numbering: str = "none",
+    measure: str = "full",
 ) -> str:
     """Convert nodes to HTML format.
     
