@@ -398,10 +398,7 @@ div.page-break {
 }
 
 .theme-technical table {
-  font-family: sans-serif;
   font-size: 0.85em;
-  border-top: 2px solid #000;
-  border-bottom: 2px solid #000;
 }
 
 .theme-technical th {
