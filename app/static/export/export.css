@@ -34,11 +34,8 @@
   --step-3: calc(var(--step-2) * var(--scale-ratio));
   --step-4: calc(var(--step-3) * var(--scale-ratio));
 
-  /* Spacing */
-  --spacing-xs:  0.25rem;
-  --spacing-sm:  0.5rem;
-  --spacing-md:  0.75rem;
-  --spacing-lg:  1.5rem;
+  /* Spacing — baseline rhythm grid */
+  --rhythm: 0.75rem;
 }
 
 @page {
@@ -68,13 +65,13 @@ body {
 /* --- Headings --- */
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text);
-  margin: var(--spacing-lg) 0 var(--spacing-md);
+  margin: calc(var(--rhythm) * 2) 0 var(--rhythm);
   line-height: 1.25;
   page-break-after: avoid;
 }
 
-h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; }
-h2 { font-size: var(--step-4); font-weight: 600; }
+h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; margin-top: calc(var(--rhythm) * 4); }
+h2 { font-size: var(--step-4); font-weight: 600; margin-top: calc(var(--rhythm) * 3); margin-bottom: calc(var(--rhythm) * 1.5); }
 h3 { font-size: var(--step-3); font-weight: 600; }
 h4 { font-size: var(--step-2); font-weight: 600; }
 h5 { font-size: var(--step-1); font-weight: 600; }
@@ -86,7 +83,7 @@ body > h1:first-child {
 
 /* --- Paragraphs --- */
 p {
-  margin: var(--spacing-sm) 0;
+  margin: var(--rhythm) 0;
   line-height: inherit;
   orphans: 3;
   widows: 3;
@@ -94,7 +91,7 @@ p {
 
 /* --- Lists (base neutral) --- */
 ul, ol {
-  margin: var(--spacing-sm) 0;
+  margin: var(--rhythm) 0;
   padding-left: 1.5rem;
   page-break-inside: auto;
 }
@@ -103,7 +100,7 @@ ul { list-style-type: disc; }
 ol { list-style-type: decimal; }
 
 li {
-  margin: var(--spacing-xs) 0;
+  margin: calc(var(--rhythm) * 0.33) 0;
   line-height: inherit;
   page-break-inside: avoid;
 }
@@ -116,7 +113,7 @@ li {
 /* --- Node properties table --- */
 .node-properties {
   border-collapse: collapse;
-  margin: var(--spacing-md) 0 1.25rem;
+  margin: var(--rhythm) 0 calc(var(--rhythm) * 1.5);
   padding: 0;
   font-size: 0.85em;
   border-top: 1px solid var(--color-border);
@@ -233,7 +230,7 @@ figcaption {
 hr {
   border: none;
   border-top: 1px solid var(--color-border);
-  margin: var(--spacing-lg) 0;
+  margin: calc(var(--rhythm) * 2) 0;
 }
 
 mark {
@@ -583,44 +580,12 @@ div.page-break {
 
 /* ---- Comfortable: generous vertical spacing ---- */
 .density-comfortable {
-  --dc-heading-mt: 1.5rem;
-  --dc-heading-mb: 0.75rem;
-  --dc-block-m:    0.5rem;
-  --dc-item-m:     0.25rem;
-}
-
-.density-comfortable h1,
-.density-comfortable h2,
-.density-comfortable h3,
-.density-comfortable h4,
-.density-comfortable h5,
-.density-comfortable h6 {
-  margin-top: var(--dc-heading-mt);
-  margin-bottom: var(--dc-heading-mb);
-}
-
-.density-comfortable p {
-  margin-top: var(--dc-block-m);
-  margin-bottom: var(--dc-block-m);
-}
-
-.density-comfortable li {
-  margin-top: var(--dc-item-m);
-  margin-bottom: var(--dc-item-m);
-}
-
-.density-comfortable ul,
-.density-comfortable ol {
-  margin-top: var(--dc-block-m);
-  margin-bottom: var(--dc-block-m);
+  --rhythm: 1rem;
 }
 
 /* ---- Compact: tighter vertical spacing, slightly smaller type ---- */
 .density-compact {
-  --dk-heading-mt: 0.75rem;
-  --dk-heading-mb: 0.3rem;
-  --dk-block-m:    0.2rem;
-  --dk-props-mb:   0.75rem;
+  --rhythm: 0.5rem;
 }
 
 .density-compact body {
@@ -630,35 +595,13 @@ div.page-break {
 .density-compact h1 { font-size: calc(var(--step-4) * var(--scale-ratio) * 0.95); }
 .density-compact h2 { font-size: calc(var(--step-4) * 0.95); }
 
-.density-compact h1,
-.density-compact h2,
-.density-compact h3,
-.density-compact h4,
-.density-compact h5,
-.density-compact h6 {
-  margin-top: var(--dk-heading-mt);
-  margin-bottom: var(--dk-heading-mb);
-}
-
-.density-compact p {
-  margin-top: var(--dk-block-m);
-  margin-bottom: var(--dk-block-m);
-}
-
 .density-compact li {
   margin-top: 0;
   margin-bottom: 0;
 }
 
-.density-compact ul,
-.density-compact ol {
-  margin-top: var(--dk-block-m);
-  margin-bottom: var(--dk-block-m);
-}
-
 .density-compact .node-properties {
-  margin-bottom: var(--dk-props-mb);
-  padding: 0.3rem 0;
+  padding: calc(var(--rhythm) * 0.5) 0;
 }
 
 
