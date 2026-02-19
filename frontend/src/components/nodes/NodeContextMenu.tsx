@@ -16,6 +16,7 @@ import { useAppStore, useFavoritesStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ASTViewerModal } from './ASTViewerModal';
+import { ExportPageModal } from '../workspace/ExportPageModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { SearchBox } from '../core/SearchBox';
@@ -123,7 +124,8 @@ function useCommonMenuItems(
   onClose: () => void, 
   onDeleteClick: () => void,
   onArchiveClick: () => void,
-  onViewAST?: () => void
+  onViewAST?: () => void,
+  onExportClick?: () => void
 ): ContextMenuItem[] {
   const unarchiveNode = useUnarchiveNode();
   const { addSidebarCard, openLocalGraph } = useAppStore();
@@ -167,6 +169,15 @@ function useCommonMenuItems(
         }
       },
     ];
+
+    if (onExportClick) {
+      items.push({
+        id: 'export',
+        label: 'Export…',
+        keepOpen: true,
+        onClick: onExportClick,
+      });
+    }
     
     // View AST (debug) - keepOpen so modal renders before unmount
     if (onViewAST) {
@@ -210,7 +221,7 @@ function useCommonMenuItems(
     });
     
     return items;
-  }, [node, onClose, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick, onViewAST]);
+  }, [node, onClose, unarchiveNode, addSidebarCard, openLocalGraph, onDeleteClick, onArchiveClick, onViewAST, onExportClick]);
 }
 
 // ==================== Node Context Menu (Base) ====================
@@ -224,6 +235,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -251,8 +263,12 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   const handleViewAST = useCallback(() => {
     setShowASTModal(true);
   }, []);
+
+  const handleExportClick = useCallback(() => {
+    setShowExportModal(true);
+  }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
@@ -283,7 +299,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
     onClose();
   }, [onClose]);
   
-  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal;
+  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
     adjustMenuPosition(el, position);
@@ -330,6 +346,11 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
         onClose={() => { setShowASTModal(false); onClose(); }}
         node={node}
       />
+      <ExportPageModal
+        isOpen={showExportModal}
+        onClose={() => { setShowExportModal(false); onClose(); }}
+        nodeId={node.id}
+      />
     </>
   );
 }
@@ -348,6 +369,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -369,8 +391,12 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const handleViewAST = useCallback(() => {
     setShowASTModal(true);
   }, []);
+
+  const handleExportClick = useCallback(() => {
+    setShowExportModal(true);
+  }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -484,7 +510,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && !showASTModal && (
+      {!showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && (
         <div ref={wrapperRef} className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -522,6 +548,11 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         onClose={() => { setShowASTModal(false); onClose(); }}
         node={node}
       />
+      <ExportPageModal
+        isOpen={showExportModal}
+        onClose={() => { setShowExportModal(false); onClose(); }}
+        nodeId={node.id}
+      />
     </>
   );
 }
@@ -547,6 +578,7 @@ export function BlockContextMenu({
 }: BlockContextMenuProps) {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -568,8 +600,12 @@ export function BlockContextMenu({
   const handleViewAST = useCallback(() => {
     setShowASTModal(true);
   }, []);
+
+  const handleExportClick = useCallback(() => {
+    setShowExportModal(true);
+  }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
   const updateNode = useUpdateNode();
   
   const blockItems = useMemo((): ContextMenuItem[] => {
@@ -619,7 +655,7 @@ export function BlockContextMenu({
     onClose();
   }, [onClose]);
   
-  const menuVisible = !showArchiveModal && !showASTModal;
+  const menuVisible = !showArchiveModal && !showASTModal && !showExportModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
     adjustMenuPosition(el, position);
@@ -654,6 +690,11 @@ export function BlockContextMenu({
         isOpen={showASTModal}
         onClose={() => { setShowASTModal(false); onClose(); }}
         node={node}
+      />
+      <ExportPageModal
+        isOpen={showExportModal}
+        onClose={() => { setShowExportModal(false); onClose(); }}
+        nodeId={node.id}
       />
     </>
   );
