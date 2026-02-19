@@ -17,6 +17,13 @@ from .config import settings
 from .logging_config import get_logger
 from .db.connection import get_connection, DATA_DIR, get_workspace_dir
 from .db.schema.init import seed_workspace, get_or_create_user_workspace
+from .domain.stringify_ast import (
+    parse_ast,
+    stringify_ast,
+    StringifyMode,
+    StringifyOptions,
+    NodeLinkResolution,
+)
 
 logger = get_logger(__name__)
 
@@ -405,23 +412,56 @@ async def export_nodes(
                 nodes_data.append({
                     "uuid": str(row['uuid']),
                     "name": row['name'],
+                    "depth": row.get('depth', 0) if include_children else 0,
                 })
-    
-    if not nodes_data:
-        raise ValueError("No nodes found to export")
-    
+
+        if not nodes_data:
+            raise ValueError("No nodes found to export")
+
+        # ── Resolve node links in all ASTs ──
+        # 1. Walk all ASTs and collect target node UUIDs from link_ids
+        target_uuids: set[str] = set()
+        for nd in nodes_data:
+            ast = parse_ast(nd['name'])
+            nd['_ast'] = ast  # cache parsed AST
+            _collect_link_target_uuids(ast, target_uuids)
+
+        # 2. Batch-fetch target node names keyed by UUID
+        link_target_map: Dict[str, list] = {}  # nodeUuid → name AST
+        if target_uuids:
+            placeholders = ', '.join(f'${i+2}' for i in range(len(target_uuids)))
+            target_rows = await conn.fetch(
+                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
+                workspace_id, *list(target_uuids)
+            )
+            for tr in target_rows:
+                link_target_map[str(tr['uuid'])] = parse_ast(tr['name'])
+
+        # 3. Build resolver: link_id ("nodeUuid:linkUuid") → NodeLinkResolution
+        def resolve_node_link(link_id: str):
+            colon = link_id.find(':')
+            node_uuid = link_id[:colon] if colon > 0 else link_id
+            target_ast = link_target_map.get(node_uuid)
+            if target_ast is None:
+                return None
+            return NodeLinkResolution(
+                target_ast=target_ast,
+                label=None,
+                target_id=node_uuid,
+            )
+
     # Generate content based on format
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data)
+        content = _export_to_markdown(nodes_data, resolve_node_link)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data)
+        content = _export_to_html(nodes_data, resolve_node_link)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
         # PDF export not fully implemented - return HTML
-        content = _export_to_html(nodes_data)
+        content = _export_to_html(nodes_data, resolve_node_link)
         filename = "export.html"
         mime_type = "text/html"
     else:
@@ -430,35 +470,64 @@ async def export_nodes(
     return content.encode('utf-8'), filename, mime_type
 
 
-def _export_to_markdown(nodes: List[Dict]) -> str:
+def _collect_link_target_uuids(ast_nodes: list, out: set[str]) -> None:
+    """Recursively walk AST nodes and collect target node UUIDs from node_link link_ids."""
+    for node in ast_nodes:
+        if not isinstance(node, dict):
+            continue
+        if node.get('type') == 'node_link':
+            link_id = node.get('link_id', '')
+            colon = link_id.find(':')
+            node_uuid = link_id[:colon] if colon > 0 else link_id
+            if node_uuid:
+                out.add(node_uuid)
+        # Recurse into children
+        children = node.get('children')
+        if children:
+            _collect_link_target_uuids(children, out)
+
+
+def _stringify_node(node_data: Dict, mode: StringifyMode, resolver) -> str:
+    """Stringify a single node's AST to text."""
+    ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
+    opts = StringifyOptions(mode=mode, resolve_node_link=resolver)
+    return stringify_ast(ast, opts)
+
+
+def _export_to_markdown(nodes: List[Dict], resolver=None) -> str:
     """Convert nodes to Markdown format.
     
     Args:
-        nodes: List of node dicts with 'name' key
+        nodes: List of node dicts with 'name', '_ast', and 'depth' keys
+        resolver: Optional node link resolver
         
     Returns:
-        Markdown string with nodes as list items
+        Markdown string with nodes as indented list items
     """
     lines = []
     for node in nodes:
-        name = node.get('name', '')
-        lines.append(f"- {name}")
+        text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
+        depth = node.get('depth', 0)
+        indent = '  ' * depth
+        lines.append(f"{indent}- {text}")
     return "\n".join(lines)
 
 
-def _export_to_html(nodes: List[Dict]) -> str:
+def _export_to_html(nodes: List[Dict], resolver=None) -> str:
     """Convert nodes to HTML format.
     
     Args:
-        nodes: List of node dicts with 'name' key
+        nodes: List of node dicts with 'name', '_ast', and 'depth' keys
+        resolver: Optional node link resolver
         
     Returns:
         HTML document string
     """
+    import html as html_mod
     items = []
     for node in nodes:
-        name = node.get('name', '')
-        items.append(f"  <li>{name}</li>")
+        text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+        items.append(f"  <li>{html_mod.escape(text)}</li>")
     
     return f"""<!DOCTYPE html>
 <html>
