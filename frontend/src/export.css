@@ -112,6 +112,29 @@ hr {
   margin: var(--spacing-6) 0;
 }
 
+/* ---- Inline formatting ---- */
+mark {
+  background: rgba(var(--color-preset-yellow, #b8a23a), 0.25);
+  background: #fff176;
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 2px;
+}
+
+u {
+  text-underline-offset: 2px;
+}
+
+a {
+  color: var(--color-preset-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:visited {
+  color: var(--color-preset-purple);
+}
+
 /* ---- Colored nodes ---- */
 /* Inline style="color: #hex" is applied by the exporter for colored nodes.
    Ensure the color is preserved when printing. */

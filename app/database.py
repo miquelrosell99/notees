@@ -355,7 +355,8 @@ async def export_nodes(
     node_ids: List[str],
     format: Any,  # ExportFormat enum
     include_children: bool = True,
-    layout: str = "outline"
+    layout: str = "outline",
+    formatting: bool = True,
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -467,15 +468,15 @@ async def export_nodes(
 
     # Generate content based on format
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link, layout)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -511,6 +512,68 @@ def _stringify_node(node_data: Dict, mode: StringifyMode, resolver) -> str:
     ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
     opts = StringifyOptions(mode=mode, resolve_node_link=resolver)
     return stringify_ast(ast, opts)
+
+
+def _markdown_inline_to_html(md: str) -> str:
+    """Convert PLAIN_MARKDOWN inline syntax to HTML with proper escaping.
+
+    Tokenises the string produced by stringify_ast(PLAIN_MARKDOWN) so that:
+    - User-typed text segments are HTML-escaped.
+    - Markdown formatting tokens are translated to the matching HTML element.
+
+    Supported tokens (in priority order):
+        ``code``              → <code>…</code>
+        **bold**              → <strong>…</strong>
+        *italic*              → <em>…</em>
+        ~~strikethrough~~     → <s>…</s>
+        ==highlight==         → <mark>…</mark>
+        <u>underline</u>      → <u>…</u>  (already emitted by stringify)
+        [text](url)           → <a href="url">text</a>
+    """
+    import re as _re
+    import html as _html
+
+    TOKEN_RE = _re.compile(
+        r'(`[^`]+`)'              # code — highest priority to protect contents
+        r'|(\*\*.+?\*\*)'        # bold
+        r'|(\*.+?\*)'            # italic
+        r'|(~~.+?~~)'             # strikethrough
+        r'|(==.+?==)'             # highlight
+        r'|(<u>.+?</u>)'          # underline (already HTML from stringify)
+        r'|(\[.+?\]\([^)]+\))',  # external link
+        _re.DOTALL,
+    )
+
+    result: list[str] = []
+    last = 0
+    for m in TOKEN_RE.finditer(md):
+        # Escape plain text before this token
+        if m.start() > last:
+            result.append(_html.escape(md[last:m.start()]))
+        token = m.group(0)
+        if token.startswith('`'):
+            result.append(f'<code>{_html.escape(token[1:-1])}</code>')
+        elif token.startswith('**'):
+            result.append(f'<strong>{_html.escape(token[2:-2])}</strong>')
+        elif token.startswith('*'):
+            result.append(f'<em>{_html.escape(token[1:-1])}</em>')
+        elif token.startswith('~~'):
+            result.append(f'<s>{_html.escape(token[2:-2])}</s>')
+        elif token.startswith('=='):
+            result.append(f'<mark>{_html.escape(token[2:-2])}</mark>')
+        elif token.startswith('<u>'):
+            result.append(f'<u>{_html.escape(token[3:-4])}</u>')
+        else:
+            lm = _re.match(r'\[(.+?)\]\(([^)]+)\)', token)
+            if lm:
+                result.append(f'<a href="{_html.escape(lm.group(2))}">{_html.escape(lm.group(1))}</a>')
+            else:
+                result.append(_html.escape(token))
+        last = m.end()
+    # Remaining plain text
+    if last < len(md):
+        result.append(_html.escape(md[last:]))
+    return ''.join(result)
 
 
 def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
@@ -580,6 +643,14 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
     """
     import html as html_mod
 
+    def _render(node: Dict) -> str:
+        """Stringify with PLAIN_MARKDOWN and convert inline syntax to HTML."""
+        return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver))
+
+    def _title(node: Dict) -> str:
+        """Plain-text title for <title> tag (no formatting)."""
+        return _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+
     def _color_attr(node: Dict) -> str:
         """Return a style attribute for colored nodes, or empty string."""
         color = node.get('color')
@@ -593,15 +664,15 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
     if layout == "flat":
         lines = []
         for node in nodes:
-            text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+            rendered = _render(node)
             depth = node.get('depth', 0)
             is_page = node.get('is_page', False)
             if is_page:
                 level = min(depth + 1, 6)
-                lines.append(f"  <h{level}{_color_attr(node)}>{html_mod.escape(text)}</h{level}>")
+                lines.append(f"  <h{level}{_color_attr(node)}>{rendered}</h{level}>")
             else:
-                lines.append(f"  <p{_color_attr(node)}>{html_mod.escape(text)}</p>")
-        title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver) if nodes[0].get('is_page') else "Notees Export"
+                lines.append(f"  <p{_color_attr(node)}>{rendered}</p>")
+        title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -619,7 +690,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
     lines = []
     current_depth = -1
     for node in nodes:
-        text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+        rendered = _render(node)
         depth = node.get('depth', 0)
         is_page = node.get('is_page', False)
 
@@ -630,7 +701,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
                 current_depth -= 1
             level = min(depth + 1, 6)
             indent = '  ' * depth
-            lines.append(f"{indent}<h{level}{_color_attr(node)}>{html_mod.escape(text)}</h{level}>")
+            lines.append(f"{indent}<h{level}{_color_attr(node)}>{rendered}</h{level}>")
             # Children of this heading live at depth+1; treat this depth as the new baseline
             current_depth = depth
         else:
@@ -645,7 +716,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
                     lines.append(f"{indent}</ul>")
                     current_depth -= 1
             indent = '  ' * (depth + 1)
-            lines.append(f"{indent}<li{_color_attr(node)}>{html_mod.escape(text)}</li>")
+            lines.append(f"{indent}<li{_color_attr(node)}>{rendered}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth
