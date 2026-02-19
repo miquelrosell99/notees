@@ -454,6 +454,7 @@ div.page-break {
 
 .theme-technical p {
   text-align: justify;
+  text-align-last: left;
   hyphens: auto;
   -webkit-hyphens: auto;
 }
