@@ -225,4 +225,11 @@
   /* Position is handled inline via style prop */
   /* Override relative positioning from position classes */
   position: fixed !important;
+  /* Reset all directional offsets from position variant classes
+     (e.g. btn-panel--top sets bottom:, btn-panel--left sets right:)
+     so that only the inline top/left from the portal calculation apply */
+  top: unset;
+  right: unset;
+  bottom: unset;
+  left: unset;
 }
