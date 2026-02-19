@@ -605,8 +605,16 @@ async def export_nodes(
                         value_str = 'Yes' if row['value_boolean'] else 'No'
                     elif prop_type == 'date' and row['value_text'] is not None:
                         value_str = row['value_text']
-                    elif prop_type in ('node', 'text') and row['relation_target_id'] is not None:
+                    elif prop_type == 'node' and row['relation_target_id'] is not None:
                         value_str = relation_target_names.get(row['relation_target_id'])
+                    elif prop_type == 'text' and row['relation_target_id'] is not None:
+                        value_str = relation_target_names.get(row['relation_target_id'])
+                        # Track target_ids so we can fetch the full subtree later
+                        if 'target_ids' not in entry:
+                            entry['target_ids'] = []
+                        tid = row['relation_target_id']
+                        if tid not in entry['target_ids']:
+                            entry['target_ids'].append(tid)
                     elif prop_type == 'selection' and row['selection_value'] is not None:
                         value_str = row['selection_value']
                     if value_str is not None and value_str not in entry['values']:
@@ -675,6 +683,55 @@ async def export_nodes(
                         }
                     if tag_label not in agg[node_uuid_key]['tags']['values']:
                         agg[node_uuid_key]['tags']['values'].append(tag_label)
+
+                # ── Text property subtrees ──────────────────────────────────────────────
+                all_text_target_ids = [
+                    tid
+                    for props in agg.values()
+                    for pe in props.values()
+                    if pe['type'] == 'text' and 'target_ids' in pe
+                    for tid in pe['target_ids']
+                ]
+                text_subtrees: Dict[int, List[Dict]] = {}
+                if all_text_target_ids:
+                    sub_rows = await conn.fetch("""
+                        WITH RECURSIVE sub AS (
+                            SELECT n.id, n.uuid::text as uuid, n.name, n.color,
+                                   0 AS rel_depth, n.id AS root_id,
+                                   ARRAY[n.sequence, n.id] AS path_order
+                            FROM node n
+                            WHERE n.id = ANY($1)
+                              AND n.active = TRUE AND n.is_deleted = FALSE
+                            UNION ALL
+                            SELECT n.id, n.uuid::text as uuid, n.name, n.color,
+                                   s.rel_depth + 1, s.root_id,
+                                   s.path_order || ARRAY[n.sequence, n.id]
+                            FROM node n
+                            JOIN sub s ON n.parent_id = s.id
+                            WHERE n.active = TRUE AND n.is_deleted = FALSE
+                              AND n.is_page = FALSE
+                        )
+                        SELECT id, uuid, name, color, rel_depth, root_id
+                        FROM sub ORDER BY root_id, path_order
+                    """, all_text_target_ids)
+                    for sr in sub_rows:
+                        rid = sr['root_id']
+                        if rid not in text_subtrees:
+                            text_subtrees[rid] = []
+                        text_subtrees[rid].append({
+                            'uuid': sr['uuid'],
+                            'name': sr['name'],
+                            '_ast': parse_ast(sr['name']),
+                            'depth': sr['rel_depth'],
+                            'color': sr.get('color'),
+                            'is_page': False,
+                        })
+                for props in agg.values():
+                    for pe in props.values():
+                        if pe['type'] == 'text' and 'target_ids' in pe:
+                            pe['subtree'] = []
+                            for tid in pe['target_ids']:
+                                pe['subtree'].extend(text_subtrees.get(tid, []))
 
                 # Build final sorted list: classes and tags first, then alpha properties
                 for node_uuid_key, props in agg.items():
@@ -848,9 +905,17 @@ def _export_to_markdown(
             # Emit property:: value lines immediately after the heading
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
-                values = p['values']
-                if values:
-                    lines.append(f"{p['name']}:: {', '.join(values)}")
+                if p.get('subtree'):
+                    lines.append(f"{p['name']}::")
+                    for sub_nd in p['subtree']:
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        if formatting and sub_nd.get('color'):
+                            sub_text = f"=={sub_text}=="
+                        sub_depth = sub_nd.get('depth', 0)
+                        sub_indent = '  ' * (sub_depth + 1)
+                        lines.append(f"{sub_indent}- {sub_text}")
+                elif p['values']:
+                    lines.append(f"{p['name']}:: {', '.join(p['values'])}")
                 else:
                     lines.append(f"{p['name']}::")
         elif layout == "flat":
@@ -858,9 +923,17 @@ def _export_to_markdown(
             # Emit property:: value lines for non-page nodes too
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
-                values = p['values']
-                if values:
-                    lines.append(f"{p['name']}:: {', '.join(values)}")
+                if p.get('subtree'):
+                    lines.append(f"{p['name']}::")
+                    for sub_nd in p['subtree']:
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        if formatting and sub_nd.get('color'):
+                            sub_text = f"=={sub_text}=="
+                        sub_depth = sub_nd.get('depth', 0)
+                        sub_indent = '  ' * (sub_depth + 1)
+                        lines.append(f"{sub_indent}- {sub_text}")
+                elif p['values']:
+                    lines.append(f"{p['name']}:: {', '.join(p['values'])}")
                 else:
                     lines.append(f"{p['name']}::")
         else:
@@ -870,9 +943,17 @@ def _export_to_markdown(
             # Emit property:: value lines for non-page nodes too
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
-                values = p['values']
-                if values:
-                    lines.append(f"{indent}  {p['name']}:: {', '.join(values)}")
+                if p.get('subtree'):
+                    lines.append(f"{indent}  {p['name']}::")
+                    for sub_nd in p['subtree']:
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        if formatting and sub_nd.get('color'):
+                            sub_text = f"=={sub_text}=="
+                        sub_depth = sub_nd.get('depth', 0)
+                        sub_indent = indent + '  ' * (sub_depth + 2)
+                        lines.append(f"{sub_indent}- {sub_text}")
+                elif p['values']:
+                    lines.append(f"{indent}  {p['name']}:: {', '.join(p['values'])}")
                 else:
                     lines.append(f"{indent}  {p['name']}::")
 
@@ -976,8 +1057,35 @@ def _export_to_html(
             return ''
         return f' style="color: {html_mod.escape(color)}"'
 
+    def _render_subtree_html(sub_nodes: List[Dict]) -> str:
+        """Render a text-property subtree as nested HTML blocks."""
+        parts: list[str] = []
+        current_depth = -1
+        for nd in sub_nodes:
+            rendered = _render(nd)
+            depth = nd.get('depth', 0)
+            if depth == 0:
+                while current_depth >= 0:
+                    parts.append('</ul>')
+                    current_depth -= 1
+                parts.append(f'<span class="node-property-text">{rendered}</span>')
+            else:
+                if depth > current_depth:
+                    for _ in range(depth - current_depth):
+                        parts.append('<ul class="node-property-list">')
+                        current_depth += 1
+                elif depth < current_depth:
+                    for _ in range(current_depth - depth):
+                        parts.append('</ul>')
+                        current_depth -= 1
+                parts.append(f'<li>{rendered}</li>')
+        while current_depth >= 0:
+            parts.append('</ul>')
+            current_depth -= 1
+        return '\n'.join(parts)
+
     def _render_properties(node: Dict) -> str:
-        """Render a properties table for a page node, or empty string."""
+        """Render a properties table for a node, or empty string."""
         uuid = node.get('uuid', '')
         props = _props.get(uuid)
         if not props:
@@ -986,7 +1094,9 @@ def _export_to_html(
         for p in props:
             name = html_mod.escape(p['name'])
             icon_html = f'<span class="node-property-icon">{html_mod.escape(p["icon"])}</span> ' if p.get('icon') else ''
-            if p['values']:
+            if p.get('subtree'):
+                val_html = _render_subtree_html(p['subtree'])
+            elif p['values']:
                 val_html = html_mod.escape(', '.join(p['values']))
             else:
                 val_html = '<span class="node-property-empty">—</span>'
