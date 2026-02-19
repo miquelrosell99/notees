@@ -576,7 +576,7 @@ def _markdown_inline_to_html(md: str) -> str:
     return ''.join(result)
 
 
-def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
+def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True) -> str:
     """Convert nodes to Markdown format.
 
     Page nodes (is_page=True) always render as ATX headings at their depth level.
@@ -592,7 +592,7 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
         is_page = node.get('is_page', False)
 
         # Colored nodes use ==highlight== syntax
-        if node.get('color'):
+        if formatting and node.get('color'):
             text = f"=={text}=="
 
         if is_page:
@@ -638,7 +638,7 @@ def _style_block() -> str:
     return f"<style>\n{css}\n</style>"
 
 
-def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
+def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True) -> str:
     """Convert nodes to HTML format.
     
     Args:
@@ -653,7 +653,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
 
     def _render(node: Dict) -> str:
         """Stringify with PLAIN_MARKDOWN and convert inline syntax to HTML."""
-        return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver))
+        if formatting:
+            return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver))
+        return html_mod.escape(_stringify_node(node, StringifyMode.TEXT_ONLY, resolver))
 
     def _title(node: Dict) -> str:
         """Plain-text title for <title> tag (no formatting)."""
