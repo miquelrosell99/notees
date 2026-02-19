@@ -726,6 +726,21 @@ async def export_nodes(
                             'color': sr.get('color'),
                             'is_page': False,
                         })
+                    # Collect link targets from subtree node ASTs and add to resolver map
+                    subtree_link_uuids: set[str] = set()
+                    for nd_list in text_subtrees.values():
+                        for nd in nd_list:
+                            _collect_link_target_uuids(nd['_ast'], subtree_link_uuids)
+                    new_uuids = subtree_link_uuids - set(link_target_map.keys())
+                    if new_uuids:
+                        placeholders2 = ', '.join(f'${i+2}' for i in range(len(new_uuids)))
+                        extra_rows = await conn.fetch(
+                            f"SELECT uuid, name, is_page FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders2})",
+                            workspace_id, *list(new_uuids)
+                        )
+                        for er in extra_rows:
+                            link_target_map[str(er['uuid'])] = parse_ast(er['name'])
+                            link_is_page_map[str(er['uuid'])] = bool(er['is_page'])
                 for props in agg.values():
                     for pe in props.values():
                         if pe['type'] == 'text' and 'target_ids' in pe:
