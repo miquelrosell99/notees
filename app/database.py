@@ -812,6 +812,12 @@ def _collect_link_target_uuids(ast_nodes: list, out: set[str]) -> None:
             _collect_link_target_uuids(children, out)
 
 
+def _is_heading_node(node_data: Dict) -> bool:
+    """Return True if the node's first AST block has type 'heading'."""
+    ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
+    return bool(ast and isinstance(ast, list) and ast[0].get('type') == 'heading')
+
+
 def _stringify_node(node_data: Dict, mode: StringifyMode, resolver, html_anchors: bool = False) -> str:
     """Stringify a single node's AST to text."""
     ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
@@ -937,7 +943,12 @@ def _export_to_markdown(
                 else:
                     lines.append(f"{p['name']}::")
         elif layout == "flat":
-            lines.append(text)
+            is_heading = _is_heading_node(node)
+            if is_heading:
+                hashes = '#' * min(depth + 1, 6)
+                lines.append(f"{hashes} {text}")
+            else:
+                lines.append(text)
             # Emit property:: value lines for non-page nodes too
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
@@ -956,9 +967,15 @@ def _export_to_markdown(
                     lines.append(f"{p['name']}::")
         else:
             # outline
-            indent = '  ' * depth
-            lines.append(f"{indent}- {text}")
+            is_heading = _is_heading_node(node)
+            if is_heading:
+                hashes = '#' * min(depth + 1, 6)
+                lines.append(f"{hashes} {text}")
+            else:
+                indent = '  ' * depth
+                lines.append(f"{indent}- {text}")
             # Emit property:: value lines for non-page nodes too
+            indent = '  ' * depth
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
                 if p.get('subtree'):
@@ -1164,7 +1181,13 @@ def _export_to_html(
                     lines.append(f"  {props_html}")
             else:
                 props_html = _render_properties(node)
-                if props_html:
+                if _is_heading_node(node):
+                    level = min(depth + 1, 6)
+                    if props_html:
+                        lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</h{level}>")
+                    else:
+                        lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
+                elif props_html:
                     lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</p>")
                 else:
                     lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
@@ -1201,22 +1224,35 @@ def _export_to_html(
             # Children of this heading live at depth+1; treat this depth as the new baseline
             current_depth = depth
         else:
-            if depth > current_depth:
-                for _ in range(depth - current_depth):
-                    indent = '  ' * (current_depth + 1)
-                    lines.append(f"{indent}<ul>")
-                    current_depth += 1
-            elif depth < current_depth:
-                for _ in range(current_depth - depth):
-                    indent = '  ' * current_depth
-                    lines.append(f"{indent}</ul>")
+            if _is_heading_node(node):
+                # Heading blocks break out of list context like page nodes
+                while current_depth >= 0:
+                    lines.append('  ' * current_depth + '</ul>')
                     current_depth -= 1
-            indent = '  ' * (depth + 1)
-            props_html = _render_properties(node)
-            if props_html:
-                lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</li>")
+                level = min(depth + 1, 6)
+                indent = '  ' * depth
+                lines.append(f"{indent}<h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
+                props_html = _render_properties(node)
+                if props_html:
+                    lines.append(f"{indent}{props_html}")
+                current_depth = depth
             else:
-                lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
+                if depth > current_depth:
+                    for _ in range(depth - current_depth):
+                        indent = '  ' * (current_depth + 1)
+                        lines.append(f"{indent}<ul>")
+                        current_depth += 1
+                elif depth < current_depth:
+                    for _ in range(current_depth - depth):
+                        indent = '  ' * current_depth
+                        lines.append(f"{indent}</ul>")
+                        current_depth -= 1
+                indent = '  ' * (depth + 1)
+                props_html = _render_properties(node)
+                if props_html:
+                    lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</li>")
+                else:
+                    lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth

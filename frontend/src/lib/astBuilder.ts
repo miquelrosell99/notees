@@ -14,6 +14,7 @@
 import type {
   ASTDocument,
   ASTParagraph,
+  ASTHeading,
   ASTText,
   ASTHardBreak,
   ASTCode,
@@ -140,7 +141,9 @@ export function externalLink(url: string, ...children: ASTInlineNode[]): ASTExte
 export function paragraph(...children: ASTInlineNode[]): ASTParagraph {
   return { type: 'paragraph', children };
 }
-
+export function heading(...children: ASTInlineNode[]): ASTHeading {
+  return { type: 'heading', children };
+}
 /**
  * Build a complete document from paragraphs.
  * If called with inline nodes directly, wraps them in a single paragraph.
@@ -328,7 +331,7 @@ export function convertMarkdownInAST(ast: ASTDocument): ASTDocument {
 
   let changed = false;
   const result = ast.map((block) => {
-    if (block.type !== 'paragraph') return block;
+    if (block.type !== 'paragraph' && block.type !== 'heading') return block;
 
     const newChildren = expandInlineNodes(block.children);
     if (newChildren !== block.children) {

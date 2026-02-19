@@ -46,6 +46,7 @@ export interface SerializedBlockNode extends SerializedElementNode {
   blockName: string;
   isProjectionRoot: boolean;
   classIds: string[];
+  isHeading: boolean;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -61,6 +62,7 @@ export class BlockNode extends ElementNode {
   __blockName: string;
   __isProjectionRoot: boolean;
   __classIds: string[];
+  __isHeading: boolean;
 
   static getType(): string {
     return 'node-block';
@@ -78,6 +80,7 @@ export class BlockNode extends ElementNode {
       node.__blockName,
       node.__isProjectionRoot,
       node.__classIds,
+      node.__isHeading,
       node.__key,
     );
   }
@@ -93,6 +96,7 @@ export class BlockNode extends ElementNode {
     blockName: string = '',
     isProjectionRoot: boolean = false,
     classIds: string[] = [],
+    isHeading: boolean = false,
     key?: NodeKey,
   ) {
     super(key);
@@ -106,6 +110,7 @@ export class BlockNode extends ElementNode {
     this.__blockName = blockName;
     this.__isProjectionRoot = isProjectionRoot;
     this.__classIds = classIds;
+    this.__isHeading = isHeading;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -204,6 +209,16 @@ export class BlockNode extends ElementNode {
     return this;
   }
 
+  getIsHeading(): boolean {
+    return this.getLatest().__isHeading;
+  }
+
+  setIsHeading(isHeading: boolean): this {
+    const writable = this.getWritable();
+    writable.__isHeading = isHeading;
+    return this;
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────
 
   /**
@@ -241,6 +256,12 @@ export class BlockNode extends ElementNode {
     }
     if (this.__isProjectionRoot) {
       dom.classList.add('node-block--projection-root');
+    }
+    if (this.__isHeading) {
+      dom.classList.add('node-block--heading');
+      const level = Math.min(this.__depth + 1, 6);
+      dom.classList.add(`node-block--heading-${level}`);
+      dom.dataset.headingLevel = String(level);
     }
 
     // ── Block UI container ─────────────────────────────────────
@@ -496,6 +517,22 @@ export class BlockNode extends ElementNode {
       if (bullet) bullet.draggable = !this.__isProjectionRoot;
     }
 
+    // Heading — update CSS classes and data attribute when heading state or depth changes
+    if (prevNode.__isHeading !== this.__isHeading || (this.__isHeading && prevNode.__depth !== this.__depth)) {
+      dom.classList.toggle('node-block--heading', this.__isHeading);
+      // Remove old level class
+      for (let i = 1; i <= 6; i++) {
+        dom.classList.remove(`node-block--heading-${i}`);
+      }
+      if (this.__isHeading) {
+        const level = Math.min(this.__depth + 1, 6);
+        dom.classList.add(`node-block--heading-${level}`);
+        dom.dataset.headingLevel = String(level);
+      } else {
+        delete dom.dataset.headingLevel;
+      }
+    }
+
     // Color (CSS custom properties only — no reflow)
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
@@ -569,6 +606,7 @@ export class BlockNode extends ElementNode {
       blockName: this.__blockName,
       isProjectionRoot: this.__isProjectionRoot,
       classIds: this.__classIds,
+      isHeading: this.__isHeading,
     };
   }
 
@@ -584,6 +622,7 @@ export class BlockNode extends ElementNode {
       json.blockName,
       json.isProjectionRoot,
       json.classIds ?? [],
+      json.isHeading ?? false,
     );
   }
 
@@ -622,9 +661,10 @@ export function $createBlockNode(
   blockName: string = '',
   isProjectionRoot: boolean = false,
   classIds: string[] = [],
+  isHeading: boolean = false,
 ): BlockNode {
   return $applyNodeReplacement(
-    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading),
   );
 }
 
