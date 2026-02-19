@@ -961,6 +961,10 @@ div.page-break {
   break-inside: avoid;
 }
 
+.layout-two-column pre {
+  column-span: all;
+}
+
 
 /* =========================================================
    LAYER 7 — TABLE OF CONTENTS (PRINT-GRADE)
