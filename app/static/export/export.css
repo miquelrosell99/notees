@@ -633,6 +633,16 @@ div.page-break {
   position: relative;
 }
 
+/* Subtle tonal fade by nesting depth */
+.structure-indented ul ul > li,
+.structure-indented ul ul > li > p { color: #333; }
+
+.structure-indented ul ul ul > li,
+.structure-indented ul ul ul > li > p { color: #444; }
+
+.structure-indented ul ul ul ul > li,
+.structure-indented ul ul ul ul > li > p { color: #555; }
+
 
 /* =========================================================
    LAYER 4 — DENSITY (VERTICAL RHYTHM)
