@@ -531,11 +531,15 @@ async def export_nodes(
         # 4. Fetch properties for page nodes if requested
         properties_data: Dict[str, list] = {}  # uuid → [{name, icon, type, values: [str]}]
         if properties in ("main", "all"):
-            page_node_ids = [nd['id'] for nd in nodes_data if nd.get('is_page') and nd.get('id')]
+            if properties == "main":
+                # Only the root node(s) — those at depth 0
+                target_nodes = [nd for nd in nodes_data if nd.get('depth', 0) == 0]
+            else:
+                target_nodes = nodes_data
+            page_node_ids = [nd['id'] for nd in target_nodes if nd.get('id')]
             if page_node_ids:
-                include_system = (properties == "all")
                 prop_rows = await conn.fetch(
-                    f"""
+                    """
                     SELECT
                         np.node_id,
                         n.uuid::text as node_uuid,
@@ -559,7 +563,6 @@ async def export_nodes(
                     LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
                     WHERE np.node_id = ANY($1)
                       AND p.active = TRUE
-                      {'AND p.is_system = FALSE' if not include_system else ''}
                     ORDER BY np.node_id, p.name
                     """,
                     page_node_ids
@@ -610,7 +613,7 @@ async def export_nodes(
                         entry['values'].append(value_str)
 
                 # ── Classes ──
-                # Fetch class_ids for page nodes, then resolve names
+                # Fetch class_ids for target nodes, then resolve names
                 class_id_rows = await conn.fetch(
                     "SELECT id, uuid::text as uuid, class_ids FROM node WHERE id = ANY($1) AND class_ids != '{}'",
                     page_node_ids
@@ -688,8 +691,8 @@ async def export_nodes(
             uuid_val = nd.get('uuid', '')
             if not uuid_val:
                 continue
-            # For 'main': only page nodes; for 'all': every node
-            if nd.get('is_page') or properties == "all":
+            # 'main': only root node(s) (depth 0); 'all': every node
+            if nd.get('depth', 0) == 0 or properties == "all":
                 uuid_prop = {'name': 'uuid', 'icon': None, 'type': 'text', 'values': [uuid_val]}
                 existing = properties_data.get(uuid_val, [])
                 properties_data[uuid_val] = [uuid_prop] + [p for p in existing if p['name'] != 'uuid']
