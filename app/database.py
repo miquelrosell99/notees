@@ -357,6 +357,7 @@ async def export_nodes(
     include_children: bool = True,
     layout: str = "outline",
     formatting: bool = True,
+    style: str | None = None,
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -472,11 +473,11 @@ async def export_nodes(
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -617,6 +618,9 @@ _FRONTEND_SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
 _VARIABLES_CSS_PATH = _FRONTEND_SRC / "variables.css"
 _EXPORT_CSS_PATH = _FRONTEND_SRC / "export.css"
 
+# Valid export style presets (None = base only)
+EXPORT_STYLES = {"minimal", "technical"}
+
 def _get_export_css() -> str:
     """Read variables.css + export.css from disk (cached after first call)."""
     if not hasattr(_get_export_css, "_cache"):
@@ -630,15 +634,34 @@ def _get_export_css() -> str:
     return _get_export_css._cache
 
 
-def _style_block() -> str:
-    """Return a <style> element with the export CSS, or empty string if CSS is blank."""
-    css = _get_export_css().strip()
+def _get_style_css(style: str | None) -> str:
+    """Read an export style overlay CSS file (cached per style)."""
+    if not style or style not in EXPORT_STYLES:
+        return ""
+    cache_attr = f"_cache_{style}"
+    if not hasattr(_get_style_css, cache_attr):
+        path = _FRONTEND_SRC / f"export-{style}.css"
+        try:
+            setattr(_get_style_css, cache_attr, path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            logger.warning("Export style CSS not found: %s", path)
+            setattr(_get_style_css, cache_attr, "")
+    return getattr(_get_style_css, cache_attr)
+
+
+def _style_block(style: str | None = None) -> str:
+    """Return a <style> element with the export CSS + optional style overlay, or empty string."""
+    base = _get_export_css().strip()
+    overlay = _get_style_css(style).strip()
+    css = base
+    if overlay:
+        css = f"{css}\n\n/* ── Style: {style} ── */\n{overlay}" if css else overlay
     if not css:
         return ""
     return f"<style>\n{css}\n</style>"
 
 
-def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True) -> str:
+def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True, style: str | None = None) -> str:
     """Convert nodes to HTML format.
     
     Args:
@@ -669,8 +692,8 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
         return f' style="color: {html_mod.escape(color)}"'
 
     if not nodes:
-        style = _style_block()
-        head_extra = f"\n{style}" if style else ""
+        sb = _style_block(style)
+        head_extra = f"\n{sb}" if sb else ""
         return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body></body></html>"
 
     if layout == "flat":
@@ -685,8 +708,8 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
             else:
                 lines.append(f"  <p{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
-        style = _style_block()
-        head_style = f"\n{style}" if style else ""
+        sb = _style_block(style)
+        head_style = f"\n{sb}" if sb else ""
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -734,8 +757,8 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
         lines.append(f"{indent}</ul>")
         current_depth -= 1
 
-    style = _style_block()
-    head_style = f"\n{style}" if style else ""
+    sb = _style_block(style)
+    head_style = f"\n{sb}" if sb else ""
     return f"""<!DOCTYPE html>
 <html>
 <head>
