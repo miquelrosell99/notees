@@ -26,13 +26,13 @@
   --font-size-base:  1rem;
   --line-height:     1.6;
 
-  /* Heading sizes */
-  --h1-size: 1.75rem;
-  --h2-size: 1.4rem;
-  --h3-size: 1.15rem;
-  --h4-size: 1rem;
-  --h5-size: 0.95rem;
-  --h6-size: 0.9rem;
+  /* Modular typographic scale (ratio 1.2) */
+  --scale-ratio: 1.2;
+  --step-0: 1rem;
+  --step-1: calc(var(--step-0) * var(--scale-ratio));
+  --step-2: calc(var(--step-1) * var(--scale-ratio));
+  --step-3: calc(var(--step-2) * var(--scale-ratio));
+  --step-4: calc(var(--step-3) * var(--scale-ratio));
 
   /* Spacing */
   --spacing-xs:  0.25rem;
@@ -73,12 +73,12 @@ h1, h2, h3, h4, h5, h6 {
   page-break-after: avoid;
 }
 
-h1 { font-size: var(--h1-size); font-weight: 600; }
-h2 { font-size: var(--h2-size); font-weight: 600; }
-h3 { font-size: var(--h3-size); font-weight: 600; }
-h4 { font-size: var(--h4-size); font-weight: 600; }
-h5 { font-size: var(--h5-size); font-weight: 600; }
-h6 { font-size: var(--h6-size); font-weight: 600; }
+h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; }
+h2 { font-size: var(--step-4); font-weight: 600; }
+h3 { font-size: var(--step-3); font-weight: 600; }
+h4 { font-size: var(--step-2); font-weight: 600; }
+h5 { font-size: var(--step-1); font-weight: 600; }
+h6 { font-size: var(--step-0); font-weight: 600; }
 
 body > h1:first-child {
   margin-top: 0;
@@ -627,8 +627,8 @@ div.page-break {
   font-size: 0.92em;
 }
 
-.density-compact h1 { font-size: calc(var(--h1-size) * 0.95); }
-.density-compact h2 { font-size: calc(var(--h2-size) * 0.95); }
+.density-compact h1 { font-size: calc(var(--step-4) * var(--scale-ratio) * 0.95); }
+.density-compact h2 { font-size: calc(var(--step-4) * 0.95); }
 
 .density-compact h1,
 .density-compact h2,
