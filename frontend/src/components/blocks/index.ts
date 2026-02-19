@@ -15,3 +15,7 @@ export type { BulletProps, BulletSize, BulletVariant } from './Bullet';
 
 // Text property block (uses BlockEditor)
 export { TextPropertyBlock } from './TextPropertyBlock';
+
+// Embed block (node portal with dashed-border card)
+export { EmbedBlock } from './EmbedBlock';
+export type { EmbedBlockProps } from './EmbedBlock';

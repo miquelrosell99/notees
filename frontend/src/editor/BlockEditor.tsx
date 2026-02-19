@@ -51,6 +51,7 @@ import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
 import { AssetLinkImagePlugin } from './plugins/AssetLinkImagePlugin';
 import { TableBlockPlugin } from './plugins/TableBlockPlugin';
 import { QueryBlockPlugin } from './plugins/QueryBlockPlugin';
+import { EmbedBlockPlugin } from './plugins/EmbedBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
@@ -145,6 +146,8 @@ export interface BlockEditorProps {
   canDelete?: (blockId: string) => boolean;
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;
+  /** Called when UP arrow is pressed at the very first block (used by embed border selection) */
+  onNavigateUpFromTop?: () => void;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -190,6 +193,7 @@ export function BlockEditor({
   canMerge,
   canDelete,
   onEnterAtRoot,
+  onNavigateUpFromTop,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -477,6 +481,7 @@ export function BlockEditor({
           sliceRecursiveLevel={sliceRecursiveLevel}
           sliceShowParent={sliceShowParent}
           onEnterAtRoot={onEnterAtRoot}
+          onNavigateUpFromTop={onNavigateUpFromTop}
         />
 
         {/* Pill plugin */}
@@ -562,6 +567,9 @@ export function BlockEditor({
 
           {/* Query previews — renders query results on query-class blocks */}
           <QueryBlockPlugin />
+
+          {/* Embed previews — renders embedded node card below embed-link blocks */}
+          <EmbedBlockPlugin />
         </VirtualizationPlugin>
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}

@@ -1,0 +1,108 @@
+/**
+ * EmbedBlock styles — dashed-border card for embedded node portals.
+ */
+
+/* ─── Embed card container ──────────────────────────────────────── */
+
+.embed-block-card {
+  position: relative;
+  margin: 4px 0;
+  border: 2px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-variant, rgba(0,0,0,0.03));
+  transition:
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+  overflow: hidden;
+}
+
+/* Border-selected state — highlighted border like a focused selection */
+.embed-block-card--border-selected {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface-variant, transparent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  outline: none;
+}
+
+/* ─── Embed header bar ─────────────────────────────────────────── */
+
+.embed-block-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 6px 10px 4px 10px;
+  border-bottom: 1px dashed var(--color-outline-variant);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  user-select: none;
+  cursor: default;
+}
+
+.embed-block-header__icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.embed-block-header__label {
+  opacity: 0.65;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.embed-block-header__hint {
+  font-size: 0.65rem;
+  opacity: 0.4;
+  flex-shrink: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.embed-block-card--border-selected .embed-block-header__hint {
+  opacity: 0.75;
+}
+
+/* ─── Embed content area ───────────────────────────────────────── */
+
+.embed-block-content {
+  padding: 4px 0;
+}
+
+/* Inner editor adjustments inside embed */
+.embed-block-content .notees-editor {
+  padding: 0;
+}
+
+.embed-block-content .node-block {
+  /* Slightly reduce indentation inside embed */
+  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-6));
+}
+
+/* ─── Loading / error states ───────────────────────────────────── */
+
+.embed-block-loading,
+.embed-block-error {
+  padding: 12px 16px;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}
+
+/* ─── Embed pill style in host block content area ─────────────── */
+
+/* Pill wrapper for embed refType — show as a subtle indicator */
+.node-pill-wrapper[data-ref-type="embed"] {
+  opacity: 0.6;
+}
+
+.node-pill-wrapper[data-ref-type="embed"] .node-pill-inner {
+  font-size: 0.8em;
+  border: 1px dashed var(--color-outline-variant);
+  border-radius: var(--shape-extra-small);
+  padding: 0 4px;
+}

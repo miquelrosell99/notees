@@ -45,12 +45,12 @@ export function InlineNodeLink({ linkId, refType, url, label }: InlineNodeLinkPr
     );
   }
 
-  // ─── Node / class pill ─────────────────────────────────────
+  // ─── Node / class / embed pill ────────────────────────────
   return <NodePill linkId={linkId} refType={refType} label={label} />;
 }
 
-/** Inner component for node/class pills — uses hooks that need stable renders. */
-function NodePill({ linkId, refType, label }: { linkId: string; refType: 'node' | 'class'; label?: string }) {
+/** Inner component for node/class/embed pills — uses hooks that need stable renders. */
+function NodePill({ linkId, refType, label }: { linkId: string; refType: 'node' | 'class' | 'embed'; label?: string }) {
   const { nodeUuid } = parseLinkId(linkId);
   const { data: node } = useNodeByUuid(nodeUuid);
   const { data: allClasses } = useClasses();

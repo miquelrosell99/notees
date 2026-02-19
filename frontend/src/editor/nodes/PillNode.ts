@@ -22,7 +22,7 @@ import { InlineNodeLink } from '../components/InlineNodeLink';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export type PillRefType = 'node' | 'class' | 'url';
+export type PillRefType = 'node' | 'class' | 'url' | 'embed';
 
 // ─── Serialized form ──────────────────────────────────────────────
 

@@ -136,6 +136,8 @@ export interface BlockPluginProps {
   sliceShowParent?: boolean;
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;
+  /** Called when UP arrow is pressed at the very first block (escape upward from embed) */
+  onNavigateUpFromTop?: () => void;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -159,6 +161,7 @@ export function BlockPlugin({
   sliceRecursiveLevel,
   sliceShowParent,
   onEnterAtRoot,
+  onNavigateUpFromTop,
 }: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -1298,7 +1301,10 @@ export function BlockPlugin({
       const blockIndex = children.indexOf(blockNode);
 
       // Block arrow up on first block to prevent cursor from entering empty root space
-      if (blockIndex <= 0) return true;
+      if (blockIndex <= 0) {
+        onNavigateUpFromTop?.();
+        return true;
+      }
 
       // Let default arrow behavior handle vertical movement
       return false;
@@ -1332,7 +1338,7 @@ export function BlockPlugin({
       unsubUp();
       unsubDown();
     };
-  }, [editor]);
+  }, [editor, onNavigateUpFromTop]);
 
   // ─── Home/End: navigate to first/last block ───────────────────
 

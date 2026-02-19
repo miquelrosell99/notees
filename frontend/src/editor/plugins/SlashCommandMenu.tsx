@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon } from '../../components/core/icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon, PageIcon } from '../../components/core/icons';
 import './SlashCommandMenu.css';
 
 // ─── Slash Command Definitions ───────────────────────────────────
@@ -24,6 +24,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     label: 'Insert Link',
     description: 'Link to a page or block [[]]',
     icon: <LinkIcon size="sm" />,
+  },
+  {
+    id: 'embed',
+    label: 'Embed Node',
+    description: 'Embed the full content of a node as a portal',
+    icon: <PageIcon size="sm" />,
   },
   {
     id: 'url',
