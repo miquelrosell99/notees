@@ -14,7 +14,7 @@
  */
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useAppStore, useSettingsStore, useFavoritesStore } from '@/stores';
-import { useTodayNote, RouterSync, useCreateNode } from '@/hooks';
+import { useTodayNote, RouterSync, useCreateNode, useNode } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
@@ -63,6 +63,7 @@ export function Layout() {
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
+  const { data: currentNode } = useNode(currentNodeId);
   
   // Settings are guaranteed to be in TanStack Query cache before Layout mounts
   // (App.tsx gates rendering behind fetchQuery completion).
@@ -311,11 +312,11 @@ export function Layout() {
         />
 
         {/* Export Page Modal */}
-        {currentNodeId && (
+        {currentNodeId && currentNode?.uuid && (
           <ExportPageModal
             isOpen={isExportPageModalOpen}
             onClose={() => setExportPageModalOpen(false)}
-            nodeId={currentNodeId}
+            nodeUuid={currentNode.uuid}
           />
         )}
 
