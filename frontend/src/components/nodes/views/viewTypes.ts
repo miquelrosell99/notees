@@ -11,7 +11,7 @@
 // ==================== Core Types ====================
 
 export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
-export type NodeSizeMode = 'uniform' | 'connections' | 'mass';
+export type NodeSizeMode = 'uniform' | 'connections' | 'mass' | 'content';
 export type ConstraintMode = 'physics' | 'equidistant';
 export type LinkDirection = 'in' | 'out' | 'all';
 export type HeightMode = 'hierarchy' | 'references';
@@ -61,6 +61,7 @@ export interface GraphNode {
   connectionCount: number;
   inLinkCount: number;
   outLinkCount: number;
+  contentSize: number;
   createdAt?: string;
   visible: boolean;
   isClassNode: boolean;
@@ -155,6 +156,7 @@ export interface FrameData {
   nodeMap: Map<number, GraphNode>;
   maxConnections: number;
   maxMass: number;
+  maxContentSize: number;
   terrainHeights: Map<number, number>; // nodeId → normalized height [0,1]
   terrainPeakRadii: Map<number, number>; // nodeId → normalized peak radius [0,1]
 }
@@ -383,12 +385,12 @@ export const getNodeRadius = (
   nodeSizeMode: NodeSizeMode,
   maxConnections: number,
   maxMass: number,
+  maxContentSize: number = 0,
   linkDirection: LinkDirection = 'all'
 ): number => {
   if (nodeSizeMode === 'uniform') return NODE_RADIUS_BASE;
   
   if (nodeSizeMode === 'connections') {
-    const mass = (node as GraphNode & { _mass?: number })._mass ?? 1;
     const count = linkDirection === 'in' ? node.inLinkCount 
       : linkDirection === 'out' ? node.outLinkCount 
       : node.connectionCount;
@@ -400,6 +402,12 @@ export const getNodeRadius = (
     const mass = (node as GraphNode & { _mass?: number })._mass ?? 1;
     const ratio = maxMass > 1 ? (mass - 1) / (maxMass - 1) : 0;
     return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_MASS_SCALE);
+  }
+
+  if (nodeSizeMode === 'content') {
+    const count = node.contentSize;
+    const ratio = maxContentSize > 0 ? count / maxContentSize : 0;
+    return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_CONN_SCALE);
   }
   
   return NODE_RADIUS_BASE;
@@ -413,9 +421,10 @@ export const getGlareRadius = (
   nodeSizeMode: NodeSizeMode,
   maxConnections: number,
   maxMass: number,
+  maxContentSize: number = 0,
   linkDirection: LinkDirection = 'all'
 ): number => {
-  const baseRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass, linkDirection);
+  const baseRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass, maxContentSize, linkDirection);
   return baseRadius * GLARE_SCALE_NORMAL;
 };
 

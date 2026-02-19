@@ -20,6 +20,7 @@ import type {
   GraphSettings,
   VisibilityFilters,
   GraphLayoutMode,
+  NodeSizeMode,
   QuadNode,
   FrameData,
   Transform,
@@ -219,6 +220,7 @@ export function useNodePhysics({
     nodeMap: new Map(),
     maxConnections: 0,
     maxMass: 0,
+    maxContentSize: 0,
     terrainHeights: new Map(),
     terrainPeakRadii: new Map(),
   });
@@ -326,7 +328,7 @@ export function useNodePhysics({
     w: number,
     h: number,
     constraintMode: 'physics' | 'equidistant' = 'physics',
-    nodeSizeMode: 'uniform' | 'connections' | 'mass' = 'uniform'
+    nodeSizeMode: NodeSizeMode = 'uniform'
   ) => {
     const centerX = w / 2;
     const centerY = h / 2;
@@ -342,7 +344,7 @@ export function useNodePhysics({
     // Find the largest glare radius among all nodes to set spacing
     let maxGlareRadius = 0;
     for (const n of nodes) {
-      const gr = getGlareRadius(n, nodeSizeMode, maxConn, maxMass);
+      const gr = getGlareRadius(n, nodeSizeMode, maxConn, maxMass, 0);
       if (gr > maxGlareRadius) maxGlareRadius = gr;
     }
     if (maxGlareRadius === 0) maxGlareRadius = 6 * 2.5; // NODE_RADIUS_BASE * GLARE_SCALE_NORMAL
@@ -1030,12 +1032,16 @@ export function useNodePhysics({
       maxConnections = Math.max(maxConnections, dirCount);
       maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
     }
+    let maxContentSizeHit = 0;
+    for (const node of nodesRef.current) {
+      if (node.contentSize > maxContentSizeHit) maxContentSizeHit = node.contentSize;
+    }
     
     for (let i = nodesRef.current.length - 1; i >= 0; i--) {
       const node = nodesRef.current[i];
       if (!node.visible) continue;
       
-      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSizeHit, currentSettings.linkDirection);
       const hitRadius = (nodeRadius + 2 + 4) / t.scale;
       const dx = x - node.x;
       const dy = y - node.y;
@@ -1064,6 +1070,10 @@ export function useNodePhysics({
         maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
       }
     }
+    let maxContentSizeLink = 0;
+    for (const node of nodesRef.current) {
+      if (node.visible && node.contentSize > maxContentSizeLink) maxContentSizeLink = node.contentSize;
+    }
     
     for (const link of linksRef.current) {
       const source = nodeMap.get(link.source);
@@ -1088,8 +1098,8 @@ export function useNodePhysics({
       const distance = Math.sqrt(distX * distX + distY * distY);
       
       if (distance < hitThreshold) {
-        const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
-        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+        const sourceRadius = getNodeRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSizeLink, currentSettings.linkDirection);
+        const targetRadius = getNodeRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSizeLink, currentSettings.linkDirection);
         
         const distToSource = Math.sqrt((x - source.x) ** 2 + (y - source.y) ** 2);
         const distToTarget = Math.sqrt((x - target.x) ** 2 + (y - target.y) ** 2);
@@ -1159,7 +1169,7 @@ export function useNodePhysics({
       const massCache = massCacheRef.current;
       const useMass = currentSettings.heightMode === 'hierarchy';
       
-      let maxConnections = 0, maxMass = 0;
+      let maxConnections = 0, maxMass = 0, maxContentSize = 0;
       const linkDir = currentSettings.linkDirection;
       for (const node of nodes) {
         const mass = useMass ? (massCache.get(node.id) ?? 1) : 1;
@@ -1167,6 +1177,7 @@ export function useNodePhysics({
         const dirCount = linkDir === 'in' ? node.inLinkCount : linkDir === 'out' ? node.outLinkCount : node.connectionCount;
         if (dirCount > maxConnections) maxConnections = dirCount;
         if (mass > maxMass) maxMass = mass;
+        if (node.contentSize > maxContentSize) maxContentSize = node.contentSize;
       }
       
       const nodeMap = frameNodeMapRef.current;
@@ -1736,6 +1747,7 @@ export function useNodePhysics({
         frameDataRef.current.nodeMap = nodeMap;
         frameDataRef.current.maxConnections = maxConnections;
         frameDataRef.current.maxMass = maxMass;
+        frameDataRef.current.maxContentSize = maxContentSize;
         
         // Compute terrain heights and peak radii — only when topology or settings changed
         if (isTerrainModeNow && terrainDataDirtyRef.current) {

@@ -413,6 +413,7 @@ export interface GraphNode {
   created_at?: string;
   backlink_count?: number;
   internal_link_count?: number;
+  block_count?: number;
 }
 
 /**

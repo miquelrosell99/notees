@@ -204,7 +204,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     ctx.scale(t.scale, t.scale);
     
     const { textColor, accentColor, dimColor, outlineColor, warningColor } = cssVarsRef.current;
-    const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass } = frameDataRef.current;
+    const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass, maxContentSize } = frameDataRef.current;
     
     // Build link direction map
     const linkDirections = linkDirCacheRef.current;
@@ -252,8 +252,8 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       }
       
       const arrowGap = 2;
-      const sourceLineGlare = getGlareRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
-      const targetLineGlare = getGlareRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+      const sourceLineGlare = getGlareRadius(source, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
+      const targetLineGlare = getGlareRadius(target, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
       
       const dotSize = 4;
       const hasTargetDot = !renderAsParent && link.source === source.id;
@@ -390,7 +390,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       
       const isHovered = currentHoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       
@@ -505,7 +505,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     if (draggedNode) {
       const node = draggedNode;
       const isHovered = currentHoveredNode?.id === node.id;
-      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, currentSettings.linkDirection);
+      const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
       const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
       const nodeColor = getNodeColor(node, currentClassColors, accentColor);
       

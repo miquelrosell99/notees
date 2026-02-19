@@ -295,6 +295,7 @@ export function TerrainView({
         connectionCount: 0,
         inLinkCount: 0,
         outLinkCount: 0,
+        contentSize: apiNode.block_count || 0,
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode: apiNode.is_class || classIds.has(apiNode.id),
