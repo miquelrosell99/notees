@@ -683,15 +683,16 @@ async def export_nodes(
                     properties_data[node_uuid_key] = pinned + rest
 
     # Generate content based on format
-    if show_uuid:
+    if show_uuid and properties != "none":
         for nd in nodes_data:
-            if nd.get('is_page'):
-                uuid_val = nd.get('uuid', '')
-                if uuid_val:
-                    uuid_prop = {'name': 'uuid', 'icon': None, 'type': 'text', 'values': [uuid_val]}
-                    existing = properties_data.get(uuid_val, [])
-                    # Prepend uuid prop (before other properties)
-                    properties_data[uuid_val] = [uuid_prop] + [p for p in existing if p['name'] != 'uuid']
+            uuid_val = nd.get('uuid', '')
+            if not uuid_val:
+                continue
+            # For 'main': only page nodes; for 'all': every node
+            if nd.get('is_page') or properties == "all":
+                uuid_prop = {'name': 'uuid', 'icon': None, 'type': 'text', 'values': [uuid_val]}
+                existing = properties_data.get(uuid_val, [])
+                properties_data[uuid_val] = [uuid_prop] + [p for p in existing if p['name'] != 'uuid']
 
     if format == ExportFormat.MARKDOWN or format == "markdown":
         content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data)
@@ -851,10 +852,26 @@ def _export_to_markdown(
                     lines.append(f"{p['name']}::")
         elif layout == "flat":
             lines.append(text)
+            # Emit property:: value lines for non-page nodes too
+            props = _props.get(node.get('uuid', ''), [])
+            for p in props:
+                values = p['values']
+                if values:
+                    lines.append(f"{p['name']}:: {', '.join(values)}")
+                else:
+                    lines.append(f"{p['name']}::")
         else:
             # outline
             indent = '  ' * depth
             lines.append(f"{indent}- {text}")
+            # Emit property:: value lines for non-page nodes too
+            props = _props.get(node.get('uuid', ''), [])
+            for p in props:
+                values = p['values']
+                if values:
+                    lines.append(f"{indent}  {p['name']}:: {', '.join(values)}")
+                else:
+                    lines.append(f"{indent}  {p['name']}::")
 
     return "\n".join(lines)
 
@@ -993,7 +1010,11 @@ def _export_to_html(
                 if props_html:
                     lines.append(f"  {props_html}")
             else:
-                lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
+                props_html = _render_properties(node)
+                if props_html:
+                    lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</p>")
+                else:
+                    lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
         return f"""<!DOCTYPE html>
 <html>
@@ -1038,7 +1059,11 @@ def _export_to_html(
                     lines.append(f"{indent}</ul>")
                     current_depth -= 1
             indent = '  ' * (depth + 1)
-            lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
+            props_html = _render_properties(node)
+            if props_html:
+                lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</li>")
+            else:
+                lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth

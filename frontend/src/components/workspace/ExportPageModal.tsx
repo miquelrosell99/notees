@@ -47,7 +47,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [format, setFormat] = useState<ExportFormat>('markdown');
   const [layout, setLayout] = useState<ExportLayout>('outline');
   const [style, setStyle] = useState<ExportStyle>('minimal');
-  const [properties, setProperties] = useState<ExportProperties>('none');
+  const [properties, setProperties] = useState<ExportProperties>('main');
   const [density, setDensity] = useState<ExportDensity>('comfortable');
   const [numbering, setNumbering] = useState<ExportNumbering>('none');
   const [formatting, setFormatting] = useState(true);
