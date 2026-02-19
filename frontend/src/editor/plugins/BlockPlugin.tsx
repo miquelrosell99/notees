@@ -872,16 +872,6 @@ export function BlockPlugin({
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
 
-        // Code block: Enter inserts a line break instead of creating a new block
-        if (blockNode.getNodeType() === 'code') {
-          event?.preventDefault();
-          editor.update(() => {
-            const sel = $getSelection();
-            if ($isRangeSelection(sel)) sel.insertNodes([$createLineBreakNode()]);
-          });
-          return true;
-        }
-
         const blockId = blockNode.getBlockId();
 
         // Calculate cursor offset by walking through block children

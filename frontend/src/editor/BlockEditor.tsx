@@ -50,6 +50,7 @@ import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
 import { AssetLinkImagePlugin } from './plugins/AssetLinkImagePlugin';
 import { TableBlockPlugin } from './plugins/TableBlockPlugin';
 import { QueryBlockPlugin } from './plugins/QueryBlockPlugin';
+import { BlockCodePlugin } from './plugins/BlockCodePlugin';
 import { EmbedBlockPlugin } from './plugins/EmbedBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
@@ -565,6 +566,9 @@ export function BlockEditor({
 
           {/* Query previews — renders query results on query-class blocks */}
           <QueryBlockPlugin />
+
+          {/* Code block line numbers — renders gutter with line numbers on code-type blocks */}
+          <BlockCodePlugin />
 
           {/* Embed previews — renders embedded node card below embed-link blocks */}
           <EmbedBlockPlugin />
