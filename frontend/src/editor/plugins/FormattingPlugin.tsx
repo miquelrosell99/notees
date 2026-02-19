@@ -19,6 +19,25 @@ export function FormattingPlugin(): null {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Backtick with selection → apply inline code format
+      if (event.key === '`' && !event.ctrlKey && !event.metaKey) {
+        let hasSelection = false;
+        editor.getEditorState().read(() => {
+          const sel = $getSelection();
+          if ($isRangeSelection(sel) && !sel.isCollapsed()) hasSelection = true;
+        });
+        if (hasSelection) {
+          event.preventDefault();
+          editor.update(() => {
+            const sel = $getSelection();
+            if (!$isRangeSelection(sel)) return;
+            $trimSelectionWhitespace(sel);
+            sel.formatText('code');
+          });
+          return;
+        }
+      }
+
       if (!event.ctrlKey && !event.metaKey) return;
 
       let format: TextFormatType | null = null;
