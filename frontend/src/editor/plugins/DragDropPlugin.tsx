@@ -200,7 +200,23 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
         const target = event.target as HTMLElement;
         const blockEl = findBlockRow(target);
+        
+        // If hovering over empty space (below all blocks), target the last block with "after"
         if (!blockEl) {
+          const rootEl = editor.getRootElement();
+          if (rootEl) {
+            const allBlocks = rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]');
+            const lastBlock = allBlocks.length > 0 ? allBlocks[allBlocks.length - 1] : null;
+            if (lastBlock) {
+              const lastBlockId = lastBlock.getAttribute('data-block-id');
+              const payload = coordinator.getDragPayload();
+              if (lastBlockId && (!payload || payload.blockId !== lastBlockId)) {
+                coordinator.updateTarget({ blockId: lastBlockId, position: 'after', targetEditorId: editorId });
+                showDropIndicator(lastBlock, 'after');
+                return true;
+              }
+            }
+          }
           coordinator.updateTarget(null);
           hideDropIndicator();
           return true;
