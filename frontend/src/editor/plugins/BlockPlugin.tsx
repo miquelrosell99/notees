@@ -64,21 +64,21 @@ import {
  * IntersectionObserver hasn’t reported visibility yet.  Set high
  * enough to fill the viewport + buffer (400 px each side).
  */
-const INITIAL_POPULATE_COUNT = 100;
+const INITIAL_POPULATE_COUNT = 200;
 
 /**
  * Number of blocks beyond the visible window to pre-hydrate during
  * idle time (above and below).  Blocks in this buffer will be
  * ready before the user scrolls to them.
  */
-const PRE_HYDRATE_COUNT = 30;
+const PRE_HYDRATE_COUNT = 60;
 
 /**
  * Maximum number of blocks to hydrate in a single idle callback.
  * If more remain, a continuation idle callback is scheduled so that
  * long pre-hydration queues never block the main thread.
  */
-const IDLE_CHUNK_SIZE = 8;
+const IDLE_CHUNK_SIZE = 20;
 
 /**
  * Fallback timeout (ms) for Phase-2 pill upgrades.
@@ -86,7 +86,7 @@ const IDLE_CHUNK_SIZE = 8;
  * constant scrolling), a setTimeout forces the upgrade so decorators
  * are never indefinitely delayed.
  */
-const UPGRADE_FALLBACK_MS = 200;
+const UPGRADE_FALLBACK_MS = 100;
 
 /** Shim for requestIdleCallback in Safari / older browsers. */
 const rIC: typeof requestIdleCallback =
