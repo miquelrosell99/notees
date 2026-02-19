@@ -945,12 +945,14 @@ div.page-break {
 .layout-two-column {
   column-count: 2;
   column-gap: 2.5rem;
+  column-fill: balance;
 }
 
 .layout-two-column h1,
 .layout-two-column h2,
 .layout-two-column h3 {
   column-span: all;
+  break-before: column;
 }
 
 .layout-two-column pre,
