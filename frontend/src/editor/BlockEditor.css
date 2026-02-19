@@ -357,6 +357,50 @@
   animation: slideExpand var(--motion-duration-long) var(--motion-easing-collapse) forwards;
 }
 
+/* ─── Thread lines (Logseq-style collapse guide) ──────────────── */
+
+/* Overlay container — fills the editor wrapper, non-interactive by default */
+.thread-lines-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  /* Prevent the container itself from creating a stacking context */
+  overflow: visible;
+}
+
+/* Individual thread line */
+.thread-line {
+  position: absolute;
+  width: 2px;
+  /* Centre horizontally on the calculated bullet x */
+  transform: translateX(-50%);
+  background-color: var(--color-outline-variant);
+  border-radius: 1px;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0.22;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    width var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard);
+  /* Prevent text selection on fast clicks */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.thread-line:hover {
+  opacity: 0.75;
+  width: 3px;
+  background-color: var(--color-primary, var(--color-on-surface-variant));
+}
+
+.thread-line:active {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1.5);
+  transition: none;
+}
+
 /* Faint background for colored blocks (not for headings) */
 .node-block[style*="--node-block-color"]:not(.node-block-heading) > .node-block-content {
   background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
