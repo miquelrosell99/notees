@@ -839,7 +839,7 @@ def _export_to_markdown(
         if formatting and node.get('color'):
             text = f"=={text}=="
 
-        if is_page:
+        if is_page and layout == "flat":
             hashes = '#' * (depth + 1)
             lines.append(f"{hashes} {text}")
             # Emit property:: value lines immediately after the heading
