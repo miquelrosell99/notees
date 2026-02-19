@@ -45,6 +45,12 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  const handleFormatChange = useCallback((f: ExportFormat) => {
+    setFormat(f);
+    if (f === 'pdf') setLayout('flat');
+    if (f === 'markdown') setLayout('outline');
+  }, []);
+
   // Fetch text preview when format/layout changes (markdown / html only).
   // Stale content stays visible while the new fetch is in-flight to avoid flashing.
   useEffect(() => {
@@ -183,7 +189,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
               className={`export-modal__tab${
                 format === f ? ' export-modal__tab--active' : ''
               }`}
-              onClick={() => setFormat(f)}
+              onClick={() => handleFormatChange(f)}
             >
               {f === 'markdown' ? 'Markdown' : f === 'html' ? 'HTML' : 'PDF'}
             </button>
