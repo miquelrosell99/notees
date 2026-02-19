@@ -108,6 +108,39 @@ pre {
   padding: 1.25rem;
 }
 
+/* ---- Node properties block ---- */
+.node-properties {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 2rem;
+  border-top: 1px solid #eaeaea;
+  border-bottom: none;
+  padding: 0.75rem 0 0.25rem;
+  margin: 0.5rem 0 1.75rem;
+  font-size: 0.82em;
+  letter-spacing: 0;
+}
+
+.node-properties dt {
+  font-weight: 500;
+  color: #999;
+  text-transform: uppercase;
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0;
+  white-space: nowrap;
+}
+
+.node-properties dd {
+  color: #333;
+  padding: 0.2rem 0;
+}
+
+.node-property-empty {
+  color: #ccc;
+  font-style: normal;
+}
+
 /* ---- Horizontal rule ---- */
 hr {
   border-top-color: #e5e5e5;
