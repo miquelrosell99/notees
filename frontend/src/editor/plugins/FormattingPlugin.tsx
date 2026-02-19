@@ -36,6 +36,9 @@ export function FormattingPlugin(): null {
         case 'd':
           if (event.shiftKey) format = 'strikethrough';
           break;
+        case 'e':
+          format = 'code';
+          break;
       }
 
       if (format) {
