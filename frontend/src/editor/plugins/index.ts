@@ -28,3 +28,5 @@ export { FloatingToolbarPlugin } from './FloatingToolbarPlugin';
 
 export { ContextMenuPlugin } from './ContextMenuPlugin';
 export type { ContextMenuPluginProps } from './ContextMenuPlugin';
+
+export { BlockCodePlugin } from './BlockCodePlugin';
