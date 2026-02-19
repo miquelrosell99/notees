@@ -18,8 +18,8 @@ type ExportFormat = 'markdown' | 'html' | 'pdf';
 export interface ExportPageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** The node ID to export */
-  nodeId: number;
+  /** The node UUID to export */
+  nodeUuid: string;
 }
 
 function triggerBlobDownload(blob: Blob, filename: string) {
@@ -33,7 +33,7 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProps) {
+export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
   const [format, setFormat] = useState<ExportFormat>('markdown');
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,7 @@ export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProp
     setPreviewContent('');
 
     api
-      .get(`/export/${nodeId}`, {
+      .get(`/export/${nodeUuid}`, {
         params: { format, include_children: true },
         responseType: 'text',
       })
@@ -73,7 +73,7 @@ export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProp
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, nodeId]);
+  }, [isOpen, format, nodeUuid]);
 
   const handleCopy = useCallback(() => {
     if (!previewContent) return;
@@ -89,7 +89,7 @@ export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProp
     try {
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, download as .html for print-to-PDF
-        const response = await api.get(`/export/${nodeId}`, {
+        const response = await api.get(`/export/${nodeUuid}`, {
           params: { format: 'html', include_children: true },
           responseType: 'text',
         });
@@ -102,7 +102,7 @@ export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProp
         }
         triggerBlobDownload(new Blob([html], { type: 'text/html' }), 'export-print.html');
       } else {
-        const response = await api.get(`/export/${nodeId}`, {
+        const response = await api.get(`/export/${nodeUuid}`, {
           params: { format, include_children: true },
           responseType: 'blob',
         });
@@ -119,7 +119,7 @@ export function ExportPageModal({ isOpen, onClose, nodeId }: ExportPageModalProp
     } finally {
       setDownloading(false);
     }
-  }, [format, nodeId, cssOverrides]);
+  }, [format, nodeUuid, cssOverrides]);
 
   return (
     <Modal

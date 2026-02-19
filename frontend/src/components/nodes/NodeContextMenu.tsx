@@ -349,7 +349,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
       <ExportPageModal
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
-        nodeId={node.id}
+        nodeUuid={node.uuid}
       />
     </>
   );
@@ -551,7 +551,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
       <ExportPageModal
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
-        nodeId={node.id}
+        nodeUuid={node.uuid}
       />
     </>
   );
@@ -694,7 +694,7 @@ export function BlockContextMenu({
       <ExportPageModal
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
-        nodeId={node.id}
+        nodeUuid={node.uuid}
       />
     </>
   );
