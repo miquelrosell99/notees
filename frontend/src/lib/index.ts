@@ -26,9 +26,10 @@ export type {
   ASTUnderline,
   ASTExternalLink,
   ASTParagraph,
+  ASTHeading,
 } from '@/types/ast';
 
-export { isLeafNode } from '@/types/ast';
+export { isLeafNode, isHeadingBlock } from '@/types/ast';
 
 // Builder helpers
 export {
@@ -43,6 +44,7 @@ export {
   underline,
   externalLink,
   paragraph,
+  heading,
   doc,
   inlineDoc,
   parseAST,

@@ -272,7 +272,14 @@ export function BlockPlugin({
                 child.remove();
               }
               populateBlockContent(existing, projected.contentAST);
+              // Sync heading flag whenever content changes
+              const heading = isHeadingAST(projected.contentAST);
+              if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
             }
+          } else {
+            // Off-screen block: still sync heading flag from AST (no content to compare)
+            const heading = isHeadingAST(projected.contentAST);
+            if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
           }
           
           // Handle pending focus on existing blocks (e.g. after merge_blocks
@@ -346,6 +353,7 @@ export function BlockPlugin({
             projected.name ?? '',
             projected.isProjectionRoot,
             projected.classIds ?? [],
+            isHeadingAST(projected.contentAST),
           );
 
           // Populate inline content from contentAST.
@@ -786,6 +794,9 @@ export function BlockPlugin({
           const children = block.getChildren();
           for (const child of children) child.remove();
           populateBlockContent(block, graphNode.contentAST);
+          // Sync heading flag when hydrating
+          const heading = isHeadingAST(graphNode.contentAST);
+          if (block.getIsHeading() !== heading) block.setIsHeading(heading);
           markPopulated(blockId);
           processed++;
         }
@@ -1574,6 +1585,11 @@ export function BlockPlugin({
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
+
+/** Returns true when the first block in contentAST has type 'heading'. */
+function isHeadingAST(contentAST: ContentAST): boolean {
+  return Array.isArray(contentAST) && contentAST.length > 0 && contentAST[0].type === 'heading';
+}
 
 /** Returns true when the AST is null / empty / effectively blank. */
 function isEmptyAST(contentAST: ContentAST): boolean {

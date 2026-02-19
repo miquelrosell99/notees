@@ -1,0 +1,17 @@
+/* =========================================================
+   This file is intentionally empty.
+
+   Export styles are split into layer files:
+     layers/base.css       — variables, @page, reset, base elements
+     layers/themes.css     — theme-minimal, theme-technical, theme-book
+     layers/structure.css  — structure-flat, structure-indented
+     layers/density.css    — density-comfortable, density-compact
+     layers/numbering.css  — numbering-none/hierarchical/legal/appendix
+     layers/layout.css     — layout-full/readable/book/two-column
+     layers/toc.css        — table of contents (CSS Paged Media)
+     layers/doctypes.css   — doctype-article/report/book/legal/academic
+
+   The Python loader in database.py (_get_export_css_single) reads
+   and concatenates these files in sorted order at export time.
+   Edit the layer files, not this file.
+   ========================================================= */
