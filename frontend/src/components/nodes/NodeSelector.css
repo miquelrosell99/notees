@@ -247,3 +247,46 @@
   color: var(--color-on-surface-variant);
 }
 
+/* Parent hierarchy path prefix (faded text before page name) */
+.node-selector__item-path {
+  font-size: 0.7em;
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  white-space: nowrap;
+  margin-right: 1px;
+}
+
+/* Class pills container */
+.node-selector__item-class-pills {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+/* Individual class pill */
+.node-selector__item-class-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-full);
+  white-space: nowrap;
+  border: 1px solid var(--color-outline-variant);
+  opacity: 0.8;
+}
+
+/* Option name (pill-row mode picker) - takes flex space */
+.node-selector__option-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

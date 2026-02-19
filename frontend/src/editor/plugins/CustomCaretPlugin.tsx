@@ -42,6 +42,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const prevTopRef = useRef<number | null>(null);
   // Track the currently active block element for bullet pulse
   const activeBlockRef = useRef<HTMLElement | null>(null);
+  // Track whether the caret was in pill mode on the previous update
+  const wasPillRef = useRef(false);
 
   // ─── Track active block for bullet pulse ─────────────────────
 
@@ -278,6 +280,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
           requestAnimationFrame(() => { caret.style.transition = ''; });
         }
 
+        wasPillRef.current = true;
+
         caret.style.display = 'block';
         caret.style.top = `${pillRect.top - editorRect.top - padding}px`;
         caret.style.left = `${pillRect.left - editorRect.left - padding}px`;
@@ -480,10 +484,12 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     // Use rect height but clamp to line height to avoid spanning images below text
     const height = rect.height > 1 ? Math.min(rect.height, maxLineHeight) : 20;
 
-    // Disable position transitions on first placement
-    if (!hasPositionedRef.current) {
+    // Disable position transitions on first placement or when exiting pill mode
+    // (pill→cursor: width would otherwise animate right-to-left as it shrinks)
+    if (!hasPositionedRef.current || wasPillRef.current) {
       caret.style.transition = 'none';
       hasPositionedRef.current = true;
+      wasPillRef.current = false;
       requestAnimationFrame(() => { caret.style.transition = ''; });
     }
 

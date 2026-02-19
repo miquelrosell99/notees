@@ -26,10 +26,11 @@ import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { SelectTrigger } from '../core/SelectTrigger';
 import { mdiPlus } from '@mdi/js';
-import { useNodeSearch, type NodeSearchMode, nodeKeys } from '@/hooks';
+import { useNodeSearch, usePages, useClasses, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';
 
@@ -145,6 +146,10 @@ export function NodeSelector({
     excludeNodeId,
     maxResults: trigger === 'select' ? 15 : 10,
   });
+
+  // For parent hierarchy display on page items
+  const { data: allPages = [] } = usePages();
+  const { data: allClasses = [] } = useClasses();
 
   // Convert search results to Node array
   const searchResults = useMemo(() => {
@@ -313,6 +318,44 @@ export function NodeSelector({
     setSearchQuery('');
   }, []);
 
+  // Build parent page path (e.g. "Root / Parent /") for a page node
+  const buildParentPath = useCallback((node: Node): string => {
+    if (!node.parent_id) return '';
+    const segments: string[] = [];
+    let currentId: number | null = node.parent_id;
+    while (currentId !== null) {
+      const parent = allPages.find(p => p.id === currentId && p.is_page);
+      if (!parent) break;
+      segments.unshift(nodeNameToText(parent.name) || 'Untitled');
+      currentId = parent.parent_id ?? null;
+    }
+    if (segments.length === 0) return '';
+    const fullPath = segments.join(' / ') + ' /';
+    if (fullPath.length <= 36) return fullPath;
+    const parts = [...segments];
+    while (parts.length > 1) {
+      parts.shift();
+      const candidate = '.../ ' + parts.join(' / ') + ' /';
+      if (candidate.length <= 36) return candidate;
+    }
+    const last = parts[0];
+    return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
+  }, [allPages]);
+
+  // Get display classes for a node, excluding the system "page" class
+  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
+    if (!node.classes || node.classes.length === 0) return [];
+    return node.classes
+      .map(classId => {
+        const classNode = allClasses.find(c => c.id === classId);
+        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        const name = nodeNameToText(classNode.name);
+        if (!name) return null;
+        return { id: classId, name };
+      })
+      .filter((c): c is { id: number; name: string } => c !== null);
+  }, [allClasses]);
+
   const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
     totalItems,
     onSelect: handleSelectByIndex,
@@ -431,6 +474,8 @@ export function NodeSelector({
                 <>
                   {filteredResults.map((node, index) => {
                     const isSelected = assignedIds.has(node.id);
+                    const parentPath = node.is_page ? buildParentPath(node) : '';
+                    const displayClasses = node.is_page ? getDisplayClasses(node) : [];
                     return (
                       <button
                         key={node.id}
@@ -446,8 +491,16 @@ export function NodeSelector({
                           <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />
                         </span>
                         <span className="node-selector__item-name">
+                          {parentPath && <span className="node-selector__item-path">{parentPath} </span>}
                           {nodeNameToText(node.name) || 'Untitled'}
                         </span>
+                        {displayClasses.length > 0 && (
+                          <span className="node-selector__item-class-pills">
+                            {displayClasses.map(cls => (
+                              <span key={cls.id} className="node-selector__item-class-pill">{cls.name}</span>
+                            ))}
+                          </span>
+                        )}
                         {isSelected && (
                           <span className="node-selector__item-check"><CheckIcon size="xs" /></span>
                         )}
@@ -546,17 +599,31 @@ export function NodeSelector({
                   </div>
                 ) : (
                   <>
-                    {filteredResults.map((node, index) => (
-                      <button
-                        key={node.id}
-                        className={`node-selector__option ${index === selectedIndex ? 'node-selector__option--selected' : ''}`}
-                        onClick={() => handleAdd(node)}
-                        onMouseEnter={() => setSelectedIndex(index)}
-                      >
-                        <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                        <span>{nodeNameToText(node.name) || 'Untitled'}</span>
-                      </button>
-                    ))}
+                    {filteredResults.map((node, index) => {
+                      const parentPath = node.is_page ? buildParentPath(node) : '';
+                      const displayClasses = node.is_page ? getDisplayClasses(node) : [];
+                      return (
+                        <button
+                          key={node.id}
+                          className={`node-selector__option ${index === selectedIndex ? 'node-selector__option--selected' : ''}`}
+                          onClick={() => handleAdd(node)}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                        >
+                          <NodeIcon icon={node.icon} isPage={true} size="xs" />
+                          <span className="node-selector__option-name">
+                            {parentPath && <span className="node-selector__item-path">{parentPath} </span>}
+                            {nodeNameToText(node.name) || 'Untitled'}
+                          </span>
+                          {displayClasses.length > 0 && (
+                            <span className="node-selector__item-class-pills">
+                              {displayClasses.map(cls => (
+                                <span key={cls.id} className="node-selector__item-class-pill">{cls.name}</span>
+                              ))}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                     {showCreateOption && (
                       <button
                         className={`node-selector__option node-selector__option--create ${
