@@ -53,6 +53,7 @@ async def export_single_node(
     properties: str = "none",
     density: str = "comfortable",
     numbering: str = "none",
+    measure: str = "full",
     show_uuid: bool = False,
     user: User = Depends(get_current_user)
 ):
@@ -74,6 +75,9 @@ async def export_single_node(
     if numbering not in ("none", "hierarchical"):
         raise HTTPException(status_code=400, detail=f"Invalid numbering: {numbering}")
 
+    if measure not in ("full", "readable", "book", "two-column"):
+        raise HTTPException(status_code=400, detail=f"Invalid measure: {measure}")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
@@ -86,6 +90,7 @@ async def export_single_node(
             properties=properties,
             density=density,
             numbering=numbering,
+            measure=measure,
             show_uuid=show_uuid,
         )
         

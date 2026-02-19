@@ -712,3 +712,47 @@ div.page-break {
   content: counter(h2c) "." counter(h3c) "." counter(h4c) "." counter(h5c) "." counter(h6c) " ";
 }
 
+
+/* =========================================================
+   LAYER 6 — LAYOUT (MEASURE & PAGE GEOMETRY)
+   ========================================================= */
+
+/* ---- Full: explicit full-width reset ---- */
+.layout-full {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  columns: unset;
+}
+
+/* ---- Readable: comfortable line length for prose ---- */
+.layout-readable {
+  max-width: 72ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---- Book: tighter measure, classic typographic width ---- */
+.layout-book {
+  max-width: 66ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---- Two-column: newspaper-style columns ---- */
+.layout-two-column {
+  column-count: 2;
+  column-gap: 2.5rem;
+}
+
+.layout-two-column h1,
+.layout-two-column h2,
+.layout-two-column h3 {
+  column-span: all;
+}
+
+.layout-two-column pre,
+.layout-two-column figure,
+.layout-two-column .node-properties {
+  break-inside: avoid;
+}
