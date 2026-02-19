@@ -7,7 +7,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiPlus, mdiDatabaseOutline, mdiCogOutline } from '@mdi/js';
+import { mdiPlus, mdiDatabaseOutline } from '@mdi/js';
 import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
 import { Button } from '../core/Button';
@@ -106,11 +106,11 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           renderOption={renderOption}
           searchExtra={
             <Button
-              icon={mdiCogOutline}
+              icon={mdiPlus}
               iconOnly
               size="xs"
               variant="ghost"
-              title="Manage graphs"
+              title="Create Workspace"
               onClick={onAddWorkspace}
             />
           }
