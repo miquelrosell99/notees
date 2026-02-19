@@ -415,6 +415,15 @@ async def export_nodes(
                           AND n.is_deleted = FALSE
                           AND n.active = TRUE
                           AND n.is_page = FALSE
+                          -- Exclude blocks that are text property values (shown in properties panel)
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM property_value_relation pvr
+                              JOIN property p ON p.id = pvr.property_id
+                              WHERE pvr.target_id = n.id
+                                AND p.type = 'text'
+                                AND p.workspace_id = $1
+                          )
                     )
                     SELECT id, uuid, name, parent_id, is_page, color, depth
                     FROM tree
