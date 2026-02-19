@@ -174,72 +174,102 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
             size="sm"
             panelPosition="top"
             panelAlignment="start"
-            panelWidth="fit-content"
+            panelWidth={320}
             showCloseButton={false}
             panelClassName="export-modal__options-panel"
           >
-            <div className="export-modal__options-content">
-              <SelectionButton
-                size="sm"
-                options={[
-                  { value: 'outline', icon: mdiFileTree, label: 'Outline' },
-                  { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
-                ]}
-                value={layout}
-                onChange={(v) => setLayout(v as ExportLayout)}
-              />
-              {format !== 'markdown' && (
+            <div className="visibility-panel-content">
+              <div className="visibility-option">
                 <SelectionButton
                   size="sm"
+                  label="Layout"
+                  description="Outline preserves hierarchy, flat lists all content"
+                  labelPosition="left"
                   options={[
-                    { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
-                    { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                    { value: 'outline', icon: mdiFileTree, label: 'Outline' },
+                    { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
                   ]}
-                  value={style}
-                  onChange={(v) => setStyle(v as ExportStyle)}
+                  value={layout}
+                  onChange={(v) => setLayout(v as ExportLayout)}
                 />
+              </div>
+              {format !== 'markdown' && (
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Style"
+                    description="Visual theme for the exported document"
+                    labelPosition="left"
+                    options={[
+                      { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
+                      { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                    ]}
+                    value={style}
+                    onChange={(v) => setStyle(v as ExportStyle)}
+                  />
+                </div>
               )}
               {format !== 'markdown' && (
-                <SelectionButton
-                  size="sm"
-                  options={[
-                    { value: 'comfortable', icon: mdiViewHeadline, label: 'Comfortable' },
-                    { value: 'compact', icon: mdiViewCompact, label: 'Compact' },
-                  ]}
-                  value={density}
-                  onChange={(v) => setDensity(v as ExportDensity)}
-                />
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Density"
+                    description="Spacing between elements in the output"
+                    labelPosition="left"
+                    options={[
+                      { value: 'comfortable', icon: mdiViewHeadline, label: 'Comfortable' },
+                      { value: 'compact', icon: mdiViewCompact, label: 'Compact' },
+                    ]}
+                    value={density}
+                    onChange={(v) => setDensity(v as ExportDensity)}
+                  />
+                </div>
               )}
               {format !== 'markdown' && (
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Numbering"
+                    description="Add hierarchical numbers to headings"
+                    labelPosition="left"
+                    options={[
+                      { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
+                      { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
+                    ]}
+                    value={numbering}
+                    onChange={(v) => setNumbering(v as ExportNumbering)}
+                  />
+                </div>
+              )}
+              <div className="visibility-option">
                 <SelectionButton
                   size="sm"
+                  label="Formatting"
+                  description="Apply rich text styles or export plain text"
+                  labelPosition="left"
                   options={[
-                    { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
-                    { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
+                    { value: 'true', icon: mdiFormatText, label: 'Formatted' },
+                    { value: 'false', icon: mdiCodeBraces, label: 'Plain' },
                   ]}
-                  value={numbering}
-                  onChange={(v) => setNumbering(v as ExportNumbering)}
+                  value={formatting ? 'true' : 'false'}
+                  onChange={(v) => setFormatting(v === 'true')}
                 />
-              )}
-              <SelectionButton
-                size="sm"
-                options={[
-                  { value: 'true', icon: mdiFormatText, label: 'Formatted' },
-                  { value: 'false', icon: mdiCodeBraces, label: 'Plain' },
-                ]}
-                value={formatting ? 'true' : 'false'}
-                onChange={(v) => setFormatting(v === 'true')}
-              />
-              <SelectionButton
-                size="sm"
-                options={[
-                  { value: 'none', icon: mdiTagOff, label: 'No props' },
-                  { value: 'main', icon: mdiTagOutline, label: 'Main props' },
-                  { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
-                ]}
-                value={properties}
-                onChange={(v) => setProperties(v as ExportProperties)}
-              />
+              </div>
+              <div className="visibility-option">
+                <SelectionButton
+                  size="sm"
+                  label="Properties"
+                  description="Include node properties in the export"
+                  labelPosition="left"
+                  options={[
+                    { value: 'none', icon: mdiTagOff, label: 'No props' },
+                    { value: 'main', icon: mdiTagOutline, label: 'Main props' },
+                    { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
+                  ]}
+                  value={properties}
+                  onChange={(v) => setProperties(v as ExportProperties)}
+                />
+              </div>
             </div>
           </ButtonWithPanel>
           <div className="export-modal__footer-actions">
