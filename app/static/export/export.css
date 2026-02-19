@@ -119,8 +119,12 @@ li {
 }
 
 .node-property td {
-  padding: 0.15rem 0;
+  padding: 0.2rem 0;
   vertical-align: top;
+}
+
+.node-property + .node-property td {
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .node-property-name {
@@ -358,6 +362,10 @@ div.page-break {
 .theme-minimal .node-property-empty {
   color: var(--tm-prop-empty);
   font-style: normal;
+}
+
+.theme-minimal .node-property + .node-property td {
+  border-top: none;
 }
 
 .theme-minimal hr {
