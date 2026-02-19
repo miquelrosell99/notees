@@ -6,7 +6,7 @@
  * - PDF: custom CSS textarea + download (saves HTML with CSS injected,
  *   ready for browser print-to-PDF)
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -85,13 +85,21 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     };
   }, [isOpen, format, layout, formatting, style, nodeUuid]);
 
+  // For the HTML tab, show only the <body> inner content (no doctype/head/style)
+  const displayContent = useMemo(() => {
+    if (format !== 'html' || !previewContent) return previewContent;
+    const match = previewContent.match(/<body[^>]*>([\s\S]*?)<\/body>/);
+    return match ? match[1].trim() : previewContent;
+  }, [format, previewContent]);
+
   const handleCopy = useCallback(() => {
     if (!previewContent) return;
-    navigator.clipboard.writeText(previewContent).then(() => {
+    const text = format === 'html' ? displayContent : previewContent;
+    navigator.clipboard.writeText(text ?? '').then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [previewContent]);
+  }, [format, previewContent, displayContent]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -224,7 +232,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
             <textarea
               className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
               readOnly
-              value={previewContent}
+              value={displayContent}
               spellCheck={false}
               aria-label={`${format} preview`}
             />
