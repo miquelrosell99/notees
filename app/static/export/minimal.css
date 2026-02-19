@@ -18,135 +18,70 @@ body {
 
 /* ---- Headings ---- */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
-  color: #111;
+  font-weight: 500;
   letter-spacing: -0.02em;
-  margin-top: 2rem;
-  margin-bottom: 0.75rem;
 }
 
 h1 {
-  font-size: 2.2rem;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin-top: 0;
-  margin-bottom: 1.5rem;
+  font-size: 1.6rem;
+  font-weight: 500;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin: 2rem 0 1rem;
 }
 
 h2 {
-  font-size: 1.4rem;
-  border-bottom: 1px solid #eaeaea;
-  padding-bottom: 0.3rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #333333;
 }
 
 h3 {
-  font-size: 1.15rem;
-  color: #444;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #555555;
 }
 
 h4, h5, h6 {
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #666;
+  font-size: 0.95rem;
   font-weight: 500;
+  color: #555555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ---- Lists ---- */
-ul, ol {
-  margin: 1rem 0;
+ul {
   padding-left: 1.25rem;
 }
 
 li {
-  margin: 0.35rem 0;
-  color: #333;
+  line-height: 1.7;
+  margin: 0.15rem 0;
 }
 
 /* ---- Paragraphs ---- */
 p {
-  margin: 1.25rem 0;
-  margin-top: 0;
-  color: #2a2a2a;
-}
-
-/* ---- Links ---- */
-a {
-  color: #111;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: #aaa;
-  transition: all 0.2s ease;
-}
-
-a:hover {
-  text-decoration-color: #111;
-}
-
-/* ---- Blockquotes ---- */
-blockquote {
-  margin: 1.5rem 0;
-  padding-left: 1.25rem;
-  border-left: 3px solid #ff4400; /* Subtle accent color or keep it neutral */
-  color: #555;
-  font-style: italic;
+  margin: 0.75rem 0;
+  line-height: 1.75;
 }
 
 /* ---- Code ---- */
 code {
-  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+  background: transparent;
+  border: 1px solid #e5e5e5;
+  padding: 0.1em 0.3em;
   font-size: 0.85em;
-  background-color: #f7f7f7;
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  color: #e01e5a; /* A popular minimalist code highlight color */
 }
 
 pre {
-  background-color: #f9f9f9;
-  border: 1px solid #eee;
-  padding: 1.5rem;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-}
-
-pre code {
-  color: #333;
-  padding: 0;
   background: transparent;
+  border: 1px solid #e5e5e5;
+  padding: 1.25rem;
 }
 
 /* ---- Horizontal rule ---- */
 hr {
-  border: 0;
-  border-top: 1px solid #eaeaea;
-  margin: 3rem 0;
-}
-
-/* ---- Tables ---- */
-table {
-  border-collapse: collapse;
-  width: 100%;
+  border-top-color: #e5e5e5;
   margin: 2rem 0;
-  font-size: 0.9em;
-}
-
-th {
-  text-align: left;
-  border-bottom: 2px solid #ddd;
-  padding: 0.75rem 0.5rem;
-  font-weight: 600;
-  color: #444;
-}
-
-td {
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid #efefef;
-  color: #444;
-}
-
-tr:last-child td {
-  border-bottom: none;
 }
