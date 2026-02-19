@@ -533,9 +533,19 @@ div.page-break {
 }
 
 .structure-indented ul ul {
-  border-left: 1.5px solid var(--indent-border);
-  margin-left: 0.1rem;
-  padding-left: 1.1rem;
+  position: relative;
+  margin-left: 0.75rem;
+  padding-left: 1rem;
+}
+
+.structure-indented ul ul::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 1px;
+  background: var(--indent-border);
 }
 
 .structure-indented li {
