@@ -7,6 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useExportSettingsStore } from '@/stores';
 import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiFormatPageBreak } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -16,14 +17,7 @@ import { BooleanToggle } from '../core/BooleanToggle';
 import api from '@/api/client';
 import './ExportPageModal.css';
 
-type ExportFormat = 'markdown' | 'html' | 'pdf';
-type ExportLayout = 'outline' | 'flat';
-type ExportStyle = 'minimal' | 'technical' | 'book';
-type ExportProperties = 'none' | 'main' | 'all';
-type ExportDensity = 'comfortable' | 'compact';
-type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
-type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
-type ExportDoctype = 'none' | 'article' | 'report' | 'book' | 'legal' | 'academic';
+import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype } from '@/stores';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -43,72 +37,28 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const SETTINGS_KEY = 'export-settings';
-
-interface ExportSettings {
-  format: ExportFormat;
-  layout: ExportLayout;
-  style: ExportStyle;
-  properties: ExportProperties;
-  density: ExportDensity;
-  numbering: ExportNumbering;
-  measure: ExportMeasure;
-  doctype: ExportDoctype;
-  sectionBreak: boolean;
-  formatting: boolean;
-  showUuid: boolean;
-  cssOverrides: string;
-}
-
-const DEFAULT_SETTINGS: ExportSettings = {
-  format: 'markdown',
-  layout: 'outline',
-  style: 'minimal',
-  properties: 'main',
-  density: 'comfortable',
-  numbering: 'none',
-  measure: 'full',
-  doctype: 'none',
-  sectionBreak: false,
-  formatting: true,
-  showUuid: false,
-  cssOverrides: '',
-};
-
-function loadSettings(): ExportSettings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) as Partial<ExportSettings> };
-  } catch {
-    // ignore
-  }
-  return { ...DEFAULT_SETTINGS };
-}
 
 export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
-  const [format, setFormat] = useState<ExportFormat>(() => loadSettings().format);
-  const [layout, setLayout] = useState<ExportLayout>(() => loadSettings().layout);
-  const [style, setStyle] = useState<ExportStyle>(() => loadSettings().style);
-  const [properties, setProperties] = useState<ExportProperties>(() => loadSettings().properties);
-  const [density, setDensity] = useState<ExportDensity>(() => loadSettings().density);
-  const [numbering, setNumbering] = useState<ExportNumbering>(() => loadSettings().numbering);
-  const [measure, setMeasure] = useState<ExportMeasure>(() => loadSettings().measure);
-  const [doctype, setDoctype] = useState<ExportDoctype>(() => loadSettings().doctype);
-  const [sectionBreak, setSectionBreak] = useState<boolean>(() => loadSettings().sectionBreak);
-  const [formatting, setFormatting] = useState<boolean>(() => loadSettings().formatting);
-  const [showUuid, setShowUuid] = useState<boolean>(() => loadSettings().showUuid);
+  const {
+    format, setFormat,
+    layout, setLayout,
+    style, setStyle,
+    properties, setProperties,
+    density, setDensity,
+    numbering, setNumbering,
+    measure, setMeasure,
+    doctype, setDoctype,
+    sectionBreak, setSectionBreak,
+    formatting, setFormatting,
+    showUuid, setShowUuid,
+    cssOverrides, setCssOverrides,
+  } = useExportSettingsStore();
+
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cssOverrides, setCssOverrides] = useState<string>(() => loadSettings().cssOverrides);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
-
-  // Persist all export settings to localStorage whenever they change.
-  useEffect(() => {
-    const settings: ExportSettings = { format, layout, style, properties, density, numbering, measure, doctype, sectionBreak, formatting, showUuid, cssOverrides };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [format, layout, style, properties, density, numbering, measure, doctype, sectionBreak, formatting, showUuid, cssOverrides]);
 
   const handleFormatChange = useCallback((f: ExportFormat) => {
     setFormat(f);

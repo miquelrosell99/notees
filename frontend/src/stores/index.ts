@@ -48,6 +48,17 @@ export {
   type FeatureFlagName,
   type FeatureFlagDefinition,
 } from './featureFlagStore';
+export {
+  useExportSettingsStore,
+  type ExportFormat,
+  type ExportLayout,
+  type ExportStyle,
+  type ExportProperties,
+  type ExportDensity,
+  type ExportNumbering,
+  type ExportMeasure,
+  type ExportDoctype,
+} from './exportSettingsStore';
 // JSX components for feature flags are in components/core/FeatureFlag.tsx
 export {
   useKeyboardStore,
