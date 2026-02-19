@@ -12,7 +12,7 @@ import {
   type TextFormatType,
 } from 'lexical';
 import { createPortal } from 'react-dom';
-import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough } from '@mdi/js';
+import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough, mdiCodeTags } from '@mdi/js';
 import { Card } from '../../components/core/Card';
 import { Button } from '../../components/core/Button';
 import { $trimSelectionWhitespace } from '../utils/selectionUtils';
@@ -59,6 +59,7 @@ export function FloatingToolbarPlugin({
         if (selection.hasFormat('italic')) formats.add('italic');
         if (selection.hasFormat('underline')) formats.add('underline');
         if (selection.hasFormat('strikethrough')) formats.add('strikethrough');
+        if (selection.hasFormat('code')) formats.add('code');
         setActiveFormats(formats);
 
         // Position the toolbar above the selection
@@ -172,6 +173,15 @@ export function FloatingToolbarPlugin({
             title="Strikethrough (Ctrl+Shift+D)"
             active={activeFormats.has('strikethrough')}
             onClick={() => handleFormat('strikethrough')}
+            className="floating-toolbar__button"
+          />
+          <Button
+            icon={mdiCodeTags}
+            variant="ghost"
+            size="sm"
+            title="Inline code (Ctrl+E)"
+            active={activeFormats.has('code')}
+            onClick={() => handleFormat('code')}
             className="floating-toolbar__button"
           />
         </div>
