@@ -92,6 +92,7 @@ p {
 ul, ol {
   margin: var(--spacing-sm) 0;
   padding-left: 1.5rem;
+  page-break-inside: auto;
 }
 
 ul { list-style-type: disc; }
@@ -100,6 +101,7 @@ ol { list-style-type: decimal; }
 li {
   margin: var(--spacing-xs) 0;
   line-height: inherit;
+  page-break-inside: avoid;
 }
 
 /* --- Page-break grouping --- */
