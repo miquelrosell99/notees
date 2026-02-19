@@ -246,11 +246,13 @@ a.node-link {
   text-underline-offset: 3px;
 }
 
-/* URL links — double underline */
+/* URL links — solid underline, slightly bold */
 a.url-link {
   color: var(--color-link);
-  text-decoration: underline double;
+  text-decoration: underline;
+  text-decoration-style: solid;
   text-underline-offset: 3px;
+  font-weight: 500;
 }
 
 div.page-break {
