@@ -410,7 +410,7 @@ async def export_nodes(
             else:
                 rows = await conn.fetch(
                     """
-                    SELECT id, uuid, name, parent_id 
+                    SELECT id, uuid, name, parent_id, is_page
                     FROM node 
                     WHERE workspace_id = $1 AND uuid::text = $2
                     """,
@@ -425,6 +425,7 @@ async def export_nodes(
                 nodes_data.append({
                     "uuid": row_uuid,
                     "name": row['name'],
+                    "is_page": row.get('is_page', False),
                     "depth": row.get('depth', 0) if include_children else 0,
                 })
 
@@ -526,14 +527,20 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
         return ""
 
     if layout == "flat":
-        lines = []
-        # First node (depth 0) becomes a heading
-        title = _stringify_node(nodes[0], StringifyMode.PLAIN_MARKDOWN, resolver)
-        lines.append(f"# {title}")
-        lines.append("")
-        for node in nodes[1:]:
-            text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
-            lines.append(text)
+        top_is_page = nodes[0].get('is_page', False)
+        if top_is_page:
+            # Top node is a page: render it as a heading, children as plain lines
+            title = _stringify_node(nodes[0], StringifyMode.PLAIN_MARKDOWN, resolver)
+            lines = [f"# {title}", ""]
+            for node in nodes[1:]:
+                text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
+                lines.append(text)
+        else:
+            # Not a page: treat all nodes equally, no heading
+            lines = []
+            for node in nodes:
+                text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
+                lines.append(text)
         return "\n".join(lines)
 
     # outline (default)
@@ -563,19 +570,35 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
         return "<!DOCTYPE html>\n<html><head><title>Notees Export</title></head><body></body></html>"
 
     if layout == "flat":
-        title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver)
-        paragraphs = []
-        for node in nodes[1:]:
-            text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
-            paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
-        body = f"<h1>{html_mod.escape(title)}</h1>"
-        if paragraphs:
-            body += "\n" + "\n".join(paragraphs)
-        return f"""<!DOCTYPE html>
+        top_is_page = nodes[0].get('is_page', False)
+        if top_is_page:
+            # Top node is a page: render it as h1, children as paragraphs
+            title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver)
+            paragraphs = []
+            for node in nodes[1:]:
+                text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+                paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
+            body = f"<h1>{html_mod.escape(title)}</h1>"
+            if paragraphs:
+                body += "\n" + "\n".join(paragraphs)
+            return f"""<!DOCTYPE html>
 <html>
 <head><title>{html_mod.escape(title)}</title></head>
 <body>
 {body}
+</body>
+</html>"""
+        else:
+            # Not a page: treat all nodes equally as paragraphs
+            paragraphs = []
+            for node in nodes:
+                text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+                paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
+            return f"""<!DOCTYPE html>
+<html>
+<head><title>Notees Export</title></head>
+<body>
+{chr(10).join(paragraphs)}
 </body>
 </html>"""
 
