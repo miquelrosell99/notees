@@ -73,8 +73,8 @@ h2::before {
 
 /* --- Paragraphs --- */
 p {
-  margin: 0;
-  text-indent: 1.5em;
+  margin: 0.25rem 0 0.5rem;
+  text-indent: 0;
   line-height: 1.4;
   text-align: justify;
   hyphens: auto;
