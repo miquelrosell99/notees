@@ -388,6 +388,10 @@ export function BlockPlugin({
             } else {
               newBlock.selectStart();
             }
+            // Clear Lexical's carry-over selection format so the new block
+            // always starts with plain formatting (no bold, italic, code, etc.).
+            const freshSel = $getSelection();
+            if ($isRangeSelection(freshSel)) freshSel.format = 0;
           }
         }
       }
