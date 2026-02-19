@@ -779,24 +779,66 @@ th.node-block-table-cell {
 
 .node-block-drop-indicator {
   pointer-events: none;
-  z-index: 100;
+  z-index: 10000;
   position: fixed;
   height: 2px;
-  background: var(--color-on-surface);
   border-radius: 1px;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  display: none;
 }
 
-/* Drop depth guide — vertical shading hint for indent level */
-.node-block-drop-indicator::before {
+/* Line indicator (before/after) */
+.node-block-drop-indicator--line {
+  background: var(--color-primary);
+}
+
+/* Line marker dot on left edge */
+.node-block-drop-indicator--line::before {
   content: '';
   position: absolute;
-  left: -2px;
-  top: -4px;
-  width: 6px;
-  height: 10px;
-  border-radius: 3px;
-  background: var(--color-on-surface);
+  left: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+/* Child indicator (nest inside) */
+.node-block-drop-indicator--child {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--color-primary) 50%, transparent);
+  border-radius: var(--shape-small);
+}
+
+/* Drag source block: dim while dragging */
+.node-block--drag-source {
+  opacity: 0.35;
+}
+
+/* Suppress all hover effects while dragging a block */
+.notees-editor--dragging .bullet-interactive:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+.notees-editor--dragging .bullet-interactive:hover .bullet-dot {
+  opacity: 0.55;
+}
+
+.notees-editor--dragging .node-block:hover {
+  background: none;
+}
+
+.notees-editor--dragging .node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow {
+  opacity: 0;
+}
+
+.notees-editor--dragging .node-block--card:hover {
+  box-shadow: none;
+}
+
+.notees-editor--dragging * {
+  cursor: grabbing !important;
 }
 
 /* ─── Selection box ────────────────────────────────────────────── */
