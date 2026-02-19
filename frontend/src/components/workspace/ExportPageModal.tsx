@@ -12,6 +12,7 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
+import { BooleanToggle } from '../core/BooleanToggle';
 import api from '@/api/client';
 import './ExportPageModal.css';
 
@@ -50,6 +51,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [density, setDensity] = useState<ExportDensity>('comfortable');
   const [numbering, setNumbering] = useState<ExportNumbering>('none');
   const [formatting, setFormatting] = useState(true);
+  const [showUuid, setShowUuid] = useState(false);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout, formatting, style, properties, density, numbering },
+        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
         responseType: 'text',
       })
       .then((response) => {
@@ -98,7 +100,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, properties, density, numbering, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, showUuid, nodeUuid]);
 
   // For the HTML tab, show only the <body> inner content (no doctype/head/style)
   const displayContent = useMemo(() => {
@@ -123,7 +125,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering },
+          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -142,7 +144,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout, formatting, style, properties, density, numbering },
+          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -158,7 +160,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, properties, density, numbering, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, properties, density, numbering, showUuid, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -268,6 +270,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   ]}
                   value={properties}
                   onChange={(v) => setProperties(v as ExportProperties)}
+                />
+              </div>
+              <div className="visibility-option">
+                <BooleanToggle
+                  size="sm"
+                  label="Show UUID"
+                  description="Include the node UUID as a property in the export"
+                  labelPosition="left"
+                  checked={showUuid}
+                  onChange={(e) => setShowUuid(e.target.checked)}
                 />
               </div>
             </div>

@@ -53,6 +53,7 @@ async def export_single_node(
     properties: str = "none",
     density: str = "comfortable",
     numbering: str = "none",
+    show_uuid: bool = False,
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -85,6 +86,7 @@ async def export_single_node(
             properties=properties,
             density=density,
             numbering=numbering,
+            show_uuid=show_uuid,
         )
         
         return Response(
