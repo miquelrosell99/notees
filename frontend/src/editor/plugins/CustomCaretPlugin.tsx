@@ -44,6 +44,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const activeBlockRef = useRef<HTMLElement | null>(null);
   // Track whether the caret was in pill mode on the previous update
   const wasPillRef = useRef(false);
+  // Track the currently highlighted styled text span (cursor-inside indicator)
+  const activeStyledNodeRef = useRef<HTMLElement | null>(null);
 
   // ─── Track active block for bullet pulse ─────────────────────
 
@@ -288,7 +290,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         caret.style.width = `${pillRect.width + padding * 2}px`;
         caret.style.height = `${pillRect.height + padding * 2}px`;
 
-        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--selection', 'notees-custom-caret--styled');
+        // Clear span highlight when entering pill mode
+        activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');
+        activeStyledNodeRef.current = null;
+
+        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--selection');
         caret.classList.add('notees-custom-caret--pill');
         return;
       }
@@ -352,7 +358,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       caret.style.height = `${overallRect.height}px`;
       caret.style.background = 'transparent';
 
-      caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--pill', 'notees-custom-caret--styled');
+      // Clear span highlight when selection is non-collapsed
+      activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');
+      activeStyledNodeRef.current = null;
+
+      caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--pill');
       caret.classList.add('notees-custom-caret--selection');
 
       // Render per-line highlight rects as children
@@ -530,21 +540,39 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       caret.classList.remove('notees-custom-caret--block');
     }
 
-    // ─── Styled-node indicator ───────────────────────────────
-    // Toggle --styled class when the cursor is inside a formatted text node
-    // (bold, italic, code, etc.) so the CSS can show a visual dot indicator.
+    // ─── Styled-span underline indicator ─────────────────────────────
+    // When the cursor is inside a formatted span (bold, italic, code, etc.) and
+    // selection.format != 0 (meaning the next char will be styled), highlight the
+    // span itself with a subtle underline. Uses selection.format rather than
+    // node.getFormat() so the indicator disappears after the first arrow press at
+    // a style boundary (when the guard resets selection.format = 0).
     let hasFormat = false;
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        // Use selection.format (the carry-over bitmask for new insertions) rather
-        // than node.getFormat(). After the first arrow press at a style boundary
-        // the guard sets selection.format = 0, so the dot disappears and the user
-        // can see that the next character will NOT be inside the styled span.
         hasFormat = selection.format !== 0;
       }
     });
-    caret.classList.toggle('notees-custom-caret--styled', hasFormat);
+
+    // Resolve the DOM span containing the cursor
+    let newStyledEl: HTMLElement | null = null;
+    if (hasFormat) {
+      const domSel = window.getSelection();
+      if (domSel && domSel.rangeCount > 0 && domSel.isCollapsed) {
+        const anchorDomNode = domSel.anchorNode;
+        if (anchorDomNode?.nodeType === Node.TEXT_NODE) {
+          newStyledEl = anchorDomNode.parentElement;
+        }
+      }
+    }
+
+    // Swap highlight
+    const prevStyledEl = activeStyledNodeRef.current;
+    if (prevStyledEl !== newStyledEl) {
+      prevStyledEl?.classList.remove('notees-text--cursor-inside');
+      newStyledEl?.classList.add('notees-text--cursor-inside');
+      activeStyledNodeRef.current = newStyledEl;
+    }
   }, [editor, overwriteMode]);
 
   // ─── Listen for selection changes ────────────────────────────
@@ -624,6 +652,9 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       // Remove active block class on blur
       activeBlockRef.current?.classList.remove('node-block--editing');
       activeBlockRef.current = null;
+      // Remove styled span highlight on blur
+      activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');
+      activeStyledNodeRef.current = null;
     };
 
     rootElement.addEventListener('focus', onFocus, true);
@@ -716,8 +747,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
   useEffect(() => {
     return () => {
-      activeBlockRef.current?.classList.remove('node-block--editing');
-    };
+      activeBlockRef.current?.classList.remove('node-block--editing');      activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');    };
   }, []);
 
   // ─── Render ──────────────────────────────────────────────────
