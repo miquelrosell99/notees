@@ -61,8 +61,8 @@ h4, h5, h6 {
   margin: 0.75rem 0 0.35rem;
 }
 
-/* Optional section numbering */
-h1::before {
+/* Optional section numbering — starts at h2 */
+h2::before {
   counter-increment: section;
   content: counter(section) ". ";
 }
