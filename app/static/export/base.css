@@ -59,18 +59,10 @@ h1:first-child {
 }
 
 /* ---- Lists ---- */
-ul {
+ul, ul ul, ul ul ul {
   margin: 0.25rem 0;
   padding-left: 1.5rem;
   list-style-type: disc;
-}
-
-ul ul {
-  list-style-type: circle;
-}
-
-ul ul ul {
-  list-style-type: square;
 }
 
 li {
