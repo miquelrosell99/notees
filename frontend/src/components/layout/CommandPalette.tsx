@@ -354,6 +354,16 @@ export function CommandPalette({
   const allItems = useMemo(() => {
     const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' }> = [];
     
+    // Commands section — show first when user is searching
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase();
+      for (const cmd of commands) {
+        if (cmd.label.toLowerCase().includes(lowerSearch)) {
+          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
+        }
+      }
+    }
+
     // Date suggestion (shown at top if query matches a date format)
     if (parsedDate) {
       const formattedDate = formatParsedDateLabel(parsedDate);
@@ -389,16 +399,6 @@ export function CommandPalette({
     // Quick add option
     if (searchTerm.trim()) {
       items.push({ type: 'quick-add', label: `Quick add: "${searchTerm}"` });
-    }
-
-    // Commands section — only show when user is searching
-    if (searchTerm.trim()) {
-      const lowerSearch = searchTerm.toLowerCase();
-      for (const cmd of commands) {
-        if (cmd.label.toLowerCase().includes(lowerSearch)) {
-          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
-        }
-      }
     }
     
     return items;
@@ -750,6 +750,38 @@ export function CommandPalette({
                 </div>
               )}
               
+              {/* Commands section */}
+              {commandItems.length > 0 && (
+            <div className="command-palette__section">
+              <div className="command-palette__section-header">Commands</div>
+              {commandItems.map((item) => {
+                const globalIndex = allItems.indexOf(item);
+                return (
+                  <button
+                    key={item.commandId}
+                    className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                    onClick={() => handleSelect(globalIndex)}
+                  >
+                    <span className="command-palette__result-icon">
+                      {item.commandIcon === 'import' ? (
+                        <ImportIcon size="sm" />
+                      ) : item.commandIcon === 'maintenance' ? (
+                        <Icon path={mdiDatabaseRefresh} size={0.7} />
+                      ) : item.commandIcon === 'focus' ? (
+                        <Icon path={mdiBrain} size={0.7} />
+                      ) : (
+                        <Icon path={mdiExport} size={0.7} />
+                      )}
+                    </span>
+                    <span className="command-palette__result-content">
+                      <span className="command-palette__result-name">{item.label}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
               {/* Date suggestion section */}
               {dateItems.length > 0 && (
                 <div className="command-palette__section">
