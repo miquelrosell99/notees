@@ -134,15 +134,6 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
       });
     }
 
-    // For blocks, trim to stop at the containing page (inclusive)
-    if (nodeType === 'block') {
-      // Find the last page in the chain (closest to the node)
-      const lastPageIndex = chain.findLastIndex(item => item.isPage);
-      if (lastPageIndex >= 0) {
-        return chain.slice(0, lastPageIndex + 1);
-      }
-    }
-
     return chain;
   }, [breadcrumbs, nodeType]);
 }
