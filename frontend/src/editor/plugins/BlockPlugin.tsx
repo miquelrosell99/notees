@@ -42,7 +42,7 @@ import {
   $isBlockNode,
   BlockNode,
 } from '../nodes/BlockNode';
-import { $createPillNode, $isPillNode } from '../nodes/PillNode';
+import { $createInlineLinkNode, $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
@@ -303,7 +303,7 @@ export function BlockPlugin({
                   }
                   remaining -= len;
                 } else {
-                  // PillNode or other: counts as 1 character
+                  // InlineLinkNode or other: counts as 1 character
                   if (remaining <= 0) {
                     child.selectPrevious();
                     focused = true;
@@ -710,6 +710,24 @@ export function BlockPlugin({
 
       Promise.resolve().then(() => { isSyncingRef.current = false; });
 
+      // ── Reveal hydrated blocks ───────────────────────────────
+      // Remove `node-block--virtualized` CSS class AFTER the Lexical
+      // update so content is in the DOM before the block is revealed.
+      // Using rAF ensures DOM reconciliation has completed.
+      requestAnimationFrame(() => {
+        const vis = getVisibleBlockIds();
+        for (const blockId of vis) {
+          if (!isBlockPopulated(blockId)) continue;
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) continue;
+          const el = editor.getElementByKey(key);
+          if (el?.classList.contains('node-block--virtualized')) {
+            el.classList.remove('node-block--virtualized');
+            el.style.minHeight = '';
+          }
+        }
+      });
+
       // Schedule Phase-2 upgrades for blocks that still need pills
       scheduleUpgrade();
     });
@@ -862,7 +880,7 @@ export function BlockPlugin({
           }
           if ($isTextNode(child)) {
             cursorOffset += child.getTextContent().length;
-          } else if ($isPillNode(child)) {
+          } else if ($isInlineLinkNode(child)) {
             cursorOffset += 1; // Pills count as 1 character
           } else {
             cursorOffset += child.getTextContent().length;
@@ -987,16 +1005,16 @@ export function BlockPlugin({
         if (!blockNode) return false;
 
         // Check if block is effectively empty (only contains zero-width space or empty).
-        // DecoratorNodes like PillNode return '' from getTextContent(), so a block
-        // containing only pills would appear empty by text alone — check for pills too.
+        // DecoratorNodes like InlineLinkNode return '' from getTextContent(), so a block
+        // containing only inline links would appear empty by text alone — check for them too.
         const textContent = blockNode.getTextContent();
-        const hasPillNodes = blockNode.getChildren().some(child => $isPillNode(child));
-        const isEmptyBlock = (textContent === '' || textContent === '\u200B') && !hasPillNodes;
+        const hasInlineLinks = blockNode.getChildren().some(child => $isInlineLinkNode(child));
+        const isEmptyBlock = (textContent === '' || textContent === '\u200B') && !hasInlineLinks;
 
-        // A block that has pills but no meaningful text (only ZWS placeholders).
-        // These should NOT be merged/deleted — backspace selects the pill first.
+        // A block that has inline links but no meaningful text (only ZWS placeholders).
+        // These should NOT be merged/deleted — backspace selects the link first.
         const textWithoutZWS = textContent.replace(/\u200B/g, '');
-        const isPillOnlyBlock = hasPillNodes && textWithoutZWS === '';
+        const isLinkOnlyBlock = hasInlineLinks && textWithoutZWS === '';
 
         // Only merge/delete when cursor is at the absolute start of the block
         if (!isEmptyBlock) {
@@ -1010,14 +1028,14 @@ export function BlockPlugin({
           }
         }
 
-        // Pill-only block: select the pill instead of merging/deleting.
-        // This way backspace transitions pill → selected-pill → removed-pill → empty-block → delete.
-        if (isPillOnlyBlock) {
-          const pillChild = blockNode.getChildren().find(child => $isPillNode(child));
-          if (pillChild) {
+        // Inline-link-only block: select the link instead of merging/deleting.
+        // This way backspace transitions link → selected-link → removed-link → empty-block → delete.
+        if (isLinkOnlyBlock) {
+          const linkChild = blockNode.getChildren().find(child => $isInlineLinkNode(child));
+          if (linkChild) {
             event?.preventDefault();
             const sel = $createNodeSelection();
-            sel.add(pillChild.getKey());
+            sel.add(linkChild.getKey());
             $setSelection(sel);
             return true;
           }
@@ -1487,7 +1505,7 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
   // Ensure trailing cursor node after pill / line break
   const children = block.getChildren();
   const lastChild = children[children.length - 1];
-  if (lastChild && ($isPillNode(lastChild) || $isLineBreakNode(lastChild))) {
+  if (lastChild && ($isInlineLinkNode(lastChild) || $isLineBreakNode(lastChild))) {
     block.append($createTextNode('\u200B'));
   }
 }
@@ -1495,13 +1513,13 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
 /**
  * Progressive ("light") population — Phase 1.
  *
- * Creates only TextNode and LineBreakNode children, skipping pills
+ * Creates only TextNode and LineBreakNode children, skipping inline links
  * and expensive decorator nodes.  Links are represented as plain
  * text placeholders ("·") so the block has the correct character
  * count and is focusable.
  *
  * Call `upgradeBlockContent()` in a subsequent idle callback to
- * replace placeholders with real PillNodes.
+ * replace placeholders with real InlineLinkNodes.
  *
  * Returns `true` if the AST contains pills that still need upgrading,
  * `false` if the content is fully mounted (no pills).
@@ -1588,7 +1606,7 @@ function collectPillsFromAST(nodes: readonly ASTInlineNode[], out: ASTInlineNode
  * Phase 2 — upgrade a light-mounted block to full content.
  *
  * Uses **surgical replacement**: only the ZWS placeholder TextNodes
- * that represent pills are swapped for real PillNodes.  All other
+ * that represent pills are swapped for real InlineLinkNodes.  All other
  * children (text, formatting) remain untouched, which means:
  *   - The user's cursor position is preserved.
  *   - No DOM flicker (no clear + repopulate cycle).
@@ -1636,13 +1654,13 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
 
     // Determine if a pre-pill ZWS cursor node is needed.
     // `appendInlineNode` adds one when the pill would be the first child
-    // or immediately follows another PillNode.
+    // or immediately follows another InlineLinkNode.
     const prev = zwsNode.getPreviousSibling();
-    const needsPreZWS = !prev || $isPillNode(prev);
+    const needsPreZWS = !prev || $isInlineLinkNode(prev);
 
-    let pillNode;
+    let inlineLink;
     if (astPill.type === 'node_link') {
-      pillNode = $createPillNode(
+      inlineLink = $createInlineLinkNode(
         astPill.link_id,
         astPill.ref_type,
         undefined,
@@ -1652,7 +1670,7 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
       const label = astPill.children
         ?.map((c: ASTInlineNode) => ('text' in c ? (c as any).text : ''))
         .join('') ?? '';
-      pillNode = $createPillNode(label || astPill.url, 'url', astPill.url);
+      inlineLink = $createInlineLinkNode(label || astPill.url, 'url', astPill.url);
     } else {
       continue;
     }
@@ -1660,13 +1678,13 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
     if (needsPreZWS) {
       zwsNode.insertBefore($createTextNode('\u200B'));
     }
-    zwsNode.replace(pillNode);
+    zwsNode.replace(inlineLink);
   }
 
   // --- Ensure trailing ZWS after last pill / line break ---
   const finalChildren = block.getChildren();
   const last = finalChildren[finalChildren.length - 1];
-  if (last && ($isPillNode(last) || $isLineBreakNode(last))) {
+  if (last && ($isInlineLinkNode(last) || $isLineBreakNode(last))) {
     block.append($createTextNode('\u200B'));
   }
 }
@@ -1695,10 +1713,10 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       // Use zero-width space to prevent Lexical from removing the text node
       const children = parent.getChildren();
       const lastChild = children[children.length - 1];
-      if (children.length === 0 || $isPillNode(lastChild)) {
+      if (children.length === 0 || $isInlineLinkNode(lastChild)) {
         parent.append($createTextNode('\u200B'));
       }
-      const pill = $createPillNode(inline.link_id, inline.ref_type, undefined, inline.label ?? undefined);
+      const pill = $createInlineLinkNode(inline.link_id, inline.ref_type, undefined, inline.label ?? undefined);
       parent.append(pill);
       break;
     }
@@ -1739,7 +1757,7 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       const label = inline.children
         .map(c => ('text' in c ? c.text : ''))
         .join('');
-      const urlPill = $createPillNode(label || inline.url, 'url', inline.url);
+      const urlPill = $createInlineLinkNode(label || inline.url, 'url', inline.url);
       parent.append(urlPill);
       break;
     }
@@ -1754,7 +1772,7 @@ function extractBlockContent(block: BlockNode): ContentAST {
   const inlines: ASTInlineNode[] = [];
 
   for (const child of children) {
-    if ($isPillNode(child)) {
+    if ($isInlineLinkNode(child)) {
       const rt = child.getRefType();
       if (rt === 'url') {
         // URL pill → external_link AST

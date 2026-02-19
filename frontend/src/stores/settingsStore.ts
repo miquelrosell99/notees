@@ -37,8 +37,8 @@ export type DefaultView = 'journal' | 'all-pages' | 'graph' | 'today';
 
 /**
  * How `#hashtag` patterns in pasted text should be interpreted:
- * - 'inline-tag': Insert as an inline tag link (PillNode with refType 'node', is_tag=true)
- * - 'inline-class': Insert as an inline class reference (PillNode with refType 'class')
+ * - 'inline-tag': Insert as an inline tag link (InlineLinkNode with refType 'node', is_tag=true)
+ * - 'inline-class': Insert as an inline class reference (InlineLinkNode with refType 'class')
  */
 export type HashtagPasteMode = 'inline-tag' | 'inline-class';
 

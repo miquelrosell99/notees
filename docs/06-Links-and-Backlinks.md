@@ -337,7 +337,7 @@ This ensures that deleting a page doesn't leave broken links throughout the work
 
 ### Link Rendering in the Editor
 
-The Lexical editor uses `PillNode` to render inline links as interactive pills:
+The Lexical editor uses `InlineLinkNode` to render inline links:
 
 ```
 ┌──────────────────────────────────┐
@@ -353,7 +353,7 @@ Clicking a pill navigates to the target page. Shift-clicking opens in the right 
 The `NodeLinkPlugin` Lexical plugin handles:
 - Converting `[[` typing into link creation
 - Opening a search popup for target selection
-- Creating `PillNode` elements in the editor
+- Creating `InlineLinkNode` elements in the editor
 - Syncing link changes back to the AST
 
 ### Linked References Section

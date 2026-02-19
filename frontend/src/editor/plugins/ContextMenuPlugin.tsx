@@ -14,10 +14,10 @@ import { $getRoot } from 'lexical';
 import { mdiPencilOutline, mdiTrashCanOutline } from '@mdi/js';
 
 import { $isBlockNode } from '../nodes/BlockNode';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../BlockEditor';
-import type { PillRefType } from '../nodes/PillNode';
+import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import type { Node } from '../../types/api';
@@ -28,7 +28,7 @@ export interface ContextMenuPluginProps {
   /** Called when bullet is clicked (for navigation) */
   onNavigateToNode?: (blockId: string) => void;
   /** Called when "Edit link" is chosen from the pill context menu */
-  onPillEdit?: (linkId: string, refType: PillRefType, url?: string, label?: string) => void;
+  onPillEdit?: (linkId: string, refType: InlineLinkRefType, url?: string, label?: string) => void;
   /** Called when "Delete link" is chosen from the pill context menu */
   onPillRemove?: (linkId: string) => void;
 }
@@ -40,7 +40,7 @@ interface ContextMenuState {
   /** When set, the menu targets a linked node (pill) rather than the block itself */
   pillLinkId?: string;
   /** Ref type of the pill link */
-  pillRefType?: PillRefType;
+  pillRefType?: InlineLinkRefType;
   /** URL for URL pills */
   pillUrl?: string;
   /** Custom label for the pill */
@@ -162,13 +162,13 @@ export function ContextMenuPlugin({
       const target = event.target as HTMLElement;
       
       // Handle right-click on pill (node link)
-      const pillWrapper = target.closest('.node-pill-wrapper') as HTMLElement | null;
+      const pillWrapper = target.closest('.inline-link-wrapper') as HTMLElement | null;
       if (pillWrapper) {
         const linkId = pillWrapper.getAttribute('data-link-id');
         if (linkId) {
           event.preventDefault();
           event.stopPropagation();
-          const refType = (pillWrapper.getAttribute('data-ref-type') as PillRefType) || 'node';
+          const refType = (pillWrapper.getAttribute('data-ref-type') as InlineLinkRefType) || 'node';
           const pillUrl = pillWrapper.getAttribute('data-url') || undefined;
           const pillLabel = pillWrapper.getAttribute('data-label') || undefined;
           setContextMenu({
@@ -230,7 +230,7 @@ export function ContextMenuPlugin({
       const root = $getRoot();
       const findAndRemove = (parent: ReturnType<typeof $getRoot>): boolean => {
         for (const child of parent.getChildren()) {
-          if ($isPillNode(child) && child.getLinkId() === linkId) {
+          if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
             child.remove();
             return true;
           }

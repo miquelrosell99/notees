@@ -21,8 +21,8 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from './theme';
 import { BlockNode } from './nodes/BlockNode';
-import { PillNode } from './nodes/PillNode';
-import type { PillRefType } from './nodes/PillNode';
+import { InlineLinkNode } from './nodes/InlineLinkNode';
+import type { InlineLinkRefType } from './nodes/InlineLinkNode';
 import { BlockHeadingNode } from './nodes/BlockHeadingNode';
 import { BlockCodeNode } from './nodes/BlockCodeNode';
 import { BlockTableCellNode } from './nodes/BlockTableCellNode';
@@ -73,7 +73,7 @@ import './BlockEditor.css';
 
 export const EDITOR_NODES = [
   BlockNode,
-  PillNode,
+  InlineLinkNode,
   BlockHeadingNode,
   BlockCodeNode,
   BlockTableCellNode,
@@ -345,7 +345,7 @@ export function BlockEditor({
     runtime.applyIntent({ type: 'move_down', blockId });
   }, []);
 
-  const handlePillClick = useCallback((linkId: string, _refType?: PillRefType) => {
+  const handlePillClick = useCallback((linkId: string, _refType?: InlineLinkRefType) => {
     onNavigateToNode?.(linkId);
   }, [onNavigateToNode]);
 
@@ -357,12 +357,12 @@ export function BlockEditor({
 
   const [linkEditState, setLinkEditState] = useState<{
     linkId: string;
-    refType: PillRefType;
+    refType: InlineLinkRefType;
     url?: string;
     label?: string;
   } | null>(null);
 
-  const handlePillEdit = useCallback((linkId: string, refType: PillRefType, url?: string, label?: string) => {
+  const handlePillEdit = useCallback((linkId: string, refType: InlineLinkRefType, url?: string, label?: string) => {
     setLinkEditState({ linkId, refType, url, label });
   }, []);
 
@@ -372,7 +372,7 @@ export function BlockEditor({
 
   const handleLinkEditSave = useCallback(async (result: LinkEditResult) => {
     if (result.mode === 'url') {
-      // URL mode: replace the PillNode with a URL pill
+      // URL mode: replace the InlineLinkNode with a URL link
       setPendingPillUpdate({
         oldLinkId: result.originalLinkId,
         newLinkId: result.label || result.url || result.originalLinkId,
@@ -423,7 +423,7 @@ export function BlockEditor({
   const [pendingPillUpdate, setPendingPillUpdate] = useState<{
     oldLinkId: string;
     newLinkId: string;
-    newRefType: PillRefType;
+    newRefType: InlineLinkRefType;
     newUrl?: string;
     newLabel?: string | null;
   } | null>(null);
