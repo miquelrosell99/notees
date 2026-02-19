@@ -571,8 +571,79 @@ async def export_nodes(
                         value_str = row['selection_value']
                     if value_str is not None and value_str not in entry['values']:
                         entry['values'].append(value_str)
+
+                # ── Classes ──
+                # Fetch class_ids for page nodes, then resolve names
+                class_id_rows = await conn.fetch(
+                    "SELECT id, uuid::text as uuid, class_ids FROM node WHERE id = ANY($1) AND class_ids != '{}'",
+                    page_node_ids
+                )
+                if class_id_rows:
+                    all_class_ids = list({cid for r in class_id_rows for cid in (r['class_ids'] or [])})
+                    class_name_rows = await conn.fetch(
+                        "SELECT id, name FROM node WHERE id = ANY($1) AND active = TRUE",
+                        all_class_ids
+                    )
+                    class_name_map: Dict[int, str] = {
+                        r['id']: _stringify_node(
+                            {'name': r['name'], '_ast': parse_ast(r['name'])},
+                            StringifyMode.TEXT_ONLY, None
+                        )
+                        for r in class_name_rows
+                    }
+                    for r in class_id_rows:
+                        node_uuid_key = r['uuid']
+                        names = [class_name_map[cid] for cid in (r['class_ids'] or []) if cid in class_name_map]
+                        if names:
+                            if node_uuid_key not in agg:
+                                agg[node_uuid_key] = {}
+                            agg[node_uuid_key]['classes'] = {
+                                'name': 'classes',
+                                'icon': None,
+                                'type': 'classes',
+                                'values': names,
+                            }
+
+                # ── Tags ──
+                tag_rows = await conn.fetch(
+                    """
+                    SELECT nl.source_id, n.uuid::text as source_uuid, t.name as tag_name
+                    FROM node_link nl
+                    JOIN node n ON n.id = nl.source_id
+                    JOIN node t ON t.id = nl.target_id
+                    WHERE nl.source_id = ANY($1)
+                      AND nl.is_tag = TRUE
+                      AND nl.workspace_id = $2
+                    ORDER BY nl.source_id, t.name
+                    """,
+                    page_node_ids, workspace_id
+                )
+                for r in tag_rows:
+                    node_uuid_key = r['source_uuid']
+                    tag_label = _stringify_node(
+                        {'name': r['tag_name'], '_ast': parse_ast(r['tag_name'])},
+                        StringifyMode.TEXT_ONLY, None
+                    )
+                    if node_uuid_key not in agg:
+                        agg[node_uuid_key] = {}
+                    if 'tags' not in agg[node_uuid_key]:
+                        agg[node_uuid_key]['tags'] = {
+                            'name': 'tags',
+                            'icon': None,
+                            'type': 'tags',
+                            'values': [],
+                        }
+                    if tag_label not in agg[node_uuid_key]['tags']['values']:
+                        agg[node_uuid_key]['tags']['values'].append(tag_label)
+
+                # Build final sorted list: classes and tags first, then alpha properties
                 for node_uuid_key, props in agg.items():
-                    properties_data[node_uuid_key] = sorted(props.values(), key=lambda p: p['name'])
+                    pinned = [p for p in props.values() if p['type'] in ('classes', 'tags')]
+                    rest = sorted(
+                        [p for p in props.values() if p['type'] not in ('classes', 'tags')],
+                        key=lambda p: p['name']
+                    )
+                    properties_data[node_uuid_key] = pinned + rest
 
     # Generate content based on format
     if format == ExportFormat.MARKDOWN or format == "markdown":
