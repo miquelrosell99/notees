@@ -33,6 +33,8 @@ interface TriggerState {
   query: string;
   triggerOffset: number;
   position: { top: number; left: number };
+  /** True when the [[ popup was opened by the /embed slash command or Alt+Enter */
+  embedMode?: boolean;
 }
 
 export interface TriggerPluginProps {
@@ -58,6 +60,36 @@ export function TriggerPlugin({
     position: { top: 0, left: 0 },
   });
   const lastTextRef = useRef('');
+  // Capture the host block ID when an embed trigger opens (so we can create sibling)
+  const embedHostBlockIdRef = useRef<string | null>(null);
+
+  // ─── Insert embed sibling: create a new block after the current block ─
+
+  const insertEmbedSibling = useCallback((nodeUuid: string) => {
+    // Resolve the host block ID — captured when trigger opened, or from current selection
+    const hostBlockId = embedHostBlockIdRef.current;
+    if (!hostBlockId) return;
+
+    const runtime = getNodeGraphRuntime();
+    const hostNode = runtime.getNode(hostBlockId);
+    if (!hostNode?.parentId) return;
+
+    const newBlockId = crypto.randomUUID();
+    runtime.requestFocus(newBlockId);
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: hostNode.parentId,
+      afterBlockId: hostBlockId,
+      blockId: newBlockId,
+      contentAST: [{
+        type: 'paragraph',
+        children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
+      }],
+    });
+    runtime.flushEvents();
+    embedHostBlockIdRef.current = null;
+    setTrigger(prev => ({ ...prev, isOpen: false }));
+  }, []);
 
   // ─── Detect triggers on text change ────────────────────────
 
@@ -88,6 +120,13 @@ export function TriggerPlugin({
 
         if (match) {
           const coords = getCaretCoordinates(editor);
+          // For link triggers, capture the current block ID so Alt+Enter embed works
+          if (match.type === 'link' && !trigger.embedMode) {
+            const blockNode = findParentNodeBlock(anchorNode);
+            if (blockNode) {
+              embedHostBlockIdRef.current = blockNode.getBlockId();
+            }
+          }
           setTrigger({
             isOpen: true,
             type: match.type,
@@ -166,8 +205,34 @@ export function TriggerPlugin({
           (anchorNode as any).setTextContent(newText || '\u200B');
           const newOffset = beforeTrigger.length + 2;
           selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');        } else if (value === 'embed') {
+          // Remove trigger text and open the [[ popup in embed mode
+          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+          (anchorNode as any).setTextContent(newText);
+          const newOffset = beforeTrigger.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
           selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-        } else if (value === 'type') {
+
+          // Capture the host block ID before re-opening
+          const embedBlockNode = findParentNodeBlock(anchorNode);
+          if (embedBlockNode) {
+            embedHostBlockIdRef.current = embedBlockNode.getBlockId();
+          }
+
+          // Open [[ trigger in embed mode after the update
+          const coords = getCaretCoordinates(editor);
+          setTimeout(() => {
+            setTrigger({
+              isOpen: true,
+              type: 'link',
+              query: '',
+              triggerOffset: 0,
+              position: coords,
+              embedMode: true,
+            });
+          }, 0);
+          // Don't close trigger normally — we're reopening it
+          return;        } else if (value === 'type') {
           const newText = beforeTrigger + '@' + afterCursor;
           (anchorNode as any).setTextContent(newText || '\u200B');
           const newOffset = beforeTrigger.length + 1;
@@ -285,9 +350,37 @@ export function TriggerPlugin({
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
       } else {
-        // For # tag and [[ link triggers: always insert as inline pill
-        handleSelect(node.uuid, { node, type: suggestionType });
+        // For # tag and [[ link triggers
+        if (trigger.embedMode) {
+          // Embed mode (opened by /embed slash command): create sibling embed block
+          insertEmbedSibling(node.uuid);
+          setTrigger(prev => ({ ...prev, isOpen: false }));
+        } else {
+          // Standard: always insert as inline pill
+          handleSelect(node.uuid, { node, type: suggestionType });
+        }
       }
+    };
+
+    // Alt+Enter: insert as embed sibling (for regular [[ link trigger)
+    const handleSelectEmbed = (node: Node) => {
+      // Remove the [[ trigger text first (doesn't apply in embedMode — already cleaned)
+      if (!trigger.embedMode) {
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          const anchorNode = selection.anchor.getNode();
+          const rawText = anchorNode.getTextContent();
+          const text = rawText.replace(/\u200B/g, '');
+          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+          const cursorClean = selection.anchor.offset - zwsBefore;
+          const beforeTrigger = text.slice(0, trigger.triggerOffset);
+          const afterCursor = text.slice(cursorClean);
+          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+          (anchorNode as any).setTextContent(newText);
+        });
+      }
+      insertEmbedSibling(node.uuid);
     };
 
     const handleSelectDatePage = (pageId: string, _pageName: string) => {
@@ -303,6 +396,7 @@ export function TriggerPlugin({
         onSelect={handleSuggestionSelect}
         onClose={handleClose}
         onSelectDatePage={trigger.type === 'link' ? handleSelectDatePage : undefined}
+        onSelectEmbed={trigger.type === 'link' ? handleSelectEmbed : undefined}
       />
     );
   }

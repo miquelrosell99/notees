@@ -40,7 +40,8 @@ export interface ASTHardBreak {
 export interface ASTNodeLink {
   readonly type: 'node_link';
   readonly link_id: string;
-  readonly ref_type: 'node' | 'class';
+  /** 'node' — regular reference, 'class' — class reference, 'embed' — full node embed portal */
+  readonly ref_type: 'node' | 'class' | 'embed';
   readonly label?: string | null;
 }
 

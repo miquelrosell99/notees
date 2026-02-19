@@ -69,6 +69,8 @@ export interface SuggestionPopupProps {
   showInlineOption?: boolean;
   /** Callback when a date page is selected in link mode — returns the page ID */
   onSelectDatePage?: (pageId: string, pageName: string) => void;
+  /** Alt+Enter: insert as embed block instead of inline link (link mode only) */
+  onSelectEmbed?: (node: Node) => void;
 }
 
 /**
@@ -91,6 +93,7 @@ export function SuggestionPopup({
   allNodes = [],
   showInlineOption = false,
   onSelectDatePage,
+  onSelectEmbed,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -223,6 +226,16 @@ export function SuggestionPopup({
         // For # tag and [[ link: always insert inline
         const addInline = e.ctrlKey;
         
+        // Alt+Enter in link mode: insert as embed block instead of inline link
+        if (e.altKey && type === 'link' && onSelectEmbed) {
+          const adjustedForDateEmbed = selectedIndex - dateSuggestionCount;
+          const adjustedIndexEmbed = adjustedForDateEmbed - (multiSelect ? selectedCount : 0);
+          if (adjustedIndexEmbed >= 0 && adjustedIndexEmbed < allItems.length) {
+            onSelectEmbed(allItems[adjustedIndexEmbed].node);
+          }
+          break;
+        }
+        
         // Date suggestion at the very top
         if (hasDateSuggestion && selectedIndex === 0) {
           handleDateSelect();
@@ -264,7 +277,7 @@ export function SuggestionPopup({
         onClose();
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount]);
+  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount, type, onSelectEmbed]);
   
   // Handle date suggestion selection
   const handleDateSelect = useCallback(async () => {
@@ -692,9 +705,16 @@ export function SuggestionPopup({
             Click to select/deselect
           </span>
         ) : type === 'link' ? (
-          <span className="suggestion-popup__hint">
-            <kbd>Enter</kbd> insert link
-          </span>
+          <>
+            <span className="suggestion-popup__hint">
+              <kbd>Enter</kbd> insert link
+            </span>
+            {onSelectEmbed && (
+              <span className="suggestion-popup__hint">
+                <kbd>Alt+Enter</kbd> embed
+              </span>
+            )}
+          </>
         ) : showInlineOption ? (
           <>
             <span className="suggestion-popup__hint">
