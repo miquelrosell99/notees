@@ -36,7 +36,6 @@ import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
 import { ThreadLinePlugin } from './plugins/ThreadLinePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
-import { InlineCodePlugin } from './plugins/InlineCodePlugin';
 import { AutoWrapPlugin } from './plugins/AutoWrapPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
@@ -457,7 +456,6 @@ export function BlockEditor({
         <EditablePlugin readOnly={readOnly} />
         <HistoryPlugin />
         <FormattingPlugin />
-        <InlineCodePlugin />
         <AutoWrapPlugin />
         <CollapsePlugin />
         <ThreadLinePlugin mode={mode} />

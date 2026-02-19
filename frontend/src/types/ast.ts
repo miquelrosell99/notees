@@ -23,6 +23,12 @@ export interface ASTHardBreak {
   readonly type: 'hard_break';
 }
 
+/** Inline code span (backtick-wrapped). Stored without backticks. */
+export interface ASTCode {
+  readonly type: 'code';
+  readonly text: string;
+}
+
 /**
  * Inline node link.
  *
@@ -93,6 +99,7 @@ export interface ASTParagraph {
 export type ASTInlineNode =
   | ASTText
   | ASTHardBreak
+  | ASTCode
   | ASTNodeLink
   | ASTStrong
   | ASTEm
@@ -115,6 +122,6 @@ export type ASTDocument = ASTBlockNode[];
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Type guard: is the node a leaf (no children array)? */
-export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTNodeLink {
-  return node.type === 'text' || node.type === 'hard_break' || node.type === 'node_link';
+export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTNodeLink {
+  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'node_link';
 }

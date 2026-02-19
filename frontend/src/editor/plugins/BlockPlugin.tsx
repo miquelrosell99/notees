@@ -1555,9 +1555,31 @@ function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, format:
   let hasPills = false;
   switch (inline.type) {
     case 'text': {
-      const textNode = $createTextNode(inline.text);
-      if (format !== 0) textNode.setFormat(format);
-      parent.append(textNode);
+      // Auto-migrate legacy plain-text nodes that contain `backtick` patterns.
+      if (/`[^`\n]+`/.test(inline.text)) {
+        for (const part of inline.text.split(/(`[^`\n]+`)/)) {
+          if (!part) continue;
+          if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+            const codeNode = $createTextNode(part.slice(1, -1));
+            codeNode.setFormat(format | 16); // IS_CODE
+            parent.append(codeNode);
+          } else {
+            const textNode = $createTextNode(part);
+            if (format !== 0) textNode.setFormat(format);
+            parent.append(textNode);
+          }
+        }
+      } else {
+        const textNode = $createTextNode(inline.text);
+        if (format !== 0) textNode.setFormat(format);
+        parent.append(textNode);
+      }
+      break;
+    }
+    case 'code': {
+      const codeNode = $createTextNode(inline.text);
+      codeNode.setFormat(format | 16); // IS_CODE
+      parent.append(codeNode);
       break;
     }
     case 'hard_break':
@@ -1696,11 +1718,31 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
 function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number, isFirst: boolean = false): void {
   switch (inline.type) {
     case 'text': {
-      const textNode = $createTextNode(inline.text);
-      if (format !== 0) {
-        textNode.setFormat(format);
+      // Auto-migrate legacy plain-text nodes that contain `backtick` patterns.
+      if (/`[^`\n]+`/.test(inline.text)) {
+        for (const part of inline.text.split(/(`[^`\n]+`)/)) {
+          if (!part) continue;
+          if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+            const codeNode = $createTextNode(part.slice(1, -1));
+            codeNode.setFormat(format | 16); // IS_CODE
+            parent.append(codeNode);
+          } else {
+            const textNode = $createTextNode(part);
+            if (format !== 0) textNode.setFormat(format);
+            parent.append(textNode);
+          }
+        }
+      } else {
+        const textNode = $createTextNode(inline.text);
+        if (format !== 0) textNode.setFormat(format);
+        parent.append(textNode);
       }
-      parent.append(textNode);
+      break;
+    }
+    case 'code': {
+      const codeNode = $createTextNode(inline.text);
+      codeNode.setFormat(format | 16); // IS_CODE
+      parent.append(codeNode);
       break;
     }
     case 'hard_break': {
@@ -1804,14 +1846,20 @@ function extractBlockContent(block: BlockNode): ContentAST {
       const format = (child as any).getFormat?.() ?? 0;
       
       // Build the AST node with nested marks
-      let node: ASTInlineNode = { type: 'text', text };
-      
-      // Apply formatting marks (not code - that's kept as plain text with backticks)
-      if (format & 8) node = { type: 'underline', children: [node] };
-      if (format & 4) node = { type: 'strikethrough', children: [node] };
-      if (format & 2) node = { type: 'em', children: [node] };
-      if (format & 1) node = { type: 'strong', children: [node] };
-      
+      let node: ASTInlineNode;
+
+      if (format & 16) {
+        // IS_CODE — leaf node, backticks stored without delimiters
+        node = { type: 'code', text };
+      } else {
+        node = { type: 'text', text };
+        // Apply formatting marks
+        if (format & 8) node = { type: 'underline', children: [node] };
+        if (format & 4) node = { type: 'strikethrough', children: [node] };
+        if (format & 2) node = { type: 'em', children: [node] };
+        if (format & 1) node = { type: 'strong', children: [node] };
+      }
+
       inlines.push(node);
     }
   }

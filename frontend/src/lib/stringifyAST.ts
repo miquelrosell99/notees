@@ -121,6 +121,12 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
     case 'hard_break':
       return opts.mode === StringifyMode.TEXT_ONLY ? ' ' : '  \n';
 
+    case 'code':
+      if (opts.mode === StringifyMode.TEXT_ONLY) {
+        return node.text;
+      }
+      return `\`${node.text}\``;
+
     case 'strong':
       if (opts.mode === StringifyMode.TEXT_ONLY) {
         return renderInlineSequence(node.children, opts);
