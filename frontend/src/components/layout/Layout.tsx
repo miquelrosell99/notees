@@ -41,6 +41,7 @@ export function Layout() {
     rightSidebarOpen,
     currentNodeId,
     mainViewType,
+    viewMode,
     isCommandPaletteOpen,
     setCommandPaletteOpen,
     isImportDataModalOpen,
@@ -211,7 +212,7 @@ export function Layout() {
 
   return (
     <RouterSync>
-      <div className="app-canvas">
+      <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}`}>
         {/* Top Bar - part of canvas */}
         <TopBar />
         

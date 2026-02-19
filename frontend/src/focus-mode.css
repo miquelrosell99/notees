@@ -1,0 +1,93 @@
+/**
+ * Focus Mode Styles
+ *
+ * Applied when `.focus-mode` class is on `.app-canvas` (viewMode === 'focus').
+ *
+ * Philosophy:
+ * - All chrome (sidebars, top bar, toolbar, breadcrumbs) is dimmed to near-invisible.
+ * - Hovering any dimmed element reveals it fully.
+ * - In the editor, metadata (icon, classes/tags, properties, backlinks) is hidden.
+ * - Element bullets are hidden and revealed on block hover.
+ */
+
+/* ================================================================
+   GLOBAL CHROME — dim / reveal on hover
+   ================================================================ */
+
+/* Top app bar */
+.focus-mode .top-bar-card {
+  opacity: 0.07;
+  transition: opacity 0.25s ease;
+}
+.focus-mode .top-bar-card:hover {
+  opacity: 1;
+}
+
+/* Left sidebar wrapper */
+.focus-mode .sidebar-wrapper:not(.sidebar-wrapper--right) {
+  opacity: 0.05;
+  transition: opacity 0.25s ease;
+}
+.focus-mode .sidebar-wrapper:not(.sidebar-wrapper--right):hover {
+  opacity: 1;
+}
+
+/* Right sidebar wrapper */
+.focus-mode .sidebar-wrapper--right {
+  opacity: 0.05;
+  transition: opacity 0.25s ease;
+}
+.focus-mode .sidebar-wrapper--right:hover {
+  opacity: 1;
+}
+
+/* NodeView toolbar & breadcrumbs (fixed header above scrollable content) */
+.focus-mode .main-content-header {
+  opacity: 0.06;
+  transition: opacity 0.25s ease;
+}
+.focus-mode .main-content-header:hover {
+  opacity: 1;
+}
+
+/* ================================================================
+   NODE VIEW — suppress metadata, only text remains
+   The article element has class "focus" when viewMode === 'focus'.
+   ================================================================ */
+
+/* Page icon button */
+.node-view.focus .page-icon-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* Classes / tags / aliases / extends rows */
+.node-view.focus .page-header-section__types-and-tags,
+.node-view.focus .page-header-section__aliases,
+.node-view.focus .page-header-section__extends {
+  display: none;
+}
+
+/* Properties section and all query sections (linked refs, unlinked refs, etc.) */
+.node-view.focus .node-view-section {
+  display: none;
+}
+
+/* Footer */
+.node-view.focus .node-view-footer {
+  display: none;
+}
+
+/* ================================================================
+   ELEMENT BULLETS — hidden, revealed on block hover
+   ================================================================ */
+
+.focus-mode .block-ui > .bullet-wrapper {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.focus-mode .node-block:hover > .block-ui > .bullet-wrapper {
+  opacity: 1;
+}

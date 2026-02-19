@@ -25,6 +25,7 @@ import { useAuthStore, useAppStore, useFavoritesStore, useKeyboardStore } from '
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
 import './App.css';
+import './focus-mode.css';
 
 const log = getLogger('App');
 
