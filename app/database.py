@@ -391,21 +391,34 @@ async def export_nodes(
         seen_uuids: set[str] = set()
         for node_uuid in node_ids:
             if include_children:
-                # Get node and all descendants using closure table (node_path).
-                # GROUP BY deduplicates; MIN(depth) picks the shallowest path.
-                # Excludes: child pages, deleted nodes, archived (inactive) nodes.
+                # Recursive CTE: depth-first traversal in sibling (sequence) order.
+                # Base case is the root page itself; recursion adds non-page children only,
+                # so child pages are never crossed into.
+                # path_order accumulates (sequence, id) pairs so siblings are ordered
+                # correctly and parents always appear before their children.
                 rows = await conn.fetch(
                     """
-                    SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color, MIN(np.depth) AS depth
-                    FROM node n
-                    JOIN node_path np ON np.descendant_id = n.id
-                    WHERE n.workspace_id = $1 
-                      AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
-                      AND n.is_deleted = FALSE
-                      AND n.active = TRUE
-                    GROUP BY n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color
-                    HAVING MIN(np.depth) = 0 OR n.is_page = FALSE
-                    ORDER BY MIN(np.depth), n.id
+                    WITH RECURSIVE tree AS (
+                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color,
+                               0 AS depth,
+                               ARRAY[n.sequence, n.id] AS path_order
+                        FROM node n
+                        WHERE n.workspace_id = $1 AND n.uuid::text = $2
+                          AND n.is_deleted = FALSE AND n.active = TRUE
+                        UNION ALL
+                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color,
+                               t.depth + 1,
+                               t.path_order || ARRAY[n.sequence, n.id]
+                        FROM node n
+                        JOIN tree t ON n.parent_id = t.id
+                        WHERE n.workspace_id = $1
+                          AND n.is_deleted = FALSE
+                          AND n.active = TRUE
+                          AND n.is_page = FALSE
+                    )
+                    SELECT id, uuid, name, parent_id, is_page, color, depth
+                    FROM tree
+                    ORDER BY path_order
                     """,
                     workspace_id, node_uuid
                 )
