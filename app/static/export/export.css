@@ -41,6 +41,26 @@
 @page {
   size: A4;
   margin: 2cm 2.2cm;
+
+  @top-center {
+    content: string(doctitle);
+    font-size: 8.5pt;
+    color: #888;
+    font-family: inherit;
+    letter-spacing: 0.03em;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-size: 8.5pt;
+    color: #888;
+    font-family: inherit;
+  }
+}
+
+/* Suppress running header on the first page */
+@page :first {
+  @top-center { content: none; }
 }
 
 *, *::before, *::after {
@@ -70,7 +90,7 @@ h1, h2, h3, h4, h5, h6 {
   page-break-after: avoid;
 }
 
-h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; margin-top: calc(var(--rhythm) * 4); }
+h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; margin-top: calc(var(--rhythm) * 4); string-set: doctitle content(); }
 h2 { font-size: var(--step-4); font-weight: 600; margin-top: calc(var(--rhythm) * 3); margin-bottom: calc(var(--rhythm) * 1.5); }
 h3 { font-size: var(--step-3); font-weight: 600; }
 h4 { font-size: var(--step-2); font-weight: 600; }
