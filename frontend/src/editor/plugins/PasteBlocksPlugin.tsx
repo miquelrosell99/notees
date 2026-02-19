@@ -21,8 +21,11 @@ import {
   COMMAND_PRIORITY_NORMAL,
   $getSelection,
   $isRangeSelection,
+  $createTextNode,
+  $createLineBreakNode,
 } from 'lexical';
 import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
+import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { analyzeClipboard, flattenBlocks } from '../../utils/clipboardManager';
 import { searchNodes, createPage } from '../../api/nodes';
@@ -240,6 +243,33 @@ export function PasteBlocksPlugin({ onContentChange }: PasteBlocksPluginProps): 
         const clipboardData = event.clipboardData;
         if (!clipboardData) return false;
         if (clipboardData.files.length > 0) return false;
+
+        // ── Code block guard ────────────────────────────────────
+        // If the cursor is inside a code-type block, paste the raw plain
+        // text as-is (newlines become line-break nodes) rather than
+        // splitting it into separate blocks.
+        const sel = $getSelection();
+        if ($isRangeSelection(sel)) {
+          const blockNode = findParentNodeBlock(sel.anchor.getNode());
+          if (blockNode && blockNode.getNodeType() === 'code') {
+            const plain = clipboardData.getData('text/plain');
+            if (plain) {
+              event.preventDefault();
+              editor.update(() => {
+                const s = $getSelection();
+                if (!$isRangeSelection(s)) return;
+                const lines = plain.split('\n');
+                const nodes: import('lexical').LexicalNode[] = [];
+                for (let i = 0; i < lines.length; i++) {
+                  if (i > 0) nodes.push($createLineBreakNode());
+                  nodes.push($createTextNode(lines[i]));
+                }
+                s.insertNodes(nodes);
+              });
+              return true;
+            }
+          }
+        }
 
         const analysis = analyzeClipboard(clipboardData);
 
