@@ -70,10 +70,9 @@ export function LinkEditModal({
 }: LinkEditModalProps) {
   const { nodeUuid } = parseLinkId(linkId);
   // Try pre-fetched map first; fall back to individual fetch only if missing
-  const refInfo = useReferencedNode(nodeUuid);
-  const { data: fetchedNode } = useNodeByUuid(!refInfo ? nodeUuid : null);
-  // Build a Node-like object for the modal (refInfo is lightweight, fetchedNode is full)
-  const currentNode = fetchedNode ?? (refInfo ? { id: refInfo.id, name: refInfo.name, icon: refInfo.icon, color: refInfo.color, is_page: refInfo.is_page } as Node : undefined);
+  const refNode = useReferencedNode(nodeUuid);
+  const { data: fetchedNode } = useNodeByUuid(!refNode ? nodeUuid : null);
+  const currentNode = refNode ?? fetchedNode;
   const { data: allClasses } = useClasses();
 
   // Check if this is an inline class link

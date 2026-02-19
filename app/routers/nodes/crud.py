@@ -10,7 +10,6 @@ from ..auth import get_current_user
 from ...models import User
 from .models import (
     NodeResponse,
-    ReferencedNodeInfo,
     NodeCreateRequest,
     NodeUpdateRequest,
     MoveNodeRequest,
@@ -696,7 +695,9 @@ async def get_node(
         all_source_ids = [node_id] + descendant_ids
         if all_source_ids:
             target_rows = await pool.fetch("""
-                SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class
+                SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
+                       n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
+                       n.collapsed, n.active
                 FROM node_link nl
                 JOIN node n ON n.id = nl.target_id
                 WHERE nl.source_id = ANY($1)
@@ -707,15 +708,23 @@ async def get_node(
                   AND n.is_deleted = FALSE
             """, all_source_ids)
             
-            referenced_nodes: Dict[str, ReferencedNodeInfo] = {}
+            referenced_nodes: Dict[str, NodeResponse] = {}
             for row in target_rows:
-                referenced_nodes[str(row['uuid'])] = ReferencedNodeInfo(
+                referenced_nodes[str(row['uuid'])] = NodeResponse(
                     id=row['id'],
+                    uuid=str(row['uuid']),
                     name=row['name'] or '',
                     icon=row['icon'],
                     color=row['color'],
                     is_page=row['is_page'],
                     is_class=row.get('is_class', False),
+                    create_date=str(row['create_date']),
+                    write_date=str(row['write_date']),
+                    parent_id=row['parent_id'],
+                    page_id=row['page_id'],
+                    sequence=row['sequence'],
+                    collapsed=row['collapsed'],
+                    active=row['active'],
                 )
             response.referenced_nodes = referenced_nodes
 
@@ -917,7 +926,9 @@ async def get_page_content(
     all_source_ids = [page_id] + block_ids
     if all_source_ids:
         target_rows = await pool.fetch("""
-            SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class
+            SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
+                   n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
+                   n.collapsed, n.active
             FROM node_link nl
             JOIN node n ON n.id = nl.target_id
             WHERE nl.source_id = ANY($1)
@@ -928,15 +939,23 @@ async def get_page_content(
               AND n.is_deleted = FALSE
         """, all_source_ids)
         
-        referenced_nodes: Dict[str, ReferencedNodeInfo] = {}
+        referenced_nodes: Dict[str, NodeResponse] = {}
         for row in target_rows:
-            referenced_nodes[str(row['uuid'])] = ReferencedNodeInfo(
+            referenced_nodes[str(row['uuid'])] = NodeResponse(
                 id=row['id'],
+                uuid=str(row['uuid']),
                 name=row['name'] or '',
                 icon=row['icon'],
                 color=row['color'],
                 is_page=row['is_page'],
                 is_class=row.get('is_class', False),
+                create_date=str(row['create_date']),
+                write_date=str(row['write_date']),
+                parent_id=row['parent_id'],
+                page_id=row['page_id'],
+                sequence=row['sequence'],
+                collapsed=row['collapsed'],
+                active=row['active'],
             )
         page_response.referenced_nodes = referenced_nodes
     

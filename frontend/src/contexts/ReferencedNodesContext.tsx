@@ -1,27 +1,27 @@
 /**
- * ReferencedNodesContext — Provides pre-fetched node metadata for inline link pills.
+ * ReferencedNodesContext — Provides pre-fetched node data for inline links.
  *
- * The page content endpoint returns a `referenced_nodes` map (uuid → lightweight info)
+ * The page content endpoint returns a `referenced_nodes` map (uuid → Node)
  * for all outgoing text links from blocks on the page. This context makes that data
  * available to InlineLink, EmbedBlock, and LinkEditModal so they can resolve
  * target node metadata without individual API calls.
  *
- * Eliminates the N+1 GET /api/nodes/uuid/{uuid} requests that fired per pill.
+ * Eliminates the N+1 GET /api/nodes/uuid/{uuid} requests that fired per link.
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import type { ReferencedNodeInfo } from '@/types/api';
+import type { Node } from '@/types/api';
 
 // ─── Context ──────────────────────────────────────────────────────
 
-type ReferencedNodesMap = Record<string, ReferencedNodeInfo>;
+type ReferencedNodesMap = Record<string, Node>;
 
 const ReferencedNodesContext = createContext<ReferencedNodesMap>({});
 
 // ─── Provider ─────────────────────────────────────────────────────
 
 interface ReferencedNodesProviderProps {
-  /** Map of target node UUID → lightweight metadata, from page content response */
+  /** Map of target node UUID → Node, from page content response */
   referencedNodes: ReferencedNodesMap | undefined;
   children: ReactNode;
 }
@@ -44,7 +44,7 @@ export function ReferencedNodesProvider({
  * Look up a referenced node by UUID from the page-level pre-fetched map.
  * Returns undefined if the UUID is not in the map (e.g., newly created link).
  */
-export function useReferencedNode(uuid: string | null): ReferencedNodeInfo | undefined {
+export function useReferencedNode(uuid: string | null): Node | undefined {
   const map = useContext(ReferencedNodesContext);
   if (!uuid) return undefined;
   return map[uuid];

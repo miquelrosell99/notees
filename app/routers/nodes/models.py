@@ -3,20 +3,6 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
 
-class ReferencedNodeInfo(BaseModel):
-    """Lightweight node info for referenced nodes map.
-    
-    Included in page content responses so that inline link pills can
-    resolve target node metadata without individual API calls.
-    """
-    id: int
-    name: str
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    is_page: bool = False
-    is_class: bool = False
-
-
 class NodeResponse(BaseModel):
     """Node response model."""
     id: int
@@ -56,9 +42,9 @@ class NodeResponse(BaseModel):
     # Alias support
     aliased_id: Optional[int] = None  # If set, this node is an alias of the node with this ID
     aliases: List[int] = []  # IDs of nodes that are aliases of this node
-    # Referenced nodes map — uuid → lightweight node info for outgoing link targets.
-    # Populated by page content endpoint so inline pills resolve without N+1 queries.
-    referenced_nodes: Optional[Dict[str, "ReferencedNodeInfo"]] = None
+    # Referenced nodes map — uuid → node data for outgoing link targets.
+    # Populated by page content endpoint so inline links resolve without N+1 queries.
+    referenced_nodes: Optional[Dict[str, "NodeResponse"]] = None
     
     class Config:
         from_attributes = True
