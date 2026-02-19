@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumbered, mdiFormatListNumberedRtl } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -20,7 +20,7 @@ type ExportLayout = 'outline' | 'flat';
 type ExportStyle = 'minimal' | 'technical';
 type ExportProperties = 'none' | 'main' | 'all';
 type ExportDensity = 'comfortable' | 'compact';
-type ExportNumbering = 'none' | 'top-level' | 'hierarchical';
+type ExportNumbering = 'none' | 'hierarchical';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -205,7 +205,6 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                 size="sm"
                 options={[
                   { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
-                  { value: 'top-level', icon: mdiFormatListNumbered, label: 'Top-level' },
                   { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
                 ]}
                 value={numbering}
