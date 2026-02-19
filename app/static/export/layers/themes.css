@@ -1,0 +1,384 @@
+/* =========================================================
+   LAYER 2 — THEME (AESTHETIC)
+   Apply one theme class to <body>: theme-minimal, theme-technical, theme-book.
+   ========================================================= */
+
+/* ---- Minimal ---- */
+.theme-minimal {
+  /* Theme variables */
+  --tm-font:           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --tm-size:           10.5pt;
+  --tm-line-height:    1.7;
+  --tm-letter-spacing: -0.005em;
+  --tm-color:          #222;
+  --tm-color-h2:       #333;
+  --tm-color-h3:       #555;
+  --tm-border:         #e5e5e5;
+  --tm-border-top:     #eaeaea;
+  --tm-link:           #5a79c9;
+  --tm-prop-name:      #999;
+  --tm-prop-value:     #333;
+  --tm-prop-empty:     #ccc;
+
+  font-family: var(--tm-font);
+  font-size: var(--tm-size);
+  line-height: var(--tm-line-height);
+  letter-spacing: var(--tm-letter-spacing);
+  color: var(--tm-color);
+}
+
+.theme-minimal h1,
+.theme-minimal h2,
+.theme-minimal h3,
+.theme-minimal h4,
+.theme-minimal h5,
+.theme-minimal h6 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.theme-minimal h1 {
+  font-size: 1.6rem;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin: 2rem 0 1rem;
+}
+
+.theme-minimal h2 {
+  font-size: 1.25rem;
+  color: var(--tm-color-h2);
+}
+
+.theme-minimal h3 {
+  font-size: 1.05rem;
+  color: var(--tm-color-h3);
+}
+
+.theme-minimal h4,
+.theme-minimal h5,
+.theme-minimal h6 {
+  font-size: 0.95rem;
+  color: var(--tm-color-h3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.theme-minimal code {
+  background: transparent;
+  border: 1px solid var(--tm-border);
+}
+
+.theme-minimal pre {
+  background: transparent;
+  border: 1px solid var(--tm-border);
+}
+
+.theme-minimal .node-properties {
+  border-top-color: var(--tm-border-top);
+  border-bottom-color: transparent;
+}
+
+.theme-minimal .node-property-name {
+  font-weight: 500;
+  color: var(--tm-prop-name);
+  text-transform: uppercase;
+  font-size: 0.78em;
+  letter-spacing: 0.06em;
+}
+
+.theme-minimal .node-property-value {
+  color: var(--tm-prop-value);
+}
+
+.theme-minimal .node-property-empty {
+  color: var(--tm-prop-empty);
+  font-style: normal;
+}
+
+.theme-minimal .node-property + .node-property td {
+  border-top: none;
+}
+
+.theme-minimal hr {
+  border-top-color: var(--tm-border);
+  margin: 2rem 0;
+}
+
+.theme-minimal a {
+  color: var(--tm-link);
+}
+
+/* ---- Technical ---- */
+.theme-technical {
+  /* Theme variables */
+  --tt-font:         'Times New Roman', Georgia, serif;
+  --tt-font-mono:    Consolas, monospace;
+  --tt-size:         10pt;
+  --tt-line-height:  1.35;
+  --tt-color:        #000;
+  --tt-code-bg:      #f2f2f2;
+  --tt-border:       #e5e5e5;
+  --tt-hr:           #a3a3a3;
+  --tt-muted:        #888;
+
+  font-family: var(--tt-font);
+  font-size: var(--tt-size);
+  line-height: var(--tt-line-height);
+  letter-spacing: 0;
+  color: var(--tt-color);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.theme-technical h1,
+.theme-technical h2,
+.theme-technical h3,
+.theme-technical h4,
+.theme-technical h5,
+.theme-technical h6 {
+  font-family: var(--tt-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.theme-technical h1 {
+  font-size: 1.8rem;
+  border-bottom: none;
+  padding-bottom: 0.4rem;
+  margin: 1.5rem 0 2rem;
+  line-height: 1.2;
+}
+
+.theme-technical h2 {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: none;
+  padding-bottom: 0.2rem;
+  margin-top: 2rem;
+}
+
+.theme-technical h3 {
+  font-size: 1.05rem;
+  font-style: italic;
+  margin: 1rem 0 0.4rem;
+}
+
+.theme-technical h4,
+.theme-technical h5,
+.theme-technical h6 {
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0.75rem 0 0.35rem;
+}
+
+.theme-technical p {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.theme-technical code {
+  font-family: var(--tt-font-mono);
+  font-size: 0.82em;
+  background: var(--tt-code-bg);
+  border: 1px solid var(--tt-border);
+  border-radius: 2px;
+}
+
+.theme-technical pre {
+  font-family: var(--tt-font-mono);
+  font-size: 0.82em;
+  border: 1px solid var(--tt-border);
+  background: transparent;
+  border-radius: 2px;
+}
+
+.theme-technical table {
+  font-size: 0.85em;
+}
+
+.theme-technical th {
+  border: none;
+  border-bottom: 1px solid var(--tt-color);
+  padding: 4px 8px;
+}
+
+.theme-technical td {
+  border: none;
+  padding: 4px 8px;
+}
+
+.theme-technical .node-properties {
+  border-top-color: var(--tt-color);
+  border-bottom-color: var(--tt-color);
+}
+
+.theme-technical .node-property-name {
+  font-weight: bold;
+  color: var(--tt-color);
+}
+
+.theme-technical .node-property-value {
+  color: var(--tt-color);
+}
+
+.theme-technical .node-property-empty {
+  color: var(--tt-muted);
+}
+
+.theme-technical a {
+  color: var(--tt-color);
+}
+
+.theme-technical hr {
+  border-top-color: var(--tt-hr);
+  margin: 1.25rem 0;
+}
+
+/* TOC: monospaced page numbers */
+.theme-technical .toc a::after {
+  font-family: var(--tt-font-mono);
+  font-size: 0.85em;
+}
+
+/* ---- Book ---- */
+.theme-book {
+  /* Theme variables */
+  --tb-font:        'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --tb-font-mono:   Consolas, monospace;
+  --tb-size:        11.5pt;
+  --tb-line-height: 1.75;
+  --tb-color:       #1a1a1a;
+  --tb-color-h2:    #1a1a1a;
+  --tb-color-h3:    #333;
+  --tb-border:      #ccc;
+  --tb-hr:          #bbb;
+  --tb-muted:       #666;
+
+  font-family: var(--tb-font);
+  font-size: var(--tb-size);
+  line-height: var(--tb-line-height);
+  letter-spacing: 0.01em;
+  color: var(--tb-color);
+
+  /* Tighter typographic scale for book setting */
+  --scale-ratio: 1.15;
+}
+
+.theme-book h1,
+.theme-book h2,
+.theme-book h3,
+.theme-book h4,
+.theme-book h5,
+.theme-book h6 {
+  font-family: var(--tb-font);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.theme-book h1 {
+  font-size: calc(var(--step-4) * var(--scale-ratio));
+  font-weight: 300;
+  text-align: center;
+  letter-spacing: 0.06em;
+  margin: calc(var(--rhythm) * 6) 0 calc(var(--rhythm) * 3);
+  break-before: page;
+  page-break-before: always;
+}
+
+/* Suppress the forced page break on the very first h1 in book theme */
+.theme-book h1:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+.theme-book h2 {
+  font-size: var(--step-3);
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  color: var(--tb-color-h2);
+  border-bottom: 1px solid var(--tb-border);
+  padding-bottom: calc(var(--rhythm) * 0.4);
+}
+
+.theme-book h3 {
+  font-size: var(--step-2);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--tb-color-h3);
+}
+
+.theme-book h4,
+.theme-book h5,
+.theme-book h6 {
+  font-size: var(--step-1);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--tb-color-h3);
+}
+
+/* Drop cap for the first paragraph following h1 or h2 */
+.theme-book h1 + p:first-letter,
+.theme-book h2 + p:first-letter {
+  float: left;
+  font-size: 3.4em;
+  line-height: 0.78;
+  margin: 0.06em 0.08em 0 0;
+  font-weight: 400;
+  color: var(--tb-color);
+}
+
+.theme-book p {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.theme-book code {
+  font-family: var(--tb-font-mono);
+  font-size: 0.82em;
+  background: transparent;
+  border: 1px solid var(--tb-border);
+}
+
+.theme-book pre {
+  font-family: var(--tb-font-mono);
+  font-size: 0.82em;
+  border: 1px solid var(--tb-border);
+  background: transparent;
+}
+
+.theme-book .node-properties {
+  border-top-color: var(--tb-border);
+  border-bottom-color: var(--tb-border);
+}
+
+.theme-book .node-property-name {
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+  font-size: 0.85em;
+  color: var(--tb-muted);
+}
+
+.theme-book hr {
+  border-top-color: var(--tb-hr);
+  margin: calc(var(--rhythm) * 2.5) auto;
+  width: 40%;
+}
+
+.theme-book a {
+  color: var(--tb-color);
+  text-decoration: underline;
+  text-decoration-color: var(--tb-border);
+}
+
+/* TOC: small-caps level-1 entries */
+.theme-book .toc > ol > li > a,
+.theme-book .toc > ul > li > a {
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}

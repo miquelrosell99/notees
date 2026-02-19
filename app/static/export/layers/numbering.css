@@ -1,0 +1,93 @@
+/* =========================================================
+   LAYER 5 — NUMBERING (HIERARCHICAL COUNTERS)
+   Adds automatic numbering to headings via CSS counters.
+   Apply one class to <body>: numbering-none, numbering-hierarchical,
+   numbering-legal, numbering-appendix.
+   ========================================================= */
+
+/* ---- None: explicit no-op ---- */
+.numbering-none { }
+
+/* ---- Hierarchical: 1 / 1.1 / 1.1.1 / … ---- */
+.numbering-hierarchical { counter-reset: h2c; }
+.numbering-hierarchical h2 { counter-reset: h3c; }
+.numbering-hierarchical h3 { counter-reset: h4c; }
+.numbering-hierarchical h4 { counter-reset: h5c; }
+.numbering-hierarchical h5 { counter-reset: h6c; }
+
+.numbering-hierarchical h2::before {
+  counter-increment: h2c;
+  content: counter(h2c) ". ";
+}
+.numbering-hierarchical h3::before {
+  counter-increment: h3c;
+  content: counter(h2c) "." counter(h3c) " ";
+}
+.numbering-hierarchical h4::before {
+  counter-increment: h4c;
+  content: counter(h2c) "." counter(h3c) "." counter(h4c) " ";
+}
+.numbering-hierarchical h5::before {
+  counter-increment: h5c;
+  content: counter(h2c) "." counter(h3c) "." counter(h4c) "." counter(h5c) " ";
+}
+.numbering-hierarchical h6::before {
+  counter-increment: h6c;
+  content: counter(h2c) "." counter(h3c) "." counter(h4c) "." counter(h5c) "." counter(h6c) " ";
+}
+
+/* ---- Legal: 1. / 1.1 / 1.1.1 / (a) / (i) ---- */
+.numbering-legal { counter-reset: h2c; }
+.numbering-legal h2 { counter-reset: h3c; }
+.numbering-legal h3 { counter-reset: h4c; }
+.numbering-legal h4 { counter-reset: h5c; }
+.numbering-legal h5 { counter-reset: h6c; }
+
+.numbering-legal h2::before {
+  counter-increment: h2c;
+  content: counter(h2c) ". ";
+}
+.numbering-legal h3::before {
+  counter-increment: h3c;
+  content: counter(h2c) "." counter(h3c) " ";
+}
+.numbering-legal h4::before {
+  counter-increment: h4c;
+  content: counter(h2c) "." counter(h3c) "." counter(h4c) " ";
+}
+.numbering-legal h5::before {
+  counter-increment: h5c;
+  content: "(" counter(h5c, lower-alpha) ") ";
+}
+.numbering-legal h6::before {
+  counter-increment: h6c;
+  content: "(" counter(h6c, lower-roman) ") ";
+}
+
+/* ---- Appendix: A. / A.1 / A.1.1 / … ---- */
+.numbering-appendix { counter-reset: h2c; }
+.numbering-appendix h2 { counter-reset: h3c; }
+.numbering-appendix h3 { counter-reset: h4c; }
+.numbering-appendix h4 { counter-reset: h5c; }
+.numbering-appendix h5 { counter-reset: h6c; }
+
+.numbering-appendix h2::before {
+  counter-increment: h2c;
+  content: counter(h2c, upper-alpha) ". ";
+}
+.numbering-appendix h3::before {
+  counter-increment: h3c;
+  content: counter(h2c, upper-alpha) "." counter(h3c) " ";
+}
+.numbering-appendix h4::before {
+  counter-increment: h4c;
+  content: counter(h2c, upper-alpha) "." counter(h3c) "." counter(h4c) " ";
+}
+.numbering-appendix h5::before {
+  counter-increment: h5c;
+  content: counter(h2c, upper-alpha) "." counter(h3c) "." counter(h4c) "." counter(h5c) " ";
+}
+.numbering-appendix h6::before {
+  counter-increment: h6c;
+  content: counter(h2c, upper-alpha) "." counter(h3c) "." counter(h4c) "." counter(h5c) "." counter(h6c) " ";
+}

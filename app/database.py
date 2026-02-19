@@ -993,14 +993,18 @@ EXPORT_DOCTYPES  = {"none", "article", "report", "book", "legal", "academic"}
 
 
 def _get_export_css_single() -> str:
-    """Read export.css from disk (cached after first call)."""
+    """Read and concatenate layer CSS files from layers/ directory (cached after first call)."""
     if not hasattr(_get_export_css_single, "_cache"):
-        path = _EXPORT_CSS_DIR / "export.css"
-        try:
-            _get_export_css_single._cache = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            logger.warning("Export CSS not found: %s", path)
-            _get_export_css_single._cache = ""
+        layers_dir = _EXPORT_CSS_DIR / "layers"
+        parts: list[str] = []
+        for layer_path in sorted(layers_dir.glob("*.css")):
+            try:
+                parts.append(layer_path.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to read export CSS layer %s: %s", layer_path, exc)
+        if not parts:
+            logger.warning("No export CSS layers found in %s", layers_dir)
+        _get_export_css_single._cache = "\n\n".join(parts)
     return _get_export_css_single._cache
 
 

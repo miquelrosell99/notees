@@ -1,0 +1,55 @@
+/* =========================================================
+   LAYER 6 — LAYOUT (MEASURE & PAGE GEOMETRY)
+   Controls the page width and column configuration.
+   Apply one class to <body>: layout-full, layout-readable,
+   layout-book, layout-two-column.
+   ========================================================= */
+
+/* ---- Full: explicit full-width reset ---- */
+.layout-full {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  columns: unset;
+}
+
+/* ---- Readable: comfortable line length for prose ---- */
+.layout-readable {
+  max-width: 72ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---- Book: tighter measure, classic typographic width ---- */
+.layout-book {
+  max-width: 66ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---- Two-column: newspaper-style columns ---- */
+.layout-two-column {
+  column-count: 2;
+  column-gap: 2.5rem;
+  column-fill: balance;
+}
+
+/* Headings span both columns and force a new column row */
+.layout-two-column h1,
+.layout-two-column h2,
+.layout-two-column h3 {
+  column-span: all;
+  break-before: column;
+}
+
+/* Prevent mid-element column breaks */
+.layout-two-column pre,
+.layout-two-column figure,
+.layout-two-column .node-properties {
+  break-inside: avoid;
+}
+
+/* Code blocks span both columns to avoid narrow-column crush */
+.layout-two-column pre {
+  column-span: all;
+}
