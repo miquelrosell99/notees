@@ -94,6 +94,9 @@ class NodeLinkResolution:
     target_id: str
     """Opaque node identifier for cycle detection."""
 
+    is_page: Optional[bool] = None
+    """Whether the target node is a page (True) or a block (False/None)."""
+
 
 # Callable that takes a link_id (node_link UUID) and returns resolution or None.
 NodeLinkResolver = Callable[[str], Optional[NodeLinkResolution]]
@@ -329,6 +332,11 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         target_uuid = link_id[:colon] if colon > 0 else link_id
         if target_uuid:
             return f"[{display}](#{target_uuid})"
+    if opts.mode is StringifyMode.PLAIN_MARKDOWN:
+        # Markdown export: [name]([[uuid]]) for all node links
+        colon = link_id.find(':')
+        target_uuid = link_id[:colon] if colon > 0 else link_id
+        return f"[{display}]([[{target_uuid}]])"
     return display
 
 
