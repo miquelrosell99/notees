@@ -827,7 +827,7 @@ class PostgresNodeRepository(NodeRepository):
                     FROM get_breadcrumbs($1, $2) AS bc
                     JOIN node n ON n.id = bc.id
                     WHERE n.workspace_id = $3
-                    ORDER BY bc.depth
+                    ORDER BY bc.depth DESC
                     """,
                     exit_node_id, enter_node_id, self._workspace_id
                 )
@@ -838,7 +838,7 @@ class PostgresNodeRepository(NodeRepository):
                     FROM get_breadcrumbs($1) AS bc
                     JOIN node n ON n.id = bc.id
                     WHERE n.workspace_id = $2
-                    ORDER BY bc.depth
+                    ORDER BY bc.depth DESC
                     """,
                     exit_node_id, self._workspace_id
                 )
