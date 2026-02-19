@@ -20,7 +20,7 @@ import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, 
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
-import { mdiExport, mdiDatabaseRefresh } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodePill } from '../nodes/NodePill';
@@ -341,18 +341,18 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance'; requiresPage?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus'; requiresPage?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq EDN', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
-      { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'maintenance' },
+      { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
     ];
     return cmds;
   }, []);
 
   const allItems = useMemo(() => {
-    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' }> = [];
+    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' }> = [];
     
     // Date suggestion (shown at top if query matches a date format)
     if (parsedDate) {
@@ -888,6 +888,8 @@ export function CommandPalette({
                         <ImportIcon size="sm" />
                       ) : item.commandIcon === 'maintenance' ? (
                         <Icon path={mdiDatabaseRefresh} size={0.7} />
+                      ) : item.commandIcon === 'focus' ? (
+                        <Icon path={mdiBrain} size={0.7} />
                       ) : (
                         <Icon path={mdiExport} size={0.7} />
                       )}
