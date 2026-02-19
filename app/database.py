@@ -514,42 +514,29 @@ def _stringify_node(node_data: Dict, mode: StringifyMode, resolver) -> str:
 
 def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
     """Convert nodes to Markdown format.
-    
-    Args:
-        nodes: List of node dicts with 'name', '_ast', and 'depth' keys
-        resolver: Optional node link resolver
-        layout: 'outline' (indented hierarchy) or 'flat' (top node as heading)
-        
-    Returns:
-        Markdown string
+
+    Page nodes (is_page=True) always render as ATX headings at their depth level.
+    Non-page nodes render as indented bullets (outline) or plain lines (flat).
     """
     if not nodes:
         return ""
 
-    if layout == "flat":
-        top_is_page = nodes[0].get('is_page', False)
-        if top_is_page:
-            # Top node is a page: render it as a heading, children as plain lines
-            title = _stringify_node(nodes[0], StringifyMode.PLAIN_MARKDOWN, resolver)
-            lines = [f"# {title}", ""]
-            for node in nodes[1:]:
-                text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
-                lines.append(text)
-        else:
-            # Not a page: treat all nodes equally, no heading
-            lines = []
-            for node in nodes:
-                text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
-                lines.append(text)
-        return "\n".join(lines)
-
-    # outline (default)
     lines = []
     for node in nodes:
         text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
         depth = node.get('depth', 0)
-        indent = '  ' * depth
-        lines.append(f"{indent}- {text}")
+        is_page = node.get('is_page', False)
+
+        if is_page:
+            hashes = '#' * (depth + 1)
+            lines.append(f"{hashes} {text}")
+        elif layout == "flat":
+            lines.append(text)
+        else:
+            # outline
+            indent = '  ' * depth
+            lines.append(f"{indent}- {text}")
+
     return "\n".join(lines)
 
 
@@ -570,58 +557,53 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
         return "<!DOCTYPE html>\n<html><head><title>Notees Export</title></head><body></body></html>"
 
     if layout == "flat":
-        top_is_page = nodes[0].get('is_page', False)
-        if top_is_page:
-            # Top node is a page: render it as h1, children as paragraphs
-            title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver)
-            paragraphs = []
-            for node in nodes[1:]:
-                text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
-                paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
-            body = f"<h1>{html_mod.escape(title)}</h1>"
-            if paragraphs:
-                body += "\n" + "\n".join(paragraphs)
-            return f"""<!DOCTYPE html>
+        lines = []
+        for node in nodes:
+            text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+            depth = node.get('depth', 0)
+            is_page = node.get('is_page', False)
+            if is_page:
+                level = min(depth + 1, 6)
+                lines.append(f"  <h{level}>{html_mod.escape(text)}</h{level}>")
+            else:
+                lines.append(f"  <p>{html_mod.escape(text)}</p>")
+        title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver) if nodes[0].get('is_page') else "Notees Export"
+        return f"""<!DOCTYPE html>
 <html>
 <head><title>{html_mod.escape(title)}</title></head>
 <body>
-{body}
-</body>
-</html>"""
-        else:
-            # Not a page: treat all nodes equally as paragraphs
-            paragraphs = []
-            for node in nodes:
-                text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
-                paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
-            return f"""<!DOCTYPE html>
-<html>
-<head><title>Notees Export</title></head>
-<body>
-{chr(10).join(paragraphs)}
+{chr(10).join(lines)}
 </body>
 </html>"""
 
-    # outline (default) — nested <ul> based on depth
+    # outline (default) — nested <ul> based on depth; page nodes break out as headings
     lines = []
     current_depth = -1
     for node in nodes:
         text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
         depth = node.get('depth', 0)
-        if depth > current_depth:
-            # Open new nested lists
-            for _ in range(depth - current_depth):
-                indent = '  ' * (current_depth + 1)
-                lines.append(f"{indent}<ul>")
-                current_depth += 1
-        elif depth < current_depth:
-            # Close lists back to this depth
-            for _ in range(current_depth - depth):
-                indent = '  ' * current_depth
-                lines.append(f"{indent}</ul>")
+        is_page = node.get('is_page', False)
+
+        if is_page:
+            # Close all open lists before emitting the heading
+            while current_depth >= 0:
+                lines.append('  ' * current_depth + '</ul>')
                 current_depth -= 1
-        indent = '  ' * (depth + 1)
-        lines.append(f"{indent}<li>{html_mod.escape(text)}</li>")
+            level = min(depth + 1, 6)
+            lines.append(f"  <h{level}>{html_mod.escape(text)}</h{level}>")
+        else:
+            if depth > current_depth:
+                for _ in range(depth - current_depth):
+                    indent = '  ' * (current_depth + 1)
+                    lines.append(f"{indent}<ul>")
+                    current_depth += 1
+            elif depth < current_depth:
+                for _ in range(current_depth - depth):
+                    indent = '  ' * current_depth
+                    lines.append(f"{indent}</ul>")
+                    current_depth -= 1
+            indent = '  ' * (depth + 1)
+            lines.append(f"{indent}<li>{html_mod.escape(text)}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth
