@@ -295,6 +295,21 @@
   50%      { opacity: 0.1; }
 }
 
+/* Styled-node indicator — small dot below caret when inside bold/italic/code/etc. */
+.notees-custom-caret--line.notees-custom-caret--styled::after,
+.notees-custom-caret--block.notees-custom-caret--styled::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-on-surface);
+  opacity: 0.5;
+}
+
 /* Respect reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .notees-custom-caret {
