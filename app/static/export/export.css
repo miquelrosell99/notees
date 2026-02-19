@@ -288,7 +288,7 @@ div.page-break {
   --tm-font:           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --tm-size:           10.5pt;
   --tm-line-height:    1.7;
-  --tm-letter-spacing: -0.01em;
+  --tm-letter-spacing: -0.005em;
   --tm-color:          #222;
   --tm-color-h2:       #333;
   --tm-color-h3:       #555;
