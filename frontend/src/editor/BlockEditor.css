@@ -609,18 +609,14 @@ th.node-block-table-cell {
 
 /* ─── Inline code (backtick-wrapped text) ──────────────────────── */
 
-.inline-code {
+/* Applied by Lexical via theme.text.code when IS_CODE format (16) is set. */
+.notees-text-code {
   background: var(--color-surface-container-high);
   border-radius: 3px;
   padding: 1px 4px;
   font-family: var(--font-family-mono);
   font-size: 0.9em;
   color: var(--color-on-surface);
-  /* Keep backticks visible as part of the content */
-}
-
-.has-inline-code {
-  /* Wrapper for text nodes containing inline code */
 }
 
 /* ─── Inline link (dotted underline style) ──────────────────────── */
