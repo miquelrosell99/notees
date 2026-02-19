@@ -14,12 +14,12 @@
 
 /* --- Body & Typography --- */
 body {
-  font-family: 'Georgia', 'Times New Roman', 'Palatino Linotype', 'Book Antiqua', serif;
-  font-size: 0.9rem;
-  line-height: 1.5;
+  font-family: 'Times New Roman', 'Georgia', serif;
+  font-size: 10pt;
+  line-height: 1.35;
   letter-spacing: 0;
-  max-width: 40rem;
-  padding: 2rem 1.5rem;
+  max-width: none;
+  padding: 0;
   color: #000;
   background: #fff;
   counter-reset: section;
@@ -27,26 +27,30 @@ body {
 
 /* --- Headings --- */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: 'Times New Roman', 'Georgia', serif;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-top: 1rem;
   margin-bottom: 0.5rem;
+  page-break-after: avoid;
 }
 
 h1 {
-  font-size: 1.5rem;
-  /* text-align: center; */
-  border-bottom: 2px solid #111111;
+  font-size: 1.8rem;
+  text-align: center;
+  border-bottom: none;
   padding-bottom: 0.4rem;
-  margin: 1.5rem 0 0.75rem;
+  margin: 1.5rem 0 2rem;
+  line-height: 1.2;
 }
 
 h2 {
-  font-size: 1.2rem;
-  border-bottom: 1px solid #a3a3a3;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: none;
   padding-bottom: 0.2rem;
-  margin: 1.25rem 0 0.5rem;
+  margin: 2rem 0 0.5rem;
 }
 
 h3 {
@@ -69,11 +73,19 @@ h2::before {
 
 /* --- Paragraphs --- */
 p {
-  margin: 0.4rem 0;
-  line-height: 1.5;
+  margin: 0;
+  text-indent: 1.5em;
+  line-height: 1.4;
   text-align: justify;
   hyphens: auto;
   -webkit-hyphens: auto;
+  widows: 2;
+  orphans: 2;
+}
+
+/* The first paragraph after a heading should NOT be indented */
+h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p {
+  text-indent: 0;
 }
 
 /* --- Lists --- */
@@ -106,16 +118,29 @@ figcaption, table caption {
   margin-top: 0.3em;
 }
 
-/* --- Tables --- */
+/* --- Tables (Booktabs style) --- */
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.82em;
+  margin: 2em 0;
+  font-family: sans-serif;
+  font-size: 0.85em;
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
 }
 
-th, td {
-  border: 1px solid #000;
+th {
+  border: none;
+  border-bottom: 1px solid #000;
+  font-weight: bold;
   padding: 4px 8px;
+  text-align: left;
+}
+
+td {
+  border: none;
+  padding: 4px 8px;
+  vertical-align: top;
   text-align: left;
 }
 
@@ -147,9 +172,8 @@ hr {
 
 /* --- Links --- */
 a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-style: dotted;
+  color: #000;
+  text-decoration: none;
 }
 
 /* --- Footnotes & Superscripts --- */
