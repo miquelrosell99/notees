@@ -107,6 +107,7 @@ interface NodesState {
   toggleSidebar: () => void;
   toggleRightSidebar: () => void;
   setViewMode: (mode: ViewMode) => void;
+  toggleFocusMode: () => void;
   setMainViewType: (viewType: MainViewType) => void;
   /** Open a property view */
   openPropertyView: (propertyId: number) => void;
@@ -201,6 +202,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen, isSidebarCollapsed: !state.isSidebarCollapsed })),
   toggleRightSidebar: () => set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen })),
   setViewMode: (mode) => set({ viewMode: mode }),
+  toggleFocusMode: () => set((state) => ({ viewMode: state.viewMode === 'focus' ? 'default' : 'focus' })),
   setMainViewType: (viewType) => set({ mainViewType: viewType }),
   openPropertyView: (propertyId) => set({ mainViewType: 'property', currentPropertyId: propertyId }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),

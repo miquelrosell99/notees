@@ -346,6 +346,7 @@ export function CommandPalette({
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
+      { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'maintenance' },
     ];
     return cmds;
   }, []);
@@ -619,6 +620,8 @@ export function CommandPalette({
           }
         } else if (item.commandId === 'rebuild-links') {
           useAppStore.getState().setRebuildLinksModalOpen(true);
+        } else if (item.commandId === 'toggle-focus-mode') {
+          useAppStore.getState().toggleFocusMode();
         }
         onClose();
         break;
