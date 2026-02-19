@@ -473,10 +473,14 @@ async def export_nodes(
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        # PDF export not fully implemented - return HTML
-        content = _export_to_html(nodes_data, resolve_node_link, layout)
-        filename = "export.html"
-        mime_type = "text/html"
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout)
+        try:
+            from weasyprint import HTML as WeasyprintHTML
+            pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
+            return pdf_bytes, "export.pdf", "application/pdf"
+        except Exception as e:
+            logger.warning(f"WeasyPrint PDF generation failed: {e}; falling back to HTML")
+            return html_content.encode('utf-8'), "export.html", "text/html"
     else:
         raise ValueError(f"Unsupported format: {format}")
     

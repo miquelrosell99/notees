@@ -5,6 +5,7 @@ Uses domain types where applicable.
 """
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from ..models import ExportRequest, ExportFormat, User
 from .auth import get_current_user
@@ -13,6 +14,10 @@ from .auth import get_current_user
 from .. import database as db
 
 router = APIRouter(prefix="/api/export", tags=["Export"])
+
+
+class RenderPdfRequest(BaseModel):
+    html: str
 
 
 @router.post("")
@@ -72,3 +77,23 @@ async def export_single_node(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/render-pdf")
+async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current_user)):
+    """Render an HTML string to a PDF using WeasyPrint."""
+    try:
+        from weasyprint import HTML as WeasyprintHTML
+    except ImportError:
+        raise HTTPException(status_code=501, detail="PDF rendering is not available (WeasyPrint not installed)")
+
+    try:
+        pdf_bytes = WeasyprintHTML(string=request.html).write_pdf()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="export.pdf"'}
+    )

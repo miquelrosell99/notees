@@ -16,6 +16,9 @@ asyncpg>=0.29.0
 # Image Processing
 Pillow>=10.0.0
 
+# PDF generation
+weasyprint>=62.0
+
 # Rate Limiting
 slowapi>=0.1.9
 
