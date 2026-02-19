@@ -983,7 +983,7 @@ def _export_to_markdown(
 _EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 
 # Valid values for each axis
-EXPORT_THEMES    = {"minimal", "technical"}
+EXPORT_THEMES    = {"minimal", "technical", "book"}
 EXPORT_DENSITIES = {"comfortable", "compact"}
 EXPORT_NUMBERING = {"none", "hierarchical", "legal", "appendix"}
 EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}

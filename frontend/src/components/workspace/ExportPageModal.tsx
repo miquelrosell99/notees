@@ -18,7 +18,7 @@ import './ExportPageModal.css';
 
 type ExportFormat = 'markdown' | 'html' | 'pdf';
 type ExportLayout = 'outline' | 'flat';
-type ExportStyle = 'minimal' | 'technical';
+type ExportStyle = 'minimal' | 'technical' | 'book';
 type ExportProperties = 'none' | 'main' | 'all';
 type ExportDensity = 'comfortable' | 'compact';
 type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
@@ -207,6 +207,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     options={[
                       { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
                       { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                      { value: 'book', icon: mdiBook, label: 'Book' },
                     ]}
                     value={style}
                     onChange={(v) => setStyle(v as ExportStyle)}
