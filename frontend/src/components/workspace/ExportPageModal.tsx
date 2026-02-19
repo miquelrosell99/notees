@@ -45,17 +45,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Fetch text preview when format changes (markdown / html only)
+  // Fetch text preview when format/layout changes (markdown / html only).
+  // Stale content stays visible while the new fetch is in-flight to avoid flashing.
   useEffect(() => {
     if (!isOpen || format === 'pdf') {
-      setPreviewContent('');
       return;
     }
 
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setPreviewContent('');
 
     api
       .get(`/export/${nodeUuid}`, {
@@ -188,21 +187,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         {/* Preview (markdown / html) */}
         {format !== 'pdf' && (
           <div className="export-modal__preview-wrap">
-            {loading && (
-              <div className="export-modal__status">Loading preview…</div>
-            )}
             {error && (
               <div className="export-modal__error">{error}</div>
             )}
-            {!loading && !error && (
-              <textarea
-                className="export-modal__preview"
-                readOnly
-                value={previewContent}
-                spellCheck={false}
-                aria-label={`${format} preview`}
-              />
-            )}
+            <textarea
+              className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
+              readOnly
+              value={previewContent}
+              spellCheck={false}
+              aria-label={`${format} preview`}
+            />
           </div>
         )}
 
