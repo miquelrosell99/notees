@@ -513,7 +513,7 @@
 
 /* ─── Code block ───────────────────────────────────────────────── */
 
-/* Switch to CSS Grid so gutter and content share the same row */
+/* Switch to CSS Grid: row 1 = pills, row 2 = gutter+content */
 .node-block--code {
   display: grid;
   grid-template-columns: max-content 44px 1fr;
@@ -523,17 +523,24 @@
   margin-bottom: 6px;
 }
 
-/* Bullet stays in column 1, spanning both rows */
+/* Bullet stays in column 1, spanning all rows */
 .node-block--code > .block-ui {
   grid-column: 1;
   grid-row: 1 / 3;
   align-self: start;
 }
 
+/* Class pills row — above the card */
+.node-block--code > .block-ui--after-content {
+  grid-column: 2 / 4;
+  grid-row: 1;
+  margin-bottom: 3px;
+}
+
 /* Gutter: line numbers, left column of the card */
 .node-block--code > .node-block-code-gutter {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   background: var(--color-surface-container-high);
   border-top: 1px solid var(--color-outline-variant);
   border-left: 1px solid var(--color-outline-variant);
@@ -551,7 +558,7 @@
 /* Content: the editable code area, right column of the card */
 .node-block--code > .node-block-content {
   grid-column: 3;
-  grid-row: 1;
+  grid-row: 2;
   font-family: var(--font-family-mono);
   font-size: 0.875rem;
   line-height: 1.6;
@@ -570,13 +577,6 @@
   /* Override base styles that conflict with grid layout */
   flex: unset;
   width: unset;
-}
-
-/* Class pills row under the card */
-.node-block--code > .block-ui--after-content {
-  grid-column: 2 / 4;
-  grid-row: 2;
-  margin-top: 2px;
 }
 
 /* Line numbers rendered by BlockCodePlugin */
