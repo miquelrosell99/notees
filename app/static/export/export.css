@@ -337,7 +337,7 @@ div.page-break {
 
 .theme-technical h1 {
   font-size: 1.8rem;
-  text-align: center;
+  /* text-align: center; */
   border-bottom: none;
   padding-bottom: 0.4rem;
   margin: 1.5rem 0 2rem;
