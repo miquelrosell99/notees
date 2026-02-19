@@ -408,7 +408,7 @@ export function BlockEditor({
             removeClassMutation.mutate({ nodeId: pageId, classId: origNode.id });
           }
           addClassMutation.mutate({ nodeId: pageId, classId: result.targetNode.id });
-          if (classClassId && !result.targetNode.class_ids?.includes(classClassId)) {
+          if (classClassId && !result.targetNode.classes?.includes(classClassId)) {
             addClassMutation.mutate({ nodeId: result.targetNode.id, classId: classClassId });
           }
         }
