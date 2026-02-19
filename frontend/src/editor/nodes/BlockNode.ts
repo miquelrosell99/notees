@@ -11,7 +11,7 @@
  *
  * The inline content is rendered as standard Lexical text/inline nodes
  * WITHIN this BlockNode. The BlockNode itself is an ElementNode
- * so it can contain children (TextNode, PillNode, etc.)
+ * so it can contain children (TextNode, InlineLinkNode, etc.)
  */
 
 import {

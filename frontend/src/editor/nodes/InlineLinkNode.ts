@@ -1,9 +1,9 @@
 /**
- * PillNode — Lexical DecoratorNode for rendering inline node/class references.
+ * InlineLinkNode — Lexical DecoratorNode for rendering inline link references.
  *
- * Renders as an atomic inline element (pill) that represents a link
- * to another node in the graph. The pill shows the target node's name/icon
- * and is non-editable inline content.
+ * Renders as an atomic inline element that represents a link
+ * to another node in the graph, a URL, or an embed. Shows the target
+ * node's name/icon and is non-editable inline content.
  */
 
 import {
@@ -18,19 +18,19 @@ import {
   type DOMConversionMap,
 } from 'lexical';
 import { createElement, type JSX } from 'react';
-import { InlineNodeLink } from '../components/InlineNodeLink';
+import { InlineLink } from '../components/InlineLink';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export type PillRefType = 'node' | 'class' | 'url' | 'embed';
+export type InlineLinkRefType = 'node' | 'class' | 'url' | 'embed';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
-export interface SerializedPillNode extends SerializedLexicalNode {
-  type: 'node-pill';
+export interface SerializedInlineLinkNode extends SerializedLexicalNode {
+  type: 'inline-link';
   version: 1;
   linkId: string;
-  refType: PillRefType;
+  refType: InlineLinkRefType;
   /** URL for external-link pills (refType === 'url'). */
   url?: string;
   /** Custom display label (e.g., [laboral]([[uuid]])) — overrides target node name. */
@@ -39,23 +39,23 @@ export interface SerializedPillNode extends SerializedLexicalNode {
 
 // ─── Node class ───────────────────────────────────────────────────
 
-export class PillNode extends DecoratorNode<JSX.Element> {
+export class InlineLinkNode extends DecoratorNode<JSX.Element> {
   __linkId: string;
-  __refType: PillRefType;
+  __refType: InlineLinkRefType;
   /** URL for external-link pills. */
   __url: string;
   /** Custom display label — overrides target node name when set. */
   __label: string;
 
   static getType(): string {
-    return 'node-pill';
+    return 'inline-link';
   }
 
-  static clone(node: PillNode): PillNode {
-    return new PillNode(node.__linkId, node.__refType, node.__key, node.__url, node.__label);
+  static clone(node: InlineLinkNode): InlineLinkNode {
+    return new InlineLinkNode(node.__linkId, node.__refType, node.__key, node.__url, node.__label);
   }
 
-  constructor(linkId: string, refType: PillRefType = 'node', key?: NodeKey, url = '', label = '') {
+  constructor(linkId: string, refType: InlineLinkRefType = 'node', key?: NodeKey, url = '', label = '') {
     super(key);
     this.__linkId = linkId;
     this.__refType = refType;
@@ -69,7 +69,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return this.__linkId;
   }
 
-  getRefType(): PillRefType {
+  getRefType(): InlineLinkRefType {
     return this.__refType;
   }
 
@@ -85,7 +85,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
 
   createDOM(_config: EditorConfig): HTMLElement {
     const span = document.createElement('span');
-    span.classList.add('node-pill-wrapper');
+    span.classList.add('inline-link-wrapper');
     span.dataset.linkId = this.__linkId;
     span.dataset.refType = this.__refType;
     if (this.__url) span.dataset.url = this.__url;
@@ -95,7 +95,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return span;
   }
 
-  updateDOM(prevNode: PillNode, dom: HTMLElement): boolean {
+  updateDOM(prevNode: InlineLinkNode, dom: HTMLElement): boolean {
     if (prevNode.__linkId !== this.__linkId) {
       dom.dataset.linkId = this.__linkId;
     }
@@ -115,7 +115,7 @@ export class PillNode extends DecoratorNode<JSX.Element> {
 
   exportDOM(_editor: LexicalEditor): DOMExportOutput {
     const span = document.createElement('span');
-    span.classList.add('node-pill');
+    span.classList.add('inline-link');
     span.dataset.linkId = this.__linkId;
     span.textContent = `[[${this.__linkId}]]`;
     return { element: span };
@@ -127,9 +127,9 @@ export class PillNode extends DecoratorNode<JSX.Element> {
 
   // ─── Serialization ───────────────────────────────────────────
 
-  exportJSON(): SerializedPillNode {
-    const json: SerializedPillNode = {
-      type: 'node-pill',
+  exportJSON(): SerializedInlineLinkNode {
+    const json: SerializedInlineLinkNode = {
+      type: 'inline-link',
       version: 1,
       linkId: this.__linkId,
       refType: this.__refType,
@@ -139,8 +139,8 @@ export class PillNode extends DecoratorNode<JSX.Element> {
     return json;
   }
 
-  static importJSON(json: SerializedPillNode): PillNode {
-    return $createPillNode(json.linkId, json.refType, json.url, json.label);
+  static importJSON(json: SerializedInlineLinkNode): InlineLinkNode {
+    return $createInlineLinkNode(json.linkId, json.refType, json.url, json.label);
   }
 
   // ─── Behavior ─────────────────────────────────────────────────
@@ -163,10 +163,10 @@ export class PillNode extends DecoratorNode<JSX.Element> {
   }
 
   /**
-   * Decorator render — returns a React element portaled into the pill wrapper.
+   * Decorator render — returns a React element portaled into the inline link wrapper.
    */
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
-    return createElement(InlineNodeLink, {
+    return createElement(InlineLink, {
       linkId: this.__linkId,
       refType: this.__refType,
       url: this.__url || undefined,
@@ -177,17 +177,17 @@ export class PillNode extends DecoratorNode<JSX.Element> {
 
 // ─── Factory functions ────────────────────────────────────────────
 
-export function $createPillNode(
+export function $createInlineLinkNode(
   linkId: string,
-  refType: PillRefType = 'node',
+  refType: InlineLinkRefType = 'node',
   url?: string,
   label?: string,
-): PillNode {
-  return $applyNodeReplacement(new PillNode(linkId, refType, undefined, url ?? '', label));
+): InlineLinkNode {
+  return $applyNodeReplacement(new InlineLinkNode(linkId, refType, undefined, url ?? '', label));
 }
 
-export function $isPillNode(
+export function $isInlineLinkNode(
   node: LexicalNode | null | undefined,
-): node is PillNode {
-  return node instanceof PillNode;
+): node is InlineLinkNode {
+  return node instanceof InlineLinkNode;
 }

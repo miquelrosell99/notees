@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { ImageNode } from '@/components/nodes/ImageNode';
 import { useNodes, useClasses } from '@/hooks';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
@@ -34,10 +34,10 @@ interface AssetLinkInfo {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-/** Recursively collect all PillNode linkIds from a Lexical node tree. */
+/** Recursively collect all InlineLinkNode linkIds from a Lexical node tree. */
 function collectPillLinkIds(node: import('lexical').LexicalNode): string[] {
   const ids: string[] = [];
-  if ($isPillNode(node)) {
+  if ($isInlineLinkNode(node)) {
     if (node.getRefType() === 'node') {
       ids.push(node.getLinkId());
     }
@@ -84,7 +84,7 @@ export function AssetLinkImagePlugin(): JSX.Element | null {
     return map;
   }, [allNodes, assetClassId]);
 
-  // Scan BlockNodes for PillNodes linking to asset nodes
+  // Scan BlockNodes for InlineLinkNodes linking to asset nodes
   const scanBlocks = useCallback(() => {
     if (!nodeUuidMap) return;
 
