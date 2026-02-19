@@ -8,6 +8,39 @@
    LAYER 1 — BASE (STRUCTURAL FOUNDATION)
    ========================================================= */
 
+:root {
+  /* Colors */
+  --color-text:          #111;
+  --color-text-muted:    #555;
+  --color-text-faint:    #aaa;
+  --color-bg:            #fff;
+  --color-bg-code:       #f2f2f2;
+  --color-border:        #ddd;
+  --color-border-table:  #bbb;
+  --color-link:          #5a79c9;
+  --color-mark:          #fff176;
+  --color-prop-name:     #555;
+  --color-prop-empty:    #aaa;
+
+  /* Typography */
+  --font-size-base:  1rem;
+  --line-height:     1.6;
+
+  /* Heading sizes */
+  --h1-size: 1.75rem;
+  --h2-size: 1.4rem;
+  --h3-size: 1.15rem;
+  --h4-size: 1rem;
+  --h5-size: 0.95rem;
+  --h6-size: 0.9rem;
+
+  /* Spacing */
+  --spacing-xs:  0.25rem;
+  --spacing-sm:  0.5rem;
+  --spacing-md:  0.75rem;
+  --spacing-lg:  1.5rem;
+}
+
 @page {
   size: A4;
   margin: 2cm 2.2cm;
@@ -23,33 +56,33 @@ img {
 }
 
 body {
-  font-size: 1rem;
-  line-height: 1.6;
-  color: #111;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  color: var(--color-text);
   margin: 0;
   padding: 0;
-  background: #fff;
+  background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
 }
 
 /* --- Headings --- */
 h1, h2, h3, h4, h5, h6 {
-  color: #111;
-  margin: 1.5rem 0 0.75rem;
+  color: var(--color-text);
+  margin: var(--spacing-lg) 0 var(--spacing-md);
   line-height: 1.25;
   page-break-after: avoid;
 }
 
-h1 { font-size: 1.75rem; font-weight: 600; }
-h2 { font-size: 1.4rem;  font-weight: 600; }
-h3 { font-size: 1.15rem; font-weight: 600; }
-h4 { font-size: 1rem;    font-weight: 600; }
-h5 { font-size: 0.95rem; font-weight: 600; }
-h6 { font-size: 0.9rem;  font-weight: 600; }
+h1 { font-size: var(--h1-size); font-weight: 600; }
+h2 { font-size: var(--h2-size); font-weight: 600; }
+h3 { font-size: var(--h3-size); font-weight: 600; }
+h4 { font-size: var(--h4-size); font-weight: 600; }
+h5 { font-size: var(--h5-size); font-weight: 600; }
+h6 { font-size: var(--h6-size); font-weight: 600; }
 
 /* --- Paragraphs --- */
 p {
-  margin: 0.5rem 0;
+  margin: var(--spacing-sm) 0;
   line-height: inherit;
   orphans: 3;
   widows: 3;
@@ -57,7 +90,7 @@ p {
 
 /* --- Lists (base neutral) --- */
 ul, ol {
-  margin: 0.5rem 0;
+  margin: var(--spacing-sm) 0;
   padding-left: 1.5rem;
 }
 
@@ -65,7 +98,7 @@ ul { list-style-type: disc; }
 ol { list-style-type: decimal; }
 
 li {
-  margin: 0.25rem 0;
+  margin: var(--spacing-xs) 0;
   line-height: inherit;
 }
 
@@ -77,11 +110,11 @@ li {
 /* --- Node properties table --- */
 .node-properties {
   border-collapse: collapse;
-  margin: 0.75rem 0 1.25rem;
+  margin: var(--spacing-md) 0 1.25rem;
   padding: 0;
   font-size: 0.85em;
-  border-top: 1px solid #ddd;
-  border-bottom: 1px solid #ddd;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   width: 100%;
 }
 
@@ -92,13 +125,13 @@ li {
 
 .node-property-name {
   font-weight: 600;
-  color: #555;
+  color: var(--color-prop-name);
   white-space: nowrap;
   padding-right: 1.5rem;
 }
 
 .node-property-value {
-  color: #111;
+  color: var(--color-text);
   word-break: break-word;
 }
 
@@ -117,7 +150,7 @@ li {
 }
 
 .node-property-empty {
-  color: #aaa;
+  color: var(--color-prop-empty);
   font-style: italic;
 }
 
@@ -129,7 +162,7 @@ li {
 code {
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   font-size: 0.85em;
-  background: #f2f2f2;
+  background: var(--color-bg-code);
   padding: 0.15em 0.35em;
   border-radius: 3px;
 }
@@ -137,7 +170,7 @@ code {
 pre {
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   font-size: 0.85em;
-  background: #f2f2f2;
+  background: var(--color-bg-code);
   padding: 1rem;
   border-radius: 4px;
   overflow-x: auto;
@@ -159,7 +192,7 @@ th {
   font-weight: 600;
   padding: 5px 10px;
   text-align: left;
-  border-bottom: 1px solid #bbb;
+  border-bottom: 1px solid var(--color-border-table);
 }
 
 td {
@@ -181,18 +214,18 @@ figcaption {
   font-size: 0.82em;
   text-align: center;
   margin-top: 0.3em;
-  color: #555;
+  color: var(--color-text-muted);
 }
 
 /* --- Misc --- */
 hr {
   border: none;
-  border-top: 1px solid #ddd;
-  margin: 1.5rem 0;
+  border-top: 1px solid var(--color-border);
+  margin: var(--spacing-lg) 0;
 }
 
 mark {
-  background: #fff176;
+  background: var(--color-mark);
   padding: 0.05em 0.15em;
 }
 
@@ -207,7 +240,7 @@ a.node-link {
 
 /* URL links — double underline */
 a.url-link {
-  color: #5a79c9;
+  color: var(--color-link);
   text-decoration: underline double;
   text-underline-offset: 3px;
 }
@@ -237,11 +270,26 @@ div.page-break {
 
 /* ---- Minimal ---- */
 .theme-minimal {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 10.5pt;
-  line-height: 1.7;
-  letter-spacing: -0.01em;
-  color: #222;
+  /* Theme variables */
+  --tm-font:           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --tm-size:           10.5pt;
+  --tm-line-height:    1.7;
+  --tm-letter-spacing: -0.01em;
+  --tm-color:          #222;
+  --tm-color-h2:       #333;
+  --tm-color-h3:       #555;
+  --tm-border:         #e5e5e5;
+  --tm-border-top:     #eaeaea;
+  --tm-link:           #5a79c9;
+  --tm-prop-name:      #999;
+  --tm-prop-value:     #333;
+  --tm-prop-empty:     #ccc;
+
+  font-family: var(--tm-font);
+  font-size: var(--tm-size);
+  line-height: var(--tm-line-height);
+  letter-spacing: var(--tm-letter-spacing);
+  color: var(--tm-color);
 }
 
 .theme-minimal h1,
@@ -263,71 +311,82 @@ div.page-break {
 
 .theme-minimal h2 {
   font-size: 1.25rem;
-  color: #333;
+  color: var(--tm-color-h2);
 }
 
 .theme-minimal h3 {
   font-size: 1.05rem;
-  color: #555;
+  color: var(--tm-color-h3);
 }
 
 .theme-minimal h4,
 .theme-minimal h5,
 .theme-minimal h6 {
   font-size: 0.95rem;
-  color: #555;
+  color: var(--tm-color-h3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .theme-minimal code {
   background: transparent;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--tm-border);
 }
 
 .theme-minimal pre {
   background: transparent;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--tm-border);
 }
 
 .theme-minimal .node-properties {
-  border-top-color: #eaeaea;
+  border-top-color: var(--tm-border-top);
   border-bottom-color: transparent;
 }
 
 .theme-minimal .node-property-name {
   font-weight: 500;
-  color: #999;
+  color: var(--tm-prop-name);
   text-transform: uppercase;
   font-size: 0.78em;
   letter-spacing: 0.06em;
 }
 
 .theme-minimal .node-property-value {
-  color: #333;
+  color: var(--tm-prop-value);
 }
 
 .theme-minimal .node-property-empty {
-  color: #ccc;
+  color: var(--tm-prop-empty);
   font-style: normal;
 }
 
 .theme-minimal hr {
-  border-top-color: #e5e5e5;
+  border-top-color: var(--tm-border);
   margin: 2rem 0;
 }
 
 .theme-minimal a {
-  color: #5a79c9;
+  color: var(--tm-link);
 }
 
 /* ---- Technical ---- */
 .theme-technical {
-  font-family: 'Times New Roman', Georgia, serif;
-  font-size: 10pt;
-  line-height: 1.35;
+  /* Theme variables */
+  --tt-font:         'Times New Roman', Georgia, serif;
+  --tt-font-mono:    Consolas, monospace;
+  --tt-size:         10pt;
+  --tt-line-height:  1.35;
+  --tt-color:        #000;
+  --tt-code-bg:      #f2f2f2;
+  --tt-border:       #e5e5e5;
+  --tt-hr:           #a3a3a3;
+  --tt-muted:        #888;
+
+  font-family: var(--tt-font);
+  font-size: var(--tt-size);
+  line-height: var(--tt-line-height);
   letter-spacing: 0;
-  color: #000;
+  color: var(--tt-color);
 }
 
 .theme-technical h1,
@@ -336,7 +395,7 @@ div.page-break {
 .theme-technical h4,
 .theme-technical h5,
 .theme-technical h6 {
-  font-family: 'Times New Roman', Georgia, serif;
+  font-family: var(--tt-font);
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-top: 1rem;
@@ -382,17 +441,17 @@ div.page-break {
 }
 
 .theme-technical code {
-  font-family: Consolas, monospace;
+  font-family: var(--tt-font-mono);
   font-size: 0.82em;
-  background: #f2f2f2;
-  border: 1px solid #e5e5e5;
+  background: var(--tt-code-bg);
+  border: 1px solid var(--tt-border);
   border-radius: 2px;
 }
 
 .theme-technical pre {
-  font-family: Consolas, monospace;
+  font-family: var(--tt-font-mono);
   font-size: 0.82em;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--tt-border);
   background: transparent;
   border-radius: 2px;
 }
@@ -403,7 +462,7 @@ div.page-break {
 
 .theme-technical th {
   border: none;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--tt-color);
   padding: 4px 8px;
 }
 
@@ -413,29 +472,29 @@ div.page-break {
 }
 
 .theme-technical .node-properties {
-  border-top-color: #000;
-  border-bottom-color: #000;
+  border-top-color: var(--tt-color);
+  border-bottom-color: var(--tt-color);
 }
 
 .theme-technical .node-property-name {
   font-weight: bold;
-  color: #000;
+  color: var(--tt-color);
 }
 
 .theme-technical .node-property-value {
-  color: #000;
+  color: var(--tt-color);
 }
 
 .theme-technical .node-property-empty {
-  color: #888;
+  color: var(--tt-muted);
 }
 
 .theme-technical a {
-  color: #000;
+  color: var(--tt-color);
 }
 
 .theme-technical hr {
-  border-top-color: #a3a3a3;
+  border-top-color: var(--tt-hr);
   margin: 1.25rem 0;
 }
 
@@ -465,12 +524,16 @@ div.page-break {
 }
 
 /* ---- Indented: standard nested indentation ---- */
+.structure-indented {
+  --indent-border: #e0e0e0;
+}
+
 .structure-indented ul {
   padding-left: 1.4rem;
 }
 
 .structure-indented ul ul {
-  border-left: 1.5px solid #e0e0e0;
+  border-left: 1.5px solid var(--indent-border);
   margin-left: 0.1rem;
   padding-left: 1.1rem;
 }
@@ -485,34 +548,46 @@ div.page-break {
    ========================================================= */
 
 /* ---- Comfortable: generous vertical spacing ---- */
+.density-comfortable {
+  --dc-heading-mt: 1.5rem;
+  --dc-heading-mb: 0.75rem;
+  --dc-block-m:    0.5rem;
+  --dc-item-m:     0.25rem;
+}
+
 .density-comfortable h1,
 .density-comfortable h2,
 .density-comfortable h3,
 .density-comfortable h4,
 .density-comfortable h5,
 .density-comfortable h6 {
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  margin-top: var(--dc-heading-mt);
+  margin-bottom: var(--dc-heading-mb);
 }
 
 .density-comfortable p {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: var(--dc-block-m);
+  margin-bottom: var(--dc-block-m);
 }
 
 .density-comfortable li {
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
+  margin-top: var(--dc-item-m);
+  margin-bottom: var(--dc-item-m);
 }
 
 .density-comfortable ul,
 .density-comfortable ol {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: var(--dc-block-m);
+  margin-bottom: var(--dc-block-m);
 }
 
 /* ---- Compact: tighter vertical spacing, slightly smaller type ---- */
 .density-compact {
+  --dk-heading-mt: 0.75rem;
+  --dk-heading-mb: 0.3rem;
+  --dk-block-m:    0.2rem;
+  --dk-props-mb:   0.75rem;
+
   font-size: 0.92em;
 }
 
@@ -522,13 +597,13 @@ div.page-break {
 .density-compact h4,
 .density-compact h5,
 .density-compact h6 {
-  margin-top: 0.75rem;
-  margin-bottom: 0.3rem;
+  margin-top: var(--dk-heading-mt);
+  margin-bottom: var(--dk-heading-mb);
 }
 
 .density-compact p {
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem;
+  margin-top: var(--dk-block-m);
+  margin-bottom: var(--dk-block-m);
 }
 
 .density-compact li {
@@ -538,12 +613,12 @@ div.page-break {
 
 .density-compact ul,
 .density-compact ol {
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem;
+  margin-top: var(--dk-block-m);
+  margin-bottom: var(--dk-block-m);
 }
 
 .density-compact .node-properties {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--dk-props-mb);
   padding: 0.3rem 0;
 }
 
