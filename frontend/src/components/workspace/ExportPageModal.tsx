@@ -7,12 +7,12 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiTune } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
+import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import api from '@/api/client';
-import { BooleanToggle } from '../core/BooleanToggle';
 import './ExportPageModal.css';
 
 type ExportFormat = 'markdown' | 'html' | 'pdf';
@@ -168,66 +168,80 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       size="lg"
       footer={
         <div className="export-modal__footer">
-          <div className="export-modal__footer-controls">
-            <SelectionButton
-              size="sm"
-              options={[
-                { value: 'outline', icon: mdiFileTree, label: 'Outline' },
-                { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
-              ]}
-              value={layout}
-              onChange={(v) => setLayout(v as ExportLayout)}
-            />
-            {format !== 'markdown' && (
+          <ButtonWithPanel
+            icon={mdiTune}
+            buttonText="Options"
+            size="sm"
+            panelPosition="top"
+            panelAlignment="start"
+            panelWidth="fit-content"
+            showCloseButton={false}
+            panelClassName="export-modal__options-panel"
+          >
+            <div className="export-modal__options-content">
               <SelectionButton
                 size="sm"
                 options={[
-                  { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
-                  { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                  { value: 'outline', icon: mdiFileTree, label: 'Outline' },
+                  { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
                 ]}
-                value={style}
-                onChange={(v) => setStyle(v as ExportStyle)}
+                value={layout}
+                onChange={(v) => setLayout(v as ExportLayout)}
               />
-            )}
-            {format !== 'markdown' && (
+              {format !== 'markdown' && (
+                <SelectionButton
+                  size="sm"
+                  options={[
+                    { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
+                    { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                  ]}
+                  value={style}
+                  onChange={(v) => setStyle(v as ExportStyle)}
+                />
+              )}
+              {format !== 'markdown' && (
+                <SelectionButton
+                  size="sm"
+                  options={[
+                    { value: 'comfortable', icon: mdiViewHeadline, label: 'Comfortable' },
+                    { value: 'compact', icon: mdiViewCompact, label: 'Compact' },
+                  ]}
+                  value={density}
+                  onChange={(v) => setDensity(v as ExportDensity)}
+                />
+              )}
+              {format !== 'markdown' && (
+                <SelectionButton
+                  size="sm"
+                  options={[
+                    { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
+                    { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
+                  ]}
+                  value={numbering}
+                  onChange={(v) => setNumbering(v as ExportNumbering)}
+                />
+              )}
               <SelectionButton
                 size="sm"
                 options={[
-                  { value: 'comfortable', icon: mdiViewHeadline, label: 'Comfortable' },
-                  { value: 'compact', icon: mdiViewCompact, label: 'Compact' },
+                  { value: 'true', icon: mdiFormatText, label: 'Formatted' },
+                  { value: 'false', icon: mdiCodeBraces, label: 'Plain' },
                 ]}
-                value={density}
-                onChange={(v) => setDensity(v as ExportDensity)}
+                value={formatting ? 'true' : 'false'}
+                onChange={(v) => setFormatting(v === 'true')}
               />
-            )}
-            {format !== 'markdown' && (
               <SelectionButton
                 size="sm"
                 options={[
-                  { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
-                  { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
+                  { value: 'none', icon: mdiTagOff, label: 'No props' },
+                  { value: 'main', icon: mdiTagOutline, label: 'Main props' },
+                  { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
                 ]}
-                value={numbering}
-                onChange={(v) => setNumbering(v as ExportNumbering)}
+                value={properties}
+                onChange={(v) => setProperties(v as ExportProperties)}
               />
-            )}
-            <BooleanToggle
-              size="sm"
-              label="Formatting"
-              checked={formatting}
-              onChange={setFormatting}
-            />
-            <SelectionButton
-              size="sm"
-              options={[
-                { value: 'none', icon: mdiTagOff, label: 'No props' },
-                { value: 'main', icon: mdiTagOutline, label: 'Main props' },
-                { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
-              ]}
-              value={properties}
-              onChange={(v) => setProperties(v as ExportProperties)}
-            />
-          </div>
+            </div>
+          </ButtonWithPanel>
           <div className="export-modal__footer-actions">
             <Button variant="ghost" onClick={onClose} disabled={downloading}>
               Cancel
