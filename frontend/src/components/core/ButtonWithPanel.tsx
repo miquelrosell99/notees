@@ -102,7 +102,7 @@ export function ButtonWithPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [portalPosition, setPortalPosition] = useState({ top: 0, left: 0 });
+  const [portalPosition, setPortalPosition] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   
   // Handle open state changes
@@ -215,12 +215,13 @@ export function ButtonWithPanel({
           l = panelAlignment === 'start' ? rect.left 
                : panelAlignment === 'end' ? rect.right - actualWidth 
                : rect.left + rect.width / 2 - actualWidth / 2;
-          return { top: t, left: l, fits: t >= 16 };
+          return { top: t, left: l, fits: rect.top - gap >= estimatedHeight + 16 };
       }
     };
     
     // Try preferred position first
     let result = tryPosition(preferredPosition);
+    let chosenPosition = preferredPosition;
     
     // If doesn't fit, try alternatives
     if (!result.fits) {
@@ -232,16 +233,22 @@ export function ButtonWithPanel({
       
       for (const alt of alternatives) {
         result = tryPosition(alt);
-        if (result.fits) break;
+        if (result.fits) { chosenPosition = alt; break; }
       }
     }
     
-    // Clamp to viewport
-    top = Math.max(16, Math.min(result.top, viewportHeight - estimatedHeight - 16));
+    // Clamp horizontal
     left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
-    
+
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronous position calculation based on DOM measurements
-    setPortalPosition({ top, left });
+    if (chosenPosition === 'top') {
+      // Anchor bottom edge to button top: panel grows upward, height-independent
+      const bottomAnchor = viewportHeight - (rect.top - gap);
+      setPortalPosition({ bottom: Math.max(16, bottomAnchor), left });
+    } else {
+      top = Math.max(16, Math.min(result.top, viewportHeight - estimatedHeight - 16));
+      setPortalPosition({ top, left });
+    }
   }, [isOpen, usePortal, panelWidth, panelPosition, panelAlignment]);
   
   // Calculate panel position styles
@@ -357,7 +364,9 @@ export function ButtonWithPanel({
           style={{
             ...getPanelStyle(),
             position: 'fixed',
-            top: `${portalPosition.top}px`,
+            ...(portalPosition.bottom !== undefined
+              ? { bottom: `${portalPosition.bottom}px` }
+              : { top: `${portalPosition.top ?? 0}px` }),
             left: `${portalPosition.left}px`,
             zIndex: '10001 !important' as any,
           }}
