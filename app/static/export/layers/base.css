@@ -1,0 +1,380 @@
+/* =========================================================
+   LAYER 1 — BASE (STRUCTURAL FOUNDATION)
+   CSS custom properties, reset, typography, components.
+   ========================================================= */
+
+:root {
+  /* Colors */
+  --color-text:          #111;
+  --color-text-muted:    #555;
+  --color-text-faint:    #aaa;
+  --color-bg:            #fff;
+  --color-bg-code:       #f2f2f2;
+  --color-border:        #ddd;
+  --color-border-table:  #bbb;
+  --color-link:          #5a79c9;
+  --color-mark:          #fff176;
+  --color-prop-name:     #555;
+  --color-prop-empty:    #aaa;
+
+  /* Typography */
+  --font-size-base:  1rem;
+  --line-height:     1.6;
+
+  /* Modular typographic scale (ratio 1.2) */
+  --scale-ratio: 1.2;
+  --step-0: 1rem;
+  --step-1: calc(var(--step-0) * var(--scale-ratio));
+  --step-2: calc(var(--step-1) * var(--scale-ratio));
+  --step-3: calc(var(--step-2) * var(--scale-ratio));
+  --step-4: calc(var(--step-3) * var(--scale-ratio));
+
+  /* Spacing — baseline rhythm grid */
+  --rhythm: 0.75rem;
+}
+
+@page {
+  size: A4;
+  margin: 2cm 2.2cm;
+
+  @top-center {
+    content: string(doctitle);
+    font-size: 8.5pt;
+    color: #888;
+    font-family: inherit;
+    letter-spacing: 0.03em;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-size: 8.5pt;
+    color: #888;
+    font-family: inherit;
+  }
+}
+
+/* Suppress running header on the first page */
+@page :first {
+  @top-center { content: none; }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+  max-height: 80vh;
+  height: auto;
+  object-fit: contain;
+}
+
+body {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  color: var(--color-text);
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums;
+}
+
+/* --- Headings --- */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text);
+  margin: calc(var(--rhythm) * 2) 0 var(--rhythm);
+  line-height: 1.25;
+  page-break-after: avoid;
+  break-after: avoid-page;
+  break-inside: avoid;
+  scroll-margin-top: 4rem; /* anchor offset for on-screen navigation */
+}
+
+h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; margin-top: calc(var(--rhythm) * 4); string-set: doctitle content(); }
+h2 { font-size: var(--step-4); font-weight: 600; margin-top: calc(var(--rhythm) * 3); margin-bottom: calc(var(--rhythm) * 1.5); }
+h3 { font-size: var(--step-3); font-weight: 600; }
+h4 { font-size: var(--step-2); font-weight: 600; }
+h5 { font-size: var(--step-1); font-weight: 600; }
+h6 { font-size: var(--step-0); font-weight: 600; }
+
+body > h1:first-child {
+  margin-top: 0;
+}
+
+/* --- Paragraphs --- */
+p {
+  margin: var(--rhythm) 0;
+  line-height: inherit;
+  orphans: 3;
+  widows: 3;
+}
+
+/* --- Lists (base neutral) --- */
+ul, ol {
+  margin: var(--rhythm) 0;
+  padding-left: 1.5rem;
+  page-break-inside: auto;
+}
+
+ul { list-style-type: disc; }
+ol { list-style-type: decimal; }
+
+/* Hanging punctuation for ordered lists */
+ol {
+  counter-reset: list;
+  padding-left: 0;
+}
+
+ol > li {
+  list-style: none;
+  position: relative;
+  padding-left: 2.2rem;
+}
+
+ol > li::before {
+  counter-increment: list;
+  content: counter(list) ".";
+  position: absolute;
+  left: 0;
+  width: 2rem;
+  text-align: right;
+  color: var(--color-text-muted);
+}
+
+/* Nested ordered lists: indent but keep hanging style */
+ol ol {
+  counter-reset: list;
+  padding-left: 2.2rem;
+}
+
+li {
+  margin: calc(var(--rhythm) * 0.33) 0;
+  line-height: inherit;
+  page-break-inside: avoid;
+}
+
+/* --- Page-break grouping --- */
+.node-block {
+  page-break-inside: avoid;
+}
+
+/* --- Node properties table --- */
+.node-properties {
+  border-collapse: collapse;
+  margin: var(--rhythm) 0 calc(var(--rhythm) * 1.5);
+  padding: 0;
+  font-size: 0.85em;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  width: 100%;
+}
+
+.node-property td {
+  padding: 0.2rem 0;
+  vertical-align: top;
+}
+
+.node-property + .node-property td {
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.node-property-name {
+  font-weight: 600;
+  color: var(--color-prop-name);
+  white-space: nowrap;
+  padding-right: 1.5rem;
+}
+
+.node-property-value {
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.node-property-text {
+  display: inline;
+}
+
+.node-property-list {
+  margin: 0.15em 0 0;
+  padding-left: 1.2em;
+  list-style-type: disc;
+}
+
+.node-property-list li {
+  margin: 0.1em 0;
+}
+
+.node-property-empty {
+  color: var(--color-prop-empty);
+  font-style: italic;
+}
+
+.node-property-icon {
+  margin-right: 0.25em;
+}
+
+/* --- Code & pre --- */
+code {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--color-bg-code);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  font-variant-ligatures: none;
+}
+
+pre {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--color-bg-code);
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.45;
+  page-break-inside: avoid;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  tab-size: 2;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* --- Tables (neutral baseline) --- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.9em;
+}
+
+th {
+  font-weight: 600;
+  padding: 5px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-table);
+}
+
+td {
+  padding: 4px 10px;
+  vertical-align: top;
+}
+
+/* --- Table variants --- */
+
+/* Striped: subtle alternating row tint */
+.table-striped tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.03);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Grid: full cell borders */
+.table-grid th,
+.table-grid td {
+  border: 1px solid var(--color-border-table);
+}
+
+.table-grid th {
+  background: rgba(0, 0, 0, 0.04);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Minimal: header rule only, no other borders, more padding */
+.table-minimal th {
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: 6px;
+}
+
+.table-minimal td {
+  border: none;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+figure {
+  margin: 1em 0;
+  page-break-inside: avoid;
+}
+
+figure img {
+  display: block;
+  margin: 0 auto;
+}
+
+figcaption {
+  font-size: 0.82em;
+  text-align: center;
+  margin-top: 0.3em;
+  color: var(--color-text-muted);
+}
+
+/* --- Misc --- */
+hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: calc(var(--rhythm) * 2) 0;
+}
+
+mark {
+  background: var(--color-mark);
+  padding: 0.05em 0.15em;
+}
+
+sup { font-size: 0.75em; }
+
+/* Node links — faint dotted underline */
+a.node-link {
+  text-decoration: underline dotted;
+  text-decoration-color: rgba(0, 0, 0, 0.3);
+  text-underline-offset: 3px;
+}
+
+/* URL links — solid underline, slightly bold */
+a.url-link {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+
+/* --- Page breaks --- */
+div.page-break {
+  page-break-before: always;
+}
+
+/* Major section starts on new page when body.section-break-before is set */
+.section-break-before h1,
+.section-break-before h2 {
+  break-before: page;
+  page-break-before: always;
+}
+
+/* Suppress break-before on the very first heading so it doesn't create a blank first page */
+.section-break-before h1:first-child,
+.section-break-before h2:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+@media print {
+  [style*="color"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  ul, ol, p {
+    orphans: 3;
+    widows: 3;
+  }
+  a.url-link::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: var(--color-text-muted);
+  }
+}

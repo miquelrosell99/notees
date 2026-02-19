@@ -1,0 +1,69 @@
+/* =========================================================
+   LAYER 3 — STRUCTURE (HIERARCHY RENDERING)
+   Controls how nested node blocks are visually represented.
+   Apply one class to <body>: structure-flat, structure-indented.
+   ========================================================= */
+
+/* ---- Flat: remove nesting visuals, keep vertical stacking ---- */
+.structure-flat ul {
+  padding-left: 0;
+  margin-left: 0;
+  list-style: none;
+  border-left: none;
+}
+
+.structure-flat ul ul {
+  padding-left: 0;
+  margin-left: 0.5rem;
+}
+
+.structure-flat ul ul > li {
+  padding-left: 0.25rem;
+}
+
+.structure-flat li {
+  list-style: none;
+}
+
+.structure-flat li::before {
+  display: none;
+}
+
+/* ---- Indented: standard nested indentation with guide lines ---- */
+.structure-indented {
+  --indent-border: #e0e0e0;
+}
+
+.structure-indented ul {
+  padding-left: 1.4rem;
+}
+
+.structure-indented ul ul {
+  position: relative;
+  margin-left: 0.75rem;
+  padding-left: 1rem;
+}
+
+.structure-indented ul ul::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 1px;
+  background: var(--indent-border);
+}
+
+.structure-indented li {
+  position: relative;
+}
+
+/* Subtle tonal fade by nesting depth — DISABLED FOR NOW
+.structure-indented ul ul > li,
+.structure-indented ul ul > li > p { color: #333; }
+
+.structure-indented ul ul ul > li,
+.structure-indented ul ul ul > li > p { color: #444; }
+
+.structure-indented ul ul ul ul > li,
+.structure-indented ul ul ul ul > li > p { color: #555; } */

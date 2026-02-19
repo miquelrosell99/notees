@@ -1,0 +1,82 @@
+/* =========================================================
+   LAYER 7 — TABLE OF CONTENTS (PRINT-GRADE)
+   Works fully in Prince / WeasyPrint (CSS Paged Media).
+   Degrades gracefully in other environments.
+   Use <nav class="toc"> with <a href="#node-uuid"> links.
+   ========================================================= */
+
+/* --- TOC container --- */
+.toc {
+  margin: calc(var(--rhythm) * 2) 0 calc(var(--rhythm) * 3);
+  page-break-after: always;
+  break-after: page;
+}
+
+/* TOC title/subtitle: no counter prefix, no forced break */
+.toc h2,
+.toc h3 {
+  break-before: avoid;
+  counter-reset: none;
+}
+
+/* --- TOC list structure --- */
+.toc ol,
+.toc ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+/* Override base ol hanging-indent for TOC */
+.toc ol {
+  counter-reset: none;
+}
+
+.toc ol > li {
+  padding-left: 0;
+}
+
+.toc ol > li::before {
+  display: none;
+}
+
+.toc li {
+  margin: calc(var(--rhythm) * 0.25) 0;
+}
+
+/* Indent nested levels */
+.toc ol ol,
+.toc ul ul {
+  padding-left: 1.5rem;
+}
+
+/* --- TOC links --- */
+.toc a {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+/* Leader dots + page number (CSS Paged Media — Prince / WeasyPrint) */
+.toc a::after {
+  content: leader('.') target-counter(attr(href url), page);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Theme-aware TOC styles --- */
+
+/* Minimal: subdued page numbers */
+.theme-minimal .toc a {
+  font-weight: 400;
+}
+
+.theme-minimal .toc a::after {
+  color: var(--color-text-faint);
+}
+
+/* --- Screen-only: suppress leader/page-number outside print --- */
+@media screen {
+  .toc a::after {
+    content: none;
+  }
+}
