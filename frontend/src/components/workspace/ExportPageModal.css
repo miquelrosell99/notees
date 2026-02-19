@@ -160,6 +160,9 @@
 /* Options panel portal — must sit above modal (--z-modal: 10001) */
 .export-modal__options-panel {
   z-index: 10002 !important;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 
