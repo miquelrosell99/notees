@@ -540,6 +540,28 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Default export stylesheet
+# Reads frontend/src/variables.css (design tokens) + frontend/src/export.css
+# (export-specific rules) and concatenates them.  Cached after first call.
+# ---------------------------------------------------------------------------
+_FRONTEND_SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
+_VARIABLES_CSS_PATH = _FRONTEND_SRC / "variables.css"
+_EXPORT_CSS_PATH = _FRONTEND_SRC / "export.css"
+
+def _get_export_css() -> str:
+    """Read variables.css + export.css from disk (cached after first call)."""
+    if not hasattr(_get_export_css, "_cache"):
+        parts: list[str] = []
+        for path in (_VARIABLES_CSS_PATH, _EXPORT_CSS_PATH):
+            try:
+                parts.append(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                logger.warning("Export CSS file not found: %s", path)
+        _get_export_css._cache = "\n".join(parts)
+    return _get_export_css._cache
+
+
 def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
     """Convert nodes to HTML format.
     
@@ -554,7 +576,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
     import html as html_mod
 
     if not nodes:
-        return "<!DOCTYPE html>\n<html><head><title>Notees Export</title></head><body></body></html>"
+        return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title><style>{_get_export_css()}</style></head><body></body></html>"
 
     if layout == "flat":
         lines = []
@@ -570,7 +592,12 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
         title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver) if nodes[0].get('is_page') else "Notees Export"
         return f"""<!DOCTYPE html>
 <html>
-<head><title>{html_mod.escape(title)}</title></head>
+<head>
+<title>{html_mod.escape(title)}</title>
+<style>
+{_get_export_css()}
+</style>
+</head>
 <body>
 {chr(10).join(lines)}
 </body>
@@ -615,7 +642,12 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
 
     return f"""<!DOCTYPE html>
 <html>
-<head><title>Notees Export</title></head>
+<head>
+<title>Notees Export</title>
+<style>
+{_get_export_css()}
+</style>
+</head>
 <body>
 {chr(10).join(lines)}
 </body>
