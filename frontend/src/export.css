@@ -114,7 +114,6 @@ hr {
 
 /* ---- Inline formatting ---- */
 mark {
-  background: rgba(var(--color-preset-yellow, #b8a23a), 0.25);
   background: #fff176;
   color: inherit;
   padding: 0.05em 0.15em;
