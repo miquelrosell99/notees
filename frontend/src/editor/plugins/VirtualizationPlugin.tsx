@@ -36,6 +36,11 @@ import {
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
+import {
+  updateVisibleBlockIds as syncVisibleBlockIds,
+  setVirtualizationEnabled,
+  resetVirtualizedState,
+} from '../virtualizedState';
 
 // ─── Context ──────────────────────────────────────────────────────
 
@@ -97,6 +102,16 @@ export function VirtualizationPlugin({
 
   // Determine if virtualization should be active
   const enabled = !disabled && totalBlocks >= VIRTUALIZATION_THRESHOLD;
+
+  // Sync enabled state to shared module
+  useEffect(() => {
+    setVirtualizationEnabled(enabled);
+  }, [enabled]);
+
+  // Reset shared state on unmount
+  useEffect(() => {
+    return () => { resetVirtualizedState(); };
+  }, []);
 
   // ─── Track total block count ─────────────────────────────
 
@@ -175,20 +190,15 @@ export function VirtualizationPlugin({
       threshold: 0,
     });
 
-    // Observe all existing block elements
+    // Observe all existing block elements.
+    // Do NOT initially mark all as visible — let the IO callback
+    // determine true viewport intersection. This avoids populating
+    // content for 600 blocks when only ~50 are on screen.
     const blockEls = rootEl.querySelectorAll('[data-block-id]');
     blockEls.forEach(el => {
       observerRef.current!.observe(el);
       observedElements.current.add(el);
     });
-
-    // Initially mark all visible
-    const allIds = new Set<string>();
-    blockEls.forEach(el => {
-      const id = (el as HTMLElement).dataset.blockId;
-      if (id) allIds.add(id);
-    });
-    setVisibleBlockIds(allIds);
 
     return () => {
       observerRef.current?.disconnect();
@@ -274,6 +284,13 @@ export function VirtualizationPlugin({
       }
     });
   }, [editor, enabled, visibleBlockIds]);
+
+  // ─── Sync visible IDs to shared module ─────────────────
+  // Shared module is the bridge to BlockPlugin which cannot
+  // consume React context (it is a sibling, not a child).
+  useEffect(() => {
+    syncVisibleBlockIds(visibleBlockIds);
+  }, [visibleBlockIds]);
 
   // ─── Context value ──────────────────────────────────────
 

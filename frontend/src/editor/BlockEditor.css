@@ -90,6 +90,12 @@
   cursor: default;
   /* Re-enable pointer events on blocks */
   pointer-events: auto;
+  /* Browser-level rendering optimisation: skip layout/paint for off-screen
+     blocks.  The `auto` value lets the browser decide when to apply
+     containment.  `contain-intrinsic-size` provides an estimated height so
+     the scrollbar remains stable while off-screen blocks are not laid out. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28px;
 }
 
 /* ─── Block UI container (non-editable) ─────────────────────────── */

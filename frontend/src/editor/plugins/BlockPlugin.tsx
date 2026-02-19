@@ -20,6 +20,7 @@ import {
   $setSelection,
   $isTextNode,
   $isLineBreakNode,
+  $getNodeByKey,
   TextNode,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_NORMAL,
@@ -46,6 +47,59 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
+import {
+  getVisibleBlockIds,
+  isVirtualizationEnabled,
+  isBlockPopulated,
+  markPopulated,
+  markDepopulated,
+  clearPopulatedState,
+  prunePopulatedState,
+  subscribeToVisibilityChange,
+  flushVisibilityChanges,
+} from '../virtualizedState';
+
+/**
+ * Number of blocks to eagerly populate on initial sync when the
+ * IntersectionObserver hasn’t reported visibility yet.  Set high
+ * enough to fill the viewport + buffer (400 px each side).
+ */
+const INITIAL_POPULATE_COUNT = 100;
+
+/**
+ * Number of blocks beyond the visible window to pre-hydrate during
+ * idle time (above and below).  Blocks in this buffer will be
+ * ready before the user scrolls to them.
+ */
+const PRE_HYDRATE_COUNT = 30;
+
+/**
+ * Maximum number of blocks to hydrate in a single idle callback.
+ * If more remain, a continuation idle callback is scheduled so that
+ * long pre-hydration queues never block the main thread.
+ */
+const IDLE_CHUNK_SIZE = 8;
+
+/**
+ * Fallback timeout (ms) for Phase-2 pill upgrades.
+ * If requestIdleCallback hasn't fired within this window (e.g. during
+ * constant scrolling), a setTimeout forces the upgrade so decorators
+ * are never indefinitely delayed.
+ */
+const UPGRADE_FALLBACK_MS = 200;
+
+/** Shim for requestIdleCallback in Safari / older browsers. */
+const rIC: typeof requestIdleCallback =
+  typeof requestIdleCallback !== 'undefined'
+    ? requestIdleCallback
+    : (cb) => setTimeout(() => cb({
+        didTimeout: false,
+        timeRemaining: () => 16,
+      } as IdleDeadline), 16) as unknown as ReturnType<typeof requestIdleCallback>;
+const cIC: typeof cancelIdleCallback =
+  typeof cancelIdleCallback !== 'undefined'
+    ? cancelIdleCallback
+    : (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
 
 // ─── Props ────────────────────────────────────────────────────────
 
@@ -123,6 +177,10 @@ export function BlockPlugin({
     // Set flag BEFORE the update so the update listener skips content saves
     isSyncingRef.current = true;
     
+    // Flush any debounced visibility changes so we have the freshest
+    // visible-block set before deciding what to populate.
+    flushVisibilityChanges();
+
     // Check if runtime is requesting focus on a specific block
     const runtime = getNodeGraphRuntime();
     const pendingFocus = runtime.getPendingFocus();
@@ -140,13 +198,26 @@ export function BlockPlugin({
 
       const newBlockIds = new Set(projectedNodes.filter(n => n.visible).map(n => n.blockId));
 
-      // Remove nodes no longer in projection
+      // On initial sync (no existing blocks), clear stale population tracking
+      if (existingBlockMap.size === 0) {
+        clearPopulatedState();
+      }
+
+      // Snapshot visibility for this sync pass
+      const visibleIds = getVisibleBlockIds();
+      const virtEnabled = isVirtualizationEnabled();
+
+      // Remove nodes no longer in projection and clean up tracking
       for (const [blockId, node] of existingBlockMap) {
         if (!newBlockIds.has(blockId)) {
           node.remove();
           blockIdToKeyMap.current.delete(blockId);
+          markDepopulated(blockId);
         }
       }
+
+      // Prune stale population tracking to prevent memory leaks
+      prunePopulatedState(newBlockIds);
 
       // Two-pass approach: update existing nodes first, then create new ones
       // This ensures focus-setting on new blocks happens after all content updates
@@ -174,27 +245,38 @@ export function BlockPlugin({
           if (existingClassStr !== projectedClassStr) existing.setClassIds(projected.classIds ?? []);
           
           // Check if content has changed (e.g., from split_block or merge_blocks operation)
-          // Compare serialized content to detect changes
-          const currentContent = extractBlockContent(existing);
-          const currentSerialized = JSON.stringify(currentContent);
-          const projectedSerialized = JSON.stringify(projected.contentAST);
-          
-          if (currentSerialized !== projectedSerialized) {
-            // Content changed - clear and repopulate
-            // Clear existing children
-            const children = existing.getChildren();
-            for (const child of children) {
-              child.remove();
-            }
+          // Only compare content for blocks whose content is actually populated in Lexical.
+          // Off-screen blocks have ZWS placeholder — skip the expensive JSON.stringify.
+          if (isBlockPopulated(projected.blockId)) {
+            const currentContent = extractBlockContent(existing);
+            const currentSerialized = JSON.stringify(currentContent);
+            const projectedSerialized = JSON.stringify(projected.contentAST);
             
-            // Repopulate with new content
-            populateBlockContent(existing, projected.contentAST);
+            if (currentSerialized !== projectedSerialized) {
+              // Content changed - clear and repopulate
+              const children = existing.getChildren();
+              for (const child of children) {
+                child.remove();
+              }
+              populateBlockContent(existing, projected.contentAST);
+            }
           }
           
           // Handle pending focus on existing blocks (e.g. after merge_blocks
-          // the target block is existing but needs cursor at merge offset)
+          // the target block is existing but needs cursor at merge offset).
+          // Ensure content is populated before setting cursor — a focus target
+          // may be off-screen and still have only a ZWS placeholder.
           if (pendingFocus && projected.blockId === pendingFocus.blockId) {
             runtime.clearPendingFocus();
+
+            // Force-populate if content was dehydrated
+            if (!isBlockPopulated(projected.blockId)) {
+              const children = existing.getChildren();
+              for (const child of children) child.remove();
+              populateBlockContent(existing, projected.contentAST);
+              markPopulated(projected.blockId);
+            }
+
             if (pendingFocus.offset != null) {
               // Walk children to find the right cursor position at the given character offset
               let remaining = pendingFocus.offset;
@@ -253,8 +335,25 @@ export function BlockPlugin({
             projected.classIds ?? [],
           );
 
-          // Populate inline content from contentAST
-          populateBlockContent(newBlock, projected.contentAST);
+          // Populate inline content from contentAST.
+          // When virtualization is active and IO hasn't reported yet (visibleIds empty),
+          // eagerly populate the first INITIAL_POPULATE_COUNT blocks so the viewport
+          // has content immediately.  Off-screen blocks get a ZWS placeholder;
+          // their content is populated lazily when they scroll into view.
+          const shouldPopulate =
+            !virtEnabled ||
+            (visibleIds.size === 0
+              ? i < INITIAL_POPULATE_COUNT
+              : visibleIds.has(projected.blockId) ||
+                (pendingFocus != null && projected.blockId === pendingFocus.blockId));
+
+          if (shouldPopulate) {
+            populateBlockContent(newBlock, projected.contentAST);
+            markPopulated(projected.blockId);
+          } else {
+            // Off-screen: lightweight ZWS placeholder for focusable cursor
+            newBlock.append($createTextNode('\u200B'));
+          }
 
           // Temporarily append — ordering is fixed in PASS 3
           root.append(newBlock);
@@ -415,6 +514,250 @@ export function BlockPlugin({
       });
     });
   }, [editor, readOnly, onContentChange]);
+
+  // ─── Visibility-driven content hydration / dehydration ─────
+  // When a block scrolls into view, mount its text immediately
+  // (Phase 1 — light populate) so the user sees content, then
+  // schedule an idle callback to upgrade pills (Phase 2).
+  // When it scrolls out, replace content with a ZWS placeholder.
+
+  useEffect(() => {
+    // Blocks that have been light-populated but still need pill upgrade
+    const pendingUpgrade = new Set<string>();
+    let upgradeHandle: ReturnType<typeof rIC> | null = null;
+
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** Run a single pass of pending upgrades (shared by idle + fallback). */
+    function runUpgradePass(deadline: { timeRemaining: () => number } | null) {
+      if (pendingUpgrade.size === 0) return;
+      isSyncingRef.current = true;
+      editor.update(() => {
+        const runtime = getNodeGraphRuntime();
+        for (const blockId of pendingUpgrade) {
+          // Respect deadline when running from rIC; fallback passes null (no limit).
+          if (deadline && deadline.timeRemaining() < 2) break;
+
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) { pendingUpgrade.delete(blockId); continue; }
+          const block = $getNodeByKey(key);
+          if (!$isBlockNode(block)) { pendingUpgrade.delete(blockId); continue; }
+
+          const graphNode = runtime.getNode(blockId);
+          if (!graphNode) { pendingUpgrade.delete(blockId); continue; }
+
+          upgradeBlockContent(block, graphNode.contentAST);
+          pendingUpgrade.delete(blockId);
+        }
+      }, { tag: 'runtime-sync' });
+      Promise.resolve().then(() => { isSyncingRef.current = false; });
+    }
+
+    /** Cancel the fallback timer if running. */
+    function cancelFallback() {
+      if (fallbackTimer !== null) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+    }
+
+    /**
+     * Ensure a fallback timer is ticking. If rIC hasn't upgraded all
+     * pending blocks within UPGRADE_FALLBACK_MS, we force the remaining
+     * upgrades synchronously so pills are never indefinitely delayed
+     * (e.g. during constant scrolling that starves idle callbacks).
+     */
+    function ensureFallback() {
+      if (fallbackTimer !== null || pendingUpgrade.size === 0) return;
+      fallbackTimer = setTimeout(() => {
+        fallbackTimer = null;
+        if (pendingUpgrade.size === 0) return;
+        // Force-upgrade all remaining pending blocks.
+        runUpgradePass(null);
+      }, UPGRADE_FALLBACK_MS);
+    }
+
+    /** Phase-2 idle upgrade: replace light content with full AST. */
+    function scheduleUpgrade() {
+      if (upgradeHandle !== null || pendingUpgrade.size === 0) return;
+      // Start the fallback safety net alongside the idle chain.
+      ensureFallback();
+      upgradeHandle = rIC((deadline) => {
+        upgradeHandle = null;
+        runUpgradePass(deadline);
+
+        // If there are still pending upgrades, schedule another idle pass.
+        if (pendingUpgrade.size > 0) {
+          scheduleUpgrade();
+        } else {
+          cancelFallback();
+        }
+      });
+    }
+
+    const unsubscribe = subscribeToVisibilityChange((newlyVisible, newlyHidden) => {
+      if (newlyVisible.length === 0 && newlyHidden.length === 0) return;
+
+      isSyncingRef.current = true;
+
+      editor.update(() => {
+        const runtime = getNodeGraphRuntime();
+
+        // ── Phase 1: light-populate newly visible blocks ───────
+        for (const blockId of newlyVisible) {
+          if (isBlockPopulated(blockId)) continue;
+
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) continue;
+          const block = $getNodeByKey(key);
+          if (!$isBlockNode(block)) continue;
+
+          const graphNode = runtime.getNode(blockId);
+          if (!graphNode) continue;
+
+          // Clear ZWS placeholder
+          const children = block.getChildren();
+          for (const child of children) child.remove();
+
+          // Light populate (text only — instant)
+          const needsUpgrade = populateBlockContentLight(block, graphNode.contentAST);
+          markPopulated(blockId);
+
+          if (needsUpgrade) {
+            pendingUpgrade.add(blockId);
+          }
+        }
+
+        // ── Depopulate newly hidden blocks ─────────────────────
+        for (const blockId of newlyHidden) {
+          if (!isBlockPopulated(blockId)) continue;
+
+          // Cancel any pending upgrade for this block
+          pendingUpgrade.delete(blockId);
+
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) continue;
+          const block = $getNodeByKey(key);
+          if (!$isBlockNode(block)) continue;
+
+          // Replace content with ZWS placeholder
+          const children = block.getChildren();
+          for (const child of children) child.remove();
+          block.append($createTextNode('\u200B'));
+          markDepopulated(blockId);
+        }
+      }, { tag: 'runtime-sync' });
+
+      Promise.resolve().then(() => { isSyncingRef.current = false; });
+
+      // Schedule Phase-2 upgrades for blocks that still need pills
+      scheduleUpgrade();
+    });
+
+    return () => {
+      unsubscribe();
+      if (upgradeHandle !== null) cIC(upgradeHandle);
+      cancelFallback();
+      pendingUpgrade.clear();
+    };
+  }, [editor]);
+
+  // ─── Chunked idle pre-hydration ────────────────────────────
+  // After the visible blocks are populated, use chained
+  // requestIdleCallback calls to pre-populate adjacent blocks in
+  // small chunks (IDLE_CHUNK_SIZE per callback).  Each chunk light-
+  // populates text first, then full-populates in the same pass if
+  // there's budget remaining.
+
+  useEffect(() => {
+    let idleHandle: ReturnType<typeof rIC> | null = null;
+    // Shared queue persists across idle continuations so a fast scroll
+    // that cancels the first callback doesn't lose the collected list.
+    let hydrateQueue: string[] = [];
+
+    /** Process the next chunk of hydrateQueue. */
+    function processChunk(deadline: IdleDeadline) {
+      idleHandle = null;
+      if (hydrateQueue.length === 0) return;
+
+      const runtime = getNodeGraphRuntime();
+      let processed = 0;
+
+      isSyncingRef.current = true;
+      editor.update(() => {
+        while (hydrateQueue.length > 0 && processed < IDLE_CHUNK_SIZE) {
+          if (deadline.timeRemaining() < 2) break;
+
+          const blockId = hydrateQueue.shift()!;
+          if (isBlockPopulated(blockId)) continue;
+
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) continue;
+          const block = $getNodeByKey(key);
+          if (!$isBlockNode(block)) continue;
+
+          const graphNode = runtime.getNode(blockId);
+          if (!graphNode) continue;
+
+          const children = block.getChildren();
+          for (const child of children) child.remove();
+          populateBlockContent(block, graphNode.contentAST);
+          markPopulated(blockId);
+          processed++;
+        }
+      }, { tag: 'runtime-sync' });
+      Promise.resolve().then(() => { isSyncingRef.current = false; });
+
+      // Schedule next chunk if there's more work
+      if (hydrateQueue.length > 0) {
+        idleHandle = rIC(processChunk);
+      }
+    }
+
+    const unsubscribe = subscribeToVisibilityChange(() => {
+      // Cancel any in-flight chunk chain
+      if (idleHandle !== null) { cIC(idleHandle); idleHandle = null; }
+
+      // Build ordered list of block IDs in Lexical tree order
+      const orderedIds: string[] = [];
+      editor.getEditorState().read(() => {
+        for (const child of $getRoot().getChildren()) {
+          if ($isBlockNode(child)) orderedIds.push(child.getBlockId());
+        }
+      });
+
+      const visibleIds = getVisibleBlockIds();
+
+      // Find the range of visible indices
+      let minIdx = orderedIds.length;
+      let maxIdx = -1;
+      for (let i = 0; i < orderedIds.length; i++) {
+        if (visibleIds.has(orderedIds[i])) {
+          if (i < minIdx) minIdx = i;
+          if (i > maxIdx) maxIdx = i;
+        }
+      }
+      if (maxIdx < 0) return; // no visible blocks
+
+      // Collect blocks to pre-hydrate (PRE_HYDRATE_COUNT above and below)
+      hydrateQueue = [];
+      const start = Math.max(0, minIdx - PRE_HYDRATE_COUNT);
+      const end = Math.min(orderedIds.length - 1, maxIdx + PRE_HYDRATE_COUNT);
+      for (let i = start; i <= end; i++) {
+        const id = orderedIds[i];
+        if (!isBlockPopulated(id) && !visibleIds.has(id)) {
+          hydrateQueue.push(id);
+        }
+      }
+
+      if (hydrateQueue.length > 0) {
+        idleHandle = rIC(processChunk);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (idleHandle !== null) cIC(idleHandle);
+      hydrateQueue = [];
+    };
+  }, [editor]);
 
   // ─── Enter: split block ────────────────────────────────────
 
@@ -1047,23 +1390,24 @@ export function BlockPlugin({
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
+/** Returns true when the AST is null / empty / effectively blank. */
+function isEmptyAST(contentAST: ContentAST): boolean {
+  if (!contentAST || contentAST.length === 0) return true;
+  if (
+    contentAST.length === 1 &&
+    contentAST[0].children.length === 1 &&
+    contentAST[0].children[0].type === 'text' &&
+    contentAST[0].children[0].text === ''
+  ) return true;
+  return false;
+}
+
 /**
  * Populate a BlockNode's children from a ContentAST.
+ * Full mount: text + pills + formatting in one pass.
  */
 function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
-  if (!contentAST || contentAST.length === 0) {
-    // Use zero-width space so empty blocks have a focusable cursor position
-    block.append($createTextNode('\u200B'));
-    return;
-  }
-
-  // Check if the AST is effectively empty (single paragraph with only empty text)
-  const isEffectivelyEmpty = contentAST.length === 1
-    && contentAST[0].children.length === 1
-    && contentAST[0].children[0].type === 'text'
-    && contentAST[0].children[0].text === '';
-
-  if (isEffectivelyEmpty) {
+  if (isEmptyAST(contentAST)) {
     block.append($createTextNode('\u200B'));
     return;
   }
@@ -1074,12 +1418,189 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
     }
   }
 
-  // Ensure there's always a text node after the last element for proper cursor placement
-  // This is especially important when the last element is a pill
-  // Use zero-width space to prevent Lexical from removing the text node
+  // Ensure trailing cursor node after pill / line break
   const children = block.getChildren();
   const lastChild = children[children.length - 1];
   if (lastChild && ($isPillNode(lastChild) || $isLineBreakNode(lastChild))) {
+    block.append($createTextNode('\u200B'));
+  }
+}
+
+/**
+ * Progressive ("light") population — Phase 1.
+ *
+ * Creates only TextNode and LineBreakNode children, skipping pills
+ * and expensive decorator nodes.  Links are represented as plain
+ * text placeholders ("·") so the block has the correct character
+ * count and is focusable.
+ *
+ * Call `upgradeBlockContent()` in a subsequent idle callback to
+ * replace placeholders with real PillNodes.
+ *
+ * Returns `true` if the AST contains pills that still need upgrading,
+ * `false` if the content is fully mounted (no pills).
+ */
+function populateBlockContentLight(block: BlockNode, contentAST: ContentAST): boolean {
+  if (isEmptyAST(contentAST)) {
+    block.append($createTextNode('\u200B'));
+    return false;
+  }
+
+  let hasPills = false;
+  for (const para of contentAST) {
+    for (const inline of para.children) {
+      if (appendInlineNodeLight(block, inline, 0)) hasPills = true;
+    }
+  }
+
+  // Trailing cursor node
+  const children = block.getChildren();
+  const lastChild = children[children.length - 1];
+  if (lastChild && $isLineBreakNode(lastChild)) {
+    block.append($createTextNode('\u200B'));
+  }
+
+  return hasPills;
+}
+
+/**
+ * Phase 1 inline node appender — text-only.
+ * Pills become plain ZWS placeholder text nodes.
+ */
+function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, format: number): boolean {
+  let hasPills = false;
+  switch (inline.type) {
+    case 'text': {
+      const textNode = $createTextNode(inline.text);
+      if (format !== 0) textNode.setFormat(format);
+      parent.append(textNode);
+      break;
+    }
+    case 'hard_break':
+      parent.append($createLineBreakNode());
+      break;
+    case 'node_link':
+    case 'external_link':
+      // Placeholder — keeps character count stable
+      parent.append($createTextNode('\u200B'));
+      hasPills = true;
+      break;
+    case 'strong':
+      for (const c of inline.children) { if (appendInlineNodeLight(parent, c, format | 1)) hasPills = true; }
+      break;
+    case 'em':
+      for (const c of inline.children) { if (appendInlineNodeLight(parent, c, format | 2)) hasPills = true; }
+      break;
+    case 'strikethrough':
+      for (const c of inline.children) { if (appendInlineNodeLight(parent, c, format | 4)) hasPills = true; }
+      break;
+    case 'underline':
+      for (const c of inline.children) { if (appendInlineNodeLight(parent, c, format | 8)) hasPills = true; }
+      break;
+    case 'highlight':
+      for (const c of inline.children) { if (appendInlineNodeLight(parent, c, format)) hasPills = true; }
+      break;
+  }
+  return hasPills;
+}
+
+/**
+ * Collect pill AST nodes (node_link / external_link) from an inline
+ * tree in document order, recursing through formatting wrappers.
+ */
+function collectPillsFromAST(nodes: readonly ASTInlineNode[], out: ASTInlineNode[]): void {
+  for (const n of nodes) {
+    if (n.type === 'node_link' || n.type === 'external_link') {
+      out.push(n);
+    } else if ('children' in n && Array.isArray((n as any).children)) {
+      collectPillsFromAST((n as any).children, out);
+    }
+  }
+}
+
+/**
+ * Phase 2 — upgrade a light-mounted block to full content.
+ *
+ * Uses **surgical replacement**: only the ZWS placeholder TextNodes
+ * that represent pills are swapped for real PillNodes.  All other
+ * children (text, formatting) remain untouched, which means:
+ *   - The user's cursor position is preserved.
+ *   - No DOM flicker (no clear + repopulate cycle).
+ *   - No portal duplication (old TextNodes have no decorators).
+ *
+ * If the number of ZWS placeholders doesn't match the pill count in
+ * the AST (e.g. the block was edited between Phase 1 and Phase 2),
+ * we fall back to a full clear + repopulate.
+ */
+function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
+  if (isEmptyAST(contentAST)) return;
+
+  // --- Collect pills from the AST in document order ---
+  const pills: ASTInlineNode[] = [];
+  for (const para of contentAST) {
+    collectPillsFromAST(para.children, pills);
+  }
+  if (pills.length === 0) return; // Nothing to upgrade
+
+  // --- Find ZWS placeholder TextNodes that correspond to pills ---
+  // In light-populated blocks, each pill is a standalone TextNode('\u200B').
+  // Other ZWS nodes (trailing cursor helpers) are acceptable extras —
+  // we only need at least as many as there are pills.
+  const zwsNodes: { node: import('lexical').TextNode; index: number }[] = [];
+  const children = block.getChildren();
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if ($isTextNode(child) && child.getTextContent() === '\u200B') {
+      zwsNodes.push({ node: child, index: i });
+    }
+  }
+
+  if (zwsNodes.length < pills.length) {
+    // Mismatch — the block was likely edited.  Fall back to full repopulate.
+    const allChildren = block.getChildren();
+    for (const c of allChildren) c.remove();
+    populateBlockContent(block, contentAST);
+    return;
+  }
+
+  // --- Surgical replacement: 1-to-1 match of pills to ZWS nodes ---
+  for (let i = 0; i < pills.length; i++) {
+    const astPill = pills[i];
+    const { node: zwsNode } = zwsNodes[i];
+
+    // Determine if a pre-pill ZWS cursor node is needed.
+    // `appendInlineNode` adds one when the pill would be the first child
+    // or immediately follows another PillNode.
+    const prev = zwsNode.getPreviousSibling();
+    const needsPreZWS = !prev || $isPillNode(prev);
+
+    let pillNode;
+    if (astPill.type === 'node_link') {
+      pillNode = $createPillNode(
+        astPill.link_id,
+        astPill.ref_type,
+        undefined,
+        astPill.label ?? undefined,
+      );
+    } else if (astPill.type === 'external_link') {
+      const label = astPill.children
+        ?.map((c: ASTInlineNode) => ('text' in c ? (c as any).text : ''))
+        .join('') ?? '';
+      pillNode = $createPillNode(label || astPill.url, 'url', astPill.url);
+    } else {
+      continue;
+    }
+
+    if (needsPreZWS) {
+      zwsNode.insertBefore($createTextNode('\u200B'));
+    }
+    zwsNode.replace(pillNode);
+  }
+
+  // --- Ensure trailing ZWS after last pill / line break ---
+  const finalChildren = block.getChildren();
+  const last = finalChildren[finalChildren.length - 1];
+  if (last && ($isPillNode(last) || $isLineBreakNode(last))) {
     block.append($createTextNode('\u200B'));
   }
 }
