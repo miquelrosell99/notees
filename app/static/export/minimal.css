@@ -52,12 +52,39 @@ h4, h5, h6 {
 
 /* ---- Lists ---- */
 ul {
+  list-style: none;
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+  border-left: 1.5px solid #dedede;
+  margin-left: 0.3rem;
+}
+
+/* Nested uls continue the line naturally */
+ul ul {
+  margin-top: 0.1rem;
+  margin-bottom: 0.1rem;
+}
+
+ol {
   padding-left: 1.25rem;
 }
 
 li {
+  position: relative;
   line-height: 1.7;
-  margin: 0.15rem 0;
+  margin: 0.1rem 0;
+}
+
+/* Faded custom bullet dot */
+ul > li::before {
+  content: '•';
+  position: absolute;
+  left: -1rem;
+  top: 0.15em;
+  font-size: 0.7em;
+  color: #c0c0c0;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* ---- Paragraphs ---- */
