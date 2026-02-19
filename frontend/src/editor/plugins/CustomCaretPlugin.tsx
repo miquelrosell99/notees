@@ -537,10 +537,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        const node = selection.anchor.getNode();
-        if ($isTextNode(node) && node.getFormat() !== 0) {
-          hasFormat = true;
-        }
+        // Use selection.format (the carry-over bitmask for new insertions) rather
+        // than node.getFormat(). After the first arrow press at a style boundary
+        // the guard sets selection.format = 0, so the dot disappears and the user
+        // can see that the next character will NOT be inside the styled span.
+        hasFormat = selection.format !== 0;
       }
     });
     caret.classList.toggle('notees-custom-caret--styled', hasFormat);
