@@ -268,7 +268,10 @@ export function QueryNodeCollection({
     setNodeViewMode(nodeId, viewType, mode);
   };
   
-  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  // For all_pages/child_pages, items ARE pages so grouping by page is meaningless; default 'none'
+  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>(
+    (viewType === 'all_pages' || viewType === 'child_pages') ? 'none' : 'page'
+  );
   // Property column selection state (for table view)
   // Default to Created and Modified columns (matches default table columns)
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
@@ -857,7 +860,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && collectionViewMode === 'list'}
+            showGroupBy={!hideViewManagement && collectionViewMode === 'list' && viewType !== 'all_pages' && viewType !== 'child_pages'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
