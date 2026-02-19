@@ -360,8 +360,10 @@ async def export_nodes(
     style: str | None = None,
     properties: str = "none",  # "none" | "main" | "all"
     density: str = "comfortable",  # "comfortable" | "compact"
-    numbering: str = "none",  # "none" | "hierarchical"
+    numbering: str = "none",  # "none" | "hierarchical" | "legal" | "appendix"
     measure: str = "full",   # "full" | "readable" | "book" | "two-column"
+    doctype: str = "none",   # "none" | "article" | "report" | "book" | "legal" | "academic"
+    section_break: bool = False,
     show_uuid: bool = False,
 ) -> tuple:
     """Export nodes to various formats.
@@ -775,11 +777,11 @@ async def export_nodes(
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -987,6 +989,7 @@ EXPORT_THEMES    = {"minimal", "technical", "book"}
 EXPORT_DENSITIES = {"comfortable", "compact"}
 EXPORT_NUMBERING = {"none", "hierarchical", "legal", "appendix"}
 EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}
+EXPORT_DOCTYPES  = {"none", "article", "report", "book", "legal", "academic"}
 
 
 def _get_export_css_single() -> str:
@@ -1007,21 +1010,31 @@ def _build_body_class(
     density: str,
     numbering: str,
     measure: str = "full",
+    doctype: str = "none",
+    section_break: bool = False,
 ) -> str:
     """Return the body class string encoding all render axes.
 
-    - theme-minimal / theme-technical
+    - theme-minimal / theme-technical / theme-book
     - structure-flat / structure-indented  (layout: 'flat' | 'outline')
     - density-comfortable / density-compact
-    - numbering-none / numbering-hierarchical
+    - numbering-none / numbering-hierarchical / numbering-legal / numbering-appendix
     - layout-full / layout-readable / layout-book / layout-two-column
+    - doctype-article / doctype-report / doctype-book / doctype-legal / doctype-academic
+    - section-break-before  (optional, forces h1/h2 page breaks)
     """
     theme     = style if style in EXPORT_THEMES else "minimal"
     structure = "flat" if layout == "flat" else "indented"
     dens      = density if density in EXPORT_DENSITIES else "comfortable"
     num       = numbering if numbering in EXPORT_NUMBERING else "none"
     msr       = measure if measure in EXPORT_MEASURES else "full"
-    return f"theme-{theme} structure-{structure} density-{dens} numbering-{num} layout-{msr}"
+    dt        = doctype if doctype in EXPORT_DOCTYPES and doctype != "none" else ""
+    classes   = f"theme-{theme} structure-{structure} density-{dens} numbering-{num} layout-{msr}"
+    if dt:
+        classes += f" doctype-{dt}"
+    if section_break:
+        classes += " section-break-before"
+    return classes
 
 
 def _html_style_tag() -> str:
@@ -1040,6 +1053,8 @@ def _export_to_html(
     density: str = "comfortable",
     numbering: str = "none",
     measure: str = "full",
+    doctype: str = "none",
+    section_break: bool = False,
 ) -> str:
     """Convert nodes to HTML format.
     
@@ -1124,7 +1139,7 @@ def _export_to_html(
             rows.append(f'<tr class="node-property"><td class="node-property-name">{icon_html}{name}</td><td class="node-property-value">{val_html}</td></tr>')
         return f'<table class="node-properties">{chr(10).join(rows)}</table>'
 
-    body_class = _build_body_class(style, layout, density, numbering)
+    body_class = _build_body_class(style, layout, density, numbering, measure, doctype, section_break)
     style_tag   = _html_style_tag()
     head_extra  = f"\n{style_tag}" if style_tag else ""
 
