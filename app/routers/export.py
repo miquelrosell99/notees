@@ -72,7 +72,7 @@ async def export_single_node(
     if density not in ("comfortable", "compact"):
         raise HTTPException(status_code=400, detail=f"Invalid density: {density}")
 
-    if numbering not in ("none", "hierarchical"):
+    if numbering not in ("none", "hierarchical", "legal", "appendix"):
         raise HTTPException(status_code=400, detail=f"Invalid numbering: {numbering}")
 
     if measure not in ("full", "readable", "book", "two-column"):
