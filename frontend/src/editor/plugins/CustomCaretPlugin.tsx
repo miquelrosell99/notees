@@ -288,7 +288,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         caret.style.width = `${pillRect.width + padding * 2}px`;
         caret.style.height = `${pillRect.height + padding * 2}px`;
 
-        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--selection');
+        caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--selection', 'notees-custom-caret--styled');
         caret.classList.add('notees-custom-caret--pill');
         return;
       }
@@ -352,7 +352,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       caret.style.height = `${overallRect.height}px`;
       caret.style.background = 'transparent';
 
-      caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--pill');
+      caret.classList.remove('notees-custom-caret--line', 'notees-custom-caret--block', 'notees-custom-caret--pill', 'notees-custom-caret--styled');
       caret.classList.add('notees-custom-caret--selection');
 
       // Render per-line highlight rects as children
@@ -529,6 +529,21 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       caret.classList.add('notees-custom-caret--line');
       caret.classList.remove('notees-custom-caret--block');
     }
+
+    // ─── Styled-node indicator ───────────────────────────────
+    // Toggle --styled class when the cursor is inside a formatted text node
+    // (bold, italic, code, etc.) so the CSS can show a visual dot indicator.
+    let hasFormat = false;
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection) && selection.isCollapsed()) {
+        const node = selection.anchor.getNode();
+        if ($isTextNode(node) && node.getFormat() !== 0) {
+          hasFormat = true;
+        }
+      }
+    });
+    caret.classList.toggle('notees-custom-caret--styled', hasFormat);
   }, [editor, overwriteMode]);
 
   // ─── Listen for selection changes ────────────────────────────
