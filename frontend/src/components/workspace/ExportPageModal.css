@@ -157,10 +157,11 @@
   width: 100%;
 }
 
-.export-modal__footer-controls {
+.export-modal__options-content {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
 }
 
 .export-modal__footer-actions {
