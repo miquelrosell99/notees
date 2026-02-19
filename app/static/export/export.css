@@ -637,9 +637,6 @@ div.page-break {
    LAYER 5 — NUMBERING (HIERARCHICAL COUNTERS)
    ========================================================= */
 
-/* ---- None: explicit no-op placeholder ---- */
-.numbering-none { }
-
 /* ---- Hierarchical: h2 → 1, h3 → 1.1, h4 → 1.1.1 ---- */
 .numbering-hierarchical {
   counter-reset: h2c;
@@ -651,6 +648,14 @@ div.page-break {
 
 .numbering-hierarchical h3 {
   counter-reset: h4c;
+}
+
+.numbering-hierarchical h4 {
+  counter-reset: h5c;
+}
+
+.numbering-hierarchical h5 {
+  counter-reset: h6c;
 }
 
 .numbering-hierarchical h2::before {
@@ -669,9 +674,12 @@ div.page-break {
 }
 
 .numbering-hierarchical h5::before {
+  counter-increment: h5c;
   content: counter(h2c) "." counter(h3c) "." counter(h4c) "." counter(h5c) " ";
 }
 
 .numbering-hierarchical h6::before {
+  counter-increment: h6c;
   content: counter(h2c) "." counter(h3c) "." counter(h4c) "." counter(h5c) "." counter(h6c) " ";
 }
+
