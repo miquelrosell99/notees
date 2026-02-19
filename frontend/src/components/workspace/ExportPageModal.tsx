@@ -261,12 +261,12 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                 <SelectionButton
                   size="sm"
                   label="Properties"
-                  description="Include node properties in the export"
+                  description="Which nodes to show properties for"
                   labelPosition="left"
                   options={[
-                    { value: 'none', icon: mdiTagOff, label: 'No props' },
-                    { value: 'main', icon: mdiTagOutline, label: 'Main props' },
-                    { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
+                    { value: 'none', icon: mdiTagOff, label: 'None' },
+                    { value: 'main', icon: mdiTagOutline, label: 'Main node' },
+                    { value: 'all', icon: mdiTagMultipleOutline, label: 'All nodes' },
                   ]}
                   value={properties}
                   onChange={(v) => setProperties(v as ExportProperties)}
