@@ -47,8 +47,6 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
   const handleFormatChange = useCallback((f: ExportFormat) => {
     setFormat(f);
-    if (f === 'pdf') setLayout('flat');
-    if (f === 'markdown') setLayout('outline');
   }, []);
 
   // Fetch text preview when format/layout changes (markdown / html only).
