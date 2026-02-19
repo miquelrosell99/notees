@@ -70,9 +70,28 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       // Only handle drags initiated from the bullet wrapper
       if (!target.closest('.bullet-wrapper[draggable="true"]')) return;
 
+      // Save scroll position of all scrollable ancestors before Lexical/browser
+      // focus logic can cause a scroll jump
+      const scrollPositions: { el: Element; top: number; left: number }[] = [];
+      let ancestor: Element | null = target;
+      while (ancestor) {
+        if (ancestor.scrollTop !== 0 || ancestor.scrollLeft !== 0) {
+          scrollPositions.push({ el: ancestor, top: ancestor.scrollTop, left: ancestor.scrollLeft });
+        }
+        ancestor = ancestor.parentElement;
+      }
+
       // Prevent native text/element drag ghost + insertion
       dragEvent.stopPropagation();
       editor.dispatchCommand(DRAGSTART_COMMAND, dragEvent);
+
+      // Restore scroll positions after the browser processes the drag start
+      requestAnimationFrame(() => {
+        for (const { el, top, left } of scrollPositions) {
+          el.scrollTop = top;
+          el.scrollLeft = left;
+        }
+      });
     };
 
     const handleNativeDragOver = (event: Event) => {
