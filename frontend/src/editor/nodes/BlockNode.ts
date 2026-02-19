@@ -277,6 +277,8 @@ export class BlockNode extends ElementNode {
       // Allow clicks on buttons/interactive elements within block-ui
       const target = e.target as HTMLElement;
       if (target.closest('button, a, [role="button"], .block-prop-icon-btn')) return;
+      // Allow bullet drag to start (bullet-wrapper sets draggable=true)
+      if (target.closest('.bullet-wrapper')) return;
       e.preventDefault();
     });
 
@@ -343,6 +345,7 @@ export class BlockNode extends ElementNode {
     afterContentUI.addEventListener('mousedown', (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('button, a, [role="button"], .block-prop-icon-btn')) return;
+      if (target.closest('.bullet-wrapper')) return;
       e.preventDefault();
     });
 
