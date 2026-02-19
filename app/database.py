@@ -360,7 +360,7 @@ async def export_nodes(
     style: str | None = None,
     properties: str = "none",  # "none" | "main" | "all"
     density: str = "comfortable",  # "comfortable" | "compact"
-    numbering: str = "none",  # "none" | "top-level" | "hierarchical"
+    numbering: str = "none",  # "none" | "hierarchical"
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -808,90 +808,53 @@ def _export_to_markdown(
 
 
 # ---------------------------------------------------------------------------
-# Default export stylesheet
-# Export CSS lives in app/static/export/ — fully self-contained, no CSS variables.
+# Export stylesheet — single layered file: app/static/export/export.css
+# Body classes encode all rendering variants; no per-param CSS injection.
 # ---------------------------------------------------------------------------
 _EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 
-# Valid export style presets (None = base only)
-EXPORT_STYLES = {"minimal", "technical"}
+# Valid values for each axis
+EXPORT_THEMES    = {"minimal", "technical"}
+EXPORT_DENSITIES = {"comfortable", "compact"}
+EXPORT_NUMBERING = {"none", "hierarchical"}
 
-def _get_export_css() -> str:
-    """Read base.css from disk (cached after first call)."""
-    if not hasattr(_get_export_css, "_cache"):
-        path = _EXPORT_CSS_DIR / "base.css"
+
+def _get_export_css_single() -> str:
+    """Read export.css from disk (cached after first call)."""
+    if not hasattr(_get_export_css_single, "_cache"):
+        path = _EXPORT_CSS_DIR / "export.css"
         try:
-            _get_export_css._cache = path.read_text(encoding="utf-8")
+            _get_export_css_single._cache = path.read_text(encoding="utf-8")
         except FileNotFoundError:
-            logger.warning("Export CSS file not found: %s", path)
-            _get_export_css._cache = ""
-    return _get_export_css._cache
+            logger.warning("Export CSS not found: %s", path)
+            _get_export_css_single._cache = ""
+    return _get_export_css_single._cache
 
 
-def _get_style_css(style: str | None) -> str:
-    """Read an export style overlay CSS file (cached per style)."""
-    if not style or style not in EXPORT_STYLES:
-        return ""
-    cache_attr = f"_cache_{style}"
-    if not hasattr(_get_style_css, cache_attr):
-        path = _EXPORT_CSS_DIR / f"{style}.css"
-        try:
-            setattr(_get_style_css, cache_attr, path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            logger.warning("Export style CSS not found: %s", path)
-            setattr(_get_style_css, cache_attr, "")
-    return getattr(_get_style_css, cache_attr)
+def _build_body_class(
+    style: str | None,
+    layout: str,
+    density: str,
+    numbering: str,
+) -> str:
+    """Return the body class string encoding all render axes.
+
+    - theme-minimal / theme-technical
+    - structure-flat / structure-indented  (layout: 'flat' | 'outline')
+    - density-comfortable / density-compact
+    - numbering-none / numbering-hierarchical
+    """
+    theme     = style if style in EXPORT_THEMES else "minimal"
+    structure = "flat" if layout == "flat" else "indented"
+    dens      = density if density in EXPORT_DENSITIES else "comfortable"
+    num       = numbering if numbering in EXPORT_NUMBERING else "none"
+    return f"theme-{theme} structure-{structure} density-{dens} numbering-{num}"
 
 
-def _style_block(style: str | None = None) -> str:
-    """Return a <style> element with the export CSS + optional style overlay, or empty string."""
-    base = _get_export_css().strip()
-    overlay = _get_style_css(style).strip()
-    css = base
-    if overlay:
-        css = f"{css}\n\n/* ── Style: {style} ── */\n{overlay}" if css else overlay
-    if not css:
-        return ""
-    return f"<style>\n{css}\n</style>"
-
-
-def _extra_css_block(density: str = "comfortable", numbering: str = "none") -> str:
-    """Return a <style> element with density and numbering overrides, or empty string."""
-    parts: list[str] = []
-
-    if density == "compact":
-        parts.append("""\
-/* ── Density: compact ── */
-body { line-height: 1.2; }
-p { margin-bottom: 0.25rem; }
-h1, h2, h3, h4, h5, h6 { margin-top: 0.5rem; margin-bottom: 0.2rem; }
-li { margin: 0; }
-ul, ol { margin: 0.1rem 0 0.4em 0; }""")
-
-    if numbering == "none":
-        parts.append("""\
-/* ── Numbering: none ── */
-body { counter-reset: none; }
-h2::before, h3::before, h4::before { content: none; counter-increment: none; }""")
-    elif numbering == "top-level":
-        parts.append("""\
-/* ── Numbering: top-level ── */
-body { counter-reset: section; }
-h2::before { counter-increment: section; content: counter(section) ". "; }
-h3::before, h4::before { content: none; counter-increment: none; }""")
-    elif numbering == "hierarchical":
-        parts.append("""\
-/* ── Numbering: hierarchical ── */
-body { counter-reset: h2c; }
-h2 { counter-reset: h3c; }
-h3 { counter-reset: h4c; }
-h2::before { counter-increment: h2c; content: counter(h2c) ". "; }
-h3::before { counter-increment: h3c; content: counter(h2c) "." counter(h3c) " "; }
-h4::before { counter-increment: h4c; content: counter(h2c) "." counter(h3c) "." counter(h4c) " "; }""")
-
-    if not parts:
-        return ""
-    return f"<style>\n{chr(10).join(parts)}\n</style>"
+def _html_style_tag() -> str:
+    """Return a <style> element containing the full export.css, or empty string."""
+    css = _get_export_css_single().strip()
+    return f"<style>\n{css}\n</style>" if css else ""
 
 
 def _export_to_html(
@@ -958,11 +921,12 @@ def _export_to_html(
             items.append(f'<div class="node-property"><dt>{icon_html}{name}</dt>{vals_html}</div>')
         return f'<dl class="node-properties">{chr(10).join(items)}</dl>'
 
+    body_class = _build_body_class(style, layout, density, numbering)
+    style_tag   = _html_style_tag()
+    head_extra  = f"\n{style_tag}" if style_tag else ""
+
     if not nodes:
-        sb = _style_block(style)
-        extra = _extra_css_block(density, numbering)
-        head_extra = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
-        return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body></body></html>"
+        return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body class=\"{body_class}\"></body></html>"
 
     if layout == "flat":
         lines = []
@@ -979,15 +943,12 @@ def _export_to_html(
             else:
                 lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
-        sb = _style_block(style)
-        extra = _extra_css_block(density, numbering)
-        head_style = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
         return f"""<!DOCTYPE html>
 <html>
 <head>
-<title>{html_mod.escape(title)}</title>{head_style}
+<title>{html_mod.escape(title)}</title>{head_extra}
 </head>
-<body>
+<body class="{body_class}">
 {chr(10).join(lines)}
 </body>
 </html>"""
@@ -1025,22 +986,19 @@ def _export_to_html(
                     lines.append(f"{indent}</ul>")
                     current_depth -= 1
             indent = '  ' * (depth + 1)
-            lines.append(f"{indent}<li{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
+            lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth
         lines.append(f"{indent}</ul>")
         current_depth -= 1
 
-    sb = _style_block(style)
-    extra = _extra_css_block(density, numbering)
-    head_style = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
     return f"""<!DOCTYPE html>
 <html>
 <head>
-<title>Notees Export</title>{head_style}
+<title>Notees Export</title>{head_extra}
 </head>
-<body>
+<body class="{body_class}">
 {chr(10).join(lines)}
 </body>
 </html>"""
