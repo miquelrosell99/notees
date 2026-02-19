@@ -112,6 +112,16 @@ hr {
   margin: var(--spacing-6) 0;
 }
 
+/* ---- Colored nodes ---- */
+/* Inline style="color: #hex" is applied by the exporter for colored nodes.
+   Ensure the color is preserved when printing. */
+@media print {
+  [style*="color"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 /* ---- Print tweaks ---- */
 @media print {
   body {
