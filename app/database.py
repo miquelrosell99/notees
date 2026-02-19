@@ -528,6 +528,10 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
         depth = node.get('depth', 0)
         is_page = node.get('is_page', False)
 
+        # Colored nodes use ==highlight== syntax
+        if node.get('color'):
+            text = f"=={text}=="
+
         if is_page:
             hashes = '#' * (depth + 1)
             lines.append(f"{hashes} {text}")
