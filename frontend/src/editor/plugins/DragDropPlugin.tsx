@@ -203,15 +203,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         const y = event.clientY;
         const relativeY = (y - rect.top) / rect.height;
 
-        // Use simple before/after zones (top/bottom thirds) with child zone in middle
-        let position: DropTarget['position'];
-        if (relativeY < 0.33) {
-          position = 'before';
-        } else if (relativeY > 0.67) {
-          position = 'after';
-        } else {
-          position = 'child';
-        }
+        // Simple top/bottom split — no child nesting zone
+        const position: DropTarget['position'] = relativeY < 0.5 ? 'before' : 'after';
 
         coordinator.updateTarget({ blockId, position, targetEditorId: editorId });
         showDropIndicator(blockEl, position);
@@ -276,31 +269,16 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
     const indentPx = depth * 24; // Approximate indent per level
 
-    switch (position) {
-      case 'before':
-        indicator.style.display = 'block';
-        indicator.style.top = `${rect.top - 1}px`;
-        indicator.style.left = `${rect.left + indentPx}px`;
-        indicator.style.width = `${rect.width - indentPx}px`;
-        indicator.style.height = '2px';
-        indicator.classList.add('node-block-drop-indicator--line');
-        break;
-      case 'after':
-        indicator.style.display = 'block';
-        indicator.style.top = `${rect.bottom - 1}px`;
-        indicator.style.left = `${rect.left + indentPx}px`;
-        indicator.style.width = `${rect.width - indentPx}px`;
-        indicator.style.height = '2px';
-        indicator.classList.add('node-block-drop-indicator--line');
-        break;
-      case 'child':
-        indicator.style.display = 'block';
-        indicator.style.top = `${rect.top}px`;
-        indicator.style.left = `${rect.left}px`;
-        indicator.style.width = `${rect.width}px`;
-        indicator.style.height = `${rect.height}px`;
-        indicator.classList.add('node-block-drop-indicator--child');
-        break;
+    indicator.style.display = 'block';
+    indicator.style.left = `${rect.left + indentPx}px`;
+    indicator.style.width = `${rect.width - indentPx}px`;
+    indicator.style.height = '2px';
+    indicator.classList.add('node-block-drop-indicator--line');
+
+    if (position === 'before') {
+      indicator.style.top = `${rect.top - 1}px`;
+    } else {
+      indicator.style.top = `${rect.bottom - 1}px`;
     }
   }, []);
 
