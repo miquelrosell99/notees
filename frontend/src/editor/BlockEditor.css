@@ -295,19 +295,15 @@
   50%      { opacity: 0.1; }
 }
 
-/* Styled-node indicator — small dot below caret when inside bold/italic/code/etc. */
-.notees-custom-caret--line.notees-custom-caret--styled::after,
-.notees-custom-caret--block.notees-custom-caret--styled::after {
-  content: '';
-  position: absolute;
-  bottom: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--color-on-surface);
-  opacity: 0.5;
+/* Styled-span underline indicator — subtle dotted underline on the text span
+   that contains the cursor, when selection.format != 0 (next char will be styled).
+   Disappears after the first arrow press at a style boundary (format resets to 0). */
+.notees-text--cursor-inside {
+  text-decoration-line: underline !important;
+  text-decoration-style: dotted !important;
+  text-decoration-color: var(--color-on-surface) !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 2px !important;
 }
 
 /* Respect reduced-motion */
