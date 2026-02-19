@@ -361,6 +361,7 @@ async def export_nodes(
     properties: str = "none",  # "none" | "main" | "all"
     density: str = "comfortable",  # "comfortable" | "compact"
     numbering: str = "none",  # "none" | "hierarchical"
+    show_uuid: bool = False,
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -471,14 +472,16 @@ async def export_nodes(
 
         # 2. Batch-fetch target node names keyed by UUID
         link_target_map: Dict[str, list] = {}  # nodeUuid → name AST
+        link_is_page_map: Dict[str, bool] = {}  # nodeUuid → is_page
         if target_uuids:
             placeholders = ', '.join(f'${i+2}' for i in range(len(target_uuids)))
             target_rows = await conn.fetch(
-                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
+                f"SELECT uuid, name, is_page FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
                 workspace_id, *list(target_uuids)
             )
             for tr in target_rows:
                 link_target_map[str(tr['uuid'])] = parse_ast(tr['name'])
+                link_is_page_map[str(tr['uuid'])] = bool(tr['is_page'])
 
         # 3. Build resolver: link_id ("nodeUuid:linkUuid") → NodeLinkResolution
         def resolve_node_link(link_id: str):
@@ -491,6 +494,7 @@ async def export_nodes(
                 target_ast=target_ast,
                 label=None,
                 target_id=node_uuid,
+                is_page=link_is_page_map.get(node_uuid),
             )
 
         # 4. Fetch properties for page nodes if requested
@@ -648,6 +652,16 @@ async def export_nodes(
                     properties_data[node_uuid_key] = pinned + rest
 
     # Generate content based on format
+    if show_uuid:
+        for nd in nodes_data:
+            if nd.get('is_page'):
+                uuid_val = nd.get('uuid', '')
+                if uuid_val:
+                    uuid_prop = {'name': 'uuid', 'icon': None, 'type': 'text', 'values': [uuid_val]}
+                    existing = properties_data.get(uuid_val, [])
+                    # Prepend uuid prop (before other properties)
+                    properties_data[uuid_val] = [uuid_prop] + [p for p in existing if p['name'] != 'uuid']
+
     if format == ExportFormat.MARKDOWN or format == "markdown":
         content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data)
         filename = "export.md"
@@ -747,7 +761,14 @@ def _markdown_inline_to_html(md: str) -> str:
         else:
             lm = _re.match(r'\[(.+?)\]\(([^)]+)\)', token)
             if lm:
-                result.append(f'<a href="{_html.escape(lm.group(2))}">{_html.escape(lm.group(1))}</a>')
+                href = lm.group(2)
+                link_text = lm.group(1)
+                if href.startswith('#'):
+                    # Internal node link — faint dotted underline
+                    result.append(f'<a href="{_html.escape(href)}" class="node-link">{_html.escape(link_text)}</a>')
+                else:
+                    # External URL link — double underline
+                    result.append(f'<a href="{_html.escape(href)}" class="url-link">{_html.escape(link_text)}</a>')
             else:
                 result.append(_html.escape(token))
         last = m.end()
