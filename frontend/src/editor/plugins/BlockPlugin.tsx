@@ -254,6 +254,8 @@ export function BlockPlugin({
           const existingClassStr = existing.getClassIds().join(',');
           const projectedClassStr = (projected.classIds ?? []).join(',');
           if (existingClassStr !== projectedClassStr) existing.setClassIds(projected.classIds ?? []);
+          // Sync nodeType (e.g. when code/query/table class is added live)
+          if (existing.getNodeType() !== projected.nodeType) existing.setNodeType(projected.nodeType);
           
           // Check if content has changed (e.g., from split_block or merge_blocks operation)
           // Only compare content for blocks whose content is actually populated in Lexical.
@@ -872,6 +874,17 @@ export function BlockPlugin({
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
 
+        // Code block: Enter inserts a line break — same as Shift+Enter elsewhere
+        if (blockNode.getNodeType() === 'code') {
+          event?.preventDefault();
+          editor.update(() => {
+            const sel = $getSelection();
+            if (!$isRangeSelection(sel)) return;
+            sel.insertNodes([$createLineBreakNode()]);
+          });
+          return true;
+        }
+
         const blockId = blockNode.getBlockId();
 
         // Calculate cursor offset by walking through block children
@@ -1007,6 +1020,34 @@ export function BlockPlugin({
         const anchorNode = anchor.getNode();
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
+
+        // Code block: handle backspace ourselves to avoid native <br> weirdness.
+        // - Non-empty / has line breaks → explicitly delete char/selection,
+        //   preventing the browser from interfering with the LineBreakNode DOM.
+        // - Completely empty block → fall through to the normal block-delete path.
+        if (blockNode.getNodeType() === 'code') {
+          const hasLineBreaks = blockNode.getChildren().some($isLineBreakNode);
+          const textContent = blockNode.getTextContent().replace(/\u200B/g, '');
+          const isEmptyBlock = !hasLineBreaks && textContent === '';
+
+          if (!isEmptyBlock) {
+            // If cursor is at the absolute start of the code block, do nothing
+            // (avoids accidentally deleting into the previous block)
+            const atBlockStart =
+              anchor.offset === 0 &&
+              (anchor.type !== 'text' || anchorNode === blockNode.getFirstDescendant());
+            if (atBlockStart) return true; // consume but do nothing
+
+            event?.preventDefault();
+            editor.update(() => {
+              const sel = $getSelection();
+              if (!$isRangeSelection(sel)) return;
+              sel.deleteCharacter(true); // delete char/LineBreakNode before cursor
+            });
+            return true;
+          }
+          // Fall through → delete the empty code block via normal path below
+        }
 
         // Check if block is effectively empty (only contains zero-width space or empty).
         // DecoratorNodes like InlineLinkNode return '' from getTextContent(), so a block
