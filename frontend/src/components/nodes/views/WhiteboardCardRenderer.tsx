@@ -85,7 +85,7 @@ const ReferenceCardContent: React.FC<{ element: WhiteboardCardElement }> = ({ el
     >
       <div className="whiteboard-card__header whiteboard-card__header--reference">
         <span className="whiteboard-card__icon">
-          {node ? <NodeIcon node={node} size={0.55} /> : <Icon path={mdiLinkVariant} size={0.55} />}
+          {node ? <NodeIcon icon={node.icon ?? null} isPage={node.is_page ?? true} size={0.55} /> : <Icon path={mdiLinkVariant} size={0.55} />}
         </span>
         <span className="whiteboard-card__title" title={displayName}>
           {displayName}
