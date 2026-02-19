@@ -55,6 +55,21 @@
   transition: opacity 0.25s ease;
 }
 
+/* Banner (entire area including the collapse arrow) */
+.node-view.focus .node-view__banner {
+  display: none;
+}
+
+/* Cover image column (including the < arrow) */
+.node-view.focus .node-view__cover {
+  display: none;
+}
+
+/* Collapse the cover column in the header grid */
+.node-view.focus .page-header-section {
+  grid-template-columns: 1fr;
+}
+
 /* Classes / tags / aliases / extends rows */
 .node-view.focus .page-header-section__types-and-tags,
 .node-view.focus .page-header-section__aliases,
@@ -62,8 +77,14 @@
   display: none;
 }
 
-/* Properties section and all query sections (linked refs, unlinked refs, etc.) */
-.node-view.focus .node-view-section {
+/* Properties section wrapper */
+.node-view.focus .page-properties-section {
+  display: none;
+}
+
+/* All query sections (linked refs, unlinked refs, child pages, etc.) */
+.node-view.focus .node-view-section,
+.node-view.focus .query-section {
   display: none;
 }
 
