@@ -527,6 +527,11 @@ div.page-break {
 
 .structure-flat ul ul {
   padding-left: 0;
+  margin-left: 0.5rem;
+}
+
+.structure-flat ul ul > li {
+  padding-left: 0.25rem;
 }
 
 .structure-flat li {
