@@ -386,20 +386,26 @@ async def export_nodes(
         
         # Fetch nodes
         nodes_data = []
+        seen_uuids: set[str] = set()
         for node_uuid in node_ids:
             if include_children:
-                # Get node and all descendants using closure table (node_path)
+                # Get node and all descendants using closure table (node_path).
+                # DISTINCT ON (n.id) prevents duplicates when a node appears
+                # under multiple ancestor entries in node_path; pick the
+                # shallowest depth so the hierarchy looks correct.
                 rows = await conn.fetch(
                     """
-                    SELECT n.id, n.uuid, n.name, n.parent_id, np.depth
+                    SELECT DISTINCT ON (n.id) n.id, n.uuid, n.name, n.parent_id, np.depth
                     FROM node n
                     JOIN node_path np ON np.descendant_id = n.id
                     WHERE n.workspace_id = $1 
                       AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
-                    ORDER BY np.depth, n.id
+                    ORDER BY n.id, np.depth
                     """,
                     workspace_id, node_uuid
                 )
+                # Re-sort by depth then id after DISTINCT ON forces its own ORDER BY
+                rows = sorted(rows, key=lambda r: (r['depth'], r['id']))
             else:
                 rows = await conn.fetch(
                     """
@@ -411,8 +417,12 @@ async def export_nodes(
                 )
             
             for row in rows:
+                row_uuid = str(row['uuid'])
+                if row_uuid in seen_uuids:
+                    continue
+                seen_uuids.add(row_uuid)
                 nodes_data.append({
-                    "uuid": str(row['uuid']),
+                    "uuid": row_uuid,
                     "name": row['name'],
                     "depth": row.get('depth', 0) if include_children else 0,
                 })
