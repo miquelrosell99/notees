@@ -373,7 +373,16 @@ export class BlockNode extends ElementNode {
       setDOMUnmanaged(queryPreview);
       dom.appendChild(queryPreview);
     }
-
+    // ── Code gutter container ──────────────────────────────────
+    // Non-editable portal target for BlockCodePlugin to render
+    // line numbers beside the code content.
+    if (this.__nodeType === 'code') {
+      const codeGutter = document.createElement('div');
+      codeGutter.className = 'node-block-code-gutter';
+      codeGutter.contentEditable = 'false';
+      setDOMUnmanaged(codeGutter);
+      dom.appendChild(codeGutter);
+    }
     return dom;
   }
 
@@ -442,6 +451,18 @@ export class BlockNode extends ElementNode {
         dom.appendChild(queryPreview);
       } else if (this.__nodeType !== 'query' && existingQuery) {
         existingQuery.remove();
+      }
+
+      // Add/remove code gutter container when type changes
+      const existingGutter = dom.querySelector('.node-block-code-gutter');
+      if (this.__nodeType === 'code' && !existingGutter) {
+        const codeGutter = document.createElement('div');
+        codeGutter.className = 'node-block-code-gutter';
+        codeGutter.contentEditable = 'false';
+        setDOMUnmanaged(codeGutter);
+        dom.appendChild(codeGutter);
+      } else if (this.__nodeType !== 'code' && existingGutter) {
+        existingGutter.remove();
       }
     }
 

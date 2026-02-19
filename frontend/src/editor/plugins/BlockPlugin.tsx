@@ -872,6 +872,16 @@ export function BlockPlugin({
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
 
+        // Code block: Enter inserts a line break instead of creating a new block
+        if (blockNode.getNodeType() === 'code') {
+          event?.preventDefault();
+          editor.update(() => {
+            const sel = $getSelection();
+            if ($isRangeSelection(sel)) sel.insertNodes([$createLineBreakNode()]);
+          });
+          return true;
+        }
+
         const blockId = blockNode.getBlockId();
 
         // Calculate cursor offset by walking through block children
@@ -1247,20 +1257,30 @@ export function BlockPlugin({
       // If cursor is at the START of a styled text node that is the first
       // content in its block AND Lexical's carry-over format is non-zero,
       // clear it (first press = exit style context). Second press navigates.
+      // Also fires when all siblings before the anchor are whitespace-only
+      // (e.g. a leading space node that would otherwise break the check).
+      const isEffectivelyFirst = (): boolean => {
+        let sib = anchorNode.getPreviousSibling();
+        while (sib) {
+          if (!$isTextNode(sib) || sib.getTextContent().trim() !== '') return false;
+          sib = sib.getPreviousSibling();
+        }
+        return true;
+      };
       if (
         $isTextNode(anchorNode) &&
         selection.format !== 0 &&
         anchor.offset === 0 &&
-        anchorNode === blockNode.getFirstDescendant()
+        isEffectivelyFirst()
       ) {
         event?.preventDefault();
         selection.format = 0;
         return true;
       }
 
-      // Must be at the absolute start of the block
+      // Must be at the absolute start of the block (whitespace-only preceding siblings are ignored)
       if (anchor.offset !== 0) return false;
-      if (anchor.type === 'text' && anchorNode !== blockNode.getFirstDescendant()) return false;
+      if (anchor.type === 'text' && !isEffectivelyFirst()) return false;
 
       const root = $getRoot();
       const children = root.getChildren();
@@ -1297,11 +1317,21 @@ export function BlockPlugin({
       // If cursor is at the END of a styled text node that is the last
       // content in its block AND Lexical's carry-over format is non-zero,
       // clear it (first press = exit style context). Second press navigates.
+      // Also fires when all siblings after the anchor are whitespace-only
+      // (e.g. a trailing space node that would otherwise break the check).
+      const isEffectivelyLast = (): boolean => {
+        let sib = anchorNode.getNextSibling();
+        while (sib) {
+          if (!$isTextNode(sib) || sib.getTextContent().trim() !== '') return false;
+          sib = sib.getNextSibling();
+        }
+        return true;
+      };
       if (
         $isTextNode(anchorNode) &&
         selection.format !== 0 &&
         anchor.offset === anchorNode.getTextContentSize() &&
-        anchorNode === blockNode.getLastDescendant()
+        isEffectivelyLast()
       ) {
         event?.preventDefault();
         selection.format = 0;
@@ -1310,8 +1340,8 @@ export function BlockPlugin({
 
       // Must be at the absolute end of the block
       if (anchor.type === 'text') {
-        const lastDescendant = blockNode.getLastDescendant();
-        if (anchorNode !== lastDescendant || anchor.offset < anchorNode.getTextContentSize()) return false;
+        // Whitespace-only trailing siblings are ignored (e.g. a trailing space node)
+        if (!isEffectivelyLast() || anchor.offset < anchorNode.getTextContentSize()) return false;
       } else {
         if (anchorNode !== blockNode || anchor.offset < blockNode.getChildrenSize()) return false;
       }
