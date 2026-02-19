@@ -82,6 +82,8 @@ body {
   padding: 0;
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums;
 }
 
 /* --- Headings --- */
@@ -481,6 +483,7 @@ div.page-break {
   line-height: var(--tt-line-height);
   letter-spacing: 0;
   color: var(--tt-color);
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .theme-technical h1,
