@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -18,6 +18,7 @@ import './ExportPageModal.css';
 type ExportFormat = 'markdown' | 'html' | 'pdf';
 type ExportLayout = 'outline' | 'flat';
 type ExportStyle = 'minimal' | 'technical';
+type ExportProperties = 'none' | 'main' | 'all';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [format, setFormat] = useState<ExportFormat>('markdown');
   const [layout, setLayout] = useState<ExportLayout>('outline');
   const [style, setStyle] = useState<ExportStyle>('minimal');
+  const [properties, setProperties] = useState<ExportProperties>('none');
   const [formatting, setFormatting] = useState(true);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout, formatting, style },
+        params: { format, include_children: true, layout, formatting, style, properties },
         responseType: 'text',
       })
       .then((response) => {
@@ -92,7 +94,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, properties, nodeUuid]);
 
   // For the HTML tab, show only the <body> inner content (no doctype/head/style)
   const displayContent = useMemo(() => {
@@ -117,7 +119,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout, formatting, style },
+          params: { format: 'html', include_children: true, layout, formatting, style, properties },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -136,7 +138,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout, formatting, style },
+          params: { format, include_children: true, layout, formatting, style, properties },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -152,7 +154,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, properties, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -188,6 +190,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
               label="Formatting"
               checked={formatting}
               onChange={setFormatting}
+            />
+            <SelectionButton
+              size="sm"
+              options={[
+                { value: 'none', icon: mdiTagOff, label: 'No props' },
+                { value: 'main', icon: mdiTagOutline, label: 'Main props' },
+                { value: 'all', icon: mdiTagMultipleOutline, label: 'All props' },
+              ]}
+              value={properties}
+              onChange={(v) => setProperties(v as ExportProperties)}
             />
           </div>
           <div className="export-modal__footer-actions">
