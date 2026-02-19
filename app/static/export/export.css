@@ -292,6 +292,11 @@ div.page-break {
     orphans: 3;
     widows: 3;
   }
+  a.url-link::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: var(--color-text-muted);
+  }
 }
 
 
