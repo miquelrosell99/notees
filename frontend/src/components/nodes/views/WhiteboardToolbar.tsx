@@ -22,6 +22,8 @@ import {
   mdiVectorLine,
   mdiImageOutline,
   mdiCardOutline,
+  mdiCardPlusOutline,
+  mdiLinkVariant,
   mdiUndo,
   mdiRedo,
   mdiGrid,
@@ -47,6 +49,7 @@ import './WhiteboardView.css';
 interface WhiteboardToolbarProps {
   wb: UseWhiteboardReturn;
   onAddCard: () => void;
+  onAddReferenceCard: () => void;
   onAddImage: () => void;
 }
 
@@ -98,6 +101,7 @@ const STROKE_WIDTHS = [1, 2, 3, 5, 8, 12];
 export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   wb,
   onAddCard,
+  onAddReferenceCard,
   onAddImage,
 }) => {
   const { interaction, data, settings } = wb;
@@ -175,14 +179,32 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             />
           ))}
 
-          {/* Card and Image */}
-          <ToolButton
+          {/* Card (block vs reference) and Image */}
+          <ButtonWithPanel
             icon={mdiCardOutline}
-            label="Add Card"
-            shortcut=""
-            active={false}
-            onClick={onAddCard}
-          />
+            variant="ghost"
+            size="sm"
+            tooltip="Add Card"
+            panelPosition="top"
+            panelAlignment="center"
+          >
+            <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+              <ToolButton
+                icon={mdiCardPlusOutline}
+                label="New Block"
+                shortcut=""
+                active={false}
+                onClick={onAddCard}
+              />
+              <ToolButton
+                icon={mdiLinkVariant}
+                label="Reference Card"
+                shortcut=""
+                active={false}
+                onClick={onAddReferenceCard}
+              />
+            </div>
+          </ButtonWithPanel>
           <ToolButton
             icon={mdiImageOutline}
             label="Add Image"
