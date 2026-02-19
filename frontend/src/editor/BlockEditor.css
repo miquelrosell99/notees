@@ -226,10 +226,12 @@
   z-index: 10;
   background: var(--color-on-surface);
   display: none;
-  transition: width 0.12s var(--motion-easing-standard),
-              height 0.1s var(--motion-easing-standard),
-              border-radius 0.12s var(--motion-easing-standard),
-              opacity 0.12s var(--motion-easing-standard);
+  transition: width 0.22s var(--motion-easing-standard),
+              height 0.18s var(--motion-easing-standard),
+              top 0.18s var(--motion-easing-standard),
+              left 0.18s var(--motion-easing-standard),
+              border-radius 0.22s var(--motion-easing-standard),
+              opacity 0.18s var(--motion-easing-standard);
 }
 
 /* Line caret (normal typing mode) */
@@ -250,7 +252,7 @@
   border-radius: 6px;
   background: transparent;
   border: 2px solid var(--color-on-surface);
-  animation: notees-pill-breathe 0.85s ease-in-out infinite;
+  animation: notees-pill-breathe 1.4s ease-in-out infinite;
 }
 
 /* Selection mode — transparent container, per-line children provide highlight */
