@@ -51,6 +51,8 @@ async def export_single_node(
     formatting: bool = True,
     style: str | None = None,
     properties: str = "none",
+    density: str = "comfortable",
+    numbering: str = "none",
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -65,6 +67,12 @@ async def export_single_node(
     if properties not in ("none", "main", "all"):
         raise HTTPException(status_code=400, detail=f"Invalid properties value: {properties}")
 
+    if density not in ("comfortable", "compact"):
+        raise HTTPException(status_code=400, detail=f"Invalid density: {density}")
+
+    if numbering not in ("none", "top-level", "hierarchical"):
+        raise HTTPException(status_code=400, detail=f"Invalid numbering: {numbering}")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
@@ -75,6 +83,8 @@ async def export_single_node(
             formatting=formatting,
             style=style,
             properties=properties,
+            density=density,
+            numbering=numbering,
         )
         
         return Response(
