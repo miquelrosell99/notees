@@ -157,6 +157,11 @@
   width: 100%;
 }
 
+/* Options panel portal — must sit above modal (--z-modal: 10001) */
+.export-modal__options-panel {
+  z-index: 10002 !important;
+}
+
 
 
 .export-modal__footer-actions {
