@@ -57,25 +57,19 @@ function NodeLinkPill({ linkId, refType, label }: { linkId: string; refType: 'no
   const { nodeUuid } = parseLinkId(linkId);
 
   // 1. Try the pre-fetched referenced_nodes map (from page content response — zero API calls)
-  const refInfo = useReferencedNode(nodeUuid);
+  const refNode = useReferencedNode(nodeUuid);
 
   // 2. Fallback: fetch by UUID only when not in the pre-fetched map.
   //    This fires for newly created links (not yet saved) or cross-context renders.
-  const { data: fallbackNode } = useNodeByUuid(!refInfo ? nodeUuid : null);
+  const { data: fallbackNode } = useNodeByUuid(!refNode ? nodeUuid : null);
 
-  // Unified node-like object for rendering
-  const nodeData: { name: string; icon: string | null; color: string | null; is_page: boolean } | null = useMemo(() => {
-    if (refInfo) return refInfo;
-    if (fallbackNode) return fallbackNode;
-    return null;
-  }, [refInfo, fallbackNode]);
+  const nodeData = refNode ?? fallbackNode ?? null;
 
   const { data: allClasses } = useClasses();
 
   const effectiveIcon = useMemo(() => {
     if (!nodeData) return null;
-    // getEffectiveIcon expects a Node-like object; refInfo has the needed fields
-    return getEffectiveIcon(nodeData as Partial<Node> as Node, allClasses);
+    return getEffectiveIcon(nodeData as Node, allClasses);
   }, [nodeData, allClasses]);
 
   const displayText = useMemo(() => {
