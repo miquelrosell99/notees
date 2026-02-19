@@ -82,7 +82,7 @@
   align-items: flex-start;
   padding: 0;
   margin: 3px 0;
-  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-6));
+  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-8));
   min-height: 1.6em;
   line-height: 1.6;
   transition: margin-left var(--motion-duration-medium) var(--motion-easing-standard);

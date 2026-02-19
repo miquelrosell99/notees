@@ -95,8 +95,7 @@ export function ThreadLinePlugin({ mode = 'list' }: ThreadLinePluginProps): null
       // (getBoundingClientRect difference is scroll-safe)
       const lineX = bulletRect.left - wrapperRect.left + bulletRect.width / 2;
       const lineTop = bulletRect.top - wrapperRect.top + bulletRect.height;
-      const lineBottom =
-        lastRect.top - wrapperRect.top + lastRect.height / 2;
+      const lineBottom = lastRect.top - wrapperRect.top + lastRect.height / 2;
 
       if (lineBottom <= lineTop) continue;
 
