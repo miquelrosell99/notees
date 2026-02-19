@@ -528,7 +528,7 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
         lines.append("")
         for node in nodes[1:]:
             text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
-            lines.append(f"- {text}")
+            lines.append(text)
         return "\n".join(lines)
 
     # outline (default)
@@ -559,13 +559,13 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
 
     if layout == "flat":
         title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver)
-        items = []
+        paragraphs = []
         for node in nodes[1:]:
             text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
-            items.append(f"  <li>{html_mod.escape(text)}</li>")
+            paragraphs.append(f"  <p>{html_mod.escape(text)}</p>")
         body = f"<h1>{html_mod.escape(title)}</h1>"
-        if items:
-            body += f"\n<ul>\n{chr(10).join(items)}\n</ul>"
+        if paragraphs:
+            body += "\n" + "\n".join(paragraphs)
         return f"""<!DOCTYPE html>
 <html>
 <head><title>{html_mod.escape(title)}</title></head>
