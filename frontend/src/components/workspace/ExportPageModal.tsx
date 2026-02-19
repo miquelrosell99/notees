@@ -43,33 +43,72 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const STORAGE_KEY = 'export-css-overrides';
+const SETTINGS_KEY = 'export-settings';
+
+interface ExportSettings {
+  format: ExportFormat;
+  layout: ExportLayout;
+  style: ExportStyle;
+  properties: ExportProperties;
+  density: ExportDensity;
+  numbering: ExportNumbering;
+  measure: ExportMeasure;
+  doctype: ExportDoctype;
+  sectionBreak: boolean;
+  formatting: boolean;
+  showUuid: boolean;
+  cssOverrides: string;
+}
+
+const DEFAULT_SETTINGS: ExportSettings = {
+  format: 'markdown',
+  layout: 'outline',
+  style: 'minimal',
+  properties: 'main',
+  density: 'comfortable',
+  numbering: 'none',
+  measure: 'full',
+  doctype: 'none',
+  sectionBreak: false,
+  formatting: true,
+  showUuid: false,
+  cssOverrides: '',
+};
+
+function loadSettings(): ExportSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) as Partial<ExportSettings> };
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_SETTINGS };
+}
 
 export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
-  const [format, setFormat] = useState<ExportFormat>('markdown');
-  const [layout, setLayout] = useState<ExportLayout>('outline');
-  const [style, setStyle] = useState<ExportStyle>('minimal');
-  const [properties, setProperties] = useState<ExportProperties>('main');
-  const [density, setDensity] = useState<ExportDensity>('comfortable');
-  const [numbering, setNumbering] = useState<ExportNumbering>('none');
-  const [measure, setMeasure] = useState<ExportMeasure>('full');
-  const [doctype, setDoctype] = useState<ExportDoctype>('none');
-  const [sectionBreak, setSectionBreak] = useState(false);
-  const [formatting, setFormatting] = useState(true);
-  const [showUuid, setShowUuid] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>(() => loadSettings().format);
+  const [layout, setLayout] = useState<ExportLayout>(() => loadSettings().layout);
+  const [style, setStyle] = useState<ExportStyle>(() => loadSettings().style);
+  const [properties, setProperties] = useState<ExportProperties>(() => loadSettings().properties);
+  const [density, setDensity] = useState<ExportDensity>(() => loadSettings().density);
+  const [numbering, setNumbering] = useState<ExportNumbering>(() => loadSettings().numbering);
+  const [measure, setMeasure] = useState<ExportMeasure>(() => loadSettings().measure);
+  const [doctype, setDoctype] = useState<ExportDoctype>(() => loadSettings().doctype);
+  const [sectionBreak, setSectionBreak] = useState<boolean>(() => loadSettings().sectionBreak);
+  const [formatting, setFormatting] = useState<boolean>(() => loadSettings().formatting);
+  const [showUuid, setShowUuid] = useState<boolean>(() => loadSettings().showUuid);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cssOverrides, setCssOverrides] = useState<string>(
-    () => localStorage.getItem(STORAGE_KEY) ?? ''
-  );
+  const [cssOverrides, setCssOverrides] = useState<string>(() => loadSettings().cssOverrides);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Persist custom CSS overrides to localStorage whenever they change.
+  // Persist all export settings to localStorage whenever they change.
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, cssOverrides);
-  }, [cssOverrides]);
+    const settings: ExportSettings = { format, layout, style, properties, density, numbering, measure, doctype, sectionBreak, formatting, showUuid, cssOverrides };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [format, layout, style, properties, density, numbering, measure, doctype, sectionBreak, formatting, showUuid, cssOverrides]);
 
   const handleFormatChange = useCallback((f: ExportFormat) => {
     setFormat(f);
