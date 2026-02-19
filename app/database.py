@@ -602,19 +602,37 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
 </body>
 </html>"""
 
-    # outline (default)
-    items = []
+    # outline (default) — nested <ul> based on depth
+    lines = []
+    current_depth = -1
     for node in nodes:
         text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
-        items.append(f"  <li>{html_mod.escape(text)}</li>")
-    
+        depth = node.get('depth', 0)
+        if depth > current_depth:
+            # Open new nested lists
+            for _ in range(depth - current_depth):
+                indent = '  ' * (current_depth + 1)
+                lines.append(f"{indent}<ul>")
+                current_depth += 1
+        elif depth < current_depth:
+            # Close lists back to this depth
+            for _ in range(current_depth - depth):
+                indent = '  ' * current_depth
+                lines.append(f"{indent}</ul>")
+                current_depth -= 1
+        indent = '  ' * (depth + 1)
+        lines.append(f"{indent}<li>{html_mod.escape(text)}</li>")
+    # Close remaining open lists
+    while current_depth >= 0:
+        indent = '  ' * current_depth
+        lines.append(f"{indent}</ul>")
+        current_depth -= 1
+
     return f"""<!DOCTYPE html>
 <html>
 <head><title>Notees Export</title></head>
 <body>
-<ul>
-{chr(10).join(items)}
-</ul>
+{chr(10).join(lines)}
 </body>
 </html>"""
 
