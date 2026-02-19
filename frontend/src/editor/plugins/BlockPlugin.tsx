@@ -593,15 +593,32 @@ export function BlockPlugin({
     }
 
     const unsubscribe = subscribeToVisibilityChange((newlyVisible, newlyHidden) => {
-      if (newlyVisible.length === 0 && newlyHidden.length === 0) return;
+      // ── Orphan detection ──────────────────────────────────────
+      // Check if any visible block is not hydrated and wasn't just
+      // delivered in newlyVisible.  This catches every state-machine
+      // edge case (cancel-out suppression, stale flush, React
+      // batching) by enforcing the invariant:
+      //   visible → populated  OR  queued-for-hydration
+      const currentVisible = getVisibleBlockIds();
+      let needsReconcile = false;
+      for (const blockId of currentVisible) {
+        if (!isBlockPopulated(blockId) && blockIdToKeyMap.current.has(blockId)) {
+          needsReconcile = true;
+          break;
+        }
+      }
+
+      if (newlyVisible.length === 0 && newlyHidden.length === 0 && !needsReconcile) return;
 
       isSyncingRef.current = true;
 
       editor.update(() => {
         const runtime = getNodeGraphRuntime();
+        const processedIds = new Set<string>();
 
         // ── Phase 1: light-populate newly visible blocks ───────
         for (const blockId of newlyVisible) {
+          processedIds.add(blockId);
           if (isBlockPopulated(blockId)) continue;
 
           const key = blockIdToKeyMap.current.get(blockId);
@@ -629,6 +646,13 @@ export function BlockPlugin({
         for (const blockId of newlyHidden) {
           if (!isBlockPopulated(blockId)) continue;
 
+          // Guard: skip if the block is currently visible.
+          // The debounced newlyHidden list can be stale — the block
+          // may have re-entered _visibleBlockIds after the pending-
+          // hidden entry was created.  Depopulating it now would
+          // leave a visible block with ZWS content.
+          if (currentVisible.has(blockId)) continue;
+
           // Cancel any pending upgrade for this block
           pendingUpgrade.delete(blockId);
 
@@ -642,6 +666,33 @@ export function BlockPlugin({
           for (const child of children) child.remove();
           block.append($createTextNode('\u200B'));
           markDepopulated(blockId);
+        }
+
+        // ── Reconciliation: catch orphaned visible blocks ──────
+        // Any block that is visible, not populated, and wasn't
+        // already handled in the newlyVisible loop is an orphan.
+        // Light-hydrate it now to enforce the invariant.
+        for (const blockId of currentVisible) {
+          if (processedIds.has(blockId)) continue;
+          if (isBlockPopulated(blockId)) continue;
+
+          const key = blockIdToKeyMap.current.get(blockId);
+          if (!key) continue;
+          const block = $getNodeByKey(key);
+          if (!$isBlockNode(block)) continue;
+
+          const graphNode = runtime.getNode(blockId);
+          if (!graphNode) continue;
+
+          const children = block.getChildren();
+          for (const child of children) child.remove();
+
+          const needsUpgrade = populateBlockContentLight(block, graphNode.contentAST);
+          markPopulated(blockId);
+
+          if (needsUpgrade) {
+            pendingUpgrade.add(blockId);
+          }
         }
       }, { tag: 'runtime-sync' });
 
