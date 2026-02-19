@@ -104,6 +104,14 @@ export interface WhiteboardCardElement extends WhiteboardElementBase {
   collapsed: boolean;    // Whether card body is collapsed
   color: string | null;  // Card background color
   showChildren: boolean; // Whether to show nested children
+  /**
+   * 'block'     — Normal editable child block (default). The whiteboard creates
+   *               a real child block under the whiteboard node.
+   * 'reference' — Read-only reference card. The block's name contains a
+   *               [[nodeLink]] to an external node. The card renders that node's
+   *               full content (like a sidebar card) and is not editable.
+   */
+  cardMode: 'block' | 'reference';
 }
 
 // ─── Shape element ─────────────────────────────────────────────────

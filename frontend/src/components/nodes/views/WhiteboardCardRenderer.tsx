@@ -1,18 +1,27 @@
 /**
- * WhiteboardCardRenderer — Renders a card element displaying a child block's content.
+ * WhiteboardCardRenderer — Renders card elements on the whiteboard.
+ *
+ * Two modes:
+ *   'block'     — Normal editable child block. Shows block name + children preview.
+ *   'reference' — Read-only reference to another node. Renders the node's full
+ *                 content via NodeViewContent (like a sidebar card, without queries).
  */
 import React from 'react';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNodeByUuid, nodeNameToText } from '@/hooks/useNodes';
+import { NodeViewContent } from '@/views/NodeView';
+import { NodeIcon } from '@/components/core/icons';
 import Icon from '@mdi/react';
-import { mdiChevronDown, mdiChevronRight, mdiFileDocumentOutline } from '@mdi/js';
+import { mdiChevronDown, mdiChevronRight, mdiFileDocumentOutline, mdiLinkVariant } from '@mdi/js';
 
 interface Props {
   element: WhiteboardCardElement;
   zoom: number;
 }
 
-export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
+// ─── Block card (normal child block) ────────────────────────────────
+
+const BlockCardContent: React.FC<{ element: WhiteboardCardElement; zoom: number }> = ({ element, zoom }) => {
   const { data: node } = useNodeByUuid(element.nodeUuid);
 
   const displayName = node ? nodeNameToText(node.name) : 'Loading...';
@@ -28,7 +37,7 @@ export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
     >
       <div className="whiteboard-card__header">
         <span className="whiteboard-card__icon">
-          <Icon path={node?.icon ? mdiFileDocumentOutline : mdiFileDocumentOutline} size={0.55} />
+          <Icon path={mdiFileDocumentOutline} size={0.55} />
         </span>
         <span className="whiteboard-card__title" title={displayName}>
           {displayName}
@@ -60,4 +69,56 @@ export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
       </div>
     </div>
   );
+};
+
+// ─── Reference card (read-only embedded node view) ──────────────────
+
+const ReferenceCardContent: React.FC<{ element: WhiteboardCardElement }> = ({ element }) => {
+  const { data: node } = useNodeByUuid(element.nodeUuid);
+
+  const displayName = node ? nodeNameToText(node.name) : 'Loading...';
+
+  return (
+    <div
+      className="whiteboard-card whiteboard-card--reference"
+      style={{ backgroundColor: element.color ?? undefined }}
+    >
+      <div className="whiteboard-card__header whiteboard-card__header--reference">
+        <span className="whiteboard-card__icon">
+          {node ? <NodeIcon node={node} size={0.55} /> : <Icon path={mdiLinkVariant} size={0.55} />}
+        </span>
+        <span className="whiteboard-card__title" title={displayName}>
+          {displayName}
+        </span>
+        <span className="whiteboard-card__badge">
+          <Icon path={mdiLinkVariant} size={0.4} />
+        </span>
+      </div>
+      <div className={`whiteboard-card__body whiteboard-card__body--reference ${element.collapsed ? 'whiteboard-card__body--collapsed' : ''}`}>
+        {node ? (
+          <div className="whiteboard-card__node-content">
+            <NodeViewContent
+              nodeId={element.nodeId}
+              viewMode="default"
+              sidebarMode={true}
+              hideQueries={true}
+              hideFooter={true}
+              propertiesCollapsed={true}
+            />
+          </div>
+        ) : (
+          <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Loading node...</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Main renderer (dispatches by cardMode) ─────────────────────────
+
+export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
+  if (element.cardMode === 'reference') {
+    return <ReferenceCardContent element={element} />;
+  }
+  return <BlockCardContent element={element} zoom={zoom} />;
 };

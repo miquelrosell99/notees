@@ -18,6 +18,9 @@ import { WhiteboardMinimap } from './WhiteboardMinimap';
 import { useWhiteboard } from '@/hooks/useWhiteboard';
 import { useCreateNode } from '@/hooks/useNodes';
 import { useAppStore } from '@/stores/appStore';
+import { SearchBox } from '@/components/core/SearchBox';
+import { Card } from '@/components/core/Card';
+import type { Node } from '@/types/api';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { createElementId } from '@/types/whiteboard';
 import './WhiteboardView.css';
@@ -38,6 +41,13 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     elementId: string | null;
   } | null>(null);
 
+  // Reference card search popup state
+  const [refCardSearch, setRefCardSearch] = useState<{
+    /** Screen position where the card should be placed */
+    screenX: number;
+    screenY: number;
+  } | null>(null);
+
   // ─── Context menu handler ─────────────────────────────────────────
 
   const handleContextMenu = useCallback((e: React.MouseEvent, elementId?: string) => {
@@ -55,63 +65,105 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     const el = wb.data.elements.find(e => e.id === elementId);
     if (el?.type === 'card') {
       const cardEl = el as WhiteboardCardElement;
-      // Navigate to the node
       openNode(cardEl.nodeId);
     }
   }, [wb.data.elements, openNode]);
 
-  // ─── Add card (create a new child block + card element) ───────────
+  // ─── Helpers: screen → canvas coordinate conversion ───────────────
+
+  const screenToCanvas = useCallback((screenX: number, screenY: number) => {
+    const containerRect = document.querySelector('.whiteboard-view__canvas')?.getBoundingClientRect();
+    const canvasX = containerRect
+      ? (screenX - containerRect.left - wb.data.viewport.x) / wb.data.viewport.zoom
+      : screenX;
+    const canvasY = containerRect
+      ? (screenY - containerRect.top - wb.data.viewport.y) / wb.data.viewport.zoom
+      : screenY;
+    return { x: canvasX, y: canvasY };
+  }, [wb.data.viewport]);
+
+  const viewportCenter = useCallback(() => {
+    const centerX = (-wb.data.viewport.x + window.innerWidth / 2) / wb.data.viewport.zoom;
+    const centerY = (-wb.data.viewport.y + window.innerHeight / 2) / wb.data.viewport.zoom;
+    return { x: centerX, y: centerY };
+  }, [wb.data.viewport]);
+
+  // ─── Add normal card (create a new child block + card element) ────
 
   const handleAddCard = useCallback(() => {
-    // Create a new block as a child of the whiteboard
     createNode.mutate(
-      {
-        name: '',
-        parent_id: nodeId,
-      },
+      { name: '', parent_id: nodeId },
       {
         onSuccess: (newNode) => {
-          // Add a card element at the center of the viewport
-          const centerX = (-wb.data.viewport.x + window.innerWidth / 2) / wb.data.viewport.zoom - 140;
-          const centerY = (-wb.data.viewport.y + window.innerHeight / 2) / wb.data.viewport.zoom - 90;
-
-          const card = wb.createCard(newNode.id, newNode.uuid, { x: centerX, y: centerY });
+          const center = viewportCenter();
+          const card = wb.createCard(newNode.id, newNode.uuid, { x: center.x - 140, y: center.y - 90 });
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
-  }, [nodeId, createNode, wb]);
+  }, [nodeId, createNode, wb, viewportCenter]);
 
   const handleAddCardAtPosition = useCallback((screenX: number, screenY: number) => {
     createNode.mutate(
-      {
-        name: '',
-        parent_id: nodeId,
-      },
+      { name: '', parent_id: nodeId },
       {
         onSuccess: (newNode) => {
-          // Convert screen position to canvas position
-          const containerRect = document.querySelector('.whiteboard-view__canvas')?.getBoundingClientRect();
-          const canvasX = containerRect
-            ? (screenX - containerRect.left - wb.data.viewport.x) / wb.data.viewport.zoom
-            : screenX;
-          const canvasY = containerRect
-            ? (screenY - containerRect.top - wb.data.viewport.y) / wb.data.viewport.zoom
-            : screenY;
-
-          const card = wb.createCard(newNode.id, newNode.uuid, { x: canvasX, y: canvasY });
+          const pos = screenToCanvas(screenX, screenY);
+          const card = wb.createCard(newNode.id, newNode.uuid, pos);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
-  }, [nodeId, createNode, wb]);
+  }, [nodeId, createNode, wb, screenToCanvas]);
+
+  // ─── Add reference card (pick existing node → embed as read-only) ─
+
+  const handleAddReferenceCard = useCallback(() => {
+    const center = viewportCenter();
+    setRefCardSearch({ screenX: center.x, screenY: center.y });
+  }, [viewportCenter]);
+
+  const handleAddReferenceCardAtPosition = useCallback((screenX: number, screenY: number) => {
+    // Convert screen → canvas for where the card goes; SearchBox position stays screen coords
+    setRefCardSearch({ screenX, screenY });
+  }, []);
+
+  const handleRefNodeSelected = useCallback((selectedNode: Node) => {
+    if (!refCardSearch) return;
+
+    // Create a child block whose name is a link to the selected node: [[nodeUuid]]
+    const linkName = `[[${selectedNode.uuid}]]`;
+    createNode.mutate(
+      { name: linkName, parent_id: nodeId },
+      {
+        onSuccess: (newBlock) => {
+          // Place card at the stored position (already canvas coords for center,
+          // or needs conversion for screen coords from context menu)
+          let pos: { x: number; y: number };
+          // If we came from the toolbar (center), coords are already canvas.
+          // If from context menu, we stored raw screen coords.
+          const containerRect = document.querySelector('.whiteboard-view__canvas')?.getBoundingClientRect();
+          if (containerRect && (refCardSearch.screenX > containerRect.right || refCardSearch.screenY > containerRect.bottom)) {
+            // Toolbar click — already canvas coords
+            pos = { x: refCardSearch.screenX - 200, y: refCardSearch.screenY - 160 };
+          } else {
+            pos = screenToCanvas(refCardSearch.screenX, refCardSearch.screenY);
+          }
+
+          const card = wb.createReferenceCard(newBlock.id, selectedNode.uuid, pos);
+          wb.addElement(card);
+          wb.selectElements([card.id]);
+        },
+      }
+    );
+    setRefCardSearch(null);
+  }, [refCardSearch, nodeId, createNode, wb, screenToCanvas]);
 
   // ─── Add image ────────────────────────────────────────────────────
 
   const handleAddImage = useCallback(() => {
-    // Create a file input to select an image
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -122,14 +174,13 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const dataUrl = ev.target?.result as string;
-        const centerX = (-wb.data.viewport.x + window.innerWidth / 2) / wb.data.viewport.zoom - 150;
-        const centerY = (-wb.data.viewport.y + window.innerHeight / 2) / wb.data.viewport.zoom - 100;
+        const center = viewportCenter();
 
         const imageEl = {
           id: createElementId(),
           type: 'image' as const,
-          x: centerX,
-          y: centerY,
+          x: center.x - 150,
+          y: center.y - 100,
           width: 300,
           height: 200,
           rotation: 0,
@@ -146,7 +197,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       reader.readAsDataURL(file);
     };
     input.click();
-  }, [wb]);
+  }, [wb, viewportCenter]);
 
   // ─── Open referenced node ────────────────────────────────────────
 
@@ -183,6 +234,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       <WhiteboardToolbar
         wb={wb}
         onAddCard={handleAddCard}
+        onAddReferenceCard={handleAddReferenceCard}
         onAddImage={handleAddImage}
       />
 
@@ -198,7 +250,30 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
           onClose={closeContextMenu}
           onOpenNode={handleOpenNode}
           onAddCardAtPosition={handleAddCardAtPosition}
+          onAddReferenceCardAtPosition={handleAddReferenceCardAtPosition}
         />
+      )}
+
+      {/* Reference card node search popup */}
+      {refCardSearch && (
+        <div className="whiteboard-ref-search-overlay" onClick={() => setRefCardSearch(null)}>
+          <div
+            className="whiteboard-ref-search-popup"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card elevation="high" variant="filled" padding paddingSize="sm">
+              <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13 }}>
+                Select node to reference
+              </div>
+              <SearchBox
+                placeholder="Search pages..."
+                autoFocus
+                filterFn={(n: Node) => n.is_page && n.id !== nodeId}
+                onSelect={handleRefNodeSelected}
+              />
+            </Card>
+          </div>
+        </div>
       )}
     </div>
   );

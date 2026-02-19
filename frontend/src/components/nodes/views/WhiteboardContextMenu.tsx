@@ -13,6 +13,7 @@ interface WhiteboardContextMenuProps {
   onClose: () => void;
   onOpenNode: (nodeId: number) => void;
   onAddCardAtPosition: (x: number, y: number) => void;
+  onAddReferenceCardAtPosition: (x: number, y: number) => void;
 }
 
 export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
@@ -22,6 +23,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
   onClose,
   onOpenNode,
   onAddCardAtPosition,
+  onAddReferenceCardAtPosition,
 }) => {
   if (!position) return null;
 
@@ -124,10 +126,20 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     // Canvas context (no element selected)
     items.push({
       id: 'add-card',
-      label: 'Add Card',
-      icon: 'card-outline',
+      label: 'New Block Card',
+      icon: 'card-plus-outline',
       onClick: () => {
         onAddCardAtPosition(position.x, position.y);
+        onClose();
+      },
+    });
+
+    items.push({
+      id: 'add-reference-card',
+      label: 'Reference Card',
+      icon: 'link-variant',
+      onClick: () => {
+        onAddReferenceCardAtPosition(position.x, position.y);
         onClose();
       },
     });
