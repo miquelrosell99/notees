@@ -54,6 +54,8 @@ async def export_single_node(
     density: str = "comfortable",
     numbering: str = "none",
     measure: str = "full",
+    doctype: str = "none",
+    section_break: bool = False,
     show_uuid: bool = False,
     user: User = Depends(get_current_user)
 ):
@@ -78,6 +80,9 @@ async def export_single_node(
     if measure not in ("full", "readable", "book", "two-column"):
         raise HTTPException(status_code=400, detail=f"Invalid measure: {measure}")
 
+    if doctype not in ("none", "article", "report", "book", "legal", "academic"):
+        raise HTTPException(status_code=400, detail=f"Invalid doctype: {doctype}")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
@@ -91,6 +96,8 @@ async def export_single_node(
             density=density,
             numbering=numbering,
             measure=measure,
+            doctype=doctype,
+            section_break=section_break,
             show_uuid=show_uuid,
         )
         
