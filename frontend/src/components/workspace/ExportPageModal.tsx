@@ -37,6 +37,8 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+const STORAGE_KEY = 'export-css-overrides';
+
 export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
   const [format, setFormat] = useState<ExportFormat>('markdown');
   const [layout, setLayout] = useState<ExportLayout>('outline');
@@ -45,9 +47,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cssOverrides, setCssOverrides] = useState('');
+  const [cssOverrides, setCssOverrides] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEY) ?? ''
+  );
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Persist custom CSS overrides to localStorage whenever they change.
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, cssOverrides);
+  }, [cssOverrides]);
 
   const handleFormatChange = useCallback((f: ExportFormat) => {
     setFormat(f);
