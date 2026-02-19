@@ -99,25 +99,11 @@ export function WorkspaceManagementView({
       useFavoritesStore.getState().clear();
       useFavoritesStore.getState().refresh();
       
-      // Navigate to home (no database in URL)
+      // Navigate to home page
       window.history.replaceState(null, '', '/');
       
-      // Remove ALL cached data from previous workspace to prevent stale data
-      // Using removeQueries instead of invalidateQueries clears the cache immediately
-      queryClient.removeQueries({ queryKey: ['nodes'] });
-      queryClient.removeQueries({ queryKey: ['graph'] });
-      queryClient.removeQueries({ queryKey: ['assets'] });
-      queryClient.removeQueries({ queryKey: ['properties'] });
-      queryClient.removeQueries({ queryKey: ['property-nodes'] });
-      queryClient.removeQueries({ queryKey: ['page'] });
-      queryClient.removeQueries({ queryKey: ['trash'] });
-      queryClient.removeQueries({ queryKey: ['archived-pages'] });
-      queryClient.removeQueries({ queryKey: ['nodeViews'] });
-      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
-      queryClient.removeQueries({ queryKey: ['textLinks'] });
-      
-      // Invalidate workspaces query to refetch the list (keep cache for smoother UX)
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      // Clear ALL cached data to prevent any stale data from previous workspace
+      queryClient.clear();
       onWorkspaceSelected?.();
     },
   });
@@ -169,19 +155,8 @@ export function WorkspaceManagementView({
   const restoreMutation = useMutation({
     mutationFn: ({ uuid, file }: { uuid: string; file: File }) => restoreWorkspace(uuid, file),
     onSuccess: () => {
-      // Clear all cached data since workspace content has changed
-      queryClient.removeQueries({ queryKey: ['nodes'] });
-      queryClient.removeQueries({ queryKey: ['graph'] });
-      queryClient.removeQueries({ queryKey: ['assets'] });
-      queryClient.removeQueries({ queryKey: ['properties'] });
-      queryClient.removeQueries({ queryKey: ['property-nodes'] });
-      queryClient.removeQueries({ queryKey: ['page'] });
-      queryClient.removeQueries({ queryKey: ['trash'] });
-      queryClient.removeQueries({ queryKey: ['archived-pages'] });
-      queryClient.removeQueries({ queryKey: ['nodeViews'] });
-      queryClient.removeQueries({ queryKey: ['inlineClasses'] });
-      queryClient.removeQueries({ queryKey: ['textLinks'] });
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      // Clear ALL cached data since workspace content has changed
+      queryClient.clear();
       setRestoreState({ confirming: null, file: null });
       setRestoreError(null);
     },
