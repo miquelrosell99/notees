@@ -225,6 +225,14 @@ export function BlockPlugin({
       // Two-pass approach: update existing nodes first, then create new ones
       // This ensures focus-setting on new blocks happens after all content updates
       const visibleNodes = projectedNodes.filter(n => n.visible);
+
+      // Detect stale visible IDs: if virtualization is active but none
+      // of the current visible IDs match the new projection (e.g. page
+      // navigation), the IDs are leftover from a previous page.  In that
+      // case we fall back to the INITIAL_POPULATE_COUNT eager strategy
+      // so the user sees content immediately instead of ZWS placeholders.
+      const visibleIdsRelevant = virtEnabled && visibleIds.size > 0 &&
+        visibleNodes.some(n => visibleIds.has(n.blockId));
       
       // PASS 1: Update all existing nodes
       for (let i = 0; i < visibleNodes.length; i++) {
@@ -339,13 +347,14 @@ export function BlockPlugin({
           );
 
           // Populate inline content from contentAST.
-          // When virtualization is active and IO hasn't reported yet (visibleIds empty),
-          // eagerly populate the first INITIAL_POPULATE_COUNT blocks so the viewport
-          // has content immediately.  Off-screen blocks get a ZWS placeholder;
-          // their content is populated lazily when they scroll into view.
+          // When virtualization is active and IO hasn't reported yet (visibleIds
+          // empty OR stale from a previous page), eagerly populate the first
+          // INITIAL_POPULATE_COUNT blocks so the viewport has content
+          // immediately.  Off-screen blocks get a ZWS placeholder; their
+          // content is populated lazily when they scroll into view.
           const shouldPopulate =
             !virtEnabled ||
-            (visibleIds.size === 0
+            (!visibleIdsRelevant
               ? i < INITIAL_POPULATE_COUNT
               : visibleIds.has(projected.blockId) ||
                 (pendingFocus != null && projected.blockId === pendingFocus.blockId));

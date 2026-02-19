@@ -100,6 +100,16 @@ export function VirtualizationPlugin({
   const observerRef = useRef<IntersectionObserver | null>(null);
   const observedElements = useRef(new Set<Element>());
 
+  // Track whether the IntersectionObserver has fired at least once
+  // for the current observer instance.  Until it has, we skip CSS
+  // virtualization to prevent a flash of blank blocks when
+  // virtualization first enables or the page switches.
+  const hasIOReported = useRef(false);
+
+  // Track block IDs from the previous editor update so we can detect
+  // page switches (no overlap → reset IO tracking).
+  const prevBlockIdsRef = useRef(new Set<string>());
+
   // Determine if virtualization should be active
   const enabled = !disabled && totalBlocks >= VIRTUALIZATION_THRESHOLD;
 
@@ -120,10 +130,31 @@ export function VirtualizationPlugin({
       editor.getEditorState().read(() => {
         const root = $getRoot();
         let count = 0;
+        const currentBlockIds = new Set<string>();
         for (const child of root.getChildren()) {
-          if ($isBlockNode(child)) count++;
+          if ($isBlockNode(child)) {
+            count++;
+            currentBlockIds.add(child.getBlockId());
+          }
         }
         setTotalBlocks(count);
+
+        // Detect page switch: if the current blocks have no overlap
+        // with the previous set, visible IDs are stale.  Clear them
+        // and reset IO tracking so CSS virtualization is deferred
+        // until the observer reports for the new elements.
+        const prev = prevBlockIdsRef.current;
+        if (prev.size > 0 && currentBlockIds.size > 0) {
+          let hasOverlap = false;
+          for (const id of currentBlockIds) {
+            if (prev.has(id)) { hasOverlap = true; break; }
+          }
+          if (!hasOverlap) {
+            hasIOReported.current = false;
+            setVisibleBlockIds(new Set());
+          }
+        }
+        prevBlockIdsRef.current = currentBlockIds;
       });
     };
 
@@ -139,6 +170,7 @@ export function VirtualizationPlugin({
   // ─── IntersectionObserver management ─────────────────────
 
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
+    hasIOReported.current = true;
     setVisibleBlockIds(prev => {
       const next = new Set(prev);
       let changed = false;
@@ -177,6 +209,9 @@ export function VirtualizationPlugin({
       observedElements.current.clear();
       return;
     }
+
+    // Reset IO tracking — the new observer hasn't reported yet.
+    hasIOReported.current = false;
 
     const rootEl = editor.getRootElement();
     if (!rootEl) return;
@@ -255,7 +290,9 @@ export function VirtualizationPlugin({
   // ─── Apply virtualization: hide content of off-screen blocks
 
   useEffect(() => {
-    if (!enabled) return;
+    // Don't apply until IO has reported which blocks are actually
+    // in the viewport.  Before that, hiding would blank every block.
+    if (!enabled || !hasIOReported.current) return;
 
     const rootEl = editor.getRootElement();
     if (!rootEl) return;
