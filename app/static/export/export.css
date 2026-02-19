@@ -182,6 +182,8 @@ pre {
   page-break-inside: avoid;
   white-space: pre-wrap;
   word-wrap: break-word;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 /* --- Tables (neutral baseline) --- */
