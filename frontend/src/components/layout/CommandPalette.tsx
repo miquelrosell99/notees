@@ -903,37 +903,6 @@ export function CommandPalette({
             </div>
           )}
 
-          {/* Commands section */}
-          {commandItems.length > 0 && (
-            <div className="command-palette__section">
-              <div className="command-palette__section-header">Commands</div>
-              {commandItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
-                return (
-                  <button
-                    key={item.commandId}
-                    className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
-                    onClick={() => handleSelect(globalIndex)}
-                  >
-                    <span className="command-palette__result-icon">
-                      {item.commandIcon === 'import' ? (
-                        <ImportIcon size="sm" />
-                      ) : item.commandIcon === 'maintenance' ? (
-                        <Icon path={mdiDatabaseRefresh} size={0.7} />
-                      ) : item.commandIcon === 'focus' ? (
-                        <Icon path={mdiBrain} size={0.7} />
-                      ) : (
-                        <Icon path={mdiExport} size={0.7} />
-                      )}
-                    </span>
-                    <span className="command-palette__result-content">
-                      <span className="command-palette__result-name">{item.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
             </>
           )}
         </div>
