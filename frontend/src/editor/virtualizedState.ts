@@ -102,6 +102,18 @@ export function updateVisibleBlockIds(newIds: Set<string>): void {
 
   _visibleBlockIds = newIds;
 
+  // ── Orphan recovery ─────────────────────────────────────────
+  // After cancel-out, any block that is visible but not yet populated
+  // and not already queued must be force-added to _pendingVisible.
+  // This catches blocks stranded by rapid visible→hidden→visible
+  // oscillations within the debounce window, or any state-machine
+  // edge case where a block was depopulated but never re-queued.
+  for (const id of newIds) {
+    if (!_populatedBlockIds.has(id) && !_pendingVisible.has(id)) {
+      _pendingVisible.add(id);
+    }
+  }
+
   // Schedule flush (or let existing timer handle it)
   if (_flushTimer === null && (_pendingVisible.size > 0 || _pendingHidden.size > 0)) {
     _flushTimer = setTimeout(flushPending, DEBOUNCE_MS);
