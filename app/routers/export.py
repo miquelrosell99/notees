@@ -48,6 +48,8 @@ async def export_single_node(
     format: str = "markdown",
     include_children: bool = True,
     layout: str = "outline",
+    formatting: bool = True,
+    style: str | None = None,
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -65,7 +67,9 @@ async def export_single_node(
             node_ids=[node_uuid],
             format=export_format,
             include_children=include_children,
-            layout=layout
+            layout=layout,
+            formatting=formatting,
+            style=style,
         )
         
         return Response(

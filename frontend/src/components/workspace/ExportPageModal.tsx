@@ -7,15 +7,17 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
 import api from '@/api/client';
+import { BooleanToggle } from '../core/BooleanToggle';
 import './ExportPageModal.css';
 
 type ExportFormat = 'markdown' | 'html' | 'pdf';
 type ExportLayout = 'outline' | 'flat';
+type ExportStyle = 'minimal' | 'technical';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -38,6 +40,8 @@ function triggerBlobDownload(blob: Blob, filename: string) {
 export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
   const [format, setFormat] = useState<ExportFormat>('markdown');
   const [layout, setLayout] = useState<ExportLayout>('outline');
+  const [style, setStyle] = useState<ExportStyle>('minimal');
+  const [formatting, setFormatting] = useState(true);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +66,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout },
+        params: { format, include_children: true, layout, formatting, style },
         responseType: 'text',
       })
       .then((response) => {
@@ -79,7 +83,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, nodeUuid]);
 
   const handleCopy = useCallback(() => {
     if (!previewContent) return;
@@ -96,7 +100,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout },
+          params: { format: 'html', include_children: true, layout, formatting, style },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -115,7 +119,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout },
+          params: { format, include_children: true, layout, formatting, style },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -131,7 +135,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -141,15 +145,32 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       size="lg"
       footer={
         <div className="export-modal__footer">
-          <SelectionButton
-            size="sm"
-            options={[
-              { value: 'outline', icon: mdiFileTree, label: 'Outline' },
-              { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
-            ]}
-            value={layout}
-            onChange={(v) => setLayout(v as ExportLayout)}
-          />
+          <div className="export-modal__footer-controls">
+            <SelectionButton
+              size="sm"
+              options={[
+                { value: 'outline', icon: mdiFileTree, label: 'Outline' },
+                { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
+              ]}
+              value={layout}
+              onChange={(v) => setLayout(v as ExportLayout)}
+            />
+            <SelectionButton
+              size="sm"
+              options={[
+                { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
+                { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+              ]}
+              value={style}
+              onChange={(v) => setStyle(v as ExportStyle)}
+            />
+            <BooleanToggle
+              size="sm"
+              label="Formatting"
+              checked={formatting}
+              onChange={setFormatting}
+            />
+          </div>
           <div className="export-modal__footer-actions">
             <Button variant="ghost" onClick={onClose} disabled={downloading}>
               Cancel

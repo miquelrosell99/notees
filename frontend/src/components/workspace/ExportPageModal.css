@@ -157,6 +157,12 @@
   width: 100%;
 }
 
+.export-modal__footer-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
 .export-modal__footer-actions {
   display: flex;
   align-items: center;
