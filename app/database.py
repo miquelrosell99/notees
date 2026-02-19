@@ -394,14 +394,14 @@ async def export_nodes(
                 # Excludes: child pages, deleted nodes, archived (inactive) nodes.
                 rows = await conn.fetch(
                     """
-                    SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, MIN(np.depth) AS depth
+                    SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color, MIN(np.depth) AS depth
                     FROM node n
                     JOIN node_path np ON np.descendant_id = n.id
                     WHERE n.workspace_id = $1 
                       AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
                       AND n.is_deleted = FALSE
                       AND n.active = TRUE
-                    GROUP BY n.id, n.uuid, n.name, n.parent_id, n.is_page
+                    GROUP BY n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color
                     HAVING MIN(np.depth) = 0 OR n.is_page = FALSE
                     ORDER BY MIN(np.depth), n.id
                     """,
@@ -410,7 +410,7 @@ async def export_nodes(
             else:
                 rows = await conn.fetch(
                     """
-                    SELECT id, uuid, name, parent_id, is_page
+                    SELECT id, uuid, name, parent_id, is_page, color
                     FROM node 
                     WHERE workspace_id = $1 AND uuid::text = $2
                     """,
@@ -426,6 +426,7 @@ async def export_nodes(
                     "uuid": row_uuid,
                     "name": row['name'],
                     "is_page": row.get('is_page', False),
+                    "color": row.get('color') or None,
                     "depth": row.get('depth', 0) if include_children else 0,
                 })
 
@@ -575,6 +576,13 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
     """
     import html as html_mod
 
+    def _color_attr(node: Dict) -> str:
+        """Return a style attribute for colored nodes, or empty string."""
+        color = node.get('color')
+        if not color:
+            return ''
+        return f' style="color: {html_mod.escape(color)}"'
+
     if not nodes:
         return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title><style>{_get_export_css()}</style></head><body></body></html>"
 
@@ -586,9 +594,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
             is_page = node.get('is_page', False)
             if is_page:
                 level = min(depth + 1, 6)
-                lines.append(f"  <h{level}>{html_mod.escape(text)}</h{level}>")
+                lines.append(f"  <h{level}{_color_attr(node)}>{html_mod.escape(text)}</h{level}>")
             else:
-                lines.append(f"  <p>{html_mod.escape(text)}</p>")
+                lines.append(f"  <p{_color_attr(node)}>{html_mod.escape(text)}</p>")
         title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver) if nodes[0].get('is_page') else "Notees Export"
         return f"""<!DOCTYPE html>
 <html>
@@ -618,7 +626,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
                 current_depth -= 1
             level = min(depth + 1, 6)
             indent = '  ' * depth
-            lines.append(f"{indent}<h{level}>{html_mod.escape(text)}</h{level}>")
+            lines.append(f"{indent}<h{level}{_color_attr(node)}>{html_mod.escape(text)}</h{level}>")
             # Children of this heading live at depth+1; treat this depth as the new baseline
             current_depth = depth
         else:
@@ -633,7 +641,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
                     lines.append(f"{indent}</ul>")
                     current_depth -= 1
             indent = '  ' * (depth + 1)
-            lines.append(f"{indent}<li>{html_mod.escape(text)}</li>")
+            lines.append(f"{indent}<li{_color_attr(node)}>{html_mod.escape(text)}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth
