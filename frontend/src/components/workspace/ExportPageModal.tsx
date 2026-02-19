@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiTune } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiCog } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -169,14 +169,14 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       footer={
         <div className="export-modal__footer">
           <ButtonWithPanel
-            icon={mdiTune}
-            buttonText="Options"
+            icon={mdiCog}
             size="sm"
             panelPosition="top"
             panelAlignment="start"
             panelWidth={320}
             showCloseButton={false}
             panelClassName="export-modal__options-panel"
+            usePortal={true}
           >
             <div className="visibility-panel-content">
               <div className="visibility-option">
