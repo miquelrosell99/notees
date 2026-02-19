@@ -53,6 +53,20 @@ async def get_workspace_data_endpoint(
         page_ids = [row['id'] for row in page_rows]
         class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
         
+        # Get block counts per page (recursive, excludes child pages and their hierarchies)
+        block_count_map = {}
+        if page_ids:
+            block_count_rows = await conn.fetch(
+                """
+                SELECT page_id, COUNT(*) as block_count
+                FROM node
+                WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
+                GROUP BY page_id
+                """,
+                service._workspace_id
+            )
+            block_count_map = {row['page_id']: row['block_count'] for row in block_count_rows}
+        
         # Build nodes
         nodes = []
         for row in page_rows:
@@ -67,6 +81,7 @@ async def get_workspace_data_endpoint(
                 "is_monthly": row['is_month'],
                 "is_yearly": row['is_year'],
                 "class_ids": node_class_ids,
+                "block_count": block_count_map.get(row['id'], 0),
             })
         
         # Get reference links between pages (only page-to-page links)
@@ -254,6 +269,20 @@ async def get_workspace_nodes_endpoint(
         page_ids = [row['id'] for row in page_rows]
         class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
         
+        # Get block counts per page (recursive, excludes child pages and their hierarchies)
+        block_count_map = {}
+        if page_ids:
+            block_count_rows = await conn.fetch(
+                """
+                SELECT page_id, COUNT(*) as block_count
+                FROM node
+                WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
+                GROUP BY page_id
+                """,
+                service._workspace_id
+            )
+            block_count_map = {row['page_id']: row['block_count'] for row in block_count_rows}
+        
         nodes = []
         for row in page_rows:
             node_class_ids = class_ids_map.get(row['id'], [])
@@ -267,6 +296,7 @@ async def get_workspace_nodes_endpoint(
                 "is_monthly": row['is_month'],
                 "is_yearly": row['is_year'],
                 "class_ids": node_class_ids,
+                "block_count": block_count_map.get(row['id'], 0),
             })
         
         return {"nodes": nodes}
