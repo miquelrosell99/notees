@@ -95,12 +95,12 @@
 
 /* ─── Embed pill style in host block content area ─────────────── */
 
-/* Pill wrapper for embed refType — show as a subtle indicator */
-.node-pill-wrapper[data-ref-type="embed"] {
+/* Inline link wrapper for embed refType — show as a subtle indicator */
+.inline-link-wrapper[data-ref-type="embed"] {
   opacity: 0.6;
 }
 
-.node-pill-wrapper[data-ref-type="embed"] .node-pill-inner {
+.inline-link-wrapper[data-ref-type="embed"] .inline-link-inner {
   font-size: 0.8em;
   border: 1px dashed var(--color-outline-variant);
   border-radius: var(--shape-extra-small);

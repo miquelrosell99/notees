@@ -211,8 +211,8 @@
   min-width: 1px;
 }
 
-/* Pill nodes inside the content wrapper keep pointer cursor */
-.node-block-content .node-pill-wrapper {
+/* Inline link nodes inside the content wrapper keep pointer cursor */
+.node-block-content .inline-link-wrapper {
   cursor: pointer;
 }
 
@@ -623,15 +623,15 @@ th.node-block-table-cell {
   /* Wrapper for text nodes containing inline code */
 }
 
-/* ─── Node pill (inline link, dotted underline style) ──────────── */
+/* ─── Inline link (dotted underline style) ──────────────────────── */
 
-.node-pill-wrapper {
+.inline-link-wrapper {
   display: inline;
   cursor: pointer;
   user-select: none;
 }
 
-.node-pill-wrapper .node-pill-inner {
+.inline-link-wrapper .inline-link-inner {
   display: inline;
   color: var(--color-on-surface);
   font-size: inherit;
@@ -646,25 +646,25 @@ th.node-block-table-cell {
 }
 
 /* Class pills — wavy underline, italic */
-.node-pill-wrapper .node-pill-inner[data-ref-type="class"] {
+.inline-link-wrapper .inline-link-inner[data-ref-type="class"] {
   text-decoration-style: wavy;
   text-decoration-thickness: 1px;
   font-style: italic;
 }
 
-.node-pill-wrapper:hover .node-pill-inner {
+.inline-link-wrapper:hover .inline-link-inner {
   text-decoration-style: solid;
   text-decoration-color: var(--color-on-surface);
   color: var(--color-primary);
 }
 
-.node-pill-wrapper:active .node-pill-inner {
+.inline-link-wrapper:active .inline-link-inner {
   opacity: 0.7;
 }
 
-/* Selected state (when pill has keyboard/node selection) */
-.node-pill-wrapper.selected .node-pill-inner,
-.node-pill-wrapper--selected .node-pill-inner {
+/* Selected state (when inline link has keyboard/node selection) */
+.inline-link-wrapper.selected .inline-link-inner,
+.inline-link-wrapper--selected .inline-link-inner {
   text-decoration-color: var(--color-primary);
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
@@ -673,7 +673,7 @@ th.node-block-table-cell {
   margin: 0 -2px;
 }
 
-.node-pill-wrapper .node-pill-icon {
+.inline-link-wrapper .inline-link-icon {
   font-size: 0.9em;
   vertical-align: baseline;
   margin-right: 2px;

@@ -25,7 +25,7 @@ import {
   SELECTION_CHANGE_COMMAND,
   CONTROLLED_TEXT_INSERTION_COMMAND,
 } from 'lexical';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -259,7 +259,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       const selection = $getSelection();
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
-        isPillSelected = nodes.length === 1 && $isPillNode(nodes[0]);
+        isPillSelected = nodes.length === 1 && $isInlineLinkNode(nodes[0]);
       }
     });
 
@@ -268,7 +268,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       while (caret.firstChild) caret.removeChild(caret.firstChild);
       caret.style.background = '';
 
-      const selectedPill = rootElement.querySelector('.node-pill-wrapper.selected, .node-pill-wrapper--selected');
+      const selectedPill = rootElement.querySelector('.inline-link-wrapper.selected, .inline-link-wrapper--selected');
       if (selectedPill) {
         const pillRect = selectedPill.getBoundingClientRect();
         const padding = 3;

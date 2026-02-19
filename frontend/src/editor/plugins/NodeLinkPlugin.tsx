@@ -1,11 +1,11 @@
 /**
- * NodeLinkPlugin — Lexical plugin for rendering node-link pill decorator nodes.
+ * NodeLinkPlugin — Lexical plugin for rendering inline link decorator nodes.
  *
  * Handles:
- * - Rendering PillNode as React components
+ * - Rendering InlineLinkNode as React components
  * - Click-to-navigate behavior
- * - Context menu for pill editing
- * - Keyboard navigation around pills
+ * - Context menu for link editing
+ * - Keyboard navigation around inline links
  */
 
 import { useEffect } from 'react';
@@ -27,14 +27,14 @@ import {
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
-import { $isPillNode, $createPillNode } from '../nodes/PillNode';
-import type { PillRefType } from '../nodes/PillNode';
+import { $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
+import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
 
-/** Pending update to apply to a PillNode (from LinkEditModal). */
+/** Pending update to apply to an InlineLinkNode (from LinkEditModal). */
 export interface PendingPillUpdate {
   oldLinkId: string;
   newLinkId: string;
-  newRefType: PillRefType;
+  newRefType: InlineLinkRefType;
   newUrl?: string;
   /** Updated label (undefined = keep existing, null = clear, string = set). */
   newLabel?: string | null;
@@ -42,9 +42,9 @@ export interface PendingPillUpdate {
 
 export interface NodeLinkPluginProps {
   /** Called when a pill is clicked for navigation */
-  onPillClick?: (linkId: string, refType: PillRefType) => void;
+  onPillClick?: (linkId: string, refType: InlineLinkRefType) => void;
   /** Called when a pill is clicked in edit mode (opens edit modal) */
-  onPillEdit?: (linkId: string, refType: PillRefType) => void;
+  onPillEdit?: (linkId: string, refType: InlineLinkRefType) => void;
   /** Called when a pill is removed */
   onPillRemove?: (linkId: string) => void;
   /** Pending pill update from LinkEditModal (applied then cleared) */
@@ -67,11 +67,11 @@ export function NodeLinkPlugin({
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      const pillWrapper = target.closest('.node-pill-wrapper');
+      const pillWrapper = target.closest('.inline-link-wrapper');
       
       if (pillWrapper) {
         const linkId = pillWrapper.getAttribute('data-link-id');
-        const refType = (pillWrapper.getAttribute('data-ref-type') as PillRefType) || 'node';
+        const refType = (pillWrapper.getAttribute('data-ref-type') as InlineLinkRefType) || 'node';
         if (linkId) {
           if (refType === 'url') {
             // URL pill: open in new tab
@@ -98,15 +98,15 @@ export function NodeLinkPlugin({
 
     editor.update(() => {
       const root = $getRoot();
-      // Recursive descent to find and replace the PillNode with matching linkId
+      // Recursive descent to find and replace the InlineLinkNode with matching linkId
       const findAndReplacePill = (parent: ReturnType<typeof $getRoot>) => {
         for (const child of parent.getChildren()) {
-          if ($isPillNode(child) && child.getLinkId() === pendingPillUpdate.oldLinkId) {
-            // Replace with a new PillNode with the updated linkId/label
+          if ($isInlineLinkNode(child) && child.getLinkId() === pendingPillUpdate.oldLinkId) {
+            // Replace with a new InlineLinkNode with the updated linkId/label
             const label = pendingPillUpdate.newLabel !== undefined
               ? (pendingPillUpdate.newLabel || undefined)
               : child.getLabel() || undefined;
-            const newPill = $createPillNode(
+            const newPill = $createInlineLinkNode(
               pendingPillUpdate.newLinkId,
               pendingPillUpdate.newRefType,
               pendingPillUpdate.newUrl,
@@ -138,8 +138,8 @@ export function NodeLinkPlugin({
         if (!rootEl) return false;
 
         // Remove selected class from all pills
-        rootEl.querySelectorAll('.node-pill-wrapper').forEach(el => {
-          el.classList.remove('selected', 'node-pill-wrapper--selected');
+        rootEl.querySelectorAll('.inline-link-wrapper').forEach(el => {
+          el.classList.remove('selected', 'inline-link-wrapper--selected');
         });
 
         // Check if current selection is a NodeSelection on a pill
@@ -147,12 +147,12 @@ export function NodeLinkPlugin({
         if ($isNodeSelection(selection)) {
           const nodes = selection.getNodes();
           for (const node of nodes) {
-            if ($isPillNode(node)) {
+            if ($isInlineLinkNode(node)) {
               // Find the DOM element and add selected class
               const key = node.getKey();
               const dom = editor.getElementByKey(key);
               if (dom) {
-                dom.classList.add('selected', 'node-pill-wrapper--selected');
+                dom.classList.add('selected', 'inline-link-wrapper--selected');
               }
             }
           }
@@ -166,7 +166,7 @@ export function NodeLinkPlugin({
 
   // ─── Arrow key navigation (handle cursor movement around pills) ─
   // We must handle ALL navigation to prevent Lexical's default handler from
-  // crashing on isolated decorator nodes like PillNode.
+  // crashing on isolated decorator nodes like InlineLinkNode.
 
   useEffect(() => {
     const handleArrowLeft = (event: KeyboardEvent) => {
@@ -176,7 +176,7 @@ export function NodeLinkPlugin({
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         for (const node of nodes) {
-          if ($isPillNode(node)) {
+          if ($isInlineLinkNode(node)) {
             event.preventDefault();
             node.selectPrevious();
             return true;
@@ -196,7 +196,7 @@ export function NodeLinkPlugin({
           
           if (isAtStart) {
             const prevSibling = anchorNode.getPreviousSibling();
-            if ($isPillNode(prevSibling)) {
+            if ($isInlineLinkNode(prevSibling)) {
               // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
@@ -219,7 +219,7 @@ export function NodeLinkPlugin({
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         for (const node of nodes) {
-          if ($isPillNode(node)) {
+          if ($isInlineLinkNode(node)) {
             event.preventDefault();
             node.selectNext();
             return true;
@@ -240,7 +240,7 @@ export function NodeLinkPlugin({
           
           if (isAtEnd) {
             const nextSibling = anchorNode.getNextSibling();
-            if ($isPillNode(nextSibling)) {
+            if ($isInlineLinkNode(nextSibling)) {
               // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
@@ -284,12 +284,12 @@ export function NodeLinkPlugin({
 
       const nodes = selection.getNodes();
       for (const node of nodes) {
-        if ($isPillNode(node)) {
+        if ($isInlineLinkNode(node)) {
           onPillRemove?.(node.getLinkId());
           node.remove();
         }
       }
-      return nodes.some(n => $isPillNode(n));
+      return nodes.some(n => $isInlineLinkNode(n));
     };
 
     const unsubBack = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleDelete, COMMAND_PRIORITY_HIGH);

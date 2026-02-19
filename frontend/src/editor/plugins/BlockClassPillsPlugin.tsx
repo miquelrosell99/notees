@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodePill } from '@/components/nodes/NodePill';
 import type { Node } from '@/types';
@@ -82,7 +82,7 @@ export function BlockClassPillsPlugin({
         const inlineClassUuids = new Set<string>();
         const blockChildren = child.getChildren();
         for (const blockChild of blockChildren) {
-          if ($isPillNode(blockChild) && blockChild.getRefType() === 'class') {
+          if ($isInlineLinkNode(blockChild) && blockChild.getRefType() === 'class') {
             const linkId = blockChild.getLinkId();
             const { nodeUuid } = parseLinkId(linkId);
             inlineClassUuids.add(nodeUuid);

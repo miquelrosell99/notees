@@ -5,8 +5,8 @@
 export { BlockNode, $createBlockNode, $isBlockNode } from './BlockNode';
 export type { SerializedBlockNode } from './BlockNode';
 
-export { PillNode, $createPillNode, $isPillNode } from './PillNode';
-export type { SerializedPillNode } from './PillNode';
+export { InlineLinkNode, $createInlineLinkNode, $isInlineLinkNode } from './InlineLinkNode';
+export type { SerializedInlineLinkNode } from './InlineLinkNode';
 
 export { BlockHeadingNode, $createBlockHeadingNode, $isBlockHeadingNode } from './BlockHeadingNode';
 export { BlockCodeNode, $createBlockCodeNode, $isBlockCodeNode } from './BlockCodeNode';

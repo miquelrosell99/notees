@@ -103,17 +103,17 @@ class BlockNode extends ElementNode {
 }
 ```
 
-### PillNode
+### InlineLinkNode
 
-Inline reference displayed as a clickable pill:
+Inline reference displayed as a clickable link:
 
 ```
 See [[📄 My Page]] for details.
-     └─── PillNode ───┘
+     └─── InlineLinkNode ───┘
 ```
 
 ```typescript
-class PillNode extends DecoratorNode {
+class InlineLinkNode extends DecoratorNode {
   __targetUuid: string;
   __linkUuid: string;
   __displayText: string;
@@ -317,7 +317,7 @@ Typing `[[` triggers the `NodeLinkPlugin`:
    │
 3. User types/selects a target page
    │
-4. PillNode inserted in editor
+4. InlineLinkNode inserted in editor
    │
 5. Content saved → NodeLink created on backend
 ```

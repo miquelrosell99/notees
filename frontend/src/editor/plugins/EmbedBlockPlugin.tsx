@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
-import { $isPillNode } from '../nodes/PillNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { EmbedBlock } from '../../components/blocks/EmbedBlock';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
@@ -59,7 +59,7 @@ export function EmbedBlockPlugin(): JSX.Element | null {
         // Check if this block has an embed pill in its Lexical children
         let embedLinkId: string | null = null;
         for (const inline of child.getChildren()) {
-          if ($isPillNode(inline) && inline.getRefType() === 'embed') {
+          if ($isInlineLinkNode(inline) && inline.getRefType() === 'embed') {
             embedLinkId = inline.getLinkId();
             break;
           }

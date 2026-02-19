@@ -516,7 +516,7 @@ export function useUpdateNode() {
         mergeUpdate
       );
 
-      // Also update byUuid cache so editor InlineNodeLink components reflect changes (e.g. color)
+      // Also update byUuid cache so editor InlineLink components reflect changes (e.g. color)
       if (updatedNode.uuid) {
         queryClient.setQueryData<Node>(
           nodeKeys.byUuid(updatedNode.uuid),

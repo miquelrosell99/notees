@@ -15,7 +15,7 @@ import {
   $createTextNode,
   type LexicalEditor,
 } from 'lexical';
-import { $createPillNode } from '../nodes/PillNode';
+import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { findParentNodeBlock } from '../utils/selectionUtils';
@@ -182,7 +182,7 @@ export function TriggerPlugin({
         // Use zero-width space if empty to prevent Lexical from removing the text node
         (anchorNode as any).setTextContent(beforeTrigger || '\u200B');
 
-        const pill = $createPillNode(
+        const pill = $createInlineLinkNode(
           value,
           trigger.type === 'type' ? 'class' : 'node',
         );
