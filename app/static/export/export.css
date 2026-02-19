@@ -88,6 +88,8 @@ h1, h2, h3, h4, h5, h6 {
   margin: calc(var(--rhythm) * 2) 0 var(--rhythm);
   line-height: 1.25;
   page-break-after: avoid;
+  break-after: avoid-page;
+  break-inside: avoid;
 }
 
 h1 { font-size: calc(var(--step-4) * var(--scale-ratio)); font-weight: 600; margin-top: calc(var(--rhythm) * 4); string-set: doctitle content(); }
@@ -313,6 +315,20 @@ a.url-link {
 
 div.page-break {
   page-break-before: always;
+}
+
+/* Major section starts on new page when body.section-break-before is set */
+.section-break-before h1,
+.section-break-before h2 {
+  break-before: page;
+  page-break-before: always;
+}
+
+/* Suppress break-before on the very first heading so it doesn't create a blank first page */
+.section-break-before h1:first-child,
+.section-break-before h2:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
 }
 
 @media print {
@@ -615,6 +631,14 @@ div.page-break {
   text-align: center;
   letter-spacing: 0.06em;
   margin: calc(var(--rhythm) * 6) 0 calc(var(--rhythm) * 3);
+  break-before: page;
+  page-break-before: always;
+}
+
+/* Suppress the forced page break on the very first h1 in book theme */
+.theme-book h1:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
 }
 
 .theme-book h2 {
