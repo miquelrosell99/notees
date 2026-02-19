@@ -85,6 +85,7 @@ ul > li::before {
   color: #c0c0c0;
   line-height: 1;
   pointer-events: none;
+  user-select: none;
 }
 
 /* ---- Paragraphs ---- */
