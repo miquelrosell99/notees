@@ -192,6 +192,7 @@ code {
   background: var(--color-bg-code);
   padding: 0.15em 0.35em;
   border-radius: 3px;
+  font-variant-ligatures: none;
 }
 
 pre {
@@ -205,6 +206,7 @@ pre {
   page-break-inside: avoid;
   white-space: pre-wrap;
   word-wrap: break-word;
+  tab-size: 2;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
