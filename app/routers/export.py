@@ -44,16 +44,26 @@ async def export_single_node(
     include_children: bool = True,
     user: User = Depends(get_current_user)
 ):
-    """Export a single node."""
+    """Export a single node.
+
+    ``node_id`` can be either a UUID string or a numeric database ID.
+    """
     try:
         export_format = ExportFormat(format)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
-    
+
+    # Resolve numeric ID → UUID so export_nodes can look it up correctly
+    resolved_uuid = node_id
+    if node_id.isdigit():
+        resolved_uuid = await db.get_node_uuid_by_id(int(node_id), user.id)
+        if resolved_uuid is None:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
-            node_ids=[node_id],
+            node_ids=[resolved_uuid],
             format=export_format,
             include_children=include_children
         )
