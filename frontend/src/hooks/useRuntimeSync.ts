@@ -52,6 +52,8 @@ export function apiNodeToGraphNode(
     createdAt: node.create_date || new Date().toISOString(),
     updatedAt: node.write_date || new Date().toISOString(),
     version: 1,
+    // Track if server says this node has children that weren't sent (collapsed pruning)
+    hasServerChildren: node.has_children ?? false,
   };
 }
 

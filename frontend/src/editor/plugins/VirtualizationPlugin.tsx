@@ -58,13 +58,14 @@ export function useVirtualization(): VirtualizationState {
 // ─── Constants ────────────────────────────────────────────────────
 
 /** Blocks within this margin of the viewport are considered "visible" */
-const ROOT_MARGIN = '200px 0px 200px 0px';
+const ROOT_MARGIN = '400px 0px 400px 0px';
 
 /**
  * Minimum number of blocks before virtualization kicks in.
  * Below this threshold, all blocks are rendered normally.
+ * Lowered from 80 to 30 to help with pages that have many blocks.
  */
-const VIRTUALIZATION_THRESHOLD = 80;
+const VIRTUALIZATION_THRESHOLD = 30;
 
 /**
  * Placeholder height for off-screen blocks (approximate line height).

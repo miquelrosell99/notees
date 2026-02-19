@@ -500,13 +500,12 @@ async def batch_get_nodes(
             for row in rows:
                 backlink_counts[row['target_id']] = row['count']
     
-    # Batch-fetch properties if requested
+    # Batch-fetch properties if requested (3 queries total, not N)
     node_properties_map: Dict[int, Dict[str, any]] = {}
     if request.include_properties and node_ids:
-        # Batch fetch all property values for all nodes
-        for nid in node_ids:
-            all_prop_values = await service._property_repo.get_all_property_values(nid)
-            node_properties_map[nid] = extract_properties_dict(all_prop_values)
+        batch_result = await service._property_repo.get_all_property_values_batch(node_ids)
+        for nid, prop_data in batch_result.items():
+            node_properties_map[nid] = extract_properties_dict(prop_data)
     
     # Build response dict
     result: Dict[str, NodeResponse] = {}
@@ -600,8 +599,41 @@ async def get_node(
         """, node_id)
         all_descendants = [service._node_repo.row_to_node(row) for row in rows]
         
-        # Get all descendant IDs
-        descendant_ids = [d.id for d in all_descendants if d.id is not None]
+        # ── Prune collapsed subtrees ──────────────────────────────
+        # Build a set of IDs whose descendants should be excluded:
+        # any node that is collapsed.  We keep the collapsed node itself
+        # (so the frontend sees it with has_children=True) but drop its
+        # descendants to avoid sending hundreds of invisible blocks.
+        #
+        # Because the closure-table query returns rows ORDER BY depth,
+        # we process ancestors before descendants, so a collapsed node
+        # at depth 1 will cause its depth-2+ children to be skipped.
+        collapsed_ids: set = set()
+        children_of: Dict[int, list] = {}  # parent_id -> list of ids (for has_children)
+        visible_descendants = []
+        
+        for d in all_descendants:
+            if d.id is None:
+                continue
+            # Record parent-child relationship for has_children calculation
+            pid = d.parent_id
+            if pid is not None:
+                children_of.setdefault(pid, []).append(d.id)
+            
+            # Skip if any ancestor is collapsed (check parent chain)
+            if pid in collapsed_ids:
+                # This node's parent is collapsed → skip it and propagate
+                collapsed_ids.add(d.id)
+                continue
+            
+            visible_descendants.append(d)
+            
+            # If this node is collapsed, mark it so its children are pruned
+            if d.collapsed:
+                collapsed_ids.add(d.id)
+        
+        # Get all visible descendant IDs
+        descendant_ids = [d.id for d in visible_descendants if d.id is not None]
         
         # Get backlink counts for all descendants in one query
         backlink_counts: Dict[int, int] = {}
@@ -621,17 +653,20 @@ async def get_node(
         # Get properties for all descendants if include_properties is requested
         node_properties_map: Dict[int, Dict[str, any]] = {}
         if include_properties and descendant_ids:
-            for nid in descendant_ids:
-                all_prop_values = await service._property_repo.get_all_property_values(nid)
-                node_properties_map[nid] = extract_properties_dict(all_prop_values)
+            # Use batch fetch (3 queries total) instead of N individual queries
+            batch_result = await service._property_repo.get_all_property_values_batch(descendant_ids)
+            for nid, prop_data in batch_result.items():
+                node_properties_map[nid] = extract_properties_dict(prop_data)
         
         # Build tree structure from flat list using parent_id
         node_map: Dict[int, NodeResponse] = {}
-        for d in all_descendants:
+        for d in visible_descendants:
             if d.id is not None:
                 bcount = backlink_counts.get(d.id, 0)
                 d_class_ids = node_class_map.get(d.id, [])
                 node_resp = _node_to_response(d, classes=d_class_ids, backlink_count=bcount)
+                # Mark has_children based on full descendant list (not just visible)
+                node_resp.has_children = d.id in children_of
                 # Add properties if they were loaded
                 if include_properties and d.id in node_properties_map:
                     node_resp.properties = node_properties_map[d.id]
@@ -639,7 +674,7 @@ async def get_node(
         
         root_children = []
         
-        for d in all_descendants:
+        for d in visible_descendants:
             if d.id is None:
                 continue
             node_response = node_map[d.id]
