@@ -521,10 +521,10 @@ def _collect_link_target_uuids(ast_nodes: list, out: set[str]) -> None:
             _collect_link_target_uuids(children, out)
 
 
-def _stringify_node(node_data: Dict, mode: StringifyMode, resolver) -> str:
+def _stringify_node(node_data: Dict, mode: StringifyMode, resolver, html_anchors: bool = False) -> str:
     """Stringify a single node's AST to text."""
     ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
-    opts = StringifyOptions(mode=mode, resolve_node_link=resolver)
+    opts = StringifyOptions(mode=mode, resolve_node_link=resolver, html_anchors=html_anchors)
     return stringify_ast(ast, opts)
 
 
@@ -683,10 +683,15 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
     """
     import html as html_mod
 
+    def _id_attr(node: Dict) -> str:
+        """Return an id attribute for anchor targeting, or empty string."""
+        uuid = node.get('uuid', '')
+        return f' id="{html_mod.escape(uuid)}"' if uuid else ''
+
     def _render(node: Dict) -> str:
         """Stringify with PLAIN_MARKDOWN and convert inline syntax to HTML."""
         if formatting:
-            return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver))
+            return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, html_anchors=True))
         return html_mod.escape(_stringify_node(node, StringifyMode.TEXT_ONLY, resolver))
 
     def _title(node: Dict) -> str:
@@ -713,9 +718,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
             is_page = node.get('is_page', False)
             if is_page:
                 level = min(depth + 1, 6)
-                lines.append(f"  <h{level}{_color_attr(node)}>{rendered}</h{level}>")
+                lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
             else:
-                lines.append(f"  <p{_color_attr(node)}>{rendered}</p>")
+                lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
         sb = _style_block(style)
         head_style = f"\n{sb}" if sb else ""
@@ -744,7 +749,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
                 current_depth -= 1
             level = min(depth + 1, 6)
             indent = '  ' * depth
-            lines.append(f"{indent}<h{level}{_color_attr(node)}>{rendered}</h{level}>")
+            lines.append(f"{indent}<h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
             # Children of this heading live at depth+1; treat this depth as the new baseline
             current_depth = depth
         else:
@@ -759,7 +764,7 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
                     lines.append(f"{indent}</ul>")
                     current_depth -= 1
             indent = '  ' * (depth + 1)
-            lines.append(f"{indent}<li{_color_attr(node)}>{rendered}</li>")
+            lines.append(f"{indent}<li{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
     # Close remaining open lists
     while current_depth >= 0:
         indent = '  ' * current_depth

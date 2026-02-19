@@ -106,6 +106,9 @@ class StringifyOptions:
     mode: StringifyMode
     max_length: Optional[int] = None
     resolve_node_link: Optional[NodeLinkResolver] = None
+    # When True (HTML export), node_link nodes emit [text](#target-uuid) so
+    # _markdown_inline_to_html converts them to clickable <a> elements.
+    html_anchors: bool = False
 
     # Internal — callers should NOT set this.
     _visited: frozenset[str] = frozenset()
@@ -304,6 +307,7 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         mode=opts.mode,
         max_length=opts.max_length,
         resolve_node_link=opts.resolve_node_link,
+        html_anchors=opts.html_anchors,
         _visited=opts._visited | {target_id},
     )
 
@@ -318,7 +322,14 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         return f"[[{resolved_text}]]"
 
     # PLAIN_MARKDOWN / TEXT_ONLY
-    return label if label else resolved_text
+    display = label if label else resolved_text
+    if opts.html_anchors and opts.mode is StringifyMode.PLAIN_MARKDOWN:
+        # Extract target node UUID from link_id (format: "targetUUID:linkUUID")
+        colon = link_id.find(':')
+        target_uuid = link_id[:colon] if colon > 0 else link_id
+        if target_uuid:
+            return f"[{display}](#{target_uuid})"
+    return display
 
 
 # ── parse_ast helpers ───────────────────────────────────────────────
