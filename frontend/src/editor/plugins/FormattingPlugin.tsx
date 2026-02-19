@@ -2,15 +2,12 @@
  * FormattingPlugin — Handles inline text formatting shortcuts.
  *
  * Ctrl+B: bold, Ctrl+I: italic, Ctrl+U: underline, etc.
- * Managed through Lexical's native formatting commands.
+ * Uses a direct keydown listener to reliably intercept modifier keys.
  */
 
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  COMMAND_PRIORITY_HIGH,
-  FORMAT_TEXT_COMMAND,
-  KEY_MODIFIER_COMMAND,
   $getSelection,
   $isRangeSelection,
   type TextFormatType,
@@ -21,49 +18,44 @@ export function FormattingPlugin(): null {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    return editor.registerCommand(
-      KEY_MODIFIER_COMMAND,
-      (event: KeyboardEvent) => {
-        const { key, ctrlKey, metaKey, shiftKey } = event;
-        if (!ctrlKey && !metaKey) return false;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
 
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return false;
+      let format: TextFormatType | null = null;
 
-        let format: TextFormatType | null = null;
+      switch (event.key.toLowerCase()) {
+        case 'b':
+          format = 'bold';
+          break;
+        case 'i':
+          format = 'italic';
+          break;
+        case 'u':
+          format = 'underline';
+          break;
+        case 'd':
+          if (event.shiftKey) format = 'strikethrough';
+          break;
+      }
 
-        switch (key.toLowerCase()) {
-          case 'b':
-            format = 'bold';
-            break;
-          case 'i':
-            format = 'italic';
-            break;
-          case 'u':
-            format = 'underline';
-            break;
-          case 'd':
-            if (shiftKey) format = 'strikethrough';
-            break;
-        }
+      if (format) {
+        event.preventDefault();
+        const fmt = format;
+        // Apply trim + format in a single synchronous update
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          $trimSelectionWhitespace(selection);
+          selection.formatText(fmt);
+        });
+      }
+    };
 
-        if (format) {
-          event.preventDefault();
-          // Trim whitespace from selection before applying format
-          editor.update(() => {
-            const selection = $getSelection();
-            if ($isRangeSelection(selection)) {
-              $trimSelectionWhitespace(selection);
-            }
-          });
-          editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
-          return true;
-        }
-
-        return false;
-      },
-      COMMAND_PRIORITY_HIGH,
-    );
+    // Register on mount and re-register if root element changes
+    return editor.registerRootListener((rootElement, prevRootElement) => {
+      prevRootElement?.removeEventListener('keydown', handleKeyDown);
+      rootElement?.addEventListener('keydown', handleKeyDown);
+    });
   }, [editor]);
 
   return null;
