@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiFormatPageBreak } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -23,6 +23,7 @@ type ExportProperties = 'none' | 'main' | 'all';
 type ExportDensity = 'comfortable' | 'compact';
 type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
 type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
+type ExportDoctype = 'none' | 'article' | 'report' | 'book' | 'legal' | 'academic';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -52,6 +53,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [density, setDensity] = useState<ExportDensity>('comfortable');
   const [numbering, setNumbering] = useState<ExportNumbering>('none');
   const [measure, setMeasure] = useState<ExportMeasure>('full');
+  const [doctype, setDoctype] = useState<ExportDoctype>('none');
+  const [sectionBreak, setSectionBreak] = useState(false);
   const [formatting, setFormatting] = useState(true);
   const [showUuid, setShowUuid] = useState(false);
   const [previewContent, setPreviewContent] = useState<string>('');
@@ -85,7 +88,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
+        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
         responseType: 'text',
       })
       .then((response) => {
@@ -102,7 +105,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, showUuid, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, nodeUuid]);
 
   // For the HTML tab, show only the <body> inner content (no doctype/head/style)
   const displayContent = useMemo(() => {
@@ -127,7 +130,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
+          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -146,7 +149,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
+          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -162,7 +165,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, properties, density, numbering, measure, showUuid, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -263,6 +266,38 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     ]}
                     value={numbering}
                     onChange={(v) => setNumbering(v as ExportNumbering)}
+                  />
+                </div>
+              )}
+              {format !== 'markdown' && (
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Document type"
+                    description="Semantic document behaviour: page breaks, spacing, TOC"
+                    labelPosition="left"
+                    options={[
+                      { value: 'none', icon: mdiMinus, label: 'None' },
+                      { value: 'article', icon: mdiNewspaper, label: 'Article' },
+                      { value: 'report', icon: mdiFileChartOutline, label: 'Report' },
+                      { value: 'book', icon: mdiBook, label: 'Book' },
+                      { value: 'legal', icon: mdiScaleBalance, label: 'Legal' },
+                      { value: 'academic', icon: mdiSchool, label: 'Academic' },
+                    ]}
+                    value={doctype}
+                    onChange={(v) => setDoctype(v as ExportDoctype)}
+                  />
+                </div>
+              )}
+              {format !== 'markdown' && (
+                <div className="visibility-option">
+                  <BooleanToggle
+                    size="sm"
+                    label="Section page breaks"
+                    description="Force h1/h2 headings to start on a new page"
+                    labelPosition="left"
+                    checked={sectionBreak}
+                    onChange={(e) => setSectionBreak(e.target.checked)}
                   />
                 </div>
               )}

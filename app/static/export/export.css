@@ -1052,3 +1052,348 @@ div.page-break {
     content: none;
   }
 }
+
+
+/* =========================================================
+   LAYER 8 — DOCUMENT TYPE (SEMANTIC DOCUMENT BEHAVIOUR)
+   Separates visual aesthetics (theme) from document semantics.
+   Apply one class to <body>: doctype-article, doctype-report,
+   doctype-book, doctype-legal, doctype-academic.
+   Intended to be combined freely with any Theme/Layout/Density.
+   ========================================================= */
+
+
+/* ---- Article ---- */
+/*
+   Flowing single-column prose. Sections run continuously —
+   no forced page breaks. Ideal for blog posts, essays, memos.
+*/
+.doctype-article {
+  --dt-max-width: 72ch;
+}
+
+.doctype-article body,
+.doctype-article {
+  max-width: var(--dt-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Sections flow continuously — suppress any forced breaks */
+.doctype-article h1,
+.doctype-article h2,
+.doctype-article h3 {
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+/* Generous top spacing to separate sections visually */
+.doctype-article h2 {
+  margin-top: calc(var(--rhythm) * 3);
+}
+
+.doctype-article h3 {
+  margin-top: calc(var(--rhythm) * 2);
+}
+
+/* TOC is typically absent; hide it if rendered */
+.doctype-article .toc {
+  display: none;
+}
+
+
+/* ---- Report ---- */
+/*
+   Formal structured document. h2 sections begin on new pages.
+   TOC is expected. Compatible with numbering-hierarchical.
+*/
+.doctype-report {
+  --dt-section-gap: calc(var(--rhythm) * 2);
+}
+
+/* Each major section on its own page */
+.doctype-report h2 {
+  break-before: page;
+  page-break-before: always;
+  margin-top: 0;
+}
+
+/* First h2 of document: do not break if it follows h1 directly */
+.doctype-report h1 + h2,
+.doctype-report h1 ~ .node-properties + h2 {
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+/* h1 (document title) centred at top of first page */
+.doctype-report h1 {
+  text-align: center;
+  margin-top: calc(var(--rhythm) * 6);
+  margin-bottom: calc(var(--rhythm) * 4);
+}
+
+/* Keep h3 with the content that follows */
+.doctype-report h3 {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* TOC on its own page */
+.doctype-report .toc {
+  break-after: page;
+  page-break-after: always;
+}
+
+
+/* ---- Book ---- */
+/*
+   Long-form chapters. Every h1 (chapter) starts on a recto page
+   when possible (right-hand page). h2 sections flow within chapters.
+   Wide leading, generous margins.
+*/
+.doctype-book {
+  --dt-line-height: 1.8;
+  line-height: var(--dt-line-height);
+}
+
+/* Chapter title: always new page */
+.doctype-book h1 {
+  break-before: page;
+  page-break-before: always;
+  text-align: center;
+  padding-top: calc(var(--rhythm) * 8);
+  padding-bottom: calc(var(--rhythm) * 6);
+  margin-top: 0;
+}
+
+/* First chapter: suppress blank opening page */
+.doctype-book h1:first-child {
+  break-before: avoid;
+  page-break-before: avoid;
+  padding-top: 0;
+}
+
+/* h2 within chapters: run-on, but keep generous above gap */
+.doctype-book h2 {
+  break-before: avoid;
+  page-break-before: avoid;
+  margin-top: calc(var(--rhythm) * 3);
+}
+
+/* Justified prose */
+.doctype-book p {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* TOC on its own page before chapter 1 */
+.doctype-book .toc {
+  break-after: page;
+  page-break-after: always;
+}
+
+/* Drop cap on first paragraph of each chapter */
+.doctype-book h1 + p::first-letter {
+  float: left;
+  font-size: 3.2em;
+  line-height: 0.78;
+  margin: 0.06em 0.1em 0 0;
+  font-weight: 700;
+}
+
+
+/* ---- Legal ---- */
+/*
+   Strict document conventions: compact spacing, tabular lining
+   numerals, explicit section numbering, continuous flow with
+   paragraph-level break control.
+*/
+.doctype-legal {
+  --dt-line-height:  1.5;
+  --dt-font-size:    10pt;
+
+  font-size: var(--dt-font-size);
+  line-height: var(--dt-line-height);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Headings: uppercase, no decorative spacing */
+.doctype-legal h1,
+.doctype-legal h2,
+.doctype-legal h3,
+.doctype-legal h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem; /* uniform size — distinction via numbering only */
+  margin-top: calc(var(--rhythm) * 1.5);
+  margin-bottom: calc(var(--rhythm) * 0.5);
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+.doctype-legal h1 {
+  font-size: 1.1rem;
+  text-align: center;
+  margin-top: calc(var(--rhythm) * 4);
+  margin-bottom: calc(var(--rhythm) * 2);
+}
+
+/* Tight paragraphs, no extra spacing */
+.doctype-legal p {
+  margin: calc(var(--rhythm) * 0.4) 0;
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* Lists: block-like, no decorative bullets */
+.doctype-legal ul,
+.doctype-legal ol {
+  padding-left: 2rem;
+  margin: calc(var(--rhythm) * 0.4) 0;
+}
+
+/* Signature / attestation block */
+.doctype-legal .signature-block {
+  margin-top: calc(var(--rhythm) * 4);
+  padding-top: calc(var(--rhythm) * 2);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Keep the TOC small and compact in legal documents */
+.doctype-legal .toc {
+  font-size: 0.9em;
+}
+
+/* Exhibit / appendix markers */
+.doctype-legal .exhibit-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin: calc(var(--rhythm) * 2) 0;
+}
+
+
+/* ---- Academic ---- */
+/*
+   Journal-style: abstract block, figure prominence, justified
+   body text, reference list, double-spaced option.
+*/
+.doctype-academic {
+  --dt-line-height: 2;        /* double-spaced body */
+  --dt-abstract-bg: transparent;
+  --dt-abstract-border: var(--color-border);
+
+  line-height: var(--dt-line-height);
+}
+
+/* Title centred, authors below */
+.doctype-academic h1 {
+  text-align: center;
+  margin-top: calc(var(--rhythm) * 4);
+  margin-bottom: calc(var(--rhythm) * 1.5);
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+/* Section headings: centred, not too large */
+.doctype-academic h2 {
+  text-align: center;
+  font-size: var(--step-2);
+  margin-top: calc(var(--rhythm) * 3);
+}
+
+/* Sub-section: left-aligned, italic */
+.doctype-academic h3 {
+  text-align: left;
+  font-style: italic;
+  font-weight: normal;
+  font-size: var(--step-1);
+}
+
+/* Justified prose */
+.doctype-academic p {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* Abstract block */
+.doctype-academic .abstract {
+  margin: calc(var(--rhythm) * 2) auto;
+  padding: calc(var(--rhythm) * 1.5) calc(var(--rhythm) * 2);
+  border-top: 1px solid var(--dt-abstract-border);
+  border-bottom: 1px solid var(--dt-abstract-border);
+  max-width: 80%;
+  font-size: 0.95em;
+  line-height: 1.6;  /* single-spaced within abstract */
+}
+
+.doctype-academic .abstract-title {
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: var(--rhythm);
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Keyword line */
+.doctype-academic .keywords {
+  margin-top: var(--rhythm);
+  font-size: 0.88em;
+  color: var(--color-text-muted);
+}
+
+.doctype-academic .keywords::before {
+  content: "Keywords: ";
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Figures: always centred, break-avoid, caption below */
+.doctype-academic figure {
+  text-align: center;
+  break-inside: avoid;
+  margin: calc(var(--rhythm) * 2) 0;
+}
+
+.doctype-academic figcaption {
+  font-size: 0.85em;
+  text-align: left;
+  margin-top: 0.5em;
+}
+
+.doctype-academic figcaption::before {
+  font-weight: 700;
+}
+
+/* References / bibliography section */
+.doctype-academic .references h2,
+.doctype-academic .bibliography h2 {
+  break-before: page;
+  page-break-before: always;
+}
+
+.doctype-academic .references ol,
+.doctype-academic .references ul,
+.doctype-academic .bibliography ol,
+.doctype-academic .bibliography ul {
+  font-size: 0.9em;
+  line-height: 1.5;   /* reference list: single-spaced */
+}
+
+.doctype-academic .references li,
+.doctype-academic .bibliography li {
+  margin: calc(var(--rhythm) * 0.5) 0;
+}
+
+/* TOC: suppress in short papers, shown in theses */
+.doctype-academic .toc {
+  font-size: 0.9em;
+}
