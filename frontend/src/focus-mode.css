@@ -23,14 +23,7 @@
   opacity: 1;
 }
 
-/* Left sidebar wrapper */
-.focus-mode .sidebar-wrapper:not(.sidebar-wrapper--right) {
-  opacity: 0.05;
-  transition: opacity 0.25s ease;
-}
-.focus-mode .sidebar-wrapper:not(.sidebar-wrapper--right):hover {
-  opacity: 1;
-}
+/* Left sidebar is fully collapsed via isSidebarCollapsed state (no CSS needed) */
 
 /* Right sidebar wrapper */
 .focus-mode .sidebar-wrapper--right {
