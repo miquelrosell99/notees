@@ -31,7 +31,7 @@ import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { text as astText, nodeLink, paragraph, buildLinkId } from '@/lib/astBuilder';
+import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
 import type { PropertyType, Node } from '@/types/api';
 import './ImportLogseqModal.css';
@@ -1068,6 +1068,55 @@ const NODE_LINK_RE = new RegExp(
   'gi'
 );
 
+// Matches standard markdown links: [label](url) where url is not a [[...]] pattern
+// Group 1 = label, Group 2 = url
+const MD_LINK_RE = /\[([^\]]+)\]\(([^)]+)\)/g;
+
+/**
+ * Convert a plain text segment (no Logseq [[]] patterns) to inline AST nodes,
+ * resolving standard markdown links [label](url) to either node_link (notees: URI)
+ * or external_link nodes.
+ */
+function textSegmentToNodes(
+  segment: string,
+  uuidMap: Map<string, NodeInfo>,
+): ASTInlineNode[] {
+  if (!segment) return [];
+
+  const nodes: ASTInlineNode[] = [];
+  let last = 0;
+  const regex = new RegExp(MD_LINK_RE.source, MD_LINK_RE.flags);
+  for (const match of segment.matchAll(regex)) {
+    const matchStart = match.index ?? 0;
+    if (matchStart > last) {
+      nodes.push(astText(segment.slice(last, matchStart)));
+    }
+    const label = match[1];
+    const url = match[2];
+    const noteesUuid = url.startsWith('notees:') ? url.slice('notees:'.length) : null;
+    if (noteesUuid) {
+      // notees: URI → resolve to node_link
+      const target = uuidMap.get(noteesUuid);
+      if (target) {
+        const linkInstanceUuid = crypto.randomUUID();
+        const linkId = buildLinkId(target.uuid, linkInstanceUuid);
+        nodes.push(nodeLink(linkId, 'node', label));
+      } else {
+        // UUID not in map — store as external link so it's not lost
+        nodes.push(externalLink(url, astText(label)));
+      }
+    } else {
+      // Plain external URL
+      nodes.push(externalLink(url, astText(label)));
+    }
+    last = matchStart + match[0].length;
+  }
+  if (last < segment.length) {
+    nodes.push(astText(segment.slice(last)));
+  }
+  return nodes;
+}
+
 function buildAstFromLogseqText(
   rawText: string,
   uuidMap: Map<string, NodeInfo>,
@@ -1096,9 +1145,9 @@ function buildAstFromLogseqText(
     const logseqUuid = labeledLink_uuid ?? bareUuid ?? blockRefUuid;
     const matchStart = match.index ?? 0;
 
-    // Add preceding plain text
+    // Add preceding plain text (with markdown link conversion)
     if (matchStart > lastIndex) {
-      children.push(astText(rawText.slice(lastIndex, matchStart)));
+      children.push(...textSegmentToNodes(rawText.slice(lastIndex, matchStart), uuidMap));
     }
 
     if (inlineClassUuid) {
@@ -1139,9 +1188,9 @@ function buildAstFromLogseqText(
     lastIndex = matchStart + match[0].length;
   }
 
-  // Add trailing plain text
+  // Add trailing plain text (with markdown link conversion)
   if (lastIndex < rawText.length) {
-    children.push(astText(rawText.slice(lastIndex)));
+    children.push(...textSegmentToNodes(rawText.slice(lastIndex), uuidMap));
   }
 
   // If no children were generated, produce empty doc
