@@ -630,6 +630,14 @@ def _get_export_css() -> str:
     return _get_export_css._cache
 
 
+def _style_block() -> str:
+    """Return a <style> element with the export CSS, or empty string if CSS is blank."""
+    css = _get_export_css().strip()
+    if not css:
+        return ""
+    return f"<style>\n{css}\n</style>"
+
+
 def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
     """Convert nodes to HTML format.
     
@@ -659,7 +667,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
         return f' style="color: {html_mod.escape(color)}"'
 
     if not nodes:
-        return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title><style>{_get_export_css()}</style></head><body></body></html>"
+        style = _style_block()
+        head_extra = f"\n{style}" if style else ""
+        return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body></body></html>"
 
     if layout == "flat":
         lines = []
@@ -673,13 +683,12 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
             else:
                 lines.append(f"  <p{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
+        style = _style_block()
+        head_style = f"\n{style}" if style else ""
         return f"""<!DOCTYPE html>
 <html>
 <head>
-<title>{html_mod.escape(title)}</title>
-<style>
-{_get_export_css()}
-</style>
+<title>{html_mod.escape(title)}</title>{head_style}
 </head>
 <body>
 {chr(10).join(lines)}
@@ -723,13 +732,12 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
         lines.append(f"{indent}</ul>")
         current_depth -= 1
 
+    style = _style_block()
+    head_style = f"\n{style}" if style else ""
     return f"""<!DOCTYPE html>
 <html>
 <head>
-<title>Notees Export</title>
-<style>
-{_get_export_css()}
-</style>
+<title>Notees Export</title>{head_style}
 </head>
 <body>
 {chr(10).join(lines)}
