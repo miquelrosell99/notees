@@ -28,36 +28,22 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   });
 
   const clearCacheOnSwitch = useCallback(() => {
-    const currentState = useAppStore.getState();
     useAppStore.setState({
       currentNodeId: null,
       activeNode: null,
       activeNodeId: null,
       sidebarNode: null,
       localGraphNodeId: null,
+      mainViewType: 'node',
     });
     useFavoritesStore.getState().clear();
     useFavoritesStore.getState().refresh();
-    const viewPath = currentState.mainViewType === 'node' ? '' :
-      currentState.mainViewType === 'all-pages' ? 'pages' :
-      currentState.mainViewType === 'journals' ? 'journal' :
-      currentState.mainViewType === 'graph' ? 'graph' :
-      currentState.mainViewType === 'archived' ? 'archived' :
-      currentState.mainViewType === 'assets' ? 'assets' : '';
-    const newUrl = viewPath ? `/${viewPath}` : '/';
-    window.history.replaceState(null, '', newUrl);
-    queryClient.removeQueries({ queryKey: ['nodes'] });
-    queryClient.removeQueries({ queryKey: ['graph'] });
-    queryClient.removeQueries({ queryKey: ['assets'] });
-    queryClient.removeQueries({ queryKey: ['properties'] });
-    queryClient.removeQueries({ queryKey: ['property-nodes'] });
-    queryClient.removeQueries({ queryKey: ['page'] });
-    queryClient.removeQueries({ queryKey: ['trash'] });
-    queryClient.removeQueries({ queryKey: ['archived-pages'] });
-    queryClient.removeQueries({ queryKey: ['nodeViews'] });
-    queryClient.removeQueries({ queryKey: ['inlineClasses'] });
-    queryClient.removeQueries({ queryKey: ['textLinks'] });
-    queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+    
+    // Navigate to home page
+    window.history.replaceState(null, '', '/');
+    
+    // Clear ALL cached data to prevent any stale data from previous workspace
+    queryClient.clear();
   }, [queryClient]);
 
   const switchMutation = useMutation({
