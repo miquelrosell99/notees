@@ -229,6 +229,39 @@ td {
   vertical-align: top;
 }
 
+/* --- Table variants --- */
+
+/* Striped: subtle alternating row tint */
+.table-striped tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.03);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Grid: full cell borders */
+.table-grid th,
+.table-grid td {
+  border: 1px solid var(--color-border-table);
+}
+
+.table-grid th {
+  background: rgba(0, 0, 0, 0.04);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Minimal: header rule only, no other borders, more padding */
+.table-minimal th {
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: 6px;
+}
+
+.table-minimal td {
+  border: none;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
 figure {
   margin: 1em 0;
   page-break-inside: avoid;
