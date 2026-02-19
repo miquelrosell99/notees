@@ -80,6 +80,7 @@ def _node_to_response(
     comment_count: int = 0,
     backlink_count: int = 0,
     aliases: Optional[List[int]] = None,
+    has_children: bool = False,
 ) -> NodeResponse:
     """Convert domain Node to API response.
     
@@ -113,6 +114,7 @@ def _node_to_response(
         classes_path=node.classes_path or [],
         aliased_id=node.aliased_id,
         aliases=aliases or [],
+        has_children=has_children,
     )
 
 

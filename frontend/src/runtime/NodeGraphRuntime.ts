@@ -770,6 +770,10 @@ export class NodeGraphRuntime {
     if (!node) return;
     node.collapsed = !node.collapsed;
     this.scheduleEmit(blockId, null);
+    // If expanding and children haven't been loaded yet, request them
+    if (!node.collapsed && node.hasServerChildren && this.getChildren(blockId).length === 0) {
+      this.emit({ type: 'expand_children_needed', blockId, serverId: node.serverId });
+    }
   }
 
   private execSetCollapsed(blockId: string, collapsed: boolean): void {
@@ -777,6 +781,10 @@ export class NodeGraphRuntime {
     if (!node) return;
     node.collapsed = collapsed;
     this.scheduleEmit(blockId, null);
+    // If expanding and children haven't been loaded yet, request them
+    if (!collapsed && node.hasServerChildren && this.getChildren(blockId).length === 0) {
+      this.emit({ type: 'expand_children_needed', blockId, serverId: node.serverId });
+    }
   }
 
   private execReorder(parentId: string, orderedBlockIds: string[]): void {
@@ -891,7 +899,7 @@ export class NodeGraphRuntime {
       name: node.name,
       icon: node.icon,
       color: node.color,
-      hasChildren: (children?.length ?? 0) > 0,
+      hasChildren: (children?.length ?? 0) > 0 || (node.hasServerChildren ?? false),
       serverId: node.serverId,
       classIds: node.classIds,
       isProjectionRoot: false,

@@ -67,6 +67,8 @@ export interface GraphNode {
   updatedAt: string;
   /** Optimistic locking version */
   version: number;
+  /** True if server reports children exist but weren't loaded (collapsed pruning) */
+  hasServerChildren?: boolean;
 }
 
 // ─── Projection types ─────────────────────────────────────────────
@@ -142,6 +144,7 @@ export type RuntimeEvent =
   | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' }
   | { type: 'block_deleted'; blockId: string; serverId?: number }
   | { type: 'projection_invalidated'; projectionId: string }
+  | { type: 'expand_children_needed'; blockId: string; serverId?: number }
   | { type: 'undo'; entry: UndoEntry }
   | { type: 'redo'; entry: UndoEntry };
 
