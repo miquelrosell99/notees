@@ -340,6 +340,29 @@ export function useWhiteboard(nodeId: number | null) {
       collapsed: false,
       color: null,
       showChildren: true,
+      cardMode: 'block',
+    };
+  }, [data.elements]);
+
+  const createReferenceCard = useCallback((nodeId: number, nodeUuid: string, position: Point): WhiteboardCardElement => {
+    const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
+    return {
+      id: createElementId(),
+      type: 'card',
+      x: position.x,
+      y: position.y,
+      width: 400,
+      height: 320,
+      rotation: 0,
+      locked: false,
+      opacity: 1,
+      zIndex: maxZ + 1,
+      nodeId,
+      nodeUuid,
+      collapsed: false,
+      color: null,
+      showChildren: true,
+      cardMode: 'reference',
     };
   }, [data.elements]);
 
@@ -496,6 +519,7 @@ export function useWhiteboard(nodeId: number | null) {
     sendToBack,
     // Element creation
     createCard,
+    createReferenceCard,
     createShape,
     createStroke,
     createText,
