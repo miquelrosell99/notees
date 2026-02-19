@@ -16,7 +16,7 @@ from typing import Optional, Dict, List, Any
 from .config import settings
 from .logging_config import get_logger
 from .db.connection import get_connection, DATA_DIR, get_workspace_dir
-from .db.schema.init import seed_workspace
+from .db.schema.init import seed_workspace, get_or_create_user_workspace
 
 logger = get_logger(__name__)
 
@@ -369,34 +369,11 @@ async def export_nodes(
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id}")
     
-    # Get user's active workspace
-    workspace_name = _active_workspaces.get(user_id)
+    # Resolve workspace using the same logic as the rest of the app
+    active_uuid = _active_workspaces.get(user_id)
     
     async with get_connection() as conn:
-        # Find workspace
-        if workspace_name:
-            workspace = await conn.fetchrow(
-                """
-                SELECT g.id FROM workspace g
-                WHERE g.create_uid = $1 AND g.name = $2 AND g.active = TRUE
-                """,
-                numeric_user_id, workspace_name
-            )
-        else:
-            # Use first available workspace
-            workspace = await conn.fetchrow(
-                """
-                SELECT g.id FROM workspace g
-                WHERE g.create_uid = $1 AND g.active = TRUE
-                ORDER BY g.create_date LIMIT 1
-                """,
-                numeric_user_id
-            )
-        
-        if not workspace:
-            raise ValueError("No workspace found")
-        
-        workspace_id = workspace['id']
+        workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
         
         # Fetch nodes
         nodes_data = []
