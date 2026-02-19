@@ -163,15 +163,17 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
               value={layout}
               onChange={(v) => setLayout(v as ExportLayout)}
             />
-            <SelectionButton
-              size="sm"
-              options={[
-                { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
-                { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
-              ]}
-              value={style}
-              onChange={(v) => setStyle(v as ExportStyle)}
-            />
+            {format !== 'markdown' && (
+              <SelectionButton
+                size="sm"
+                options={[
+                  { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
+                  { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
+                ]}
+                value={style}
+                onChange={(v) => setStyle(v as ExportStyle)}
+              />
+            )}
             <BooleanToggle
               size="sm"
               label="Formatting"
