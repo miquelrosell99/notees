@@ -1,0 +1,163 @@
+/**
+ * Export Style: Technical
+ *
+ * Scientific paper aesthetic — serif body, tight spacing,
+ * numbered-feel headings, compact layout.
+ * Layers on top of base.css.
+ */
+
+/* --- Page Setup --- */
+@page {
+  size: A4;
+  margin: 2.5cm 2cm;
+}
+
+/* --- Body & Typography --- */
+body {
+  font-family: 'Georgia', 'Times New Roman', 'Palatino Linotype', 'Book Antiqua', serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  max-width: 40rem;
+  padding: 2rem 1.5rem;
+  color: #000;
+  background: #fff;
+  counter-reset: section;
+}
+
+/* --- Headings --- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  text-align: center;
+  border-bottom: 2px solid #111111;
+  padding-bottom: 0.4rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  border-bottom: 1px solid #a3a3a3;
+  padding-bottom: 0.2rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  font-style: italic;
+  margin: 1rem 0 0.4rem;
+}
+
+h4, h5, h6 {
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0.75rem 0 0.35rem;
+}
+
+/* Optional section numbering */
+h1::before {
+  counter-increment: section;
+  content: counter(section) ". ";
+}
+
+/* --- Paragraphs --- */
+p {
+  margin: 0.4rem 0;
+  line-height: 1.5;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* --- Lists --- */
+ul, ol {
+  padding-left: 1.5rem;
+  margin: 0.25rem 0 1em 0;
+  line-height: 1.45;
+}
+
+li {
+  margin: 0.1rem 0;
+}
+
+/* --- Figures & Tables --- */
+figure, table {
+  margin: 1em 0;
+  page-break-inside: avoid;
+}
+
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+figcaption, table caption {
+  font-size: 0.82em;
+  text-align: center;
+  margin-top: 0.3em;
+}
+
+/* --- Tables --- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82em;
+}
+
+th, td {
+  border: 1px solid #000;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+/* --- Code & Preformatted Text --- */
+code {
+  font-family: Consolas, monospace;
+  font-size: 0.82em;
+  background: #f2f2f2;
+  border: 1px solid #e5e5e5;
+  padding: 0.1em 0.25em;
+  border-radius: 2px;
+}
+
+pre {
+  font-family: Consolas, monospace;
+  font-size: 0.82em;
+  border: 1px solid #e5e5e5;
+  padding: 0.75rem 1rem;
+  border-radius: 2px;
+  line-height: 1.35;
+  overflow-x: auto;
+}
+
+/* --- Horizontal Rule --- */
+hr {
+  border-top: 1px solid #a3a3a3;
+  margin: 1.25rem 0;
+}
+
+/* --- Links --- */
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+/* --- Footnotes & Superscripts --- */
+sup {
+  font-size: 0.7em;
+}
+
+/* --- Page Breaks --- */
+div.page-break {
+  page-break-before: always;
+}

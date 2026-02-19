@@ -611,26 +611,22 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
 
 # ---------------------------------------------------------------------------
 # Default export stylesheet
-# Reads frontend/src/variables.css (design tokens) + frontend/src/export.css
-# (export-specific rules) and concatenates them.  Cached after first call.
+# Export CSS lives in app/static/export/ — fully self-contained, no CSS variables.
 # ---------------------------------------------------------------------------
-_FRONTEND_SRC = Path(__file__).resolve().parent.parent / "frontend" / "src"
-_VARIABLES_CSS_PATH = _FRONTEND_SRC / "variables.css"
-_EXPORT_CSS_PATH = _FRONTEND_SRC / "export.css"
+_EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 
 # Valid export style presets (None = base only)
 EXPORT_STYLES = {"minimal", "technical"}
 
 def _get_export_css() -> str:
-    """Read variables.css + export.css from disk (cached after first call)."""
+    """Read base.css from disk (cached after first call)."""
     if not hasattr(_get_export_css, "_cache"):
-        parts: list[str] = []
-        for path in (_VARIABLES_CSS_PATH, _EXPORT_CSS_PATH):
-            try:
-                parts.append(path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                logger.warning("Export CSS file not found: %s", path)
-        _get_export_css._cache = "\n".join(parts)
+        path = _EXPORT_CSS_DIR / "base.css"
+        try:
+            _get_export_css._cache = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            logger.warning("Export CSS file not found: %s", path)
+            _get_export_css._cache = ""
     return _get_export_css._cache
 
 
@@ -640,7 +636,7 @@ def _get_style_css(style: str | None) -> str:
         return ""
     cache_attr = f"_cache_{style}"
     if not hasattr(_get_style_css, cache_attr):
-        path = _FRONTEND_SRC / f"export-{style}.css"
+        path = _EXPORT_CSS_DIR / f"{style}.css"
         try:
             setattr(_get_style_css, cache_attr, path.read_text(encoding="utf-8"))
         except FileNotFoundError:

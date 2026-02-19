@@ -3,7 +3,7 @@
  *
  * Clean, airy layout with generous whitespace.
  * System sans-serif font, subtle headings, light separators.
- * Layers on top of the base export.css.
+ * Layers on top of base.css.
  */
 
 body {
@@ -32,19 +32,19 @@ h1 {
 h2 {
   font-size: 1.25rem;
   font-weight: 500;
-  color: var(--color-secondary);
+  color: #333333;
 }
 
 h3 {
   font-size: 1.05rem;
   font-weight: 500;
-  color: var(--color-tertiary);
+  color: #555555;
 }
 
 h4, h5, h6 {
   font-size: 0.95rem;
   font-weight: 500;
-  color: var(--color-tertiary);
+  color: #555555;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -68,19 +68,19 @@ p {
 /* ---- Code ---- */
 code {
   background: transparent;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid #e5e5e5;
   padding: 0.1em 0.3em;
   font-size: 0.85em;
 }
 
 pre {
   background: transparent;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid #e5e5e5;
   padding: 1.25rem;
 }
 
 /* ---- Horizontal rule ---- */
 hr {
-  border-top-color: var(--color-outline-variant);
+  border-top-color: #e5e5e5;
   margin: 2rem 0;
 }
