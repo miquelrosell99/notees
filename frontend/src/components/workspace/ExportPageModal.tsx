@@ -90,19 +90,25 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     setError(null);
     try {
       if (format === 'pdf') {
-        // Fetch HTML, inject CSS overrides, download as .html for print-to-PDF
-        const response = await api.get(`/export/${nodeUuid}`, {
+        // Fetch HTML, inject CSS overrides, then render to PDF on the server
+        const htmlResponse = await api.get(`/export/${nodeUuid}`, {
           params: { format: 'html', include_children: true, layout },
           responseType: 'text',
         });
-        let html = response.data as string;
+        let html = htmlResponse.data as string;
         if (cssOverrides.trim()) {
           const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
           html = html.includes('</head>')
             ? html.replace('</head>', `${styleTag}\n</head>`)
             : styleTag + '\n' + html;
         }
-        triggerBlobDownload(new Blob([html], { type: 'text/html' }), 'export-print.html');
+        // POST the HTML back to get a real PDF
+        const pdfResponse = await api.post(
+          `/export/render-pdf`,
+          { html },
+          { responseType: 'blob' }
+        );
+        triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
           params: { format, include_children: true, layout },
@@ -220,9 +226,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
               rows={8}
             />
             <p className="export-modal__pdf-hint">
-              Downloads an HTML file with your CSS applied. Open it in a browser
-              and use{' '}&#8203;
-              <kbd>Ctrl+P</kbd> / <kbd>⌘P</kbd> to save as PDF.
+              Optional CSS is injected before rendering to PDF.
             </p>
             {error && <div className="export-modal__error">{error}</div>}
           </div>
