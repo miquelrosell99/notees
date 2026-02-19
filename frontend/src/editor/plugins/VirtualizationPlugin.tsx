@@ -315,10 +315,11 @@ export function VirtualizationPlugin({
         }
         htmlEl.classList.add('node-block--virtualized');
         htmlEl.style.minHeight = `${measuredHeights.current.get(blockId) ?? DEFAULT_BLOCK_HEIGHT}px`;
-      } else if (isVisible && wasVirtualized) {
-        htmlEl.classList.remove('node-block--virtualized');
-        htmlEl.style.minHeight = '';
       }
+      // NOTE: We intentionally do NOT remove node-block--virtualized here.
+      // BlockPlugin handles removal after content is hydrated to prevent
+      // a flash of empty blocks (ZWS placeholder visible before content
+      // is populated).
     });
   }, [editor, enabled, visibleBlockIds]);
 

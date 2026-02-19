@@ -10,6 +10,7 @@ from ..auth import get_current_user
 from ...models import User
 from .models import (
     NodeResponse,
+    ReferencedNodeInfo,
     NodeCreateRequest,
     NodeUpdateRequest,
     MoveNodeRequest,
@@ -689,6 +690,34 @@ async def get_node(
                 parent.children.append(node_response)
         
         response.children = root_children
+        
+        # Build referenced_nodes map for inline pills — lightweight metadata
+        # for all outgoing text link targets from this node and its descendants.
+        all_source_ids = [node_id] + descendant_ids
+        if all_source_ids:
+            target_rows = await pool.fetch("""
+                SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class
+                FROM node_link nl
+                JOIN node n ON n.id = nl.target_id
+                WHERE nl.source_id = ANY($1)
+                  AND nl.is_tag = FALSE
+                  AND nl.is_inline_class = FALSE
+                  AND nl.property_id IS NULL
+                  AND n.active = TRUE
+                  AND n.is_deleted = FALSE
+            """, all_source_ids)
+            
+            referenced_nodes: Dict[str, ReferencedNodeInfo] = {}
+            for row in target_rows:
+                referenced_nodes[str(row['uuid'])] = ReferencedNodeInfo(
+                    id=row['id'],
+                    name=row['name'] or '',
+                    icon=row['icon'],
+                    color=row['color'],
+                    is_page=row['is_page'],
+                    is_class=row.get('is_class', False),
+                )
+            response.referenced_nodes = referenced_nodes
 
     if include_backlinks:
         backlink_infos = await service._link_service.get_backlinks(node_id)
@@ -882,6 +911,34 @@ async def get_page_content(
             link_type="property" if link.property_id else "text",
             context=context,
         ))
+    
+    # Build referenced_nodes map — lightweight metadata for all outgoing link targets.
+    # This eliminates N+1 GET /api/nodes/uuid/{uuid} calls from inline pills.
+    all_source_ids = [page_id] + block_ids
+    if all_source_ids:
+        target_rows = await pool.fetch("""
+            SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class
+            FROM node_link nl
+            JOIN node n ON n.id = nl.target_id
+            WHERE nl.source_id = ANY($1)
+              AND nl.is_tag = FALSE
+              AND nl.is_inline_class = FALSE
+              AND nl.property_id IS NULL
+              AND n.active = TRUE
+              AND n.is_deleted = FALSE
+        """, all_source_ids)
+        
+        referenced_nodes: Dict[str, ReferencedNodeInfo] = {}
+        for row in target_rows:
+            referenced_nodes[str(row['uuid'])] = ReferencedNodeInfo(
+                id=row['id'],
+                name=row['name'] or '',
+                icon=row['icon'],
+                color=row['color'],
+                is_page=row['is_page'],
+                is_class=row.get('is_class', False),
+            )
+        page_response.referenced_nodes = referenced_nodes
     
     return page_response
 
