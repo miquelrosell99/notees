@@ -66,7 +66,8 @@ export function FormattingPlugin(): null {
 
     // ── Keydown handler ──────────────────────────────────────────
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Right-arrow at end of code span → exit code format
+      // Right-arrow at end of a styled node (mid-block) → reuse/insert plain sibling
+      // (Block-edge style-exit is handled in BlockPlugin's KEY_ARROW_RIGHT_COMMAND.)
       if (event.key === 'ArrowRight' && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         let shouldHandle = false;
         editor.getEditorState().read(() => {
@@ -76,9 +77,11 @@ export function FormattingPlugin(): null {
           const node = anchor.getNode();
           if (!$isTextNode(node)) return;
           const fmt = node.getFormat();
-          if (!(fmt & IS_CODE)) return;
-          // Only at the very end of the code node
-          if (anchor.offset === node.getTextContentSize()) shouldHandle = true;
+          if (fmt === 0) return;
+          if (anchor.offset !== node.getTextContentSize()) return;
+          // Only handle mid-block (last-descendant case is handled by BlockPlugin)
+          const next = node.getNextSibling();
+          if (next && $isTextNode(next) && next.getFormat() === 0) shouldHandle = true;
         });
         if (shouldHandle) {
           event.preventDefault();
@@ -87,16 +90,41 @@ export function FormattingPlugin(): null {
             if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
             const node = sel.anchor.getNode();
             if (!$isTextNode(node)) return;
-            // Insert an empty plain-text node after and move cursor there
             const next = node.getNextSibling();
-            if (next && $isTextNode(next) && !(next.getFormat() & IS_CODE)) {
-              // Reuse existing plain node — move cursor to its start
-              next.select(0, 0);
-            } else {
-              const plain = $createTextNode('');
-              node.insertAfter(plain);
-              plain.select(0, 0);
-            }
+            if (next && $isTextNode(next) && next.getFormat() === 0) next.select(0, 0);
+            const freshSel = $getSelection();
+            if ($isRangeSelection(freshSel)) freshSel.format = 0;
+          });
+          return;
+        }
+      }
+
+      // Left-arrow at start of a styled node (mid-block) → reuse/insert plain sibling
+      if (event.key === 'ArrowLeft' && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        let shouldHandle = false;
+        editor.getEditorState().read(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
+          const anchor = sel.anchor;
+          const node = anchor.getNode();
+          if (!$isTextNode(node)) return;
+          const fmt = node.getFormat();
+          if (fmt === 0) return;
+          if (anchor.offset !== 0) return;
+          const prev = node.getPreviousSibling();
+          if (prev && $isTextNode(prev) && prev.getFormat() === 0) shouldHandle = true;
+        });
+        if (shouldHandle) {
+          event.preventDefault();
+          editor.update(() => {
+            const sel = $getSelection();
+            if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
+            const node = sel.anchor.getNode();
+            if (!$isTextNode(node)) return;
+            const prev = node.getPreviousSibling();
+            if (prev && $isTextNode(prev) && prev.getFormat() === 0) prev.selectEnd();
+            const freshSel = $getSelection();
+            if ($isRangeSelection(freshSel)) freshSel.format = 0;
           });
           return;
         }

@@ -1243,6 +1243,37 @@ export function BlockPlugin({
       const blockNode = findParentNodeBlock(anchorNode);
       if (!blockNode) return false;
 
+      // ── Style-boundary guard ──────────────────────────────────────
+      // If cursor is at the START of a styled text node that is the first
+      // content in its block, insert a plain buffer node instead of jumping
+      // to the previous block (requires a second press to cross the boundary).
+      if (
+        $isTextNode(anchorNode) &&
+        anchorNode.getFormat() !== 0 &&
+        anchor.offset === 0 &&
+        anchorNode === blockNode.getFirstDescendant()
+      ) {
+        event?.preventDefault();
+        editor.update(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
+          const node = sel.anchor.getNode();
+          if (!$isTextNode(node)) return;
+          // Reuse existing preceding plain-text node if present
+          const prevSib = node.getPreviousSibling();
+          if (prevSib && $isTextNode(prevSib) && prevSib.getFormat() === 0) {
+            prevSib.selectEnd();
+          } else {
+            const plain = $createTextNode('');
+            node.insertBefore(plain);
+            plain.selectEnd();
+          }
+          const freshSel = $getSelection();
+          if ($isRangeSelection(freshSel)) freshSel.format = 0;
+        });
+        return true;
+      }
+
       // Must be at the absolute start of the block
       if (anchor.offset !== 0) return false;
       if (anchor.type === 'text' && anchorNode !== blockNode.getFirstDescendant()) return false;
@@ -1277,6 +1308,37 @@ export function BlockPlugin({
       const anchorNode = anchor.getNode();
       const blockNode = findParentNodeBlock(anchorNode);
       if (!blockNode) return false;
+
+      // ── Style-boundary guard ──────────────────────────────────────
+      // If cursor is at the END of a styled text node that is the last
+      // content in its block, insert a plain buffer node instead of jumping
+      // to the next block (requires a second press to cross the boundary).
+      if (
+        $isTextNode(anchorNode) &&
+        anchorNode.getFormat() !== 0 &&
+        anchor.offset === anchorNode.getTextContentSize() &&
+        anchorNode === blockNode.getLastDescendant()
+      ) {
+        event?.preventDefault();
+        editor.update(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
+          const node = sel.anchor.getNode();
+          if (!$isTextNode(node)) return;
+          // Reuse existing following plain-text node if present
+          const nextSib = node.getNextSibling();
+          if (nextSib && $isTextNode(nextSib) && nextSib.getFormat() === 0) {
+            nextSib.select(0, 0);
+          } else {
+            const plain = $createTextNode('');
+            node.insertAfter(plain);
+            plain.select(0, 0);
+          }
+          const freshSel = $getSelection();
+          if ($isRangeSelection(freshSel)) freshSel.format = 0;
+        });
+        return true;
+      }
 
       // Must be at the absolute end of the block
       if (anchor.type === 'text') {
