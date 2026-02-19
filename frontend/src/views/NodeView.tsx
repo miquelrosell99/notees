@@ -51,6 +51,7 @@ import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
 
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
+import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesContext';
 import type { Asset } from '../api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { uploadAsset } from '@/api/assets';
@@ -1281,11 +1282,13 @@ export function NodeView({
   );
 
   const mainContent = (
-    <article 
-      className={`node-view node-view--${resolvedType} ${viewMode}`}
-    >
-      {mainContentInner}
-    </article>
+    <ReferencedNodesProvider referencedNodes={node?.referenced_nodes}>
+      <article 
+        className={`node-view node-view--${resolvedType} ${viewMode}`}
+      >
+        {mainContentInner}
+      </article>
+    </ReferencedNodesProvider>
   );
 
   return {

@@ -69,6 +69,10 @@ export interface Node {
   aliased_id?: number | null;  // If set, this node is an alias of the node with this ID
   aliases?: number[];  // IDs of nodes that are aliases of this node
   
+  // Referenced nodes map — uuid → lightweight node info for outgoing link targets.
+  // Populated by page content endpoint so inline pills resolve without N+1 queries.
+  referenced_nodes?: Record<string, ReferencedNodeInfo>;
+  
   // Metadata for linked references (attached client-side)
   _linkedRefMetadata?: {
     linkType: 'text' | 'property';
@@ -78,6 +82,20 @@ export interface Node {
     // The actual source node ID (when displaying page in list view, this is the block with the property)
     sourceNodeId?: number;
   };
+}
+
+/**
+ * Lightweight node info for the referenced_nodes map.
+ * Included in page content responses so inline link pills can resolve
+ * target node metadata without individual API calls.
+ */
+export interface ReferencedNodeInfo {
+  id: number;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  is_page: boolean;
+  is_class: boolean;
 }
 
 /**
