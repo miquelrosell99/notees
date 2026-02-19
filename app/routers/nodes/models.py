@@ -32,6 +32,7 @@ class NodeResponse(BaseModel):
     classes_path: List[int] = []  # Inherited class node IDs from ancestors' classes properties
     # For tree responses
     children: Optional[List["NodeResponse"]] = None
+    has_children: bool = False  # True if node has children (even if not loaded, e.g. collapsed)
     # Backlinks
     backlinks: Optional[List["BacklinkResponse"]] = None
     linked_references: Optional[List["LinkedReferenceResponse"]] = None

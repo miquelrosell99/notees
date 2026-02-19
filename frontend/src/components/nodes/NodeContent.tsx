@@ -15,6 +15,7 @@
 import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
+import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { useAppStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
@@ -61,6 +62,9 @@ export function NodeContent({
   const contentRef = useRef<HTMLDivElement>(null);
   const { addSidebarCard, openCommentsForNode } = useAppStore();
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
+
+  // Lazy-load children of collapsed blocks when they are expanded
+  useLazyChildren();
 
   // Debounced content save - batches rapid edits to reduce API calls
   // saveImmediate bypasses debounce for operations like asset uploads

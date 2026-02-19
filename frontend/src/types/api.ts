@@ -55,6 +55,7 @@ export interface Node {
   
   // For tree responses
   children?: Node[];
+  has_children?: boolean; // True if node has children (even if not loaded, e.g. collapsed)
   
   // For backlinks/references
   backlinks?: Backlink[];
