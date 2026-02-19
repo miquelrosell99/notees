@@ -105,9 +105,14 @@ export class NodeGraphRuntime {
         // content during editing.  API syncs (optimistic cache updates,
         // refetches) may carry stale / debounced content that would
         // overwrite the user's latest edits if blindly applied.
+        // PRESERVE collapsed: collapse state is managed client-side via
+        // applyIntent and is not persisted on metadata updates (color, icon,
+        // etc.).  An API sync after e.g. a color change would otherwise reset
+        // a block's collapsed state to whatever the server last stored.
         const merged: GraphNode = {
           ...node,
           contentAST: existing.contentAST,
+          collapsed: existing.collapsed,
         };
 
         if (existing.parentId !== node.parentId) {
@@ -116,7 +121,6 @@ export class NodeGraphRuntime {
           changedBlockIds.push(node.blockId);
         } else if (
           existing.orderIndex !== node.orderIndex ||
-          existing.collapsed !== node.collapsed ||
           existing.name !== node.name ||
           existing.icon !== node.icon ||
           existing.color !== node.color ||
