@@ -283,6 +283,10 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
                 if ref_type == "class":
                     return ast_label
                 return f"[{ast_label}]([[{link_id}]])"
+            if opts.mode is StringifyMode.PLAIN_MARKDOWN:
+                colon = link_id.find(':')
+                target_uuid = link_id[:colon] if colon > 0 else link_id
+                return f"[{ast_label}]([[{target_uuid}]])"
             return ast_label
         return placeholder_md
 
@@ -293,6 +297,10 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
                 if ref_type == "class":
                     return ast_label
                 return f"[{ast_label}]([[{link_id}]])"
+            if opts.mode is StringifyMode.PLAIN_MARKDOWN:
+                colon = link_id.find(':')
+                target_uuid = link_id[:colon] if colon > 0 else link_id
+                return f"[{ast_label}]([[{target_uuid}]])"
             return ast_label
         return placeholder_md
 
