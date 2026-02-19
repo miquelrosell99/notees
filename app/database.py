@@ -359,6 +359,8 @@ async def export_nodes(
     formatting: bool = True,
     style: str | None = None,
     properties: str = "none",  # "none" | "main" | "all"
+    density: str = "comfortable",  # "comfortable" | "compact"
+    numbering: str = "none",  # "none" | "top-level" | "hierarchical"
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -651,11 +653,11 @@ async def export_nodes(
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -853,6 +855,45 @@ def _style_block(style: str | None = None) -> str:
     return f"<style>\n{css}\n</style>"
 
 
+def _extra_css_block(density: str = "comfortable", numbering: str = "none") -> str:
+    """Return a <style> element with density and numbering overrides, or empty string."""
+    parts: list[str] = []
+
+    if density == "compact":
+        parts.append("""\
+/* ── Density: compact ── */
+body { line-height: 1.2; }
+p { margin-bottom: 0.25rem; }
+h1, h2, h3, h4, h5, h6 { margin-top: 0.5rem; margin-bottom: 0.2rem; }
+li { margin: 0; }
+ul, ol { margin: 0.1rem 0 0.4em 0; }""")
+
+    if numbering == "none":
+        parts.append("""\
+/* ── Numbering: none ── */
+body { counter-reset: none; }
+h2::before, h3::before, h4::before { content: none; counter-increment: none; }""")
+    elif numbering == "top-level":
+        parts.append("""\
+/* ── Numbering: top-level ── */
+body { counter-reset: section; }
+h2::before { counter-increment: section; content: counter(section) ". "; }
+h3::before, h4::before { content: none; counter-increment: none; }""")
+    elif numbering == "hierarchical":
+        parts.append("""\
+/* ── Numbering: hierarchical ── */
+body { counter-reset: h2c; }
+h2 { counter-reset: h3c; }
+h3 { counter-reset: h4c; }
+h2::before { counter-increment: h2c; content: counter(h2c) ". "; }
+h3::before { counter-increment: h3c; content: counter(h2c) "." counter(h3c) " "; }
+h4::before { counter-increment: h4c; content: counter(h2c) "." counter(h3c) "." counter(h4c) " "; }""")
+
+    if not parts:
+        return ""
+    return f"<style>\n{chr(10).join(parts)}\n</style>"
+
+
 def _export_to_html(
     nodes: List[Dict],
     resolver=None,
@@ -860,6 +901,8 @@ def _export_to_html(
     formatting: bool = True,
     style: str | None = None,
     properties_data: Dict[str, list] | None = None,
+    density: str = "comfortable",
+    numbering: str = "none",
 ) -> str:
     """Convert nodes to HTML format.
     
@@ -917,7 +960,8 @@ def _export_to_html(
 
     if not nodes:
         sb = _style_block(style)
-        head_extra = f"\n{sb}" if sb else ""
+        extra = _extra_css_block(density, numbering)
+        head_extra = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
         return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body></body></html>"
 
     if layout == "flat":
@@ -936,7 +980,8 @@ def _export_to_html(
                 lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
         sb = _style_block(style)
-        head_style = f"\n{sb}" if sb else ""
+        extra = _extra_css_block(density, numbering)
+        head_style = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -988,7 +1033,8 @@ def _export_to_html(
         current_depth -= 1
 
     sb = _style_block(style)
-    head_style = f"\n{sb}" if sb else ""
+    extra = _extra_css_block(density, numbering)
+    head_style = (f"\n{sb}" if sb else "") + (f"\n{extra}" if extra else "")
     return f"""<!DOCTYPE html>
 <html>
 <head>
