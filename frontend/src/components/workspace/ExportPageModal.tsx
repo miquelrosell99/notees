@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiCog } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -22,6 +22,7 @@ type ExportStyle = 'minimal' | 'technical';
 type ExportProperties = 'none' | 'main' | 'all';
 type ExportDensity = 'comfortable' | 'compact';
 type ExportNumbering = 'none' | 'hierarchical';
+type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   const [properties, setProperties] = useState<ExportProperties>('main');
   const [density, setDensity] = useState<ExportDensity>('comfortable');
   const [numbering, setNumbering] = useState<ExportNumbering>('none');
+  const [measure, setMeasure] = useState<ExportMeasure>('full');
   const [formatting, setFormatting] = useState(true);
   const [showUuid, setShowUuid] = useState(false);
   const [previewContent, setPreviewContent] = useState<string>('');
@@ -83,7 +85,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
+        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
         responseType: 'text',
       })
       .then((response) => {
@@ -100,7 +102,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, properties, density, numbering, showUuid, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, showUuid, nodeUuid]);
 
   // For the HTML tab, show only the <body> inner content (no doctype/head/style)
   const displayContent = useMemo(() => {
@@ -125,7 +127,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
+          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -144,7 +146,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, show_uuid: showUuid },
+          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, show_uuid: showUuid },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -160,7 +162,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, properties, density, numbering, showUuid, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, properties, density, numbering, measure, showUuid, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -224,6 +226,24 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     ]}
                     value={density}
                     onChange={(v) => setDensity(v as ExportDensity)}
+                  />
+                </div>
+              )}
+              {format !== 'markdown' && (
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Measure"
+                    description="Page width and column layout"
+                    labelPosition="left"
+                    options={[
+                      { value: 'full', icon: mdiArrowExpandHorizontal, label: 'Full' },
+                      { value: 'readable', icon: mdiText, label: 'Readable' },
+                      { value: 'book', icon: mdiBook, label: 'Book' },
+                      { value: 'two-column', icon: mdiViewColumn, label: '2-column' },
+                    ]}
+                    value={measure}
+                    onChange={(v) => setMeasure(v as ExportMeasure)}
                   />
                 </div>
               )}
