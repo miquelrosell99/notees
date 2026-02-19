@@ -148,3 +148,17 @@
   border-radius: 3px;
   vertical-align: middle;
 }
+
+/* ── Footer layout ── */
+.export-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.export-modal__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}

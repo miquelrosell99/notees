@@ -42,6 +42,7 @@ async def export_single_node(
     node_uuid: str,
     format: str = "markdown",
     include_children: bool = True,
+    layout: str = "outline",
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -50,12 +51,16 @@ async def export_single_node(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
 
+    if layout not in ("outline", "flat"):
+        raise HTTPException(status_code=400, detail=f"Invalid layout: {layout}")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
             node_ids=[node_uuid],
             format=export_format,
-            include_children=include_children
+            include_children=include_children,
+            layout=layout
         )
         
         return Response(

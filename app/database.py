@@ -354,7 +354,8 @@ async def export_nodes(
     user_id: str,
     node_ids: List[str],
     format: Any,  # ExportFormat enum
-    include_children: bool = True
+    include_children: bool = True,
+    layout: str = "outline"
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -363,6 +364,7 @@ async def export_nodes(
         node_ids: List of node UUIDs to export
         format: Export format (markdown, html, pdf)
         include_children: Whether to include child nodes
+        layout: 'outline' (indented hierarchy) or 'flat' (top node as header, rest as flat list)
     
     Returns:
         Tuple of (content: bytes, filename: str, mime_type: str)
@@ -452,16 +454,16 @@ async def export_nodes(
 
     # Generate content based on format
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link)
+        content = _export_to_html(nodes_data, resolve_node_link, layout)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
         # PDF export not fully implemented - return HTML
-        content = _export_to_html(nodes_data, resolve_node_link)
+        content = _export_to_html(nodes_data, resolve_node_link, layout)
         filename = "export.html"
         mime_type = "text/html"
     else:
@@ -494,16 +496,32 @@ def _stringify_node(node_data: Dict, mode: StringifyMode, resolver) -> str:
     return stringify_ast(ast, opts)
 
 
-def _export_to_markdown(nodes: List[Dict], resolver=None) -> str:
+def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
     """Convert nodes to Markdown format.
     
     Args:
         nodes: List of node dicts with 'name', '_ast', and 'depth' keys
         resolver: Optional node link resolver
+        layout: 'outline' (indented hierarchy) or 'flat' (top node as heading)
         
     Returns:
-        Markdown string with nodes as indented list items
+        Markdown string
     """
+    if not nodes:
+        return ""
+
+    if layout == "flat":
+        lines = []
+        # First node (depth 0) becomes a heading
+        title = _stringify_node(nodes[0], StringifyMode.PLAIN_MARKDOWN, resolver)
+        lines.append(f"# {title}")
+        lines.append("")
+        for node in nodes[1:]:
+            text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
+            lines.append(f"- {text}")
+        return "\n".join(lines)
+
+    # outline (default)
     lines = []
     for node in nodes:
         text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
@@ -513,17 +531,40 @@ def _export_to_markdown(nodes: List[Dict], resolver=None) -> str:
     return "\n".join(lines)
 
 
-def _export_to_html(nodes: List[Dict], resolver=None) -> str:
+def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -> str:
     """Convert nodes to HTML format.
     
     Args:
         nodes: List of node dicts with 'name', '_ast', and 'depth' keys
         resolver: Optional node link resolver
+        layout: 'outline' (indented hierarchy) or 'flat' (top node as h1)
         
     Returns:
         HTML document string
     """
     import html as html_mod
+
+    if not nodes:
+        return "<!DOCTYPE html>\n<html><head><title>Notees Export</title></head><body></body></html>"
+
+    if layout == "flat":
+        title = _stringify_node(nodes[0], StringifyMode.TEXT_ONLY, resolver)
+        items = []
+        for node in nodes[1:]:
+            text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+            items.append(f"  <li>{html_mod.escape(text)}</li>")
+        body = f"<h1>{html_mod.escape(title)}</h1>"
+        if items:
+            body += f"\n<ul>\n{chr(10).join(items)}\n</ul>"
+        return f"""<!DOCTYPE html>
+<html>
+<head><title>{html_mod.escape(title)}</title></head>
+<body>
+{body}
+</body>
+</html>"""
+
+    # outline (default)
     items = []
     for node in nodes:
         text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
