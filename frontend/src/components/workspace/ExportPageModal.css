@@ -2,46 +2,149 @@
  * ExportPageModal styles
  */
 
-.export-page__body {
+/* ── Body ── */
+.export-modal__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-3);
 }
 
-.export-page__label {
+/* ── Format tabs ── */
+.export-modal__tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 3px;
+  width: fit-content;
+}
+
+.export-modal__tab {
+  padding: 5px 16px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--shape-medium) - 2px);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.export-modal__tab:hover:not(.export-modal__tab--active) {
+  color: var(--color-on-surface);
+  background: var(--color-surface-container-high);
+}
+
+.export-modal__tab--active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ── Preview area (markdown / html) ── */
+.export-modal__preview-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.export-modal__preview {
+  width: 100%;
+  min-height: 360px;
+  font-family: var(--font-mono, 'Courier New', monospace);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+  padding: var(--spacing-3);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface);
+  resize: vertical;
+  box-sizing: border-box;
+  tab-size: 2;
+}
+
+.export-modal__preview:focus {
+  outline: none;
+  border-color: var(--color-outline);
+}
+
+/* ── Status / Error ── */
+.export-modal__status {
+  padding: var(--spacing-3) 0;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.export-modal__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+/* ── PDF section ── */
+.export-modal__pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.export-modal__label {
   font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-on-surface);
 }
 
-.export-page__select {
+.export-modal__label-hint {
+  font-weight: 400;
+  color: var(--color-on-surface-variant);
+}
+
+.export-modal__css-textarea {
   width: 100%;
-  padding: 8px 12px;
+  font-family: var(--font-mono, 'Courier New', monospace);
   font-size: var(--font-size-sm);
-  font-family: inherit;
-  background: var(--color-surface);
+  line-height: 1.55;
+  padding: var(--spacing-3);
+  background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   color: var(--color-on-surface);
-  cursor: pointer;
-  appearance: auto;
+  resize: vertical;
+  tab-size: 2;
+  box-sizing: border-box;
 }
 
-.export-page__select:focus {
+.export-modal__css-textarea:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary);
 }
 
-.export-page__select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.export-modal__css-textarea::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
 }
 
-.export-page__error {
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  color: var(--color-error);
-  border-radius: var(--shape-small);
+.export-modal__pdf-hint {
+  margin: 0;
   font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.export-modal__pdf-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8em;
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 3px;
+  vertical-align: middle;
 }
