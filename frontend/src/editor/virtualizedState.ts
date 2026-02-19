@@ -28,7 +28,7 @@ const _populatedBlockIds = new Set<string>();
 const _listeners = new Set<VisibilityChangeCallback>();
 
 // ── Debounce state ────────────────────────────────────────────
-const DEBOUNCE_MS = 50;
+const DEBOUNCE_MS = 30;
 let _pendingVisible = new Set<string>();
 let _pendingHidden  = new Set<string>();
 let _flushTimer: ReturnType<typeof setTimeout> | null = null;
