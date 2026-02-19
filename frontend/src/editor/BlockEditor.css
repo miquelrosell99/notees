@@ -780,9 +780,7 @@ th.node-block-table-cell {
 .node-block-drop-indicator {
   pointer-events: none;
   z-index: 100;
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: fixed;
   height: 2px;
   background: var(--color-on-surface);
   border-radius: 1px;
