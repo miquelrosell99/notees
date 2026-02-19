@@ -590,7 +590,10 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline") -
                 lines.append('  ' * current_depth + '</ul>')
                 current_depth -= 1
             level = min(depth + 1, 6)
-            lines.append(f"  <h{level}>{html_mod.escape(text)}</h{level}>")
+            indent = '  ' * depth
+            lines.append(f"{indent}<h{level}>{html_mod.escape(text)}</h{level}>")
+            # Children of this heading live at depth+1; treat this depth as the new baseline
+            current_depth = depth
         else:
             if depth > current_depth:
                 for _ in range(depth - current_depth):
