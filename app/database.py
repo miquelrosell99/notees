@@ -358,6 +358,7 @@ async def export_nodes(
     layout: str = "outline",
     formatting: bool = True,
     style: str | None = None,
+    properties: str = "none",  # "none" | "main" | "all"
 ) -> tuple:
     """Export nodes to various formats.
     
@@ -447,6 +448,7 @@ async def export_nodes(
                     continue
                 seen_uuids.add(row_uuid)
                 nodes_data.append({
+                    "id": row['id'],
                     "uuid": row_uuid,
                     "name": row['name'],
                     "is_page": row.get('is_page', False),
@@ -489,17 +491,100 @@ async def export_nodes(
                 target_id=node_uuid,
             )
 
+        # 4. Fetch properties for page nodes if requested
+        properties_data: Dict[str, list] = {}  # uuid → [{name, icon, type, values: [str]}]
+        if properties in ("main", "all"):
+            page_node_ids = [nd['id'] for nd in nodes_data if nd.get('is_page') and nd.get('id')]
+            if page_node_ids:
+                include_system = (properties == "all")
+                prop_rows = await conn.fetch(
+                    f"""
+                    SELECT
+                        np.node_id,
+                        n.uuid::text as node_uuid,
+                        p.name   AS property_name,
+                        p.icon   AS property_icon,
+                        p.type   AS property_type,
+                        p.is_system,
+                        p.is_multi,
+                        pvs.value_text,
+                        pvs.value_boolean,
+                        pvs.value_float,
+                        pvs.value_integer,
+                        psl.name AS selection_value,
+                        pvr.target_id AS relation_target_id
+                    FROM node_property np
+                    JOIN node n ON n.id = np.node_id
+                    JOIN property p ON p.id = np.property_id
+                    LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                    LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                    LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
+                    LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
+                    WHERE np.node_id = ANY($1)
+                      AND p.active = TRUE
+                      {'AND p.is_system = FALSE' if not include_system else ''}
+                    ORDER BY np.node_id, p.name
+                    """,
+                    page_node_ids
+                )
+                # Collect relation target IDs to resolve names
+                relation_target_ids = {row['relation_target_id'] for row in prop_rows if row['relation_target_id']}
+                relation_target_names: Dict[int, str] = {}
+                if relation_target_ids:
+                    rel_rows = await conn.fetch(
+                        "SELECT id, name FROM node WHERE id = ANY($1)",
+                        list(relation_target_ids)
+                    )
+                    for rr in rel_rows:
+                        relation_target_names[rr['id']] = _stringify_node(
+                            {'name': rr['name'], '_ast': parse_ast(rr['name'])},
+                            StringifyMode.TEXT_ONLY, None
+                        )
+                # Aggregate: uuid → {prop_name → {name, icon, type, values}}
+                agg: Dict[str, Dict[str, dict]] = {}
+                for row in prop_rows:
+                    node_uuid_key = row['node_uuid']
+                    prop_name = row['property_name']
+                    prop_type = row['property_type']
+                    if node_uuid_key not in agg:
+                        agg[node_uuid_key] = {}
+                    if prop_name not in agg[node_uuid_key]:
+                        agg[node_uuid_key][prop_name] = {
+                            'name': prop_name,
+                            'icon': row['property_icon'],
+                            'type': prop_type,
+                            'values': [],
+                        }
+                    entry = agg[node_uuid_key][prop_name]
+                    value_str: str | None = None
+                    if prop_type == 'integer' and row['value_integer'] is not None:
+                        value_str = str(row['value_integer'])
+                    elif prop_type == 'float' and row['value_float'] is not None:
+                        value_str = str(row['value_float'])
+                    elif prop_type == 'boolean' and row['value_boolean'] is not None:
+                        value_str = 'Yes' if row['value_boolean'] else 'No'
+                    elif prop_type == 'date' and row['value_text'] is not None:
+                        value_str = row['value_text']
+                    elif prop_type in ('node', 'text') and row['relation_target_id'] is not None:
+                        value_str = relation_target_names.get(row['relation_target_id'])
+                    elif prop_type == 'selection' and row['selection_value'] is not None:
+                        value_str = row['selection_value']
+                    if value_str is not None and value_str not in entry['values']:
+                        entry['values'].append(value_str)
+                for node_uuid_key, props in agg.items():
+                    properties_data[node_uuid_key] = sorted(props.values(), key=lambda p: p['name'])
+
     # Generate content based on format
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -599,14 +684,24 @@ def _markdown_inline_to_html(md: str) -> str:
     return ''.join(result)
 
 
-def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True) -> str:
+def _export_to_markdown(
+    nodes: List[Dict],
+    resolver=None,
+    layout: str = "outline",
+    formatting: bool = True,
+    properties_data: Dict[str, list] | None = None,
+) -> str:
     """Convert nodes to Markdown format.
 
     Page nodes (is_page=True) always render as ATX headings at their depth level.
     Non-page nodes render as indented bullets (outline) or plain lines (flat).
+    After each page heading, assigned properties are emitted as:
+        propertyname:: value
     """
     if not nodes:
         return ""
+
+    _props = properties_data or {}
 
     lines = []
     for node in nodes:
@@ -621,6 +716,14 @@ def _export_to_markdown(nodes: List[Dict], resolver=None, layout: str = "outline
         if is_page:
             hashes = '#' * (depth + 1)
             lines.append(f"{hashes} {text}")
+            # Emit property:: value lines immediately after the heading
+            props = _props.get(node.get('uuid', ''), [])
+            for p in props:
+                values = p['values']
+                if values:
+                    lines.append(f"{p['name']}:: {', '.join(values)}")
+                else:
+                    lines.append(f"{p['name']}::")
         elif layout == "flat":
             lines.append(text)
         else:
@@ -679,18 +782,28 @@ def _style_block(style: str | None = None) -> str:
     return f"<style>\n{css}\n</style>"
 
 
-def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", formatting: bool = True, style: str | None = None) -> str:
+def _export_to_html(
+    nodes: List[Dict],
+    resolver=None,
+    layout: str = "outline",
+    formatting: bool = True,
+    style: str | None = None,
+    properties_data: Dict[str, list] | None = None,
+) -> str:
     """Convert nodes to HTML format.
     
     Args:
         nodes: List of node dicts with 'name', '_ast', and 'depth' keys
         resolver: Optional node link resolver
         layout: 'outline' (indented hierarchy) or 'flat' (top node as h1)
+        properties_data: Optional dict mapping node UUID to list of property dicts
         
     Returns:
         HTML document string
     """
     import html as html_mod
+
+    _props = properties_data or {}
 
     def _id_attr(node: Dict) -> str:
         """Return an id attribute for anchor targeting, or empty string."""
@@ -714,6 +827,23 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
             return ''
         return f' style="color: {html_mod.escape(color)}"'
 
+    def _render_properties(node: Dict) -> str:
+        """Render a properties <dl> block for a page node, or empty string."""
+        uuid = node.get('uuid', '')
+        props = _props.get(uuid)
+        if not props:
+            return ''
+        items = []
+        for p in props:
+            name = html_mod.escape(p['name'])
+            icon_html = f'<span class="node-property-icon">{html_mod.escape(p["icon"])}</span> ' if p.get('icon') else ''
+            if p['values']:
+                vals_html = ''.join(f'<dd>{html_mod.escape(v)}</dd>' for v in p['values'])
+            else:
+                vals_html = '<dd class="node-property-empty">—</dd>'
+            items.append(f'<div class="node-property"><dt>{icon_html}{name}</dt>{vals_html}</div>')
+        return f'<dl class="node-properties">{chr(10).join(items)}</dl>'
+
     if not nodes:
         sb = _style_block(style)
         head_extra = f"\n{sb}" if sb else ""
@@ -728,6 +858,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
             if is_page:
                 level = min(depth + 1, 6)
                 lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
+                props_html = _render_properties(node)
+                if props_html:
+                    lines.append(f"  {props_html}")
             else:
                 lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
@@ -759,6 +892,9 @@ def _export_to_html(nodes: List[Dict], resolver=None, layout: str = "outline", f
             level = min(depth + 1, 6)
             indent = '  ' * depth
             lines.append(f"{indent}<h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
+            props_html = _render_properties(node)
+            if props_html:
+                lines.append(f"{indent}{props_html}")
             # Children of this heading live at depth+1; treat this depth as the new baseline
             current_depth = depth
         else:

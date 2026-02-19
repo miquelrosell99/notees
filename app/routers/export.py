@@ -50,6 +50,7 @@ async def export_single_node(
     layout: str = "outline",
     formatting: bool = True,
     style: str | None = None,
+    properties: str = "none",
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -61,6 +62,9 @@ async def export_single_node(
     if layout not in ("outline", "flat"):
         raise HTTPException(status_code=400, detail=f"Invalid layout: {layout}")
 
+    if properties not in ("none", "main", "all"):
+        raise HTTPException(status_code=400, detail=f"Invalid properties value: {properties}")
+
     try:
         content, filename, mime_type = await db.export_nodes(
             user.id,
@@ -70,6 +74,7 @@ async def export_single_node(
             layout=layout,
             formatting=formatting,
             style=style,
+            properties=properties,
         )
         
         return Response(

@@ -144,6 +144,37 @@ td {
   text-align: left;
 }
 
+/* --- Properties (definition list styled as a compact two-column table) --- */
+/* --- Properties (definition list styled as a compact two-column table) --- */
+.node-properties {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 1.5rem;
+  font-size: 0.85em;
+  margin: 0.5rem 0 1.5rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
+.node-properties dt {
+  font-weight: bold;
+  color: #000;
+  padding: 0.15rem 0;
+  white-space: nowrap;
+}
+
+.node-properties dd {
+  margin: 0;
+  padding: 0.15rem 0;
+  color: #000;
+}
+
+.node-property-empty {
+  color: #888;
+  font-style: italic;
+}
+
 /* --- Code & Preformatted Text --- */
 code {
   font-family: Consolas, monospace;
