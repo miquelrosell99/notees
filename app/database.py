@@ -390,22 +390,19 @@ async def export_nodes(
         for node_uuid in node_ids:
             if include_children:
                 # Get node and all descendants using closure table (node_path).
-                # DISTINCT ON (n.id) prevents duplicates when a node appears
-                # under multiple ancestor entries in node_path; pick the
-                # shallowest depth so the hierarchy looks correct.
+                # GROUP BY deduplicates; MIN(depth) picks the shallowest path.
                 rows = await conn.fetch(
                     """
-                    SELECT DISTINCT ON (n.id) n.id, n.uuid, n.name, n.parent_id, np.depth
+                    SELECT n.id, n.uuid, n.name, n.parent_id, MIN(np.depth) AS depth
                     FROM node n
                     JOIN node_path np ON np.descendant_id = n.id
                     WHERE n.workspace_id = $1 
                       AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
-                    ORDER BY n.id, np.depth
+                    GROUP BY n.id, n.uuid, n.name, n.parent_id
+                    ORDER BY MIN(np.depth), n.id
                     """,
                     workspace_id, node_uuid
                 )
-                # Re-sort by depth then id after DISTINCT ON forces its own ORDER BY
-                rows = sorted(rows, key=lambda r: (r['depth'], r['id']))
             else:
                 rows = await conn.fetch(
                     """
