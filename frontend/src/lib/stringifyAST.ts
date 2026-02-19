@@ -101,6 +101,10 @@ function renderBlock(block: ASTBlockNode, opts: StringifyOptions): string {
   switch (block.type) {
     case 'paragraph':
       return renderInlineSequence(block.children, opts);
+    case 'heading':
+      // Heading level is computed at render time from block depth; here we
+      // just emit the inline content. Export and markdown modes add # prefix.
+      return renderInlineSequence(block.children, opts);
     default:
       // Unknown block type — stable placeholder.
       return '';

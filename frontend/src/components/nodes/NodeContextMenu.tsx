@@ -608,6 +608,15 @@ export function BlockContextMenu({
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
   const updateNode = useUpdateNode();
   
+  const isHeader = useMemo(() => {
+    try {
+      const ast = JSON.parse(node.name || '[]');
+      return Array.isArray(ast) && ast.length > 0 && ast[0].type === 'heading';
+    } catch {
+      return false;
+    }
+  }, [node.name]);
+
   const blockItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     
@@ -632,12 +641,28 @@ export function BlockContextMenu({
         }
       });
     }
+
+    items.push({
+      id: 'toggle-header',
+      label: isHeader ? 'Remove header' : 'Set as header',
+      onClick: () => {
+        try {
+          const ast = JSON.parse(node.name || '[]');
+          if (!Array.isArray(ast) || ast.length === 0) return;
+          const newAst = ast.map((block: { type: string; [key: string]: unknown }, i: number) =>
+            i === 0 ? { ...block, type: block.type === 'heading' ? 'paragraph' : 'heading' } : block
+          );
+          updateNode.mutate({ id: node.id, data: { name: JSON.stringify(newAst) } });
+        } catch { /* ignore */ }
+        onClose();
+      },
+    });
     
     items.push({ id: 'sep-block-1', label: '', separator: true });
     items.push(...commonItems);
     
     return items;
-  }, [onClose, onConvertToPage, onMoveBlock, commonItems]);
+  }, [onClose, onConvertToPage, onMoveBlock, commonItems, isHeader, node.name, node.id, updateNode]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };

@@ -869,3 +869,28 @@ th.node-block-table-cell {
   height: 0;
   overflow: hidden;
 }
+
+/* ─── Heading blocks ───────────────────────────────────────────── */
+
+/* Base heading style — bold, no list indent feel, slightly more space */
+.node-block--heading > .node-block-content {
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-on-surface);
+  /* Smooth transition for font-size changes when depth changes */
+  transition: font-size 0.1s ease;
+}
+
+/* Level-based font sizes — depth 0 → h1, depth 1 → h2, … depth 5+ → h6 */
+.node-block--heading-1 > .node-block-content { font-size: 1.875rem; }
+.node-block--heading-2 > .node-block-content { font-size: 1.5rem;   }
+.node-block--heading-3 > .node-block-content { font-size: 1.25rem;  }
+.node-block--heading-4 > .node-block-content { font-size: 1.0625rem; }
+.node-block--heading-5 > .node-block-content { font-size: 0.9375rem; }
+.node-block--heading-6 > .node-block-content { font-size: 0.875rem;  }
+
+/* Slight top margin for headings to visually separate sections */
+.node-block--heading {
+  margin-top: 0.25em;
+}

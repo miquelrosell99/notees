@@ -194,6 +194,8 @@ def _render_block(block: dict, opts: StringifyOptions) -> str:
     block_type = block.get("type")
     if block_type == "paragraph":
         return _render_inline_sequence(block.get("children", []), opts)
+    if block_type == "heading":
+        return _render_inline_sequence(block.get("children", []), opts)
     # Unknown block type — stable placeholder.
     return ""
 

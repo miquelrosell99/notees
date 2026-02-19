@@ -93,6 +93,16 @@ export interface ASTParagraph {
   readonly children: ASTInlineNode[];
 }
 
+/**
+ * Heading block. Semantically marks a block as a section header.
+ * The rendered heading level (h1–h6) is computed from the block's
+ * hierarchy depth in the current view — it is NOT stored in the AST.
+ */
+export interface ASTHeading {
+  readonly type: 'heading';
+  readonly children: ASTInlineNode[];
+}
+
 // ─── Union types ───────────────────────────────────────────────────
 
 /** Any node that can appear inside a paragraph or formatting mark. */
@@ -109,7 +119,14 @@ export type ASTInlineNode =
   | ASTExternalLink;
 
 /** Top-level node. A `name` column stores an array of these. */
-export type ASTBlockNode = ASTParagraph;
+export type ASTBlockNode = ASTParagraph | ASTHeading;
+
+/**
+ * Returns true if the block node is a heading.
+ */
+export function isHeadingBlock(node: ASTBlockNode): node is ASTHeading {
+  return node.type === 'heading';
+}
 
 /**
  * The value stored in node.name (JSON-serialized).
