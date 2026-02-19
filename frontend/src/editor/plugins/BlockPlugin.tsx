@@ -874,14 +874,22 @@ export function BlockPlugin({
         const blockNode = findParentNodeBlock(anchorNode);
         if (!blockNode) return false;
 
-        // Code block: Enter inserts a line break — same as Shift+Enter elsewhere
+        // Code block: Enter inserts a line break (no new block).
+        // We mutate directly because command handlers already run
+        // inside editor.update() from Lexical's keydown handler.
+        // A trailing ZWS TextNode is added so the cursor has a valid
+        // DOM anchor after the <br> (prevents custom caret mis-positioning).
         if (blockNode.getNodeType() === 'code') {
           event?.preventDefault();
-          editor.update(() => {
-            const sel = $getSelection();
-            if (!$isRangeSelection(sel)) return;
-            sel.insertNodes([$createLineBreakNode()]);
-          });
+          const lb = $createLineBreakNode();
+          selection.insertNodes([lb]);
+          // Ensure cursor sits on a TextNode, not after a bare <br>
+          const next = lb.getNextSibling();
+          if (!next || !$isTextNode(next) || next.getTextContent() === '') {
+            const zwsAnchor = $createTextNode('\u200B');
+            lb.insertAfter(zwsAnchor);
+            zwsAnchor.select(1, 1);
+          }
           return true;
         }
 
@@ -1039,11 +1047,9 @@ export function BlockPlugin({
             if (atBlockStart) return true; // consume but do nothing
 
             event?.preventDefault();
-            editor.update(() => {
-              const sel = $getSelection();
-              if (!$isRangeSelection(sel)) return;
-              sel.deleteCharacter(true); // delete char/LineBreakNode before cursor
-            });
+            // Direct mutation — no editor.update() wrapper needed,
+            // we're already inside one from the keydown handler.
+            selection.deleteCharacter(true);
             return true;
           }
           // Fall through → delete the empty code block via normal path below
