@@ -462,6 +462,37 @@ async def export_nodes(
         if not nodes_data:
             raise ValueError("No nodes found to export")
 
+        # ── Filter out text property value blocks ──
+        # Text property values are child nodes linked via property_value_relation.
+        # The CTE's NOT EXISTS clause is the primary filter, but we add a
+        # post-query safety net to guarantee they never leak into the export.
+        if include_children and len(nodes_data) > 1:
+            all_tree_ids = [nd['id'] for nd in nodes_data]
+            text_prop_rows = await conn.fetch("""
+                SELECT DISTINCT pvr.target_id
+                FROM property_value_relation pvr
+                JOIN property p ON p.id = pvr.property_id
+                WHERE pvr.target_id = ANY($1)
+                  AND p.type = 'text'
+            """, all_tree_ids)
+            text_prop_ids = {r['target_id'] for r in text_prop_rows}
+            if text_prop_ids:
+                filtered: list[dict] = []
+                skip_depth: int | None = None
+                for nd in nodes_data:
+                    # If we're skipping descendants of a removed text-prop block,
+                    # keep skipping until we reach a sibling or ancestor depth.
+                    if skip_depth is not None:
+                        if nd['depth'] > skip_depth:
+                            continue
+                        else:
+                            skip_depth = None
+                    if nd['id'] in text_prop_ids:
+                        skip_depth = nd['depth']
+                        continue
+                    filtered.append(nd)
+                nodes_data = filtered
+
         # ── Resolve node links in all ASTs ──
         # 1. Walk all ASTs and collect target node UUIDs from link_ids
         target_uuids: set[str] = set()
@@ -926,21 +957,21 @@ def _export_to_html(
         return f' style="color: {html_mod.escape(color)}"'
 
     def _render_properties(node: Dict) -> str:
-        """Render a properties <dl> block for a page node, or empty string."""
+        """Render a properties table for a page node, or empty string."""
         uuid = node.get('uuid', '')
         props = _props.get(uuid)
         if not props:
             return ''
-        items = []
+        rows = []
         for p in props:
             name = html_mod.escape(p['name'])
             icon_html = f'<span class="node-property-icon">{html_mod.escape(p["icon"])}</span> ' if p.get('icon') else ''
             if p['values']:
-                vals_html = ''.join(f'<dd>{html_mod.escape(v)}</dd>' for v in p['values'])
+                val_html = html_mod.escape(', '.join(p['values']))
             else:
-                vals_html = '<dd class="node-property-empty">—</dd>'
-            items.append(f'<div class="node-property"><dt>{icon_html}{name}</dt>{vals_html}</div>')
-        return f'<dl class="node-properties">{chr(10).join(items)}</dl>'
+                val_html = '<span class="node-property-empty">—</span>'
+            rows.append(f'<tr class="node-property"><td class="node-property-name">{icon_html}{name}</td><td class="node-property-value">{val_html}</td></tr>')
+        return f'<table class="node-properties">{chr(10).join(rows)}</table>'
 
     body_class = _build_body_class(style, layout, density, numbering)
     style_tag   = _html_style_tag()
