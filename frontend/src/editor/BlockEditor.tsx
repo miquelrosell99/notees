@@ -34,6 +34,7 @@ import { BlockDragSelectionPlugin } from './plugins/BlockDragSelectionPlugin';
 import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
 import { CollapsePlugin } from './plugins/CollapsePlugin';
+import { ThreadLinePlugin } from './plugins/ThreadLinePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
 import { InlineCodePlugin } from './plugins/InlineCodePlugin';
 import { AutoWrapPlugin } from './plugins/AutoWrapPlugin';
@@ -455,6 +456,7 @@ export function BlockEditor({
         <InlineCodePlugin />
         <AutoWrapPlugin />
         <CollapsePlugin />
+        <ThreadLinePlugin mode={mode} />
 
         {/* Block projection plugin */}
         <BlockPlugin
