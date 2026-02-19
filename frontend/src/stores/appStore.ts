@@ -70,6 +70,8 @@ interface NodesState {
   
   // View mode
   viewMode: ViewMode;
+  /** Sidebar collapsed state captured on focus mode entry, for restoration on exit */
+  preFocusModeSidebarCollapsed: boolean | null;
   
   // Main view type (what's displayed in the main content area)
   mainViewType: MainViewType;
@@ -191,6 +193,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
   nodeViewModes: {},
+  preFocusModeSidebarCollapsed: null,
   
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
@@ -202,7 +205,24 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen, isSidebarCollapsed: !state.isSidebarCollapsed })),
   toggleRightSidebar: () => set((state) => ({ rightSidebarOpen: !state.rightSidebarOpen })),
   setViewMode: (mode) => set({ viewMode: mode }),
-  toggleFocusMode: () => set((state) => ({ viewMode: state.viewMode === 'focus' ? 'default' : 'focus' })),
+  toggleFocusMode: () => set((state) => {
+    if (state.viewMode === 'focus') {
+      // Exit focus mode — restore sidebar
+      return {
+        viewMode: 'default',
+        isSidebarCollapsed: state.preFocusModeSidebarCollapsed ?? state.isSidebarCollapsed,
+        sidebarOpen: !(state.preFocusModeSidebarCollapsed ?? state.isSidebarCollapsed),
+        preFocusModeSidebarCollapsed: null,
+      };
+    }
+    // Enter focus mode — collapse sidebar
+    return {
+      viewMode: 'focus',
+      preFocusModeSidebarCollapsed: state.isSidebarCollapsed,
+      isSidebarCollapsed: true,
+      sidebarOpen: false,
+    };
+  }),
   setMainViewType: (viewType) => set({ mainViewType: viewType }),
   openPropertyView: (propertyId) => set({ mainViewType: 'property', currentPropertyId: propertyId }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
