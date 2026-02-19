@@ -29,6 +29,7 @@ import {
 
 import type { GraphNodeType } from '../../runtime/types';
 import { parseColorToRgb } from '@/utils/color';
+import { createIconElement } from '@/utils/iconDom';
 
 // ─── Serialized form ──────────────────────────────────────────────
 
@@ -288,10 +289,7 @@ export class BlockNode extends ElementNode {
     
     // Bullet dot or icon
     if (this.__icon) {
-      const iconSpan = document.createElement('span');
-      iconSpan.className = 'bullet-icon';
-      iconSpan.textContent = this.__icon;
-      bulletContainer.appendChild(iconSpan);
+      bulletContainer.appendChild(createIconElement(this.__icon));
     } else {
       const dot = document.createElement('span');
       dot.className = 'bullet-dot';
@@ -501,10 +499,7 @@ export class BlockNode extends ElementNode {
         if (oldIcon) oldIcon.remove();
         
         if (this.__icon) {
-          const iconSpan = document.createElement('span');
-          iconSpan.className = 'bullet-icon';
-          iconSpan.textContent = this.__icon;
-          bulletContainer.appendChild(iconSpan);
+          bulletContainer.appendChild(createIconElement(this.__icon));
         } else {
           const dot = document.createElement('span');
           dot.className = 'bullet-dot';
