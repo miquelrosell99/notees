@@ -7,7 +7,7 @@
  *   ready for browser print-to-PDF)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -21,7 +21,7 @@ type ExportLayout = 'outline' | 'flat';
 type ExportStyle = 'minimal' | 'technical';
 type ExportProperties = 'none' | 'main' | 'all';
 type ExportDensity = 'comfortable' | 'compact';
-type ExportNumbering = 'none' | 'hierarchical';
+type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
 type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
 
 export interface ExportPageModalProps {
@@ -255,8 +255,10 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Add hierarchical numbers to headings"
                     labelPosition="left"
                     options={[
-                      { value: 'none', icon: mdiFormatListBulleted, label: 'No numbering' },
+                      { value: 'none', icon: mdiFormatListBulleted, label: 'None' },
                       { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
+                      { value: 'legal', icon: mdiFormatListNumbered, label: 'Legal' },
+                      { value: 'appendix', icon: mdiFormatLetterCaseUpper, label: 'Appendix' },
                     ]}
                     value={numbering}
                     onChange={(v) => setNumbering(v as ExportNumbering)}
