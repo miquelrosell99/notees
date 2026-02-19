@@ -583,15 +583,43 @@ export class NodeGraphRuntime {
     if (!node) return;
 
     const oldParentId = node.parentId;
-    node.parentId = newParentId;
 
-    // Calculate new order
-    const newSiblings = this.childrenIndex.get(newParentId) || [];
+    // Remove from old parent's children index before reading new siblings
+    const oldChildren = this.childrenIndex.get(oldParentId || '') || [];
+    const oldIdx = oldChildren.indexOf(blockId);
+    if (oldIdx >= 0) oldChildren.splice(oldIdx, 1);
+
+    // Read new siblings (now excludes the moved block)
+    const newSiblings = (newParentId === oldParentId)
+      ? oldChildren
+      : (this.childrenIndex.get(newParentId) || []);
+
+    // Determine insertion index
+    let insertIdx: number;
     if (afterBlockId) {
       const afterIdx = newSiblings.indexOf(afterBlockId);
-      node.orderIndex = afterIdx >= 0 ? afterIdx + 1 : newSiblings.length;
+      insertIdx = afterIdx >= 0 ? afterIdx + 1 : newSiblings.length;
     } else {
-      node.orderIndex = 0;
+      insertIdx = 0;
+    }
+
+    // Update parent
+    node.parentId = newParentId;
+
+    // Reindex all siblings at the target parent for clean ordering
+    // Insert moved block at the right position
+    newSiblings.splice(insertIdx, 0, blockId);
+    for (let i = 0; i < newSiblings.length; i++) {
+      const sibling = this.nodes.get(newSiblings[i]);
+      if (sibling) sibling.orderIndex = i;
+    }
+
+    // Also reindex old parent's children if different
+    if (newParentId !== oldParentId) {
+      for (let i = 0; i < oldChildren.length; i++) {
+        const sibling = this.nodes.get(oldChildren[i]);
+        if (sibling) sibling.orderIndex = i;
+      }
     }
 
     node.updatedAt = new Date().toISOString();
