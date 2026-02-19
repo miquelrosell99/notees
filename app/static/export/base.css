@@ -1,9 +1,8 @@
 /**
- * Export Stylesheet
+ * Export Base Stylesheet
  *
- * Injected into exported HTML / PDF documents alongside variables.css.
- * All design tokens (colors, fonts, spacing) come from variables.css — this
- * file only contains export-specific layout and typography rules.
+ * Self-contained — all values are hardcoded (no CSS custom properties).
+ * Used by the backend for HTML and PDF export rendering.
  */
 
 @page {
@@ -16,29 +15,29 @@
 }
 
 body {
-  font-family: var(--font-family-base);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 0.95rem;
   line-height: 1.6;
-  color: var(--color-on-background);
-  background: var(--color-background);
+  color: #111111;
+  background: #fafafa;
   max-width: 42rem;
   margin: 0 auto;
-  padding: var(--spacing-8) var(--spacing-4);
+  padding: 2rem 1rem;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ---- Headings ---- */
 h1, h2, h3, h4, h5, h6 {
-  color: var(--color-primary);
-  margin: var(--spacing-6) 0 var(--spacing-3);
+  color: #111111;
+  margin: 1.5rem 0 0.75rem;
   line-height: 1.25;
 }
 
 h1 {
   font-size: 1.75rem;
   font-weight: 600;
-  padding-bottom: var(--spacing-2);
-  border-bottom: 1px solid var(--color-outline-variant);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 h2 {
@@ -62,8 +61,8 @@ h1:first-child {
 
 /* ---- Lists ---- */
 ul {
-  margin: var(--spacing-1) 0;
-  padding-left: var(--spacing-6);
+  margin: 0.25rem 0;
+  padding-left: 1.5rem;
   list-style-type: disc;
 }
 
@@ -76,30 +75,30 @@ ul ul ul {
 }
 
 li {
-  margin: var(--spacing-1) 0;
+  margin: 0.25rem 0;
   line-height: 1.55;
 }
 
 /* ---- Paragraphs (flat layout) ---- */
 p {
-  margin: var(--spacing-2) 0;
+  margin: 0.5rem 0;
   line-height: 1.6;
 }
 
 /* ---- Code ---- */
 code {
-  font-family: var(--font-family-mono);
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   font-size: 0.85em;
-  background: var(--color-surface-variant);
+  background: #f2f2f2;
   padding: 0.15em 0.35em;
   border-radius: 3px;
 }
 
 pre {
-  font-family: var(--font-family-mono);
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   font-size: 0.85em;
-  background: var(--color-surface-variant);
-  padding: var(--spacing-4);
+  background: #f2f2f2;
+  padding: 1rem;
   border-radius: 4px;
   overflow-x: auto;
   line-height: 1.45;
@@ -108,8 +107,8 @@ pre {
 /* ---- Horizontal rule ---- */
 hr {
   border: none;
-  border-top: 1px solid var(--color-outline-variant);
-  margin: var(--spacing-6) 0;
+  border-top: 1px solid #e5e5e5;
+  margin: 1.5rem 0;
 }
 
 /* ---- Inline formatting ---- */
@@ -125,18 +124,16 @@ u {
 }
 
 a {
-  color: var(--color-preset-blue);
+  color: #5a79c9;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 a:visited {
-  color: var(--color-preset-purple);
+  color: #8a6cc9;
 }
 
 /* ---- Colored nodes ---- */
-/* Inline style="color: #hex" is applied by the exporter for colored nodes.
-   Ensure the color is preserved when printing. */
 @media print {
   [style*="color"] {
     -webkit-print-color-adjust: exact;
