@@ -374,7 +374,8 @@
   position: absolute;
   width: 2px;
   /* Centre horizontally on the calculated bullet x */
-  transform: translateX(-50%);
+  transform: translateX(-50%) scaleX(1);
+  transform-origin: center center;
   background-color: var(--color-outline-variant);
   border-radius: 1px;
   pointer-events: auto;
@@ -382,7 +383,7 @@
   opacity: 0.22;
   transition:
     opacity var(--motion-duration-short) var(--motion-easing-standard),
-    width var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard),
     background-color var(--motion-duration-short) var(--motion-easing-standard);
   /* Prevent text selection on fast clicks */
   user-select: none;
@@ -391,13 +392,14 @@
 
 .thread-line:hover {
   opacity: 0.75;
-  width: 3px;
+  /* scaleX grows symmetrically from the center */
+  transform: translateX(-50%) scaleX(2);
   background-color: var(--color-primary, var(--color-on-surface-variant));
 }
 
 .thread-line:active {
   opacity: 1;
-  transform: translateX(-50%) scaleX(1.5);
+  transform: translateX(-50%) scaleX(3);
   transition: none;
 }
 
