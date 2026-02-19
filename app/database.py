@@ -391,8 +391,7 @@ async def export_nodes(
             if include_children:
                 # Get node and all descendants using closure table (node_path).
                 # GROUP BY deduplicates; MIN(depth) picks the shallowest path.
-                # Child pages (is_page=true, depth>0) are excluded — they are
-                # separate documents and should not be inlined in the export.
+                # Excludes: child pages, deleted nodes, archived (inactive) nodes.
                 rows = await conn.fetch(
                     """
                     SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, MIN(np.depth) AS depth
@@ -400,6 +399,8 @@ async def export_nodes(
                     JOIN node_path np ON np.descendant_id = n.id
                     WHERE n.workspace_id = $1 
                       AND np.ancestor_id = (SELECT id FROM node WHERE workspace_id = $1 AND uuid::text = $2)
+                      AND n.is_deleted = FALSE
+                      AND n.active = TRUE
                     GROUP BY n.id, n.uuid, n.name, n.parent_id, n.is_page
                     HAVING MIN(np.depth) = 0 OR n.is_page = FALSE
                     ORDER BY MIN(np.depth), n.id
