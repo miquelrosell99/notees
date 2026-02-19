@@ -16,6 +16,7 @@ import type {
   ASTParagraph,
   ASTText,
   ASTHardBreak,
+  ASTCode,
   ASTNodeLink,
   ASTStrong,
   ASTEm,
@@ -55,6 +56,10 @@ export function text(t: string): ASTText {
 
 export function hardBreak(): ASTHardBreak {
   return { type: 'hard_break' };
+}
+
+export function code(codeText: string): ASTCode {
+  return { type: 'code', text: codeText };
 }
 
 export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
@@ -263,9 +268,8 @@ function parseMdInline(input: string): ASTInlineNode[] {
     }
 
     if (m.groups?.code) {
-      // Inline code is kept as plain text with backticks visible
-      const raw = m.groups.code;
-      nodes.push(text(raw));
+      // Inline code: strip backticks and emit a proper code AST node
+      nodes.push(code(m.groups.code.slice(1, -1)));
     } else if (m.groups?.bold_italic) {
       const inner = m.groups.bi!;
       nodes.push(strong(em(text(inner))));

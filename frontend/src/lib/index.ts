@@ -17,6 +17,7 @@ export type {
   ASTInlineNode,
   ASTText,
   ASTHardBreak,
+  ASTCode,
   ASTNodeLink,
   ASTStrong,
   ASTEm,
@@ -33,6 +34,7 @@ export { isLeafNode } from '@/types/ast';
 export {
   text,
   hardBreak,
+  code,
   nodeLink,
   strong,
   em,
