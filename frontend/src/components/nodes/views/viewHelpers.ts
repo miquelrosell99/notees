@@ -71,6 +71,7 @@ export function getNodeRadius(
   nodeSizeMode: NodeSizeMode,
   maxConnections: number,
   maxMass: number,
+  maxContentSize: number = 0,
   linkDirection: LinkDirection = 'all',
 ): number {
   if (nodeSizeMode === 'uniform') {
@@ -96,6 +97,10 @@ export function getNodeRadius(
       // mass is stored on the node by the simulation
       value = (node as GraphNode & { _mass?: number })._mass ?? 1;
       max = maxMass || 1;
+      break;
+    case 'content':
+      value = node.contentSize;
+      max = maxContentSize || 1;
       break;
   }
   
@@ -130,9 +135,10 @@ export function getGlareRadius(
   nodeSizeMode: NodeSizeMode, 
   maxConnections: number, 
   maxMass: number,
+  maxContentSize: number = 0,
   linkDirection: LinkDirection = 'all'
 ): number {
-  const nodeRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass, linkDirection);
+  const nodeRadius = getNodeRadius(node, nodeSizeMode, maxConnections, maxMass, maxContentSize, linkDirection);
   switch (node.glare) {
     case 'bright': return nodeRadius * GLARE_SCALE_BRIGHT;
     case 'current': return nodeRadius * GLARE_SCALE_CURRENT;

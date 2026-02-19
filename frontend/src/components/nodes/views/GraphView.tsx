@@ -34,7 +34,7 @@ import type {
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -316,6 +316,7 @@ export function GraphView({
         connectionCount: 0, // computed by renderer from visible links
         inLinkCount: 0,
         outLinkCount: 0,
+        contentSize: apiNode.block_count || 0,
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode: apiNode.is_class || classIds.has(apiNode.id),
@@ -502,12 +503,13 @@ export function GraphView({
               <SelectionButton
                 size="sm"
                 label="Node sizing"
-                description="Size nodes uniformly, by connections, or by mass"
+                description="Size nodes uniformly, by connections, mass, or content"
                 labelPosition="left"
                 options={[
                   { value: 'uniform', icon: mdiCircleOutline, label: 'Uniform size' },
                   { value: 'connections', icon: mdiConnection, label: 'Connection count' },
-                  { value: 'mass', icon: mdiWeight, label: 'Hierarchy mass' }
+                  { value: 'mass', icon: mdiWeight, label: 'Hierarchy mass' },
+                  { value: 'content', icon: mdiNote, label: 'Content size' }
                 ]}
                 value={graphSettings.nodeSizeMode}
                 onChange={(value) => setGraphSettings(prev => ({
