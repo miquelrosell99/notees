@@ -1,0 +1,128 @@
+/**
+ * Export Stylesheet
+ *
+ * Injected into exported HTML / PDF documents alongside variables.css.
+ * All design tokens (colors, fonts, spacing) come from variables.css — this
+ * file only contains export-specific layout and typography rules.
+ */
+
+@page {
+  size: A4;
+  margin: 2cm 2.2cm;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--color-on-background);
+  background: var(--color-background);
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: var(--spacing-8) var(--spacing-4);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Headings ---- */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-primary);
+  margin: var(--spacing-6) 0 var(--spacing-3);
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+h4, h5, h6 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+h1:first-child {
+  margin-top: 0;
+}
+
+/* ---- Lists ---- */
+ul {
+  margin: var(--spacing-1) 0;
+  padding-left: var(--spacing-6);
+  list-style-type: disc;
+}
+
+ul ul {
+  list-style-type: circle;
+}
+
+ul ul ul {
+  list-style-type: square;
+}
+
+li {
+  margin: var(--spacing-1) 0;
+  line-height: 1.55;
+}
+
+/* ---- Paragraphs (flat layout) ---- */
+p {
+  margin: var(--spacing-2) 0;
+  line-height: 1.6;
+}
+
+/* ---- Code ---- */
+code {
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  background: var(--color-surface-variant);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+pre {
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  background: var(--color-surface-variant);
+  padding: var(--spacing-4);
+  border-radius: 4px;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
+/* ---- Horizontal rule ---- */
+hr {
+  border: none;
+  border-top: 1px solid var(--color-outline-variant);
+  margin: var(--spacing-6) 0;
+}
+
+/* ---- Print tweaks ---- */
+@media print {
+  body {
+    max-width: none;
+    padding: 0;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  ul, ol, p {
+    orphans: 3;
+    widows: 3;
+  }
+}
