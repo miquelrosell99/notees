@@ -183,15 +183,8 @@ mark {
 
 sup { font-size: 0.75em; }
 
-a {
-  color: #5a79c9;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* Node links — faint dotted underline */
 a.node-link {
-  color: inherit;
   text-decoration: underline dotted;
   text-decoration-color: rgba(0, 0, 0, 0.3);
   text-underline-offset: 3px;
