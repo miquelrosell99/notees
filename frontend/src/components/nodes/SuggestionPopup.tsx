@@ -32,6 +32,7 @@ import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/n
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
@@ -140,15 +141,43 @@ export function SuggestionPopup({
     return aliasedNode ? (nodeNameToText(aliasedNode.name) || 'Unknown') : null;
   }, [allSearchNodes, allNodes]);
   
-  // Helper to get class names for a page node
-  const getClassNames = useCallback((node: Node): string[] => {
+  // Helper to build parent page path (e.g. "Root / Parent /") for a page node
+  const buildParentPath = useCallback((node: Node): string => {
+    if (!node.parent_id || !allPagesForDate) return '';
+    const segments: string[] = [];
+    let currentId: number | null = node.parent_id;
+    while (currentId !== null) {
+      const parent = allPagesForDate.find(p => p.id === currentId && p.is_page);
+      if (!parent) break;
+      segments.unshift(nodeNameToText(parent.name) || 'Untitled');
+      currentId = parent.parent_id ?? null;
+    }
+    if (segments.length === 0) return '';
+    const fullPath = segments.join(' / ') + ' /';
+    if (fullPath.length <= 36) return fullPath;
+    // Trim from left, dropping leading ancestors until it fits
+    const parts = [...segments];
+    while (parts.length > 1) {
+      parts.shift();
+      const candidate = '.../ ' + parts.join(' / ') + ' /';
+      if (candidate.length <= 36) return candidate;
+    }
+    const last = parts[0];
+    return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
+  }, [allPagesForDate]);
+
+  // Helper to get display classes for a node, excluding the system "page" class
+  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
     if (!node.classes || node.classes.length === 0) return [];
     return node.classes
       .map(classId => {
         const classNode = allClasses.find(c => c.id === classId);
-        return classNode ? nodeNameToText(classNode.name) || '' : '';
+        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        const name = nodeNameToText(classNode.name);
+        if (!name) return null;
+        return { id: classId, name };
       })
-      .filter(name => name !== '');
+      .filter((c): c is { id: number; name: string } => c !== null);
   }, [allClasses]);
   
   // Combined list for navigation (in multi-select mode, exclude already selected)
@@ -437,6 +466,8 @@ export function SuggestionPopup({
                 <div className="suggestion-popup__section-header">Selected</div>
                 {selectedNodes.map((node, index) => {
                   const globalIndex = selectedStartIndex + index;
+                  const parentPath = node.is_page ? buildParentPath(node) : '';
+                  const displayClasses = node.is_page ? getDisplayClasses(node) : [];
                   return (
                     <button
                       key={`selected-${node.id}`}
@@ -454,8 +485,16 @@ export function SuggestionPopup({
                         {renderItemIcon(node, node.is_page)}
                       </span>
                       <span className="suggestion-popup__item-name">
+                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
                         {nodeNameToText(node.name) || 'Untitled'}
                       </span>
+                      {displayClasses.length > 0 && (
+                        <span className="suggestion-popup__item-class-pills">
+                          {displayClasses.map(cls => (
+                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                          ))}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -471,7 +510,8 @@ export function SuggestionPopup({
                 {pageResults.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
                   const aliasedName = getAliasedNodeName(item.node);
-                  const classNames = getClassNames(item.node);
+                  const parentPath = item.node.is_page ? buildParentPath(item.node) : '';
+                  const displayClasses = item.node.is_page ? getDisplayClasses(item.node) : [];
                   return (
                     <button
                       key={`page-${item.node.id}`}
@@ -483,6 +523,7 @@ export function SuggestionPopup({
                         <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
                       </span>
                       <span className="suggestion-popup__item-name">
+                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
                         {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
                       {aliasedName && (
@@ -490,9 +531,11 @@ export function SuggestionPopup({
                           alias of: {aliasedName}
                         </span>
                       )}
-                      {classNames.length > 0 && (
-                        <span className="suggestion-popup__item-classes">
-                          {classNames.join(', ')}
+                      {displayClasses.length > 0 && (
+                        <span className="suggestion-popup__item-class-pills">
+                          {displayClasses.map(cls => (
+                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                          ))}
                         </span>
                       )}
                     </button>
@@ -562,6 +605,8 @@ export function SuggestionPopup({
                   const globalIndex = pageStartIndex + index;
                   const isChecked = multiSelect && selectedIds.has(item.node.id);
                   const aliasedName = getAliasedNodeName(item.node);
+                  const parentPath = item.node.is_page ? buildParentPath(item.node) : '';
+                  const displayClasses = item.node.is_page ? getDisplayClasses(item.node) : [];
                   return (
                     <button
                       key={`result-${item.node.id}`}
@@ -581,11 +626,19 @@ export function SuggestionPopup({
                         {renderItemIcon(item.node, item.node.is_page)}
                       </span>
                       <span className="suggestion-popup__item-name">
+                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
                         {nodeNameToText(item.node.name) || 'Untitled'}
                       </span>
                       {aliasedName && (
                         <span className="suggestion-popup__item-alias">
                           alias of: {aliasedName}
+                        </span>
+                      )}
+                      {displayClasses.length > 0 && (
+                        <span className="suggestion-popup__item-class-pills">
+                          {displayClasses.map(cls => (
+                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                          ))}
                         </span>
                       )}
                     </button>
