@@ -343,6 +343,46 @@ async def import_workspace(user_id: str, file_path: Path, name: str) -> Dict[str
     return await import_dump_to_new_workspace(user_id, dump_data, name)
 
 
+async def get_node_uuid_by_id(node_id: int, user_id: str) -> Optional[str]:
+    """Return the UUID string for a node given its numeric database ID.
+
+    Returns None if the node is not found in the user's workspace.
+    """
+    numeric_user_id = await _get_numeric_user_id(user_id)
+    if not numeric_user_id:
+        return None
+
+    workspace_name = _active_workspaces.get(user_id)
+
+    async with get_connection() as conn:
+        if workspace_name:
+            workspace = await conn.fetchrow(
+                """
+                SELECT g.id FROM workspace g
+                WHERE g.create_uid = $1 AND g.name = $2 AND g.active = TRUE
+                """,
+                numeric_user_id, workspace_name
+            )
+        else:
+            workspace = await conn.fetchrow(
+                """
+                SELECT g.id FROM workspace g
+                WHERE g.create_uid = $1 AND g.active = TRUE
+                ORDER BY g.create_date LIMIT 1
+                """,
+                numeric_user_id
+            )
+
+        if not workspace:
+            return None
+
+        row = await conn.fetchrow(
+            "SELECT uuid FROM node WHERE workspace_id = $1 AND id = $2",
+            workspace['id'], node_id
+        )
+        return str(row['uuid']) if row else None
+
+
 async def export_nodes(
     user_id: str,
     node_ids: List[str],
