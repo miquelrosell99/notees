@@ -62,6 +62,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     startElementPositions: new Map<string, Point>(),
     startElementBounds: null as Bounds | null,
     resizingElementId: null as string | null,
+    // Group resize (multi-select via selection card handles)
+    isGroupResize: false,
+    startSelectionBounds: null as Bounds | null,
+    startElementBoundsMap: new Map<string, Bounds>(),
     hasDragged: false,
     button: 0,
     pointerId: -1,
@@ -138,6 +142,37 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return null;
   }, [data.elements, canvasToScreen]);
 
+  // Hit-test resize handles on the group selection card (multi-select)
+  const hitTestSelectionCardHandle = useCallback((screenX: number, screenY: number): string | null => {
+    if (interaction.selectedIds.size < 2) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const el of data.elements) {
+      if (!interaction.selectedIds.has(el.id)) continue;
+      minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
+    }
+    const pad = 10 / viewport.zoom;
+    const tl = canvasToScreen(minX - pad, minY - pad);
+    const br = canvasToScreen(maxX + pad, maxY + pad);
+    const mx = (tl.x + br.x) / 2;
+    const my = (tl.y + br.y) / 2;
+    const handleSize = 12;
+    const handles = [
+      { id: 'nw', x: tl.x, y: tl.y },
+      { id: 'n',  x: mx,   y: tl.y },
+      { id: 'ne', x: br.x, y: tl.y },
+      { id: 'e',  x: br.x, y: my   },
+      { id: 'se', x: br.x, y: br.y },
+      { id: 's',  x: mx,   y: br.y },
+      { id: 'sw', x: tl.x, y: br.y },
+      { id: 'w',  x: tl.x, y: my   },
+    ];
+    for (const h of handles) {
+      if (Math.abs(screenX - h.x) < handleSize && Math.abs(screenY - h.y) < handleSize) return h.id;
+    }
+    return null;
+  }, [data.elements, interaction.selectedIds, canvasToScreen, viewport.zoom]);
+
   // ─── Pointer event handlers ───────────────────────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -196,24 +231,38 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Select tool
     if (tool === 'select') {
-      // Check resize handle for any selected element
-      let foundResizeHandle: string | null = null;
-      let foundResizeElementId: string | null = null;
-      for (const selId of interaction.selectedIds) {
-        const handle = hitTestResizeHandle(e.clientX, e.clientY, selId);
-        if (handle) {
-          foundResizeHandle = handle;
-          foundResizeElementId = selId;
-          break;
+      // Check selection-card handles first (multi-select group resize)
+      if (interaction.selectedIds.size > 1) {
+        const groupHandle = hitTestSelectionCardHandle(e.clientX, e.clientY);
+        if (groupHandle) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          const boundsMap = new Map<string, Bounds>();
+          for (const el of data.elements) {
+            if (!interaction.selectedIds.has(el.id)) continue;
+            minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
+            boundsMap.set(el.id, { x: el.x, y: el.y, width: el.width, height: el.height });
+          }
+          state.isGroupResize = true;
+          state.startSelectionBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+          state.startElementBoundsMap = boundsMap;
+          setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: groupHandle }));
+          return;
         }
       }
-      if (foundResizeHandle && foundResizeElementId) {
-        const el = data.elements.find(el => el.id === foundResizeElementId);
-        if (el) {
-          state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
-          state.resizingElementId = foundResizeElementId;
-          setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: foundResizeHandle }));
-          return;
+
+      // Check single-element resize handle (only when exactly 1 selected)
+      if (interaction.selectedIds.size === 1) {
+        const selectedId = [...interaction.selectedIds][0];
+        const handle = hitTestResizeHandle(e.clientX, e.clientY, selectedId);
+        if (handle) {
+          const el = data.elements.find(el => el.id === selectedId);
+          if (el) {
+            state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
+            state.resizingElementId = selectedId;
+            setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: handle }));
+            return;
+          }
         }
       }
 
@@ -283,7 +332,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // Card creation will be handled by the toolbar (create node + card element)
       return;
     }
-  }, [screenToCanvas, hitTest, hitTestResizeHandle, interaction, data.elements, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, hitTestResizeHandle, hitTestSelectionCardHandle, interaction, data.elements, wb, setInteraction]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const state = pointerState.current;
@@ -401,62 +450,66 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Resizing
     if (interaction.isResizing && interaction.resizeHandle) {
-      const selectedId = state.resizingElementId;
-      const startBounds = state.startElementBounds;
-      if (!selectedId || !startBounds) return;
-
+      const handle = interaction.resizeHandle;
       const canvasDx = canvasPos.x - state.startCanvasPos.x;
       const canvasDy = canvasPos.y - state.startCanvasPos.y;
       const isShift = e.shiftKey;
 
+      // ── Group resize (multi-select via selection card handles) ─────
+      if (state.isGroupResize && state.startSelectionBounds) {
+        const sb = state.startSelectionBounds;
+        let newSB = { ...sb };
+
+        if (isShift) {
+          const cx = sb.x + sb.width / 2;
+          const cy = sb.y + sb.height / 2;
+          if (handle.includes('n')) { newSB.height = Math.max(20, sb.height - 2 * canvasDy); newSB.y = cy - newSB.height / 2; }
+          if (handle.includes('s')) { newSB.height = Math.max(20, sb.height + 2 * canvasDy); newSB.y = cy - newSB.height / 2; }
+          if (handle.includes('w')) { newSB.width = Math.max(20, sb.width - 2 * canvasDx); newSB.x = cx - newSB.width / 2; }
+          if (handle.includes('e')) { newSB.width = Math.max(20, sb.width + 2 * canvasDx); newSB.x = cx - newSB.width / 2; }
+        } else {
+          if (handle.includes('n')) { newSB.y = sb.y + canvasDy; newSB.height = sb.height - canvasDy; }
+          if (handle.includes('s')) { newSB.height = sb.height + canvasDy; }
+          if (handle.includes('w')) { newSB.x = sb.x + canvasDx; newSB.width = sb.width - canvasDx; }
+          if (handle.includes('e')) { newSB.width = sb.width + canvasDx; }
+          if (newSB.width < 20) { if (handle.includes('w')) newSB.x = sb.x + sb.width - 20; newSB.width = 20; }
+          if (newSB.height < 20) { if (handle.includes('n')) newSB.y = sb.y + sb.height - 20; newSB.height = 20; }
+        }
+
+        const scaleX = sb.width > 0 ? newSB.width / sb.width : 1;
+        const scaleY = sb.height > 0 ? newSB.height / sb.height : 1;
+        for (const [id, eb] of state.startElementBoundsMap) {
+          wb.resizeElement(id, {
+            x: newSB.x + (eb.x - sb.x) * scaleX,
+            y: newSB.y + (eb.y - sb.y) * scaleY,
+            width: Math.max(10, eb.width * scaleX),
+            height: Math.max(10, eb.height * scaleY),
+          });
+        }
+        return;
+      }
+
+      // ── Single-element resize ─────────────────────────────────────
+      const selectedId = state.resizingElementId;
+      const startBounds = state.startElementBounds;
+      if (!selectedId || !startBounds) return;
+
       let newBounds = { ...startBounds };
-      const handle = interaction.resizeHandle;
 
       if (isShift) {
-        // Resize symmetrically from the element's center
         const cx = startBounds.x + startBounds.width / 2;
         const cy = startBounds.y + startBounds.height / 2;
-        if (handle.includes('n')) {
-          newBounds.height = Math.max(20, startBounds.height - 2 * canvasDy);
-          newBounds.y = cy - newBounds.height / 2;
-        }
-        if (handle.includes('s')) {
-          newBounds.height = Math.max(20, startBounds.height + 2 * canvasDy);
-          newBounds.y = cy - newBounds.height / 2;
-        }
-        if (handle.includes('w')) {
-          newBounds.width = Math.max(20, startBounds.width - 2 * canvasDx);
-          newBounds.x = cx - newBounds.width / 2;
-        }
-        if (handle.includes('e')) {
-          newBounds.width = Math.max(20, startBounds.width + 2 * canvasDx);
-          newBounds.x = cx - newBounds.width / 2;
-        }
+        if (handle.includes('n')) { newBounds.height = Math.max(20, startBounds.height - 2 * canvasDy); newBounds.y = cy - newBounds.height / 2; }
+        if (handle.includes('s')) { newBounds.height = Math.max(20, startBounds.height + 2 * canvasDy); newBounds.y = cy - newBounds.height / 2; }
+        if (handle.includes('w')) { newBounds.width = Math.max(20, startBounds.width - 2 * canvasDx); newBounds.x = cx - newBounds.width / 2; }
+        if (handle.includes('e')) { newBounds.width = Math.max(20, startBounds.width + 2 * canvasDx); newBounds.x = cx - newBounds.width / 2; }
       } else {
-        if (handle.includes('n')) {
-          newBounds.y = startBounds.y + canvasDy;
-          newBounds.height = startBounds.height - canvasDy;
-        }
-        if (handle.includes('s')) {
-          newBounds.height = startBounds.height + canvasDy;
-        }
-        if (handle.includes('w')) {
-          newBounds.x = startBounds.x + canvasDx;
-          newBounds.width = startBounds.width - canvasDx;
-        }
-        if (handle.includes('e')) {
-          newBounds.width = startBounds.width + canvasDx;
-        }
-
-        // Enforce minimum size
-        if (newBounds.width < 20) {
-          if (handle.includes('w')) newBounds.x = startBounds.x + startBounds.width - 20;
-          newBounds.width = 20;
-        }
-        if (newBounds.height < 20) {
-          if (handle.includes('n')) newBounds.y = startBounds.y + startBounds.height - 20;
-          newBounds.height = 20;
-        }
+        if (handle.includes('n')) { newBounds.y = startBounds.y + canvasDy; newBounds.height = startBounds.height - canvasDy; }
+        if (handle.includes('s')) { newBounds.height = startBounds.height + canvasDy; }
+        if (handle.includes('w')) { newBounds.x = startBounds.x + canvasDx; newBounds.width = startBounds.width - canvasDx; }
+        if (handle.includes('e')) { newBounds.width = startBounds.width + canvasDx; }
+        if (newBounds.width < 20) { if (handle.includes('w')) newBounds.x = startBounds.x + startBounds.width - 20; newBounds.width = 20; }
+        if (newBounds.height < 20) { if (handle.includes('n')) newBounds.y = startBounds.y + startBounds.height - 20; newBounds.height = 20; }
       }
 
       if (data.grid.snap) {
@@ -669,6 +722,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       setInteraction(prev => ({ ...prev, isResizing: false, resizeHandle: null }));
       state.startElementBounds = null;
       state.resizingElementId = null;
+      state.isGroupResize = false;
+      state.startSelectionBounds = null;
+      state.startElementBoundsMap.clear();
       return;
     }
   }, [screenToCanvas, hitTest, interaction, data.elements, wb, setInteraction]);
@@ -936,7 +992,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       'whiteboard-element',
       isSelected && interaction.selectedIds.size === 1 && 'whiteboard-element--selected',
       isHovered && 'whiteboard-element--hovered',
-      isHovered && 'whiteboard-element--hovered',
       el.locked && 'whiteboard-element--locked',
       interaction.isDragging && isSelected && 'whiteboard-element--dragging',
     ].filter(Boolean).join(' ');
@@ -1010,8 +1065,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           </div>
         )}
 
-        {/* Resize handles — for all selected, non-locked elements */}
-        {isSelected && !el.locked && (
+        {/* Resize handles — only for single-selected, non-locked elements */}
+        {isSelected && !el.locked && interaction.selectedIds.size === 1 && (
           <div className="whiteboard-element__resize-handles">
             {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
               <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
@@ -1221,7 +1276,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             width: selectionCardBounds.width,
             height: selectionCardBounds.height,
           }}
-        />
+        >
+          {interaction.selectedIds.size > 1 && (
+            <div className="whiteboard-element__resize-handles" style={{ inset: 0 }}>
+              {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
+                <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Selection box */}
