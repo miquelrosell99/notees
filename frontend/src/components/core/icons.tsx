@@ -383,11 +383,11 @@ export function getDefaultIcon(type: keyof typeof DEFAULT_ICONS): React.Componen
  * Note: Date pages (daily/monthly/yearly) inherit icons from their type definitions.
  */
 export function NodeIcon({ 
-  icon, 
+  icon: rawIcon, 
   isPage = true,
   size = 'sm',
   className,
-  color,
+  color: colorProp,
 }: { 
   icon?: string | null; 
   isPage?: boolean;
@@ -395,6 +395,28 @@ export function NodeIcon({
   className?: string;
   color?: string | null;
 }) {
+  // Parse JSON-encoded icon fields like {"icon":"mdi:...","color":"var(--color-preset-green)"}
+  let icon = rawIcon;
+  let parsedColor: string | undefined;
+  if (rawIcon) {
+    try {
+      const parsed = JSON.parse(rawIcon) as unknown;
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        typeof (parsed as Record<string, unknown>).icon === 'string'
+      ) {
+        const obj = parsed as { icon: string; color?: string };
+        icon = obj.icon;
+        parsedColor = obj.color || undefined;
+      }
+    } catch {
+      // Not JSON — use as plain string
+    }
+  }
+  // Explicit color prop overrides parsed color
+  const color = colorProp ?? parsedColor;
+
   // If icon is provided
   if (icon) {
     // Try to resolve it from @mdi/js (MDI icons start with mdi- or similar patterns)

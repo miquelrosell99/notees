@@ -286,19 +286,23 @@ const MDI_CATEGORIES: Record<string, string[]> = {
 
 type TabType = 'emojis' | 'symbols';
 
-/** Colour swatches available inside the picker */
-const ICON_COLOR_PALETTE: (string | null)[] = [
+/** Colour swatches derived from variables.css preset colours */
+interface PresetColor {
+  label: string;
+  /** CSS variable reference, e.g. 'var(--color-preset-red)' */
+  cssVar: string;
+}
+
+const ICON_COLOR_PALETTE: (PresetColor | null)[] = [
   null,
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899',
-  '#6b7280',
-  '#1f2937',
+  { label: 'Red',    cssVar: 'var(--color-preset-red)'    },
+  { label: 'Orange', cssVar: 'var(--color-preset-orange)' },
+  { label: 'Yellow', cssVar: 'var(--color-preset-yellow)' },
+  { label: 'Green',  cssVar: 'var(--color-preset-green)'  },
+  { label: 'Teal',   cssVar: 'var(--color-preset-teal)'   },
+  { label: 'Blue',   cssVar: 'var(--color-preset-blue)'   },
+  { label: 'Purple', cssVar: 'var(--color-preset-purple)' },
+  { label: 'Pink',   cssVar: 'var(--color-preset-pink)'   },
 ];
 
 interface EmojiPickerProps {
@@ -593,16 +597,16 @@ export function EmojiPicker({
         <div className="emoji-picker-color-section">
           <span className="emoji-picker-color-label">Colour</span>
           <div className="emoji-picker-color-swatches">
-            {ICON_COLOR_PALETTE.map((c) => (
+            {ICON_COLOR_PALETTE.map((preset) => (
               <button
-                key={c ?? 'none'}
-                className={`emoji-picker-color-swatch ${color === c ? 'selected' : ''} ${!c ? 'no-color' : ''}`}
-                style={c ? { backgroundColor: c } : undefined}
-                onClick={() => onColorChange?.(c)}
-                title={c ?? 'No colour'}
+                key={preset ? preset.cssVar : 'none'}
+                className={`emoji-picker-color-swatch ${color === (preset ? preset.cssVar : null) ? 'selected' : ''} ${!preset ? 'no-color' : ''}`}
+                style={preset ? { backgroundColor: preset.cssVar } : undefined}
+                onClick={() => onColorChange?.(preset ? preset.cssVar : null)}
+                title={preset ? preset.label : 'No colour'}
                 type="button"
               >
-                {!c && <span className="emoji-picker-color-none-line" />}
+                {!preset && <span className="emoji-picker-color-none-line" />}
               </button>
             ))}
           </div>
@@ -675,7 +679,7 @@ export function EmojiPickerTrigger({
     setIsOpen(false);
   }, [onSelect]);
   
-  // Render icon preview
+  // Render icon preview with optional colour applied to the icon itself
   const renderValue = () => {
     if (!value) {
       return <span className="emoji-trigger-placeholder">{placeholder}</span>;
@@ -684,11 +688,18 @@ export function EmojiPickerTrigger({
     // Try to resolve as an MDI icon (handles mdi-, mdi:, mdi_ prefixes and camelCase)
     const mdiPath = getMdiPath(value);
     if (mdiPath) {
-      return <Icon path={mdiPath} size={0.9} />;
+      return <Icon path={mdiPath} size={0.9} color={color || undefined} />;
     }
     
-    // It's an emoji or unknown — render as text
-    return <span className="emoji-trigger-emoji">{value}</span>;
+    // It's an emoji or unknown — render as text (colour via CSS)
+    return (
+      <span
+        className="emoji-trigger-emoji"
+        style={color ? { color } : undefined}
+      >
+        {value}
+      </span>
+    );
   };
   
   return (
@@ -698,15 +709,8 @@ export function EmojiPickerTrigger({
         className={`emoji-picker-trigger ${className} ${value ? 'has-value' : ''}`}
         onClick={handleClick}
         type="button"
-        style={color ? { '--trigger-color': color } as React.CSSProperties : undefined}
       >
         {renderValue()}
-        {useColor && color && (
-          <span
-            className="emoji-trigger-color-dot"
-            style={{ backgroundColor: color }}
-          />
-        )}
       </button>
       
       {isOpen && (
