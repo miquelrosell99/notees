@@ -16,6 +16,7 @@ import { QueryNodeCollection } from '@/components/nodes/QueryNodeCollection';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import { useAppStore } from '@/stores';
+import { useQueryBlock } from '@/hooks/useQueryBlock';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -34,10 +35,12 @@ interface QueryPreviewProps {
 
 /**
  * Renders a single query block's results using QueryNodeCollection.
+ * Reads the QueryAST from the node's `name` AST field (inline mode).
  */
 function QueryPreview({ blockId, serverId }: QueryPreviewProps): JSX.Element {
   const openNode = useAppStore(state => state.openNode);
   const openNodeInSidebar = useAppStore(state => state.openNodeInSidebar);
+  const { queryAST, saveQueryAST } = useQueryBlock(serverId);
 
   return (
     <QueryNodeCollection
@@ -54,6 +57,8 @@ function QueryPreview({ blockId, serverId }: QueryPreviewProps): JSX.Element {
       hideToolbar={false}
       hideViewManagement={false}
       showAddButton={false}
+      queryAST={queryAST}
+      onQueryASTChange={saveQueryAST}
     >
       {({ results, count, isLoading }) => {
         if (!isLoading && count === 0) return null;

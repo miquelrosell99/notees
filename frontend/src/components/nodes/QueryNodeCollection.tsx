@@ -182,7 +182,18 @@ export interface QueryNodeCollectionProps {
   can_edit?: boolean;
   /** Whether items can be deleted (default: true). Controls delete actions in context menus. */
   can_delete?: boolean;
-  
+
+  // ==================== Inline Mode Props ====================
+
+  /**
+   * When provided, bypasses the NodeView system entirely.
+   * The QueryAST is read directly from the node's `name` AST field (query block approach).
+   * Use together with `onQueryASTChange` for inline query blocks.
+   */
+  queryAST?: QueryAST;
+  /** Called when the user saves an edited query in inline mode. */
+  onQueryASTChange?: (ast: QueryAST) => void;
+
   /** Render prop - receives controls and results */
   children: (result: QueryNodeCollectionResult) => React.ReactNode;
 }
@@ -217,8 +228,12 @@ export function QueryNodeCollection({
   can_create = true,
   can_edit = true,
   can_delete = true,
+  queryAST: inlineQueryAST,
+  onQueryASTChange,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
+  // Inline mode: query AST comes from the node's name field, not a NodeView
+  const isInlineMode = inlineQueryAST !== undefined && onQueryASTChange !== undefined;
   // Compute effective capabilities
   // can_create controls both toolbar add button and card view add card
   const effectiveCanCreate = can_create && showAddButton;
@@ -280,9 +295,14 @@ export function QueryNodeCollection({
   // Check if this is a pseudo-node (nodeId <= 0, used for all_pages view)
   const isPseudoNode = nodeId <= 0;
 
-  // Ensure default views exist — uses microtask batching so all QuerySections
-  // that mount in the same render tick are merged into ONE API call per nodeId.
+  // In inline mode the AST comes directly from the node's name — no NodeViews needed.
+  // Ensure default views exist for normal mode — uses microtask batching so all
+  // QuerySections that mount in the same render tick are merged into ONE API call.
   useEffect(() => {
+    if (isInlineMode) {
+      setHasInitialized(true);
+      return;
+    }
     if (nodeId > 0) {
       batchEnsureDefaults(nodeId, viewType as string).then(
         () => setHasInitialized(true),
@@ -292,7 +312,7 @@ export function QueryNodeCollection({
       setHasInitialized(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId, viewType]);
+  }, [nodeId, viewType, isInlineMode]);
 
   const isInitializing = !hasInitialized;
 
@@ -302,14 +322,14 @@ export function QueryNodeCollection({
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
 
-  // Fetch views for this node and view type
+  // Fetch views for this node and view type (skipped in inline mode)
   const { 
     data: views = [], 
     isLoading: viewsLoading,
     refetch: refetchViews,
   } = useNodeViews(nodeId, { 
     viewType, 
-    enabled: nodeId > 0 && hasInitialized,
+    enabled: !isInlineMode && nodeId > 0 && hasInitialized,
   });
 
   // Mutations
@@ -324,13 +344,34 @@ export function QueryNodeCollection({
   const { data: allClasses = [] } = useClasses();
 
   // Determine active view
+  // In inline mode, create a synthetic view from the provided queryAST
+  const syntheticInlineView = useMemo((): NodeView | null => {
+    if (!isInlineMode) return null;
+    return {
+      id: -1,
+      uuid: '',
+      node_id: nodeId,
+      name: '',
+      view_type: viewType as string,
+      order_index: 0,
+      is_default: true,
+      active: true,
+      shown_properties: [],
+      group_by: null,
+      create_date: '',
+      write_date: '',
+      query_ast: inlineQueryAST,
+    };
+  }, [isInlineMode, nodeId, viewType, inlineQueryAST]);
+
   const activeView = useMemo(() => {
+    if (isInlineMode) return syntheticInlineView;
     if (activeViewId) {
       return views.find(v => v.id === activeViewId) ?? views[0] ?? null;
     }
     const defaultView = views.find(v => v.is_default);
     return defaultView ?? views[0] ?? null;
-  }, [views, activeViewId]);
+  }, [isInlineMode, syntheticInlineView, views, activeViewId]);
 
   // Count filter blocks for badge (excludes system query blocks)
   const filterBlockCount = useMemo(() => {
@@ -516,13 +557,37 @@ export function QueryNodeCollection({
     }
   );
 
+  // Execute ad-hoc query for inline mode
+  const {
+    data: inlineQueryResults,
+    isLoading: inlineQueryLoading,
+  } = useQuery_(
+    {
+      query_ast: inlineQueryAST,
+      runtime_params: {
+        current_node_uuid: nodeUuid,
+        current_node_id: nodeId,
+        current_node_name: nodeNameToText(nodeName),
+      },
+      include_children: collectionViewMode === 'card',
+      include_properties: true,
+    },
+    {
+      enabled: isInlineMode && !!inlineQueryAST,
+      queryKey: ['inline-query', nodeId, inlineQueryAST, collectionViewMode],
+    }
+  );
+
   const rawResults = viewType === 'linked_references' 
     ? [...linkedReferencesBlocks, ...linkedReferencesPages]
+    : isInlineMode ? (inlineQueryResults ?? [])
     : (isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []));
-  const activeAST = isPseudoNode ? pseudoNodeAST : activeView?.query_ast;
+  const activeAST = isInlineMode ? inlineQueryAST
+    : (isPseudoNode ? pseudoNodeAST : activeView?.query_ast);
   const resultNodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
   const isQueryLoading = viewType === 'linked_references' 
     ? linkedReferencesLoading 
+    : isInlineMode ? inlineQueryLoading
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
   // Virtualization: for large result sets (>500 nodes), render in windows
@@ -664,27 +729,32 @@ export function QueryNodeCollection({
     
     try {
       const normalizedAST = normalizeAST(editAST);
-      
-      await Promise.all([
-        updateQueryMutation.mutateAsync({
-          viewId: editingView.id,
-          queryAST: normalizedAST,
-        }),
-        editViewName !== editingView.name && updateViewMutation.mutateAsync({
-          viewId: editingView.id,
-          data: { name: editViewName },
-        }),
-      ].filter(Boolean));
+
+      if (isInlineMode) {
+        // Inline mode: write back to node name instead of NodeView
+        onQueryASTChange?.(normalizedAST);
+      } else {
+        await Promise.all([
+          updateQueryMutation.mutateAsync({
+            viewId: editingView.id,
+            queryAST: normalizedAST,
+          }),
+          editViewName !== editingView.name && updateViewMutation.mutateAsync({
+            viewId: editingView.id,
+            data: { name: editViewName },
+          }),
+        ].filter(Boolean));
+        refetchViews();
+      }
       
       setEditingView(null);
       setEditAST(null);
       setValidation(null);
       setEditViewName('');
-      refetchViews();
     } catch (error) {
       console.error('Failed to save view:', error);
     }
-  }, [editingView, editAST, editViewName, updateQueryMutation, updateViewMutation, refetchViews]);
+  }, [editingView, editAST, editViewName, isInlineMode, onQueryASTChange, updateQueryMutation, updateViewMutation, refetchViews]);
 
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
@@ -772,8 +842,8 @@ export function QueryNodeCollection({
     }
   }, [viewType, nodeId, pageClassId, createNodeMutation, onNodeClick, onBlockCreated]);
 
-  // Loading state - return empty result
-  if (viewsLoading || isInitializing) {
+  // Loading state - return empty result (inline mode is always initialized)
+  if (!isInlineMode && (viewsLoading || isInitializing)) {
     return children({
       controls: null,
       results: null,

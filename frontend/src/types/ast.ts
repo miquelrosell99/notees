@@ -120,6 +120,23 @@ export interface ASTWhiteboard {
   readonly data: import('./whiteboard').WhiteboardData;
 }
 
+/**
+ * Query block. Stores a QueryAST inline in the node's `name` field.
+ *
+ * A query node's `name` is:
+ *   `[
+ *     { type: 'paragraph', children: [{ type: 'text', text: 'Title' }] },
+ *     { type: 'query', data: { ...QueryAST } }
+ *   ]`
+ *
+ * The title is stored as a normal paragraph block (children approach).
+ * `data` holds the full QueryAST.
+ */
+export interface ASTQuery {
+  readonly type: 'query';
+  readonly data: import('./queryAST').QueryAST;
+}
+
 // ─── Union types ───────────────────────────────────────────────────
 
 /** Any node that can appear inside a paragraph or formatting mark. */
@@ -136,7 +153,7 @@ export type ASTInlineNode =
   | ASTExternalLink;
 
 /** Top-level node. A `name` column stores an array of these. */
-export type ASTBlockNode = ASTParagraph | ASTHeading | ASTWhiteboard;
+export type ASTBlockNode = ASTParagraph | ASTHeading | ASTWhiteboard | ASTQuery;
 
 /**
  * Returns true if the block node is a heading.
@@ -150,6 +167,13 @@ export function isHeadingBlock(node: ASTBlockNode): node is ASTHeading {
  */
 export function isWhiteboardBlock(node: ASTBlockNode): node is ASTWhiteboard {
   return node.type === 'whiteboard';
+}
+
+/**
+ * Returns true if the block node is a query.
+ */
+export function isQueryBlock(node: ASTBlockNode): node is ASTQuery {
+  return node.type === 'query';
 }
 
 /**
