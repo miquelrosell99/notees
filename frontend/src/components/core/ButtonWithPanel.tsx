@@ -21,63 +21,30 @@ export type PanelPosition = 'left' | 'right' | 'top' | 'bottom';
 export type PanelAlignment = 'start' | 'center' | 'end';
 
 export interface ButtonWithPanelProps {
-  /** MDI icon path for the button */
   icon?: string;
-  /** Button text (optional) */
   buttonText?: string;
-  /** Visual variant of the button */
   variant?: ButtonVariant;
-  /** Size of the button */
   size?: ButtonSize;
-  /** Where the panel appears relative to the button */
   panelPosition?: PanelPosition;
-  /** Alignment of the panel along the edge */
   panelAlignment?: PanelAlignment;
-  /** Custom panel width */
   panelWidth?: number | string;
-  /** Custom panel max-height */
   panelMaxHeight?: number | string;
-  /** Whether the panel is open (controlled mode) */
   open?: boolean;
-  /** Callback when panel open state changes */
   onOpenChange?: (open: boolean) => void;
-  /** Close panel when clicking outside */
   closeOnClickOutside?: boolean;
-  /** Close panel when pressing Escape */
   closeOnEscape?: boolean;
-  /** Panel title (shows header) */
   title?: string;
-  /** Show close button in header */
   showCloseButton?: boolean;
-  /** Button className */
   buttonClassName?: string;
-  /** Panel className */
   panelClassName?: string;
-  /** Container className */
   className?: string;
-  /** Tooltip for the button */
   tooltip?: string;
-  /** Whether the button is disabled */
   disabled?: boolean;
-  /** Panel content - can be ReactNode or render function that receives closePanel */
   children?: ReactNode | ((closePanel: () => void) => ReactNode);
-  /** Additional button props */
   buttonProps?: Partial<ButtonProps>;
-  /** Custom trigger element - replaces the default Button when provided */
   customTrigger?: ReactNode;
-  /** Render panel in a portal to escape overflow containers */
   usePortal?: boolean;
-  /**
-   * When true, the left-click activates `onActivate` (does NOT open the panel),
-   * and a right-click (context-menu) opens the panel instead.
-   */
-  openPanelOnRightClick?: boolean;
-  /**
-   * Called on left-click when `openPanelOnRightClick` is true.
-   * In this mode the panel is only opened via right-click.
-   */
   onActivate?: () => void;
-  /** Whether the button appears in an active/pressed state (e.g. the tool is selected) */
   active?: boolean;
 }
 
@@ -105,7 +72,7 @@ export function ButtonWithPanel({
   buttonProps = {},
   customTrigger,
   usePortal = false,
-  openPanelOnRightClick = false,
+  // openPanelOnRightClick = false, // removed
   onActivate,
   active: activeProp = false,
 }: ButtonWithPanelProps) {
@@ -330,14 +297,13 @@ export function ButtonWithPanel({
           ref={buttonRef}
           variant={variant}
           size={size}
-          active={openPanelOnRightClick ? (activeProp || isOpen) : isOpen}
+          active={isOpen}
           className={buttonClassName}
-          title={openPanelOnRightClick ? (tooltip ? `${tooltip} (right-click for options)` : 'Right-click for options') : tooltip}
+          title={tooltip}
           disabled={disabled}
           {...buttonProps}
           icon={buttonProps.icon ?? icon}
-          onClick={openPanelOnRightClick ? (disabled ? undefined : onActivate) : togglePanel}
-          onContextMenu={openPanelOnRightClick ? (e) => { e.preventDefault(); if (!disabled) togglePanel(); } : undefined}
+          onClick={disabled ? undefined : (onActivate ? onActivate : togglePanel)}
         >
           {buttonText}
         </Button>
