@@ -73,6 +73,37 @@ function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
 }
 
 /**
+ * In a flat block list (all BlockNodes are siblings in the DOM),
+ * collect the IDs of a block's descendants by walking forward from
+ * the block until we hit a sibling at the same or lesser depth.
+ */
+function collectDragSubtreeIds(
+  rootEl: HTMLElement,
+  dragBlockId: string,
+): Set<string> {
+  const ids = new Set<string>([dragBlockId]);
+  const allBlocks = Array.from(
+    rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]'),
+  );
+  let foundSource = false;
+  let sourceDepth = -1;
+  for (const el of allBlocks) {
+    const id = el.getAttribute('data-block-id')!;
+    if (id === dragBlockId) {
+      foundSource = true;
+      sourceDepth = parseInt(el.getAttribute('data-depth') || '0', 10);
+      continue;
+    }
+    if (foundSource) {
+      const d = parseInt(el.getAttribute('data-depth') || '0', 10);
+      if (d <= sourceDepth) break; // no longer a descendant
+      ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Get the bullet center X for a given block element.
  * Falls back to the block's left edge if no bullet found.
  */
@@ -107,20 +138,15 @@ function getBulletCenterX(blockEl: HTMLElement): number {
  */
 function computeDropAnchors(
   rootEl: HTMLElement,
-  dragBlockId: string,
+  excludedIds: Set<string>,
   editorId: string,
 ): DropAnchor[] {
-  const dragBlockEl = rootEl.querySelector(
-    `.node-block[data-block-id="${dragBlockId}"]`,
-  );
-
   // Collect all visible blocks in DOM order, excluding the drag source subtree
   const allBlockEls = Array.from(
     rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]'),
   ).filter((el) => {
-    if (el === dragBlockEl) return false;
-    if (dragBlockEl && dragBlockEl.contains(el)) return false;
-    return true;
+    const id = el.getAttribute('data-block-id');
+    return id ? !excludedIds.has(id) : true;
   });
 
   if (allBlockEls.length === 0) return [];
@@ -304,6 +330,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const autoScrollRafRef = useRef<number | null>(null);
   /** The scrollable container (.main-content) */
   const scrollContainerRef = useRef<HTMLElement | null>(null);
+  /** IDs of the dragged block + all its descendants (excluded from drop targets) */
+  const excludedIdsRef = useRef<Set<string>>(new Set());
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -348,14 +376,14 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     if (!rootEl) return;
 
     // ── Recompute anchors from all editors on the page ───────
-    function recomputeAnchors(dragBlockId: string) {
+    function recomputeAnchors() {
       const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
       let allAnchors: DropAnchor[] = [];
       editorRoots.forEach((root) => {
         const rootEditorId =
           root.closest('[data-editor-id]')?.getAttribute('data-editor-id') || editorId;
         allAnchors = allAnchors.concat(
-          computeDropAnchors(root, dragBlockId, rootEditorId),
+          computeDropAnchors(root, excludedIdsRef.current, rootEditorId),
         );
       });
       anchorsRef.current = allAnchors;
@@ -430,7 +458,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         if (scrollDelta !== 0) {
           container.scrollTop += scrollDelta;
           // Anchors shifted — recompute and re-snap
-          recomputeAnchors(state.blockId);
+          recomputeAnchors();
           updateGhostPosition(lastMouseRef.current.x, lastMouseRef.current.y);
         }
 
@@ -450,7 +478,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     function handleScroll() {
       const state = dragStateRef.current;
       if (!state?.active) return;
-      recomputeAnchors(state.blockId);
+      recomputeAnchors();
       updateGhostPosition(lastMouseRef.current.x, lastMouseRef.current.y);
     }
 
@@ -514,10 +542,18 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
         // Find the scrollable container
         scrollContainerRef.current = findScrollableAncestor(rootEl);
-        console.debug('[DragDrop] scroll container:', scrollContainerRef.current?.tagName, scrollContainerRef.current?.className);
 
-        // Compute initial anchors
-        recomputeAnchors(state.blockId);
+        // Collect the dragged block + all its descendants (flat DOM walk)
+        const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+        let subtreeIds = new Set<string>();
+        editorRoots.forEach((root) => {
+          const ids = collectDragSubtreeIds(root, state.blockId);
+          ids.forEach((id) => subtreeIds.add(id));
+        });
+        excludedIdsRef.current = subtreeIds;
+
+        // Compute initial anchors (uses excludedIdsRef)
+        recomputeAnchors();
 
         // Build ghost
         const ghost = ghostRef.current!;
@@ -527,7 +563,11 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ghost.style.display = 'flex';
         positionGhostFloat(ghost, e.clientX, e.clientY);
 
-        state.blockEl.classList.add('node-block--drag-source');
+        // Dim the entire dragged subtree
+        subtreeIds.forEach((id) => {
+          const el = document.querySelector(`.node-block[data-block-id="${id}"]`);
+          el?.classList.add('node-block--drag-source');
+        });
         document.body.classList.add('notees-dragging-block');
 
         // Start listening for scroll events
@@ -580,7 +620,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ghost.style.width = '';
         ghost.className = 'block-drag-ghost';
       }
-      state.blockEl.classList.remove('node-block--drag-source');
+      // Remove dim class from entire dragged subtree
+      excludedIdsRef.current.forEach((id) => {
+        const el = document.querySelector(`.node-block[data-block-id="${id}"]`);
+        el?.classList.remove('node-block--drag-source');
+      });
+      excludedIdsRef.current = new Set();
       document.body.classList.remove('notees-dragging-block');
       anchorsRef.current = [];
       activeAnchorRef.current = null;
