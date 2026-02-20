@@ -460,6 +460,9 @@ export function QueryNodeCollection({
     const blocks: Node[] = [];
     const pages: Node[] = [];
     const propRefItems: PropertyRefItem[] = [];
+    // In card/non-list view, deduplicate property-referencing pages by ID so each source
+    // page appears once even if multiple blocks on it have a property pointing to this node.
+    const seenPropertyPageIds = new Set<number>();
     
     for (const ref of linkedReferencesData) {
       // Check if link has property context (direct property link or text link in text property)
@@ -482,6 +485,30 @@ export function QueryNodeCollection({
         continue;
       }
       
+      // In card/non-list view, property-context links (direct property links or text links inside
+      // a text property) show as PAGE cards rather than individual block cards. The whole source
+      // page is the meaningful unit ("a card for the entire page when the link comes from a
+      // property"), and multiple refs from the same page are deduplicated into one card.
+      if (!isListView && isPropertyContext) {
+        const pageNode = ref.source_node.is_page
+          ? ref.source_node
+          : ref.source_page ?? ref.source_node;
+        if (seenPropertyPageIds.has(pageNode.id)) continue;
+        seenPropertyPageIds.add(pageNode.id);
+        const node = {
+          ...pageNode,
+          _linkedRefMetadata: {
+            linkType: ref.link_type,
+            propertyId: ref.property_id,
+            propertyName: ref.property_name,
+            targetNodeId: nodeId,
+            sourceNodeId: ref.source_node.id,
+          },
+        } as Node;
+        blocks.push(applyCollapseLevelToChildren(node, linkedRefsCollapseLevel, 0));
+        continue;
+      }
+
       // Show page collapsed only when:
       // 1. It's a property-context link AND
       // 2. The source_node is a page (meaning the property is on the page, not on a block)
@@ -493,7 +520,7 @@ export function QueryNodeCollection({
       
       const shouldCollapse = isListView && showPageCollapsed;
       
-      // For non-page-collapsed cases, add page info for breadcrumbs
+      // For non-page-collapsed cases, add page info for breadcrumbs / kanban grouping
       const pageInfo = (!showPageCollapsed && ref.source_page) ? {
         page_id: ref.source_page.id,
         page_name: ref.source_page.name,
