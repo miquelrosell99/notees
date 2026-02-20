@@ -61,6 +61,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     startCanvasPos: { x: 0, y: 0 } as Point,
     startElementPositions: new Map<string, Point>(),
     startElementBounds: null as Bounds | null,
+    resizingElementId: null as string | null,
     hasDragged: false,
     button: 0,
     pointerId: -1,
@@ -195,17 +196,24 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Select tool
     if (tool === 'select') {
-      // Check resize handle first
-      if (interaction.selectedIds.size === 1) {
-        const selectedId = [...interaction.selectedIds][0];
-        const handle = hitTestResizeHandle(e.clientX, e.clientY, selectedId);
+      // Check resize handle for any selected element
+      let foundResizeHandle: string | null = null;
+      let foundResizeElementId: string | null = null;
+      for (const selId of interaction.selectedIds) {
+        const handle = hitTestResizeHandle(e.clientX, e.clientY, selId);
         if (handle) {
-          const el = data.elements.find(el => el.id === selectedId);
-          if (el) {
-            state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
-            setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: handle }));
-            return;
-          }
+          foundResizeHandle = handle;
+          foundResizeElementId = selId;
+          break;
+        }
+      }
+      if (foundResizeHandle && foundResizeElementId) {
+        const el = data.elements.find(el => el.id === foundResizeElementId);
+        if (el) {
+          state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
+          state.resizingElementId = foundResizeElementId;
+          setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: foundResizeHandle }));
+          return;
         }
       }
 
@@ -393,39 +401,62 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Resizing
     if (interaction.isResizing && interaction.resizeHandle) {
-      const selectedId = [...interaction.selectedIds][0];
+      const selectedId = state.resizingElementId;
       const startBounds = state.startElementBounds;
       if (!selectedId || !startBounds) return;
 
       const canvasDx = canvasPos.x - state.startCanvasPos.x;
       const canvasDy = canvasPos.y - state.startCanvasPos.y;
+      const isShift = e.shiftKey;
 
       let newBounds = { ...startBounds };
       const handle = interaction.resizeHandle;
 
-      if (handle.includes('n')) {
-        newBounds.y = startBounds.y + canvasDy;
-        newBounds.height = startBounds.height - canvasDy;
-      }
-      if (handle.includes('s')) {
-        newBounds.height = startBounds.height + canvasDy;
-      }
-      if (handle.includes('w')) {
-        newBounds.x = startBounds.x + canvasDx;
-        newBounds.width = startBounds.width - canvasDx;
-      }
-      if (handle.includes('e')) {
-        newBounds.width = startBounds.width + canvasDx;
-      }
+      if (isShift) {
+        // Resize symmetrically from the element's center
+        const cx = startBounds.x + startBounds.width / 2;
+        const cy = startBounds.y + startBounds.height / 2;
+        if (handle.includes('n')) {
+          newBounds.height = Math.max(20, startBounds.height - 2 * canvasDy);
+          newBounds.y = cy - newBounds.height / 2;
+        }
+        if (handle.includes('s')) {
+          newBounds.height = Math.max(20, startBounds.height + 2 * canvasDy);
+          newBounds.y = cy - newBounds.height / 2;
+        }
+        if (handle.includes('w')) {
+          newBounds.width = Math.max(20, startBounds.width - 2 * canvasDx);
+          newBounds.x = cx - newBounds.width / 2;
+        }
+        if (handle.includes('e')) {
+          newBounds.width = Math.max(20, startBounds.width + 2 * canvasDx);
+          newBounds.x = cx - newBounds.width / 2;
+        }
+      } else {
+        if (handle.includes('n')) {
+          newBounds.y = startBounds.y + canvasDy;
+          newBounds.height = startBounds.height - canvasDy;
+        }
+        if (handle.includes('s')) {
+          newBounds.height = startBounds.height + canvasDy;
+        }
+        if (handle.includes('w')) {
+          newBounds.x = startBounds.x + canvasDx;
+          newBounds.width = startBounds.width - canvasDx;
+        }
+        if (handle.includes('e')) {
+          newBounds.width = startBounds.width + canvasDx;
+        }
 
-      // Enforce minimum size
-      if (newBounds.width < 20) {
-        if (handle.includes('w')) newBounds.x = startBounds.x + startBounds.width - 20;
-        newBounds.width = 20;
-      }
-      if (newBounds.height < 20) {
-        if (handle.includes('n')) newBounds.y = startBounds.y + startBounds.height - 20;
-        newBounds.height = 20;
+        // Enforce minimum size
+        if (newBounds.width < 20) {
+          if (handle.includes('w')) newBounds.x = startBounds.x + startBounds.width - 20;
+          newBounds.width = 20;
+        }
+        if (newBounds.height < 20) {
+          if (handle.includes('n')) newBounds.y = startBounds.y + startBounds.height - 20;
+          newBounds.height = 20;
+        }
       }
 
       if (data.grid.snap) {
@@ -637,6 +668,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (interaction.isResizing) {
       setInteraction(prev => ({ ...prev, isResizing: false, resizeHandle: null }));
       state.startElementBounds = null;
+      state.resizingElementId = null;
       return;
     }
   }, [screenToCanvas, hitTest, interaction, data.elements, wb, setInteraction]);
@@ -978,8 +1010,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           </div>
         )}
 
-        {/* Resize handles — only for single-selected, non-locked elements */}
-        {isSelected && !el.locked && interaction.selectedIds.size === 1 && (
+        {/* Resize handles — for all selected, non-locked elements */}
+        {isSelected && !el.locked && (
           <div className="whiteboard-element__resize-handles">
             {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
               <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
