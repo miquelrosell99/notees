@@ -42,6 +42,18 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
     runtime.upsertNodes(graphNodes);
   }, [node]);
 
+  // Stop pointer events from reaching the whiteboard canvas ONLY when the
+  // click target is an interactive element (button, input, select, textarea,
+  // or anything with data-interactive). Plain empty-space clicks propagate
+  // normally so the whiteboard can still select/drag the card element.
+  // Must be declared before any early returns to satisfy the Rules of Hooks.
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a, [role="button"], [data-interactive]')) {
+      e.stopPropagation();
+    }
+  }, []);
+
   if (!node) {
     return (
       <div className="whiteboard-card">
@@ -49,17 +61,6 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
       </div>
     );
   }
-
-  // Stop pointer events from reaching the whiteboard canvas ONLY when the
-  // click target is an interactive element (button, input, select, textarea,
-  // or anything with data-interactive). Plain empty-space clicks propagate
-  // normally so the whiteboard can still select/drag the card element.
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('button, input, select, textarea, a, [role="button"], [data-interactive]')) {
-      e.stopPropagation();
-    }
-  }, []);
 
   return (
     // Counter-scale: render at the logical canvas size, then apply zoom via CSS
