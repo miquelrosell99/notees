@@ -138,6 +138,33 @@ function isPointInShapePath(canvasPoint: Point, el: WhiteboardShapeElement): boo
   return false;
 }
 
+/**
+ * Given a canvas point near an element, returns the nearest border side.
+ * Normalizes by element dimensions so aspect ratio doesn't bias the result.
+ */
+function getElementAnchor(canvasPoint: Point, el: { x: number; y: number; width: number; height: number }): 'top' | 'right' | 'bottom' | 'left' {
+  const cx = el.x + el.width / 2;
+  const cy = el.y + el.height / 2;
+  const dx = canvasPoint.x - cx;
+  const dy = canvasPoint.y - cy;
+  const nx = el.width > 0 ? dx / (el.width / 2) : dx;
+  const ny = el.height > 0 ? dy / (el.height / 2) : dy;
+  if (Math.abs(nx) >= Math.abs(ny)) return nx >= 0 ? 'right' : 'left';
+  return ny >= 0 ? 'bottom' : 'top';
+}
+
+/**
+ * Returns the canvas coordinates of a named border anchor on an element.
+ */
+function getElementAnchorPos(el: { x: number; y: number; width: number; height: number }, anchor: 'top' | 'right' | 'bottom' | 'left'): Point {
+  switch (anchor) {
+    case 'top':    return { x: el.x + el.width / 2, y: el.y };
+    case 'right':  return { x: el.x + el.width, y: el.y + el.height / 2 };
+    case 'bottom': return { x: el.x + el.width / 2, y: el.y + el.height };
+    case 'left':   return { x: el.x, y: el.y + el.height / 2 };
+  }
+}
+
 export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   wb,
   onContextMenu,
@@ -148,6 +175,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   const currentStrokeRef = useRef<{ x: number; y: number; pressure: number; timestamp?: number }[]>([]);
   const livePathRef = useRef<SVGPathElement>(null);
   const liveLineRef = useRef<SVGLineElement>(null);
+  // Imperative connector drawing refs
+  const liveConnectorRef = useRef<SVGLineElement>(null);
+  const connectorHoverCircleRef = useRef<SVGCircleElement>(null);
   const rafRef = useRef<number>(0);
   const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as const });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -339,12 +369,28 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // Connector tool
     if (tool === 'connector') {
       const hitElement = hitTest(canvasPos);
+      // Hide hover circle while dragging
+      if (connectorHoverCircleRef.current) connectorHoverCircleRef.current.setAttribute('r', '0');
       if (hitElement) {
+        const anchor = getElementAnchor(canvasPos, hitElement);
+        const anchorPos = getElementAnchorPos(hitElement, anchor);
+        if (liveConnectorRef.current) {
+          liveConnectorRef.current.setAttribute('x1', String(anchorPos.x));
+          liveConnectorRef.current.setAttribute('y1', String(anchorPos.y));
+          liveConnectorRef.current.setAttribute('x2', String(anchorPos.x));
+          liveConnectorRef.current.setAttribute('y2', String(anchorPos.y));
+        }
         setInteraction(prev => ({
           ...prev,
-          connectorStart: { type: 'element', elementId: hitElement.id, anchor: 'center' },
+          connectorStart: { type: 'element', elementId: hitElement.id, anchor },
         }));
       } else {
+        if (liveConnectorRef.current) {
+          liveConnectorRef.current.setAttribute('x1', String(canvasPos.x));
+          liveConnectorRef.current.setAttribute('y1', String(canvasPos.y));
+          liveConnectorRef.current.setAttribute('x2', String(canvasPos.x));
+          liveConnectorRef.current.setAttribute('y2', String(canvasPos.y));
+        }
         setInteraction(prev => ({
           ...prev,
           connectorStart: { type: 'point', x: canvasPos.x, y: canvasPos.y },
@@ -458,6 +504,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         ...prev,
         hoveredId: hitElement?.id ?? null,
       }));
+      // Connector tool: show which anchor side will be used on hover
+      if (interaction.tool === 'connector' && !interaction.connectorStart) {
+        if (hitElement) {
+          const anchor = getElementAnchor(canvasPos, hitElement);
+          const pos = getElementAnchorPos(hitElement, anchor);
+          if (connectorHoverCircleRef.current) {
+            connectorHoverCircleRef.current.setAttribute('cx', String(pos.x));
+            connectorHoverCircleRef.current.setAttribute('cy', String(pos.y));
+            connectorHoverCircleRef.current.setAttribute('r', '5');
+          }
+        } else if (connectorHoverCircleRef.current) {
+          connectorHoverCircleRef.current.setAttribute('r', '0');
+        }
+      }
       return;
     }
 
@@ -743,6 +803,29 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       }
       return;
     }
+
+    // Connector creation drag — imperatively track endpoint
+    if (interaction.connectorStart && state.isDown) {
+      const startElId = interaction.connectorStart.type === 'element' ? interaction.connectorStart.elementId : null;
+      const hitElement = hitTest(canvasPos);
+      let ex = canvasPos.x, ey = canvasPos.y;
+      if (hitElement && hitElement.id !== startElId) {
+        const anchor = getElementAnchor(canvasPos, hitElement);
+        const pos = getElementAnchorPos(hitElement, anchor);
+        ex = pos.x; ey = pos.y;
+        if (connectorHoverCircleRef.current) {
+          connectorHoverCircleRef.current.setAttribute('cx', String(pos.x));
+          connectorHoverCircleRef.current.setAttribute('cy', String(pos.y));
+          connectorHoverCircleRef.current.setAttribute('r', '5');
+        }
+      } else if (connectorHoverCircleRef.current) {
+        connectorHoverCircleRef.current.setAttribute('r', '0');
+      }
+      if (liveConnectorRef.current) {
+        liveConnectorRef.current.setAttribute('x2', String(ex));
+        liveConnectorRef.current.setAttribute('y2', String(ey));
+      }
+    }
   }, [screenToCanvas, hitTest, interaction, viewport, data, wb, setInteraction]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -799,10 +882,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // End connector creation
     if (interaction.connectorStart) {
+      // Clear live connector line and hover circle
+      if (liveConnectorRef.current) {
+        liveConnectorRef.current.setAttribute('x1', '0');
+        liveConnectorRef.current.setAttribute('y1', '0');
+        liveConnectorRef.current.setAttribute('x2', '0');
+        liveConnectorRef.current.setAttribute('y2', '0');
+      }
+      if (connectorHoverCircleRef.current) connectorHoverCircleRef.current.setAttribute('r', '0');
       const hitElement = hitTest(canvasPos);
       let end: ConnectorEndpoint;
       if (hitElement) {
-        end = { type: 'element', elementId: hitElement.id, anchor: 'center' };
+        const anchor = getElementAnchor(canvasPos, hitElement);
+        end = { type: 'element', elementId: hitElement.id, anchor };
       } else {
         // Shift: snap angle to H/V/45° from start
         let endX = canvasPos.x;
@@ -1409,18 +1501,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               </g>
             );
           })}
-          {/* Connector being created */}
-          {interaction.connectorStart && (
-            <line
-              x1={interaction.connectorStart.type === 'point' ? interaction.connectorStart.x : 0}
-              y1={interaction.connectorStart.type === 'point' ? interaction.connectorStart.y : 0}
-              x2={pointerState.current.isDown ? screenToCanvas(pointerState.current.startScreenPos.x, pointerState.current.startScreenPos.y).x : 0}
-              y2={pointerState.current.isDown ? screenToCanvas(pointerState.current.startScreenPos.x, pointerState.current.startScreenPos.y).y : 0}
-              stroke="var(--accent-primary)"
-              strokeWidth="2"
-              strokeDasharray="5 3"
-            />
-          )}
+          {/* Connector being created — rendered imperatively via liveConnectorRef above */}
         </g>
       </svg>
     );
@@ -1456,6 +1537,22 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             ref={liveLineRef}
             x1="0" y1="0" x2="0" y2="0"
             strokeLinecap="round"
+          />
+          {/* Live connector line during creation — updated imperatively */}
+          <line
+            ref={liveConnectorRef}
+            x1="0" y1="0" x2="0" y2="0"
+            stroke="var(--accent-primary)"
+            strokeWidth="2"
+            strokeDasharray="5 3"
+            strokeLinecap="round"
+          />
+          {/* Connector anchor hover indicator — updated imperatively */}
+          <circle
+            ref={connectorHoverCircleRef}
+            cx="0" cy="0" r="0"
+            fill="var(--accent-primary)"
+            opacity="0.85"
           />
         </g>
       </svg>

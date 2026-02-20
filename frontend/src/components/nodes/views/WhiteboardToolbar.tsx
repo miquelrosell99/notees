@@ -42,7 +42,7 @@ import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { ColorButton, type ColorEntry } from '@/components/core/ColorButton';
 import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
 import { Slider } from '@/components/core/Slider';
-import type { WhiteboardTool, PenSettings, EraserSettings, ShapeSettings } from '@/types/whiteboard';
+import type { WhiteboardTool, PenSettings, EraserSettings, ShapeSettings, WhiteboardConnectorElement, StrokeStyle } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import './WhiteboardView.css';
@@ -619,6 +619,12 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
   const selectedElements = wb.data.elements.filter(el => selectedIds.includes(el.id));
   const anyLocked = selectedElements.some(el => el.locked);
 
+  // Connector-specific: stroke style control
+  const selectedConnectors = selectedElements.filter(el => el.type === 'connector') as WhiteboardConnectorElement[];
+  const hasConnectors = selectedConnectors.length > 0;
+  const connectorStrokeStyle: StrokeStyle =
+    selectedConnectors.length === 1 ? selectedConnectors[0].strokeStyle : 'solid';
+
   return (
     <FloatingButtonArray direction="horizontal" size="sm">
       <Button
@@ -653,6 +659,22 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         onClick={() => wb.sendToBack(selectedIds)}
         title="Send to Back ([)"
       />
+      {/* Connector stroke style — shown when connector(s) are selected */}
+      {hasConnectors && (
+        <>
+          <ToolbarDivider />
+          <SelectionButton
+            options={STROKE_STYLE_OPTIONS}
+            value={connectorStrokeStyle}
+            onChange={(v) => {
+              for (const conn of selectedConnectors) {
+                wb.updateElement(conn.id, { strokeStyle: v as StrokeStyle });
+              }
+            }}
+            size="sm"
+          />
+        </>
+      )}
       <ToolbarDivider />
       <Button
         icon={mdiDeleteOutline}
