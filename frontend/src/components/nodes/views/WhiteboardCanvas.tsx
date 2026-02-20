@@ -927,7 +927,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       width: el.width * viewport.zoom,
       height: el.height * viewport.zoom,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-      opacity: dimmed ? el.opacity * 0.35 : el.opacity,
+      opacity: isSelected ? 1 : dimmed ? el.opacity * 0.35 : el.opacity,
       transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)',
       zIndex: el.zIndex,
     };

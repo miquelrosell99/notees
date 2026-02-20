@@ -126,7 +126,7 @@ function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): st
 
 export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected, dimmed }) => {
   const { points, color, strokeWidth, opacity, tool } = element;
-  const effectiveOpacity = dimmed ? opacity * 0.35 : opacity;
+  const effectiveOpacity = dimmed ? opacity * 0.35 : isSelected ? 1 : opacity;
   const offsetX = isAbsolute ? 0 : element.x;
   const offsetY = isAbsolute ? 0 : element.y;
 
