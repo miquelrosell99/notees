@@ -826,62 +826,61 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
-    // End line creation
-    if (interaction.isDragging && interaction.tool === 'line' && interaction.dragStart) {
-      if (liveLineRef.current) {
-        liveLineRef.current.setAttribute('x1', '0');
-        liveLineRef.current.setAttribute('y1', '0');
-        liveLineRef.current.setAttribute('x2', '0');
-        liveLineRef.current.setAttribute('y2', '0');
-      }
-      const start = interaction.dragStart;
-      let endX = canvasPos.x, endY = canvasPos.y;
-      if (e.shiftKey || pointerState.current.shiftHeld) {
-        const rawDx = endX - start.x, rawDy = endY - start.y;
-        const angle = Math.atan2(rawDy, rawDx);
-        const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-        const dist = Math.sqrt(rawDx ** 2 + rawDy ** 2);
-        endX = start.x + dist * Math.cos(snapped);
-        endY = start.y + dist * Math.sin(snapped);
-      }
-      if (Math.abs(endX - start.x) > 5 || Math.abs(endY - start.y) > 5) {
-        const line = wb.createLine(start, { x: endX, y: endY });
-        wb.addElement(line);
-        wb.selectElements([line.id]);
-        wb.setTool('select');
-      }
-      pointerState.current.shiftHeld = false;
-      setInteraction(prev => ({ ...prev, isDragging: false, dragStart: null }));
-      return;
-    }
-
-    // End shape creation
-    if (interaction.isDragging && interaction.dragStart && interaction.selectionBox) {
+    // End drag-to-create (lines and shapes share the same interaction pattern)
+    if (interaction.isDragging && interaction.dragStart && ['line', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) {
       const tool = interaction.tool;
+      const start = interaction.dragStart;
       const isShift = e.shiftKey || pointerState.current.shiftHeld;
-      const shapeMap: Record<string, WhiteboardShapeElement['shapeType']> = {
-        rectangle: 'rectangle',
-        ellipse: 'ellipse',
-        triangle: isShift ? 'triangle-right' : 'triangle',
-        hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
-        star: 'star',
-      };
-      if (tool in shapeMap) {
-        const bounds = interaction.selectionBox;
-        if (bounds.width >= MIN_SHAPE_DRAG_PX || bounds.height >= MIN_SHAPE_DRAG_PX) {
-          const shape = wb.createShape(shapeMap[tool], bounds);
-          // Rectangle + Shift → rotate 45° (rhombus look)
-          if (isShift && tool === 'rectangle') {
-            wb.addElement({ ...shape, rotation: 45 });
-          } else {
-            wb.addElement(shape);
-          }
-          wb.selectElements([shape.id]);
+
+      if (tool === 'line') {
+        // Clear the imperative live SVG line
+        if (liveLineRef.current) {
+          liveLineRef.current.setAttribute('x1', '0');
+          liveLineRef.current.setAttribute('y1', '0');
+          liveLineRef.current.setAttribute('x2', '0');
+          liveLineRef.current.setAttribute('y2', '0');
+        }
+        let endX = canvasPos.x, endY = canvasPos.y;
+        if (isShift) {
+          const rawDx = endX - start.x, rawDy = endY - start.y;
+          const angle = Math.atan2(rawDy, rawDx);
+          const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+          const dist = Math.sqrt(rawDx ** 2 + rawDy ** 2);
+          endX = start.x + dist * Math.cos(snapped);
+          endY = start.y + dist * Math.sin(snapped);
+        }
+        if (Math.abs(endX - start.x) > 5 || Math.abs(endY - start.y) > 5) {
+          const line = wb.createLine(start, { x: endX, y: endY });
+          wb.addElement(line);
+          wb.selectElements([line.id]);
           wb.setTool('select');
         }
+      } else if (interaction.selectionBox) {
+        const shapeMap: Record<string, WhiteboardShapeElement['shapeType']> = {
+          rectangle: 'rectangle',
+          ellipse: 'ellipse',
+          triangle: isShift ? 'triangle-right' : 'triangle',
+          hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
+          star: 'star',
+        };
+        if (tool in shapeMap) {
+          const bounds = interaction.selectionBox;
+          if (bounds.width >= MIN_SHAPE_DRAG_PX || bounds.height >= MIN_SHAPE_DRAG_PX) {
+            const shape = wb.createShape(shapeMap[tool], bounds);
+            // Rectangle + Shift → rotate 45° (rhombus look)
+            if (isShift && tool === 'rectangle') {
+              wb.addElement({ ...shape, rotation: 45 });
+            } else {
+              wb.addElement(shape);
+            }
+            wb.selectElements([shape.id]);
+            wb.setTool('select');
+          }
+        }
+        setShiftConstraint(false);
       }
+
       pointerState.current.shiftHeld = false;
-      setShiftConstraint(false);
       setInteraction(prev => ({
         ...prev,
         isDragging: false,
