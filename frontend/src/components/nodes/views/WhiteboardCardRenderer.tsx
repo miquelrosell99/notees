@@ -7,7 +7,7 @@
  *   'block'     — Uses the block's own nodeId to display the child block as a card.
  *   'reference' — Uses the referenced node's nodeId to display that node as a card.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNode } from '@/hooks/useNodes';
 import { NodeCard } from './CardItem';
@@ -50,6 +50,12 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
     );
   }
 
+  // Stop pointer/mouse events on interactive card content from reaching the
+  // whiteboard canvas, which would otherwise initiate element selection/drag.
+  const stopPropagation = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  }, []);
+
   return (
     // Counter-scale: render at the logical canvas size, then apply zoom via CSS
     // transform so the card's internal layout is always at 1× pixel density.
@@ -62,6 +68,9 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
         overflow: 'hidden',
         pointerEvents: 'auto',
       }}
+      onPointerDown={stopPropagation}
+      onMouseDown={stopPropagation}
+      onClick={stopPropagation}
     >
       <NodeCard
         node={node}
