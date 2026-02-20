@@ -16,13 +16,16 @@ export function parseIconField(raw: string | null | undefined): { icon: string; 
   if (!raw) return { icon: '' };
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof (parsed as Record<string, unknown>).icon === 'string'
-    ) {
-      const obj = parsed as { icon: string; color?: string };
-      return { icon: obj.icon, color: obj.color || undefined };
+    if (typeof parsed === 'object' && parsed !== null) {
+      const obj = parsed as Record<string, unknown>;
+      // Full object: {icon, color?}
+      if (typeof obj.icon === 'string') {
+        return { icon: obj.icon, color: (obj.color as string) || undefined };
+      }
+      // Color-only: {color}
+      if (typeof obj.color === 'string') {
+        return { icon: '', color: obj.color || undefined };
+      }
     }
   } catch {
     // Not JSON — treat as plain icon string
@@ -36,8 +39,8 @@ export function parseIconField(raw: string | null | undefined): { icon: string; 
  * Otherwise returns the plain icon string.
  */
 export function formatIconField(icon: string, color?: string | null): string {
-  if (!icon) return '';
-  if (!color) return icon;
+  if (!color) return icon || '';
+  if (!icon) return JSON.stringify({ color });
   return JSON.stringify({ icon, color });
 }
 

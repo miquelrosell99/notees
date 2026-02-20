@@ -16,6 +16,7 @@ import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, 
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useAppStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon } from '../core/icons';
@@ -350,18 +351,22 @@ export function PageHeader({
   }, []);
 
   const handleIconSelect = useCallback((icon: string) => {
+    const { color: existingColor } = parseIconField(page.icon ?? '');
+    const encoded = icon ? formatIconField(icon, existingColor) : null;
     if (onIconChange) {
-      onIconChange(icon);
+      onIconChange(encoded ?? '');
     } else {
-      const data: NodeUpdate = { icon: icon || null };
-      updateNode.mutate({ id: page.id, data });
+      updateNode.mutate({ id: page.id, data: { icon: encoded } });
     }
     setShowIconPicker(false);
-  }, [page.id, updateNode, onIconChange]);
+  }, [page.id, page.icon, updateNode, onIconChange]);
 
   const handleIconColorChange = useCallback((color: string | null) => {
-    updateNode.mutate({ id: page.id, data: { color } });
-  }, [page.id, updateNode]);
+    const { icon: iconName } = parseIconField(page.icon ?? '');
+    // Always store color even with no explicit icon so the inherited/default icon can be tinted
+    const encoded = color ? formatIconField(iconName ?? '', color) : (iconName || null);
+    updateNode.mutate({ id: page.id, data: { icon: encoded } });
+  }, [page.id, page.icon, updateNode]);
 
   // Handle Ctrl+C on page title to copy page link when nothing is selected
   const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -419,7 +424,6 @@ export function PageHeader({
                 isPage={true}
                 size="xl" 
                 className="page-icon-large"
-                color={page.color || undefined}
               />
             ) : (
               <span className="page-icon-placeholder">+</span>
@@ -471,7 +475,7 @@ export function PageHeader({
           onClose={() => setShowIconPicker(false)}
           position={iconPickerPos}
           useColor={true}
-          color={page.color}
+          color={parseIconField(page.icon ?? '').color ?? null}
           onColorChange={handleIconColorChange}
         />
       )}
