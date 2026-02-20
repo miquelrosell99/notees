@@ -1362,6 +1362,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
             const ssConnClass = conn.strokeStyle === 'dashed' ? 'wb-ss-dashed' : conn.strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
 
+            const connColor = isSelected ? 'var(--accent-primary)' : conn.stroke;
+            const showStartDot = conn.start.type === 'element' && conn.start.anchor !== 'center';
+            const showEndDot = conn.end.type === 'element' && conn.end.anchor !== 'center';
+            const dotR = Math.max(3, conn.strokeWidth + 1);
+
             return (
               <g key={conn.id}>
                 {/* Hit target (wider invisible stroke) */}
@@ -1376,12 +1381,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 <path
                   d={pathD}
                   fill="none"
-                  stroke={isSelected ? 'var(--accent-primary)' : conn.stroke}
+                  stroke={connColor}
                   strokeWidth={conn.strokeWidth}
                   className={ssConnClass || undefined}
                   markerEnd={conn.endArrowhead !== 'none' ? 'url(#arrowhead)' : undefined}
                   markerStart={conn.startArrowhead !== 'none' ? 'url(#arrowhead-start)' : undefined}
                 />
+                {/* Border attachment circles */}
+                {showStartDot && (
+                  <circle cx={start.x} cy={start.y} r={dotR} fill={connColor} style={{ pointerEvents: 'none' }} />
+                )}
+                {showEndDot && (
+                  <circle cx={end.x} cy={end.y} r={dotR} fill={connColor} style={{ pointerEvents: 'none' }} />
+                )}
                 {conn.label && (
                   <text
                     x={(start.x + end.x) / 2}
