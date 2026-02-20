@@ -23,6 +23,7 @@ import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import { LinkEditModal, type LinkEditResult } from '@/editor/components/LinkEditModal';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { createElementId } from '@/types/whiteboard';
+import { inlineDoc, nodeLink, buildLinkId } from '@/lib/astBuilder';
 import './WhiteboardView.css';
 
 interface WhiteboardViewProps {
@@ -133,8 +134,10 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     }
 
     const selectedNode = result.targetNode;
-    // Create a child block whose name is a link to the selected node: [[nodeUuid]]
-    const linkName = `[[${selectedNode.uuid}]]`;
+    // Create a child block whose name is a proper AST node_link to the selected node
+    const linkUuid = crypto.randomUUID();
+    const ast = inlineDoc(nodeLink(buildLinkId(selectedNode.uuid, linkUuid)));
+    const linkName = JSON.stringify(ast);
     createNode.mutate(
       { name: linkName, parent_id: nodeId },
       {
