@@ -43,6 +43,7 @@ import { SelectionButton, type SelectionButtonOption } from '@/components/core/S
 import { Slider } from '@/components/core/Slider';
 import type { WhiteboardTool, PenSettings, EraserSettings, ShapeSettings } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import './WhiteboardView.css';
 
 interface WhiteboardToolbarProps {
@@ -142,6 +143,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   onAddImage,
 }) => {
   const { interaction, data, settings } = wb;
+  const { gridVisible, gridSnap } = useWhiteboardStore();
   const activeTool = interaction.tool;
 
   // Track the last selected shape so left-clicking the shapes button re-activates it.
@@ -365,7 +367,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             icon={mdiGrid}
             variant="ghost"
             size="sm"
-            active={data.grid.visible}
+            active={gridVisible}
             onClick={wb.toggleGrid}
             title="Toggle Grid (G)"
           />
@@ -373,7 +375,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             icon={mdiMagnet}
             variant="ghost"
             size="sm"
-            active={data.grid.snap}
+            active={gridSnap}
             onClick={wb.toggleSnap}
             title="Snap to Grid"
           />
@@ -473,6 +475,15 @@ const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange,
         options={widthOptions}
         value={String(settings.strokeWidth)}
         onChange={(v) => onChange({ ...settings, strokeWidth: Number(v) })}
+        size="sm"
+      />
+    </div>
+    <div className="whiteboard-properties__section">
+      <SelectionButton
+        label="Style"
+        options={STROKE_STYLE_OPTIONS}
+        value={settings.strokeStyle}
+        onChange={(v) => onChange({ ...settings, strokeStyle: v as 'solid' | 'dashed' | 'dotted' })}
         size="sm"
       />
     </div>

@@ -142,6 +142,7 @@ export interface WhiteboardStrokeElement extends WhiteboardElementBase {
   points: StrokePoint[];
   color: string;
   strokeWidth: number;
+  strokeStyle: StrokeStyle;
   opacity: number;
   tool: 'pen' | 'highlighter' | 'eraser';
   // Computed bounding box from points
@@ -223,13 +224,6 @@ export interface WhiteboardData {
     zoom: number;        // Zoom level (1 = 100%)
   };
   elements: WhiteboardElement[];
-  grid: {
-    enabled: boolean;
-    size: number;        // Grid size in pixels
-    snap: boolean;       // Snap to grid
-    visible: boolean;
-  };
-  background: string;    // Canvas background color
 }
 
 // ─── Tool types ────────────────────────────────────────────────────
@@ -280,6 +274,7 @@ export interface WhiteboardInteractionState {
 export interface PenSettings {
   color: string;
   strokeWidth: number;
+  strokeStyle: StrokeStyle;
   opacity: number;
 }
 
@@ -334,24 +329,19 @@ export const DEFAULT_WHITEBOARD_DATA: WhiteboardData = {
   version: 1,
   viewport: { x: 0, y: 0, zoom: 1 },
   elements: [],
-  grid: {
-    enabled: true,
-    size: 20,
-    snap: true,
-    visible: true,
-  },
-  background: 'var(--color-background)',
 };
 
 export const DEFAULT_PEN_SETTINGS: PenSettings = {
   color: 'var(--color-on-surface)',
   strokeWidth: 2,
+  strokeStyle: 'solid',
   opacity: 1,
 };
 
 export const DEFAULT_HIGHLIGHTER_SETTINGS: PenSettings = {
   color: 'var(--color-preset-yellow)',
   strokeWidth: 20,
+  strokeStyle: 'solid',
   opacity: 0.4,
 };
 

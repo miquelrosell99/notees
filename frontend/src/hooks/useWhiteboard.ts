@@ -4,6 +4,7 @@ import type { Node } from '@/types/api';
 import type { ASTWhiteboard } from '@/types/ast';
 import { parseAST } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
+import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import type {
   WhiteboardData,
   WhiteboardElement,
@@ -40,7 +41,10 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
   const ast = parseAST(node.name);
   const wb = ast.find(b => b.type === 'whiteboard') as ASTWhiteboard | undefined;
   if (wb) {
-    return wb.data;
+    // Strip legacy per-document fields (grid, background) that are now global.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { grid: _grid, background: _bg, ...rest } = wb.data as WhiteboardData & { grid?: unknown; background?: unknown };
+    return rest as WhiteboardData;
   }
 
   return { ...DEFAULT_WHITEBOARD_DATA };
@@ -446,6 +450,7 @@ export function useWhiteboard(nodeId: number | null) {
       points: points.map(p => ({ ...p, x: p.x - bounds.x, y: p.y - bounds.y })),
       color: penSettings.color,
       strokeWidth: penSettings.strokeWidth,
+      strokeStyle: penSettings.strokeStyle,
       tool,
     };
   }, [data.elements, settings.pen, settings.highlighter]);
@@ -529,30 +534,17 @@ export function useWhiteboard(nodeId: number | null) {
     };
   }, [data.elements, settings.connector]);
 
-  // ─── Grid ─────────────────────────────────────────────────────────
+  // ─── Grid (global settings from store) ───────────────────────────
 
-  const toggleGrid = useCallback(() => {
-    setData(prev => ({
-      ...prev,
-      grid: { ...prev.grid, visible: !prev.grid.visible },
-    }));
-  }, []);
-
-  const toggleSnap = useCallback(() => {
-    setData(prev => ({
-      ...prev,
-      grid: { ...prev.grid, snap: !prev.grid.snap },
-    }));
-  }, []);
+  const { gridSnap, gridSize, toggleGrid, toggleSnap } = useWhiteboardStore();
 
   const snapToGrid = useCallback((point: Point): Point => {
-    if (!data.grid.snap) return point;
-    const size = data.grid.size;
+    if (!gridSnap) return point;
     return {
-      x: Math.round(point.x / size) * size,
-      y: Math.round(point.y / size) * size,
+      x: Math.round(point.x / gridSize) * gridSize,
+      y: Math.round(point.y / gridSize) * gridSize,
     };
-  }, [data.grid]);
+  }, [gridSnap, gridSize]);
 
   // ─── Flush pending save on unmount (don't lose strokes) ───────────
 

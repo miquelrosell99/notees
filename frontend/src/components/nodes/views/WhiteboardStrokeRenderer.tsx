@@ -143,7 +143,7 @@ export function strokeToLivePath(points: StrokePoint[], offsetX = 0, offsetY = 0
 }
 
 export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected, dimmed }) => {
-  const { points, color, strokeWidth, opacity } = element;
+  const { points, color, strokeWidth, strokeStyle, opacity } = element;
   const effectiveOpacity = dimmed ? opacity * 0.35 : isSelected ? 1 : opacity;
   const offsetX = isAbsolute ? 0 : element.x;
   const offsetY = isAbsolute ? 0 : element.y;
@@ -168,6 +168,7 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
       opacity={effectiveOpacity}
       strokeLinecap="round"
       strokeLinejoin="round"
+      className={strokeStyle === 'dashed' ? 'wb-ss-dashed' : strokeStyle === 'dotted' ? 'wb-ss-dotted' : undefined}
     />
   );
 

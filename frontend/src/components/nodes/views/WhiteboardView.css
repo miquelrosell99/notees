@@ -558,3 +558,7 @@
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
+.wb-ss-dashed { stroke-dasharray: 8 4; }
+.wb-ss-dotted { stroke-dasharray: 2 4; }

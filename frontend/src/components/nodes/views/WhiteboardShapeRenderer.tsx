@@ -66,8 +66,7 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
 }) => {
   const { shapeType, fill, stroke, strokeWidth, strokeStyle, borderRadius, text, textColor, fontSize, textAlign, fontWeight } = element;
 
-  const dashArray = strokeStyle === 'dashed' ? '8 4' :
-                    strokeStyle === 'dotted' ? '2 4' : undefined;
+  const ssClass = strokeStyle === 'dashed' ? 'wb-ss-dashed' : strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
 
   return (
     <div className="whiteboard-shape">
@@ -83,7 +82,7 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
             fill={fill}
             stroke={stroke}
             strokeWidth={strokeWidth}
-            strokeDasharray={dashArray}
+            className={ssClass || undefined}
           />
         ) : shapeType === 'ellipse' ? (
           <ellipse
@@ -94,7 +93,7 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
             fill={fill}
             stroke={stroke}
             strokeWidth={strokeWidth}
-            strokeDasharray={dashArray}
+            className={ssClass || undefined}
           />
         ) : (
           <path
@@ -102,7 +101,7 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
             fill={fill}
             stroke={stroke}
             strokeWidth={strokeWidth}
-            strokeDasharray={dashArray}
+            className={ssClass || undefined}
             strokeLinejoin="round"
           />
         )}
