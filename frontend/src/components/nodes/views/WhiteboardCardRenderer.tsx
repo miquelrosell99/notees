@@ -7,10 +7,13 @@
  *   'block'     — Uses the block's own nodeId to display the child block as a card.
  *   'reference' — Uses the referenced node's nodeId to display that node as a card.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNode } from '@/hooks/useNodes';
 import { NodeCard } from './CardItem';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
+import type { Node } from '@/types/api';
 
 interface Props {
   element: WhiteboardCardElement;
@@ -21,6 +24,23 @@ interface Props {
 
 const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElement; zoom: number }> = ({ nodeId, element, zoom }) => {
   const { data: node } = useNode(nodeId, { include_children: true });
+
+  // Sync node + children into the NodeGraphRuntime so BlockEditor can find their content.
+  // Mirrors the same useMemo pattern used by CardView.
+  useMemo(() => {
+    if (!node) return;
+    const allNodes: Node[] = [];
+    const collect = (n: Node) => {
+      allNodes.push(n);
+      if (n.children) {
+        for (const child of n.children) collect(child);
+      }
+    };
+    collect(node);
+    const runtime = getNodeGraphRuntime();
+    const { graphNodes } = apiNodesToGraphNodes(allNodes);
+    runtime.upsertNodes(graphNodes);
+  }, [node]);
 
   if (!node) {
     return (
