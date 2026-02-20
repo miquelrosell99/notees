@@ -11,6 +11,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Icon from '@mdi/react';
 import * as mdiIcons from '@mdi/js';
 import { mdiShapeOutline } from '@mdi/js';
+import { getMdiPath } from '@/utils/iconDom';
 import { Button } from './Button';
 import './EmojiPicker.css';
 
@@ -680,20 +681,13 @@ export function EmojiPickerTrigger({
       return <span className="emoji-trigger-placeholder">{placeholder}</span>;
     }
     
-    // Check if it's an MDI icon (starts with mdi-)
-    if (value.startsWith('mdi-')) {
-      // Convert kebab-case to camelCase
-      const camelName = value
-        .replace(/^mdi-/, 'mdi')
-        .replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-      
-      const path = (mdiIcons as Record<string, string>)[camelName];
-      if (path) {
-        return <Icon path={path} size={0.9} />;
-      }
+    // Try to resolve as an MDI icon (handles mdi-, mdi:, mdi_ prefixes and camelCase)
+    const mdiPath = getMdiPath(value);
+    if (mdiPath) {
+      return <Icon path={mdiPath} size={0.9} />;
     }
     
-    // It's an emoji
+    // It's an emoji or unknown — render as text
     return <span className="emoji-trigger-emoji">{value}</span>;
   };
   

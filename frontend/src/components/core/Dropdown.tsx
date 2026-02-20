@@ -21,8 +21,10 @@ export interface DropdownOption<T = string> {
   value: T;
   /** Display label */
   label: string;
-  /** Optional icon (MDI path) */
+  /** Optional icon (MDI SVG path string — raw path data only) */
   icon?: string;
+  /** Optional pre-rendered icon node (takes priority over `icon`) */
+  iconNode?: ReactNode;
   /** Optional description */
   description?: string;
   /** Whether the option is disabled */
@@ -285,9 +287,11 @@ export function Dropdown<T = string>({
                           role="option"
                           aria-selected={selected}
                         >
-                          {option.icon && (
+                          {option.iconNode ? (
+                            <span className="dropdown-option-icon">{option.iconNode}</span>
+                          ) : option.icon ? (
                             <Icon path={option.icon} size={0.7} className="dropdown-option-icon" />
-                          )}
+                          ) : null}
                           <div className="dropdown-option-content">
                             <span className="dropdown-option-label">{option.label}</span>
                             {option.description && (
