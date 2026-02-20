@@ -278,6 +278,16 @@ export interface LogseqExport {
 }
 
 /**
+ * Logseq system properties that are whitelisted for import.
+ * All other logseq.property/* keys are skipped.
+ */
+const LOGSEQ_PROPERTY_WHITELIST = new Set([
+  'logseq.property/description',
+  'logseq.property/status',
+  'logseq.property/priority',
+]);
+
+/**
  * Transform raw EDN (parsed) into the LogseqExport intermediate form.
  */
 export function ednToLogseqExport(edn: EdnValue): LogseqExport {
@@ -289,8 +299,8 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
   if (propsMap instanceof Map) {
     for (const [k, v] of propsMap.entries()) {
       if (!(k instanceof EdnKeyword)) continue;
-      // Skip logseq system properties — only import user properties
-      if (k.value.startsWith('logseq.property')) continue;
+      // Skip logseq system properties — only import whitelisted ones
+      if (k.value.startsWith('logseq.property') && !LOGSEQ_PROPERTY_WHITELIST.has(k.value)) continue;
       const title = asString(mapGet(v, 'block/title')) ?? k.value;
       let typeKw = mapGet(v, 'logseq.property/type');
       // Fallback: some EDN exports use block/schema {:type :node} instead
@@ -447,8 +457,8 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
             }
             continue;
           }
-          // Skip other logseq system properties (but allow description through)
-          if (pk.value.startsWith('logseq.property') && pk.value !== 'logseq.property/description') continue;
+          // Skip other logseq system properties (but allow whitelisted ones through)
+          if (pk.value.startsWith('logseq.property') && !LOGSEQ_PROPERTY_WHITELIST.has(pk.value)) continue;
           pageProperties[pk.value] = resolvePropertyValue(pv);
         }
       }
@@ -646,7 +656,7 @@ function parseBlock(raw: EdnValue): LogseqBlock {
   if (propsOnBlock instanceof Map) {
     for (const [pk, pv] of propsOnBlock.entries()) {
       if (!(pk instanceof EdnKeyword)) continue;
-      if (pk.value.startsWith('logseq.property') && pk.value !== 'logseq.property/description') continue;
+      if (pk.value.startsWith('logseq.property') && !LOGSEQ_PROPERTY_WHITELIST.has(pk.value)) continue;
       blockProperties[pk.value] = resolvePropertyValue(pv);
     }
   }
