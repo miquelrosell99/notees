@@ -56,8 +56,10 @@ export type ShapeType =
   | 'rectangle'
   | 'ellipse'
   | 'triangle'
+  | 'triangle-right'    // right-angle triangle (Shift variant)
   | 'diamond'
   | 'hexagon'
+  | 'hexagon-pointy'   // pointy-top hexagon (Shift variant)
   | 'star'
   | 'arrow-right'
   | 'arrow-left'
