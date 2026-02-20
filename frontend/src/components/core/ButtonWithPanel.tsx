@@ -67,6 +67,18 @@ export interface ButtonWithPanelProps {
   customTrigger?: ReactNode;
   /** Render panel in a portal to escape overflow containers */
   usePortal?: boolean;
+  /**
+   * When true, the left-click activates `onActivate` (does NOT open the panel),
+   * and a right-click (context-menu) opens the panel instead.
+   */
+  openPanelOnRightClick?: boolean;
+  /**
+   * Called on left-click when `openPanelOnRightClick` is true.
+   * In this mode the panel is only opened via right-click.
+   */
+  onActivate?: () => void;
+  /** Whether the button appears in an active/pressed state (e.g. the tool is selected) */
+  active?: boolean;
 }
 
 export function ButtonWithPanel({
@@ -93,6 +105,9 @@ export function ButtonWithPanel({
   buttonProps = {},
   customTrigger,
   usePortal = false,
+  openPanelOnRightClick = false,
+  onActivate,
+  active: activeProp = false,
 }: ButtonWithPanelProps) {
   // Determine if component is controlled
   const isControlled = controlledOpen !== undefined;
@@ -315,13 +330,14 @@ export function ButtonWithPanel({
           ref={buttonRef}
           variant={variant}
           size={size}
-          active={isOpen}
+          active={openPanelOnRightClick ? (activeProp || isOpen) : isOpen}
           className={buttonClassName}
-          title={tooltip}
+          title={openPanelOnRightClick ? (tooltip ? `${tooltip} (right-click for options)` : 'Right-click for options') : tooltip}
           disabled={disabled}
           {...buttonProps}
           icon={buttonProps.icon ?? icon}
-          onClick={togglePanel}
+          onClick={openPanelOnRightClick ? (disabled ? undefined : onActivate) : togglePanel}
+          onContextMenu={openPanelOnRightClick ? (e) => { e.preventDefault(); if (!disabled) togglePanel(); } : undefined}
         >
           {buttonText}
         </Button>
