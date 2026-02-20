@@ -151,6 +151,27 @@ function computeDropAnchors(
 
   if (allBlockEls.length === 0) return [];
 
+  // Compute the bounding box of excluded (dragged) blocks so we can avoid
+  // placing anchors inside their visual footprint.
+  let excludedTop = Infinity;
+  let excludedBottom = -Infinity;
+  if (excludedIds.size > 0) {
+    const allBlocks = rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]');
+    for (const el of allBlocks) {
+      const id = el.getAttribute('data-block-id');
+      if (id && excludedIds.has(id)) {
+        const r = el.getBoundingClientRect();
+        if (r.top < excludedTop) excludedTop = r.top;
+        if (r.bottom > excludedBottom) excludedBottom = r.bottom;
+      }
+    }
+  }
+
+  /** True if a Y coordinate falls within the excluded (dimmed) subtree zone */
+  function insideExcludedZone(y: number): boolean {
+    return y >= excludedTop && y <= excludedBottom;
+  }
+
   // Compute the bullet X position for each depth level by sampling real blocks.
   // We need this so we can position anchors at depths that may not have a
   // corresponding block at that point, using an inferred indent.
@@ -211,10 +232,26 @@ function computeDropAnchors(
     const curr = blocks[i];
     const next = i + 1 < blocks.length ? blocks[i + 1] : null;
 
-    // The Y midpoint of the gap between this block and the next
-    const gapY = next
-      ? (curr.rect.bottom + next.rect.top) / 2
-      : curr.rect.bottom + 8;
+    // The Y midpoint of the gap between this block and the next.
+    // If excluded (dimmed) blocks sit between curr and next, clamp gravity
+    // toward the edges so anchors don't land inside the excluded zone.
+    let gapY: number;
+    if (next) {
+      const rawMid = (curr.rect.bottom + next.rect.top) / 2;
+      if (insideExcludedZone(rawMid)) {
+        // Use the edge nearest to the non-excluded block
+        // e.g. if curr is above the zone → just below curr; if next is below the zone → just above next
+        const distToCurrEdge = Math.abs(excludedTop - curr.rect.bottom);
+        const distToNextEdge = Math.abs(next.rect.top - excludedBottom);
+        gapY = distToCurrEdge <= distToNextEdge
+          ? curr.rect.bottom + 4
+          : next.rect.top - 4;
+      } else {
+        gapY = rawMid;
+      }
+    } else {
+      gapY = curr.rect.bottom + 8;
+    }
 
     // Does this block have visible children? (next block is deeper)
     const hasVisibleChildren = next && next.depth > curr.depth;
@@ -287,7 +324,8 @@ function computeDropAnchors(
     }
   }
 
-  return anchors;
+  // Remove any anchors that still land inside the excluded (dimmed) subtree
+  return anchors.filter((a) => !insideExcludedZone(a.y));
 }
 
 /**
