@@ -20,7 +20,7 @@ import Icon from '@mdi/react';
 import * as mdiIcons from '@mdi/js';
 import { mdiTrashCanOutline } from '@mdi/js';
 import { getMdiPath } from '@/utils/iconDom';
-import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
+
 import { Button } from './Button';
 import { ColorButton } from './ColorButton';
 import './EmojiPicker.css';
@@ -520,9 +520,6 @@ export function EmojiPicker({
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [search, setSearch] = useState('');
   const [recents, setRecents] = useState<string[]>(() => getRecents());
-  const [colorPanelOpen, setColorPanelOpen] = useState(false);
-
-  const nodeColorPalette = useMemo(() => getNodePickerPalette(), []);
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -607,35 +604,17 @@ export function EmojiPicker({
         <div className="ep-header-actions">
           {useColor && onColorChange && (
             <ColorButton
-              color={color ?? 'var(--color-surface-container-high)'}
+              color={color ?? ''}
               size="sm"
-              active={colorPanelOpen}
-              onClick={() => setColorPanelOpen((v) => !v)}
+              showPicker
+              showNoneOption
+              onColorChange={onColorChange}
             />
           )}
           <Button variant="ghost" size="sm" icon={mdiTrashCanOutline} iconOnly title="Remove icon" onClick={handleRemove} />
         </div>
       </div>
 
-      {/* Color panel */}
-      {useColor && onColorChange && colorPanelOpen && (
-        <div className="ep-color-panel">
-          {nodeColorPalette.map((c) => (
-            <button
-              key={c ?? 'none'}
-              type="button"
-              className={`ep-color-swatch ${
-                c === null
-                  ? 'ep-color-swatch--none'
-                  : ''
-              } ${color === c ? 'ep-color-swatch--selected' : ''}`}
-              style={c ? { backgroundColor: c } : undefined}
-              title={c ?? 'No color'}
-              onClick={() => { onColorChange(c); }}
-            />
-          ))}
-        </div>
-      )}
 
       {/* Search */}
       <div className="ep-search">

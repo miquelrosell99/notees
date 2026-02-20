@@ -13,9 +13,10 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   cursor: pointer;
-  padding: 3px; /* Gap between color fill and border */
+  padding: 0;
   flex-shrink: 0;
   background: var(--color-surface-container);
+  overflow: hidden;
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     box-shadow var(--motion-duration-short) var(--motion-easing-standard);
@@ -36,52 +37,52 @@
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: calc(var(--shape-large) - 4px); /* Slightly smaller than button */
+  border-radius: 0;
 }
 
 /* Size variants - match Button sizes */
 .color-btn--xs {
   width: 28px;
   height: 28px;
-  padding: 4px;
+  padding: 0;
   border-radius: var(--shape-medium);
 }
 
 .color-btn--xs .color-btn__fill {
-  border-radius: calc(var(--shape-medium) - 5px);
+  border-radius: 0;
 }
 
 .color-btn--sm {
   width: 32px;
   height: 32px;
-  padding: 5px;
+  padding: 0;
   border-radius: var(--shape-large);
 }
 
 .color-btn--sm .color-btn__fill {
-  border-radius: calc(var(--shape-large) - 6px);
+  border-radius: 0;
 }
 
 .color-btn--md {
   width: 38px;
   height: 38px;
-  padding: 6px;
+  padding: 0;
   border-radius: var(--shape-large);
 }
 
 .color-btn--md .color-btn__fill {
-  border-radius: calc(var(--shape-large) - 7px);
+  border-radius: 0;
 }
 
 .color-btn--lg {
   width: 46px;
   height: 46px;
-  padding: 7px;
+  padding: 0;
   border-radius: var(--shape-large);
 }
 
 .color-btn--lg .color-btn__fill {
-  border-radius: calc(var(--shape-large) - 8px);
+  border-radius: 0;
 }
 
 /* Active state */
@@ -101,37 +102,19 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: var(--elevation-3);
-  padding: 12px;
-  min-width: 200px;
+  padding: 8px;
+  min-width: 0;
 }
 
 .color-btn-picker__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  margin-bottom: 8px;
 }
 
-.color-btn-picker__swatch {
-  width: 32px;
-  height: 32px;
-  border: 2px solid transparent;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
-  padding: 0;
-  outline: none;
-}
 
-.color-btn-picker__swatch:hover {
-  transform: scale(1.1);
-  border-color: var(--color-outline);
-}
 
-.color-btn-picker__swatch.selected {
-  border-color: var(--color-primary);
-  border-width: 3px;
-}
 
 .color-btn-picker__custom {
   display: flex;
@@ -162,3 +145,4 @@
   color: var(--color-on-surface-variant);
   opacity: 0.6;
 }
+

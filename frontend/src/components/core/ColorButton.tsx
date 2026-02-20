@@ -15,6 +15,8 @@
  */
 import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
+import { mdiTrashCanOutline } from '@mdi/js';
+import { Button } from './Button';
 import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -56,14 +58,16 @@ export interface ColorButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEl
   active?: boolean;
   /** Show color picker popover on click */
   showPicker?: boolean;
+  /** Add a "· no color" entry at the start of the palette that emits null */
+  showNoneOption?: boolean;
   /**
    * Custom color palette for the picker.
    * Defaults to the built-in preset palette.
    * Each entry emits its cssVar string when selected.
    */
   colors?: ColorEntry[];
-  /** Called with a CSS var reference for palette swatches, or a hex string for the custom input. */
-  onColorChange?: (color: string) => void;
+  /** Called with a CSS var reference for palette swatches, a hex string for the custom input, or null for "no color". */
+  onColorChange?: (color: string | null) => void;
 }
 
 export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(function ColorButton(
@@ -74,6 +78,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     className = '',
     disabled,
     showPicker = false,
+    showNoneOption = false,
     colors,
     onColorChange,
     onClick,
@@ -97,23 +102,23 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Default: right and bottom of button
-    let left = buttonRect.right + 8;
-    let top = buttonRect.bottom + 8;
+    // Align left edge of picker to left edge of button, below it
+    let left = buttonRect.left;
+    let top = buttonRect.bottom + 4;
 
-    // Check if it fits on the right, otherwise move to left
+    // If it overflows the right viewport edge, shift left to fit
     if (left + pickerRect.width > viewportWidth - 16) {
-      left = buttonRect.left - pickerRect.width - 8;
+      left = viewportWidth - pickerRect.width - 16;
     }
 
     // Check if it fits on the bottom, otherwise move to top
     if (top + pickerRect.height > viewportHeight - 16) {
-      top = buttonRect.top - pickerRect.height - 8;
+      top = buttonRect.top - pickerRect.height - 4;
     }
 
     // Clamp to viewport
-    left = Math.max(16, Math.min(left, viewportWidth - pickerRect.width - 16));
-    top = Math.max(16, Math.min(top, viewportHeight - pickerRect.height - 16));
+    left = Math.max(16, left);
+    top = Math.max(16, top);
 
     setPickerPosition({ top, left });
   }, []);
@@ -222,16 +227,16 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
         >
           <div className="color-btn-picker__grid">
             {palette.map(({ cssVar, label }) => (
-              <button
+              <ColorButton
                 key={cssVar}
-                className={`color-btn-picker__swatch ${color === cssVar ? 'selected' : ''}`}
-                style={{ backgroundColor: cssVar }}
+                color={cssVar}
+                size="xs"
+                active={color === cssVar}
+                title={label}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleColorSelect(cssVar);
                 }}
-                title={label}
-                type="button"
               />
             ))}
           </div>
@@ -250,21 +255,31 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               maxLength={6}
               className="color-btn-picker__input"
             />
-            <button
-              type="button"
-              className={`color-btn color-btn--sm ${!isHexValid ? 'color-btn--disabled' : ''}`}
+            <ColorButton
+              color={previewColor}
+              size="xs"
+              active={isHexValid}
+              disabled={!isHexValid}
+              title={isHexValid ? 'Apply' : 'Invalid hex'}
               onClick={(e) => {
                 e.stopPropagation();
                 if (isHexValid) handleHexApply();
               }}
-              disabled={!isHexValid}
-              title={isHexValid ? 'Apply' : 'Invalid hex'}
-            >
-              <span 
-                className="color-btn__fill"
-                style={{ backgroundColor: previewColor }}
+            />
+            {showNoneOption && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={mdiTrashCanOutline}
+                iconOnly
+                title="Remove color"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onColorChange?.(null);
+                  setIsPickerOpen(false);
+                }}
               />
-            </button>
+            )}
           </div>
         </div>,
         document.body
