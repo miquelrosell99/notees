@@ -36,19 +36,8 @@
   padding: var(--spacing-1);
 }
 
-.floating-toolbar__button.btn--active {
-  background: var(--color-surface-container);
-  color: var(--color-on-surface);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
 .floating-toolbar__button:hover {
   background: var(--color-surface-container-high);
-}
-
-.floating-toolbar__button.btn--active:hover {
-  background: var(--color-surface-container);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Separator between action groups */
