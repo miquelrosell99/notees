@@ -370,8 +370,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   /** IDs of the dragged block + all its descendants (excluded from drop targets) */
   const excludedIdsRef = useRef<Set<string>>(new Set());
-  /** Element currently showing the drop-spacing animation */
-  const spacerElRef = useRef<{ el: HTMLElement; cls: string } | null>(null);
+  /** Element(s) currently showing the drop-spacing animation (up to 2: one above, one below) */
+  const spacerElRef = useRef<Array<{ el: HTMLElement; cls: string }>>([]);
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -441,13 +441,15 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
       if (anchor) {
         coordinator.updateTarget(anchor.target);
-        // Ghost always follows cursor — snapped style is purely visual
         ghost.classList.add('block-drag-ghost--snapped');
         ghost.classList.remove('block-drag-ghost--floating');
         ghost.style.transition = 'none';
-        ghost.style.top = `${cy - 14}px`;
-        ghost.style.left = `${cx - 11}px`;
-        ghost.style.width = '';
+        // Snap ghost to anchor. After symmetric spacing (17px on each side,
+        // replacing the original 3px), the visual gap centre shifts +14px from
+        // anchor.y, so the ghost top sits exactly at anchor.y.
+        ghost.style.top = `${anchor.y}px`;
+        ghost.style.left = `${anchor.x - 11}px`;
+        ghost.style.width = '200px';
         state.snapped = true;
         activeAnchorRef.current = anchor;
 
@@ -465,33 +467,46 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     // ── Drop spacing helpers ─────────────────────────────────
     function applyDropSpacing(anchor: DropAnchor) {
       const { blockId, position } = anchor.target;
-      // Determine which element gets spacing and in which direction
       const targetEl = document.querySelector(
         `.node-block[data-block-id="${blockId}"]`,
       ) as HTMLElement | null;
       if (!targetEl) { clearDropSpacing(); return; }
 
-      // 'before' → pad the top of the target; 'after'/'child' → pad the bottom
-      const cls = position === 'before'
-        ? 'node-block--drop-spacing-before'
-        : 'node-block--drop-spacing-after';
+      // Determine the two elements that bracket the gap:
+      //   'before'       → gap is above targetEl: prevSibling gets margin-bottom, target gets margin-top
+      //   'after'/'child'→ gap is below targetEl: target gets margin-bottom, nextSibling gets margin-top
+      let aboveEl: HTMLElement | null;
+      let belowEl: HTMLElement | null;
+      if (position === 'before') {
+        aboveEl = targetEl.previousElementSibling as HTMLElement | null;
+        belowEl = targetEl;
+      } else {
+        aboveEl = targetEl;
+        belowEl = targetEl.nextElementSibling as HTMLElement | null;
+      }
 
+      const next: Array<{ el: HTMLElement; cls: string }> = [];
+      if (aboveEl?.classList.contains('node-block'))
+        next.push({ el: aboveEl, cls: 'node-block--drop-spacing-after' });
+      if (belowEl?.classList.contains('node-block'))
+        next.push({ el: belowEl, cls: 'node-block--drop-spacing-before' });
+
+      // Bail out early if nothing changed
       const prev = spacerElRef.current;
-      if (prev && prev.el === targetEl && prev.cls === cls) return; // already set
+      const sameSet =
+        prev.length === next.length &&
+        prev.every((p, i) => p.el === next[i].el && p.cls === next[i].cls);
+      if (sameSet) return;
 
-      // Clear previous
-      if (prev) prev.el.classList.remove(prev.cls);
-
-      targetEl.classList.add(cls);
-      spacerElRef.current = { el: targetEl, cls };
+      // Clear old, apply new
+      prev.forEach(({ el, cls }) => el.classList.remove(cls));
+      next.forEach(({ el, cls }) => el.classList.add(cls));
+      spacerElRef.current = next;
     }
 
     function clearDropSpacing() {
-      const prev = spacerElRef.current;
-      if (prev) {
-        prev.el.classList.remove(prev.cls);
-        spacerElRef.current = null;
-      }
+      spacerElRef.current.forEach(({ el, cls }) => el.classList.remove(cls));
+      spacerElRef.current = [];
     }
 
     function positionGhostFloat(ghost: HTMLDivElement, cx: number, cy: number) {

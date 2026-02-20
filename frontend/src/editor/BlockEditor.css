@@ -834,13 +834,13 @@ th.node-block-table-cell {
   opacity: 0.35;
 }
 
-/* Drop spacing: animated gap at the snap point */
+/* Drop spacing: animated gap at the snap point — 17px per side (was 3px), total 34px gap */
 .node-block--drop-spacing-before {
-  margin-top: 28px !important;
+  margin-top: 17px !important;
 }
 
 .node-block--drop-spacing-after {
-  margin-bottom: 28px !important;
+  margin-bottom: 17px !important;
 }
 
 /* During drag, animate vertical margins so spacing opens and closes smoothly */
