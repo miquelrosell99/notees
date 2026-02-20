@@ -21,7 +21,7 @@
   color: var(--color-on-surface);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-medium);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     box-shadow var(--motion-duration-short) var(--motion-easing-standard);
@@ -74,7 +74,7 @@
   align-items: center;
   width: 100%;
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-medium);
   background: var(--color-surface);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
