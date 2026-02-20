@@ -34,6 +34,7 @@ import {
   mdiDeleteOutline,
   mdiArrangeBringToFront,
   mdiArrangeSendToBack,
+  mdiMapOutline,
 } from '@mdi/js';
 import { FloatingButtonArray, ToolbarDivider } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
@@ -143,7 +144,8 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   onAddImage,
 }) => {
   const { interaction, data, settings } = wb;
-  const { gridVisible, gridSnap } = useWhiteboardStore();
+  const { gridVisible, gridSnap, minimapVisible } = useWhiteboardStore();
+  const { toggleGrid, toggleSnap, toggleMinimap } = useWhiteboardStore();
   const activeTool = interaction.tool;
 
   // Track the last selected shape so left-clicking the shapes button re-activates it.
@@ -378,6 +380,15 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             active={gridSnap}
             onClick={wb.toggleSnap}
             title="Snap to Grid"
+          />
+          <ToolbarDivider />
+          <Button
+            icon={mdiMapOutline}
+            variant="ghost"
+            size="sm"
+            active={minimapVisible}
+            onClick={toggleMinimap}
+            title="Toggle Minimap"
           />
         </FloatingButtonArray>
       </div>
