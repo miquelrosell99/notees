@@ -792,7 +792,7 @@ export const NodeCard = memo(function NodeCard({
                 size="sm"
                 onClick={handleOpenInSidebar}
                 icon={mdiDockRight}
-                className="node-card__action-button node-card__action-button--always-visible"
+                className="node-card__action-button"
                 aria-label="Open in sidebar"
               />
             )}
@@ -802,7 +802,7 @@ export const NodeCard = memo(function NodeCard({
                 size="sm"
                 onClick={handleOpenInView}
                 icon={mdiArrowRight}
-                className="node-card__action-button node-card__action-button--always-visible"
+                className="node-card__action-button"
                 aria-label="Open node"
               />
             )}
