@@ -7,7 +7,6 @@
 import React, { useState } from 'react';
 import {
   mdiCursorDefaultOutline,
-  mdiHandBackRight,
   mdiRectangleOutline,
   mdiCircleOutline,
   mdiTriangleOutline,
@@ -59,7 +58,6 @@ const TOOL_GROUPS = [
     label: 'Selection',
     tools: [
       { tool: 'select' as WhiteboardTool, icon: mdiCursorDefaultOutline, label: 'Select', shortcut: 'V' },
-      { tool: 'pan' as WhiteboardTool, icon: mdiHandBackRight, label: 'Pan', shortcut: 'H' },
     ],
   },
   {
