@@ -11,6 +11,7 @@
  * - Card for panels and floating UI
  */
 import React, { useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { WhiteboardCanvas } from './WhiteboardCanvas';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
@@ -254,8 +255,9 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       {/* Minimap */}
       <WhiteboardMinimap wb={wb} />
 
-      {/* Context menu */}
-      {contextMenu && (
+      {/* Context menu — rendered via portal to escape transform: translateZ(0) on .whiteboard-view,
+          which would otherwise offset position:fixed coordinates */}
+      {contextMenu && createPortal(
         <WhiteboardContextMenu
           wb={wb}
           position={contextMenu.position}
@@ -264,7 +266,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
           onOpenNode={handleOpenNode}
           onAddCardAtPosition={handleAddCardAtPosition}
           onAddReferenceCardAtPosition={handleAddReferenceCardAtPosition}
-        />
+        />,
+        document.body
       )}
 
       {/* Reference card node search popup */}
