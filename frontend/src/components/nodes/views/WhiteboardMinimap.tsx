@@ -24,8 +24,8 @@ interface WhiteboardMinimapProps {
   wb: UseWhiteboardReturn;
 }
 
-const MINIMAP_WIDTH = 160;
-const MINIMAP_HEIGHT = 100;
+const MINIMAP_WIDTH = 240;
+const MINIMAP_HEIGHT = 150;
 const MINIMAP_PADDING = 8;
 const DRAG_THRESHOLD = 4;
 const MIN_ZOOM = 0.1;
