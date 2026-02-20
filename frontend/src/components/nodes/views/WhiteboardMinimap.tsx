@@ -216,25 +216,47 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Track the actual pixel size of the minimap container itself
+  const [minimapSize, setMinimapSize] = useState({ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT });
+
   // Track the actual pixel size of the whiteboard canvas container
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
+  // One effect: observe both the minimap widget and its ancestor whiteboard view.
+  // Using containerRef for both avoids document.querySelector, which can find
+  // elements from other whiteboard instances and returns stale sizes after resizes.
   useEffect(() => {
-    const canvas = document.querySelector('.whiteboard-view__canvas');
-    if (!canvas) return;
-    const ro = new ResizeObserver(entries => {
+    const minimapEl = containerRef.current;
+    if (!minimapEl) return;
+
+    // The minimap is inside .whiteboard-view — use that as the canvas size source
+    const viewEl = minimapEl.closest('.whiteboard-view') as HTMLElement | null;
+
+    const roMinimap = new ResizeObserver(entries => {
       for (const entry of entries) {
-        setCanvasSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
+        setMinimapSize({ width: entry.contentRect.width, height: entry.contentRect.height });
       }
     });
-    ro.observe(canvas);
-    // Capture initial size immediately
-    const rect = canvas.getBoundingClientRect();
-    setCanvasSize({ width: rect.width, height: rect.height });
-    return () => ro.disconnect();
+    roMinimap.observe(minimapEl);
+    // Capture initial sizes synchronously before the browser paints again
+    const mmRect = minimapEl.getBoundingClientRect();
+    if (mmRect.width > 0) setMinimapSize({ width: mmRect.width, height: mmRect.height });
+
+    const roCanvas = viewEl ? new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setCanvasSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      }
+    }) : null;
+    if (viewEl) {
+      roCanvas!.observe(viewEl);
+      const vRect = viewEl.getBoundingClientRect();
+      if (vRect.width > 0) setCanvasSize({ width: vRect.width, height: vRect.height });
+    }
+
+    return () => {
+      roMinimap.disconnect();
+      roCanvas?.disconnect();
+    };
   }, []);
 
   // Tracks pointer state for click-vs-drag distinction
@@ -271,10 +293,10 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
 
   // Scale from world coordinates to minimap coordinates
   const scale = useMemo(() => {
-    const innerW = MINIMAP_WIDTH - MINIMAP_PADDING * 2;
-    const innerH = MINIMAP_HEIGHT - MINIMAP_PADDING * 2;
+    const innerW = minimapSize.width - MINIMAP_PADDING * 2;
+    const innerH = minimapSize.height - MINIMAP_PADDING * 2;
     return Math.min(innerW / contentBounds.width, innerH / contentBounds.height);
-  }, [contentBounds]);
+  }, [contentBounds, minimapSize]);
 
   // Re-render the low-res canvas preview whenever elements or bounds change
   useEffect(() => {
@@ -317,8 +339,8 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     const BORDER = 3;
     const minLeft = BORDER;
     const minTop = BORDER;
-    const maxRight = MINIMAP_WIDTH - BORDER;
-    const maxBottom = MINIMAP_HEIGHT - BORDER;
+    const maxRight = minimapSize.width - BORDER;
+    const maxBottom = minimapSize.height - BORDER;
 
     const rawLeft = topLeft.x;
     const rawTop  = topLeft.y;
@@ -336,7 +358,7 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
       width:  Math.max(0, right  - left),
       height: Math.max(0, bottom - top),
     };
-  }, [data.viewport, worldToMinimap, scale, effectiveCanvas]);
+  }, [data.viewport, worldToMinimap, scale, effectiveCanvas, minimapSize]);
 
   /** Pan the viewport so that a world point is centered in the canvas. */
   const centerOnMinimapPos = useCallback((mx: number, my: number) => {
