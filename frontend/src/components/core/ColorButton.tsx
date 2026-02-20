@@ -1,15 +1,17 @@
 /**
  * ColorButton Component
- * 
+ *
  * A button that displays as a solid color swatch.
  * Styled like Button, but shows a filled color instead of an icon.
  * Has a gap between the color fill and the button border.
- * 
- * Can optionally show a color picker popover when clicked.
- * 
+ *
+ * Supports both hex colors and CSS variable references (e.g. 'var(--color-preset-red)').
+ * CSS variable references are stored and emitted as-is, keeping colors theme-aware.
+ *
  * Usage:
- * <ColorButton color="#ff5722" onClick={handleClick} />
- * <ColorButton color="#ff5722" showPicker onColorChange={handleChange} />
+ *   <ColorButton color="#ff5722" onClick={handleClick} />
+ *   <ColorButton color="var(--color-preset-red)" showPicker onColorChange={handleChange} />
+ *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
 import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,41 +19,50 @@ import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
-// System highlight colors from variables.css
-const PRESET_COLOR_VARS = [
-  '--color-preset-red',
-  '--color-preset-orange',
-  '--color-preset-yellow',
-  '--color-preset-green',
-  '--color-preset-teal',
-  '--color-preset-blue',
-  '--color-preset-purple',
-  '--color-preset-pink',
-] as const;
-
-function getCSSVariableValue(varName: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+/** A color entry for the picker palette. Store colors as CSS variable references for theme-awareness. */
+export interface ColorEntry {
+  /** CSS variable reference, e.g. 'var(--color-preset-red)' */
+  cssVar: string;
+  /** Human-readable label shown as tooltip */
+  label: string;
 }
+
+// Default built-in palette from variables.css
+const DEFAULT_COLOR_ENTRIES: ColorEntry[] = [
+  { cssVar: 'var(--color-preset-red)',    label: 'Red' },
+  { cssVar: 'var(--color-preset-orange)', label: 'Orange' },
+  { cssVar: 'var(--color-preset-yellow)', label: 'Yellow' },
+  { cssVar: 'var(--color-preset-green)',  label: 'Green' },
+  { cssVar: 'var(--color-preset-teal)',   label: 'Teal' },
+  { cssVar: 'var(--color-preset-blue)',   label: 'Blue' },
+  { cssVar: 'var(--color-preset-purple)', label: 'Purple' },
+  { cssVar: 'var(--color-preset-pink)',   label: 'Pink' },
+];
 
 function isValidHexColor(color: string): boolean {
   return /^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
 }
 
 function normalizeHex(color: string): string {
-  const cleaned = color.replace('#', '');
-  return `#${cleaned}`;
+  return `#${color.replace('#', '')}`;
 }
 
 export interface ColorButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'onChange'> {
-  /** The color to display (hex, rgb, or named color) */
+  /** The color to display — hex or CSS variable reference like 'var(--color-preset-red)' */
   color: string;
   /** Size of the button (matches Button sizes) */
   size?: ColorButtonSize;
   /** Whether the button is in an active/selected state */
   active?: boolean;
-  /** Show color picker on click */
+  /** Show color picker popover on click */
   showPicker?: boolean;
-  /** Callback when color changes (only used with showPicker) */
+  /**
+   * Custom color palette for the picker.
+   * Defaults to the built-in preset palette.
+   * Each entry emits its cssVar string when selected.
+   */
+  colors?: ColorEntry[];
+  /** Called with a CSS var reference for palette swatches, or a hex string for the custom input. */
   onColorChange?: (color: string) => void;
 }
 
@@ -63,6 +74,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     className = '',
     disabled,
     showPicker = false,
+    colors,
     onColorChange,
     onClick,
     ...props
@@ -75,10 +87,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  const presetColors = PRESET_COLOR_VARS.map(varName => ({
-    varName,
-    hex: getCSSVariableValue(varName) || '#808080'
-  }));
+  const palette = colors ?? DEFAULT_COLOR_ENTRIES;
 
   const calculatePosition = useCallback(() => {
     if (!buttonRef.current || !pickerRef.current) return;
@@ -139,14 +148,13 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isPickerOpen]);
 
-  const handleColorSelect = (selectedColor: string) => {
-    onColorChange?.(selectedColor);
+  const handleColorSelect = (cssVar: string) => {
+    onColorChange?.(cssVar);
     setIsPickerOpen(false);
   };
 
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace('#', '');
-    setHexInput(value);
+    setHexInput(e.target.value.replace('#', ''));
   };
 
   const handleHexApply = () => {
@@ -213,16 +221,16 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           }}
         >
           <div className="color-btn-picker__grid">
-            {presetColors.map(({ varName, hex }) => (
+            {palette.map(({ cssVar, label }) => (
               <button
-                key={varName}
-                className={`color-btn-picker__swatch ${color === hex ? 'selected' : ''}`}
-                style={{ backgroundColor: `var(${varName})` }}
+                key={cssVar}
+                className={`color-btn-picker__swatch ${color === cssVar ? 'selected' : ''}`}
+                style={{ backgroundColor: cssVar }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleColorSelect(hex);
+                  handleColorSelect(cssVar);
                 }}
-                title={hex}
+                title={label}
                 type="button"
               />
             ))}
