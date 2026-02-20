@@ -28,7 +28,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -830,11 +830,38 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           childWork.push({ block, parentNodeId: result.node.id });
         }
       } else {
-        phase.failed++;
-        phase.errors.push({
-          item: `Block: ${block.title?.slice(0, 60) || '(empty)'}`,
-          message: result.error || 'Unknown error',
-        });
+        // If the block has a UUID, the failure may be a conflict with an existing node.
+        // Try to recover by looking it up and moving it to the correct parent.
+        let recovered = false;
+        if (block.uuid) {
+          try {
+            const existing = await getNodeByUuid(block.uuid);
+            if (existing) {
+              // Move to new parent if different
+              if (existing.parent_id !== parentId) {
+                await updateNode(existing.id, { parent_id: parentId, sequence: startSequence + result.index });
+              }
+              uuidMap.set(block.uuid, { id: existing.id, uuid: existing.uuid });
+              if (block.title) {
+                contentQueue.push({ id: existing.id, title: block.title });
+              }
+              if (block.children && block.children.length > 0) {
+                childWork.push({ block, parentNodeId: existing.id });
+              }
+              phase.succeeded++;
+              recovered = true;
+            }
+          } catch {
+            // lookup failed — fall through to error
+          }
+        }
+        if (!recovered) {
+          phase.failed++;
+          phase.errors.push({
+            item: `Block: ${block.title?.slice(0, 60) || '(empty)'}`,
+            message: result.error || 'Unknown error',
+          });
+        }
       }
     }
 
