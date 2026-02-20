@@ -441,15 +441,13 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
       if (anchor) {
         coordinator.updateTarget(anchor.target);
-        if (!state.snapped) {
-          ghost.style.transition =
-            'top 0.12s ease-out, left 0.12s ease-out, width 0.12s ease-out';
-        }
+        // Ghost always follows cursor — snapped style is purely visual
         ghost.classList.add('block-drag-ghost--snapped');
         ghost.classList.remove('block-drag-ghost--floating');
-        ghost.style.top = `${anchor.y - 14}px`;
-        ghost.style.left = `${anchor.x - 11}px`;
-        ghost.style.width = '200px';
+        ghost.style.transition = 'none';
+        ghost.style.top = `${cy - 14}px`;
+        ghost.style.left = `${cx - 11}px`;
+        ghost.style.width = '';
         state.snapped = true;
         activeAnchorRef.current = anchor;
 
