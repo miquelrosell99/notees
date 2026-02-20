@@ -289,7 +289,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           <ToolbarDivider />
 
-          {/* Other tools */
+          {/* Other tools */}
           {TOOL_GROUPS[3].tools.map(t => (
             <ToolButton
               key={t.tool}
