@@ -140,6 +140,72 @@ function isPointInShapePath(canvasPoint: Point, el: WhiteboardShapeElement): boo
 }
 
 /**
+ * Returns true when `canvasPoint` is within `hitRadius` of any segment
+ * in the given polyline (list of consecutive Points).
+ */
+function isPointOnPolyline(canvasPoint: Point, segments: Point[], hitRadius: number): boolean {
+  for (let i = 0; i < segments.length - 1; i++) {
+    const ax = segments[i].x, ay = segments[i].y;
+    const bx = segments[i + 1].x, by = segments[i + 1].y;
+    const dx = bx - ax, dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t = 0;
+    if (lenSq > 0) t = Math.max(0, Math.min(1, ((canvasPoint.x - ax) * dx + (canvasPoint.y - ay) * dy) / lenSq));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    if ((canvasPoint.x - cx) ** 2 + (canvasPoint.y - cy) ** 2 <= hitRadius * hitRadius) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true when `canvasPoint` is within eraser range of a connector's rendered path.
+ * Supports straight, elbow, and curved (sampled) path types.
+ */
+function isPointOnConnectorPath(
+  canvasPoint: Point,
+  conn: WhiteboardConnectorElement,
+  elements: WhiteboardElement[],
+  hitRadius: number,
+): boolean {
+  const resolve = (ep: ConnectorEndpoint): Point => {
+    if (ep.type === 'point') return { x: ep.x, y: ep.y };
+    const el = elements.find(e => e.id === ep.elementId);
+    if (!el) return { x: 0, y: 0 };
+    switch (ep.anchor) {
+      case 'top':    return { x: el.x + el.width / 2, y: el.y };
+      case 'right':  return { x: el.x + el.width, y: el.y + el.height / 2 };
+      case 'bottom': return { x: el.x + el.width / 2, y: el.y + el.height };
+      case 'left':   return { x: el.x, y: el.y + el.height / 2 };
+      default:       return { x: el.x + el.width / 2, y: el.y + el.height / 2 };
+    }
+  };
+  const s = resolve(conn.start);
+  const e = resolve(conn.end);
+  if (conn.pathType === 'straight') {
+    return isPointOnPolyline(canvasPoint, [s, e], hitRadius);
+  }
+  if (conn.pathType === 'elbow') {
+    const mx = (s.x + e.x) / 2;
+    return isPointOnPolyline(canvasPoint, [s, { x: mx, y: s.y }, { x: mx, y: e.y }, e], hitRadius);
+  }
+  // Curved: sample the cubic bezier
+  const dx = e.x - s.x;
+  const cx1 = s.x + dx * 0.25, cy1 = s.y;
+  const cx2 = e.x - dx * 0.25, cy2 = e.y;
+  const SAMPLES = 24;
+  const pts: Point[] = [];
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = i / SAMPLES;
+    const mt = 1 - t;
+    pts.push({
+      x: mt ** 3 * s.x + 3 * mt ** 2 * t * cx1 + 3 * mt * t ** 2 * cx2 + t ** 3 * e.x,
+      y: mt ** 3 * s.y + 3 * mt ** 2 * t * cy1 + 3 * mt * t ** 2 * cy2 + t ** 3 * e.y,
+    });
+  }
+  return isPointOnPolyline(canvasPoint, pts, hitRadius);
+}
+
+/**
  * Given a canvas point near an element, returns the nearest border side.
  * Normalizes by element dimensions so aspect ratio doesn't bias the result.
  */
@@ -179,6 +245,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Imperative connector drawing refs
   const liveConnectorRef = useRef<SVGLineElement>(null);
   const connectorHoverCircleRef = useRef<SVGCircleElement>(null);
+  // Eraser cursor circle — updated imperatively, lives in live SVG so opacity dimming never affects it
+  const eraserCursorRef = useRef<SVGCircleElement>(null);
   const rafRef = useRef<number>(0);
   const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as const });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -252,6 +320,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
     return null;
   }, [data.elements]);
+
+  /** Find a group whose bounding box contains canvasPoint. */
+  const findGroupAtPoint = useCallback((canvasPoint: Point): WhiteboardGroup | null => {
+    for (const group of data.groups) {
+      const memberEls = data.elements.filter(el => group.elementIds.includes(el.id));
+      if (memberEls.length === 0) continue;
+      const bounds = getBounds(memberEls);
+      if (!bounds) continue;
+      const pad = 12;
+      const padded: Bounds = { x: bounds.x - pad, y: bounds.y - pad, width: bounds.width + 2 * pad, height: bounds.height + 2 * pad };
+      if (isPointInBounds(canvasPoint, padded)) return group;
+    }
+    return null;
+  }, [data.elements, data.groups]);
 
   // Hit-test resize handles on the group selection card (any selection size)
   // All coordinates are in canvas space; hitRadius is in canvas units.
@@ -535,6 +617,16 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           connectorHoverCircleRef.current.setAttribute('r', '0');
         }
       }
+      // Eraser tool: follow cursor with size circle
+      if (interaction.tool === 'eraser') {
+        if (eraserCursorRef.current) {
+          eraserCursorRef.current.setAttribute('cx', String(canvasPos.x));
+          eraserCursorRef.current.setAttribute('cy', String(canvasPos.y));
+          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2));
+        }
+      } else if (eraserCursorRef.current) {
+        eraserCursorRef.current.setAttribute('r', '0');
+      }
       return;
     }
 
@@ -624,10 +716,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 );
                 if (dist < eraserRadius) { newMarkedIds.add(el.id); break; }
               }
+            } else if (el.type === 'line') {
+              if (isPointOnLineElement(newPoint, el as WhiteboardLineElement)) newMarkedIds.add(el.id);
+            } else if (el.type === 'connector') {
+              if (isPointOnConnectorPath(newPoint, el as WhiteboardConnectorElement, data.elements, eraserRadius)) newMarkedIds.add(el.id);
             }
           }
           return { ...prev, currentStroke: newStroke, eraserMarkedIds: newMarkedIds };
         });
+        // Update eraser cursor circle position imperatively during drawing
+        if (eraserCursorRef.current) {
+          eraserCursorRef.current.setAttribute('cx', String(canvasPos.x));
+          eraserCursorRef.current.setAttribute('cy', String(canvasPos.y));
+          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2));
+        }
         return;
       }
 
@@ -1227,7 +1329,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const cursorClass = useMemo(() => {
     if (interaction.isPanning || isEmptyPanning) return 'whiteboard-view--panning-active';
-    if (['pen', 'highlighter', 'eraser', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) return 'whiteboard-view--drawing';
+    if (interaction.tool === 'eraser') return 'whiteboard-view--drawing whiteboard-view--eraser';
+    if (['pen', 'highlighter', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) return 'whiteboard-view--drawing';
     return '';
   }, [interaction.tool, interaction.isPanning, isEmptyPanning]);
 
@@ -1256,6 +1359,34 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       height: (maxY - minY + 2 * pad) * viewport.zoom,
     };
   }, [data.elements, interaction.selectedIds, viewport]);
+
+  // ─── Group bounding boxes ─────────────────────────────────────────
+  // Rendered as faint bounding-box cards behind group member elements.
+
+  const renderGroups = useMemo(() =>
+    data.groups.map(group => {
+      const memberEls = data.elements.filter(el => group.elementIds.includes(el.id));
+      if (memberEls.length === 0) return null;
+      const bounds = getBounds(memberEls);
+      if (!bounds) return null;
+      const pad = 12;
+      const allSelected = group.elementIds.every(id => interaction.selectedIds.has(id));
+      return (
+        <div
+          key={group.id}
+          className={`whiteboard-group${allSelected ? ' whiteboard-group--selected' : ''}`}
+          style={{
+            left: (bounds.x - pad) * viewport.zoom + viewport.x,
+            top: (bounds.y - pad) * viewport.zoom + viewport.y,
+            width: (bounds.width + 2 * pad) * viewport.zoom,
+            height: (bounds.height + 2 * pad) * viewport.zoom,
+            zIndex: Math.min(...memberEls.map(el => el.zIndex)) - 1,
+          }}
+        />
+      );
+    }),
+    [data.groups, data.elements, interaction.selectedIds, viewport]
+  );
 
   // ─── Render element ───────────────────────────────────────────────
 
@@ -1381,7 +1512,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           {/* Completed line elements */}
           {lineElements.map(line => {
             const isSelected = interaction.selectedIds.has(line.id);
-            const dimmed = interaction.selectedIds.size > 0 && !isSelected;
+            const isMarkedForDeletion = isEraserMode && interaction.eraserMarkedIds.has(line.id);
+            const dimmed = (interaction.selectedIds.size > 0 && !isSelected) || (isEraserMode && !isMarkedForDeletion);
             const ssLineClass = line.strokeStyle === 'dashed' ? 'wb-ss-dashed' : line.strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
             return (
               <line
@@ -1390,7 +1522,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 y1={line.y}
                 x2={line.lineFlipped ? line.x : line.x + line.width}
                 y2={line.y + line.height}
-                stroke={line.stroke}
+                stroke={isMarkedForDeletion ? 'var(--color-error)' : line.stroke}
                 strokeWidth={line.strokeWidth}
                 className={ssLineClass || undefined}
                 strokeLinecap="round"
@@ -1424,6 +1556,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const renderConnectors = useMemo(() => {
     const connectors = data.elements.filter(el => el.type === 'connector') as WhiteboardConnectorElement[];
+    const isEraserMode = interaction.isDrawing && interaction.tool === 'eraser';
 
     const getEndpointPos = (endpoint: ConnectorEndpoint): Point => {
       if (endpoint.type === 'point') return { x: endpoint.x, y: endpoint.y };
@@ -1471,20 +1604,22 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
             const ssConnClass = conn.strokeStyle === 'dashed' ? 'wb-ss-dashed' : conn.strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
 
-            const connColor = isSelected ? 'var(--accent-primary)' : conn.stroke;
+            const isMarkedForDeletion = isEraserMode && interaction.eraserMarkedIds.has(conn.id);
+            const dimmed = (interaction.selectedIds.size > 0 && !isSelected) || (isEraserMode && !isMarkedForDeletion);
+            const connColor = isMarkedForDeletion ? 'var(--color-error)' : isSelected ? 'var(--accent-primary)' : conn.stroke;
             const showStartDot = conn.start.type === 'element' && conn.start.anchor !== 'center';
             const showEndDot = conn.end.type === 'element' && conn.end.anchor !== 'center';
             const dotR = Math.max(3, conn.strokeWidth + 1);
 
             return (
-              <g key={conn.id}>
+              <g key={conn.id} opacity={dimmed ? 0.35 : 1} style={{ transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)' }}>
                 {/* Hit target (wider invisible stroke) */}
                 <path
                   d={pathD}
                   fill="none"
                   stroke="transparent"
                   strokeWidth={Math.max(conn.strokeWidth + 10, 15)}
-                  style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                  style={{ pointerEvents: isEraserMode ? 'none' : 'stroke', cursor: 'pointer' }}
                   onClick={() => wb.selectElements([conn.id])}
                 />
                 <path
@@ -1536,6 +1671,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
+      onPointerLeave={() => { if (eraserCursorRef.current) eraserCursorRef.current.setAttribute('r', '0'); }}
       tabIndex={0}
     >
       {/* Strokes SVG layer */}
@@ -1570,6 +1706,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             cx="0" cy="0" r="0"
             fill="var(--accent-primary)"
             opacity="0.85"
+          />
+          {/* Eraser cursor circle — always visible, unaffected by element opacity dimming */}
+          <circle
+            ref={eraserCursorRef}
+            cx="0" cy="0" r="0"
+            fill="none"
+            stroke="var(--color-on-surface)"
+            strokeWidth="1.5"
+            opacity="0.6"
           />
         </g>
       </svg>

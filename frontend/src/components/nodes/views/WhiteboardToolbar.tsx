@@ -35,6 +35,8 @@ import {
   mdiArrangeBringToFront,
   mdiArrangeSendToBack,
   mdiMapOutline,
+  mdiGroup,
+  mdiUngroup,
 } from '@mdi/js';
 import { FloatingButtonArray, ToolbarDivider } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
@@ -619,6 +621,13 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
   const selectedElements = wb.data.elements.filter(el => selectedIds.includes(el.id));
   const anyLocked = selectedElements.some(el => el.locked);
 
+  // Group state
+  const existingGroup = wb.data.groups.find(g =>
+    selectedIds.length >= 2 && selectedIds.every(id => g.elementIds.includes(id))
+  );
+  const isGrouped = !!existingGroup;
+  const canGroup = selectedIds.length >= 2;
+
   // Connector-specific: stroke style control
   const selectedConnectors = selectedElements.filter(el => el.type === 'connector') as WhiteboardConnectorElement[];
   const hasConnectors = selectedConnectors.length > 0;
@@ -672,6 +681,25 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
               }
             }}
             size="sm"
+          />
+        </>
+      )}
+      {/* Group / Ungroup — shown when 2+ items selected */}
+      {canGroup && (
+        <>
+          <ToolbarDivider />
+          <Button
+            icon={isGrouped ? mdiUngroup : mdiGroup}
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (isGrouped) {
+                wb.ungroupElements(selectedIds);
+              } else {
+                wb.groupElements(selectedIds);
+              }
+            }}
+            title={isGrouped ? 'Ungroup (Ctrl+G)' : 'Group (Ctrl+G)'}
           />
         </>
       )}
