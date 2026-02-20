@@ -900,12 +900,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       zIndex: el.zIndex,
     };
 
-    const isMultiSelected = isSelected && interaction.selectedIds.size > 1;
-
     const className = [
       'whiteboard-element',
-      isSelected && 'whiteboard-element--selected',
-      isMultiSelected && 'whiteboard-element--multi-selected',
+      isSelected && interaction.selectedIds.size === 1 && 'whiteboard-element--selected',
+      isHovered && 'whiteboard-element--hovered',
       isHovered && 'whiteboard-element--hovered',
       el.locked && 'whiteboard-element--locked',
       interaction.isDragging && isSelected && 'whiteboard-element--dragging',
@@ -980,8 +978,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           </div>
         )}
 
-        {/* Resize handles for selected elements */}
-        {isSelected && !el.locked && (
+        {/* Resize handles — only for single-selected, non-locked elements */}
+        {isSelected && !el.locked && interaction.selectedIds.size === 1 && (
           <div className="whiteboard-element__resize-handles">
             {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
               <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
