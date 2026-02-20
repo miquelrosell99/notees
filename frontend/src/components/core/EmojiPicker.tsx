@@ -576,7 +576,8 @@ export function EmojiPicker({
   }
 
   function kebabToCamel(kebab: string): string {
-    return kebab.replace(/^mdi-/, 'mdi').replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const withoutPrefix = kebab.replace(/^mdi-/, '');
+    return 'mdi' + withoutPrefix.replace(/(^|-)([a-z])/g, (_, _sep, c: string) => c.toUpperCase());
   }
 
   const popupStyle: React.CSSProperties =
