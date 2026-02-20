@@ -146,8 +146,8 @@ export function paragraph(...children: ASTInlineNode[]): ASTParagraph {
 export function heading(...children: ASTInlineNode[]): ASTHeading {
   return { type: 'heading', children };
 }
-export function whiteboard(title: string, data: WhiteboardData): ASTWhiteboard {
-  return { type: 'whiteboard', title, data };
+export function whiteboard(data: WhiteboardData): ASTWhiteboard {
+  return { type: 'whiteboard', data };
 }
 /**
  * Build a complete document from paragraphs.
