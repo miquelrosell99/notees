@@ -894,8 +894,9 @@ body.notees-dragging-block .bullet-collapse-arrow:hover {
   background: none;
 }
 
+body.notees-dragging-block,
 body.notees-dragging-block * {
-  cursor: grabbing !important;
+  cursor: none !important;
 }
 
 /* ─── Selection box ────────────────────────────────────────────── */
