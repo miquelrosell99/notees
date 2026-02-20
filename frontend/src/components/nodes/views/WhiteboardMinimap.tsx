@@ -312,11 +312,29 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     const worldW = canvasW / vp.zoom;
     const worldH = canvasH / vp.zoom;
     const topLeft = worldToMinimap(worldX, worldY);
+
+    // Keep a gap between the viewport rect and the minimap border
+    const BORDER = 3;
+    const minLeft = BORDER;
+    const minTop = BORDER;
+    const maxRight = MINIMAP_WIDTH - BORDER;
+    const maxBottom = MINIMAP_HEIGHT - BORDER;
+
+    const rawLeft = topLeft.x;
+    const rawTop  = topLeft.y;
+    const rawRight  = rawLeft + worldW * scale;
+    const rawBottom = rawTop  + worldH * scale;
+
+    const left   = Math.max(minLeft, rawLeft);
+    const top    = Math.max(minTop,  rawTop);
+    const right  = Math.min(maxRight,  rawRight);
+    const bottom = Math.min(maxBottom, rawBottom);
+
     return {
-      left:   topLeft.x,
-      top:    topLeft.y,
-      width:  worldW * scale,
-      height: worldH * scale,
+      left,
+      top,
+      width:  Math.max(0, right  - left),
+      height: Math.max(0, bottom - top),
     };
   }, [data.viewport, worldToMinimap, scale, effectiveCanvas]);
 
