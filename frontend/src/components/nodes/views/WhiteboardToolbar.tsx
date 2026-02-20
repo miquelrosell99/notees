@@ -145,6 +145,15 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   onAddReferenceCard,
   onAddImage,
 }) => {
+
+  // Panel open state for each tool
+  const [panelOpen, setPanelOpen] = useState({
+    shape: false,
+    pen: false,
+    highlighter: false,
+    eraser: false,
+  });
+
   const { interaction, data, settings } = wb;
   const { gridVisible, gridSnap, minimapVisible } = useWhiteboardStore();
   const { toggleGrid, toggleSnap, toggleMinimap } = useWhiteboardStore();
@@ -191,13 +200,20 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             panelAlignment="center"
             usePortal
             panelWidth={220}
-            openPanelOnRightClick
             active={isShapeTool(activeTool)}
-            onActivate={() => wb.setTool(lastShapeTool)}
+            open={isShapeTool(activeTool) && panelOpen.shape}
+            onOpenChange={open => setPanelOpen(p => ({ ...p, shape: open }))}
+            onActivate={() => {
+              if (!isShapeTool(activeTool)) {
+                wb.setTool(lastShapeTool);
+                setPanelOpen(p => ({ ...p, shape: false }));
+              } else {
+                setPanelOpen(p => ({ ...p, shape: !p.shape }));
+              }
+            }}
           >
             {(closePanel) => (
               <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Shape picker — SelectionButton spanning all shape options */}
                 <SelectionButton
                   options={SHAPE_TOOL_OPTIONS}
                   value={isShapeTool(activeTool) ? activeTool : lastShapeTool}
@@ -205,7 +221,6 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                   size="sm"
                 />
                 <div style={{ height: 1, background: 'var(--color-outline-variant)', margin: '0 4px' }} />
-                {/* Shape style settings */}
                 <ShapeSettingsPanel
                   settings={settings.shape}
                   onChange={(s) => wb.setSettings(prev => ({ ...prev, shape: s }))}
@@ -230,9 +245,17 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             panelAlignment="center"
             usePortal
             panelWidth={220}
-            openPanelOnRightClick
             active={activeTool === 'pen'}
-            onActivate={() => wb.setTool('pen')}
+            open={activeTool === 'pen' && panelOpen.pen}
+            onOpenChange={open => setPanelOpen(p => ({ ...p, pen: open }))}
+            onActivate={() => {
+              if (activeTool !== 'pen') {
+                wb.setTool('pen');
+                setPanelOpen(p => ({ ...p, pen: false }));
+              } else {
+                setPanelOpen(p => ({ ...p, pen: !p.pen }));
+              }
+            }}
             buttonProps={activeTool === 'pen' ? {
               style: { borderColor: settings.pen.color },
             } : {}}
@@ -256,9 +279,17 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             panelAlignment="center"
             usePortal
             panelWidth={220}
-            openPanelOnRightClick
             active={activeTool === 'highlighter'}
-            onActivate={() => wb.setTool('highlighter')}
+            open={activeTool === 'highlighter' && panelOpen.highlighter}
+            onOpenChange={open => setPanelOpen(p => ({ ...p, highlighter: open }))}
+            onActivate={() => {
+              if (activeTool !== 'highlighter') {
+                wb.setTool('highlighter');
+                setPanelOpen(p => ({ ...p, highlighter: false }));
+              } else {
+                setPanelOpen(p => ({ ...p, highlighter: !p.highlighter }));
+              }
+            }}
             buttonProps={activeTool === 'highlighter' ? {
               style: { borderColor: settings.highlighter.color },
             } : {}}
@@ -282,11 +313,20 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             panelAlignment="center"
             usePortal
             panelWidth={220}
-            openPanelOnRightClick
             active={activeTool === 'eraser'}
-            onActivate={() => wb.setTool('eraser')}
+            open={activeTool === 'eraser' && panelOpen.eraser}
+            onOpenChange={open => setPanelOpen(p => ({ ...p, eraser: open }))}
+            onActivate={() => {
+              if (activeTool !== 'eraser') {
+                wb.setTool('eraser');
+                setPanelOpen(p => ({ ...p, eraser: false }));
+              } else {
+                setPanelOpen(p => ({ ...p, eraser: !p.eraser }));
+              }
+            }}
           >
             {() => (
+
               <EraserSettingsPanel
                 settings={settings.eraser}
                 onChange={(s) => wb.setSettings(prev => ({ ...prev, eraser: s }))}
