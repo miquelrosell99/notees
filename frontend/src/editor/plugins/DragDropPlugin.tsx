@@ -661,12 +661,29 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     };
 
     // ── Mouseup ──────────────────────────────────────────────
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
       const state = dragStateRef.current;
       if (!state) return;
       if (state.active) {
-        getDragCoordinator().completeDrag();
+        const coordinator = getDragCoordinator();
+        if (activeAnchorRef.current) {
+          coordinator.completeDrag();
+        } else {
+          coordinator.cancelDrag();
+        }
         cleanup(state);
+
+        // Suppress the click event that follows mouseup so the block
+        // doesn't open in focused view after a cancelled drag.
+        const suppressClick = (ev: MouseEvent) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+        };
+        window.addEventListener('click', suppressClick, { capture: true, once: true });
+        // Safety: remove after a tick in case the click never fires
+        requestAnimationFrame(() =>
+          window.removeEventListener('click', suppressClick, { capture: true }),
+        );
       }
       dragStateRef.current = null;
     };
