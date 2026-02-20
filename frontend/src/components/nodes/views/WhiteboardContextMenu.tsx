@@ -5,6 +5,7 @@ import React from 'react';
 import { ContextMenu } from '@/components/core/ContextMenu';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
+import { useWhiteboardStore } from '@/stores/whiteboardStore';
 
 interface WhiteboardContextMenuProps {
   wb: UseWhiteboardReturn;
@@ -25,6 +26,8 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
   onAddCardAtPosition,
   onAddReferenceCardAtPosition,
 }) => {
+  const { gridVisible, gridSnap } = useWhiteboardStore();
+
   if (!position) return null;
 
   const element = elementId ? wb.data.elements.find(el => el.id === elementId) : null;
@@ -201,7 +204,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
 
     items.push({
       id: 'toggle-grid',
-      label: wb.data.grid.visible ? 'Hide Grid' : 'Show Grid',
+      label: gridVisible ? 'Hide Grid' : 'Show Grid',
       icon: 'grid',
       shortcut: 'G',
       onClick: () => { wb.toggleGrid(); onClose(); },
@@ -209,7 +212,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
 
     items.push({
       id: 'toggle-snap',
-      label: wb.data.grid.snap ? 'Disable Snap' : 'Enable Snap',
+      label: gridSnap ? 'Disable Snap' : 'Enable Snap',
       icon: 'magnet',
       onClick: () => { wb.toggleSnap(); onClose(); },
     });
