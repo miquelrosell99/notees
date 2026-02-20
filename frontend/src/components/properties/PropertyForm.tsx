@@ -36,6 +36,7 @@ interface SelectionOptionWithId {
   id: string;
   name: string;
   icon?: string;
+  color?: string | null;
 }
 
 export interface PropertyFormProps {
@@ -68,6 +69,7 @@ export interface PropertyFormProps {
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
   onOptionIconChange?: (id: string, icon: string) => void;
+  onOptionColorChange?: (id: string, color: string | null) => void;
   onReorderOptions: (fromIndex: number, toIndex: number) => void;
   onNewOptionNameChange: (name: string) => void;
   onNewOptionIconChange: (icon: string) => void;
@@ -112,6 +114,7 @@ export function PropertyForm({
   onAddOption,
   onRemoveOption,
   onOptionIconChange,
+  onOptionColorChange,
   onReorderOptions,
   onNewOptionNameChange,
   onNewOptionIconChange,
@@ -225,6 +228,9 @@ export function PropertyForm({
                   onSelect={(icon) => onOptionIconChange?.(opt.id, icon)}
                   placeholder=""
                   className="property-form__option-icon-btn"
+                  useColor={true}
+                  color={opt.color}
+                  onColorChange={(c) => onOptionColorChange?.(opt.id, c)}
                 />
               )}
               renderText={(opt) => opt.name}

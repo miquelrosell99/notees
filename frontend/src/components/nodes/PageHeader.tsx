@@ -359,6 +359,10 @@ export function PageHeader({
     setShowIconPicker(false);
   }, [page.id, updateNode, onIconChange]);
 
+  const handleIconColorChange = useCallback((color: string | null) => {
+    updateNode.mutate({ id: page.id, data: { color } });
+  }, [page.id, updateNode]);
+
   // Handle Ctrl+C on page title to copy page link when nothing is selected
   const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     // When class popup is open, let SuggestionPopup handle navigation keys
@@ -414,7 +418,8 @@ export function PageHeader({
                 icon={effectiveIcon} 
                 isPage={true}
                 size="xl" 
-                className="page-icon-large" 
+                className="page-icon-large"
+                color={page.color || undefined}
               />
             ) : (
               <span className="page-icon-placeholder">+</span>
@@ -465,6 +470,9 @@ export function PageHeader({
           onSelect={handleIconSelect}
           onClose={() => setShowIconPicker(false)}
           position={iconPickerPos}
+          useColor={true}
+          color={page.color}
+          onColorChange={handleIconColorChange}
         />
       )}
       
