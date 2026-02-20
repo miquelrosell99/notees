@@ -34,8 +34,8 @@
 .whiteboard-view--grid {
   background-image: radial-gradient(
     circle,
-    var(--color-outline-variant) 1.5px,
-    transparent 1.5px
+    var(--color-outline-variant) var(--grid-dot-radius, 1.5px),
+    transparent var(--grid-dot-radius, 1.5px)
   );
   background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
   background-size: var(--grid-size, 24px) var(--grid-size, 24px);

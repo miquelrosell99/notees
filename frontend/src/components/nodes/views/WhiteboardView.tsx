@@ -213,11 +213,24 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
 
   const gridStyle = useMemo(() => {
     if (!wb.data.grid.visible) return {};
-    const gridSize = wb.data.grid.size * wb.data.viewport.zoom;
+
+    const baseGrid  = wb.data.grid.size;          // world-space grid
+    const zoom      = wb.data.viewport.zoom;
+    const TARGET_PX = 48;                          // ideal screen-px spacing
+
+    // Power-of-2 snap: pick multiplier so (baseGrid * mult * zoom) ≈ TARGET_PX
+    const raw  = TARGET_PX / (baseGrid * zoom);
+    const mult = Math.pow(2, Math.round(Math.log2(Math.max(raw, 1 / 256))));
+    const gridSize = Math.max(baseGrid * mult * zoom, 16); // floor at 16px
+
+    // Dot radius scales inversely with gridSize so dots stay visible
+    const dotRadius = Math.min(1.5, Math.max(0.8, 1.5 * (48 / gridSize)));
+
     return {
       backgroundSize: `${gridSize}px ${gridSize}px`,
       '--grid-offset-x': `${wb.data.viewport.x % gridSize}px`,
       '--grid-offset-y': `${wb.data.viewport.y % gridSize}px`,
+      '--grid-dot-radius': `${dotRadius}px`,
     } as React.CSSProperties;
   }, [wb.data.grid, wb.data.viewport]);
 
