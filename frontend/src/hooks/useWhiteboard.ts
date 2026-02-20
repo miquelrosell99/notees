@@ -383,7 +383,7 @@ export function useWhiteboard(nodeId: number | null) {
     };
   }, [data.elements]);
 
-  const createReferenceCard = useCallback((nodeId: number, nodeUuid: string, position: Point, refBlockId?: number): WhiteboardCardElement => {
+  const createReferenceCard = useCallback((nodeId: number, nodeUuid: string, position: Point, refBlockId?: number, refBlockUuid?: string): WhiteboardCardElement => {
     const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
     return {
       id: createElementId(),
@@ -399,6 +399,7 @@ export function useWhiteboard(nodeId: number | null) {
       nodeId,
       nodeUuid,
       refBlockId,
+      refBlockUuid,
       collapsed: false,
       color: null,
       showChildren: true,
