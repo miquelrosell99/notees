@@ -249,7 +249,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // Shape creation tools
-    if (['rectangle', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'].includes(tool)) {
+    if (['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool)) {
       setInteraction(prev => ({
         ...prev,
         isDragging: true,
@@ -458,7 +458,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // Shape creation drag
-    if (interaction.isDragging && interaction.dragStart && ['rectangle', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'].includes(interaction.tool)) {
+    if (interaction.isDragging && interaction.dragStart && ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) {
       const start = interaction.dragStart;
       const tool = interaction.tool;
       const isShift = e.shiftKey;
@@ -472,8 +472,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       let endX = canvasPos.x;
       let endY = canvasPos.y;
 
-      // Shift + rectangle → constrain to square
-      if (isShift && tool === 'rectangle') {
+      // Shift + rectangle or ellipse → constrain to square / circle
+      if (isShift && (tool === 'rectangle' || tool === 'ellipse')) {
         const rawW = Math.abs(endX - start.x);
         const rawH = Math.abs(endY - start.y);
         const size = Math.min(rawW, rawH);
@@ -598,7 +598,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         rectangle: 'rectangle',
         ellipse: 'ellipse',
         triangle: isShift ? 'triangle-right' : 'triangle',
-        diamond: 'diamond',
         hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
         star: 'star',
       };
@@ -1158,7 +1157,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           rectangle: 'rectangle',
           ellipse: 'ellipse',
           triangle: isShift ? 'triangle-right' : 'triangle',
-          diamond: 'diamond',
           hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
           star: 'star',
         };

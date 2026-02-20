@@ -22,8 +22,6 @@ function getShapePath(type: WhiteboardShapeElement['shapeType'], w: number, h: n
     case 'triangle-right':
       // Right-angle triangle: 90° corner at top-left, hypotenuse from top-right to bottom-left
       return `M 0 0 L ${w} 0 L 0 ${h} Z`;
-    case 'diamond':
-      return `M ${w / 2} 0 L ${w} ${h / 2} L ${w / 2} ${h} L 0 ${h / 2} Z`;
     case 'hexagon': {
       const inset = w * 0.25;
       return `M ${inset} 0 L ${w - inset} 0 L ${w} ${h / 2} L ${w - inset} ${h} L ${inset} ${h} L 0 ${h / 2} Z`;

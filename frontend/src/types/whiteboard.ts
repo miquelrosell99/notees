@@ -57,7 +57,6 @@ export type ShapeType =
   | 'ellipse'
   | 'triangle'
   | 'triangle-right'    // right-angle triangle (Shift variant)
-  | 'diamond'
   | 'hexagon'
   | 'hexagon-pointy'   // pointy-top hexagon (Shift variant)
   | 'star'
@@ -225,7 +224,6 @@ export type WhiteboardTool =
   | 'rectangle'
   | 'ellipse'
   | 'triangle'
-  | 'diamond'
   | 'hexagon'
   | 'star'
   | 'arrow'
