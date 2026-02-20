@@ -3,6 +3,7 @@ import { useNode, useUpdateNode } from '@/hooks/useNodes';
 import type { Node } from '@/types/api';
 import type { ASTWhiteboard } from '@/types/ast';
 import { parseAST } from '@/lib/astBuilder';
+import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import type {
   WhiteboardData,
   WhiteboardElement,
@@ -43,14 +44,22 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
   return { ...DEFAULT_WHITEBOARD_DATA };
 }
 
-/** Extract the title from a whiteboard node's AST. */
+/**
+ * Extract the title from a whiteboard node's AST.
+ *
+ * If the AST is already a whiteboard block, returns its `title`.
+ * Otherwise falls back to stringifying the existing AST (paragraph/heading)
+ * so the page title is preserved when first converting a node to whiteboard.
+ */
 function parseWhiteboardTitle(node: Node | undefined): string {
   if (!node?.name) return '';
   const ast = parseAST(node.name);
-  if (ast.length > 0 && ast[0].type === 'whiteboard') {
+  if (ast.length === 0) return '';
+  if (ast[0].type === 'whiteboard') {
     return (ast[0] as ASTWhiteboard).title;
   }
-  return '';
+  // Fallback: extract plain text from paragraph/heading AST (first conversion)
+  return stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY });
 }
 
 // ─── Main hook ─────────────────────────────────────────────────────
@@ -60,11 +69,16 @@ export function useWhiteboard(nodeId: number | null) {
     include_children: true,
   });
   const updateNode = useUpdateNode();
+  // Stable ref to updateNode.mutate avoids recreating saveToBackend on every mutation state change
+  const mutateRef = useRef(updateNode.mutate);
+  mutateRef.current = updateNode.mutate;
 
   // Whiteboard data state
   const [data, setData] = useState<WhiteboardData>(DEFAULT_WHITEBOARD_DATA);
   /** Cached title — updated when the node changes, preserved across data saves. */
   const titleRef = useRef<string>('');
+  /** Latest data snapshot for flush-on-unmount. */
+  const latestDataRef = useRef<WhiteboardData>(DEFAULT_WHITEBOARD_DATA);
   const [settings, setSettings] = useState<WhiteboardSettings>(DEFAULT_WHITEBOARD_SETTINGS);
   const [interaction, setInteraction] = useState<WhiteboardInteractionState>({
     tool: 'select',
@@ -102,18 +116,24 @@ export function useWhiteboard(nodeId: number | null) {
 
   // ─── Save to backend (debounced) ──────────────────────────────────
 
+  /** Serialize and fire the mutation immediately (no debounce). */
+  const flushSave = useCallback((whiteboardData: WhiteboardData) => {
+    if (!nodeId) return;
+    const ast = [{ type: 'whiteboard' as const, title: titleRef.current, data: whiteboardData }];
+    const serialized = JSON.stringify(ast);
+    mutateRef.current({ id: nodeId, data: { name: serialized } });
+  }, [nodeId]);
+
   const saveToBackend = useCallback((newData: WhiteboardData) => {
+    latestDataRef.current = newData;
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      if (!nodeId) return;
-      // Store as ASTWhiteboard block in the name field
-      const ast = [{ type: 'whiteboard' as const, title: titleRef.current, data: newData }];
-      const serialized = JSON.stringify(ast);
-      updateNode.mutate({ id: nodeId, data: { name: serialized } });
+      flushSave(newData);
+      saveTimeoutRef.current = undefined;
     }, SAVE_DEBOUNCE_MS);
-  }, [nodeId, updateNode]);
+  }, [flushSave]);
 
   // ─── History management ───────────────────────────────────────────
 
@@ -489,15 +509,17 @@ export function useWhiteboard(nodeId: number | null) {
     };
   }, [data.grid]);
 
-  // ─── Cleanup timeout on unmount ───────────────────────────────────
+  // ─── Flush pending save on unmount (don't lose strokes) ───────────
 
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+        // Fire the save immediately with the latest data
+        flushSave(latestDataRef.current);
       }
     };
-  }, []);
+  }, [flushSave]);
 
   return {
     // Data
