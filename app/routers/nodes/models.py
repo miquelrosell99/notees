@@ -111,6 +111,7 @@ class NodeCreateRequest(BaseModel):
     sequence: int = 0
     classes: List[int] = []  # Class node IDs - flags are computed from these
     properties: Dict[int, Any] = {}  # property_id -> value
+    uuid: Optional[str] = None  # Optional: override auto-generated UUID (e.g. from Logseq import)
     # For date nodes
     is_daily: bool = False
     daily_date: Optional[str] = None  # YYYY-MM-DD

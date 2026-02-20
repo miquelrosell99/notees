@@ -250,6 +250,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             const node = await createNodeMutation.mutateAsync({
               name: cls.title,
               classes: [classClassId, pageClassId],
+              ...(cls.uuid ? { uuid: cls.uuid } : {}),
             });
             classIdMap.set(cls.id, node.id);
             if (cls.uuid) {
@@ -477,6 +478,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           const pageNode = await createNodeMutation.mutateAsync({
             name: page.title,
             classes: pageClasses,
+            ...(page.uuid ? { uuid: page.uuid } : {}),
           });
           if (page.uuid) {
             uuidMap.set(page.uuid, { id: pageNode.id, uuid: pageNode.uuid });
@@ -801,6 +803,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         parent_id: parentId,
         sequence: startSequence + i,
         ...(blockClasses.length > 0 ? { classes: blockClasses } : {}),
+        ...(block.uuid ? { uuid: block.uuid } : {}),
       };
     });
 
