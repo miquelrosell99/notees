@@ -448,7 +448,7 @@ function getMdiPath(iconName: string): string | null {
     .replace(/^mdi[:_-]/i, '')  // Remove mdi-, mdi:, mdi_ prefix
     .replace(/^mdi(?=[A-Z])/i, '')  // Remove bare mdi prefix before CamelCase
     .replace(/^mdi$/i, '')  // Remove bare mdi
-    .replace(/-([a-z])/g, (_, c) => c.toUpperCase());  // kebab to camelCase
+    .replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());  // kebab to camelCase (including digits)
   
   // Ensure first letter is uppercase, then prepend "mdi"
   if (!normalized) return null;
