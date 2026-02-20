@@ -203,14 +203,14 @@ def _render_block(block: dict, opts: StringifyOptions) -> str:
 
 
 def _render_whiteboard(block: dict, opts: StringifyOptions) -> str:
-    """Render a whiteboard block by extracting text from its elements."""
-    # Use title if present
-    title = block.get("title", "").strip()
-    
+    """Render a whiteboard block by extracting text from its elements.
+
+    Note: the title is stored in a preceding paragraph block, not here.
+    """
     # Extract text from elements
     elements = block.get("data", {}).get("elements", [])
     if not elements:
-         return title
+         return ""
 
     # Filter for elements with text
     text_parts = []
@@ -228,11 +228,7 @@ def _render_whiteboard(block: dict, opts: StringifyOptions) -> str:
             text_parts.append(text)
             
     content_text = " ".join(text_parts)
-    
-    if title and content_text:
-        return f"{title} ({content_text})"
-    
-    return title or content_text
+    return content_text
 
 
 

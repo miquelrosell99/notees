@@ -37,8 +37,9 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
   if (!node?.name) return { ...DEFAULT_WHITEBOARD_DATA };
 
   const ast = parseAST(node.name);
-  if (ast.length > 0 && ast[0].type === 'whiteboard') {
-    return (ast[0] as ASTWhiteboard).data;
+  const wb = ast.find(b => b.type === 'whiteboard') as ASTWhiteboard | undefined;
+  if (wb) {
+    return wb.data;
   }
 
   return { ...DEFAULT_WHITEBOARD_DATA };
@@ -47,19 +48,16 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
 /**
  * Extract the title from a whiteboard node's AST.
  *
- * If the AST is already a whiteboard block, returns its `title`.
- * Otherwise falls back to stringifying the existing AST (paragraph/heading)
- * so the page title is preserved when first converting a node to whiteboard.
+ * The title is the first paragraph/heading block (children approach).
  */
 function parseWhiteboardTitle(node: Node | undefined): string {
   if (!node?.name) return '';
   const ast = parseAST(node.name);
-  if (ast.length === 0) return '';
-  if (ast[0].type === 'whiteboard') {
-    return (ast[0] as ASTWhiteboard).title;
+  const para = ast.find(b => b.type === 'paragraph' || b.type === 'heading');
+  if (para) {
+    return stringifyAST([para], { mode: StringifyMode.TEXT_ONLY });
   }
-  // Fallback: extract plain text from paragraph/heading AST (first conversion)
-  return stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY });
+  return '';
 }
 
 // ─── Main hook ─────────────────────────────────────────────────────
@@ -119,7 +117,10 @@ export function useWhiteboard(nodeId: number | null) {
   /** Serialize and fire the mutation immediately (no debounce). */
   const flushSave = useCallback((whiteboardData: WhiteboardData) => {
     if (!nodeId) return;
-    const ast = [{ type: 'whiteboard' as const, title: titleRef.current, data: whiteboardData }];
+    const ast = [
+      { type: 'paragraph' as const, children: [{ type: 'text' as const, text: titleRef.current }] },
+      { type: 'whiteboard' as const, data: whiteboardData },
+    ];
     const serialized = JSON.stringify(ast);
     mutateRef.current({ id: nodeId, data: { name: serialized } });
   }, [nodeId]);
