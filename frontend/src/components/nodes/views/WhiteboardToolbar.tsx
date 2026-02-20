@@ -182,6 +182,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
                Right click → open picker + style settings panel. */}
           <ButtonWithPanel
             icon={getShapeIcon(isShapeTool(activeTool) ? activeTool : lastShapeTool)}
+            variant="ghost"
             size="sm"
             tooltip="Shapes"
             panelPosition="top"
@@ -220,6 +221,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           {/* Pen */}
           <ButtonWithPanel
             icon={mdiPencilOutline}
+            variant="ghost"
             size="sm"
             tooltip="Pen (P)"
             panelPosition="top"
@@ -245,6 +247,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           {/* Highlighter */}
           <ButtonWithPanel
             icon={mdiMarker}
+            variant="ghost"
             size="sm"
             tooltip="Highlighter"
             panelPosition="top"
@@ -270,6 +273,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           {/* Eraser */}
           <ButtonWithPanel
             icon={mdiEraserVariant}
+            variant="ghost"
             size="sm"
             tooltip="Eraser (E)"
             panelPosition="top"
