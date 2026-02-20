@@ -23,6 +23,10 @@ export interface DragDropPluginProps {
 const DRAG_THRESHOLD = 5;
 /** Max distance (px) from cursor to a drop target to snap */
 const SNAP_DISTANCE = 40;
+/** Distance from viewport edge to start auto-scrolling (px) */
+const AUTO_SCROLL_EDGE = 60;
+/** Max auto-scroll speed (px per frame) */
+const AUTO_SCROLL_SPEED = 12;
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -274,6 +278,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const anchorsRef = useRef<DropAnchor[]>([]);
   const activeAnchorRef = useRef<DropAnchor | null>(null);
+  /** Last known mouse position — needed for scroll-triggered recompute */
+  const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  /** Auto-scroll RAF handle */
+  const autoScrollRafRef = useRef<number | null>(null);
+  /** The scrollable container (.main-content) */
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -317,6 +327,113 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     const rootEl = editor.getRootElement();
     if (!rootEl) return;
 
+    // ── Recompute anchors from all editors on the page ───────
+    function recomputeAnchors(dragBlockId: string) {
+      const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+      let allAnchors: DropAnchor[] = [];
+      editorRoots.forEach((root) => {
+        const rootEditorId =
+          root.closest('[data-editor-id]')?.getAttribute('data-editor-id') || editorId;
+        allAnchors = allAnchors.concat(
+          computeDropAnchors(root, dragBlockId, rootEditorId),
+        );
+      });
+      anchorsRef.current = allAnchors;
+    }
+
+    // ── Snap ghost to best anchor or float at cursor ─────────
+    function updateGhostPosition(cx: number, cy: number) {
+      const state = dragStateRef.current;
+      if (!state?.active) return;
+      const ghost = ghostRef.current;
+      if (!ghost) return;
+
+      const coordinator = getDragCoordinator();
+      const anchor = findNearestAnchor(anchorsRef.current, cx, cy);
+
+      if (anchor) {
+        coordinator.updateTarget(anchor.target);
+        if (!state.snapped) {
+          ghost.style.transition =
+            'top 0.12s ease-out, left 0.12s ease-out, width 0.12s ease-out';
+        }
+        ghost.classList.add('block-drag-ghost--snapped');
+        ghost.classList.remove('block-drag-ghost--floating');
+        ghost.style.top = `${anchor.y - 14}px`;
+        ghost.style.left = `${anchor.x - 11}px`;
+        ghost.style.width = '200px';
+        state.snapped = true;
+        activeAnchorRef.current = anchor;
+      } else {
+        coordinator.updateTarget(null);
+        positionGhostFloat(ghost, cx, cy);
+        state.snapped = false;
+        activeAnchorRef.current = null;
+      }
+    }
+
+    function positionGhostFloat(ghost: HTMLDivElement, cx: number, cy: number) {
+      ghost.style.transition = 'none';
+      ghost.classList.remove('block-drag-ghost--snapped');
+      ghost.classList.add('block-drag-ghost--floating');
+      ghost.style.top = `${cy - 14}px`;
+      ghost.style.left = `${cx - 11}px`;
+      ghost.style.width = '';
+    }
+
+    // ── Auto-scroll loop ─────────────────────────────────────
+    function startAutoScroll() {
+      const tick = () => {
+        const state = dragStateRef.current;
+        if (!state?.active) { autoScrollRafRef.current = null; return; }
+
+        const container = scrollContainerRef.current;
+        if (!container) { autoScrollRafRef.current = requestAnimationFrame(tick); return; }
+
+        const rect = container.getBoundingClientRect();
+        const my = lastMouseRef.current.y;
+        let scrollDelta = 0;
+
+        if (my < rect.top + AUTO_SCROLL_EDGE && container.scrollTop > 0) {
+          // Near top — scroll up
+          const proximity = 1 - Math.max(0, my - rect.top) / AUTO_SCROLL_EDGE;
+          scrollDelta = -AUTO_SCROLL_SPEED * proximity;
+        } else if (
+          my > rect.bottom - AUTO_SCROLL_EDGE &&
+          container.scrollTop < container.scrollHeight - container.clientHeight
+        ) {
+          // Near bottom — scroll down
+          const proximity = 1 - Math.max(0, rect.bottom - my) / AUTO_SCROLL_EDGE;
+          scrollDelta = AUTO_SCROLL_SPEED * proximity;
+        }
+
+        if (scrollDelta !== 0) {
+          container.scrollTop += scrollDelta;
+          // Anchors shifted — recompute and re-snap
+          recomputeAnchors(state.blockId);
+          updateGhostPosition(lastMouseRef.current.x, lastMouseRef.current.y);
+        }
+
+        autoScrollRafRef.current = requestAnimationFrame(tick);
+      };
+      autoScrollRafRef.current = requestAnimationFrame(tick);
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+    }
+
+    // ── Scroll handler — recompute anchors when user scrolls ─
+    function handleScroll() {
+      const state = dragStateRef.current;
+      if (!state?.active) return;
+      recomputeAnchors(state.blockId);
+      updateGhostPosition(lastMouseRef.current.x, lastMouseRef.current.y);
+    }
+
     // ── Mousedown ────────────────────────────────────────────
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
@@ -357,6 +474,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       if (!state) return;
       if (!state.pending && !state.active) return;
 
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+
       const dx = e.clientX - state.startX;
       const dy = e.clientY - state.startY;
 
@@ -373,17 +492,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
           sourceDepth: state.sourceDepth,
         });
 
-        // Compute drop anchors from all editors on the page
-        const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
-        let allAnchors: DropAnchor[] = [];
-        editorRoots.forEach((root) => {
-          const rootEditorId =
-            root.closest('[data-editor-id]')?.getAttribute('data-editor-id') || editorId;
-          allAnchors = allAnchors.concat(
-            computeDropAnchors(root, state.blockId, rootEditorId),
-          );
-        });
-        anchorsRef.current = allAnchors;
+        // Find the scrollable container
+        scrollContainerRef.current =
+          rootEl.closest('.main-content') as HTMLElement | null;
+
+        // Compute initial anchors
+        recomputeAnchors(state.blockId);
 
         // Build ghost
         const ghost = ghostRef.current!;
@@ -391,51 +505,23 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
           '<div class="block-drag-ghost__bullet"></div>' +
           `<div class="block-drag-ghost__content">${escapeHtml(state.ghostText)}</div>`;
         ghost.style.display = 'flex';
-        positionGhostFloat(ghost, e);
+        positionGhostFloat(ghost, e.clientX, e.clientY);
 
         state.blockEl.classList.add('node-block--drag-source');
         document.body.classList.add('notees-dragging-block');
+
+        // Start listening for scroll events
+        const sc = scrollContainerRef.current;
+        if (sc) sc.addEventListener('scroll', handleScroll, { passive: true });
+
+        // Start auto-scroll loop
+        startAutoScroll();
       }
 
       if (!state.active) return;
 
-      const ghost = ghostRef.current!;
-      const coordinator = getDragCoordinator();
-
-      // Find nearest drop anchor
-      const anchor = findNearestAnchor(anchorsRef.current, e.clientX, e.clientY);
-
-      if (anchor) {
-        coordinator.updateTarget(anchor.target);
-
-        // Snap ghost to anchor position
-        if (!state.snapped) {
-          ghost.style.transition =
-            'top 0.12s ease-out, left 0.12s ease-out, width 0.12s ease-out';
-        }
-        ghost.classList.add('block-drag-ghost--snapped');
-        ghost.classList.remove('block-drag-ghost--floating');
-        ghost.style.top = `${anchor.y - 14}px`;
-        ghost.style.left = `${anchor.x - 11}px`;
-        ghost.style.width = '200px';
-        state.snapped = true;
-        activeAnchorRef.current = anchor;
-      } else {
-        coordinator.updateTarget(null);
-        positionGhostFloat(ghost, e);
-        state.snapped = false;
-        activeAnchorRef.current = null;
-      }
+      updateGhostPosition(e.clientX, e.clientY);
     };
-
-    function positionGhostFloat(ghost: HTMLDivElement, e: MouseEvent) {
-      ghost.style.transition = 'none';
-      ghost.classList.remove('block-drag-ghost--snapped');
-      ghost.classList.add('block-drag-ghost--floating');
-      ghost.style.top = `${e.clientY - 14}px`;
-      ghost.style.left = `${e.clientX - 11}px`;
-      ghost.style.width = '';
-    }
 
     // ── Mouseup ──────────────────────────────────────────────
     const handleMouseUp = () => {
@@ -461,6 +547,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     };
 
     function cleanup(state: NonNullable<typeof dragStateRef.current>) {
+      stopAutoScroll();
+
+      const sc = scrollContainerRef.current;
+      if (sc) sc.removeEventListener('scroll', handleScroll);
+      scrollContainerRef.current = null;
+
       const ghost = ghostRef.current;
       if (ghost) {
         ghost.style.display = 'none';
@@ -485,6 +577,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('keydown', handleKeyDown);
+      stopAutoScroll();
     };
   }, [editor, editorId, readOnly]);
 
