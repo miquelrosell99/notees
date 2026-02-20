@@ -370,6 +370,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   /** IDs of the dragged block + all its descendants (excluded from drop targets) */
   const excludedIdsRef = useRef<Set<string>>(new Set());
+  /** Element currently showing the drop-spacing animation */
+  const spacerElRef = useRef<{ el: HTMLElement; cls: string } | null>(null);
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -450,11 +452,47 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ghost.style.width = '200px';
         state.snapped = true;
         activeAnchorRef.current = anchor;
+
+        // ── Drop spacing: push blocks apart at the snap point ──
+        applyDropSpacing(anchor);
       } else {
         coordinator.updateTarget(null);
         positionGhostFloat(ghost, cx, cy);
         state.snapped = false;
         activeAnchorRef.current = null;
+        clearDropSpacing();
+      }
+    }
+
+    // ── Drop spacing helpers ─────────────────────────────────
+    function applyDropSpacing(anchor: DropAnchor) {
+      const { blockId, position } = anchor.target;
+      // Determine which element gets spacing and in which direction
+      const targetEl = document.querySelector(
+        `.node-block[data-block-id="${blockId}"]`,
+      ) as HTMLElement | null;
+      if (!targetEl) { clearDropSpacing(); return; }
+
+      // 'before' → pad the top of the target; 'after'/'child' → pad the bottom
+      const cls = position === 'before'
+        ? 'node-block--drop-spacing-before'
+        : 'node-block--drop-spacing-after';
+
+      const prev = spacerElRef.current;
+      if (prev && prev.el === targetEl && prev.cls === cls) return; // already set
+
+      // Clear previous
+      if (prev) prev.el.classList.remove(prev.cls);
+
+      targetEl.classList.add(cls);
+      spacerElRef.current = { el: targetEl, cls };
+    }
+
+    function clearDropSpacing() {
+      const prev = spacerElRef.current;
+      if (prev) {
+        prev.el.classList.remove(prev.cls);
+        spacerElRef.current = null;
       }
     }
 
@@ -658,6 +696,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ghost.style.width = '';
         ghost.className = 'block-drag-ghost';
       }
+      clearDropSpacing();
       // Remove dim class from entire dragged subtree
       excludedIdsRef.current.forEach((id) => {
         const el = document.querySelector(`.node-block[data-block-id="${id}"]`);
