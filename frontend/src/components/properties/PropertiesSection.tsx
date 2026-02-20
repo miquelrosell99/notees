@@ -31,18 +31,18 @@ import type { PropertyType } from '@/types/api';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
 const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  text: 'mdi-format-text',
-  integer: 'mdi-pound',
-  float: 'mdi-decimal',
-  boolean: 'mdi-checkbox-marked-outline',
-  date: 'mdi-calendar',
-  selection: 'mdi-format-list-bulleted',
-  node: 'mdi-link',
+  text: 'mdiFormatText',
+  integer: 'mdiPound',
+  float: 'mdiDecimal',
+  boolean: 'mdiCheckboxMarkedOutline',
+  date: 'mdiCalendar',
+  selection: 'mdiFormatListBulleted',
+  node: 'mdiLink',
 };
 
 /** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */
 function getPropertyIcon(property: Property): string {
-  return property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdi-file-document-outline';
+  return property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdiFileDocumentOutline';
 }
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';

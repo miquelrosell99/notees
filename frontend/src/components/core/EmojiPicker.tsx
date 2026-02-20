@@ -6,7 +6,7 @@
  * - Emojis: Full emoji list, lazy-loaded per category
  * - Icons: Full MDI icon list, lazy-loaded per category
  *
- * Returns the emoji character or MDI icon name (e.g. "mdi-calendar")
+ * Returns the emoji character or MDI icon name (e.g. "mdiCalendar")
  */
 import {
   useState,
@@ -331,13 +331,6 @@ function addRecent(value: string): void {
 // Helpers
 // ─────────────────────────────────────────────
 
-function iconCamelToKebab(name: string): string {
-  return name
-    .replace(/^mdi/, 'mdi-')
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .toLowerCase();
-}
-
 function getIconPath(name: string): string | null {
   return (mdiIcons as Record<string, string>)[name] ?? null;
 }
@@ -489,7 +482,7 @@ type TabType = 'all' | 'emojis' | 'icons';
 
 
 export interface EmojiPickerProps {
-  /** Currently selected value (emoji character or "mdi-name") */
+  /** Currently selected value (emoji character or camelCase MDI key e.g. "mdiCalendar") */
   value?: string;
   /** Called when a selection is made */
   onSelect: (value: string) => void;
@@ -559,11 +552,10 @@ export function EmojiPicker({
   }, [search, allMdiNames]);
 
   const handleSelect = useCallback(
-    (raw: string, isIcon: boolean) => {
-      const final = isIcon ? iconCamelToKebab(raw) : raw;
-      addRecent(final);
+    (raw: string, _isIcon: boolean) => {
+      addRecent(raw);
       setRecents(getRecents());
-      onSelect(final);
+      onSelect(raw);
       onClose();
     },
     [onSelect, onClose],
@@ -572,15 +564,10 @@ export function EmojiPicker({
   const handleRemove = useCallback(() => { onSelect(''); onClose(); }, [onSelect, onClose]);
 
   function isIconValue(val: string) {
-    return val.startsWith('mdi-') || val.startsWith('mdi:') || val.startsWith('mdi_');
+    return /^mdi[A-Z]/.test(val);
   }
 
-  function kebabToCamel(kebab: string): string {
-    const withoutPrefix = kebab.replace(/^mdi-/, '');
-    return 'mdi' + withoutPrefix.replace(/(^|-)([a-z])/g, (_, _sep, c: string) => c.toUpperCase());
-  }
-
-  const popupStyle: React.CSSProperties =
+const popupStyle: React.CSSProperties =
     asPopup && position ? { position: 'fixed', left: position.x, top: position.y } : {};
 
   const handleTabChange = (tab: TabType) => {
@@ -661,8 +648,7 @@ export function EmojiPicker({
                 <div className="ep-grid ep-mixed-grid">
                   {recents.map((item) => {
                     if (isIconValue(item)) {
-                      const camel = kebabToCamel(item);
-                      const path = getIconPath(camel);
+                      const path = getMdiPath(item);
                       if (!path) return null;
                       return (
                         <Button key={item} variant="ghost" size="xs" title={item} active={value === item} className="ep-item"
