@@ -50,7 +50,8 @@ export type WhiteboardElementType =
   | 'stroke'
   | 'text'
   | 'connector'
-  | 'image';
+  | 'image'
+  | 'line';
 
 export type ShapeType =
   | 'rectangle'
@@ -176,6 +177,21 @@ export interface WhiteboardConnectorElement extends WhiteboardElementBase {
   controlPoints: Point[]; // For curved/elbow paths
 }
 
+// ─── Line element (straight line between two points) ─────────────
+
+export interface WhiteboardLineElement extends WhiteboardElementBase {
+  type: 'line';
+  /**
+   * Direction of the line across its bounding box.
+   * false → top-left (x,y) to bottom-right (x+width, y+height)
+   * true  → top-right (x+width, y) to bottom-left (x, y+height)
+   */
+  lineFlipped: boolean;
+  stroke: string;
+  strokeWidth: number;
+  strokeStyle: StrokeStyle;
+}
+
 // ─── Image element ─────────────────────────────────────────────────
 
 export interface WhiteboardImageElement extends WhiteboardElementBase {
@@ -194,7 +210,8 @@ export type WhiteboardElement =
   | WhiteboardStrokeElement
   | WhiteboardTextElement
   | WhiteboardConnectorElement
-  | WhiteboardImageElement;
+  | WhiteboardImageElement
+  | WhiteboardLineElement;
 
 // ─── Whiteboard data (stored as property) ──────────────────────────
 

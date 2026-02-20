@@ -120,6 +120,7 @@ const SHAPE_TOOL_OPTIONS: SelectionButtonOption[] = [
   { value: 'triangle',  icon: mdiTriangleOutline,   label: 'Triangle'     },
   { value: 'hexagon',   icon: mdiHexagonOutline,    label: 'Hexagon'      },
   { value: 'star',      icon: mdiStarOutline,       label: 'Star'         },
+  { value: 'line',      icon: mdiMinus,             label: 'Line'         },
 ];
 
 const PEN_WIDTH_OPTIONS: SelectionButtonOption[] = STROKE_WIDTHS.map((w) => ({
@@ -526,6 +527,24 @@ const SHAPE_WIDTH_OPTIONS: SelectionButtonOption[] = SHAPE_STROKE_WIDTHS.map((w)
   label: `${w}px`,
 }));
 
+const STROKE_STYLE_OPTIONS: SelectionButtonOption[] = [
+  {
+    value: 'solid',
+    icon: 'M 2 10 H 22 V 14 H 2 Z',
+    label: 'Solid',
+  },
+  {
+    value: 'dashed',
+    icon: 'M 2 10 H 8 V 14 H 2 Z M 10 10 H 16 V 14 H 10 Z M 18 10 H 22 V 14 H 18 Z',
+    label: 'Dashed',
+  },
+  {
+    value: 'dotted',
+    icon: 'M 1 10 H 5 V 14 H 1 Z M 7 10 H 11 V 14 H 7 Z M 13 10 H 17 V 14 H 13 Z M 19 10 H 23 V 14 H 19 Z',
+    label: 'Dotted',
+  },
+];
+
 const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onChange }) => (
   <div className="whiteboard-properties" style={{ padding: '4px 8px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
     <div className="whiteboard-properties__section">
@@ -556,6 +575,15 @@ const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onCha
         options={SHAPE_WIDTH_OPTIONS}
         value={String(settings.strokeWidth)}
         onChange={(v) => onChange({ ...settings, strokeWidth: Number(v) })}
+        size="sm"
+      />
+    </div>
+    <div className="whiteboard-properties__section">
+      <SelectionButton
+        label="Style"
+        options={STROKE_STYLE_OPTIONS}
+        value={settings.strokeStyle}
+        onChange={(v) => onChange({ ...settings, strokeStyle: v as 'solid' | 'dashed' | 'dotted' })}
         size="sm"
       />
     </div>
@@ -618,7 +646,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function isShapeTool(tool: WhiteboardTool): boolean {
-  return ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool);
+  return ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'line'].includes(tool);
 }
 
 function getShapeIcon(tool: WhiteboardTool): string {
@@ -627,6 +655,7 @@ function getShapeIcon(tool: WhiteboardTool): string {
     case 'triangle': return mdiTriangleOutline;
     case 'hexagon': return mdiHexagonOutline;
     case 'star': return mdiStarOutline;
+    case 'line': return mdiMinus;
     default: return mdiRectangleOutline;
   }
 }
