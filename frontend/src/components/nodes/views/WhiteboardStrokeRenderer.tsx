@@ -1,17 +1,69 @@
 /**
  * WhiteboardStrokeRenderer — Renders freehand strokes as SVG paths with pressure-based width.
  *
- * Uses average-point smoothing and cubic Bézier splines (Catmull-Rom conversion)
- * to produce smooth curves. Supports stylus pressure data from PointerEvent.
+ * Uses Ramer-Douglas-Peucker simplification, average-point smoothing, and cubic
+ * Bézier splines (Catmull-Rom conversion) to produce smooth, efficient curves.
+ * Supports stylus pressure data from PointerEvent.
  */
 import React, { useMemo } from 'react';
 import type { WhiteboardStrokeElement, StrokePoint } from '@/types/whiteboard';
+
+/**
+ * Maximum deviation (in canvas pixels) allowed when simplifying a stroke.
+ * Points that deviate less than this from the straight line between their
+ * neighbours are dropped.  Lower = more detail retained; higher = fewer points.
+ */
+const SIMPLIFICATION_EPSILON = 1.5;
 
 interface Props {
   element: WhiteboardStrokeElement;
   isAbsolute?: boolean; // If true, points are in absolute canvas coords (for current stroke)
   isSelected?: boolean;
   dimmed?: boolean; // Dim when another element is selected
+}
+
+/**
+ * Ramer-Douglas-Peucker stroke simplification.
+ * Keeps only the points that deviate more than `epsilon` canvas pixels from
+ * the straight line connecting the current sub-range endpoints.
+ * Pressure values are preserved on retained points.
+ */
+function simplifyPoints(points: StrokePoint[], epsilon = SIMPLIFICATION_EPSILON): StrokePoint[] {
+  if (points.length <= 2) return points;
+
+  // Find the point with maximum perpendicular distance from the line [first, last]
+  const first = points[0];
+  const last = points[points.length - 1];
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  const lineLen = Math.sqrt(dx * dx + dy * dy);
+
+  let maxDist = 0;
+  let maxIdx = 0;
+
+  if (lineLen === 0) {
+    // All points on the same spot — keep only first and last
+    for (let i = 1; i < points.length - 1; i++) {
+      const d = Math.sqrt((points[i].x - first.x) ** 2 + (points[i].y - first.y) ** 2);
+      if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+  } else {
+    for (let i = 1; i < points.length - 1; i++) {
+      // Perpendicular distance from point i to line (first → last)
+      const d = Math.abs(dy * points[i].x - dx * points[i].y + last.x * first.y - last.y * first.x) / lineLen;
+      if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+  }
+
+  if (maxDist > epsilon) {
+    // Recursively simplify both halves, keeping the pivot
+    const left = simplifyPoints(points.slice(0, maxIdx + 1), epsilon);
+    const right = simplifyPoints(points.slice(maxIdx), epsilon);
+    return [...left.slice(0, -1), ...right];
+  }
+
+  // All intermediate points are within tolerance — discard them
+  return [first, last];
 }
 
 /**
@@ -57,8 +109,9 @@ function pointsToSplinePath(pts: { x: number; y: number }[]): string {
 function strokeToPath(points: StrokePoint[], baseWidth: number, offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
 
-  // Smooth the points
-  const smoothed = smoothPoints(points);
+  // Simplify first (removes redundant collinear points), then smooth
+  const simplified = simplifyPoints(points);
+  const smoothed = smoothPoints(simplified);
 
   // Build outline polygon vertices
   const leftSide: { x: number; y: number }[] = [];
@@ -147,7 +200,8 @@ function smoothPoints(points: StrokePoint[], windowSize = 3): StrokePoint[] {
  */
 function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
-  const pts = points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+  const simplified = simplifyPoints(points);
+  const pts = simplified.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
   return pointsToSplinePath(pts);
 }
 
