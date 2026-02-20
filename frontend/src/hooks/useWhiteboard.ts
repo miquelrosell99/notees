@@ -22,6 +22,7 @@ import type {
   WhiteboardConnectorElement,
   WhiteboardLineElement,
   ConnectorEndpoint,
+  WhiteboardGroup,
 } from '@/types/whiteboard';
 import {
   DEFAULT_WHITEBOARD_DATA,
@@ -44,7 +45,8 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
     // Strip legacy per-document fields (grid, background) that are now global.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { grid: _grid, background: _bg, ...rest } = wb.data as WhiteboardData & { grid?: unknown; background?: unknown };
-    return rest as WhiteboardData;
+    // Ensure groups array exists (backward compatibility)
+    return { groups: [], ...rest } as WhiteboardData;
   }
 
   return { ...DEFAULT_WHITEBOARD_DATA };
@@ -113,7 +115,7 @@ export function useWhiteboard(nodeId: number | null) {
       titleRef.current = parseWhiteboardTitle(node);
       setData(parsed);
       // Initialize history
-      historyRef.current = [{ elements: parsed.elements, timestamp: Date.now() }];
+      historyRef.current = [{ elements: parsed.elements, groups: parsed.groups, timestamp: Date.now() }];
       historyIndexRef.current = 0;
     }
   }, [node?.id]); // Only reload when node ID changes
@@ -144,7 +146,7 @@ export function useWhiteboard(nodeId: number | null) {
 
   // ─── History management ───────────────────────────────────────────
 
-  const pushHistory = useCallback((elements: WhiteboardElement[]) => {
+  const pushHistory = useCallback((elements: WhiteboardElement[], groups: WhiteboardGroup[]) => {
     const history = historyRef.current;
     const idx = historyIndexRef.current;
 
@@ -152,7 +154,7 @@ export function useWhiteboard(nodeId: number | null) {
     history.splice(idx + 1);
 
     // Add new entry
-    history.push({ elements: structuredClone(elements), timestamp: Date.now() });
+    history.push({ elements: structuredClone(elements), groups: structuredClone(groups), timestamp: Date.now() });
 
     // Limit history size
     if (history.length > MAX_HISTORY) {
@@ -168,7 +170,7 @@ export function useWhiteboard(nodeId: number | null) {
       historyIndexRef.current = idx - 1;
       const entry = historyRef.current[idx - 1];
       setData(prev => {
-        const newData = { ...prev, elements: structuredClone(entry.elements) };
+        const newData = { ...prev, elements: structuredClone(entry.elements), groups: structuredClone(entry.groups) };
         saveToBackend(newData);
         return newData;
       });
@@ -182,7 +184,7 @@ export function useWhiteboard(nodeId: number | null) {
       historyIndexRef.current = idx + 1;
       const entry = history[idx + 1];
       setData(prev => {
-        const newData = { ...prev, elements: structuredClone(entry.elements) };
+        const newData = { ...prev, elements: structuredClone(entry.elements), groups: structuredClone(entry.groups) };
         saveToBackend(newData);
         return newData;
       });
@@ -195,7 +197,17 @@ export function useWhiteboard(nodeId: number | null) {
     setData(prev => {
       const newElements = updater(prev.elements);
       const newData = { ...prev, elements: newElements };
-      pushHistory(newElements);
+      pushHistory(newElements, prev.groups);
+      saveToBackend(newData);
+      return newData;
+    });
+  }, [pushHistory, saveToBackend]);
+
+  const updateGroups = useCallback((updater: (groups: WhiteboardGroup[]) => WhiteboardGroup[]) => {
+    setData(prev => {
+      const newGroups = updater(prev.groups);
+      const newData = { ...prev, groups: newGroups };
+      pushHistory(prev.elements, newGroups);
       saveToBackend(newData);
       return newData;
     });
@@ -207,12 +219,22 @@ export function useWhiteboard(nodeId: number | null) {
 
   const removeElements = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
-    updateElements(elements => elements.filter(el => !idSet.has(el.id)));
+    setData(prev => {
+      const newElements = prev.elements.filter(el => !idSet.has(el.id));
+      // Remove deleted elements from all groups; remove empty groups
+      const newGroups = prev.groups
+        .map(g => ({ ...g, elementIds: g.elementIds.filter(id => !idSet.has(id)) }))
+        .filter(g => g.elementIds.length > 1);
+      const newData = { ...prev, elements: newElements, groups: newGroups };
+      pushHistory(newElements, newGroups);
+      saveToBackend(newData);
+      return newData;
+    });
     setInteraction(prev => ({
       ...prev,
       selectedIds: new Set([...prev.selectedIds].filter(id => !idSet.has(id))),
     }));
-  }, [updateElements]);
+  }, [pushHistory, saveToBackend]);
 
   const updateElement = useCallback((id: string, updates: Partial<WhiteboardElement>) => {
     updateElements(elements =>
@@ -535,7 +557,34 @@ export function useWhiteboard(nodeId: number | null) {
       controlPoints: [],
     };
   }, [data.elements, settings.connector]);
+  // ─── Group management ──────────────────────────────────────────
 
+  /** Find the group containing a given element ID, if any. */
+  const getElementGroup = useCallback((elementId: string): WhiteboardGroup | null => {
+    return data.groups.find(g => g.elementIds.includes(elementId)) ?? null;
+  }, [data.groups]);
+
+  /** Group the given element IDs together. */
+  const groupElements = useCallback((ids: string[]) => {
+    if (ids.length < 2) return;
+    const newGroup: WhiteboardGroup = {
+      id: createElementId(),
+      elementIds: [...ids],
+    };
+    // Remove these elements from any existing groups first
+    updateGroups(groups => [
+      ...groups.map(g => ({ ...g, elementIds: g.elementIds.filter(id => !ids.includes(id)) })).filter(g => g.elementIds.length > 1),
+      newGroup,
+    ]);
+  }, [updateGroups]);
+
+  /** Ungroup: remove groups that contain all of the given selected IDs. */
+  const ungroupElements = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    updateGroups(groups =>
+      groups.filter(g => !g.elementIds.some(id => idSet.has(id)))
+    );
+  }, [updateGroups]);
   // ─── Grid (global settings from store) ───────────────────────────
 
   const { gridSnap, gridSize, toggleGrid, toggleSnap } = useWhiteboardStore();
@@ -583,6 +632,10 @@ export function useWhiteboard(nodeId: number | null) {
     createStroke,
     createText,
     createConnector,
+    // Group operations
+    getElementGroup,
+    groupElements,
+    ungroupElements,
     // Tool state
     setTool,
     selectElements,

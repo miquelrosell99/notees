@@ -54,6 +54,11 @@
   cursor: crosshair;
 }
 
+/* Eraser uses a custom SVG circle cursor — hide the system cursor */
+.whiteboard-view--eraser {
+  cursor: none;
+}
+
 .whiteboard-view--drawing .whiteboard-element,
 .whiteboard-view--drawing .whiteboard-element * {
   cursor: crosshair !important;
@@ -166,6 +171,28 @@
   opacity: 0.95;
   transition: box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
   z-index: 1000 !important;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  GROUP BOUNDING BOXES                                         */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-group {
+  position: absolute;
+  pointer-events: none; /* Hit detection is canvas-based, not DOM-based */
+  border: 1.5px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+  box-sizing: border-box;
+  transition:
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.whiteboard-group--selected {
+  border-color: var(--color-primary);
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 /* ────────────────────────────────────────────────────────────── */
