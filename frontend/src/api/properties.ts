@@ -77,7 +77,6 @@ export async function addSelectionOption(
   propertyId: number,
   name: string,
   icon?: string | null,
-  color?: string | null,
   sequence?: number
 ): Promise<SelectionOption> {
   const response = await api.post<SelectionOption>(`${BASE}/${propertyId}/selection-lines`, {

@@ -475,8 +475,7 @@ export interface PropertyBacklink {
 export interface SelectionOption {
   id: number;
   name: string;
-  icon: string | null;
-  color: string | null;
+  icon: string | null; // plain icon name or JSON {"icon":"...","color":"..."}  
   sequence: number;
 }
 

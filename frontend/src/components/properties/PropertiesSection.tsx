@@ -332,7 +332,8 @@ function PropertyValue({
           options.map(opt => ({
             value: opt.id,
             label: opt.name,
-            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" color={opt.color || undefined} /> : undefined,
+            // NodeIcon parses JSON icon fields (icon+color) internally
+            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
           })),
           [options]
         );
@@ -356,7 +357,8 @@ function PropertyValue({
           options.map(opt => ({
             value: opt.id,
             label: opt.name,
-            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" color={opt.color || undefined} /> : undefined,
+            // NodeIcon parses JSON icon fields (icon+color) internally
+            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
           })),
           [options]
         );

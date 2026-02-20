@@ -85,7 +85,6 @@ function PropertyIconButton({
   }, [serverId, property.id, setNodeProperty]);
 
   const iconName = currentOption?.icon;
-  const iconColor = currentOption?.color || undefined;
 
   return (
     <span className="block-prop-icon-wrapper">
@@ -96,7 +95,7 @@ function PropertyIconButton({
         title={`${property.name}: ${currentOption?.name ?? 'Not set'}`}
       >
         {iconName ? (
-          <NodeIcon icon={iconName} size="xs" color={iconColor} />
+          <NodeIcon icon={iconName} size="xs" />
         ) : (
           <span className="block-prop-icon-empty" />
         )}
@@ -119,7 +118,7 @@ function PropertyIconButton({
                 className={`block-prop-icon-dropdown-item${currentOption?.id === opt.id ? ' block-prop-icon-dropdown-item--active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); handleSelect(opt.id); }}
               >
-                {opt.icon && <NodeIcon icon={opt.icon} size="xs" color={opt.color || undefined} />}
+                {opt.icon && <NodeIcon icon={opt.icon} size="xs" />}
                 <span>{opt.name}</span>
               </button>
             ))}

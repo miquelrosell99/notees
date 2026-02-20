@@ -7,6 +7,7 @@
 import { useCallback } from 'react';
 import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
+import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
@@ -35,8 +36,7 @@ export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
 interface SelectionOptionWithId {
   id: string;
   name: string;
-  icon?: string;
-  color?: string | null;
+  icon?: string; // raw stored value: plain icon name or JSON {"icon":"...","color":"..."}
 }
 
 export interface PropertyFormProps {
@@ -69,7 +69,6 @@ export interface PropertyFormProps {
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
   onOptionIconChange?: (id: string, icon: string) => void;
-  onOptionColorChange?: (id: string, color: string | null) => void;
   onReorderOptions: (fromIndex: number, toIndex: number) => void;
   onNewOptionNameChange: (name: string) => void;
   onNewOptionIconChange: (icon: string) => void;
@@ -114,7 +113,6 @@ export function PropertyForm({
   onAddOption,
   onRemoveOption,
   onOptionIconChange,
-  onOptionColorChange,
   onReorderOptions,
   onNewOptionNameChange,
   onNewOptionIconChange,
@@ -222,17 +220,24 @@ export function PropertyForm({
             <ListSortable
               items={selectionOptions}
               onReorder={onReorderOptions}
-              renderIcon={(opt) => (
-                <EmojiPickerTrigger
-                  value={opt.icon}
-                  onSelect={(icon) => onOptionIconChange?.(opt.id, icon)}
-                  placeholder=""
-                  className="property-form__option-icon-btn"
-                  useColor={true}
-                  color={opt.color}
-                  onColorChange={(c) => onOptionColorChange?.(opt.id, c)}
-                />
-              )}
+              renderIcon={(opt) => {
+                const { icon: parsedIcon, color: parsedColor } = parseIconField(opt.icon || '');
+                return (
+                  <EmojiPickerTrigger
+                    value={parsedIcon}
+                    onSelect={(newIcon) =>
+                      onOptionIconChange?.(opt.id, formatIconField(newIcon, parsedColor))
+                    }
+                    placeholder=""
+                    className="property-form__option-icon-btn"
+                    useColor={true}
+                    color={parsedColor}
+                    onColorChange={(newColor) =>
+                      onOptionIconChange?.(opt.id, formatIconField(parsedIcon, newColor))
+                    }
+                  />
+                );
+              }}
               renderText={(opt) => opt.name}
               renderActions={(opt) => [
                 <Button

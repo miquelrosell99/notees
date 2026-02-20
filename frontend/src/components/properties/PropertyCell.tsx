@@ -22,6 +22,7 @@ import { ImageNode } from '../nodes/ImageNode';
 import { NodePill } from '../nodes/NodePill';
 import { NodeSelector } from '../nodes/NodeSelector';
 import { Pill } from '../core/Pill';
+import { NodeIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useAppStore } from '@/stores';
@@ -597,7 +598,7 @@ function SelectionPropertyCell({
                 className="property-cell__picker-option"
                 onClick={() => handleAddOption(option)}
               >
-                {option.icon && <span>{option.icon}</span>}
+                {option.icon && <NodeIcon icon={option.icon} size="xs" />}
                 <span>{option.name}</span>
               </div>
             ))}
@@ -613,7 +614,7 @@ function SelectionPropertyCell({
       {resolvedOptions.map((option) => (
         <Pill
           key={option.id}
-          label={option.icon ? `${option.icon} ${option.name}` : option.name}
+          label={option.name}
           size="sm"
           onRemove={editable ? () => handleRemoveOption(option) : undefined}
         />
@@ -638,7 +639,7 @@ function SelectionPropertyCell({
                 className="property-cell__picker-option"
                 onClick={() => handleAddOption(option)}
               >
-                {option.icon && <span>{option.icon}</span>}
+                {option.icon && <NodeIcon icon={option.icon} size="xs" />}
                 <span>{option.name}</span>
               </div>
             ))}
