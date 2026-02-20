@@ -117,6 +117,16 @@ function makeWidthIconPath(w: number, maxH = 14): string {
   return `M2,${y.toFixed(1)} L22,${y.toFixed(1)} L22,${(y + h).toFixed(1)} L2,${(y + h).toFixed(1)} Z`;
 }
 
+/** Shape-tool options for the SelectionButton in the shapes panel */
+const SHAPE_TOOL_OPTIONS: SelectionButtonOption[] = [
+  { value: 'rectangle', icon: mdiRectangleOutline, label: 'Rectangle (R)' },
+  { value: 'ellipse',   icon: mdiCircleOutline,    label: 'Ellipse (O)'  },
+  { value: 'triangle',  icon: mdiTriangleOutline,   label: 'Triangle'     },
+  { value: 'diamond',   icon: mdiDiamondOutline,    label: 'Diamond'      },
+  { value: 'hexagon',   icon: mdiHexagonOutline,    label: 'Hexagon'      },
+  { value: 'star',      icon: mdiStarOutline,       label: 'Star'         },
+];
+
 const PEN_WIDTH_OPTIONS: SelectionButtonOption[] = STROKE_WIDTHS.map((w) => ({
   value: String(w),
   icon: makeWidthIconPath(w),
@@ -184,19 +194,13 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           >
             {(closePanel) => (
               <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Shape picker */}
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 192 }}>
-                  {TOOL_GROUPS[1].tools.map(t => (
-                    <ToolButton
-                      key={t.tool}
-                      icon={t.icon}
-                      label={t.label}
-                      shortcut={t.shortcut}
-                      active={activeTool === t.tool}
-                      onClick={() => { handleShapeSelect(t.tool); closePanel(); }}
-                    />
-                  ))}
-                </div>
+                {/* Shape picker — SelectionButton spanning all shape options */}
+                <SelectionButton
+                  options={SHAPE_TOOL_OPTIONS}
+                  value={isShapeTool(activeTool) ? activeTool : lastShapeTool}
+                  onChange={(v) => { handleShapeSelect(v as WhiteboardTool); closePanel(); }}
+                  size="sm"
+                />
                 <div style={{ height: 1, background: 'var(--color-outline-variant)', margin: '0 4px' }} />
                 {/* Shape style settings */}
                 <ShapeSettingsPanel
@@ -225,6 +229,9 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             openPanelOnRightClick
             active={activeTool === 'pen'}
             onActivate={() => wb.setTool('pen')}
+            buttonProps={activeTool === 'pen' ? {
+              style: { borderColor: settings.pen.color, boxShadow: `0 0 0 1px ${settings.pen.color} inset` },
+            } : {}}
           >
             {() => (
               <PenSettingsPanel
@@ -247,6 +254,9 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             openPanelOnRightClick
             active={activeTool === 'highlighter'}
             onActivate={() => wb.setTool('highlighter')}
+            buttonProps={activeTool === 'highlighter' ? {
+              style: { borderColor: settings.highlighter.color, boxShadow: `0 0 0 1px ${settings.highlighter.color} inset` },
+            } : {}}
           >
             {() => (
               <PenSettingsPanel
