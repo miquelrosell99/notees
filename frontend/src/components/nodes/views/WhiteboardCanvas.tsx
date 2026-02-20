@@ -994,8 +994,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if editing text
-      if (editingTextId) {
+      // Don't intercept shortcuts when any editable element (input, textarea,
+      // or contenteditable Lexical editor) has focus — let those handle their
+      // own undo/redo and text input.
+      const active = document.activeElement;
+      const isEditingText =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable);
+
+      if (isEditingText) {
+        // Still allow Escape to exit whiteboard text editing mode
         if (e.key === 'Escape') setEditingTextId(null);
         return;
       }
@@ -1093,7 +1102,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [editingTextId, interaction, data.elements, viewport, wb, recomputeShapePreview]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interaction, data.elements, viewport, wb, recomputeShapePreview]);
 
   // ─── Sorted elements ─────────────────────────────────────────────
 
