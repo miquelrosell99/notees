@@ -144,8 +144,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       { name: linkName, parent_id: nodeId },
       {
         onSuccess: (newBlock) => {
-          // nodeId = referenced node (display), refBlockId = hidden block (cleanup on delete)
-          const card = wb.createReferenceCard(selectedNode.id, selectedNode.uuid, refCardPos, newBlock.id);
+          // nodeId = referenced node (display), refBlockId / refBlockUuid = hidden block (cleanup on delete)
+          const card = wb.createReferenceCard(selectedNode.id, selectedNode.uuid, refCardPos, newBlock.id, newBlock.uuid);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },

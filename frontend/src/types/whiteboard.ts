@@ -118,6 +118,11 @@ export interface WhiteboardCardElement extends WhiteboardElementBase {
    * the node_link AST. Used so that removing the card also cleans up that block.
    */
   refBlockId?: number;
+  /**
+   * Reference mode only — the UUID of the hidden block node that holds
+   * the node_link AST. Stored for data portability / cross-workspace references.
+   */
+  refBlockUuid?: string;
   collapsed: boolean;    // Whether card body is collapsed
   color: string | null;  // Card background color
   showChildren: boolean; // Whether to show nested children
@@ -125,7 +130,7 @@ export interface WhiteboardCardElement extends WhiteboardElementBase {
    * 'block'     — Normal editable child block (default). The whiteboard creates
    *               a real child block under the whiteboard node.
    * 'reference' — Read-only reference card. nodeId points to the referenced node;
-   *               refBlockId points to the hidden block holding the node_link.
+   *               refBlockId / refBlockUuid point to the hidden block holding the node_link.
    */
   cardMode: 'block' | 'reference';
 }
