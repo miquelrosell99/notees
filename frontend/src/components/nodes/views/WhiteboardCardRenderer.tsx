@@ -60,14 +60,14 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
         transform: `scale(${zoom})`,
         transformOrigin: 'top left',
         overflow: 'hidden',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
       }}
     >
       <NodeCard
         node={node}
         index={0}
         layout="no-cover"
-        editable={false}
+        editable={true}
       />
     </div>
   );
