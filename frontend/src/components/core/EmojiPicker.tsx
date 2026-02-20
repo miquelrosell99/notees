@@ -1,18 +1,28 @@
-/**
+﻿/**
  * EmojiPicker Component
- * 
- * A picker element with two tabs:
- * - Emojis: Standard unicode emojis
- * - Symbols: MDI (Material Design Icons)
- * 
- * Returns the emoji character or MDI icon name (e.g., "mdi-calendar")
+ *
+ * A picker with three tabs: All, Emojis, Icons (MDI symbols).
+ * - All: Recently used items + typical emojis + typical icons
+ * - Emojis: Full emoji list, lazy-loaded per category
+ * - Icons: Full MDI icon list, lazy-loaded per category
+ *
+ * Returns the emoji character or MDI icon name (e.g. "mdi-calendar")
  */
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from 'react';
 import Icon from '@mdi/react';
 import * as mdiIcons from '@mdi/js';
-import { mdiShapeOutline } from '@mdi/js';
+import { mdiTrashCanOutline } from '@mdi/js';
 import { getMdiPath } from '@/utils/iconDom';
+import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import { Button } from './Button';
+import { ColorButton } from './ColorButton';
 import './EmojiPicker.css';
 
 // Emoji name mappings for search
@@ -284,43 +294,216 @@ const MDI_CATEGORIES: Record<string, string[]> = {
   ],
 };
 
-type TabType = 'emojis' | 'symbols';
+// ─────────────────────────────────────────────
+// Typical items shown in "All" tab
+// ─────────────────────────────────────────────
 
-/** Colour swatches derived from variables.css preset colours */
-interface PresetColor {
-  label: string;
-  /** CSS variable reference, e.g. 'var(--color-preset-red)' */
-  cssVar: string;
+const TYPICAL_EMOJIS = EMOJI_CATEGORIES['Smileys'].slice(0, 32);
+const TYPICAL_ICONS = MDI_CATEGORIES['Popular'].slice(0, 24);
+
+// ─────────────────────────────────────────────
+// Recents (localStorage)
+// ─────────────────────────────────────────────
+
+const RECENTS_KEY = 'emoji-picker-recents';
+const MAX_RECENTS = 20;
+
+function getRecents(): string[] {
+  try {
+    const stored = localStorage.getItem(RECENTS_KEY);
+    return stored ? (JSON.parse(stored) as string[]) : [];
+  } catch {
+    return [];
+  }
 }
 
-const ICON_COLOR_PALETTE: (PresetColor | null)[] = [
-  null,
-  { label: 'Red',    cssVar: 'var(--color-preset-red)'    },
-  { label: 'Orange', cssVar: 'var(--color-preset-orange)' },
-  { label: 'Yellow', cssVar: 'var(--color-preset-yellow)' },
-  { label: 'Green',  cssVar: 'var(--color-preset-green)'  },
-  { label: 'Teal',   cssVar: 'var(--color-preset-teal)'   },
-  { label: 'Blue',   cssVar: 'var(--color-preset-blue)'   },
-  { label: 'Purple', cssVar: 'var(--color-preset-purple)' },
-  { label: 'Pink',   cssVar: 'var(--color-preset-pink)'   },
-];
+function addRecent(value: string): void {
+  try {
+    const recents = getRecents().filter((r) => r !== value);
+    recents.unshift(value);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(recents.slice(0, MAX_RECENTS)));
+  } catch {
+    // ignore
+  }
+}
 
-interface EmojiPickerProps {
-  /** Currently selected value (emoji or icon name) */
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+
+function iconCamelToKebab(name: string): string {
+  return name
+    .replace(/^mdi/, 'mdi-')
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .toLowerCase();
+}
+
+function getIconPath(name: string): string | null {
+  return (mdiIcons as Record<string, string>)[name] ?? null;
+}
+
+// ─────────────────────────────────────────────
+// LazyCategory – renders a section only when scrolled into view
+// ─────────────────────────────────────────────
+
+interface LazyCategoryProps {
+  label: string;
+  items: string[];
+  isIcon: boolean;
+  selectedValue?: string;
+  onSelect: (item: string) => void;
+}
+
+function LazyCategory({ label, items, isIcon, selectedValue, onSelect }: LazyCategoryProps) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const rowSize = isIcon ? 34 : 36;
+  const cols = 8;
+  const placeholderHeight = Math.ceil(items.length / cols) * rowSize + 28;
+
+  return (
+    <div ref={ref} className="ep-category-section">
+      <div className="ep-category-label">{label}</div>
+      {visible ? (
+        <div className={`ep-grid ${isIcon ? 'ep-icon-grid' : 'ep-emoji-grid'}`}>
+          {items.map((item, idx) => {
+            if (isIcon) {
+              const path = getIconPath(item);
+              if (!path) return null;
+              const kebab = iconCamelToKebab(item);
+              return (
+                <Button
+                  key={item}
+                  variant="ghost"
+                  size="xs"
+                  title={kebab}
+                  active={selectedValue === kebab}
+                  className="ep-item"
+                  onClick={() => onSelect(item)}
+                >
+                  <Icon path={path} size={0.85} />
+                </Button>
+              );
+            }
+            return (
+              <Button
+                key={`${item}-${idx}`}
+                variant="ghost"
+                size="xs"
+                title={item}
+                active={selectedValue === item}
+                className="ep-item ep-emoji-item"
+                onClick={() => onSelect(item)}
+              >
+                {item}
+              </Button>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ height: placeholderHeight }} />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ItemGrid – simple non-lazy grid
+// ─────────────────────────────────────────────
+
+interface ItemGridProps {
+  items: string[];
+  isIcon: boolean;
+  selectedValue?: string;
+  onSelect: (item: string) => void;
+}
+
+function ItemGrid({ items, isIcon, selectedValue, onSelect }: ItemGridProps) {
+  if (items.length === 0) return null;
+  return (
+    <div className={`ep-grid ${isIcon ? 'ep-icon-grid' : 'ep-emoji-grid'}`}>
+      {items.map((item, idx) => {
+        if (isIcon) {
+          const path = getIconPath(item);
+          if (!path) return null;
+          const kebab = iconCamelToKebab(item);
+          return (
+            <Button
+              key={item}
+              variant="ghost"
+              size="xs"
+              title={kebab}
+              active={selectedValue === kebab}
+              className="ep-item"
+              onClick={() => onSelect(item)}
+            >
+              <Icon path={path} size={0.85} />
+            </Button>
+          );
+        }
+        return (
+          <Button
+            key={`${item}-${idx}`}
+            variant="ghost"
+            size="xs"
+            title={item}
+            active={selectedValue === item}
+            className="ep-item ep-emoji-item"
+            onClick={() => onSelect(item)}
+          >
+            {item}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SectionHeader({ children }: { children: ReactNode }) {
+  return <div className="ep-section-header">{children}</div>;
+}
+
+// ─────────────────────────────────────────────
+// Main EmojiPicker
+// ─────────────────────────────────────────────
+
+type TabType = 'all' | 'emojis' | 'icons';
+
+
+
+export interface EmojiPickerProps {
+  /** Currently selected value (emoji character or "mdi-name") */
   value?: string;
   /** Called when a selection is made */
   onSelect: (value: string) => void;
   /** Called when picker should close */
   onClose: () => void;
-  /** Position of the picker */
+  /** Position for popup mode */
   position?: { x: number; y: number };
-  /** Whether to show as a popup (positioned) or inline */
+  /** Show as fixed popup (true) or inline block (false) */
   asPopup?: boolean;
-  /** Show a colour picker section inside the picker */
+  /** Show a colour button in the header */
   useColor?: boolean;
   /** Currently selected colour */
   color?: string | null;
-  /** Called when a colour is selected (does NOT close the picker) */
+  /** Called when a colour is chosen */
   onColorChange?: (color: string | null) => void;
 }
 
@@ -334,319 +517,230 @@ export function EmojiPicker({
   color,
   onColorChange,
 }: EmojiPickerProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('emojis');
+  const [activeTab, setActiveTab] = useState<TabType>('all');
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>(Object.keys(EMOJI_CATEGORIES)[0]);
-  const [selectedMdiCategory, setSelectedMdiCategory] = useState<string>('Popular');
+  const [recents, setRecents] = useState<string[]>(() => getRecents());
+  const [colorPanelOpen, setColorPanelOpen] = useState(false);
+
+  const nodeColorPalette = useMemo(() => getNodePickerPalette(), []);
+
   const pickerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  
-  // Focus search on mount
-  useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
-  
-  // Close on click outside
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { searchRef.current?.focus(); }, []);
+
   useEffect(() => {
     if (!asPopup) return;
-    
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+    const handle = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) onClose();
     };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
   }, [asPopup, onClose]);
-  
-  // Handle escape key
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
   }, [onClose]);
-  
-  // Filter emojis based on search (by name or character)
-  const filteredEmojis = useMemo(() => {
-    if (!search) {
-      return EMOJI_CATEGORIES[selectedCategory as keyof typeof EMOJI_CATEGORIES] || [];
+
+  const allMdiNames = useMemo(
+    () => Object.keys(mdiIcons).filter((k) => k.startsWith('mdi') && k !== 'default').sort(),
+    [],
+  );
+
+  const searchResults = useMemo(() => {
+    if (!search) return null;
+    const q = search.toLowerCase();
+    const emojis: string[] = [];
+    for (const list of Object.values(EMOJI_CATEGORIES)) {
+      for (const e of list) { if (e.toLowerCase().includes(q)) emojis.push(e); }
     }
-    
-    const searchLower = search.toLowerCase();
-    const results: string[] = [];
-    
-    // Search across all categories
-    for (const emojis of Object.values(EMOJI_CATEGORIES)) {
-      for (const emoji of emojis) {
-        // Search by emoji character or by name
-        if (emoji.includes(search)) {
-          results.push(emoji);
-        } else if (EMOJI_NAMES[emoji]) {
-          const names = EMOJI_NAMES[emoji];
-          if (names.some(name => name.includes(searchLower))) {
-            results.push(emoji);
-          }
-        }
-      }
-    }
-    
-    // Remove duplicates
-    return Array.from(new Set(results));
-  }, [search, selectedCategory]);
-  
-  // Get all MDI icon names
-  const allMdiIcons = useMemo(() => {
-    return Object.keys(mdiIcons)
-      .filter(key => key.startsWith('mdi') && key !== 'default')
-      .sort();
-  }, []);
-  
-  // Filter MDI icons based on search and category
-  const filteredMdiIcons = useMemo(() => {
-    if (search) {
-      // When searching, search all icons (no limit)
-      const searchLower = search.toLowerCase();
-      return allMdiIcons.filter(name => 
-        name.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // When not searching, show selected category
-    return MDI_CATEGORIES[selectedMdiCategory] || MDI_CATEGORIES['Popular'];
-  }, [search, selectedMdiCategory, allMdiIcons]);
-  
-  // Handle emoji selection
-  const handleEmojiSelect = useCallback((emoji: string) => {
-    onSelect(emoji);
-    onClose();
-  }, [onSelect, onClose]);
-  
-  // Handle MDI icon selection
-  const handleMdiSelect = useCallback((iconName: string) => {
-    // Convert camelCase to kebab-case: mdiCalendarToday -> mdi-calendar-today
-    const kebabName = iconName
-      .replace(/^mdi/, 'mdi-')
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .toLowerCase();
-    onSelect(kebabName);
-    onClose();
-  }, [onSelect, onClose]);
-  
-  // Handle remove icon
-  const handleRemove = useCallback(() => {
-    onSelect('');
-    onClose();
-  }, [onSelect, onClose]);
-  
-  // Get MDI path for preview
-  const getMdiPath = (iconName: string): string | null => {
-    const path = (mdiIcons as Record<string, string>)[iconName];
-    return path || null;
+    const icons = allMdiNames.filter((n) => n.toLowerCase().includes(q));
+    return { emojis: Array.from(new Set(emojis)), icons };
+  }, [search, allMdiNames]);
+
+  const handleSelect = useCallback(
+    (raw: string, isIcon: boolean) => {
+      const final = isIcon ? iconCamelToKebab(raw) : raw;
+      addRecent(final);
+      setRecents(getRecents());
+      onSelect(final);
+      onClose();
+    },
+    [onSelect, onClose],
+  );
+
+  const handleRemove = useCallback(() => { onSelect(''); onClose(); }, [onSelect, onClose]);
+
+  function isIconValue(val: string) {
+    return val.startsWith('mdi-') || val.startsWith('mdi:') || val.startsWith('mdi_');
+  }
+
+  function kebabToCamel(kebab: string): string {
+    return kebab.replace(/^mdi-/, 'mdi').replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+  }
+
+  const popupStyle: React.CSSProperties =
+    asPopup && position ? { position: 'fixed', left: position.x, top: position.y } : {};
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearch('');
+    contentRef.current?.scrollTo({ top: 0 });
   };
-  
-  const style: React.CSSProperties = asPopup && position
-    ? {
-        position: 'fixed',
-        left: position.x,
-        top: position.y,
-      }
-    : {};
-  
+
   return (
-    <div 
-      className={`emoji-picker ${asPopup ? 'popup' : 'inline'}`} 
+    <div
       ref={pickerRef}
-      style={style}
+      className={`ep ${asPopup ? 'ep--popup' : 'ep--inline'}`}
+      style={popupStyle}
     >
-      {/* Tabs */}
-      <div className="emoji-picker-tabs">
-        <Button
-          variant="ghost"
-          size="sm"
-          active={activeTab === 'emojis'}
-          onClick={() => setActiveTab('emojis')}
-          className="emoji-picker-tab"
-        >
-          😀 Emojis
-        </Button>
-        <Button
-          icon={mdiShapeOutline}
-          variant="ghost"
-          size="sm"
-          active={activeTab === 'symbols'}
-          onClick={() => setActiveTab('symbols')}
-          className="emoji-picker-tab"
-        >
-          Symbols
-        </Button>
+      {/* Header: tabs + actions */}
+      <div className="ep-header">
+        <div className="ep-tabs">
+          <Button variant="ghost" size="sm" active={activeTab === 'all'} onClick={() => handleTabChange('all')}>All</Button>
+          <Button variant="ghost" size="sm" active={activeTab === 'emojis'} onClick={() => handleTabChange('emojis')}>Emojis</Button>
+          <Button variant="ghost" size="sm" active={activeTab === 'icons'} onClick={() => handleTabChange('icons')}>Icons</Button>
+        </div>
+        <div className="ep-header-actions">
+          {useColor && onColorChange && (
+            <ColorButton
+              color={color ?? 'var(--color-surface-container-high)'}
+              size="sm"
+              active={colorPanelOpen}
+              onClick={() => setColorPanelOpen((v) => !v)}
+            />
+          )}
+          <Button variant="ghost" size="sm" icon={mdiTrashCanOutline} iconOnly title="Remove icon" onClick={handleRemove} />
+        </div>
       </div>
-      
+
+      {/* Color panel */}
+      {useColor && onColorChange && colorPanelOpen && (
+        <div className="ep-color-panel">
+          {nodeColorPalette.map((c) => (
+            <button
+              key={c ?? 'none'}
+              type="button"
+              className={`ep-color-swatch ${
+                c === null
+                  ? 'ep-color-swatch--none'
+                  : ''
+              } ${color === c ? 'ep-color-swatch--selected' : ''}`}
+              style={c ? { backgroundColor: c } : undefined}
+              title={c ?? 'No color'}
+              onClick={() => { onColorChange(c); }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Search */}
-      <div className="emoji-picker-search">
+      <div className="ep-search">
         <input
           ref={searchRef}
           type="text"
-          className="emoji-picker-search-input"
-          placeholder={activeTab === 'emojis' ? 'Search emojis...' : 'Search icons...'}
+          className="ep-search-input"
+          placeholder="Search&#8230;"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      
-      {/* Content based on active tab */}
-      {activeTab === 'emojis' ? (
-        <div className="emoji-picker-content">
-          {/* Category selector (only when not searching) */}
-          {!search && (
-            <div className="emoji-picker-categories">
-              {Object.keys(EMOJI_CATEGORIES).map(category => (
-                <button
-                  key={category}
-                  className={`emoji-picker-category ${selectedCategory === category ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(category)}
-                  title={category}
-                >
-                  {EMOJI_CATEGORIES[category as keyof typeof EMOJI_CATEGORIES][0]}
-                </button>
-              ))}
-            </div>
-          )}
-          
-          {/* Emoji grid */}
-          <div className="emoji-picker-grid">
-            {filteredEmojis.map((emoji, index) => (
-              <button
-                key={`${emoji}-${index}`}
-                className={`emoji-picker-item ${value === emoji ? 'selected' : ''}`}
-                onClick={() => handleEmojiSelect(emoji)}
-                title={emoji}
-              >
-                {emoji}
-              </button>
-            ))}
-            {filteredEmojis.length === 0 && (
-              <div className="emoji-picker-empty">No emojis found</div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="emoji-picker-content">
-          {/* MDI Category selector (only when not searching) */}
-          {!search && (
-            <div className="emoji-picker-mdi-categories">
-              {Object.keys(MDI_CATEGORIES).map(category => (
-                <button
-                  key={category}
-                  className={`emoji-picker-mdi-category ${selectedMdiCategory === category ? 'active' : ''}`}
-                  onClick={() => setSelectedMdiCategory(category)}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          )}
-          
-          {/* MDI icon grid */}
-          <div className="emoji-picker-grid mdi-grid">
-            {filteredMdiIcons.map(iconName => {
-              const path = getMdiPath(iconName);
-              if (!path) return null;
-              
-              // Convert to kebab for comparison with value
-              const kebabName = iconName
-                .replace(/^mdi/, 'mdi-')
-                .replace(/([a-z])([A-Z])/g, '$1-$2')
-                .toLowerCase();
-              
-              return (
-                <button
-                  key={iconName}
-                  className={`emoji-picker-item mdi-item ${value === kebabName ? 'selected' : ''}`}
-                  onClick={() => handleMdiSelect(iconName)}
-                  title={kebabName}
-                >
-                  <Icon path={path} size={0.9} />
-                </button>
-              );
-            })}
-            {filteredMdiIcons.length === 0 && (
-              <div className="emoji-picker-empty">No icons found</div>
-            )}
-          </div>
-          {!search && (
-            <div className="emoji-picker-hint">
-              {filteredMdiIcons.length} icons in {selectedMdiCategory}. Search to find from all {allMdiIcons.length}+ icons.
-            </div>
-          )}
-          {search && filteredMdiIcons.length > 0 && (
-            <div className="emoji-picker-hint">
-              Found {filteredMdiIcons.length} icons
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Colour picker */}
-      {useColor && (
-        <div className="emoji-picker-color-section">
-          <span className="emoji-picker-color-label">Colour</span>
-          <div className="emoji-picker-color-swatches">
-            {ICON_COLOR_PALETTE.map((preset) => (
-              <button
-                key={preset ? preset.cssVar : 'none'}
-                className={`emoji-picker-color-swatch ${color === (preset ? preset.cssVar : null) ? 'selected' : ''} ${!preset ? 'no-color' : ''}`}
-                style={preset ? { backgroundColor: preset.cssVar } : undefined}
-                onClick={() => onColorChange?.(preset ? preset.cssVar : null)}
-                title={preset ? preset.label : 'No colour'}
-                type="button"
-              >
-                {!preset && <span className="emoji-picker-color-none-line" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Footer with remove option */}
-      {value && (
-        <div className="emoji-picker-footer">
-          <Button 
-            variant="danger" 
-            size="sm" 
-            onClick={handleRemove}
-            className="emoji-picker-remove"
-          >
-            Remove icon
-          </Button>
-        </div>
-      )}
+      {/* Content */}
+      <div ref={contentRef} className="ep-content">
+        {/* Search results */}
+        {searchResults && (
+          <>
+            {searchResults.emojis.length > 0 && (
+              <div className="ep-category-section">
+                <SectionHeader>Emojis</SectionHeader>
+                <ItemGrid items={searchResults.emojis} isIcon={false} selectedValue={value} onSelect={(e) => handleSelect(e, false)} />
+              </div>
+            )}
+            {searchResults.icons.length > 0 && (
+              <div className="ep-category-section">
+                <SectionHeader>Icons</SectionHeader>
+                <ItemGrid items={searchResults.icons} isIcon selectedValue={value} onSelect={(e) => handleSelect(e, true)} />
+              </div>
+            )}
+            {searchResults.emojis.length === 0 && searchResults.icons.length === 0 && (
+              <div className="ep-empty">No results for &#8220;{search}&#8221;</div>
+            )}
+          </>
+        )}
+
+        {/* All tab */}
+        {!searchResults && activeTab === 'all' && (
+          <>
+            {recents.length > 0 && (
+              <div className="ep-category-section">
+                <SectionHeader>Recents</SectionHeader>
+                <div className="ep-grid ep-mixed-grid">
+                  {recents.map((item) => {
+                    if (isIconValue(item)) {
+                      const camel = kebabToCamel(item);
+                      const path = getIconPath(camel);
+                      if (!path) return null;
+                      return (
+                        <Button key={item} variant="ghost" size="xs" title={item} active={value === item} className="ep-item"
+                          onClick={() => { addRecent(item); setRecents(getRecents()); onSelect(item); onClose(); }}>
+                          <Icon path={path} size={0.85} />
+                        </Button>
+                      );
+                    }
+                    return (
+                      <Button key={item} variant="ghost" size="xs" title={item} active={value === item} className="ep-item ep-emoji-item"
+                        onClick={() => { addRecent(item); setRecents(getRecents()); onSelect(item); onClose(); }}>
+                        {item}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="ep-category-section">
+              <SectionHeader>Emojis</SectionHeader>
+              <ItemGrid items={TYPICAL_EMOJIS} isIcon={false} selectedValue={value} onSelect={(e) => handleSelect(e, false)} />
+            </div>
+            <div className="ep-category-section">
+              <SectionHeader>Icons</SectionHeader>
+              <ItemGrid items={TYPICAL_ICONS} isIcon selectedValue={value} onSelect={(e) => handleSelect(e, true)} />
+            </div>
+          </>
+        )}
+
+        {/* Emojis tab */}
+        {!searchResults && activeTab === 'emojis' &&
+          Object.entries(EMOJI_CATEGORIES).map(([cat, items]) => (
+            <LazyCategory key={cat} label={cat} items={items} isIcon={false} selectedValue={value} onSelect={(e) => handleSelect(e, false)} />
+          ))
+        }
+
+        {/* Icons tab */}
+        {!searchResults && activeTab === 'icons' &&
+          Object.entries(MDI_CATEGORIES).map(([cat, items]) => (
+            <LazyCategory key={cat} label={cat} items={items} isIcon selectedValue={value} onSelect={(e) => handleSelect(e, true)} />
+          ))
+        }
+      </div>
     </div>
   );
 }
 
-/**
- * EmojiPickerTrigger - A button that opens the emoji picker
- */
+// 
+// EmojiPickerTrigger
+// 
+
 interface EmojiPickerTriggerProps {
-  /** Currently selected value */
   value?: string;
-  /** Called when a selection is made */
   onSelect: (value: string) => void;
-  /** Placeholder text when no value */
   placeholder?: string;
-  /** Additional class name */
   className?: string;
-  /** Show a colour picker inside the picker */
   useColor?: boolean;
-  /** Currently selected colour */
   color?: string | null;
-  /** Called when colour changes */
   onColorChange?: (color: string | null) => void;
 }
 
@@ -662,57 +756,40 @@ export function EmojiPickerTrigger({
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
-  
+
   const handleClick = useCallback(() => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setPosition({
-        x: Math.min(rect.left, window.innerWidth - 320),
-        y: Math.min(rect.bottom + 4, window.innerHeight - 400),
+        x: Math.min(rect.left, window.innerWidth - 340),
+        y: Math.min(rect.bottom + 4, window.innerHeight - 450),
       });
     }
     setIsOpen(true);
   }, []);
-  
-  const handleSelect = useCallback((selectedValue: string) => {
-    onSelect(selectedValue);
-    setIsOpen(false);
-  }, [onSelect]);
-  
-  // Render icon preview with optional colour applied to the icon itself
+
+  const handleSelect = useCallback(
+    (selected: string) => { onSelect(selected); setIsOpen(false); },
+    [onSelect],
+  );
+
   const renderValue = () => {
-    if (!value) {
-      return <span className="emoji-trigger-placeholder">{placeholder}</span>;
-    }
-    
-    // Try to resolve as an MDI icon (handles mdi-, mdi:, mdi_ prefixes and camelCase)
+    if (!value) return <span className="ep-trigger-placeholder">{placeholder}</span>;
     const mdiPath = getMdiPath(value);
-    if (mdiPath) {
-      return <Icon path={mdiPath} size={0.9} color={color || undefined} />;
-    }
-    
-    // It's an emoji or unknown — render as text (colour via CSS)
-    return (
-      <span
-        className="emoji-trigger-emoji"
-        style={color ? { color } : undefined}
-      >
-        {value}
-      </span>
-    );
+    if (mdiPath) return <Icon path={mdiPath} size={0.9} color={color ?? undefined} />;
+    return <span className="ep-trigger-emoji" style={color ? { color } : undefined}>{value}</span>;
   };
-  
+
   return (
     <>
       <button
         ref={triggerRef}
-        className={`emoji-picker-trigger ${className} ${value ? 'has-value' : ''}`}
+        className={`ep-trigger ${className} ${value ? 'ep-trigger--has-value' : ''}`}
         onClick={handleClick}
         type="button"
       >
         {renderValue()}
       </button>
-      
       {isOpen && (
         <EmojiPicker
           value={value}
