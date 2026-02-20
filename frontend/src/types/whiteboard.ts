@@ -316,31 +316,31 @@ export const DEFAULT_WHITEBOARD_DATA: WhiteboardData = {
     snap: true,
     visible: true,
   },
-  background: 'var(--bg-primary)',
+  background: 'var(--color-background)',
 };
 
 export const DEFAULT_PEN_SETTINGS: PenSettings = {
-  color: 'var(--text-primary)',
+  color: 'var(--color-on-surface)',
   strokeWidth: 2,
   opacity: 1,
 };
 
 export const DEFAULT_HIGHLIGHTER_SETTINGS: PenSettings = {
-  color: '#ffeb3b',
+  color: 'var(--color-preset-yellow)',
   strokeWidth: 20,
   opacity: 0.4,
 };
 
 export const DEFAULT_SHAPE_SETTINGS: ShapeSettings = {
   fill: 'transparent',
-  stroke: 'var(--text-primary)',
+  stroke: 'var(--color-on-surface)',
   strokeWidth: 2,
   strokeStyle: 'solid',
   borderRadius: 4,
 };
 
 export const DEFAULT_TEXT_SETTINGS: TextSettings = {
-  color: 'var(--text-primary)',
+  color: 'var(--color-on-surface)',
   fontSize: 16,
   fontWeight: 'normal',
   fontStyle: 'normal',
@@ -348,7 +348,7 @@ export const DEFAULT_TEXT_SETTINGS: TextSettings = {
 };
 
 export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
-  stroke: 'var(--text-primary)',
+  stroke: 'var(--color-on-surface)',
   strokeWidth: 2,
   strokeStyle: 'solid',
   pathType: 'curved',

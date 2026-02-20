@@ -859,7 +859,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 zIndex: 9999,
                 points: interaction.currentStroke,
                 color: interaction.tool === 'highlighter' ? wb.settings.highlighter.color : 
-                       interaction.tool === 'eraser' ? '#ff0000' : wb.settings.pen.color,
+                       interaction.tool === 'eraser' ? 'var(--color-error)' : wb.settings.pen.color,
                 strokeWidth: interaction.tool === 'highlighter' ? wb.settings.highlighter.strokeWidth :
                              interaction.tool === 'eraser' ? 15 : wb.settings.pen.strokeWidth,
                 tool: interaction.tool as 'pen' | 'highlighter' | 'eraser',
