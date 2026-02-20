@@ -10,7 +10,8 @@ import type { WhiteboardStrokeElement, StrokePoint } from '@/types/whiteboard';
 interface Props {
   element: WhiteboardStrokeElement;
   isAbsolute?: boolean; // If true, points are in absolute canvas coords (for current stroke)
-  isSelected?: boolean;  // Renders a glow halo around the stroke
+  isSelected?: boolean;
+  dimmed?: boolean; // Dim when another element is selected
 }
 
 /**
@@ -123,8 +124,9 @@ function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): st
   return parts.join(' ');
 }
 
-export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected }) => {
+export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected, dimmed }) => {
   const { points, color, strokeWidth, opacity, tool } = element;
+  const effectiveOpacity = dimmed ? opacity * 0.35 : opacity;
   const offsetX = isAbsolute ? 0 : element.x;
   const offsetY = isAbsolute ? 0 : element.y;
 
@@ -144,11 +146,6 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
 
   const useVariableWidth = points.length >= 4;
 
-  // Glow filter applied to the wrapping <g> when selected
-  const glowStyle: React.CSSProperties | undefined = isSelected
-    ? { filter: `drop-shadow(0 0 4px var(--color-primary)) drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary) 50%, transparent))` }
-    : undefined;
-
   let pathEl: React.ReactElement;
 
   if (tool === 'highlighter') {
@@ -158,7 +155,7 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
         fill={useVariableWidth ? color : 'none'}
         stroke={useVariableWidth ? 'none' : color}
         strokeWidth={useVariableWidth ? undefined : strokeWidth}
-        opacity={opacity}
+        opacity={effectiveOpacity}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -169,7 +166,7 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
         d={pathData}
         fill={color}
         stroke="none"
-        opacity={opacity}
+        opacity={effectiveOpacity}
       />
     );
   } else {
@@ -179,7 +176,7 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
         fill="none"
         stroke={color}
         strokeWidth={strokeWidth}
-        opacity={opacity}
+        opacity={effectiveOpacity}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -187,6 +184,6 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute,
   }
 
   return (
-    <g style={glowStyle}>{pathEl}</g>
+    <g style={{ transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)' }}>{pathEl}</g>
   );
 };
