@@ -20,11 +20,12 @@ import type {
   WhiteboardConnectorElement,
   WhiteboardImageElement,
   WhiteboardLineElement,
+  WhiteboardGroup,
   Point,
   Bounds,
   ConnectorEndpoint,
 } from '@/types/whiteboard';
-import { boundsOverlap, isPointInBounds } from '@/types/whiteboard';
+import { boundsOverlap, isPointInBounds, getBounds } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
@@ -366,36 +367,23 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
-    // Connector tool
+    // Connector tool — only begins if the pointer is on an element
     if (tool === 'connector') {
       const hitElement = hitTest(canvasPos);
-      // Hide hover circle while dragging
       if (connectorHoverCircleRef.current) connectorHoverCircleRef.current.setAttribute('r', '0');
-      if (hitElement) {
-        const anchor = getElementAnchor(canvasPos, hitElement);
-        const anchorPos = getElementAnchorPos(hitElement, anchor);
-        if (liveConnectorRef.current) {
-          liveConnectorRef.current.setAttribute('x1', String(anchorPos.x));
-          liveConnectorRef.current.setAttribute('y1', String(anchorPos.y));
-          liveConnectorRef.current.setAttribute('x2', String(anchorPos.x));
-          liveConnectorRef.current.setAttribute('y2', String(anchorPos.y));
-        }
-        setInteraction(prev => ({
-          ...prev,
-          connectorStart: { type: 'element', elementId: hitElement.id, anchor },
-        }));
-      } else {
-        if (liveConnectorRef.current) {
-          liveConnectorRef.current.setAttribute('x1', String(canvasPos.x));
-          liveConnectorRef.current.setAttribute('y1', String(canvasPos.y));
-          liveConnectorRef.current.setAttribute('x2', String(canvasPos.x));
-          liveConnectorRef.current.setAttribute('y2', String(canvasPos.y));
-        }
-        setInteraction(prev => ({
-          ...prev,
-          connectorStart: { type: 'point', x: canvasPos.x, y: canvasPos.y },
-        }));
+      if (!hitElement) return; // must start on an element
+      const anchor = getElementAnchor(canvasPos, hitElement);
+      const anchorPos = getElementAnchorPos(hitElement, anchor);
+      if (liveConnectorRef.current) {
+        liveConnectorRef.current.setAttribute('x1', String(anchorPos.x));
+        liveConnectorRef.current.setAttribute('y1', String(anchorPos.y));
+        liveConnectorRef.current.setAttribute('x2', String(anchorPos.x));
+        liveConnectorRef.current.setAttribute('y2', String(anchorPos.y));
       }
+      setInteraction(prev => ({
+        ...prev,
+        connectorStart: { type: 'element', elementId: hitElement.id, anchor },
+      }));
       return;
     }
 
@@ -424,8 +412,31 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       const hitElement = hitTest(canvasPos);
       if (hitElement) {
-        // Select or add to selection
-        if (e.shiftKey) {
+        // Check if element belongs to a group — if so, select all group members
+        const group = wb.getElementGroup(hitElement.id);
+        if (!e.shiftKey) {
+          if (group && !interaction.selectedIds.has(hitElement.id)) {
+            // Select entire group
+            setInteraction(prev => ({ ...prev, selectedIds: new Set(group.elementIds) }));
+            state.startElementPositions.clear();
+            for (const id of group.elementIds) {
+              const el = data.elements.find(e => e.id === id);
+              if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
+            }
+          } else if (!interaction.selectedIds.has(hitElement.id)) {
+            setInteraction(prev => ({ ...prev, selectedIds: new Set([hitElement.id]) }));
+            state.startElementPositions.clear();
+            state.startElementPositions.set(hitElement.id, { x: hitElement.x, y: hitElement.y });
+          } else {
+            // Already in the current selection — store positions for drag
+            state.startElementPositions.clear();
+            for (const id of interaction.selectedIds) {
+              const el = data.elements.find(e => e.id === id);
+              if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
+            }
+          }
+        } else {
+          // Shift-click: toggle individual element
           const newSelected = new Set(interaction.selectedIds);
           if (newSelected.has(hitElement.id)) {
             newSelected.delete(hitElement.id);
@@ -433,20 +444,26 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             newSelected.add(hitElement.id);
           }
           setInteraction(prev => ({ ...prev, selectedIds: newSelected }));
-        } else if (!interaction.selectedIds.has(hitElement.id)) {
-          setInteraction(prev => ({ ...prev, selectedIds: new Set([hitElement.id]) }));
-        }
-
-        // Store starting positions for drag
-        const selectedIds = interaction.selectedIds.has(hitElement.id)
-          ? interaction.selectedIds
-          : new Set([hitElement.id]);
-        state.startElementPositions.clear();
-        for (const id of selectedIds) {
-          const el = data.elements.find(e => e.id === id);
-          if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
+          state.startElementPositions.clear();
+          for (const id of newSelected) {
+            const el = data.elements.find(e => e.id === id);
+            if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
+          }
         }
       } else {
+        // Empty space: check for group hit first
+        if (!e.shiftKey) {
+          const hitGroup = findGroupAtPoint(canvasPos);
+          if (hitGroup) {
+            setInteraction(prev => ({ ...prev, selectedIds: new Set(hitGroup.elementIds) }));
+            state.startElementPositions.clear();
+            for (const id of hitGroup.elementIds) {
+              const el = data.elements.find(e => e.id === id);
+              if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
+            }
+            return;
+          }
+        }
         // Empty space: Shift+drag → box select, plain drag → pan, plain click → deselect (on up)
         if (e.shiftKey) {
           setInteraction(prev => ({
@@ -882,7 +899,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // End connector creation
     if (interaction.connectorStart) {
-      // Clear live connector line and hover circle
+      // Always clear live refs
       if (liveConnectorRef.current) {
         liveConnectorRef.current.setAttribute('x1', '0');
         liveConnectorRef.current.setAttribute('y1', '0');
@@ -890,31 +907,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         liveConnectorRef.current.setAttribute('y2', '0');
       }
       if (connectorHoverCircleRef.current) connectorHoverCircleRef.current.setAttribute('r', '0');
+      setInteraction(prev => ({ ...prev, connectorStart: null }));
+      // Only commit if the pointer was released on a different element
       const hitElement = hitTest(canvasPos);
-      let end: ConnectorEndpoint;
-      if (hitElement) {
-        const anchor = getElementAnchor(canvasPos, hitElement);
-        end = { type: 'element', elementId: hitElement.id, anchor };
-      } else {
-        // Shift: snap angle to H/V/45° from start
-        let endX = canvasPos.x;
-        let endY = canvasPos.y;
-        if (e.shiftKey && interaction.connectorStart.type === 'point') {
-          const sx = interaction.connectorStart.x;
-          const sy = interaction.connectorStart.y;
-          const dx = endX - sx;
-          const dy = endY - sy;
-          const angle = Math.atan2(dy, dx);
-          const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          endX = sx + dist * Math.cos(snappedAngle);
-          endY = sy + dist * Math.sin(snappedAngle);
-        }
-        end = { type: 'point', x: endX, y: endY };
-      }
+      const startId = interaction.connectorStart.elementId;
+      if (!hitElement || hitElement.id === startId) return;
+      const anchor = getElementAnchor(canvasPos, hitElement);
+      const end: ConnectorEndpoint = { type: 'element', elementId: hitElement.id, anchor };
       const connector = wb.createConnector(interaction.connectorStart, end);
       wb.addElement(connector);
-      setInteraction(prev => ({ ...prev, connectorStart: null }));
       return;
     }
 
@@ -1146,7 +1147,23 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         case 'l': case 'L': wb.setTool('connector'); break;
         case 'e': case 'E': wb.setTool('eraser'); break;
         case 'g': case 'G':
-          if (!e.ctrlKey) wb.toggleGrid();
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const selIds = [...interaction.selectedIds];
+            if (selIds.length >= 2) {
+              // Check if all selected elements are already in the same group
+              const existingGroup = data.groups.find(g =>
+                selIds.every(id => g.elementIds.includes(id))
+              );
+              if (existingGroup) {
+                wb.ungroupElements(selIds);
+              } else {
+                wb.groupElements(selIds);
+              }
+            }
+          } else {
+            wb.toggleGrid();
+          }
           break;
         case ']':
           if (interaction.selectedIds.size > 0) wb.bringToFront([...interaction.selectedIds]);
@@ -1562,6 +1579,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       {/* Elements layer (DOM elements) */}
       <div className="whiteboard-view__elements">
+        {/* Group bounding boxes — rendered below elements */}
+        {renderGroups}
         {sortedElements
           .filter(el => el.type !== 'stroke' && el.type !== 'connector' && el.type !== 'line')
           .map(renderElement)}
