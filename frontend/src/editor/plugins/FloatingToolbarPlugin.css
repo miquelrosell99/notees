@@ -37,8 +37,9 @@
 }
 
 .floating-toolbar__button.btn--active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .floating-toolbar__button:hover {
@@ -46,7 +47,8 @@
 }
 
 .floating-toolbar__button.btn--active:hover {
-  background: var(--color-primary-container);
+  background: var(--color-surface-container);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Separator between action groups */
