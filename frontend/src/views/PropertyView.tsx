@@ -20,7 +20,6 @@ import { useQuery_ } from '@/hooks/useNodeViews';
 import { useAppStore } from '@/stores';
 import { createEmptyQueryAST, createPropertyCondition } from '@/types/queryAST';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
-import { NodeIcon } from '../components/core/icons';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
@@ -314,20 +313,6 @@ export function PropertyView({
           </div>
         </div>
       
-      {/* Property Options (for selection type) */}
-      {property.type === 'selection' && property.options.length > 0 && (
-        <div className="property-view-options">
-          <h3 className="property-view-options-title">Available Choices</h3>
-          <div className="property-view-options-list">
-            {property.options.map(option => (
-              <span key={option.id} className="property-view-option">
-                {option.icon && <NodeIcon icon={option.icon} size="xs" />}
-                {option.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
       
       {/* Property Configuration Section */}
       <PropertyConfigSection

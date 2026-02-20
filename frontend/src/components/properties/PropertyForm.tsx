@@ -7,7 +7,6 @@
 import { useCallback } from 'react';
 import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
-import { NodeIcon } from '../core/icons';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
@@ -68,6 +67,7 @@ export interface PropertyFormProps {
   
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
+  onOptionIconChange?: (id: string, icon: string) => void;
   onReorderOptions: (fromIndex: number, toIndex: number) => void;
   onNewOptionNameChange: (name: string) => void;
   onNewOptionIconChange: (icon: string) => void;
@@ -111,6 +111,7 @@ export function PropertyForm({
   
   onAddOption,
   onRemoveOption,
+  onOptionIconChange,
   onReorderOptions,
   onNewOptionNameChange,
   onNewOptionIconChange,
@@ -218,7 +219,14 @@ export function PropertyForm({
             <ListSortable
               items={selectionOptions}
               onReorder={onReorderOptions}
-              renderIcon={(opt) => opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : null}
+              renderIcon={(opt) => (
+                <EmojiPickerTrigger
+                  value={opt.icon}
+                  onSelect={(icon) => onOptionIconChange?.(opt.id, icon)}
+                  placeholder=""
+                  className="property-form__option-icon-btn"
+                />
+              )}
               renderText={(opt) => opt.name}
               renderActions={(opt) => [
                 <Button
