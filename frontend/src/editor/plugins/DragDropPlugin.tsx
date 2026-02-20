@@ -370,8 +370,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   /** IDs of the dragged block + all its descendants (excluded from drop targets) */
   const excludedIdsRef = useRef<Set<string>>(new Set());
-  /** Element(s) currently showing the drop-spacing animation (up to 2: one above, one below) */
-  const spacerElRef = useRef<Array<{ el: HTMLElement; cls: string }>>([]);
+  /** Element currently showing the drop-spacing animation */
+  const spacerElRef = useRef<{ el: HTMLElement; cls: string } | null>(null);
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -444,17 +444,13 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ghost.classList.add('block-drag-ghost--snapped');
         ghost.classList.remove('block-drag-ghost--floating');
         ghost.style.transition = 'none';
-        // Snap ghost to anchor. After symmetric spacing (17px on each side,
-        // replacing the original 3px), the visual gap centre shifts +14px from
-        // anchor.y, so the ghost top sits exactly at anchor.y.
-        ghost.style.top = `${anchor.y}px`;
         ghost.style.left = `${anchor.x - 11}px`;
         ghost.style.width = '200px';
         state.snapped = true;
         activeAnchorRef.current = anchor;
 
-        // ── Drop spacing: push blocks apart at the snap point ──
-        applyDropSpacing(anchor);
+        // Position ghost at the final gap center — blocks animate apart around it
+        ghost.style.top = `${anchor.y}px`;
       } else {
         coordinator.updateTarget(null);
         positionGhostFloat(ghost, cx, cy);
@@ -472,41 +468,30 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       ) as HTMLElement | null;
       if (!targetEl) { clearDropSpacing(); return; }
 
-      // Determine the two elements that bracket the gap:
-      //   'before'       → gap is above targetEl: prevSibling gets margin-bottom, target gets margin-top
-      //   'after'/'child'→ gap is below targetEl: target gets margin-bottom, nextSibling gets margin-top
-      let aboveEl: HTMLElement | null;
-      let belowEl: HTMLElement | null;
-      if (position === 'before') {
-        aboveEl = targetEl.previousElementSibling as HTMLElement | null;
-        belowEl = targetEl;
-      } else {
-        aboveEl = targetEl;
-        belowEl = targetEl.nextElementSibling as HTMLElement | null;
-      }
+      // The drop target itself creates the gap:
+      //   'before'        → target gets margin-top  → gap opens above  it
+      //   'after'/'child' → target gets margin-bottom → gap opens below it
+      const cls = position === 'before'
+        ? 'node-block--drop-spacing-before'
+        : 'node-block--drop-spacing-after';
 
-      const next: Array<{ el: HTMLElement; cls: string }> = [];
-      if (aboveEl?.classList.contains('node-block'))
-        next.push({ el: aboveEl, cls: 'node-block--drop-spacing-after' });
-      if (belowEl?.classList.contains('node-block'))
-        next.push({ el: belowEl, cls: 'node-block--drop-spacing-before' });
-
-      // Bail out early if nothing changed
       const prev = spacerElRef.current;
-      const sameSet =
-        prev.length === next.length &&
-        prev.every((p, i) => p.el === next[i].el && p.cls === next[i].cls);
-      if (sameSet) return;
-
-      // Clear old, apply new
-      prev.forEach(({ el, cls }) => el.classList.remove(cls));
-      next.forEach(({ el, cls }) => el.classList.add(cls));
-      spacerElRef.current = next;
+      if (prev?.el === targetEl && prev.cls === cls) return; // already set
+      prev?.el.classList.remove(prev.cls);
+      // Suppress transition on the new element so the gap opens instantly
+      targetEl.classList.add('node-block--drop-spacing-instant');
+      targetEl.classList.add(cls);
+      spacerElRef.current = { el: targetEl, cls };
+      // Re-enable transition after the layout has painted (for the closing animation)
+      requestAnimationFrame(() => targetEl.classList.remove('node-block--drop-spacing-instant'));
     }
 
     function clearDropSpacing() {
-      spacerElRef.current.forEach(({ el, cls }) => el.classList.remove(cls));
-      spacerElRef.current = [];
+      const prev = spacerElRef.current;
+      if (prev) {
+        prev.el.classList.remove(prev.cls, 'node-block--drop-spacing-instant');
+        spacerElRef.current = null;
+      }
     }
 
     function positionGhostFloat(ghost: HTMLDivElement, cx: number, cy: number) {

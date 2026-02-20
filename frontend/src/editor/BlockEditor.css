@@ -834,21 +834,27 @@ th.node-block-table-cell {
   opacity: 0.35;
 }
 
-/* Drop spacing: animated gap at the snap point — 17px per side (was 3px), total 34px gap */
+/* Drop spacing: gap created by the drop target itself */
 .node-block--drop-spacing-before {
-  margin-top: 17px !important;
+  margin-top: 32px !important;
 }
 
 .node-block--drop-spacing-after {
-  margin-bottom: 17px !important;
+  margin-bottom: 32px !important;
 }
 
-/* During drag, animate vertical margins so spacing opens and closes smoothly */
+/* Closing animation: when spacing class is removed, the margin collapses back smoothly */
 body.notees-dragging-block .node-block {
   transition:
     margin-left var(--motion-duration-medium) var(--motion-easing-standard),
-    margin-top 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    margin-bottom 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    margin-top 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-bottom 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Suppress transition on a block that just received new spacing (instant open) */
+body.notees-dragging-block .node-block--drop-spacing-instant {
+  transition:
+    margin-left var(--motion-duration-medium) var(--motion-easing-standard) !important;
 }
 
 /* Suppress all hover effects while dragging a block */
