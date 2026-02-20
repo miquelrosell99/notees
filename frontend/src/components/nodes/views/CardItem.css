@@ -348,6 +348,11 @@
   display: none;
 }
 
+/* Hide block class pills in the title — they are shown in the dedicated classes row */
+.node-card__title-block .node-block-class-pills {
+  display: none;
+}
+
 .node-card__title-block .node-block {
   padding: 0;
   min-height: unset;
