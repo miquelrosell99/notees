@@ -852,10 +852,23 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       setInteraction(prev => ({ ...prev, isDragging: true }));
 
       // Move all selected elements
+      // When moving multiple elements (group), snap the delta once using a
+      // reference element so all members shift by the same amount.  Snapping
+      // each element individually causes jagged movement because their
+      // differing start positions round to different grid cells.
+      let snappedDx = canvasDx;
+      let snappedDy = canvasDy;
+      if (gridSnap && state.startElementPositions.size > 1) {
+        const [, refPos] = state.startElementPositions.entries().next().value as [string, Point];
+        const snapped = wb.snapToGrid({ x: refPos.x + canvasDx, y: refPos.y + canvasDy });
+        snappedDx = snapped.x - refPos.x;
+        snappedDy = snapped.y - refPos.y;
+      }
+
       for (const [id, startPos] of state.startElementPositions) {
-        let newX = startPos.x + canvasDx;
-        let newY = startPos.y + canvasDy;
-        if (gridSnap) {
+        let newX = startPos.x + snappedDx;
+        let newY = startPos.y + snappedDy;
+        if (gridSnap && state.startElementPositions.size === 1) {
           const snapped = wb.snapToGrid({ x: newX, y: newY });
           newX = snapped.x;
           newY = snapped.y;
