@@ -886,6 +886,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   const renderElement = useCallback((el: WhiteboardElement) => {
     const isSelected = interaction.selectedIds.has(el.id);
     const isHovered = interaction.hoveredId === el.id;
+    const hasSelection = interaction.selectedIds.size > 0;
+    const dimmed = hasSelection && !isSelected;
 
     const style: React.CSSProperties = {
       left: el.x * viewport.zoom + viewport.x,
@@ -893,13 +895,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       width: el.width * viewport.zoom,
       height: el.height * viewport.zoom,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-      opacity: el.opacity,
+      opacity: dimmed ? el.opacity * 0.35 : el.opacity,
+      transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)',
       zIndex: el.zIndex,
     };
+
+    const isMultiSelected = isSelected && interaction.selectedIds.size > 1;
 
     const className = [
       'whiteboard-element',
       isSelected && 'whiteboard-element--selected',
+      isMultiSelected && 'whiteboard-element--multi-selected',
       isHovered && 'whiteboard-element--hovered',
       el.locked && 'whiteboard-element--locked',
       interaction.isDragging && isSelected && 'whiteboard-element--dragging',
@@ -1002,13 +1008,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return (
       <svg className="whiteboard-view__strokes-svg">
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
-          {strokeElements.map(stroke => (
-            <WhiteboardStrokeRenderer
-              key={stroke.id}
-              element={stroke}
-              isSelected={interaction.selectedIds.has(stroke.id)}
-            />
-          ))}
+          {strokeElements.map(stroke => {
+            const isStrokeSelected = interaction.selectedIds.has(stroke.id);
+            const isStrokeDimmed = interaction.selectedIds.size > 0 && !isStrokeSelected;
+            return (
+              <WhiteboardStrokeRenderer
+                key={stroke.id}
+                element={stroke}
+                isSelected={isStrokeSelected}
+                dimmed={isStrokeDimmed}
+              />
+            );
+          })}
           {/* Current stroke being drawn */}
           {interaction.isDrawing && interaction.currentStroke.length > 1 && (
             <WhiteboardStrokeRenderer
