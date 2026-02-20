@@ -50,10 +50,15 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
     );
   }
 
-  // Stop pointer/mouse events on interactive card content from reaching the
-  // whiteboard canvas, which would otherwise initiate element selection/drag.
-  const stopPropagation = useCallback((e: React.SyntheticEvent) => {
-    e.stopPropagation();
+  // Stop pointer events from reaching the whiteboard canvas ONLY when the
+  // click target is an interactive element (button, input, select, textarea,
+  // or anything with data-interactive). Plain empty-space clicks propagate
+  // normally so the whiteboard can still select/drag the card element.
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a, [role="button"], [data-interactive]')) {
+      e.stopPropagation();
+    }
   }, []);
 
   return (
@@ -68,9 +73,7 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
         overflow: 'hidden',
         pointerEvents: 'auto',
       }}
-      onPointerDown={stopPropagation}
-      onMouseDown={stopPropagation}
-      onClick={stopPropagation}
+      onPointerDown={handlePointerDown}
     >
       <NodeCard
         node={node}
