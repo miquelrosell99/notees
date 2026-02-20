@@ -393,6 +393,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Middle-click → pan
     if (e.button === 1) {
+      // Hide custom cursors while panning
+      if (eraserCursorRef.current) eraserCursorRef.current.setAttribute('r', '0');
+      if (connectorHoverCircleRef.current) connectorHoverCircleRef.current.setAttribute('r', '0');
       setInteraction(prev => ({ ...prev, isPanning: true, dragStart: { x: e.clientX, y: e.clientY } }));
       return;
     }
