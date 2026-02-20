@@ -26,7 +26,7 @@ import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
-import { ChevronRightIcon, PropertiesIcon } from '../core/icons';
+import { ChevronRightIcon, PropertiesIcon, NodeIcon } from '../core/icons';
 import type { PropertyType } from '@/types/api';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
@@ -332,7 +332,7 @@ function PropertyValue({
           options.map(opt => ({
             value: opt.id,
             label: opt.name,
-            icon: opt.icon || undefined,
+            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" color={opt.color || undefined} /> : undefined,
           })),
           [options]
         );
@@ -356,7 +356,7 @@ function PropertyValue({
           options.map(opt => ({
             value: opt.id,
             label: opt.name,
-            icon: opt.icon || undefined,
+            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" color={opt.color || undefined} /> : undefined,
           })),
           [options]
         );
