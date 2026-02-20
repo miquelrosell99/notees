@@ -126,7 +126,7 @@
 
 .btn--default.btn--active {
   background: var(--color-primary-container);
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
   color: var(--color-on-primary-container);
 }
 
@@ -179,7 +179,7 @@
 
 .btn--ghost.btn--active {
   background: var(--color-primary-container);
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
   color: var(--color-on-primary-container);
 }
 
@@ -211,19 +211,12 @@
   color: var(--color-error);
 }
 
-/* Active toggle state hover — keep the active appearance */
-.btn--default.btn--active:hover:not(:disabled) {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary-container);
-  filter: brightness(0.95);
-}
-
+/* Active toggle state hover — keep the active appearance, no filter to avoid icon shift */
+.btn--default.btn--active:hover:not(:disabled),
 .btn--ghost.btn--active:hover:not(:disabled) {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary-container) 80%, var(--color-primary));
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
   color: var(--color-on-primary-container);
-  filter: brightness(0.95);
 }
 
 /* ==================== States ==================== */
