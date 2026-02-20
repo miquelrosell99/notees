@@ -143,9 +143,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return null;
   }, [data.elements, canvasToScreen]);
 
-  // Hit-test resize handles on the group selection card (multi-select)
+  // Hit-test resize handles on the group selection card (any selection size)
   const hitTestSelectionCardHandle = useCallback((screenX: number, screenY: number): string | null => {
-    if (interaction.selectedIds.size < 2) return null;
+    if (interaction.selectedIds.size === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const el of data.elements) {
       if (!interaction.selectedIds.has(el.id)) continue;
@@ -236,10 +236,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Select tool
     if (tool === 'select') {
-      // Check selection-card handles first (multi-select group resize)
-      if (interaction.selectedIds.size > 1) {
-        const groupHandle = hitTestSelectionCardHandle(e.clientX, e.clientY);
-        if (groupHandle) {
+      // Check selection-card handles (works for both single and multi-select)
+      if (interaction.selectedIds.size > 0) {
+        const cardHandle = hitTestSelectionCardHandle(e.clientX, e.clientY);
+        if (cardHandle) {
           let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
           const boundsMap = new Map<string, Bounds>();
           for (const el of data.elements) {
@@ -252,24 +252,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           state.startSelectionBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
           state.startElementBoundsMap = boundsMap;
           state.startElementPositions.clear();
-          setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: groupHandle }));
+          setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: cardHandle }));
           return;
-        }
-      }
-
-      // Check single-element resize handle (only when exactly 1 selected)
-      if (interaction.selectedIds.size === 1) {
-        const selectedId = [...interaction.selectedIds][0];
-        const handle = hitTestResizeHandle(e.clientX, e.clientY, selectedId);
-        if (handle) {
-          const el = data.elements.find(el => el.id === selectedId);
-          if (el) {
-            state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
-            state.resizingElementId = selectedId;
-            state.startElementPositions.clear();
-            setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: handle }));
-            return;
-          }
         }
       }
 
@@ -339,7 +323,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // Card creation will be handled by the toolbar (create node + card element)
       return;
     }
-  }, [screenToCanvas, hitTest, hitTestResizeHandle, hitTestSelectionCardHandle, interaction, data.elements, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, hitTestSelectionCardHandle, interaction, data.elements, wb, setInteraction]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const state = pointerState.current;
@@ -1072,15 +1056,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           </div>
         )}
 
-        {/* Resize handles — only for single-selected, non-locked elements */}
-        {isSelected && !el.locked && interaction.selectedIds.size === 1 && (
-          <div className="whiteboard-element__resize-handles">
-            {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
-              <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
-            ))}
-          </div>
-        )}
-
         {/* Connector anchor points */}
         {(isHovered || isSelected) && interaction.tool === 'connector' && (
           <div className="whiteboard-element__anchor-points">
@@ -1284,13 +1259,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             height: selectionCardBounds.height,
           }}
         >
-          {interaction.selectedIds.size > 1 && (
-            <div className="whiteboard-element__resize-handles" style={{ inset: 0 }}>
-              {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
-                <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
-              ))}
-            </div>
-          )}
+          {/* Resize handles — shown for any non-locked selection */}
+          {(() => {
+            const allLocked = [...interaction.selectedIds].every(id => data.elements.find(e => e.id === id)?.locked);
+            return !allLocked && (
+              <div className="whiteboard-element__resize-handles" style={{ inset: 0 }}>
+                {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => (
+                  <div key={handle} className={`whiteboard-element__resize-handle whiteboard-element__resize-handle--${handle}`} />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
