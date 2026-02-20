@@ -196,8 +196,44 @@ def _render_block(block: dict, opts: StringifyOptions) -> str:
         return _render_inline_sequence(block.get("children", []), opts)
     if block_type == "heading":
         return _render_inline_sequence(block.get("children", []), opts)
+    if block_type == "whiteboard":
+        return _render_whiteboard(block, opts)
     # Unknown block type — stable placeholder.
     return ""
+
+
+def _render_whiteboard(block: dict, opts: StringifyOptions) -> str:
+    """Render a whiteboard block by extracting text from its elements."""
+    # Use title if present
+    title = block.get("title", "").strip()
+    
+    # Extract text from elements
+    elements = block.get("data", {}).get("elements", [])
+    if not elements:
+         return title
+
+    # Filter for elements with text
+    text_parts = []
+    # Sort elements by Y then X to maintain logical reading order
+    # Group by rows (fuzzy Y sort): if Y difference is small, treat as same row
+    sorted_elements = sorted(
+        elements, 
+        key=lambda e: (e.get("y", 0) // 20, e.get("x", 0))
+    )
+    
+    for element in sorted_elements:
+        etype = element.get("type")
+        text = element.get("text", "")
+        if text and (etype == "text" or etype == "shape"):
+            text_parts.append(text)
+            
+    content_text = " ".join(text_parts)
+    
+    if title and content_text:
+        return f"{title} ({content_text})"
+    
+    return title or content_text
+
 
 
 # ── Inline rendering ───────────────────────────────────────────────
