@@ -10,6 +10,8 @@
 /* After bullet: sits between bullet and content */
 .node-block-prop-icons--after-bullet {
   margin-right: 2px;
+  /* Match bullet-wrapper margin-top so icons align with the text baseline */
+  margin-top: 2px;
 }
 
 /* Before content: sits after class pills */
