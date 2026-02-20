@@ -144,19 +144,22 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             tooltip="Shapes"
             panelPosition="top"
             panelAlignment="center"
+            usePortal
           >
-            <div style={{ padding: 8, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 200 }}>
-              {TOOL_GROUPS[1].tools.map(t => (
-                <ToolButton
-                  key={t.tool}
-                  icon={t.icon}
-                  label={t.label}
-                  shortcut={t.shortcut}
-                  active={activeTool === t.tool}
-                  onClick={() => wb.setTool(t.tool)}
-                />
-              ))}
-            </div>
+            {(closePanel) => (
+              <div style={{ padding: 8, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 200 }}>
+                {TOOL_GROUPS[1].tools.map(t => (
+                  <ToolButton
+                    key={t.tool}
+                    icon={t.icon}
+                    label={t.label}
+                    shortcut={t.shortcut}
+                    active={activeTool === t.tool}
+                    onClick={() => { wb.setTool(t.tool); closePanel(); }}
+                  />
+                ))}
+              </div>
+            )}
           </ButtonWithPanel>
 
           <div className="whiteboard-toolbar__separator" />
@@ -195,23 +198,26 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             tooltip="Add Card"
             panelPosition="top"
             panelAlignment="center"
+            usePortal
           >
-            <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
-              <ToolButton
-                icon={mdiCardPlusOutline}
-                label="New Block"
-                shortcut=""
-                active={false}
-                onClick={onAddCard}
-              />
-              <ToolButton
-                icon={mdiLinkVariant}
-                label="Reference Card"
-                shortcut=""
-                active={false}
-                onClick={onAddReferenceCard}
-              />
-            </div>
+            {(closePanel) => (
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+                <ToolButton
+                  icon={mdiCardPlusOutline}
+                  label="New Block"
+                  shortcut=""
+                  active={false}
+                  onClick={() => { closePanel(); onAddCard(); }}
+                />
+                <ToolButton
+                  icon={mdiLinkVariant}
+                  label="Reference Card"
+                  shortcut=""
+                  active={false}
+                  onClick={() => { closePanel(); onAddReferenceCard(); }}
+                />
+              </div>
+            )}
           </ButtonWithPanel>
           <ToolButton
             icon={mdiImageOutline}
