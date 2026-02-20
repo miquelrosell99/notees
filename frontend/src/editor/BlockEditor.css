@@ -776,32 +776,57 @@ th.node-block-table-cell {
   backdrop-filter: blur(4px);
 }
 
-/* ─── Drop indicator line ──────────────────────────────────────── */
+/* ─── Block drag ghost ─────────────────────────────────────────── */
 
-.node-block-drop-indicator {
-  pointer-events: none;
-  z-index: 10000;
+.block-drag-ghost {
   position: fixed;
-  height: 2px;
-  border-radius: 1px;
-  display: none;
+  z-index: 10001;
+  pointer-events: none;
+  display: none; /* shown via JS */
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 28px;
+  color: var(--color-on-surface);
+  overflow: hidden;
+  user-select: none;
 }
 
-/* Line indicator (before/after) */
-.node-block-drop-indicator--line {
-  background: var(--color-primary);
+/* Floating: follows cursor freely */
+.block-drag-ghost--floating {
+  opacity: 0.85;
+  background: var(--color-surface-container);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-outline-variant);
+  max-width: 300px;
+  white-space: nowrap;
 }
 
-/* Line marker dot on left edge */
-.node-block-drop-indicator--line::before {
-  content: '';
-  position: absolute;
-  left: -3px;
-  top: -3px;
-  width: 8px;
-  height: 8px;
+/* Snapped: previews the insert position */
+.block-drag-ghost--snapped {
+  opacity: 0.5;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px dashed var(--color-primary);
+}
+
+.block-drag-ghost__bullet {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--color-primary);
+  background: currentColor;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.block-drag-ghost__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Drag source block: dim while dragging */
