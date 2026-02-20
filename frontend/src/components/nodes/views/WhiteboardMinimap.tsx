@@ -31,10 +31,10 @@ const DRAG_THRESHOLD = 4;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 
-// Canvas renders at half CSS resolution → displayed 2× → clean pixelated look
-const CANVAS_W = 80;
-const CANVAS_H = 50;
-const CANVAS_PADDING = Math.round(MINIMAP_PADDING * (CANVAS_W / MINIMAP_WIDTH));
+// Canvas renders at very low resolution → displayed large → chunky blob-of-pixels look
+const CANVAS_W = 20;
+const CANVAS_H = 12;
+const CANVAS_PADDING = 1;
 
 /** Resolve a CSS variable string to a hex/rgb color. */
 function resolveCssVar(value: string): string {
