@@ -229,6 +229,7 @@ export interface NodeCreate {
   tags?: number[];
   classes?: number[];  // Class node IDs - backend computes is_page, is_class etc from these
   properties?: Record<number, unknown>;
+  uuid?: string;  // Optional: override auto-generated UUID (e.g. from Logseq import)
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;
