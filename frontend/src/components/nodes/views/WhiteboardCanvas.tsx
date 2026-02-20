@@ -27,6 +27,7 @@ import { boundsOverlap, isPointInBounds } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
+import { getShapePath } from './WhiteboardShapeRenderer';
 import { WhiteboardStrokeRenderer } from './WhiteboardStrokeRenderer';
 import './WhiteboardView.css';
 
@@ -1031,19 +1032,78 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         />
       )}
 
-      {/* Shape creation preview */}
-      {interaction.selectionBox && interaction.isDragging && !interaction.isSelectionBox && (
-        <div
-          className="whiteboard-view__selection-box"
-          style={{
-            left: interaction.selectionBox.x * viewport.zoom + viewport.x,
-            top: interaction.selectionBox.y * viewport.zoom + viewport.y,
-            width: interaction.selectionBox.width * viewport.zoom,
-            height: interaction.selectionBox.height * viewport.zoom,
-            borderStyle: 'dashed',
-          }}
-        />
-      )}
+      {/* Shape creation preview — live fainted shape */}
+      {interaction.selectionBox && interaction.isDragging && !interaction.isSelectionBox && (() => {
+        const shapeMap: Record<string, string> = {
+          rectangle: 'rectangle', ellipse: 'ellipse', triangle: 'triangle',
+          diamond: 'diamond', hexagon: 'hexagon', star: 'star',
+        };
+        const shapeType = shapeMap[interaction.tool];
+        if (!shapeType) return null;
+        const box = interaction.selectionBox;
+        const sw = box.width * viewport.zoom;
+        const sh = box.height * viewport.zoom;
+        const sl = box.x * viewport.zoom + viewport.x;
+        const st = box.y * viewport.zoom + viewport.y;
+        const { fill, stroke, strokeWidth, strokeStyle, borderRadius } = wb.settings.shape;
+        const dashArray = strokeStyle === 'dashed' ? '8 4' : strokeStyle === 'dotted' ? '2 4' : undefined;
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: sl,
+              top: st,
+              width: sw,
+              height: sh,
+              opacity: 0.45,
+              pointerEvents: 'none',
+              zIndex: 'var(--wb-z-overlay)' as any,
+            }}
+          >
+            <svg
+              viewBox={`0 0 ${sw} ${sh}`}
+              width={sw}
+              height={sh}
+              style={{ display: 'block', overflow: 'visible' }}
+            >
+              {shapeType === 'rectangle' ? (
+                <rect
+                  x={strokeWidth / 2}
+                  y={strokeWidth / 2}
+                  width={Math.max(0, sw - strokeWidth)}
+                  height={Math.max(0, sh - strokeWidth)}
+                  rx={borderRadius}
+                  ry={borderRadius}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={dashArray}
+                />
+              ) : shapeType === 'ellipse' ? (
+                <ellipse
+                  cx={sw / 2}
+                  cy={sh / 2}
+                  rx={Math.max(0, (sw - strokeWidth) / 2)}
+                  ry={Math.max(0, (sh - strokeWidth) / 2)}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={dashArray}
+                />
+              ) : (
+                <path
+                  d={getShapePath(shapeType as any, sw, sh)}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={dashArray}
+                  strokeLinejoin="round"
+                />
+              )}
+            </svg>
+          </div>
+        );
+      })()}
     </div>
   );
 };
