@@ -112,39 +112,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return null;
   }, [data.elements]);
 
-  const hitTestResizeHandle = useCallback((screenX: number, screenY: number, elementId: string): string | null => {
-    const el = data.elements.find(e => e.id === elementId);
-    if (!el) return null;
-
-    const topLeft = canvasToScreen(el.x, el.y);
-    const bottomRight = canvasToScreen(el.x + el.width, el.y + el.height);
-    // Handle centers are 8px outside the element corners (CSS inset: -8px on container)
-    const o = 8; // offset
-    const mx = (topLeft.x + bottomRight.x) / 2;
-    const my = (topLeft.y + bottomRight.y) / 2;
-    const handleSize = 14;
-
-    const handles = [
-      { id: 'nw', x: topLeft.x - o,     y: topLeft.y - o },
-      { id: 'n',  x: mx,                 y: topLeft.y - o },
-      { id: 'ne', x: bottomRight.x + o,  y: topLeft.y - o },
-      { id: 'e',  x: bottomRight.x + o,  y: my },
-      { id: 'se', x: bottomRight.x + o,  y: bottomRight.y + o },
-      { id: 's',  x: mx,                 y: bottomRight.y + o },
-      { id: 'sw', x: topLeft.x - o,      y: bottomRight.y + o },
-      { id: 'w',  x: topLeft.x - o,      y: my },
-    ];
-
-    for (const h of handles) {
-      if (Math.abs(screenX - h.x) < handleSize && Math.abs(screenY - h.y) < handleSize) {
-        return h.id;
-      }
-    }
-    return null;
-  }, [data.elements, canvasToScreen]);
-
   // Hit-test resize handles on the group selection card (any selection size)
-  const hitTestSelectionCardHandle = useCallback((screenX: number, screenY: number): string | null => {
+  // All coordinates are in canvas space; hitRadius is in canvas units.
+  const hitTestSelectionCardHandle = useCallback((canvasX: number, canvasY: number): string | null => {
     if (interaction.selectedIds.size === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const el of data.elements) {
@@ -153,26 +123,27 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
     }
     const pad = 10 / viewport.zoom;
-    const tl = canvasToScreen(minX - pad, minY - pad);
-    const br = canvasToScreen(maxX + pad, maxY + pad);
-    const mx = (tl.x + br.x) / 2;
-    const my = (tl.y + br.y) / 2;
-    const handleSize = 12;
+    const x1 = minX - pad, y1 = minY - pad;
+    const x2 = maxX + pad, y2 = maxY + pad;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    // Hit radius: 14 screen-px converted to canvas units
+    const r = 14 / viewport.zoom;
     const handles = [
-      { id: 'nw', x: tl.x, y: tl.y },
-      { id: 'n',  x: mx,   y: tl.y },
-      { id: 'ne', x: br.x, y: tl.y },
-      { id: 'e',  x: br.x, y: my   },
-      { id: 'se', x: br.x, y: br.y },
-      { id: 's',  x: mx,   y: br.y },
-      { id: 'sw', x: tl.x, y: br.y },
-      { id: 'w',  x: tl.x, y: my   },
+      { id: 'nw', x: x1, y: y1 },
+      { id: 'n',  x: mx, y: y1 },
+      { id: 'ne', x: x2, y: y1 },
+      { id: 'e',  x: x2, y: my },
+      { id: 'se', x: x2, y: y2 },
+      { id: 's',  x: mx, y: y2 },
+      { id: 'sw', x: x1, y: y2 },
+      { id: 'w',  x: x1, y: my },
     ];
     for (const h of handles) {
-      if (Math.abs(screenX - h.x) < handleSize && Math.abs(screenY - h.y) < handleSize) return h.id;
+      if (Math.abs(canvasX - h.x) < r && Math.abs(canvasY - h.y) < r) return h.id;
     }
     return null;
-  }, [data.elements, interaction.selectedIds, canvasToScreen, viewport.zoom]);
+  }, [data.elements, interaction.selectedIds, viewport.zoom]);
 
   // ─── Pointer event handlers ───────────────────────────────────────
 
@@ -238,7 +209,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (tool === 'select') {
       // Check selection-card handles (works for both single and multi-select)
       if (interaction.selectedIds.size > 0) {
-        const cardHandle = hitTestSelectionCardHandle(e.clientX, e.clientY);
+        const cardHandle = hitTestSelectionCardHandle(canvasPos.x, canvasPos.y);
         if (cardHandle) {
           let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
           const boundsMap = new Map<string, Bounds>();
