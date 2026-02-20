@@ -622,8 +622,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         const noteesClassId = classIdMap.get(cls.id);
         if (!noteesClassId || !cls.properties) continue;
         for (const logseqPropId of cls.properties) {
-          // Skip logseq system properties, but allow description through
-          if (logseqPropId.startsWith('logseq.property') && logseqPropId !== 'logseq.property/description') continue;
+          // Skip logseq system properties, but allow whitelisted ones (description, status, priority) through
+          const PHASE4_WHITELIST = new Set(['logseq.property/description', 'logseq.property/status', 'logseq.property/priority']);
+          if (logseqPropId.startsWith('logseq.property') && !PHASE4_WHITELIST.has(logseqPropId)) continue;
           const noteesPropId = propIdMap.get(logseqPropId);
           if (!noteesPropId) continue;
           setImportStatus(`Binding property to class: ${cls.title}`);
