@@ -80,11 +80,10 @@ export async function addSelectionOption(
   color?: string | null,
   sequence?: number
 ): Promise<SelectionOption> {
-  const response = await api.post<SelectionOption>(`${BASE}/${propertyId}/options`, {
+  const response = await api.post<SelectionOption>(`${BASE}/${propertyId}/selection-lines`, {
     name,
     icon,
-    color,
-    sequence: sequence ?? 0,
+    order: sequence ?? 0,
   });
   return response.data;
 }
@@ -96,7 +95,22 @@ export async function deleteSelectionOption(
   propertyId: number,
   optionId: number
 ): Promise<void> {
-  await api.delete(`${BASE}/${propertyId}/options/${optionId}`);
+  await api.delete(`${BASE}/${propertyId}/selection-lines/${optionId}`);
+}
+
+/**
+ * Reorder selection options by updating their order field.
+ * Accepts the options in the desired new order.
+ */
+export async function reorderSelectionOptions(
+  propertyId: number,
+  orderedOptions: Array<{ id: number }>
+): Promise<void> {
+  await Promise.all(
+    orderedOptions.map((opt, index) =>
+      api.put(`${BASE}/${propertyId}/selection-lines/${opt.id}`, { order: index })
+    )
+  );
 }
 
 // ============== Class Filters ==============
