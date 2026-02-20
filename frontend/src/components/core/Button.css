@@ -125,10 +125,9 @@
 }
 
 .btn--default.btn--active {
-  background: var(--color-surface-container);
+  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .btn--default:active:not(:disabled) {
@@ -179,10 +178,9 @@
 }
 
 .btn--ghost.btn--active {
-  background: var(--color-surface-container);
+  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .btn--ghost:active:not(:disabled) {
@@ -216,10 +214,9 @@
 /* Active toggle state hover — keep pressed appearance */
 .btn--default.btn--active:hover:not(:disabled),
 .btn--ghost.btn--active:hover:not(:disabled) {
-  background: var(--color-surface-container);
+  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* ==================== States ==================== */
