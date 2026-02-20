@@ -198,6 +198,8 @@ def _render_block(block: dict, opts: StringifyOptions) -> str:
         return _render_inline_sequence(block.get("children", []), opts)
     if block_type == "whiteboard":
         return _render_whiteboard(block, opts)
+    if block_type == "query":
+        return ""  # Title is in the preceding paragraph block
     # Unknown block type — stable placeholder.
     return ""
 

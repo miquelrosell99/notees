@@ -16,6 +16,7 @@ import type {
   ASTParagraph,
   ASTHeading,
   ASTWhiteboard,
+  ASTQuery,
   ASTText,
   ASTHardBreak,
   ASTCode,
@@ -148,6 +149,9 @@ export function heading(...children: ASTInlineNode[]): ASTHeading {
 }
 export function whiteboard(data: WhiteboardData): ASTWhiteboard {
   return { type: 'whiteboard', data };
+}
+export function queryBlock(data: import('@/types/queryAST').QueryAST): ASTQuery {
+  return { type: 'query', data };
 }
 /**
  * Build a complete document from paragraphs.
