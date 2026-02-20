@@ -10,6 +10,7 @@ import type { WhiteboardStrokeElement, StrokePoint } from '@/types/whiteboard';
 interface Props {
   element: WhiteboardStrokeElement;
   isAbsolute?: boolean; // If true, points are in absolute canvas coords (for current stroke)
+  isSelected?: boolean;  // Renders a glow halo around the stroke
 }
 
 /**
@@ -122,7 +123,7 @@ function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): st
   return parts.join(' ');
 }
 
-export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute }) => {
+export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected }) => {
   const { points, color, strokeWidth, opacity, tool } = element;
   const offsetX = isAbsolute ? 0 : element.x;
   const offsetY = isAbsolute ? 0 : element.y;
@@ -143,10 +144,17 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute 
 
   const useVariableWidth = points.length >= 4;
 
+  // Glow filter applied to the wrapping <g> when selected
+  const glowStyle: React.CSSProperties | undefined = isSelected
+    ? { filter: `drop-shadow(0 0 4px var(--color-primary)) drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary) 50%, transparent))` }
+    : undefined;
+
+  let pathEl: React.ReactElement;
+
   if (tool === 'highlighter') {
-    return (
+    pathEl = (
       <path
-        d={useVariableWidth ? pathData : pathData}
+        d={pathData}
         fill={useVariableWidth ? color : 'none'}
         stroke={useVariableWidth ? 'none' : color}
         strokeWidth={useVariableWidth ? undefined : strokeWidth}
@@ -155,10 +163,8 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute 
         strokeLinejoin="round"
       />
     );
-  }
-
-  if (useVariableWidth) {
-    return (
+  } else if (useVariableWidth) {
+    pathEl = (
       <path
         d={pathData}
         fill={color}
@@ -166,17 +172,21 @@ export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute 
         opacity={opacity}
       />
     );
+  } else {
+    pathEl = (
+      <path
+        d={pathData}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        opacity={opacity}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    );
   }
 
   return (
-    <path
-      d={pathData}
-      fill="none"
-      stroke={color}
-      strokeWidth={strokeWidth}
-      opacity={opacity}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+    <g style={glowStyle}>{pathEl}</g>
   );
 };
