@@ -19,7 +19,7 @@ interface Props {
 
 // ─── Card wrapper — fetches node by numeric ID and renders via NodeCard ─────
 
-const WhiteboardNodeCard: React.FC<{ nodeId: number }> = ({ nodeId }) => {
+const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElement; zoom: number }> = ({ nodeId, element, zoom }) => {
   const { data: node } = useNode(nodeId, { include_children: true });
 
   if (!node) {
@@ -31,19 +31,32 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number }> = ({ nodeId }) => {
   }
 
   return (
-    <NodeCard
-      node={node}
-      index={0}
-      layout="no-cover"
-      editable={false}
-    />
+    // Counter-scale: render at the logical canvas size, then apply zoom via CSS
+    // transform so the card's internal layout is always at 1× pixel density.
+    <div
+      style={{
+        width: element.width,
+        height: element.height,
+        transform: `scale(${zoom})`,
+        transformOrigin: 'top left',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+      }}
+    >
+      <NodeCard
+        node={node}
+        index={0}
+        layout="no-cover"
+        editable={false}
+      />
+    </div>
   );
 };
 
 // ─── Main renderer (dispatches by cardMode) ─────────────────────────
 
-export const WhiteboardCardRenderer: React.FC<Props> = ({ element }) => {
+export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
   // Block card: use the block's own nodeId
   // Reference card: use the referenced node's nodeId
-  return <WhiteboardNodeCard nodeId={element.nodeId} />;
+  return <WhiteboardNodeCard nodeId={element.nodeId} element={element} zoom={zoom} />;
 };
