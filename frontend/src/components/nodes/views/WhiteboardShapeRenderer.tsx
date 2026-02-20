@@ -50,6 +50,8 @@ function getShapePath(type: WhiteboardShapeElement['shapeType'], w: number, h: n
   }
 }
 
+export { getShapePath };
+
 export const WhiteboardShapeRenderer: React.FC<Props> = ({
   element,
   isEditing,
