@@ -53,6 +53,26 @@ function escapeHtml(t: string): string {
 }
 
 /**
+ * Walk up the DOM to find the nearest scrollable ancestor.
+ * Falls back to document.scrollingElement.
+ */
+function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let current = el.parentElement;
+  while (current && current !== document.documentElement) {
+    const { overflowY } = getComputedStyle(current);
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      current.scrollHeight > current.clientHeight
+    ) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  // Fallback: maybe the whole page scrolls
+  return (document.scrollingElement as HTMLElement) || document.documentElement;
+}
+
+/**
  * Get the bullet center X for a given block element.
  * Falls back to the block's left edge if no bullet found.
  */
@@ -493,8 +513,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         });
 
         // Find the scrollable container
-        scrollContainerRef.current =
-          rootEl.closest('.main-content') as HTMLElement | null;
+        scrollContainerRef.current = findScrollableAncestor(rootEl);
+        console.debug('[DragDrop] scroll container:', scrollContainerRef.current?.tagName, scrollContainerRef.current?.className);
 
         // Compute initial anchors
         recomputeAnchors(state.blockId);
