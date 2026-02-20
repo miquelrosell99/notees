@@ -277,8 +277,6 @@ export class BlockNode extends ElementNode {
       // Allow clicks on buttons/interactive elements within block-ui
       const target = e.target as HTMLElement;
       if (target.closest('button, a, [role="button"], .block-prop-icon-btn')) return;
-      // Allow bullet drag to start (bullet-wrapper sets draggable=true)
-      if (target.closest('.bullet-wrapper')) return;
       e.preventDefault();
     });
 
@@ -288,7 +286,6 @@ export class BlockNode extends ElementNode {
     if (this.__hasChildren) bullet.classList.add('bullet-has-children');
     if (this.__collapsed) bullet.classList.add('bullet-collapsed');
     bullet.dataset.blockId = this.__blockId;
-    bullet.draggable = !this.__isProjectionRoot;
     
     // Collapse arrow (only create if has children)
     if (this.__hasChildren) {
@@ -516,8 +513,6 @@ export class BlockNode extends ElementNode {
     // Projection root
     if (prevNode.__isProjectionRoot !== this.__isProjectionRoot) {
       dom.classList.toggle('node-block--projection-root', this.__isProjectionRoot);
-      const bullet = dom.querySelector('.bullet-wrapper') as HTMLElement | null;
-      if (bullet) bullet.draggable = !this.__isProjectionRoot;
     }
 
     // Heading — update CSS classes and data attribute when heading state or depth changes

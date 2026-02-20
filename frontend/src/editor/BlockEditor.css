@@ -127,6 +127,7 @@
   margin-right: 6px;
   /* Align bullet with text baseline on first line */
   margin-top: 2px;
+  cursor: grab;
 }
 
 /* Show collapse arrow when hovering bullet (if has children) or collapsed */
@@ -809,28 +810,28 @@ th.node-block-table-cell {
 }
 
 /* Suppress all hover effects while dragging a block */
-.notees-editor--dragging .bullet-interactive:hover {
+body.notees-dragging-block .bullet-interactive:hover {
   background-color: transparent;
   transform: none;
 }
 
-.notees-editor--dragging .bullet-interactive:hover .bullet-dot {
+body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
   opacity: 0.55;
 }
 
-.notees-editor--dragging .node-block:hover {
+body.notees-dragging-block .node-block:hover {
   background: none;
 }
 
-.notees-editor--dragging .node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow {
+body.notees-dragging-block .node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow {
   opacity: 0;
 }
 
-.notees-editor--dragging .node-block--card:hover {
+body.notees-dragging-block .node-block--card:hover {
   box-shadow: none;
 }
 
-.notees-editor--dragging * {
+body.notees-dragging-block * {
   cursor: grabbing !important;
 }
 
