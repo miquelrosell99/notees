@@ -34,7 +34,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
   const wb = useWhiteboard(nodeId);
   const createNode = useCreateNode();
   const openNode = useAppStore(s => s.openNode);
-  const { gridVisible, gridSize } = useWhiteboardStore();
+  const { gridVisible, gridSize, minimapVisible } = useWhiteboardStore();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -239,7 +239,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       />
 
       {/* Minimap */}
-      <WhiteboardMinimap wb={wb} />
+      {minimapVisible && <WhiteboardMinimap wb={wb} />}
 
       {/* Context menu — rendered via portal to escape transform: translateZ(0) on .whiteboard-view,
           which would otherwise offset position:fixed coordinates */}
