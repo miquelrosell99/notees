@@ -809,7 +809,8 @@ export const NodeCard = memo(function NodeCard({
           </div>
         </div>
 
-        {/* Row: Classes */}
+        {/* Row: Classes — hidden when empty in read-only mode */}
+        {(editable || classDetails.length > 0) && (
         <div className="node-card__metadata-row node-card__classes-row">
           {classDetails.map((cls) => (
             <NodePill
@@ -832,8 +833,10 @@ export const NodeCard = memo(function NodeCard({
             </Button>
           )}
         </div>
+        )}
 
-        {/* Row: Tags */}
+        {/* Row: Tags — hidden when empty in read-only mode */}
+        {(editable || tagDetails.length > 0) && (
         <div className="node-card__metadata-row node-card__tags-row">
           {tagDetails.map((tag) => (
             <NodePill
@@ -856,6 +859,7 @@ export const NodeCard = memo(function NodeCard({
             </Button>
           )}
         </div>
+        )}
 
         {/* Row: Body — hover-reveal children */}
         <div className="node-card__body node-card__body--hover-reveal">
