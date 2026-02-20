@@ -848,6 +848,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         const line = wb.createLine(start, { x: endX, y: endY });
         wb.addElement(line);
         wb.selectElements([line.id]);
+        wb.setTool('select');
       }
       pointerState.current.shiftHeld = false;
       setInteraction(prev => ({ ...prev, isDragging: false, dragStart: null }));
@@ -876,6 +877,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             wb.addElement(shape);
           }
           wb.selectElements([shape.id]);
+          wb.setTool('select');
         }
       }
       pointerState.current.shiftHeld = false;
