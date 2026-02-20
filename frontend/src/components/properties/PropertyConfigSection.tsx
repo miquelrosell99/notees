@@ -16,7 +16,7 @@ import Icon from '@mdi/react';
 import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
-import { addSelectionOption, deleteSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
+import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
 import { useUpdateProperty, useClasses } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
@@ -127,6 +127,23 @@ export function PropertyConfigSection({
     }
   }, [property, onUpdate]);
   
+  const handleUpdateSelectionOptionIcon = useCallback(async (id: string, icon: string) => {
+    try {
+      await updateSelectionOption(property.id, Number(id), { icon });
+      const updatedProperty: Property = {
+        ...property,
+        options: property.options.map(o =>
+          String(o.id) === id ? { ...o, icon } : o
+        ),
+      };
+      onUpdate(updatedProperty);
+      setError(null);
+    } catch (err) {
+      setError('Failed to update option icon');
+      console.error(err);
+    }
+  }, [property, onUpdate]);
+
   const handleReorderSelectionOptions = useCallback(async (reordered: SelectionOptionWithId[]) => {
     try {
       await reorderSelectionOptions(
@@ -305,6 +322,7 @@ export function PropertyConfigSection({
         selectionOptions={selectionOptions}
         onAddOption={handleAddSelectionOption}
         onRemoveOption={handleRemoveSelectionOption}
+        onOptionIconChange={handleUpdateSelectionOptionIcon}
         onReorderOptions={(fromIndex, toIndex) => {
           const reordered = [...selectionOptions];
           const [moved] = reordered.splice(fromIndex, 1);
