@@ -106,8 +106,34 @@ function renderBlock(block: ASTBlockNode, opts: StringifyOptions): string {
       // just emit the inline content. Export and markdown modes add # prefix.
       return renderInlineSequence(block.children, opts);
     case 'whiteboard':
-      // Whiteboard blocks render as their title for text/search purposes.
-      return block.title;
+      // Whiteboard blocks render as their title + content for text/search purposes.
+      {
+        const title = block.title || '';
+        const elements = block.data?.elements || [];
+        const textParts: string[] = [];
+        
+        // Sort elements by Y then X to maintain logical reading order
+        const sortedElements = [...elements].sort((a, b) => {
+          // Group by rows (fuzzy Y sort): if Y difference is small, treat as same row
+          if (Math.abs(a.y - b.y) > 20) return a.y - b.y;
+          return a.x - b.x;
+        });
+        
+        for (const el of sortedElements) {
+          // Extract text from text and shape elements
+          if ((el.type === 'text' || el.type === 'shape') && 'text' in el && el.text) {
+             textParts.push(el.text);
+          }
+        }
+        
+        const contentText = textParts.join(' ');
+        
+        if (title && contentText) {
+          return `${title} (${contentText})`;
+        }
+        
+        return title || contentText;
+      }
     default:
       // Unknown block type — stable placeholder.
       return '';
