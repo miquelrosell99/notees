@@ -252,6 +252,8 @@ export interface WhiteboardInteractionState {
   resizeHandle: string | null; // 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
   // Drawing state
   currentStroke: StrokePoint[];
+  // Eraser: elements marked for deletion during the current eraser stroke
+  eraserMarkedIds: Set<string>;
   // Connector creation state
   connectorStart: ConnectorEndpoint | null;
 }

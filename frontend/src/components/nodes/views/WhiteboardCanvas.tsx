@@ -405,7 +405,31 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           const minDist = Math.max(2, Math.min(10, stroke.length * 0.015));
           if (dist < minDist) return prev;
         }
-        return { ...prev, currentStroke: [...stroke, newPoint] };
+        const newStroke = [...stroke, newPoint];
+
+        // Eraser: mark touched elements in real-time
+        if (interaction.tool === 'eraser') {
+          const eraserRadius = wb.settings.eraser.strokeWidth / 2 + 2;
+          const newMarkedIds = new Set(prev.eraserMarkedIds);
+          for (const el of data.elements) {
+            if (newMarkedIds.has(el.id)) continue;
+            if (el.type === 'stroke') {
+              const strokeEl = el as WhiteboardStrokeElement;
+              for (const sp of strokeEl.points) {
+                const dist = Math.sqrt(
+                  Math.pow(newPoint.x - (sp.x + el.x), 2) + Math.pow(newPoint.y - (sp.y + el.y), 2)
+                );
+                if (dist < eraserRadius) {
+                  newMarkedIds.add(el.id);
+                  break;
+                }
+              }
+            }
+          }
+          return { ...prev, currentStroke: newStroke, eraserMarkedIds: newMarkedIds };
+        }
+
+        return { ...prev, currentStroke: newStroke };
       });
       return;
     }
@@ -576,36 +600,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (interaction.isDrawing && interaction.currentStroke.length > 1) {
       const tool = interaction.tool as 'pen' | 'highlighter' | 'eraser';
       if (tool === 'eraser') {
-        // Eraser: find and delete strokes that intersect with the eraser path
-        const eraserPath = interaction.currentStroke;
-        const toRemove: string[] = [];
-        for (const el of data.elements) {
-          if (el.type === 'stroke') {
-            // Simple proximity check
-            for (const ep of eraserPath) {
-              for (const sp of (el as WhiteboardStrokeElement).points) {
-                const dist = Math.sqrt(
-                  Math.pow(ep.x - (sp.x + el.x), 2) + Math.pow(ep.y - (sp.y + el.y), 2)
-                );
-                if (dist < 10) {
-                  toRemove.push(el.id);
-                  break;
-                }
-              }
-              if (toRemove.includes(el.id)) break;
-            }
-          }
-        }
+        // Use the marked IDs collected in real-time during the stroke
+        const toRemove = [...interaction.eraserMarkedIds];
         if (toRemove.length > 0) wb.removeElements(toRemove);
       } else {
         const strokeEl = wb.createStroke(interaction.currentStroke, tool);
         wb.addElement(strokeEl);
       }
-      setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [] }));
+      setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [], eraserMarkedIds: new Set() }));
       return;
     }
     if (interaction.isDrawing) {
-      setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [] }));
+      setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [], eraserMarkedIds: new Set() }));
       return;
     }
 
@@ -937,7 +943,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     const isSelected = interaction.selectedIds.has(el.id);
     const isHovered = interaction.hoveredId === el.id;
     const hasSelection = interaction.selectedIds.size > 0;
-    const dimmed = hasSelection && !isSelected;
+    const isEraserMode = interaction.isDrawing && interaction.tool === 'eraser';
+    const isMarkedForDeletion = isEraserMode && interaction.eraserMarkedIds.has(el.id);
+    const dimmedBySelection = hasSelection && !isSelected;
+    const dimmedByEraser = isEraserMode && !isMarkedForDeletion;
+    const dimmed = dimmedBySelection || dimmedByEraser;
 
     const style: React.CSSProperties = {
       left: el.x * viewport.zoom + viewport.x,
@@ -945,7 +955,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       width: el.width * viewport.zoom,
       height: el.height * viewport.zoom,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-      opacity: isSelected ? 1 : dimmed ? el.opacity * 0.35 : el.opacity,
+      opacity: isSelected || isMarkedForDeletion ? 1 : dimmed ? el.opacity * 0.35 : el.opacity,
       transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)',
       zIndex: el.zIndex,
     };
@@ -1043,12 +1053,16 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const renderStrokes = useMemo(() => {
     const strokeElements = data.elements.filter(el => el.type === 'stroke') as WhiteboardStrokeElement[];
+    const isEraserMode = interaction.isDrawing && interaction.tool === 'eraser';
     return (
       <svg className="whiteboard-view__strokes-svg">
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
           {strokeElements.map(stroke => {
             const isStrokeSelected = interaction.selectedIds.has(stroke.id);
-            const isStrokeDimmed = interaction.selectedIds.size > 0 && !isStrokeSelected;
+            const isMarkedForDeletion = isEraserMode && interaction.eraserMarkedIds.has(stroke.id);
+            const isStrokeDimmed =
+              (interaction.selectedIds.size > 0 && !isStrokeSelected) ||
+              (isEraserMode && !isMarkedForDeletion);
             return (
               <WhiteboardStrokeRenderer
                 key={stroke.id}
@@ -1070,7 +1084,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 height: 0,
                 rotation: 0,
                 locked: false,
-                opacity: interaction.tool === 'highlighter' ? 0.4 : 1,
+                opacity: interaction.tool === 'highlighter' ? 0.4 : interaction.tool === 'eraser' ? 0.15 : 1,
                 zIndex: 9999,
                 points: interaction.currentStroke,
                 color: interaction.tool === 'highlighter' ? wb.settings.highlighter.color : 
