@@ -17,7 +17,7 @@ import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { WhiteboardMinimap } from './WhiteboardMinimap';
 import { useWhiteboard } from '@/hooks/useWhiteboard';
-import { useCreateNode } from '@/hooks/useNodes';
+import { useCreateNode, useDeleteNode } from '@/hooks/useNodes';
 import { useAppStore } from '@/stores/appStore';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import { LinkEditModal, type LinkEditResult } from '@/editor/components/LinkEditModal';
@@ -34,6 +34,7 @@ interface WhiteboardViewProps {
 export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
   const wb = useWhiteboard(nodeId);
   const createNode = useCreateNode();
+  const deleteNode = useDeleteNode();
   const openNode = useAppStore(s => s.openNode);
   const { gridVisible, gridSize, minimapVisible } = useWhiteboardStore();
 
@@ -134,7 +135,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     }
 
     const selectedNode = result.targetNode;
-    // Create a child block whose name is a proper AST node_link to the selected node
+    // Create a hidden child block whose name is a proper AST node_link to the selected node.
+    // The card itself displays the referenced node (selectedNode), not this block.
     const linkUuid = crypto.randomUUID();
     const ast = inlineDoc(nodeLink(buildLinkId(selectedNode.uuid, linkUuid)));
     const linkName = JSON.stringify(ast);
@@ -142,7 +144,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       { name: linkName, parent_id: nodeId },
       {
         onSuccess: (newBlock) => {
-          const card = wb.createReferenceCard(newBlock.id, selectedNode.uuid, refCardPos);
+          // nodeId = referenced node (display), refBlockId = hidden block (cleanup on delete)
+          const card = wb.createReferenceCard(selectedNode.id, selectedNode.uuid, refCardPos, newBlock.id);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
@@ -189,6 +192,25 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     input.click();
   }, [wb, viewportCenter]);
 
+  // ─── Remove elements and clean up ref blocks ────────────────────
+
+  const wbWrapped = useMemo(() => ({
+    ...wb,
+    removeElements: (ids: string[]) => {
+      // For reference cards, delete the hidden block that holds the node_link
+      ids.forEach(id => {
+        const el = wb.data.elements.find(e => e.id === id);
+        if (el?.type === 'card' && (el as WhiteboardCardElement).cardMode === 'reference') {
+          const refBlockId = (el as WhiteboardCardElement).refBlockId;
+          if (refBlockId) {
+            deleteNode.mutate(refBlockId);
+          }
+        }
+      });
+      wb.removeElements(ids);
+    },
+  }), [wb, deleteNode]);
+
   // ─── Open referenced node ────────────────────────────────────────
 
   const handleOpenNode = useCallback((nodeId: number) => {
@@ -228,27 +250,27 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     <div className={viewClassName} style={gridStyle}>
       {/* Canvas */}
       <WhiteboardCanvas
-        wb={wb}
+        wb={wbWrapped}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
       />
 
       {/* Toolbar */}
       <WhiteboardToolbar
-        wb={wb}
+        wb={wbWrapped}
         onAddCard={handleAddCard}
         onAddReferenceCard={handleAddReferenceCard}
         onAddImage={handleAddImage}
       />
 
       {/* Minimap */}
-      {minimapVisible && <WhiteboardMinimap wb={wb} />}
+      {minimapVisible && <WhiteboardMinimap wb={wbWrapped} />}
 
       {/* Context menu — rendered via portal to escape transform: translateZ(0) on .whiteboard-view,
           which would otherwise offset position:fixed coordinates */}
       {contextMenu && createPortal(
         <WhiteboardContextMenu
-          wb={wb}
+          wb={wbWrapped}
           position={contextMenu.position}
           elementId={contextMenu.elementId}
           onClose={closeContextMenu}
