@@ -33,6 +33,8 @@ export interface LinkEditModalProps {
   currentUrl?: string;
   /** Current custom label (from AST) */
   currentLabel?: string | null;
+  /** Modal title — defaults to "Edit Link" */
+  title?: string;
   /** Called when saving changes */
   onSave: (result: LinkEditResult) => void;
   /** Called when closing without saving */
@@ -65,6 +67,7 @@ export function LinkEditModal({
   refType,
   currentUrl,
   currentLabel,
+  title = 'Edit Link',
   onSave,
   onClose,
 }: LinkEditModalProps) {
@@ -163,7 +166,7 @@ export function LinkEditModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Edit Link"
+      title={title}
       size="sm"
       footer={footer}
       className="link-edit-modal"
