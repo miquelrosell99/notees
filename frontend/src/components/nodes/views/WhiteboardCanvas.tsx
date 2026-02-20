@@ -41,6 +41,8 @@ interface WhiteboardCanvasProps {
 
 // Minimum drag distance before starting a drag/draw operation
 const DRAG_THRESHOLD = 3;
+// Minimum drag distance (in canvas px) before a shape preview appears / shape is committed
+const MIN_SHAPE_DRAG_PX = 8;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.1;
@@ -708,15 +710,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         endY = start.y + Math.sign(endY - start.y || 1) * size;
       }
 
-      setInteraction(prev => ({
-        ...prev,
-        selectionBox: {
-          x: Math.min(start.x, endX),
-          y: Math.min(start.y, endY),
-          width: Math.abs(endX - start.x),
-          height: Math.abs(endY - start.y),
-        },
-      }));
+      const dragDist = Math.sqrt((endX - start.x) ** 2 + (endY - start.y) ** 2);
+      if (dragDist >= MIN_SHAPE_DRAG_PX) {
+        setInteraction(prev => ({
+          ...prev,
+          selectionBox: {
+            x: Math.min(start.x, endX),
+            y: Math.min(start.y, endY),
+            width: Math.abs(endX - start.x),
+            height: Math.abs(endY - start.y),
+          },
+        }));
+      }
       return;
     }
 
@@ -862,7 +867,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       };
       if (tool in shapeMap) {
         const bounds = interaction.selectionBox;
-        if (bounds.width > 5 && bounds.height > 5) {
+        if (bounds.width >= MIN_SHAPE_DRAG_PX || bounds.height >= MIN_SHAPE_DRAG_PX) {
           const shape = wb.createShape(shapeMap[tool], bounds);
           // Rectangle + Shift → rotate 45° (rhombus look)
           if (isShift && tool === 'rectangle') {
