@@ -30,6 +30,7 @@ import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
 import { getShapePath } from './WhiteboardShapeRenderer';
 import { WhiteboardStrokeRenderer, strokeToLivePath } from './WhiteboardStrokeRenderer';
+import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import './WhiteboardView.css';
 
 interface WhiteboardCanvasProps {
@@ -146,7 +147,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   const livePathRef = useRef<SVGPathElement>(null);
   const liveLineRef = useRef<SVGLineElement>(null);
   const rafRef = useRef<number>(0);
-  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1 });
+  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as const });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isEmptyPanning, setIsEmptyPanning] = useState(false);
   // Tracks shift key during shape creation drag for preview re-renders
@@ -176,6 +177,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const { data, interaction, setInteraction } = wb;
   const { viewport } = data;
+  const { gridSnap } = useWhiteboardStore();
 
   // ─── Coordinate transforms ────────────────────────────────────────
 
@@ -295,11 +297,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           color: penSettings.color,
           strokeWidth: penSettings.strokeWidth,
           opacity: tool === 'highlighter' ? 0.4 : penSettings.opacity,
+          strokeStyle: penSettings.strokeStyle,
         };
         if (livePathRef.current) {
           livePathRef.current.setAttribute('stroke', liveStrokeStyleRef.current.color);
           livePathRef.current.setAttribute('stroke-width', String(liveStrokeStyleRef.current.strokeWidth));
           livePathRef.current.setAttribute('opacity', String(liveStrokeStyleRef.current.opacity));
+          const ss = liveStrokeStyleRef.current.strokeStyle;
+          livePathRef.current.setAttribute('class', ss === 'dashed' ? 'wb-ss-dashed' : ss === 'dotted' ? 'wb-ss-dotted' : '');
           livePathRef.current.setAttribute('d', '');
         }
         setInteraction(prev => ({ ...prev, isDrawing: true, currentStroke: [] }));
@@ -648,7 +653,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         if (newBounds.height < 20) { if (handle.includes('n')) newBounds.y = startBounds.y + startBounds.height - 20; newBounds.height = 20; }
       }
 
-      if (data.grid.snap) {
+      if (gridSnap) {
         const snapped = wb.snapToGrid({ x: newBounds.x, y: newBounds.y });
         newBounds.x = snapped.x;
         newBounds.y = snapped.y;
@@ -669,7 +674,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       for (const [id, startPos] of state.startElementPositions) {
         let newX = startPos.x + canvasDx;
         let newY = startPos.y + canvasDy;
-        if (data.grid.snap) {
+        if (gridSnap) {
           const snapped = wb.snapToGrid({ x: newX, y: newY });
           newX = snapped.x;
           newY = snapped.y;
@@ -1086,22 +1091,12 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   // ─── Sorted elements ─────────────────────────────────────────────
 
+  // ─── Sorted elements ─────────────────────────────────────────────
+
   const sortedElements = useMemo(() =>
     [...data.elements].sort((a, b) => a.zIndex - b.zIndex),
     [data.elements]
   );
-
-  // ─── Grid background style ───────────────────────────────────────
-
-  const gridStyle = useMemo(() => {
-    if (!data.grid.visible) return {};
-    const gridSize = data.grid.size * viewport.zoom;
-    return {
-      backgroundSize: `${gridSize}px ${gridSize}px`,
-      '--grid-offset-x': `${viewport.x % gridSize}px`,
-      '--grid-offset-y': `${viewport.y % gridSize}px`,
-    } as React.CSSProperties;
-  }, [data.grid, viewport]);
 
   // ─── Cursor ───────────────────────────────────────────────────────
 
@@ -1262,7 +1257,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           {lineElements.map(line => {
             const isSelected = interaction.selectedIds.has(line.id);
             const dimmed = interaction.selectedIds.size > 0 && !isSelected;
-            const dashArray = line.strokeStyle === 'dashed' ? '8 4' : line.strokeStyle === 'dotted' ? '2 4' : undefined;
+            const ssLineClass = line.strokeStyle === 'dashed' ? 'wb-ss-dashed' : line.strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
             return (
               <line
                 key={line.id}
@@ -1272,7 +1267,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 y2={line.y + line.height}
                 stroke={line.stroke}
                 strokeWidth={line.strokeWidth}
-                strokeDasharray={dashArray}
+                className={ssLineClass || undefined}
                 strokeLinecap="round"
                 opacity={dimmed ? 0.35 : line.opacity}
                 style={{ transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)' }}
@@ -1349,8 +1344,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               pathD = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
             }
 
-            const dashArray = conn.strokeStyle === 'dashed' ? '8 4' :
-                              conn.strokeStyle === 'dotted' ? '2 4' : undefined;
+            const ssConnClass = conn.strokeStyle === 'dashed' ? 'wb-ss-dashed' : conn.strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
 
             return (
               <g key={conn.id}>
@@ -1368,7 +1362,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                   fill="none"
                   stroke={isSelected ? 'var(--accent-primary)' : conn.stroke}
                   strokeWidth={conn.strokeWidth}
-                  strokeDasharray={dashArray}
+                  className={ssConnClass || undefined}
                   markerEnd={conn.endArrowhead !== 'none' ? 'url(#arrowhead)' : undefined}
                   markerStart={conn.startArrowhead !== 'none' ? 'url(#arrowhead-start)' : undefined}
                 />
@@ -1410,7 +1404,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     <div
       ref={containerRef}
       className={`whiteboard-view__canvas ${cursorClass}`}
-      style={gridStyle}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1505,7 +1498,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         const sl = box.x * viewport.zoom + viewport.x;
         const st = box.y * viewport.zoom + viewport.y;
         const { fill, stroke, strokeWidth, strokeStyle, borderRadius } = wb.settings.shape;
-        const dashArray = strokeStyle === 'dashed' ? '8 4' : strokeStyle === 'dotted' ? '2 4' : undefined;
+        const ssPreviewClass = strokeStyle === 'dashed' ? 'wb-ss-dashed' : strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
         // Rectangle + Shift → rotate 45° in preview
         const previewRotation = isShift && interaction.tool === 'rectangle' ? 45 : 0;
         return (
@@ -1539,7 +1532,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                   fill={fill}
                   stroke={stroke}
                   strokeWidth={strokeWidth}
-                  strokeDasharray={dashArray}
+                  className={ssPreviewClass || undefined}
                 />
               ) : shapeType === 'ellipse' ? (
                 <ellipse
@@ -1550,7 +1543,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                   fill={fill}
                   stroke={stroke}
                   strokeWidth={strokeWidth}
-                  strokeDasharray={dashArray}
+                  className={ssPreviewClass || undefined}
                 />
               ) : (
                 <path
@@ -1558,7 +1551,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                   fill={fill}
                   stroke={stroke}
                   strokeWidth={strokeWidth}
-                  strokeDasharray={dashArray}
+                  className={ssPreviewClass || undefined}
                   strokeLinejoin="round"
                 />
               )}
