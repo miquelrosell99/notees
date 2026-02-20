@@ -187,7 +187,7 @@ class PostgresPropertyRepository(PropertyRepository):
             property_id=row['property_id'],
             name=row['name'],
             icon=row.get('icon'),
-            order=0,  # order removed from schema
+            order=row['sequence'] if 'sequence' in row.keys() else 0,
             create_date=create_date,
             write_date=write_date,
         )
@@ -276,7 +276,7 @@ class PostgresPropertyRepository(PropertyRepository):
             # Load selection lines
             if prop.type == PropertyType.SELECTION:
                 line_rows = await conn.fetch(
-                    'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY name',
+                    'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY sequence, name',
                     property_id
                 )
                 prop._selection_lines = [self._row_to_selection_line(l) for l in line_rows]
@@ -340,7 +340,7 @@ class PostgresPropertyRepository(PropertyRepository):
         # Batch load selection lines
         if selection_ids:
             line_rows = await conn.fetch(
-                "SELECT * FROM property_selection_line WHERE property_id = ANY($1) ORDER BY name",
+                "SELECT * FROM property_selection_line WHERE property_id = ANY($1) ORDER BY sequence, name",
                 selection_ids
             )
             lines_by_prop: dict[int, list] = {}
@@ -748,15 +748,15 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Selection Lines ==============
     
-    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None) -> PropertySelectionLine:
+    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None, sequence: int = 0) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         now = utc_now()
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property_selection_line (property_id, name, icon, create_date, write_date, create_uid, write_uid)
-                VALUES ($1, $2, $3, $4, $4, $5, $5)
+                INSERT INTO property_selection_line (property_id, name, icon, sequence, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $5, $6, $6)
                 RETURNING *
-            """, property_id, name, icon, now, self._user_id)
+            """, property_id, name, icon, sequence, now, self._user_id)
             
             if row is None:
                 raise RuntimeError("Failed to add selection line - no row returned")
@@ -766,13 +766,13 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get all selection options for a property."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY name',
+                'SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY sequence, name',
                 property_id
             )
             return [self._row_to_selection_line(row) for row in rows]
     
     async def update_selection_line(self, line_id: int, name: Optional[str] = None,
-                                     icon: Optional[str] = None) -> Optional[PropertySelectionLine]:
+                                     icon: Optional[str] = None, order: Optional[int] = None) -> Optional[PropertySelectionLine]:
         """Update a selection option."""
         now = utc_now()
         updates = []
@@ -787,6 +787,11 @@ class PostgresPropertyRepository(PropertyRepository):
         if icon is not None:
             updates.append(f"icon = ${param_idx}")
             params.append(icon)
+            param_idx += 1
+
+        if order is not None:
+            updates.append(f"sequence = ${param_idx}")
+            params.append(order)
             param_idx += 1
         
         if not updates:

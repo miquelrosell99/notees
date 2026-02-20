@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS property_selection_line (
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     icon VARCHAR(100),
+    sequence INTEGER NOT NULL DEFAULT 0,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
@@ -601,6 +602,17 @@ END $$;
 
 -- Ensure aliased_id index exists (safe to run even if column was just created)
 CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
+
+-- Migration: Add sequence column to property_selection_line for manual ordering
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property_selection_line' AND column_name = 'sequence'
+    ) THEN
+        ALTER TABLE property_selection_line ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0;
+    END IF;
+END $$;
 
 -- Migration: Update property CHECK constraint to allow multi text properties
 -- Old constraint: CHECK (type NOT IN ('text', 'image') OR is_multi = FALSE)

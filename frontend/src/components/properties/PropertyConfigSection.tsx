@@ -16,7 +16,7 @@ import Icon from '@mdi/react';
 import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
-import { addSelectionOption, deleteSelectionOption, addClassFilter, removeClassFilter } from '@/api/properties';
+import { addSelectionOption, deleteSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
 import { useUpdateProperty, useClasses } from '@/hooks';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
@@ -127,9 +127,28 @@ export function PropertyConfigSection({
     }
   }, [property, onUpdate]);
   
-  const handleReorderSelectionOptions = useCallback((_reordered: SelectionOptionWithId[]) => {
-    // TODO: Call API to reorder options
-  }, []);
+  const handleReorderSelectionOptions = useCallback(async (reordered: SelectionOptionWithId[]) => {
+    try {
+      await reorderSelectionOptions(
+        property.id,
+        reordered.map(opt => ({ id: Number(opt.id) }))
+      );
+      const updatedProperty: Property = {
+        ...property,
+        options: reordered.map((opt, index) => ({
+          id: Number(opt.id),
+          name: opt.name,
+          icon: opt.icon ?? null,
+          color: null,
+          sequence: index,
+        })),
+      };
+      onUpdate(updatedProperty);
+    } catch (err) {
+      setError('Failed to reorder options');
+      console.error(err);
+    }
+  }, [property, onUpdate]);
   
   // Allowed class handlers
   const handleAddAllowedClass = useCallback(async (node: Node) => {

@@ -53,6 +53,7 @@ async def add_selection_line(
             property_id,
             request.name,
             request.icon,
+            sequence=request.order,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
