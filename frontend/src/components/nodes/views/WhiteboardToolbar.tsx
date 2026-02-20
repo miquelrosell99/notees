@@ -227,7 +227,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             active={activeTool === 'pen'}
             onActivate={() => wb.setTool('pen')}
             buttonProps={activeTool === 'pen' ? {
-              style: { borderColor: settings.pen.color, boxShadow: `0 0 0 1px ${settings.pen.color} inset` },
+              style: { borderColor: settings.pen.color },
             } : {}}
           >
             {() => (
@@ -253,7 +253,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             active={activeTool === 'highlighter'}
             onActivate={() => wb.setTool('highlighter')}
             buttonProps={activeTool === 'highlighter' ? {
-              style: { borderColor: settings.highlighter.color, boxShadow: `0 0 0 1px ${settings.highlighter.color} inset` },
+              style: { borderColor: settings.highlighter.color },
             } : {}}
           >
             {() => (
