@@ -126,7 +126,9 @@ CREATE INDEX IF NOT EXISTS idx_node_uuid ON node(uuid);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_node_uuid_per_workspace ON node(workspace_id, uuid);
 CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
-CREATE INDEX IF NOT EXISTS idx_node_name ON node(name);
+-- HASH index: node names can be large AST JSON blobs exceeding B-tree's 2704-byte limit.
+-- HASH supports equality lookups; use idx_node_search (GIN/FTS) for text search.
+CREATE INDEX IF NOT EXISTS idx_node_name ON node USING HASH (name);
 CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_class ON node(is_class) WHERE is_class = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
@@ -630,6 +632,20 @@ BEGIN
         VALUES ('00000000-0000-0000-0000-000000000009', ws.id, 'Description', 'text', TRUE, TRUE, NOW(), NOW())
         ON CONFLICT (workspace_id, uuid) DO NOTHING;
     END LOOP;
+END $$;
+
+-- Migration: Replace B-tree idx_node_name with HASH index to avoid
+-- "index row size exceeds btree maximum" errors when node names are large AST blobs.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE indexname = 'idx_node_name'
+          AND indexdef NOT ILIKE '%using hash%'
+    ) THEN
+        DROP INDEX IF EXISTS idx_node_name;
+        CREATE INDEX idx_node_name ON node USING HASH (name);
+    END IF;
 END $$;
 
 -- ============================================================
