@@ -348,10 +348,21 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // Drawing
     if (interaction.isDrawing) {
       const pressure = e.pressure > 0 ? e.pressure : 0.5;
-      setInteraction(prev => ({
-        ...prev,
-        currentStroke: [...prev.currentStroke, { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() }],
-      }));
+      const newPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
+      setInteraction(prev => {
+        const stroke = prev.currentStroke;
+        if (stroke.length > 0) {
+          const last = stroke[stroke.length - 1];
+          const dx = newPoint.x - last.x;
+          const dy = newPoint.y - last.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          // Dynamic min-distance: starts at 2px, grows with stroke length to keep
+          // the segment count manageable and rendering fast for long strokes.
+          const minDist = Math.max(2, Math.min(10, stroke.length * 0.015));
+          if (dist < minDist) return prev;
+        }
+        return { ...prev, currentStroke: [...stroke, newPoint] };
+      });
       return;
     }
 
@@ -573,8 +584,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (!rect) return;
 
     // Always zoom to mouse cursor position
-    const delta = -e.deltaY * 0.01;
-    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * (1 + delta)));
+    const zoomFactor = Math.pow(0.999, e.deltaY);
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * zoomFactor));
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
