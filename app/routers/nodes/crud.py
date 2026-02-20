@@ -66,6 +66,7 @@ async def create_node(
         sequence=request.sequence,
         classes=list(request.classes),
         property_values=request.properties,
+        uuid=request.uuid,
     )
     
     try:
