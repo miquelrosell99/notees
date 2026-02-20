@@ -128,7 +128,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
   const [report, setReport] = useState<ImportReport | null>(null);
-  const [importMode, setImportMode] = useState<ImportMode>('additive');
+  const [importMode, setImportMode] = useState<ImportMode>(
+    () => (localStorage.getItem('logseq-import-mode') as ImportMode | null) ?? 'additive'
+  );
+
+  const handleImportModeChange = (checked: boolean) => {
+    const mode: ImportMode = checked ? 'override' : 'additive';
+    setImportMode(mode);
+    localStorage.setItem('logseq-import-mode', mode);
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const queryClient = useQueryClient();
@@ -151,7 +159,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setImporting(false);
       setImportStatus('');
       setReport(null);
-      setImportMode('additive');
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
@@ -936,7 +943,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               leftLabel="ADDITIVE"
               rightLabel="OVERRIDE"
               checked={importMode === 'override'}
-              onChange={(checked) => setImportMode(checked ? 'override' : 'additive')}
+              onChange={handleImportModeChange}
               disabled={importing}
             />
             <span className="import-logseq__mode-hint">
