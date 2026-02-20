@@ -19,6 +19,7 @@ import type {
   WhiteboardTextElement,
   WhiteboardConnectorElement,
   WhiteboardImageElement,
+  WhiteboardLineElement,
   Point,
   Bounds,
   ConnectorEndpoint,
@@ -54,6 +55,24 @@ function getHitTestCtx(): CanvasRenderingContext2D | null {
     _hitTestCtx = canvas.getContext('2d');
   }
   return _hitTestCtx;
+}
+
+/**
+ * Returns true when `canvasPoint` is within hit-radius of a line element's segment.
+ */
+function isPointOnLineElement(canvasPoint: Point, el: WhiteboardLineElement): boolean {
+  const x1 = el.lineFlipped ? el.x + el.width : el.x;
+  const y1 = el.y;
+  const x2 = el.lineFlipped ? el.x : el.x + el.width;
+  const y2 = el.y + el.height;
+  const hitRadius = el.strokeWidth / 2 + 10;
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  let t = 0;
+  if (lenSq > 0) t = Math.max(0, Math.min(1, ((canvasPoint.x - x1) * dx + (canvasPoint.y - y1) * dy) / lenSq));
+  const closestX = x1 + t * dx;
+  const closestY = y1 + t * dy;
+  return (canvasPoint.x - closestX) ** 2 + (canvasPoint.y - closestY) ** 2 <= hitRadius * hitRadius;
 }
 
 /**
@@ -125,6 +144,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Imperative live-stroke refs — updated via RAF during drawing to avoid React re-renders
   const currentStrokeRef = useRef<{ x: number; y: number; pressure: number; timestamp?: number }[]>([]);
   const livePathRef = useRef<SVGPathElement>(null);
+  const liveLineRef = useRef<SVGLineElement>(null);
   const rafRef = useRef<number>(0);
   const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1 });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -187,9 +207,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       if (el.type === 'shape') {
         if (isPointInShapePath(canvasPoint, el as WhiteboardShapeElement)) return el;
       } else if (el.type === 'stroke') {
-        // Strokes use segment-distance hit testing so empty space within the
-        // stroke's bounding box does NOT trigger selection.
         if (isPointOnStroke(canvasPoint, el as WhiteboardStrokeElement)) return el;
+      } else if (el.type === 'line') {
+        if (isPointOnLineElement(canvasPoint, el as WhiteboardLineElement)) return el;
       } else {
         const bounds: Bounds = { x: el.x, y: el.y, width: el.width, height: el.height };
         if (isPointInBounds(canvasPoint, bounds)) return el;
@@ -289,6 +309,22 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           isDrawing: true,
           currentStroke: [firstPoint],
         }));
+      }
+      return;
+    }
+
+    // Line tool — imperative live-line rendering (same zero-lag approach as pen strokes)
+    if (tool === 'line') {
+      setInteraction(prev => ({ ...prev, isDragging: true, dragStart: { x: canvasPos.x, y: canvasPos.y } }));
+      if (liveLineRef.current) {
+        const ss = wb.settings.shape.strokeStyle;
+        liveLineRef.current.setAttribute('x1', String(canvasPos.x));
+        liveLineRef.current.setAttribute('y1', String(canvasPos.y));
+        liveLineRef.current.setAttribute('x2', String(canvasPos.x));
+        liveLineRef.current.setAttribute('y2', String(canvasPos.y));
+        liveLineRef.current.setAttribute('stroke', wb.settings.shape.stroke);
+        liveLineRef.current.setAttribute('stroke-width', String(wb.settings.shape.strokeWidth));
+        liveLineRef.current.setAttribute('stroke-dasharray', ss === 'dashed' ? '8 4' : ss === 'dotted' ? '2 4' : '');
       }
       return;
     }
@@ -678,6 +714,25 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       }));
       return;
     }
+
+    // Line creation drag — update live SVG line imperatively (no React re-render)
+    if (interaction.isDragging && interaction.tool === 'line' && interaction.dragStart) {
+      const start = interaction.dragStart;
+      let endX = canvasPos.x, endY = canvasPos.y;
+      if (e.shiftKey) {
+        const rawDx = endX - start.x, rawDy = endY - start.y;
+        const angle = Math.atan2(rawDy, rawDx);
+        const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        const dist = Math.sqrt(rawDx ** 2 + rawDy ** 2);
+        endX = start.x + dist * Math.cos(snapped);
+        endY = start.y + dist * Math.sin(snapped);
+      }
+      if (liveLineRef.current) {
+        liveLineRef.current.setAttribute('x2', endX.toFixed(1));
+        liveLineRef.current.setAttribute('y2', endY.toFixed(1));
+      }
+      return;
+    }
   }, [screenToCanvas, hitTest, interaction, viewport, data, wb, setInteraction]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -758,6 +813,34 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const connector = wb.createConnector(interaction.connectorStart, end);
       wb.addElement(connector);
       setInteraction(prev => ({ ...prev, connectorStart: null }));
+      return;
+    }
+
+    // End line creation
+    if (interaction.isDragging && interaction.tool === 'line' && interaction.dragStart) {
+      if (liveLineRef.current) {
+        liveLineRef.current.setAttribute('x1', '0');
+        liveLineRef.current.setAttribute('y1', '0');
+        liveLineRef.current.setAttribute('x2', '0');
+        liveLineRef.current.setAttribute('y2', '0');
+      }
+      const start = interaction.dragStart;
+      let endX = canvasPos.x, endY = canvasPos.y;
+      if (e.shiftKey || pointerState.current.shiftHeld) {
+        const rawDx = endX - start.x, rawDy = endY - start.y;
+        const angle = Math.atan2(rawDy, rawDx);
+        const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        const dist = Math.sqrt(rawDx ** 2 + rawDy ** 2);
+        endX = start.x + dist * Math.cos(snapped);
+        endY = start.y + dist * Math.sin(snapped);
+      }
+      if (Math.abs(endX - start.x) > 5 || Math.abs(endY - start.y) > 5) {
+        const line = wb.createLine(start, { x: endX, y: endY });
+        wb.addElement(line);
+        wb.selectElements([line.id]);
+      }
+      pointerState.current.shiftHeld = false;
+      setInteraction(prev => ({ ...prev, isDragging: false, dragStart: null }));
       return;
     }
 
@@ -1170,10 +1253,32 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const renderStrokes = useMemo(() => {
     const strokeElements = data.elements.filter(el => el.type === 'stroke') as WhiteboardStrokeElement[];
+    const lineElements = data.elements.filter(el => el.type === 'line') as WhiteboardLineElement[];
     const isEraserMode = interaction.isDrawing && interaction.tool === 'eraser';
     return (
       <svg className="whiteboard-view__strokes-svg">
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
+          {/* Completed line elements */}
+          {lineElements.map(line => {
+            const isSelected = interaction.selectedIds.has(line.id);
+            const dimmed = interaction.selectedIds.size > 0 && !isSelected;
+            const dashArray = line.strokeStyle === 'dashed' ? '8 4' : line.strokeStyle === 'dotted' ? '2 4' : undefined;
+            return (
+              <line
+                key={line.id}
+                x1={line.lineFlipped ? line.x + line.width : line.x}
+                y1={line.y}
+                x2={line.lineFlipped ? line.x : line.x + line.width}
+                y2={line.y + line.height}
+                stroke={line.stroke}
+                strokeWidth={line.strokeWidth}
+                strokeDasharray={dashArray}
+                strokeLinecap="round"
+                opacity={dimmed ? 0.35 : line.opacity}
+                style={{ transition: 'opacity var(--motion-duration-medium) var(--motion-easing-standard)' }}
+              />
+            );
+          })}
           {strokeElements.map(stroke => {
             const isStrokeSelected = interaction.selectedIds.has(stroke.id);
             const isMarkedForDeletion = isEraserMode && interaction.eraserMarkedIds.has(stroke.id);
@@ -1317,7 +1422,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       {/* Strokes SVG layer */}
       {renderStrokes}
 
-      {/* Live pen/highlighter stroke — updated imperatively via RAF, bypassing React re-renders */}
+      {/* Live pen/highlighter stroke and line — updated imperatively via RAF, bypassing React re-renders */}
       <svg className="whiteboard-view__strokes-svg" style={{ pointerEvents: 'none' }}>
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
           <path
@@ -1325,6 +1430,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+          <line
+            ref={liveLineRef}
+            x1="0" y1="0" x2="0" y2="0"
+            strokeLinecap="round"
           />
         </g>
       </svg>
@@ -1335,7 +1445,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       {/* Elements layer (DOM elements) */}
       <div className="whiteboard-view__elements">
         {sortedElements
-          .filter(el => el.type !== 'stroke' && el.type !== 'connector')
+          .filter(el => el.type !== 'stroke' && el.type !== 'connector' && el.type !== 'line')
           .map(renderElement)}
       </div>
 

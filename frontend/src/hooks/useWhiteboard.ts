@@ -19,6 +19,7 @@ import type {
   WhiteboardStrokeElement,
   WhiteboardTextElement,
   WhiteboardConnectorElement,
+  WhiteboardLineElement,
   ConnectorEndpoint,
 } from '@/types/whiteboard';
 import {
@@ -449,6 +450,33 @@ export function useWhiteboard(nodeId: number | null) {
     };
   }, [data.elements, settings.pen, settings.highlighter]);
 
+  const createLine = useCallback((start: Point, end: Point): WhiteboardLineElement => {
+    const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const width = Math.max(Math.abs(end.x - start.x), 10);
+    const height = Math.max(Math.abs(end.y - start.y), 10);
+    // lineFlipped=true when the line's direction flips on exactly one axis:
+    // e.g. start is right of end but above end → top-right to bottom-left diagonal
+    const lineFlipped = (start.x > end.x) !== (start.y > end.y);
+    return {
+      id: createElementId(),
+      type: 'line',
+      x,
+      y,
+      width,
+      height,
+      rotation: 0,
+      locked: false,
+      opacity: 1,
+      zIndex: maxZ + 1,
+      lineFlipped,
+      stroke: settings.shape.stroke,
+      strokeWidth: settings.shape.strokeWidth,
+      strokeStyle: settings.shape.strokeStyle,
+    };
+  }, [data.elements, settings.shape]);
+
   const createText = useCallback((position: Point): WhiteboardTextElement => {
     const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
     return {
@@ -557,6 +585,7 @@ export function useWhiteboard(nodeId: number | null) {
     createCard,
     createReferenceCard,
     createShape,
+    createLine,
     createStroke,
     createText,
     createConnector,
