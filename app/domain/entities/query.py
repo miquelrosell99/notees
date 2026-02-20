@@ -3,7 +3,8 @@
 Defines the structure for query block trees used by query nodes.
 Query block trees are stored as JSON:
 - For NodeViews: directly in the query_json column of node_view table
-- For Query blocks: in the _query_ast property of query nodes
+- For Query blocks: inline in the node's name AST as a 'query' block,
+  alongside a 'paragraph' block carrying the title (children approach).
 """
 from __future__ import annotations
 
