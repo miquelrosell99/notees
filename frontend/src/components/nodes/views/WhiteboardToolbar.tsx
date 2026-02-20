@@ -10,7 +10,6 @@ import {
   mdiRectangleOutline,
   mdiCircleOutline,
   mdiTriangleOutline,
-  mdiDiamondOutline,
   mdiHexagonOutline,
   mdiStarOutline,
   mdiPencilOutline,
@@ -66,7 +65,6 @@ const TOOL_GROUPS = [
       { tool: 'rectangle' as WhiteboardTool, icon: mdiRectangleOutline, label: 'Rectangle', shortcut: 'R' },
       { tool: 'ellipse' as WhiteboardTool, icon: mdiCircleOutline, label: 'Ellipse', shortcut: 'O' },
       { tool: 'triangle' as WhiteboardTool, icon: mdiTriangleOutline, label: 'Triangle', shortcut: '' },
-      { tool: 'diamond' as WhiteboardTool, icon: mdiDiamondOutline, label: 'Diamond', shortcut: '' },
       { tool: 'hexagon' as WhiteboardTool, icon: mdiHexagonOutline, label: 'Hexagon', shortcut: '' },
       { tool: 'star' as WhiteboardTool, icon: mdiStarOutline, label: 'Star', shortcut: '' },
     ],
@@ -120,7 +118,6 @@ const SHAPE_TOOL_OPTIONS: SelectionButtonOption[] = [
   { value: 'rectangle', icon: mdiRectangleOutline, label: 'Rectangle (R)' },
   { value: 'ellipse',   icon: mdiCircleOutline,    label: 'Ellipse (O)'  },
   { value: 'triangle',  icon: mdiTriangleOutline,   label: 'Triangle'     },
-  { value: 'diamond',   icon: mdiDiamondOutline,    label: 'Diamond'      },
   { value: 'hexagon',   icon: mdiHexagonOutline,    label: 'Hexagon'      },
   { value: 'star',      icon: mdiStarOutline,       label: 'Star'         },
 ];
@@ -619,14 +616,13 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function isShapeTool(tool: WhiteboardTool): boolean {
-  return ['rectangle', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'].includes(tool);
+  return ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool);
 }
 
 function getShapeIcon(tool: WhiteboardTool): string {
   switch (tool) {
     case 'ellipse': return mdiCircleOutline;
     case 'triangle': return mdiTriangleOutline;
-    case 'diamond': return mdiDiamondOutline;
     case 'hexagon': return mdiHexagonOutline;
     case 'star': return mdiStarOutline;
     default: return mdiRectangleOutline;
