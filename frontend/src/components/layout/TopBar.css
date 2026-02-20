@@ -125,8 +125,9 @@
 /* ==================== Toolbar Buttons ==================== */
 /* Additional toolbar button styles work with Button component */
 .toolbar-btn.btn--active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Today button - text button style */
