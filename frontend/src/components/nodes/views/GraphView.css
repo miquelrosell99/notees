@@ -10,6 +10,8 @@
   height: 100%;
   overflow: hidden;
   background: var(--color-surface);
+  /* Hardware acceleration: promotes to its own compositor layer */
+  transform: translateZ(0);
 }
 
 .node-graph-view.loading,
@@ -43,6 +45,8 @@
 .node-graph-view__renderer {
   position: absolute;
   inset: 0;
+  /* Hint browser that canvas content will be composited separately */
+  will-change: transform;
 }
 
 /* Top left controls */
