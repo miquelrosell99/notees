@@ -1,0 +1,165 @@
+/**
+ * Slider Component Styles
+ *
+ * A styled range input with label and optional value display.
+ * Uses design tokens from variables.css.
+ */
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+/* ─── Header row (label + value) ─────────────────────────────────── */
+
+.slider__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.slider__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  line-height: 1;
+}
+
+.slider__value {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface-variant);
+  min-width: 2.5em;
+  text-align: right;
+}
+
+/* ─── Track wrapper ───────────────────────────────────────────────── */
+
+.slider__track-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Range input ────────────────────────────────────────────────── */
+
+.slider__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Filled track via box-shadow trick on the thumb — use a filled background
+   approach instead by overlaying a div that tracks the value */
+.slider__filled {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.slider__bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-outline-variant);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Thumb — WebKit */
+.slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px var(--color-shadow);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.slider__input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px var(--color-shadow);
+}
+
+/* Thumb — Firefox */
+.slider__input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px var(--color-shadow);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.slider__input::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Focus ring */
+.slider__input:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ─── Size variants ───────────────────────────────────────────────── */
+
+.slider--sm .slider__input::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+}
+
+.slider--sm .slider__input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+}
+
+.slider--sm .slider__filled,
+.slider--sm .slider__bg {
+  height: 3px;
+}
+
+.slider--sm .slider__input {
+  height: 3px;
+}
+
+/* ─── Disabled ───────────────────────────────────────────────────── */
+
+.slider--disabled .slider__input {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.slider--disabled .slider__filled {
+  background: var(--color-disabled);
+}
