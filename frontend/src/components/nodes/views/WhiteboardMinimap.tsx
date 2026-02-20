@@ -9,7 +9,15 @@
  */
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
-import type { Bounds } from '@/types/whiteboard';
+import type {
+  Bounds,
+  WhiteboardElement,
+  WhiteboardShapeElement,
+  WhiteboardStrokeElement,
+  WhiteboardTextElement,
+  WhiteboardConnectorElement,
+  WhiteboardLineElement,
+} from '@/types/whiteboard';
 import './WhiteboardView.css';
 
 interface WhiteboardMinimapProps {
@@ -23,9 +31,190 @@ const DRAG_THRESHOLD = 4;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 
+// Canvas renders at half CSS resolution → displayed 2× → clean pixelated look
+const CANVAS_W = 80;
+const CANVAS_H = 50;
+const CANVAS_PADDING = Math.round(MINIMAP_PADDING * (CANVAS_W / MINIMAP_WIDTH));
+
+/** Resolve a CSS variable string to a hex/rgb color. */
+function resolveCssVar(value: string): string {
+  const m = value.match(/var\((--[\w-]+)\)/);
+  if (!m) return value;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || value;
+}
+
+/** Draw all whiteboard elements to a canvas at the minimap's low resolution. */
+function drawMinimapCanvas(
+  ctx: CanvasRenderingContext2D,
+  elements: WhiteboardElement[],
+  contentBounds: Bounds,
+) {
+  const drawScale = Math.min(
+    (CANVAS_W - CANVAS_PADDING * 2) / contentBounds.width,
+    (CANVAS_H - CANVAS_PADDING * 2) / contentBounds.height,
+  );
+
+  const toX = (wx: number) => (wx - contentBounds.x) * drawScale + CANVAS_PADDING;
+  const toY = (wy: number) => (wy - contentBounds.y) * drawScale + CANVAS_PADDING;
+  const toW = (w: number) => w * drawScale;
+  const toH = (h: number) => h * drawScale;
+
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  const sorted = [...elements].sort((a, b) => a.zIndex - b.zIndex);
+
+  for (const el of sorted) {
+    const x = toX(el.x);
+    const y = toY(el.y);
+    const w = Math.max(1, toW(el.width));
+    const h = Math.max(1, toH(el.height));
+
+    ctx.save();
+    ctx.globalAlpha = el.opacity ?? 1;
+
+    if (el.type === 'card') {
+      ctx.fillStyle = el.color ? resolveCssVar(el.color) : resolveCssVar('var(--color-surface-container)');
+      ctx.strokeStyle = resolveCssVar('var(--color-outline-variant)');
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      const r = Math.min(2, w / 4, h / 4);
+      ctx.roundRect(x, y, w, h, r);
+      ctx.fill();
+      ctx.stroke();
+
+    } else if (el.type === 'shape') {
+      const shape = el as WhiteboardShapeElement;
+      ctx.fillStyle = shape.fill === 'transparent' ? 'transparent' : resolveCssVar(shape.fill);
+      ctx.strokeStyle = resolveCssVar(shape.stroke);
+      ctx.lineWidth = Math.max(0.5, shape.strokeWidth * drawScale * 0.3);
+      ctx.beginPath();
+      switch (shape.shapeType) {
+        case 'ellipse':
+          ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+          break;
+        case 'triangle':
+          ctx.moveTo(x + w / 2, y);
+          ctx.lineTo(x + w, y + h);
+          ctx.lineTo(x, y + h);
+          ctx.closePath();
+          break;
+        case 'triangle-right':
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + w, y + h);
+          ctx.lineTo(x, y + h);
+          ctx.closePath();
+          break;
+        case 'hexagon': {
+          const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2;
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            i === 0 ? ctx.moveTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a))
+                    : ctx.lineTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+          }
+          ctx.closePath();
+          break;
+        }
+        case 'star': {
+          const cx = x + w / 2, cy = y + h / 2, or = w / 2, ir = or * 0.4;
+          for (let i = 0; i < 10; i++) {
+            const a = (Math.PI / 5) * i - Math.PI / 2;
+            const r2 = i % 2 === 0 ? or : ir;
+            i === 0 ? ctx.moveTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a))
+                    : ctx.lineTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a));
+          }
+          ctx.closePath();
+          break;
+        }
+        default: {
+          const br = Math.min(shape.borderRadius * drawScale * 0.3, w / 4, h / 4);
+          ctx.roundRect(x, y, w, h, br);
+        }
+      }
+      if (shape.fill !== 'transparent') ctx.fill();
+      ctx.stroke();
+
+    } else if (el.type === 'stroke') {
+      const stroke = el as WhiteboardStrokeElement;
+      if (stroke.points.length < 2) { ctx.restore(); continue; }
+      ctx.strokeStyle = resolveCssVar(stroke.color);
+      ctx.lineWidth = Math.max(0.5, stroke.strokeWidth * drawScale * 0.4);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = (el.opacity ?? 1) * (stroke.tool === 'highlighter' ? 0.5 : 1);
+      ctx.beginPath();
+      const p0 = stroke.points[0];
+      ctx.moveTo(toX(el.x + p0.x), toY(el.y + p0.y));
+      for (let i = 1; i < stroke.points.length; i++) {
+        const p = stroke.points[i];
+        ctx.lineTo(toX(el.x + p.x), toY(el.y + p.y));
+      }
+      ctx.stroke();
+
+    } else if (el.type === 'text') {
+      const text = el as WhiteboardTextElement;
+      ctx.fillStyle = resolveCssVar(text.color || 'var(--color-on-surface)');
+      // Draw tiny text-block lines suggestion
+      const lineH = Math.max(1, toH(text.fontSize * 1.4));
+      const lines = Math.max(1, Math.round(h / lineH));
+      for (let i = 0; i < lines; i++) {
+        const ly = y + i * lineH;
+        const lw = i === lines - 1 ? w * 0.6 : w;
+        ctx.fillRect(x, ly, lw, Math.max(0.5, lineH * 0.5));
+      }
+
+    } else if (el.type === 'connector') {
+      const conn = el as WhiteboardConnectorElement;
+      ctx.strokeStyle = resolveCssVar(conn.stroke);
+      ctx.lineWidth = Math.max(0.5, conn.strokeWidth * drawScale * 0.3);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      // For the minimap just draw bounding-box diagonal
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.stroke();
+
+    } else if (el.type === 'line') {
+      const line = el as WhiteboardLineElement;
+      ctx.strokeStyle = resolveCssVar(line.stroke);
+      ctx.lineWidth = Math.max(0.5, line.strokeWidth * drawScale * 0.3);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      if (line.lineFlipped) {
+        ctx.moveTo(x + w, y);
+        ctx.lineTo(x, y + h);
+      } else {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + w, y + h);
+      }
+      ctx.stroke();
+
+    } else if (el.type === 'image') {
+      // Checkered placeholder
+      ctx.fillStyle = resolveCssVar('var(--color-surface-variant)');
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = resolveCssVar('var(--color-outline-variant)');
+      const tileSize = Math.max(1, Math.min(w, h) / 4);
+      for (let ty = 0; ty * tileSize < h; ty++) {
+        for (let tx = 0; tx * tileSize < w; tx++) {
+          if ((tx + ty) % 2 === 0) {
+            ctx.fillRect(
+              x + tx * tileSize, y + ty * tileSize,
+              Math.min(tileSize, w - tx * tileSize),
+              Math.min(tileSize, h - ty * tileSize),
+            );
+          }
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+}
+
 export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
   const { data } = wb;
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Track the actual pixel size of the whiteboard canvas container
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -86,6 +275,15 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     const innerH = MINIMAP_HEIGHT - MINIMAP_PADDING * 2;
     return Math.min(innerW / contentBounds.width, innerH / contentBounds.height);
   }, [contentBounds]);
+
+  // Re-render the low-res canvas preview whenever elements or bounds change
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    drawMinimapCanvas(ctx, data.elements, contentBounds);
+  }, [data.elements, contentBounds]);
 
   // Convert world coord to minimap coord
   const worldToMinimap = useCallback((wx: number, wy: number) => ({
@@ -232,27 +430,13 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
       onPointerUp={handlePointerUp}
       onWheel={handleWheel}
     >
-      {/* Element dots */}
-      {data.elements.map(el => {
-        const pos = worldToMinimap(el.x, el.y);
-        const w = el.width * scale;
-        const h = el.height * scale;
-        return (
-          <div
-            key={el.id}
-            className="whiteboard-minimap__element"
-            style={{
-              left: pos.x,
-              top: pos.y,
-              width: Math.max(2, w),
-              height: Math.max(2, h),
-              backgroundColor: el.type === 'card' ? 'var(--accent-primary)' :
-                               el.type === 'stroke' ? 'var(--text-primary)' :
-                               'var(--text-tertiary)',
-            }}
-          />
-        );
-      })}
+      {/* Low-res pixelated canvas preview */}
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_W}
+        height={CANVAS_H}
+        className="whiteboard-minimap__canvas"
+      />
 
       {/* Viewport indicator */}
       <div
