@@ -89,6 +89,21 @@ export async function addSelectionOption(
 }
 
 /**
+ * Update a selection option (e.g. change icon)
+ */
+export async function updateSelectionOption(
+  propertyId: number,
+  optionId: number,
+  data: { icon?: string | null; name?: string; order?: number }
+): Promise<SelectionOption> {
+  const response = await api.put<SelectionOption>(
+    `${BASE}/${propertyId}/selection-lines/${optionId}`,
+    data
+  );
+  return response.data;
+}
+
+/**
  * Delete a selection option
  */
 export async function deleteSelectionOption(
