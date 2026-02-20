@@ -13,9 +13,12 @@ import * as mdiIcons from '@mdi/js';
  */
 export function getMdiPath(iconName: string): string | null {
   let normalized = iconName
-    .replace(/^mdi-?/i, '')                            // strip "mdi-" / "mdi" prefix
+    .replace(/^mdi[:_-]/i, '')                         // strip "mdi-", "mdi:", "mdi_" prefix
+    .replace(/^mdi(?=[A-Z])/i, '')                     // strip bare mdi before CamelCase
+    .replace(/^mdi$/i, '')                             // strip bare mdi
     .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()); // kebab → camelCase
 
+  if (!normalized) return null;
   normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
 
   const path = (mdiIcons as Record<string, string>)[normalized];
