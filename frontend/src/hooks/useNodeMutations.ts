@@ -578,6 +578,11 @@ export function useUpdateNode() {
             refetchType: 'none', // Soft invalidation
           });
         }
+
+        // Invalidate breadcrumbs for this node so the breadcrumb bar updates immediately
+        queryClient.invalidateQueries({
+          queryKey: nodeKeys.breadcrumbs(updatedNode.id),
+        });
       }
       
       // If name/content was updated, invalidate link-related caches
