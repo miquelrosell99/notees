@@ -42,6 +42,7 @@ import { FloatingButtonArray } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { Card } from '@/components/core/Card';
+import { ColorButton, type ColorEntry } from '@/components/core/ColorButton';
 import type { WhiteboardTool, PenSettings } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import './WhiteboardView.css';
@@ -89,11 +90,18 @@ const TOOL_GROUPS = [
   },
 ];
 
-const COLORS = [
-  '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308',
-  '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280',
-  '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb',
-  '#7c3aed', '#db2777', '#4b5563', '#991b1b', '#9a3412',
+/** Theme-aware color palette stored as CSS variable references */
+const WB_COLOR_VARS: ColorEntry[] = [
+  { cssVar: 'var(--color-on-surface)',        label: 'Default' },
+  { cssVar: 'var(--color-background)',         label: 'Background' },
+  { cssVar: 'var(--color-preset-red)',         label: 'Red' },
+  { cssVar: 'var(--color-preset-orange)',      label: 'Orange' },
+  { cssVar: 'var(--color-preset-yellow)',      label: 'Yellow' },
+  { cssVar: 'var(--color-preset-green)',       label: 'Green' },
+  { cssVar: 'var(--color-preset-teal)',        label: 'Teal' },
+  { cssVar: 'var(--color-preset-blue)',        label: 'Blue' },
+  { cssVar: 'var(--color-preset-purple)',      label: 'Purple' },
+  { cssVar: 'var(--color-preset-pink)',        label: 'Pink' },
 ];
 
 const STROKE_WIDTHS = [1, 2, 3, 5, 8, 12];
@@ -323,14 +331,14 @@ interface ToolButtonProps {
 }
 
 const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, shortcut, active, onClick }) => (
-  <button
-    className={`whiteboard-tool-btn ${active ? 'whiteboard-tool-btn--active' : ''}`}
+  <Button
+    icon={icon}
+    variant="ghost"
+    size="sm"
+    active={active}
     onClick={onClick}
     title={`${label}${shortcut ? ` (${shortcut})` : ''}`}
-  >
-    <Icon path={icon} size={0.8} />
-    {shortcut && <span className="whiteboard-tool-btn__shortcut">{shortcut}</span>}
-  </button>
+  />
 );
 
 // ─── Pen settings panel ────────────────────────────────────────────
@@ -345,36 +353,36 @@ const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange 
     <div className="whiteboard-properties">
       <div className="whiteboard-properties__section">
         <div className="whiteboard-properties__label">Color</div>
-        <div className="whiteboard-color-picker">
-          {COLORS.map(color => (
-            <div
-              key={color}
-              className={`whiteboard-color-picker__swatch ${settings.color === color ? 'whiteboard-color-picker__swatch--active' : ''}`}
-              style={{ backgroundColor: color }}
-              onClick={() => onChange({ ...settings, color })}
-            />
-          ))}
-        </div>
+        <ColorButton
+          color={settings.color}
+          showPicker
+          colors={WB_COLOR_VARS}
+          onColorChange={(cssVar) => onChange({ ...settings, color: cssVar })}
+          size="sm"
+          title="Pick color"
+        />
       </div>
       <div className="whiteboard-properties__section">
         <div className="whiteboard-properties__label">Width</div>
         <div style={{ display: 'flex', gap: 4 }}>
           {STROKE_WIDTHS.map(w => (
-            <button
+            <Button
               key={w}
-              className={`whiteboard-tool-btn ${settings.strokeWidth === w ? 'whiteboard-tool-btn--active' : ''}`}
-              style={{ width: 28, height: 28 }}
+              variant={settings.strokeWidth === w ? 'primary' : 'ghost'}
+              size="xs"
+              active={settings.strokeWidth === w}
               onClick={() => onChange({ ...settings, strokeWidth: w })}
+              title={`${w}px`}
             >
               <div
                 style={{
                   width: Math.min(w * 3, 20),
-                  height: Math.min(w, 10),
-                  backgroundColor: 'currentColor',
+                  height: Math.min(w, 8),
+                  background: 'currentColor',
                   borderRadius: 999,
                 }}
               />
-            </button>
+            </Button>
           ))}
         </div>
       </div>
