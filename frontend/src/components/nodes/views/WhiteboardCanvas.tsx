@@ -622,7 +622,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         dragStart: null,
         selectionBox: null,
       }));
-      wb.setTool('select');
       return;
     }
 
@@ -805,7 +804,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   const cursorClass = useMemo(() => {
     if (interaction.isPanning || isEmptyPanning) return 'whiteboard-view--panning-active';
-    if (['pen', 'highlighter', 'eraser'].includes(interaction.tool)) return 'whiteboard-view--drawing';
+    if (['pen', 'highlighter', 'eraser', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) return 'whiteboard-view--drawing';
     return '';
   }, [interaction.tool, interaction.isPanning, isEmptyPanning]);
 
