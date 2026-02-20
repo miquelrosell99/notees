@@ -387,18 +387,20 @@ export function NodeIcon({
   isPage = true,
   size = 'sm',
   className,
+  color,
 }: { 
   icon?: string | null; 
   isPage?: boolean;
   size?: IconSize;
   className?: string;
+  color?: string | null;
 }) {
   // If icon is provided
   if (icon) {
     // Try to resolve it from @mdi/js (MDI icons start with mdi- or similar patterns)
     const path = getMdiPath(icon);
     if (path) {
-      return <Icon path={path} size={getSize(size)} className={className} />;
+      return <Icon path={path} size={getSize(size)} className={className} color={color || undefined} />;
     }
     
     // If not an MDI icon, it might be an emoji - render as text
@@ -418,6 +420,7 @@ export function NodeIcon({
             width: `${emojiSize}px`,
             height: `${emojiSize}px`,
             verticalAlign: 'middle',
+            ...(color ? { color } : {}),
           }}
         >
           {icon}

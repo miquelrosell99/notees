@@ -260,6 +260,81 @@
   font-size: 18px;
 }
 
+/* Colour dot indicator on the trigger button */
+.emoji-trigger-color-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+
+/* Make trigger relative so dot can be positioned */
+.emoji-picker-trigger {
+  position: relative;
+}
+
+/* ==================== Colour picker section ==================== */
+
+.emoji-picker-color-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.emoji-picker-color-label {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.emoji-picker-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.emoji-picker-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.emoji-picker-color-swatch:hover {
+  transform: scale(1.2);
+}
+
+.emoji-picker-color-swatch.selected {
+  border-color: var(--color-primary);
+  transform: scale(1.15);
+}
+
+.emoji-picker-color-swatch.no-color {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline-variant);
+}
+
+.emoji-picker-color-none-line {
+  display: block;
+  width: 10px;
+  height: 2px;
+  background: var(--color-on-surface-variant);
+  transform: rotate(-45deg);
+  border-radius: 1px;
+}
+
 /* Scrollbar styling */
 .emoji-picker-content::-webkit-scrollbar {
   width: 6px;

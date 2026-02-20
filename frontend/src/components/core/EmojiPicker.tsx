@@ -285,6 +285,21 @@ const MDI_CATEGORIES: Record<string, string[]> = {
 
 type TabType = 'emojis' | 'symbols';
 
+/** Colour swatches available inside the picker */
+const ICON_COLOR_PALETTE: (string | null)[] = [
+  null,
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#14b8a6',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#6b7280',
+  '#1f2937',
+];
+
 interface EmojiPickerProps {
   /** Currently selected value (emoji or icon name) */
   value?: string;
@@ -296,6 +311,12 @@ interface EmojiPickerProps {
   position?: { x: number; y: number };
   /** Whether to show as a popup (positioned) or inline */
   asPopup?: boolean;
+  /** Show a colour picker section inside the picker */
+  useColor?: boolean;
+  /** Currently selected colour */
+  color?: string | null;
+  /** Called when a colour is selected (does NOT close the picker) */
+  onColorChange?: (color: string | null) => void;
 }
 
 export function EmojiPicker({
@@ -304,6 +325,9 @@ export function EmojiPicker({
   onClose,
   position,
   asPopup = true,
+  useColor = false,
+  color,
+  onColorChange,
 }: EmojiPickerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('emojis');
   const [search, setSearch] = useState('');
@@ -563,6 +587,27 @@ export function EmojiPicker({
         </div>
       )}
       
+      {/* Colour picker */}
+      {useColor && (
+        <div className="emoji-picker-color-section">
+          <span className="emoji-picker-color-label">Colour</span>
+          <div className="emoji-picker-color-swatches">
+            {ICON_COLOR_PALETTE.map((c) => (
+              <button
+                key={c ?? 'none'}
+                className={`emoji-picker-color-swatch ${color === c ? 'selected' : ''} ${!c ? 'no-color' : ''}`}
+                style={c ? { backgroundColor: c } : undefined}
+                onClick={() => onColorChange?.(c)}
+                title={c ?? 'No colour'}
+                type="button"
+              >
+                {!c && <span className="emoji-picker-color-none-line" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Footer with remove option */}
       {value && (
         <div className="emoji-picker-footer">
@@ -592,6 +637,12 @@ interface EmojiPickerTriggerProps {
   placeholder?: string;
   /** Additional class name */
   className?: string;
+  /** Show a colour picker inside the picker */
+  useColor?: boolean;
+  /** Currently selected colour */
+  color?: string | null;
+  /** Called when colour changes */
+  onColorChange?: (color: string | null) => void;
 }
 
 export function EmojiPickerTrigger({
@@ -599,6 +650,9 @@ export function EmojiPickerTrigger({
   onSelect,
   placeholder = 'Add icon',
   className = '',
+  useColor = false,
+  color,
+  onColorChange,
 }: EmojiPickerTriggerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -650,8 +704,15 @@ export function EmojiPickerTrigger({
         className={`emoji-picker-trigger ${className} ${value ? 'has-value' : ''}`}
         onClick={handleClick}
         type="button"
+        style={color ? { '--trigger-color': color } as React.CSSProperties : undefined}
       >
         {renderValue()}
+        {useColor && color && (
+          <span
+            className="emoji-trigger-color-dot"
+            style={{ backgroundColor: color }}
+          />
+        )}
       </button>
       
       {isOpen && (
@@ -660,6 +721,9 @@ export function EmojiPickerTrigger({
           onSelect={handleSelect}
           onClose={() => setIsOpen(false)}
           position={position}
+          useColor={useColor}
+          color={color}
+          onColorChange={onColorChange}
         />
       )}
     </>
