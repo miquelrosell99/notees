@@ -441,14 +441,6 @@
   pointer-events: auto;
 }
 
-.whiteboard-toolbar__separator {
-  width: 1px;
-  height: 24px;
-  background: var(--color-outline-variant);
-  margin: 0 var(--spacing-1);
-  align-self: center;
-}
-
 /* ────────────────────────────────────────────────────────────── */
 /*  ZOOM LEVEL INDICATOR                                          */
 /* ────────────────────────────────────────────────────────────── */
@@ -536,17 +528,23 @@
   animation: wb-pop-in var(--motion-duration-medium) var(--motion-easing-decelerate);
 }
 
-/* Pen/shape properties panel */
+/* Pen/shape properties panel — matches graph view panel style */
 .whiteboard-properties {
+  padding: 4px 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
 }
 
 .whiteboard-properties__section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-outline-variant);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+}
+
+.whiteboard-properties__section:last-child {
+  border-bottom: none;
 }
 
 .whiteboard-properties__label {
