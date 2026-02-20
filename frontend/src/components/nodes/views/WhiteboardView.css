@@ -148,17 +148,6 @@
 /*  SELECTION STYLING                                            */
 /* ────────────────────────────────────────────────────────────── */
 
-/* Selection Ring — only visible when multiple elements are selected */
-.whiteboard-element--multi-selected::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border: 2px solid var(--color-primary);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 10;
-}
-
 /* Hover Effect (when not selected) */
 .whiteboard-element:hover:not(.whiteboard-element--selected)::after {
   content: '';
