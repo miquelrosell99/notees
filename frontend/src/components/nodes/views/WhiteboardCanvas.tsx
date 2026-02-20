@@ -118,24 +118,25 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     const topLeft = canvasToScreen(el.x, el.y);
     const bottomRight = canvasToScreen(el.x + el.width, el.y + el.height);
-    const handleSize = 12;
+    // Handle centers are 8px outside the element corners (CSS inset: -8px on container)
+    const o = 8; // offset
+    const mx = (topLeft.x + bottomRight.x) / 2;
+    const my = (topLeft.y + bottomRight.y) / 2;
+    const handleSize = 14;
 
     const handles = [
-      { id: 'nw', x: topLeft.x, y: topLeft.y },
-      { id: 'n', x: (topLeft.x + bottomRight.x) / 2, y: topLeft.y },
-      { id: 'ne', x: bottomRight.x, y: topLeft.y },
-      { id: 'e', x: bottomRight.x, y: (topLeft.y + bottomRight.y) / 2 },
-      { id: 'se', x: bottomRight.x, y: bottomRight.y },
-      { id: 's', x: (topLeft.x + bottomRight.x) / 2, y: bottomRight.y },
-      { id: 'sw', x: topLeft.x, y: bottomRight.y },
-      { id: 'w', x: topLeft.x, y: (topLeft.y + bottomRight.y) / 2 },
+      { id: 'nw', x: topLeft.x - o,     y: topLeft.y - o },
+      { id: 'n',  x: mx,                 y: topLeft.y - o },
+      { id: 'ne', x: bottomRight.x + o,  y: topLeft.y - o },
+      { id: 'e',  x: bottomRight.x + o,  y: my },
+      { id: 'se', x: bottomRight.x + o,  y: bottomRight.y + o },
+      { id: 's',  x: mx,                 y: bottomRight.y + o },
+      { id: 'sw', x: topLeft.x - o,      y: bottomRight.y + o },
+      { id: 'w',  x: topLeft.x - o,      y: my },
     ];
 
     for (const h of handles) {
-      if (
-        Math.abs(screenX - h.x) < handleSize &&
-        Math.abs(screenY - h.y) < handleSize
-      ) {
+      if (Math.abs(screenX - h.x) < handleSize && Math.abs(screenY - h.y) < handleSize) {
         return h.id;
       }
     }
@@ -187,6 +188,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     state.hasDragged = false;
     state.button = e.button;
     state.pointerId = e.pointerId;
+    // Reset resize state from any previous interaction
+    state.resizingElementId = null;
+    state.isGroupResize = false;
+    state.startedOnEmpty = false;
 
     containerRef.current.setPointerCapture(e.pointerId);
 
@@ -246,6 +251,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           state.isGroupResize = true;
           state.startSelectionBounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
           state.startElementBoundsMap = boundsMap;
+          state.startElementPositions.clear();
           setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: groupHandle }));
           return;
         }
@@ -260,6 +266,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           if (el) {
             state.startElementBounds = { x: el.x, y: el.y, width: el.width, height: el.height };
             state.resizingElementId = selectedId;
+            state.startElementPositions.clear();
             setInteraction(prev => ({ ...prev, isResizing: true, resizeHandle: handle }));
             return;
           }
@@ -522,8 +529,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
-    // Dragging elements
-    if (interaction.selectedIds.size > 0 && state.isDown && state.button === 0 && interaction.tool === 'select') {
+    // Dragging elements (ref guard prevents firing when resize just started but React state not yet propagated)
+    if (!state.resizingElementId && !state.isGroupResize && interaction.selectedIds.size > 0 && state.isDown && state.button === 0 && interaction.tool === 'select') {
       const canvasDx = canvasPos.x - state.startCanvasPos.x;
       const canvasDy = canvasPos.y - state.startCanvasPos.y;
 
