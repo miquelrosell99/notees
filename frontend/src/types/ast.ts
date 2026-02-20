@@ -107,14 +107,16 @@ export interface ASTHeading {
  * Whiteboard block. Stores layout data inline in the AST.
  *
  * A whiteboard node's `name` is:
- *   `[{ type: 'whiteboard', title: '...', data: { ...WhiteboardData } }]`
+ *   `[
+ *     { type: 'paragraph', children: [{ type: 'text', text: 'Title' }] },
+ *     { type: 'whiteboard', data: { ...WhiteboardData } }
+ *   ]`
  *
- * `title` is the page title (plain text).
+ * The title is stored as a normal paragraph block (children approach).
  * `data` holds the full WhiteboardData (viewport, elements, grid, background).
  */
 export interface ASTWhiteboard {
   readonly type: 'whiteboard';
-  readonly title: string;
   readonly data: import('./whiteboard').WhiteboardData;
 }
 
