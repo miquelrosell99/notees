@@ -126,7 +126,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     // Canvas context (no element selected)
     items.push({
       id: 'add-card',
-      label: 'New Block Card',
+      label: 'Add Block',
       icon: 'card-plus-outline',
       onClick: () => {
         onAddCardAtPosition(position.x, position.y);
@@ -136,7 +136,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
 
     items.push({
       id: 'add-reference-card',
-      label: 'Reference Card',
+      label: 'Add Reference',
       icon: 'link-variant',
       onClick: () => {
         onAddReferenceCardAtPosition(position.x, position.y);
