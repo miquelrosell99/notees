@@ -622,7 +622,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         if (eraserCursorRef.current) {
           eraserCursorRef.current.setAttribute('cx', String(canvasPos.x));
           eraserCursorRef.current.setAttribute('cy', String(canvasPos.y));
-          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2));
+          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2 / viewport.zoom));
+          eraserCursorRef.current.setAttribute('stroke-width', String(1.5 / viewport.zoom));
         }
       } else if (eraserCursorRef.current) {
         eraserCursorRef.current.setAttribute('r', '0');
@@ -728,7 +729,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         if (eraserCursorRef.current) {
           eraserCursorRef.current.setAttribute('cx', String(canvasPos.x));
           eraserCursorRef.current.setAttribute('cy', String(canvasPos.y));
-          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2));
+          eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2 / viewport.zoom));
+          eraserCursorRef.current.setAttribute('stroke-width', String(1.5 / viewport.zoom));
         }
         return;
       }
@@ -1131,7 +1133,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
     const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
     wb.setViewport({ x: newX, y: newY, zoom: newZoom });
-  }, [viewport, wb]);
+
+    // Update eraser cursor circle size immediately so it doesn't require a mouse move
+    if (interaction.tool === 'eraser' && eraserCursorRef.current) {
+      const canvasX = (mouseX - newX) / newZoom;
+      const canvasY = (mouseY - newY) / newZoom;
+      eraserCursorRef.current.setAttribute('cx', String(canvasX));
+      eraserCursorRef.current.setAttribute('cy', String(canvasY));
+      eraserCursorRef.current.setAttribute('r', String(wb.settings.eraser.strokeWidth / 2 / newZoom));
+      eraserCursorRef.current.setAttribute('stroke-width', String(1.5 / newZoom));
+    }
+  }, [viewport, wb, interaction.tool]);
 
   // ─── Double click ─────────────────────────────────────────────────
 
