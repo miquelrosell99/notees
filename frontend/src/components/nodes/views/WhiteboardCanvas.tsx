@@ -587,7 +587,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // Card creation will be handled by the toolbar (create node + card element)
       return;
     }
-  }, [screenToCanvas, hitTest, hitTestSelectionCardHandle, interaction, data.elements, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, hitTestSelectionCardHandle, findGroupAtPoint, interaction, data.elements, wb, setInteraction]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const state = pointerState.current;
