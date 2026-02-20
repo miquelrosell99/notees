@@ -861,7 +861,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 color: interaction.tool === 'highlighter' ? wb.settings.highlighter.color : 
                        interaction.tool === 'eraser' ? 'var(--color-error)' : wb.settings.pen.color,
                 strokeWidth: interaction.tool === 'highlighter' ? wb.settings.highlighter.strokeWidth :
-                             interaction.tool === 'eraser' ? 15 : wb.settings.pen.strokeWidth,
+                             interaction.tool === 'eraser' ? wb.settings.eraser.strokeWidth : wb.settings.pen.strokeWidth,
                 tool: interaction.tool as 'pen' | 'highlighter' | 'eraser',
               }}
               isAbsolute
