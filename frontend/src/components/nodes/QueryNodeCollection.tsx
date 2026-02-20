@@ -930,7 +930,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && collectionViewMode === 'list' && viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card') && viewType !== 'all_pages' && viewType !== 'child_pages'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
