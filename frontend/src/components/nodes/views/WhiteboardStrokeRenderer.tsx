@@ -100,36 +100,9 @@ function pointsToSplinePath(pts: { x: number; y: number }[]): string {
 }
 
 /**
- * Simple moving-average smoothing.
- */
-function smoothPoints(points: StrokePoint[], windowSize = 3): StrokePoint[] {
-  if (points.length <= windowSize) return points;
-
-  const result: StrokePoint[] = [];
-  const half = Math.floor(windowSize / 2);
-
-  for (let i = 0; i < points.length; i++) {
-    let sumX = 0, sumY = 0, sumP = 0;
-    let count = 0;
-    for (let j = Math.max(0, i - half); j <= Math.min(points.length - 1, i + half); j++) {
-      sumX += points[j].x;
-      sumY += points[j].y;
-      sumP += points[j].pressure;
-      count++;
-    }
-    result.push({
-      x: sumX / count,
-      y: sumY / count,
-      pressure: sumP / count,
-    });
-  }
-
-  return result;
-}
-
-/**
  * Smooth center-line path for completed strokes.
- * Applies RDP simplification + smoothing then Catmull-Rom splines.
+ * Applies RDP simplification then Catmull-Rom splines.
+ * (No smoothing pass — smoothPoints combined with splines over-distorts the shape.)
  */
 function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
@@ -140,13 +113,14 @@ function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): st
 
 /**
  * Forward-only quadratic midpoint path for the live (in-progress) stroke.
+ * Exported so WhiteboardCanvas can call it imperatively (no React re-render during drawing).
  *
  * Each segment is a quadratic Bézier: control point = current raw point,
  * endpoint = midpoint between current and next point. Because this algorithm
  * never looks ahead, adding a new point only appends a new segment and never
  * reshapes any previously drawn segment — eliminating the "wiggle" effect.
  */
-function strokeToLivePath(points: StrokePoint[], offsetX = 0, offsetY = 0): string {
+export function strokeToLivePath(points: StrokePoint[], offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
 
   const ox = offsetX, oy = offsetY;
