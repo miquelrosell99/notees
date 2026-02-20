@@ -231,6 +231,14 @@ export type WhiteboardElement =
   | WhiteboardImageElement
   | WhiteboardLineElement;
 
+// ─── Group (a named collection of element IDs) ─────────────────────
+
+export interface WhiteboardGroup {
+  id: string;           // Unique group ID
+  elementIds: string[]; // IDs of member elements
+  label?: string;       // Optional display label
+}
+
 // ─── Whiteboard data (stored as property) ──────────────────────────
 
 export interface WhiteboardData {
@@ -241,6 +249,7 @@ export interface WhiteboardData {
     zoom: number;        // Zoom level (1 = 100%)
   };
   elements: WhiteboardElement[];
+  groups: WhiteboardGroup[]; // Element groupings
 }
 
 // ─── Tool types ────────────────────────────────────────────────────
@@ -337,6 +346,7 @@ export interface WhiteboardSettings {
 
 export interface WhiteboardHistoryEntry {
   elements: WhiteboardElement[];
+  groups: WhiteboardGroup[];
   timestamp: number;
 }
 
@@ -346,6 +356,7 @@ export const DEFAULT_WHITEBOARD_DATA: WhiteboardData = {
   version: 1,
   viewport: { x: 0, y: 0, zoom: 1 },
   elements: [],
+  groups: [],
 };
 
 export const DEFAULT_PEN_SETTINGS: PenSettings = {
