@@ -28,7 +28,7 @@ import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
 import { getShapePath } from './WhiteboardShapeRenderer';
-import { WhiteboardStrokeRenderer } from './WhiteboardStrokeRenderer';
+import { WhiteboardStrokeRenderer, strokeToLivePath } from './WhiteboardStrokeRenderer';
 import './WhiteboardView.css';
 
 interface WhiteboardCanvasProps {
@@ -122,6 +122,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   onDoubleClick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Imperative live-stroke refs — updated via RAF during drawing to avoid React re-renders
+  const currentStrokeRef = useRef<{ x: number; y: number; pressure: number; timestamp?: number }[]>([]);
+  const livePathRef = useRef<SVGPathElement>(null);
+  const rafRef = useRef<number>(0);
+  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1 });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isEmptyPanning, setIsEmptyPanning] = useState(false);
   // Tracks shift key during shape creation drag for preview re-renders
@@ -261,11 +266,30 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // Drawing tools
     if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') {
       const pressure = e.pressure > 0 ? e.pressure : 0.5;
-      setInteraction(prev => ({
-        ...prev,
-        isDrawing: true,
-        currentStroke: [{ x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() }],
-      }));
+      const firstPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
+      if (tool !== 'eraser') {
+        // Pen/highlighter: use imperative path for zero-lag live rendering
+        currentStrokeRef.current = [firstPoint];
+        const penSettings = tool === 'highlighter' ? wb.settings.highlighter : wb.settings.pen;
+        liveStrokeStyleRef.current = {
+          color: penSettings.color,
+          strokeWidth: penSettings.strokeWidth,
+          opacity: tool === 'highlighter' ? 0.4 : penSettings.opacity,
+        };
+        if (livePathRef.current) {
+          livePathRef.current.setAttribute('stroke', liveStrokeStyleRef.current.color);
+          livePathRef.current.setAttribute('stroke-width', String(liveStrokeStyleRef.current.strokeWidth));
+          livePathRef.current.setAttribute('opacity', String(liveStrokeStyleRef.current.opacity));
+          livePathRef.current.setAttribute('d', '');
+        }
+        setInteraction(prev => ({ ...prev, isDrawing: true, currentStroke: [] }));
+      } else {
+        setInteraction(prev => ({
+          ...prev,
+          isDrawing: true,
+          currentStroke: [firstPoint],
+        }));
+      }
       return;
     }
 
@@ -454,42 +478,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (interaction.isDrawing) {
       const pressure = e.pressure > 0 ? e.pressure : 0.5;
 
-      // Shift: snap to horizontal, vertical, or 45° diagonal from stroke start
-      if (e.shiftKey && interaction.currentStroke.length > 0) {
-        const startPoint = interaction.currentStroke[0];
-        const rawDx = canvasPos.x - startPoint.x;
-        const rawDy = canvasPos.y - startPoint.y;
-        const angle = Math.atan2(rawDy, rawDx);
-        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-        const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-        const snappedX = startPoint.x + dist * Math.cos(snappedAngle);
-        const snappedY = startPoint.y + dist * Math.sin(snappedAngle);
-        const newPoint = { x: snappedX, y: snappedY, pressure, timestamp: Date.now() };
-        // Replace with [start, snapped] to keep the stroke as a clean straight line
-        setInteraction(prev => ({
-          ...prev,
-          currentStroke: [prev.currentStroke[0], newPoint],
-        }));
-        return;
-      }
-
-      const newPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
-      setInteraction(prev => {
-        const stroke = prev.currentStroke;
-        if (stroke.length > 0) {
-          const last = stroke[stroke.length - 1];
-          const dx = newPoint.x - last.x;
-          const dy = newPoint.y - last.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          // Dynamic min-distance: starts at 2px, grows with stroke length to keep
-          // the segment count manageable and rendering fast for long strokes.
-          const minDist = Math.max(2, Math.min(10, stroke.length * 0.015));
-          if (dist < minDist) return prev;
-        }
-        const newStroke = [...stroke, newPoint];
-
-        // Eraser: mark touched elements in real-time
-        if (interaction.tool === 'eraser') {
+      if (interaction.tool === 'eraser') {
+        // Eraser keeps state-driven path for real-time element marking
+        const newPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
+        setInteraction(prev => {
+          const stroke = prev.currentStroke;
+          if (stroke.length > 0) {
+            const last = stroke[stroke.length - 1];
+            const dx = newPoint.x - last.x;
+            const dy = newPoint.y - last.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = Math.max(2, Math.min(10, stroke.length * 0.015));
+            if (dist < minDist) return prev;
+          }
+          const newStroke = [...stroke, newPoint];
           const eraserRadius = wb.settings.eraser.strokeWidth / 2 + 2;
           const newMarkedIds = new Set(prev.eraserMarkedIds);
           for (const el of data.elements) {
@@ -500,17 +502,48 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 const dist = Math.sqrt(
                   Math.pow(newPoint.x - (sp.x + el.x), 2) + Math.pow(newPoint.y - (sp.y + el.y), 2)
                 );
-                if (dist < eraserRadius) {
-                  newMarkedIds.add(el.id);
-                  break;
-                }
+                if (dist < eraserRadius) { newMarkedIds.add(el.id); break; }
               }
             }
           }
           return { ...prev, currentStroke: newStroke, eraserMarkedIds: newMarkedIds };
-        }
+        });
+        return;
+      }
 
-        return { ...prev, currentStroke: newStroke };
+      // Pen / highlighter: imperative — NO setInteraction, update DOM directly via RAF
+
+      // Shift: snap to horizontal, vertical, or 45° diagonal from stroke start
+      if (e.shiftKey && currentStrokeRef.current.length > 0) {
+        const start = currentStrokeRef.current[0];
+        const rawDx = canvasPos.x - start.x;
+        const rawDy = canvasPos.y - start.y;
+        const angle = Math.atan2(rawDy, rawDx);
+        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+        currentStrokeRef.current = [
+          start,
+          { x: start.x + dist * Math.cos(snappedAngle), y: start.y + dist * Math.sin(snappedAngle), pressure, timestamp: Date.now() },
+        ];
+      } else {
+        const newPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
+        const stroke = currentStrokeRef.current;
+        if (stroke.length > 0) {
+          const last = stroke[stroke.length - 1];
+          const dx = newPoint.x - last.x;
+          const dy = newPoint.y - last.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = Math.max(2, Math.min(8, stroke.length * 0.01));
+          if (dist < minDist) return;
+        }
+        currentStrokeRef.current = [...stroke, newPoint];
+      }
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        if (livePathRef.current && currentStrokeRef.current.length > 1) {
+          livePathRef.current.setAttribute('d', strokeToLivePath(currentStrokeRef.current));
+        }
       });
       return;
     }
@@ -678,20 +711,23 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // End drawing
-    if (interaction.isDrawing && interaction.currentStroke.length > 1) {
-      const tool = interaction.tool as 'pen' | 'highlighter' | 'eraser';
-      if (tool === 'eraser') {
-        // Use the marked IDs collected in real-time during the stroke
-        const toRemove = [...interaction.eraserMarkedIds];
-        if (toRemove.length > 0) wb.removeElements(toRemove);
-      } else {
-        const strokeEl = wb.createStroke(interaction.currentStroke, tool);
-        wb.addElement(strokeEl);
-      }
-      setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [], eraserMarkedIds: new Set() }));
-      return;
-    }
     if (interaction.isDrawing) {
+      const tool = interaction.tool as 'pen' | 'highlighter' | 'eraser';
+      // Cancel any pending RAF and blank the live path
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (livePathRef.current) livePathRef.current.setAttribute('d', '');
+      if (tool === 'eraser') {
+        if (interaction.currentStroke.length > 1) {
+          const toRemove = [...interaction.eraserMarkedIds];
+          if (toRemove.length > 0) wb.removeElements(toRemove);
+        }
+      } else {
+        if (currentStrokeRef.current.length > 1) {
+          const strokeEl = wb.createStroke(currentStrokeRef.current, tool);
+          wb.addElement(strokeEl);
+        }
+        currentStrokeRef.current = [];
+      }
       setInteraction(prev => ({ ...prev, isDrawing: false, currentStroke: [], eraserMarkedIds: new Set() }));
       return;
     }
@@ -1153,30 +1189,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               />
             );
           })}
-          {/* Current stroke being drawn */}
-          {interaction.isDrawing && interaction.currentStroke.length > 1 && (
-            <WhiteboardStrokeRenderer
-              element={{
-                id: '__current_stroke__',
-                type: 'stroke',
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 0,
-                rotation: 0,
-                locked: false,
-                opacity: interaction.tool === 'highlighter' ? 0.4 : interaction.tool === 'eraser' ? 0.15 : 1,
-                zIndex: 9999,
-                points: interaction.currentStroke,
-                color: interaction.tool === 'highlighter' ? wb.settings.highlighter.color : 
-                       interaction.tool === 'eraser' ? 'var(--color-error)' : wb.settings.pen.color,
-                strokeWidth: interaction.tool === 'highlighter' ? wb.settings.highlighter.strokeWidth :
-                             interaction.tool === 'eraser' ? wb.settings.eraser.strokeWidth : wb.settings.pen.strokeWidth,
-                tool: interaction.tool as 'pen' | 'highlighter' | 'eraser',
-              }}
-              isAbsolute
-            />
-          )}
+          {/* Live pen/highlighter stroke is rendered imperatively via livePathRef (see JSX below) */}
         </g>
       </svg>
     );
@@ -1303,6 +1316,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     >
       {/* Strokes SVG layer */}
       {renderStrokes}
+
+      {/* Live pen/highlighter stroke — updated imperatively via RAF, bypassing React re-renders */}
+      <svg className="whiteboard-view__strokes-svg" style={{ pointerEvents: 'none' }}>
+        <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
+          <path
+            ref={livePathRef}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+      </svg>
 
       {/* Connectors SVG layer */}
       {renderConnectors}
