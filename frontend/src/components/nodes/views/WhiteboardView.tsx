@@ -263,6 +263,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
           linkId=""
           refType="node"
           title="Add Reference Card"
+          hideUrlMode
           onSave={handleRefCardSave}
           onClose={() => setRefCardPos(null)}
         />
