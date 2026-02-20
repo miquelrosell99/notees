@@ -438,7 +438,7 @@ export function BlockEditor({
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={editorClassName}>
+    <div className={editorClassName} data-editor-id={editorId}>
       <LexicalComposer initialConfig={initialConfig}>
         <RichTextPlugin
           contentEditable={

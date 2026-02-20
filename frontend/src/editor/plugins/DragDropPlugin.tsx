@@ -1,5 +1,9 @@
 /**
- * DragDropPlugin — Lexical plugin for drag & drop via DragCoordinator.
+ * DragDropPlugin — Custom mouse-based drag & drop for blocks.
+ *
+ * Uses mousedown/mousemove/mouseup instead of native HTML5 drag API
+ * to avoid contentEditable interference, ensure drops work in empty
+ * space, and enable cross-editor drags (sidebar ↔ main).
  *
  * Lexical editors never move nodes themselves. They emit drag intents
  * to the DragCoordinator, which delegates to NodeGraphRuntime.
@@ -7,13 +11,6 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import {
-  COMMAND_PRIORITY_CRITICAL,
-  DRAGSTART_COMMAND,
-  DRAGOVER_COMMAND,
-  DROP_COMMAND,
-  DRAGEND_COMMAND,
-} from 'lexical';
 import { getDragCoordinator } from '../../runtime/DragCoordinator';
 import type { DropTarget } from '../../runtime/types';
 
@@ -22,27 +19,85 @@ export interface DragDropPluginProps {
   readOnly?: boolean;
 }
 
+/** Minimum pixels of mouse movement before drag activates */
+const DRAG_THRESHOLD = 5;
+
 /**
  * Given any element inside a block, find the closest `.node-block[data-block-id]` row.
- * This avoids matching the small `.bullet-wrapper[data-block-id]` element.
  */
 function findBlockRow(el: HTMLElement | null): HTMLElement | null {
   if (!el) return null;
   return el.closest('.node-block[data-block-id]') as HTMLElement | null;
 }
 
+/**
+ * Find the closest block row to a Y coordinate within an editor root.
+ * Returns the last block if y is below all blocks. Returns null if no blocks.
+ */
+function findClosestBlockAtY(rootEl: HTMLElement, y: number): { blockEl: HTMLElement; position: 'before' | 'after' } | null {
+  const blocks = rootEl.querySelectorAll<HTMLElement>(':scope > .node-block[data-block-id]');
+  if (blocks.length === 0) return null;
+
+  // Check all top-level blocks (they may be nested in the DOM but are direct children of the editor root)
+  const allBlocks = rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]');
+  if (allBlocks.length === 0) return null;
+
+  // If above all blocks, target first block 'before'
+  const firstRect = allBlocks[0].getBoundingClientRect();
+  if (y < firstRect.top) {
+    return { blockEl: allBlocks[0], position: 'before' };
+  }
+
+  // If below all blocks, target last block 'after'
+  const lastBlock = allBlocks[allBlocks.length - 1];
+  const lastRect = lastBlock.getBoundingClientRect();
+  if (y > lastRect.bottom) {
+    return { blockEl: lastBlock, position: 'after' };
+  }
+
+  // Find the block the cursor is over
+  for (let i = 0; i < allBlocks.length; i++) {
+    const rect = allBlocks[i].getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) {
+      const relativeY = (y - rect.top) / rect.height;
+      return { blockEl: allBlocks[i], position: relativeY < 0.5 ? 'before' : 'after' };
+    }
+  }
+
+  // Between blocks — find the nearest gap
+  let closestBlock = allBlocks[0];
+  let closestDist = Infinity;
+  for (let i = 0; i < allBlocks.length; i++) {
+    const rect = allBlocks[i].getBoundingClientRect();
+    const centerY = rect.top + rect.height / 2;
+    const dist = Math.abs(y - centerY);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closestBlock = allBlocks[i];
+    }
+  }
+  const rect = closestBlock.getBoundingClientRect();
+  return { blockEl: closestBlock, position: y < rect.top + rect.height / 2 ? 'before' : 'after' };
+}
+
 export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const dropIndicatorRef = useRef<HTMLDivElement | null>(null);
-  const isDraggingBlockRef = useRef(false);
+
+  // Mouse drag state
+  const dragStateRef = useRef<{
+    active: boolean;          // True once threshold exceeded
+    pending: boolean;         // Mousedown happened, waiting for threshold
+    startX: number;
+    startY: number;
+    blockId: string;
+    blockEl: HTMLElement;
+    sourceDepth: number;
+  } | null>(null);
 
   // ─── Create/destroy drop indicator ─────────────────────────
 
   useEffect(() => {
-    const rootEl = editor.getRootElement();
-    if (!rootEl) return;
-
-    // Attach indicator to document body for fixed positioning
     const indicator = document.createElement('div');
     indicator.className = 'node-block-drop-indicator';
     indicator.style.display = 'none';
@@ -52,242 +107,211 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     return () => {
       indicator.remove();
     };
-  }, [editor]);
+  }, []);
 
-  // ─── Bridge native drag events to Lexical commands ────────
+  // ─── Suppress native drag on bullets ───────────────────────
 
   useEffect(() => {
     if (readOnly) return;
-
     const rootEl = editor.getRootElement();
     if (!rootEl) return;
 
-    // Listen for native dragstart events on bullet wrappers only
-    const handleNativeDragStart = (event: Event) => {
-      const dragEvent = event as DragEvent;
-      const target = dragEvent.target as HTMLElement;
-
-      // Only handle drags initiated from the bullet wrapper
-      if (!target.closest('.bullet-wrapper[draggable="true"]')) return;
-
-      // Save scroll position of all scrollable ancestors before Lexical/browser
-      // focus logic can cause a scroll jump
-      const scrollPositions: { el: Element; top: number; left: number }[] = [];
-      let ancestor: Element | null = target;
-      while (ancestor) {
-        if (ancestor.scrollTop !== 0 || ancestor.scrollLeft !== 0) {
-          scrollPositions.push({ el: ancestor, top: ancestor.scrollTop, left: ancestor.scrollLeft });
-        }
-        ancestor = ancestor.parentElement;
+    // Prevent the native drag from starting — we handle it with mouse events
+    const suppressNativeDrag = (e: Event) => {
+      const target = (e as DragEvent).target as HTMLElement;
+      if (target.closest('.bullet-wrapper')) {
+        e.preventDefault();
       }
-
-      // Prevent native text/element drag ghost + insertion
-      dragEvent.stopPropagation();
-      editor.dispatchCommand(DRAGSTART_COMMAND, dragEvent);
-
-      // Restore scroll positions after the browser processes the drag start
-      requestAnimationFrame(() => {
-        for (const { el, top, left } of scrollPositions) {
-          el.scrollTop = top;
-          el.scrollLeft = left;
-        }
-      });
     };
 
-    const handleNativeDragOver = (event: Event) => {
-      if (!isDraggingBlockRef.current) return;
-      const dragEvent = event as DragEvent;
-      // Must preventDefault to allow drop
-      dragEvent.preventDefault();
-      dragEvent.stopPropagation();
-      editor.dispatchCommand(DRAGOVER_COMMAND, dragEvent);
-    };
-
-    const handleNativeDrop = (event: Event) => {
-      if (!isDraggingBlockRef.current) return;
-      const dragEvent = event as DragEvent;
-      // Prevent browser from inserting text/plain into contentEditable
-      dragEvent.preventDefault();
-      dragEvent.stopPropagation();
-      editor.dispatchCommand(DROP_COMMAND, dragEvent);
-    };
-
-    const handleNativeDragEnd = (event: Event) => {
-      if (!isDraggingBlockRef.current) return;
-      const dragEvent = event as DragEvent;
-      dragEvent.preventDefault();
-      dragEvent.stopPropagation();
-      editor.dispatchCommand(DRAGEND_COMMAND, dragEvent);
-    };
-
-    rootEl.addEventListener('dragstart', handleNativeDragStart, true);
-    rootEl.addEventListener('dragover', handleNativeDragOver, true);
-    rootEl.addEventListener('drop', handleNativeDrop, true);
-    rootEl.addEventListener('dragend', handleNativeDragEnd, true);
-
+    rootEl.addEventListener('dragstart', suppressNativeDrag, true);
     return () => {
-      rootEl.removeEventListener('dragstart', handleNativeDragStart, true);
-      rootEl.removeEventListener('dragover', handleNativeDragOver, true);
-      rootEl.removeEventListener('drop', handleNativeDrop, true);
-      rootEl.removeEventListener('dragend', handleNativeDragEnd, true);
+      rootEl.removeEventListener('dragstart', suppressNativeDrag, true);
     };
   }, [editor, readOnly]);
 
-  // ─── Drag start ────────────────────────────────────────────
+  // ─── Mouse-based drag system ───────────────────────────────
 
   useEffect(() => {
     if (readOnly) return;
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
 
-    return editor.registerCommand(
-      DRAGSTART_COMMAND,
-      (event: DragEvent) => {
-        const target = event.target as HTMLElement;
-        
-        // Only initiate drag from bullet wrappers
-        if (!target.closest('.bullet-wrapper[draggable="true"]')) return false;
+    const handleMouseDown = (e: MouseEvent) => {
+      // Only start drag from bullet wrappers, left button only
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      const bullet = target.closest('.bullet-wrapper') as HTMLElement | null;
+      if (!bullet) return;
 
-        const blockEl = findBlockRow(target);
-        if (!blockEl) return false;
+      // Don't drag if clicking collapse arrow
+      if (target.closest('.bullet-collapse-arrow')) return;
 
+      const blockEl = findBlockRow(bullet);
+      if (!blockEl) return;
+
+      const blockId = blockEl.getAttribute('data-block-id');
+      if (!blockId) return;
+
+      // Prevent focus/selection changes
+      e.preventDefault();
+      e.stopPropagation();
+
+      const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
+
+      dragStateRef.current = {
+        active: false,
+        pending: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        blockId,
+        blockEl,
+        sourceDepth: depth,
+      };
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const state = dragStateRef.current;
+      if (!state || (!state.pending && !state.active)) return;
+
+      const dx = e.clientX - state.startX;
+      const dy = e.clientY - state.startY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // Activate drag after threshold
+      if (state.pending && dist >= DRAG_THRESHOLD) {
+        state.pending = false;
+        state.active = true;
+
+        // Clear text selection
+        window.getSelection()?.removeAllRanges();
+
+        // Start coordinator
+        const coordinator = getDragCoordinator();
+        coordinator.startDrag({
+          blockId: state.blockId,
+          sourceEditorId: editorId,
+          sourceDepth: state.sourceDepth,
+        });
+
+        // Visual feedback
+        state.blockEl.classList.add('node-block--drag-source');
+        document.body.classList.add('notees-dragging-block');
+      }
+
+      if (!state.active) return;
+
+      // Find drop target — search ALL editors on the page, not just this one
+      const target = e.target as HTMLElement;
+      const blockEl = findBlockRow(target);
+      const coordinator = getDragCoordinator();
+
+      if (blockEl) {
         const blockId = blockEl.getAttribute('data-block-id');
-        if (!blockId) return false;
+        if (blockId && blockId !== state.blockId) {
+          const rect = blockEl.getBoundingClientRect();
+          const relativeY = (e.clientY - rect.top) / rect.height;
+          const position: DropTarget['position'] = relativeY < 0.5 ? 'before' : 'after';
 
-        // Clear any text selection
-        const selection = window.getSelection();
-        if (selection) {
-          selection.removeAllRanges();
+          // Determine which editor this block belongs to
+          const targetEditorRoot = blockEl.closest('[data-editor-id]');
+          const targetEditorId = targetEditorRoot?.getAttribute('data-editor-id') || editorId;
+
+          coordinator.updateTarget({ blockId, position, targetEditorId });
+          showDropIndicator(blockEl, position);
+          return;
+        } else if (blockId === state.blockId) {
+          // Hovering over self — hide indicator
+          coordinator.updateTarget(null);
+          hideDropIndicator();
+          return;
         }
+      }
 
-        isDraggingBlockRef.current = true;
-
-        const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
-        const coordinator = getDragCoordinator();
-        coordinator.startDrag({ blockId, sourceEditorId: editorId, sourceDepth: depth });
-
-        // Set drag data — use a custom MIME type to avoid text insertion
-        if (event.dataTransfer) {
-          event.dataTransfer.setData('application/x-notees-block', JSON.stringify({ blockId }));
-          event.dataTransfer.effectAllowed = 'move';
-          
-          // Create a minimal drag ghost
-          const ghost = document.createElement('div');
-          ghost.style.cssText = 'position:fixed;top:-1000px;left:-1000px;padding:4px 12px;background:var(--color-surface-container);border:1px solid var(--color-outline-variant);border-radius:4px;font-size:12px;opacity:0.9;pointer-events:none;';
-          ghost.textContent = 'Moving block…';
-          document.body.appendChild(ghost);
-          event.dataTransfer.setDragImage(ghost, 0, 0);
-          requestAnimationFrame(() => ghost.remove());
+      // Not over a block — check if we're in an editor's empty space
+      // Find the editor root we might be hovering over
+      const editorContent = target.closest('.notees-editor-content') as HTMLElement | null;
+      if (editorContent) {
+        const result = findClosestBlockAtY(editorContent, e.clientY);
+        if (result) {
+          const closestId = result.blockEl.getAttribute('data-block-id');
+          if (closestId && closestId !== state.blockId) {
+            const targetEditorRoot = result.blockEl.closest('[data-editor-id]');
+            const targetEditorId = targetEditorRoot?.getAttribute('data-editor-id') || editorId;
+            coordinator.updateTarget({ blockId: closestId, position: result.position, targetEditorId });
+            showDropIndicator(result.blockEl, result.position);
+            return;
+          }
         }
+      }
 
-        // Add dragging class to source block and editor root
-        blockEl.classList.add('node-block--drag-source');
-        const editorWrapper = editor.getRootElement()?.closest('.notees-editor');
-        if (editorWrapper) editorWrapper.classList.add('notees-editor--dragging');
-
-        return true;
-      },
-      COMMAND_PRIORITY_CRITICAL,
-    );
-  }, [editor, editorId, readOnly]);
-
-  // ─── Drag over ─────────────────────────────────────────────
-
-  useEffect(() => {
-    return editor.registerCommand(
-      DRAGOVER_COMMAND,
-      (event: DragEvent) => {
-        const coordinator = getDragCoordinator();
-        if (!coordinator.isDragging()) return false;
-
-        const target = event.target as HTMLElement;
-        const blockEl = findBlockRow(target);
-        
-        // If hovering over empty space (below all blocks), target the last block with "after"
-        if (!blockEl) {
-          const rootEl = editor.getRootElement();
-          if (rootEl) {
-            const allBlocks = rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]');
-            const lastBlock = allBlocks.length > 0 ? allBlocks[allBlocks.length - 1] : null;
-            if (lastBlock) {
-              const lastBlockId = lastBlock.getAttribute('data-block-id');
-              const payload = coordinator.getDragPayload();
-              if (lastBlockId && (!payload || payload.blockId !== lastBlockId)) {
-                coordinator.updateTarget({ blockId: lastBlockId, position: 'after', targetEditorId: editorId });
-                showDropIndicator(lastBlock, 'after');
-                return true;
-              }
+      // Also check main scrollable area
+      const mainContent = target.closest('.main-content') as HTMLElement | null;
+      if (mainContent) {
+        const editorRoot = mainContent.querySelector('.notees-editor-content') as HTMLElement | null;
+        if (editorRoot) {
+          const result = findClosestBlockAtY(editorRoot, e.clientY);
+          if (result) {
+            const closestId = result.blockEl.getAttribute('data-block-id');
+            if (closestId && closestId !== state.blockId) {
+              coordinator.updateTarget({ blockId: closestId, position: result.position, targetEditorId: editorId });
+              showDropIndicator(result.blockEl, result.position);
+              return;
             }
           }
-          coordinator.updateTarget(null);
-          hideDropIndicator();
-          return true;
         }
+      }
 
-        const blockId = blockEl.getAttribute('data-block-id');
-        if (!blockId) return true;
+      coordinator.updateTarget(null);
+      hideDropIndicator();
+    };
 
-        // Don't allow dropping on self
-        const payload = coordinator.getDragPayload();
-        if (payload && payload.blockId === blockId) {
-          coordinator.updateTarget(null);
-          hideDropIndicator();
-          return true;
-        }
+    const handleMouseUp = (_e: MouseEvent) => {
+      const state = dragStateRef.current;
+      if (!state) return;
 
-        // Determine drop position based on mouse Y within the block content row
-        const rect = blockEl.getBoundingClientRect();
-        const y = event.clientY;
-        const relativeY = (y - rect.top) / rect.height;
-
-        // Simple top/bottom split — no child nesting zone
-        const position: DropTarget['position'] = relativeY < 0.5 ? 'before' : 'after';
-
-        coordinator.updateTarget({ blockId, position, targetEditorId: editorId });
-        showDropIndicator(blockEl, position);
-
-        return true;
-      },
-      COMMAND_PRIORITY_CRITICAL,
-    );
-  }, [editor, editorId]);
-
-  // ─── Drop ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    return editor.registerCommand(
-      DROP_COMMAND,
-      (event: DragEvent) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
+      if (state.active) {
         const coordinator = getDragCoordinator();
-        if (!coordinator.isDragging()) return false;
-
         coordinator.completeDrag();
         hideDropIndicator();
-        cleanupDragSource();
-        isDraggingBlockRef.current = false;
-        return true;
-      },
-      COMMAND_PRIORITY_CRITICAL,
-    );
-  }, [editor]);
 
-  // ─── Drag end ──────────────────────────────────────────────
+        // Clean up visual state
+        state.blockEl.classList.remove('node-block--drag-source');
+        document.body.classList.remove('notees-dragging-block');
+      }
 
-  useEffect(() => {
-    return editor.registerCommand(
-      DRAGEND_COMMAND,
-      () => {
-        const coordinator = getDragCoordinator();
-        coordinator.cancelDrag();
-        hideDropIndicator();
-        cleanupDragSource();
-        isDraggingBlockRef.current = false;
-        return true;
-      },
-      COMMAND_PRIORITY_CRITICAL,
-    );
-  }, [editor]);
+      dragStateRef.current = null;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const state = dragStateRef.current;
+        if (!state) return;
+        if (state.active) {
+          const coordinator = getDragCoordinator();
+          coordinator.cancelDrag();
+          hideDropIndicator();
+          state.blockEl.classList.remove('node-block--drag-source');
+          document.body.classList.remove('notees-dragging-block');
+        }
+        dragStateRef.current = null;
+      }
+    };
+
+    // Use capture on rootEl for mousedown to catch bullet clicks before Lexical
+    rootEl.addEventListener('mousedown', handleMouseDown, true);
+    // Use document-level for move/up so the drag works across editor boundaries
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      rootEl.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [editor, editorId, readOnly]);
 
   // ─── Drop indicator ───────────────────────────────────────
 
@@ -296,25 +320,18 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     if (!indicator) return;
 
     const rect = blockEl.getBoundingClientRect();
-    // Reset styles
-    indicator.style.background = '';
-    indicator.className = 'node-block-drop-indicator';
+    indicator.className = 'node-block-drop-indicator node-block-drop-indicator--line';
 
-    // Account for block depth indent for the left edge
     const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
-    const indentPx = depth * 24; // Approximate indent per level
+    const indentPx = depth * 24;
 
     indicator.style.display = 'block';
     indicator.style.left = `${rect.left + indentPx}px`;
     indicator.style.width = `${rect.width - indentPx}px`;
     indicator.style.height = '2px';
-    indicator.classList.add('node-block-drop-indicator--line');
-
-    if (position === 'before') {
-      indicator.style.top = `${rect.top - 1}px`;
-    } else {
-      indicator.style.top = `${rect.bottom - 1}px`;
-    }
+    indicator.style.top = position === 'before'
+      ? `${rect.top - 1}px`
+      : `${rect.bottom - 1}px`;
   }, []);
 
   const hideDropIndicator = useCallback(() => {
@@ -323,17 +340,6 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       indicator.style.display = 'none';
     }
   }, []);
-
-  // Clean up drag source styling
-  const cleanupDragSource = useCallback(() => {
-    const rootEl = editor.getRootElement();
-    if (!rootEl) return;
-    rootEl.querySelectorAll('.node-block--drag-source').forEach(el => {
-      el.classList.remove('node-block--drag-source');
-    });
-    const editorWrapper = rootEl.closest('.notees-editor');
-    if (editorWrapper) editorWrapper.classList.remove('notees-editor--dragging');
-  }, [editor]);
 
   return null;
 }
