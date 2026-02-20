@@ -199,52 +199,13 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     
     ctx.clearRect(0, 0, w, h);
 
-    // ── Background dot grid ──────────────────────────────────────────────────
-    // Grid spacing is chosen in powers-of-2 steps so that the screen-space
-    // distance between dots stays within [DOT_SCREEN_MIN, DOT_SCREEN_MAX].
-    // Dots are drawn in screen coordinates but anchored to the world origin
-    // so they pan (but do not zoom) with the viewport.
-    {
-      const BASE_GRID     = 64;   // world-space base grid (simulation units)
-      const DOT_SCREEN_MIN = 28;  // minimum comfortable screen-px spacing
-      const DOT_SCREEN_MAX = 80;  // maximum comfortable screen-px spacing
-      const DOT_RADIUS    = 1.2;  // fixed screen-px dot radius
-
-      // Find the power-of-2 multiplier that keeps spacing in range
-      let multiplier = 1;
-      let screenSpacing = BASE_GRID * multiplier * t.scale;
-      while (screenSpacing < DOT_SCREEN_MIN && multiplier < 1024) {
-        multiplier *= 2;
-        screenSpacing = BASE_GRID * multiplier * t.scale;
-      }
-      while (screenSpacing > DOT_SCREEN_MAX && multiplier > 1 / 64) {
-        multiplier /= 2;
-        screenSpacing = BASE_GRID * multiplier * t.scale;
-      }
-
-      // Anchor dots to world origin — scroll with the viewport
-      const offsetX = ((t.x % screenSpacing) + screenSpacing) % screenSpacing;
-      const offsetY = ((t.y % screenSpacing) + screenSpacing) % screenSpacing;
-
-      const { outlineColor: dotColor } = cssVarsRef.current;
-      ctx.fillStyle = hexToRgba(dotColor, 0.28);
-      for (let sx = offsetX; sx <= w + DOT_RADIUS; sx += screenSpacing) {
-        for (let sy = offsetY; sy <= h + DOT_RADIUS; sy += screenSpacing) {
-          ctx.beginPath();
-          ctx.arc(sx, sy, DOT_RADIUS, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────────
-
     ctx.save();
     ctx.translate(t.x, t.y);
     ctx.scale(t.scale, t.scale);
     
     const { textColor, accentColor, dimColor, outlineColor, warningColor } = cssVarsRef.current;
     const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass, maxContentSize } = frameDataRef.current;
-    
+
     // Build link direction map
     const linkDirections = linkDirCacheRef.current;
     linkDirections.clear();
