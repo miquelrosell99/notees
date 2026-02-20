@@ -43,6 +43,18 @@ function resolveCssVar(value: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || value;
 }
 
+/** Returns true when an element is effectively invisible on the main canvas. */
+function isDegenerate(el: WhiteboardElement): boolean {
+  // Zero opacity → invisible
+  if ((el.opacity ?? 1) <= 0) return true;
+  // Strokes can have meaningful length even with tiny bounding boxes, skip check
+  if (el.type === 'stroke') return (el as WhiteboardStrokeElement).points.length < 2;
+  // Connectors / lines rendered as paths — only degenerate when truly zero-size
+  if (el.type === 'connector' || el.type === 'line') return el.width === 0 && el.height === 0;
+  // All other elements: zero or near-zero area → invisible on the real canvas
+  return el.width < 1 && el.height < 1;
+}
+
 /** Draw all whiteboard elements to a canvas at the minimap's low resolution. */
 function drawMinimapCanvas(
   ctx: CanvasRenderingContext2D,
@@ -61,7 +73,7 @@ function drawMinimapCanvas(
 
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-  const sorted = [...elements].sort((a, b) => a.zIndex - b.zIndex);
+  const sorted = [...elements].filter(el => !isDegenerate(el)).sort((a, b) => a.zIndex - b.zIndex);
 
   for (const el of sorted) {
     const x = toX(el.x);
@@ -279,15 +291,17 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
   // Compute content bounds — union of element bounds AND viewport visible area
   // so the minimap always includes where the user is looking.
   const contentBounds = useMemo((): Bounds => {
-    // Element bounds
+    // Element bounds — skip degenerate (invisible) elements so they don't
+    // inflate the bounding box and break minimap ↔ canvas correspondence.
+    const visible = data.elements.filter(el => !isDegenerate(el));
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const el of data.elements) {
+    for (const el of visible) {
       minX = Math.min(minX, el.x);
       minY = Math.min(minY, el.y);
       maxX = Math.max(maxX, el.x + el.width);
       maxY = Math.max(maxY, el.y + el.height);
     }
-    if (data.elements.length === 0) {
+    if (visible.length === 0) {
       minX = -500; minY = -300; maxX = 500; maxY = 300;
     }
 
