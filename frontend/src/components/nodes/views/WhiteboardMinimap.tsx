@@ -1,8 +1,13 @@
 /**
  * WhiteboardMinimap — Small overview of the entire whiteboard showing
  * element positions and the current viewport.
+ *
+ * The map always represents the full elements bounding box.
+ * The viewport rectangle reflects the currently visible canvas portion.
+ * Scrolling on the minimap zooms the viewport centered on the pointer's
+ * world position.
  */
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import type { Bounds } from '@/types/whiteboard';
 import './WhiteboardView.css';
@@ -15,10 +20,33 @@ const MINIMAP_WIDTH = 160;
 const MINIMAP_HEIGHT = 100;
 const MINIMAP_PADDING = 8;
 const DRAG_THRESHOLD = 4;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 5;
 
 export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
   const { data } = wb;
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track the actual pixel size of the whiteboard canvas container
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const canvas = document.querySelector('.whiteboard-view__canvas');
+    if (!canvas) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setCanvasSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    ro.observe(canvas);
+    // Capture initial size immediately
+    const rect = canvas.getBoundingClientRect();
+    setCanvasSize({ width: rect.width, height: rect.height });
+    return () => ro.disconnect();
+  }, []);
 
   // Tracks pointer state for click-vs-drag distinction
   const dragState = useRef({
@@ -65,35 +93,46 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     y: (wy - contentBounds.y) * scale + MINIMAP_PADDING,
   }), [contentBounds, scale]);
 
-  // Viewport rectangle in minimap coords
+  // Convert minimap coord to world coord
+  const minimapToWorld = useCallback((mx: number, my: number) => ({
+    x: (mx - MINIMAP_PADDING) / scale + contentBounds.x,
+    y: (my - MINIMAP_PADDING) / scale + contentBounds.y,
+  }), [contentBounds, scale]);
+
+  // Effective canvas size (fallback if ResizeObserver hasn't fired yet)
+  const effectiveCanvas = useMemo(() => ({
+    width:  canvasSize.width  > 0 ? canvasSize.width  : window.innerWidth  - 240,
+    height: canvasSize.height > 0 ? canvasSize.height : window.innerHeight - 60,
+  }), [canvasSize]);
+
+  // Viewport rectangle in minimap coords — size adapts to the currently visible portion
   const viewportRect = useMemo(() => {
-    const canvasW = window.innerWidth - 300;
-    const canvasH = window.innerHeight - 100;
-    const worldX = -data.viewport.x / data.viewport.zoom;
-    const worldY = -data.viewport.y / data.viewport.zoom;
-    const worldW = canvasW / data.viewport.zoom;
-    const worldH = canvasH / data.viewport.zoom;
+    const { width: canvasW, height: canvasH } = effectiveCanvas;
+    const vp = data.viewport;
+    const worldX = -vp.x / vp.zoom;
+    const worldY = -vp.y / vp.zoom;
+    const worldW = canvasW / vp.zoom;
+    const worldH = canvasH / vp.zoom;
     const topLeft = worldToMinimap(worldX, worldY);
     return {
-      left: topLeft.x,
-      top: topLeft.y,
-      width: worldW * scale,
+      left:   topLeft.x,
+      top:    topLeft.y,
+      width:  worldW * scale,
       height: worldH * scale,
     };
-  }, [data.viewport, worldToMinimap, scale]);
+  }, [data.viewport, worldToMinimap, scale, effectiveCanvas]);
 
-  /** Center viewport on a minimap pixel position */
+  /** Pan the viewport so that a world point is centered in the canvas. */
   const centerOnMinimapPos = useCallback((mx: number, my: number) => {
-    const worldX = (mx - MINIMAP_PADDING) / scale + contentBounds.x;
-    const worldY = (my - MINIMAP_PADDING) / scale + contentBounds.y;
-    const canvasW = window.innerWidth - 300;
-    const canvasH = window.innerHeight - 100;
+    const { x: worldX, y: worldY } = minimapToWorld(mx, my);
+    const { width: canvasW, height: canvasH } = effectiveCanvas;
+    const vp = data.viewport;
     wb.setViewport({
-      x: -worldX * data.viewport.zoom + canvasW / 2,
-      y: -worldY * data.viewport.zoom + canvasH / 2,
-      zoom: data.viewport.zoom,
+      x: -worldX * vp.zoom + canvasW / 2,
+      y: -worldY * vp.zoom + canvasH / 2,
+      zoom: vp.zoom,
     });
-  }, [scale, contentBounds, data.viewport, wb]);
+  }, [minimapToWorld, data.viewport, wb, effectiveCanvas]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -131,13 +170,11 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     ds.lastX = mx;
     ds.lastY = my;
 
-    const worldDx = dmx / scale;
-    const worldDy = dmy / scale;
     const vp = wb.data.viewport;
     wb.setViewport({
       ...vp,
-      x: vp.x - worldDx * vp.zoom,
-      y: vp.y - worldDy * vp.zoom,
+      x: vp.x - (dmx / scale) * vp.zoom,
+      y: vp.y - (dmy / scale) * vp.zoom,
     });
   }, [scale, wb]);
 
@@ -148,12 +185,40 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
 
     if (!ds.hasDragged) {
-      // Pure click → center viewport
+      // Pure click → center viewport on clicked world position
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       centerOnMinimapPos(e.clientX - rect.left, e.clientY - rect.top);
     }
   }, [centerOnMinimapPos]);
+
+  /**
+   * Zoom the viewport centered on the world point under the minimap pointer.
+   *
+   * Derivation: viewport maps world → screen as: screen = world * zoom + vp
+   * To keep the hovered world point at the same screen pos after zoom change:
+   *   newVp = vp + worldPos * (oldZoom - newZoom)
+   */
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const { x: worldX, y: worldY } = minimapToWorld(mx, my);
+
+    const vp = wb.data.viewport;
+    const zoomFactor = Math.pow(0.999, e.deltaY);
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, vp.zoom * zoomFactor));
+
+    wb.setViewport({
+      x: vp.x + worldX * (vp.zoom - newZoom),
+      y: vp.y + worldY * (vp.zoom - newZoom),
+      zoom: newZoom,
+    });
+  }, [minimapToWorld, wb]);
 
   if (data.elements.length === 0) return null;
 
@@ -165,6 +230,7 @@ export const WhiteboardMinimap: React.FC<WhiteboardMinimapProps> = ({ wb }) => {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onWheel={handleWheel}
     >
       {/* Element dots */}
       {data.elements.map(el => {
