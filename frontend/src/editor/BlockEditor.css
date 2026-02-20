@@ -431,12 +431,6 @@
 /* ─── Selection state ──────────────────────────────────────────── */
 
 /* Background handled by ::after pseudo on selection root — see above */
-.node-block--selected,
-.node-block.selected {
-  /* No direct background — selection card overlay handles it */
-}
-
-/* No hover background on the entire block - only on bullet */
 
 /* ─── Node block variants ──────────────────────────────────────── */
 
@@ -896,7 +890,7 @@ body.notees-dragging-block .bullet-collapse-arrow:hover {
 
 body.notees-dragging-block,
 body.notees-dragging-block * {
-  cursor: none !important;
+  cursor: grabbing !important;
 }
 
 /* ─── Selection box ────────────────────────────────────────────── */
