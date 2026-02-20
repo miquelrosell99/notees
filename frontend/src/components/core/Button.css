@@ -124,7 +124,12 @@
   color: var(--color-on-surface);
 }
 
-.btn--default.btn--active,
+.btn--default.btn--active {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
 .btn--default:active:not(:disabled) {
   background: var(--color-surface-container-highest);
   border-color: var(--color-outline);
@@ -145,7 +150,13 @@
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
-.btn--primary.btn--active,
+.btn--primary.btn--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-container);
+}
+
 .btn--primary:active:not(:disabled) {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -166,7 +177,12 @@
   color: var(--color-on-surface);
 }
 
-.btn--ghost.btn--active,
+.btn--ghost.btn--active {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
 .btn--ghost:active:not(:disabled) {
   background: var(--color-surface-container-high);
   border-color: var(--color-outline-variant);
@@ -184,10 +200,30 @@
   background: var(--color-error-container);
 }
 
-.btn--danger.btn--active,
+.btn--danger.btn--active {
+  background: var(--color-error-container);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
 .btn--danger:active:not(:disabled) {
   background: var(--color-error-container);
   color: var(--color-error);
+}
+
+/* Active toggle state hover — keep the active appearance */
+.btn--default.btn--active:hover:not(:disabled) {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+  filter: brightness(0.95);
+}
+
+.btn--ghost.btn--active:hover:not(:disabled) {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+  filter: brightness(0.95);
 }
 
 /* ==================== States ==================== */
