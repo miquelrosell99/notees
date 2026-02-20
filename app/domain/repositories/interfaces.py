@@ -332,7 +332,7 @@ class PropertyRepository(ABC):
     # ============== Selection Lines (Options) ==============
     
     @abstractmethod
-    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None) -> PropertySelectionLine:
+    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None, sequence: int = 0) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         pass
     
@@ -343,7 +343,7 @@ class PropertyRepository(ABC):
     
     @abstractmethod
     async def update_selection_line(self, line_id: int, name: Optional[str] = None,
-                                     icon: Optional[str] = None) -> Optional[PropertySelectionLine]:
+                                     icon: Optional[str] = None, order: Optional[int] = None) -> Optional[PropertySelectionLine]:
         """Update a selection option."""
         pass
     
