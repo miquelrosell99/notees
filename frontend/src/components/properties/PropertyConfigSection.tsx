@@ -76,7 +76,6 @@ export function PropertyConfigSection({
       id: String(opt.id),
       name: opt.name,
       icon: opt.icon || undefined,
-      color: opt.color,
     })),
     [property.options]
   );
@@ -90,7 +89,6 @@ export function PropertyConfigSection({
         property.id,
         newOptionName.trim(),
         newOptionIcon || null,
-        null, // color
         property.options.length // sequence
       );
       
@@ -145,23 +143,6 @@ export function PropertyConfigSection({
     }
   }, [property, onUpdate]);
 
-  const handleUpdateSelectionOptionColor = useCallback(async (id: string, color: string | null) => {
-    try {
-      await updateSelectionOption(property.id, Number(id), { color });
-      const updatedProperty: Property = {
-        ...property,
-        options: property.options.map(o =>
-          String(o.id) === id ? { ...o, color } : o
-        ),
-      };
-      onUpdate(updatedProperty);
-      setError(null);
-    } catch (err) {
-      setError('Failed to update option colour');
-      console.error(err);
-    }
-  }, [property, onUpdate]);
-
   const handleReorderSelectionOptions = useCallback(async (reordered: SelectionOptionWithId[]) => {
     try {
       await reorderSelectionOptions(
@@ -174,7 +155,6 @@ export function PropertyConfigSection({
           id: Number(opt.id),
           name: opt.name,
           icon: opt.icon ?? null,
-          color: null,
           sequence: index,
         })),
       };
@@ -341,7 +321,6 @@ export function PropertyConfigSection({
         onAddOption={handleAddSelectionOption}
         onRemoveOption={handleRemoveSelectionOption}
         onOptionIconChange={handleUpdateSelectionOptionIcon}
-        onOptionColorChange={handleUpdateSelectionOptionColor}
         onReorderOptions={(fromIndex, toIndex) => {
           const reordered = [...selectionOptions];
           const [moved] = reordered.splice(fromIndex, 1);

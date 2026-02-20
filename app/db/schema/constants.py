@@ -165,14 +165,14 @@ SYSTEM_PROPERTY_UUIDS = {
     "task_priority": "00000000-0000-0000-0003-000000000004",
 }
 
-# Task status options with their icons
+# Task status options with their icons (icon field may be JSON with embedded color)
 TASK_STATUS_OPTIONS = [
-    {"name": "Backlog", "icon": "mdi:circle-outline"},
-    {"name": "Pending", "icon": "mdi:circle-half-full"},
-    {"name": "Doing", "icon": "mdi:circle-slice-4"},
-    {"name": "Reviewing", "icon": "mdi:circle-slice-6"},
-    {"name": "Done", "icon": "mdi:check-circle"},
-    {"name": "Cancelled", "icon": "mdi:close-circle"},
+    {"name": "Backlog",    "icon": "mdi:dots-circle"},
+    {"name": "Pending",    "icon": "mdi:circle-outline"},
+    {"name": "Doing",      "icon": '{"icon":"mdi:circle-slice-4","color":"var(--color-preset-yellow)"}'},
+    {"name": "Reviewing",  "icon": '{"icon":"mdi:help-circle-outline","color":"var(--color-preset-blue)"}'},
+    {"name": "Done",       "icon": '{"icon":"mdi:check-circle","color":"var(--color-preset-green)"}'},
+    {"name": "Cancelled",  "icon": '{"icon":"mdi:close-circle","color":"var(--color-preset-red)"}'},
 ]
 
 # Task priority options with their icons  

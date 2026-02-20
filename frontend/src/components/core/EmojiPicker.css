@@ -260,19 +260,7 @@
   font-size: 18px;
 }
 
-/* Colour dot indicator on the trigger button */
-.emoji-trigger-color-dot {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.7);
-  pointer-events: none;
-}
-
-/* Make trigger relative so dot can be positioned */
+/* Make trigger relative */
 .emoji-picker-trigger {
   position: relative;
 }
