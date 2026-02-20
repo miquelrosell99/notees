@@ -67,6 +67,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     startedOnEmpty: false,
     isEmptyPanning: false,
     lastPanPos: { x: 0, y: 0 } as Point,
+    lastCanvasPos: { x: 0, y: 0 } as Point,
     shiftHeld: false,
   });
 
@@ -281,6 +282,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (e.pointerId !== state.pointerId && state.isDown) return;
 
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
+    state.lastCanvasPos = canvasPos;
 
     // Update hover
     if (!state.isDown) {
@@ -689,6 +691,40 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
 
+  // Helper: recompute shape-creation selectionBox from last known canvas pos + shift state
+  const recomputeShapePreview = useCallback((isShift: boolean) => {
+    const state = pointerState.current;
+    if (!state.isDown || !state.hasDragged) return;
+    const tool = interaction.tool;
+    if (!['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool)) return;
+    const start = interaction.dragStart;
+    if (!start) return;
+
+    state.shiftHeld = isShift;
+    setShiftConstraint(isShift);
+
+    let endX = state.lastCanvasPos.x;
+    let endY = state.lastCanvasPos.y;
+
+    if (isShift && (tool === 'rectangle' || tool === 'ellipse')) {
+      const rawW = Math.abs(endX - start.x);
+      const rawH = Math.abs(endY - start.y);
+      const size = Math.min(rawW, rawH);
+      endX = start.x + Math.sign(endX - start.x || 1) * size;
+      endY = start.y + Math.sign(endY - start.y || 1) * size;
+    }
+
+    setInteraction(prev => ({
+      ...prev,
+      selectionBox: {
+        x: Math.min(start.x, endX),
+        y: Math.min(start.y, endY),
+        width: Math.abs(endX - start.x),
+        height: Math.abs(endY - start.y),
+      },
+    }));
+  }, [interaction.tool, interaction.dragStart, setInteraction]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept if editing text
@@ -774,12 +810,23 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             wb.zoomToFit();
           }
           break;
+        case 'Shift':
+          recomputeShapePreview(true);
+          break;
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') recomputeShapePreview(false);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingTextId, interaction, data.elements, viewport, wb]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [editingTextId, interaction, data.elements, viewport, wb, recomputeShapePreview]);
 
   // ─── Sorted elements ─────────────────────────────────────────────
 
