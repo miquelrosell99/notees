@@ -507,6 +507,25 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
     }
   }
 
+  // ── Fallback: raw block map format ─────────────────────────
+  // Logseq sometimes exports a bare block map (e.g. copied from the DB
+  // inspector) that looks like:
+  //   {:block/uuid #uuid "..." :block/title "..." :block/name "..." ...}
+  // It has no :pages-and-blocks key. We treat it as a single page to import.
+  if (pages.length === 0 && !detectedExportType) {
+    const rawUuidTagged = mapGet(edn, 'block/uuid');
+    const rawTitle = asString(mapGet(edn, 'block/title')) ?? asString(mapGet(edn, 'block/name'));
+    if (rawUuidTagged instanceof EdnTagged && rawTitle) {
+      const rawUuid = String(rawUuidTagged.value);
+      detectedExportType = 'page';
+      pages.push({
+        title: rawTitle,
+        uuid: rawUuid,
+        blocks: [],
+      });
+    }
+  }
+
   return {
     pages,
     properties,
