@@ -124,7 +124,7 @@ export function NodeCollectionToolbar({
   });
   
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
-  const showGroupByButton = showGroupBy && viewMode === 'list';
+  const showGroupByButton = showGroupBy && (viewMode === 'list' || viewMode === 'card');
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
   const showCardSizeSelector = viewMode === 'card';

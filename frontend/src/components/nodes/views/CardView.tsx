@@ -34,6 +34,7 @@ import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { mdiPlus } from '@mdi/js';
 import { sortBySequence } from '@/utils/nodeSort';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 import './CardView.css';
 
@@ -226,7 +227,7 @@ export function CardView({
                 {group.page ? (
                   <>
                     {group.page.icon && <span className="node-card-view__kanban-icon">{group.page.icon}</span>}
-                    <span className="node-card-view__kanban-title">{group.page.name || 'Untitled'}</span>
+                    <span className="node-card-view__kanban-title">{nodeNameToText(group.page.name) || 'Untitled'}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
                 ) : (
