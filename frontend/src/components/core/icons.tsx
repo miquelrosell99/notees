@@ -440,12 +440,15 @@ export function NodeIcon({
  * Accepts formats: "mdi-calendar-today", "mdiCalendarToday", "calendar-today", "calendarToday"
  */
 function getMdiPath(iconName: string): string | null {
-  // Normalize: remove "mdi-" prefix, convert kebab-case to camelCase
+  // Normalize: remove "mdi-", "mdi:", or "mdi" prefix, convert kebab-case to camelCase
   let normalized = iconName
-    .replace(/^mdi-?/i, '')  // Remove mdi- or mdi prefix
+    .replace(/^mdi[:_-]/i, '')  // Remove mdi-, mdi:, mdi_ prefix
+    .replace(/^mdi(?=[A-Z])/i, '')  // Remove bare mdi prefix before CamelCase
+    .replace(/^mdi$/i, '')  // Remove bare mdi
     .replace(/-([a-z])/g, (_, c) => c.toUpperCase());  // kebab to camelCase
   
-  // Ensure first letter is lowercase, then prepend "mdi"
+  // Ensure first letter is uppercase, then prepend "mdi"
+  if (!normalized) return null;
   normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
   
   // Look up in the mdiIcons object

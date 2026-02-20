@@ -7,6 +7,7 @@
 import { useCallback } from 'react';
 import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
+import { NodeIcon } from '../core/icons';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
 import { TextField } from '../core/TextField';
 import { SelectionButton } from '../core/SelectionButton';
@@ -217,7 +218,7 @@ export function PropertyForm({
             <ListSortable
               items={selectionOptions}
               onReorder={onReorderOptions}
-              renderIcon={(opt) => opt.icon || ''}
+              renderIcon={(opt) => opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : null}
               renderText={(opt) => opt.name}
               renderActions={(opt) => [
                 <Button
