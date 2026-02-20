@@ -27,7 +27,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import { updateNodeInTreeImmutable } from '@/utils/nodeTree';
+import { updateNodeInTreeImmutable, removeNodeFromTreeImmutable, findNodeInRootTree } from '@/utils/nodeTree';
 import { nodeKeys } from './queryKeys';
 import type { Node, NodeUpdate } from '@/types/api';
 
@@ -138,14 +138,35 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     // Update query cache optimistically for all affected nodes
     // This ensures subsequent mutations (like delete) see the correct structure
     if (cacheUpdates.length > 0) {
-      // Update all detail queries that might contain these nodes
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.details() },
-        (oldNode) => {
-          if (!oldNode || !oldNode.children) return oldNode;
-          
-          let updated = oldNode;
-          for (const update of cacheUpdates) {
+      // Separate updates into in-place updates (sequence only or same parent)
+      // and cross-parent moves (parent_id changed).
+      // Cross-parent moves must REMOVE the node from its old tree position;
+      // just updating parent_id in-place leaves the node structurally in the
+      // old parent's children array, which causes the editor to re-sync stale
+      // data and overwrite the runtime's correct state.
+
+      const updateCache = (oldNode: Node | undefined) => {
+        if (!oldNode || !oldNode.children) return oldNode;
+
+        let updated = oldNode;
+        for (const update of cacheUpdates) {
+          // Check if this node exists in the tree and whether its parent changed
+          const existing = findNodeInRootTree(updated, update.serverId);
+          if (!existing) continue; // Not in this cache entry
+
+          const parentChanged = existing.parent_id !== update.parent_id;
+          if (parentChanged) {
+            // Cross-parent move: remove from old position entirely.
+            // The destination editor will display it from the runtime.
+            const newChildren = removeNodeFromTreeImmutable(
+              updated.children || [],
+              update.serverId,
+            );
+            if (newChildren !== updated.children) {
+              updated = { ...updated, children: newChildren };
+            }
+          } else {
+            // Same parent — just update sequence in-place
             const newChildren = updateNodeInTreeImmutable(
               updated.children || [],
               update.serverId,
@@ -155,31 +176,21 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
               updated = { ...updated, children: newChildren };
             }
           }
-          
-          return updated;
         }
+
+        return updated;
+      };
+
+      // Update all detail queries that might contain these nodes
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.details() },
+        updateCache,
       );
       
       // Also update page-content queries
       queryClient.setQueriesData<Node>(
         { queryKey: ['nodes', 'page-content'] },
-        (oldNode) => {
-          if (!oldNode || !oldNode.children) return oldNode;
-          
-          let updated = oldNode;
-          for (const update of cacheUpdates) {
-            const newChildren = updateNodeInTreeImmutable(
-              updated.children || [],
-              update.serverId,
-              { parent_id: update.parent_id, sequence: update.sequence }
-            );
-            if (newChildren !== updated.children) {
-              updated = { ...updated, children: newChildren };
-            }
-          }
-          
-          return updated;
-        }
+        updateCache,
       );
     }
 
