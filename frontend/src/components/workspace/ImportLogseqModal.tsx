@@ -416,7 +416,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 }
                 setImportStatus(`Creating blocks for journal: ${page.journal}`);
                 await createBlocksRecursively(
-                  page.blocks, dayNode.id, startSeq, uuidMap, classIdMap, contentQueue, p3,
+                  page.blocks, dayNode.id, startSeq, uuidMap, classIdMap, contentQueue, p3, override,
                 );
               }
             } catch (e) {
@@ -469,7 +469,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
               setImportStatus(`Creating blocks for: ${page.title}`);
               await createBlocksRecursively(
-                page.blocks, existingPage.id, 0, uuidMap, classIdMap, contentQueue, p3,
+                page.blocks, existingPage.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
               );
             }
             continue;
@@ -489,7 +489,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           if (page.blocks.length > 0) {
             setImportStatus(`Creating blocks for: ${page.title}`);
             await createBlocksRecursively(
-              page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue, p3,
+              page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
             );
           }
         } catch (e) {
@@ -526,7 +526,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             const parentNode = await getNode(parentId, { include_children: true });
             const startSeq = parentNode.children?.length ?? 0;
             await createBlocksRecursively(
-              parsed.standaloneBlocks, parentId, startSeq, uuidMap, classIdMap, contentQueue, p3,
+              parsed.standaloneBlocks, parentId, startSeq, uuidMap, classIdMap, contentQueue, p3, override,
             );
           } catch (e) {
             p3.failed++;
@@ -786,6 +786,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     classIdMap: Map<string, number>,
     contentQueue: Array<{ id: number; title: string }>,
     phase: PhaseResult,
+    override: boolean,
   ) => {
     if (blocks.length === 0) return;
 
@@ -843,7 +844,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
               uuidMap.set(block.uuid, { id: existing.id, uuid: existing.uuid });
               if (block.title) {
-                contentQueue.push({ id: existing.id, title: block.title });
+                if (override) {
+                  // Override mode: always replace content with the import version
+                  contentQueue.push({ id: existing.id, title: block.title });
+                } else {
+                  // Additive mode: keep original content if it differs from the import
+                  const existingText = nodeNameToText(existing.name);
+                  if (existingText === block.title) {
+                    contentQueue.push({ id: existing.id, title: block.title });
+                  }
+                  // else: content differs → keep original, don't push to contentQueue
+                }
               }
               if (block.children && block.children.length > 0) {
                 childWork.push({ block, parentNodeId: existing.id });
@@ -868,7 +879,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     // Recursively create children (each group is batched too)
     for (const { block, parentNodeId } of childWork) {
       await createBlocksRecursively(
-        block.children!, parentNodeId, 0, uuidMap, classIdMap, contentQueue, phase,
+        block.children!, parentNodeId, 0, uuidMap, classIdMap, contentQueue, phase, override,
       );
     }
   };
