@@ -301,6 +301,8 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             />
           ))}
 
+          <ToolbarDivider />
+
           {/* Card (block vs reference) and Image */}
           <ButtonWithPanel
             icon={mdiCardOutline}
