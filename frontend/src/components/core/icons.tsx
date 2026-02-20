@@ -454,10 +454,10 @@ export function NodeIcon({
   // Fall back to type-based defaults
   // (Date pages now inherit icons from their type definitions)
   if (isPage) {
-    return <PageIcon size={size} className={className} />;
+    return <PageIcon size={size} className={className} color={color || undefined} />;
   }
-  
-  return <BulletIcon size={size} className={className} />;
+
+  return <BulletIcon size={size} className={className} color={color || undefined} />;
 }
 
 /**
