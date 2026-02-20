@@ -451,6 +451,9 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
         // Position ghost at the final gap center — blocks animate apart around it
         ghost.style.top = `${anchor.y}px`;
+
+        // Open drop-spacing gap on the target block
+        applyDropSpacing(anchor);
       } else {
         coordinator.updateTarget(null);
         positionGhostFloat(ghost, cx, cy);
