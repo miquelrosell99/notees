@@ -31,10 +31,11 @@ const DRAG_THRESHOLD = 4;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 
-// Canvas renders at very low resolution → displayed large → chunky blob-of-pixels look
-const CANVAS_W = 20;
-const CANVAS_H = 12;
-const CANVAS_PADDING = 1;
+// Canvas renders at low resolution → displayed large → chunky pixel-art look.
+// Higher values give clearer colours; lower values give chunkier pixels.
+const CANVAS_W = 80;
+const CANVAS_H = 50;
+const CANVAS_PADDING = 2;
 
 /** Resolve a CSS variable string to a hex/rgb color. */
 function resolveCssVar(value: string): string {
@@ -78,8 +79,8 @@ function drawMinimapCanvas(
   for (const el of sorted) {
     const x = toX(el.x);
     const y = toY(el.y);
-    const w = Math.max(1, toW(el.width));
-    const h = Math.max(1, toH(el.height));
+    const w = Math.max(2, toW(el.width));
+    const h = Math.max(2, toH(el.height));
 
     ctx.save();
     ctx.globalAlpha = el.opacity ?? 1;
@@ -87,7 +88,7 @@ function drawMinimapCanvas(
     if (el.type === 'card') {
       ctx.fillStyle = el.color ? resolveCssVar(el.color) : resolveCssVar('var(--color-surface-container)');
       ctx.strokeStyle = resolveCssVar('var(--color-outline-variant)');
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       const r = Math.min(2, w / 4, h / 4);
       ctx.roundRect(x, y, w, h, r);
@@ -98,7 +99,7 @@ function drawMinimapCanvas(
       const shape = el as WhiteboardShapeElement;
       ctx.fillStyle = shape.fill === 'transparent' ? 'transparent' : resolveCssVar(shape.fill);
       ctx.strokeStyle = resolveCssVar(shape.stroke);
-      ctx.lineWidth = Math.max(0.5, shape.strokeWidth * drawScale * 0.3);
+      ctx.lineWidth = Math.max(1, shape.strokeWidth * drawScale * 0.5);
       ctx.beginPath();
       switch (shape.shapeType) {
         case 'ellipse':
@@ -149,7 +150,7 @@ function drawMinimapCanvas(
       const stroke = el as WhiteboardStrokeElement;
       if (stroke.points.length < 2) { ctx.restore(); continue; }
       ctx.strokeStyle = resolveCssVar(stroke.color);
-      ctx.lineWidth = Math.max(0.5, stroke.strokeWidth * drawScale * 0.4);
+      ctx.lineWidth = Math.max(1.5, stroke.strokeWidth * drawScale * 0.6);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.globalAlpha = (el.opacity ?? 1) * (stroke.tool === 'highlighter' ? 0.5 : 1);
@@ -171,13 +172,13 @@ function drawMinimapCanvas(
       for (let i = 0; i < lines; i++) {
         const ly = y + i * lineH;
         const lw = i === lines - 1 ? w * 0.6 : w;
-        ctx.fillRect(x, ly, lw, Math.max(0.5, lineH * 0.5));
+        ctx.fillRect(x, ly, lw, Math.max(1, lineH * 0.5));
       }
 
     } else if (el.type === 'connector') {
       const conn = el as WhiteboardConnectorElement;
       ctx.strokeStyle = resolveCssVar(conn.stroke);
-      ctx.lineWidth = Math.max(0.5, conn.strokeWidth * drawScale * 0.3);
+      ctx.lineWidth = Math.max(1, conn.strokeWidth * drawScale * 0.5);
       ctx.lineCap = 'round';
       ctx.beginPath();
       // For the minimap just draw bounding-box diagonal
@@ -188,7 +189,7 @@ function drawMinimapCanvas(
     } else if (el.type === 'line') {
       const line = el as WhiteboardLineElement;
       ctx.strokeStyle = resolveCssVar(line.stroke);
-      ctx.lineWidth = Math.max(0.5, line.strokeWidth * drawScale * 0.3);
+      ctx.lineWidth = Math.max(1, line.strokeWidth * drawScale * 0.5);
       ctx.lineCap = 'round';
       ctx.beginPath();
       if (line.lineFlipped) {
