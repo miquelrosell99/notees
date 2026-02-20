@@ -105,6 +105,9 @@ function renderBlock(block: ASTBlockNode, opts: StringifyOptions): string {
       // Heading level is computed at render time from block depth; here we
       // just emit the inline content. Export and markdown modes add # prefix.
       return renderInlineSequence(block.children, opts);
+    case 'whiteboard':
+      // Whiteboard blocks render as their title for text/search purposes.
+      return block.title;
     default:
       // Unknown block type — stable placeholder.
       return '';

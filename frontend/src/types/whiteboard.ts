@@ -1,7 +1,9 @@
 /**
  * Whiteboard type definitions for Notees.
  *
- * Whiteboard nodes store their layout data as a JSON property (_whiteboard_data).
+ * Whiteboard layout data is stored directly in the node's `name` AST as an
+ * `ASTWhiteboard` block: `[{ type: 'whiteboard', title: '...', data: {...} }]`.
+ *
  * The data describes the positions, sizes, and visual properties of all elements
  * on the canvas, including:
  *   - Cards (child block references)

@@ -1,7 +1,8 @@
-import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
-import { useNode, useProperties, useSetNodeProperty } from '@/hooks/useNodes';
-import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
-import type { Node, Property } from '@/types/api';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { useNode, useUpdateNode } from '@/hooks/useNodes';
+import type { Node } from '@/types/api';
+import type { ASTWhiteboard } from '@/types/ast';
+import { parseAST } from '@/lib/astBuilder';
 import type {
   WhiteboardData,
   WhiteboardElement,
@@ -29,24 +30,27 @@ import {
 const MAX_HISTORY = 50;
 const SAVE_DEBOUNCE_MS = 1000;
 
-// ─── Parse whiteboard data from node properties ────────────────────
+// ─── Parse whiteboard data from node name AST ──────────────────────
 
-function parseWhiteboardData(node: Node | undefined, whiteboardPropertyId: number | null): WhiteboardData {
-  if (!node?.properties || !whiteboardPropertyId) return { ...DEFAULT_WHITEBOARD_DATA };
+function parseWhiteboardData(node: Node | undefined): WhiteboardData {
+  if (!node?.name) return { ...DEFAULT_WHITEBOARD_DATA };
 
-  const value = node.properties[whiteboardPropertyId];
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      if (parsed && typeof parsed === 'object' && 'version' in parsed && 'elements' in parsed) {
-        return parsed as WhiteboardData;
-      }
-    } catch {
-      // Not valid JSON
-    }
+  const ast = parseAST(node.name);
+  if (ast.length > 0 && ast[0].type === 'whiteboard') {
+    return (ast[0] as ASTWhiteboard).data;
   }
 
   return { ...DEFAULT_WHITEBOARD_DATA };
+}
+
+/** Extract the title from a whiteboard node's AST. */
+function parseWhiteboardTitle(node: Node | undefined): string {
+  if (!node?.name) return '';
+  const ast = parseAST(node.name);
+  if (ast.length > 0 && ast[0].type === 'whiteboard') {
+    return (ast[0] as ASTWhiteboard).title;
+  }
+  return '';
 }
 
 // ─── Main hook ─────────────────────────────────────────────────────
@@ -54,19 +58,13 @@ function parseWhiteboardData(node: Node | undefined, whiteboardPropertyId: numbe
 export function useWhiteboard(nodeId: number | null) {
   const { data: node } = useNode(nodeId, {
     include_children: true,
-    include_properties: true,
   });
-  const { data: allProperties } = useProperties();
-  const setNodeProperty = useSetNodeProperty();
-
-  // Resolve the numeric property ID for _whiteboard_data
-  const whiteboardPropertyId = useMemo(() => {
-    const prop = allProperties?.find((p: Property) => p.uuid === SYSTEM_PROPERTY_UUIDS._whiteboard_data);
-    return prop?.id ?? null;
-  }, [allProperties]);
+  const updateNode = useUpdateNode();
 
   // Whiteboard data state
   const [data, setData] = useState<WhiteboardData>(DEFAULT_WHITEBOARD_DATA);
+  /** Cached title — updated when the node changes, preserved across data saves. */
+  const titleRef = useRef<string>('');
   const [settings, setSettings] = useState<WhiteboardSettings>(DEFAULT_WHITEBOARD_SETTINGS);
   const [interaction, setInteraction] = useState<WhiteboardInteractionState>({
     tool: 'select',
@@ -93,13 +91,14 @@ export function useWhiteboard(nodeId: number | null) {
   // Load data from node
   useEffect(() => {
     if (node) {
-      const parsed = parseWhiteboardData(node, whiteboardPropertyId);
+      const parsed = parseWhiteboardData(node);
+      titleRef.current = parseWhiteboardTitle(node);
       setData(parsed);
       // Initialize history
       historyRef.current = [{ elements: parsed.elements, timestamp: Date.now() }];
       historyIndexRef.current = 0;
     }
-  }, [node?.id, whiteboardPropertyId]); // Only reload when node ID changes
+  }, [node?.id]); // Only reload when node ID changes
 
   // ─── Save to backend (debounced) ──────────────────────────────────
 
@@ -108,15 +107,13 @@ export function useWhiteboard(nodeId: number | null) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      if (!nodeId || !whiteboardPropertyId) return;
-      const serialized = JSON.stringify(newData);
-      setNodeProperty.mutate({
-        nodeId,
-        propertyId: whiteboardPropertyId,
-        value: serialized,
-      });
+      if (!nodeId) return;
+      // Store as ASTWhiteboard block in the name field
+      const ast = [{ type: 'whiteboard' as const, title: titleRef.current, data: newData }];
+      const serialized = JSON.stringify(ast);
+      updateNode.mutate({ id: nodeId, data: { name: serialized } });
     }, SAVE_DEBOUNCE_MS);
-  }, [nodeId, whiteboardPropertyId, setNodeProperty]);
+  }, [nodeId, updateNode]);
 
   // ─── History management ───────────────────────────────────────────
 
