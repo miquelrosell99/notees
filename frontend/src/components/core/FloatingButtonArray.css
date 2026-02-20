@@ -33,7 +33,7 @@
 
 .toolbar-divider {
   flex-shrink: 0;
-  background: var(--color-outline-variant);
+  background: var(--color-outline);
   border-radius: 1px;
 }
 
