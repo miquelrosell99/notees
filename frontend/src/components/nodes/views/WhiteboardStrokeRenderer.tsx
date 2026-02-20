@@ -13,7 +13,7 @@ import type { WhiteboardStrokeElement, StrokePoint } from '@/types/whiteboard';
  * Points that deviate less than this from the straight line between their
  * neighbours are dropped.  Lower = more detail retained; higher = fewer points.
  */
-const SIMPLIFICATION_EPSILON = 1.5;
+const SIMPLIFICATION_EPSILON = 0.5;
 
 interface Props {
   element: WhiteboardStrokeElement;
