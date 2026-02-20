@@ -49,6 +49,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [isEmptyPanning, setIsEmptyPanning] = useState(false);
 
   // Track pointer state
   const pointerState = useRef({
@@ -60,6 +61,9 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     hasDragged: false,
     button: 0,
     pointerId: -1,
+    startedOnEmpty: false,
+    isEmptyPanning: false,
+    lastPanPos: { x: 0, y: 0 } as Point,
   });
 
   const { data, interaction, setInteraction } = wb;
@@ -147,21 +151,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     const tool = interaction.tool;
 
-    // Middle-click or space+click → pan
-    if (e.button === 1 || tool === 'pan') {
+    // Middle-click → pan
+    if (e.button === 1) {
       setInteraction(prev => ({ ...prev, isPanning: true, dragStart: { x: e.clientX, y: e.clientY } }));
       return;
     }
 
-    // Right-click → selection box
-    if (e.button === 2) {
-      setInteraction(prev => ({
-        ...prev,
-        isSelectionBox: true,
-        selectionBox: { x: canvasPos.x, y: canvasPos.y, width: 0, height: 0 },
-      }));
-      return;
-    }
+    // Right-click → context menu only (handled by onContextMenu); ignore here
+    if (e.button === 2) return;
 
     // Drawing tools
     if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser') {
@@ -232,8 +229,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           if (el) state.startElementPositions.set(id, { x: el.x, y: el.y });
         }
       } else {
-        // Click on empty space → deselect
-        wb.clearSelection();
+        // Empty space: Shift+drag → box select, plain drag → pan, plain click → deselect (on up)
+        if (e.shiftKey) {
+          setInteraction(prev => ({
+            ...prev,
+            isSelectionBox: true,
+            selectionBox: { x: canvasPos.x, y: canvasPos.y, width: 0, height: 0 },
+          }));
+        } else {
+          state.startedOnEmpty = true;
+          state.lastPanPos = { x: e.clientX, y: e.clientY };
+        }
       }
       return;
     }
@@ -288,7 +294,20 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     if (!state.hasDragged && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
     state.hasDragged = true;
 
-    // Panning
+    // Empty-space pan (select tool, drag without Shift)
+    if (state.startedOnEmpty) {
+      const pdx = e.clientX - state.lastPanPos.x;
+      const pdy = e.clientY - state.lastPanPos.y;
+      state.lastPanPos = { x: e.clientX, y: e.clientY };
+      if (!state.isEmptyPanning) {
+        state.isEmptyPanning = true;
+        setIsEmptyPanning(true);
+      }
+      wb.setViewport({ x: viewport.x + pdx, y: viewport.y + pdy, zoom: viewport.zoom });
+      return;
+    }
+
+    // Panning (middle-click)
     if (interaction.isPanning) {
       wb.setViewport({
         x: viewport.x + (e.clientX - (interaction.dragStart?.x ?? 0)),
@@ -429,6 +448,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     const canvasPos = screenToCanvas(e.clientX, e.clientY);
 
+    // End empty-space pan / click-to-deselect
+    if (state.startedOnEmpty) {
+      if (!state.hasDragged) wb.clearSelection();
+      state.startedOnEmpty = false;
+      state.isEmptyPanning = false;
+      setIsEmptyPanning(false);
+      return;
+    }
+
     // End panning
     if (interaction.isPanning) {
       setInteraction(prev => ({ ...prev, isPanning: false, dragStart: null }));
@@ -543,26 +571,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    if (e.ctrlKey) {
-      // Pinch-to-zoom
-      const delta = -e.deltaY * 0.01;
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * (1 + delta)));
-
-      // Zoom towards cursor
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
-      const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
-
-      wb.setViewport({ x: newX, y: newY, zoom: newZoom });
-    } else {
-      // Scroll to pan
-      wb.setViewport({
-        x: viewport.x - e.deltaX,
-        y: viewport.y - e.deltaY,
-        zoom: viewport.zoom,
-      });
-    }
+    // Always zoom to mouse cursor position
+    const delta = -e.deltaY * 0.01;
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * (1 + delta)));
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const newX = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
+    const newY = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+    wb.setViewport({ x: newX, y: newY, zoom: newZoom });
   }, [viewport, wb]);
 
   // ─── Double click ─────────────────────────────────────────────────
@@ -644,7 +660,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           break;
         // Tool shortcuts
         case 'v': case 'V': if (!e.ctrlKey) wb.setTool('select'); break;
-        case 'h': case 'H': wb.setTool('pan'); break;
         case 'r': case 'R': if (!e.ctrlKey) wb.setTool('rectangle'); break;
         case 'o': case 'O': wb.setTool('ellipse'); break;
         case 'p': case 'P': wb.setTool('pen'); break;
@@ -713,11 +728,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // ─── Cursor ───────────────────────────────────────────────────────
 
   const cursorClass = useMemo(() => {
-    if (interaction.isPanning) return 'whiteboard-view--panning-active';
-    if (interaction.tool === 'pan') return 'whiteboard-view--panning';
+    if (interaction.isPanning || isEmptyPanning) return 'whiteboard-view--panning-active';
     if (['pen', 'highlighter', 'eraser'].includes(interaction.tool)) return 'whiteboard-view--drawing';
     return '';
-  }, [interaction.tool, interaction.isPanning]);
+  }, [interaction.tool, interaction.isPanning, isEmptyPanning]);
 
   // ─── Render element ───────────────────────────────────────────────
 
