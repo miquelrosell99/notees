@@ -35,7 +35,7 @@ import {
   mdiArrangeBringToFront,
   mdiArrangeSendToBack,
 } from '@mdi/js';
-import { FloatingButtonArray } from '@/components/core/FloatingButtonArray';
+import { FloatingButtonArray, ToolbarDivider } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { ColorButton, type ColorEntry } from '@/components/core/ColorButton';
@@ -170,7 +170,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             />
           ))}
 
-          <div className="whiteboard-toolbar__separator" />
+          <ToolbarDivider />
 
           {/* Shape tools — collapsed into a selectable group.
                Left click  → activate the last chosen shape tool.
@@ -207,7 +207,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             )}
           </ButtonWithPanel>
 
-          <div className="whiteboard-toolbar__separator" />
+          <ToolbarDivider />
 
           {/* Drawing tools.
                Left click  → activate the tool.
@@ -287,9 +287,9 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             )}
           </ButtonWithPanel>
 
-          <div className="whiteboard-toolbar__separator" />
+          <ToolbarDivider />
 
-          {/* Other tools */}
+          {/* Other tools */
           {TOOL_GROUPS[3].tools.map(t => (
             <ToolButton
               key={t.tool}
@@ -357,7 +357,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             onClick={wb.redo}
             title="Redo (Ctrl+Shift+Z)"
           />
-          <div className="whiteboard-toolbar__separator" />
+          <ToolbarDivider />
           <Button
             icon={mdiGrid}
             variant="ghost"
@@ -401,7 +401,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.min(5, data.viewport.zoom + 0.1) })}
             title="Zoom In"
           />
-          <div className="whiteboard-toolbar__separator" />
+          <ToolbarDivider />
           <Button
             icon={mdiFitToScreen}
             variant="ghost"
@@ -601,7 +601,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         onClick={() => wb.sendToBack(selectedIds)}
         title="Send to Back ([)"
       />
-      <div className="whiteboard-toolbar__separator" />
+      <ToolbarDivider />
       <Button
         icon={mdiDeleteOutline}
         variant="danger"

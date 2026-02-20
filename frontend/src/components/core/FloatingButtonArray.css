@@ -28,3 +28,25 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1);
 }
+
+/* ─── ToolbarDivider ─────────────────────────────────────────────── */
+
+.toolbar-divider {
+  flex-shrink: 0;
+  background: var(--color-outline-variant);
+  border-radius: 1px;
+}
+
+.toolbar-divider--vertical {
+  width: 1px;
+  height: 24px;
+  align-self: center;
+  margin: 0 var(--spacing-1);
+}
+
+.toolbar-divider--horizontal {
+  height: 1px;
+  width: 24px;
+  align-self: center;
+  margin: var(--spacing-1) 0;
+}

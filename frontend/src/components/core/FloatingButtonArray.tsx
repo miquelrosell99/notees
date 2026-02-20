@@ -8,6 +8,33 @@ import { type ReactNode } from 'react';
 import { Card } from './Card';
 import './FloatingButtonArray.css';
 
+// ─── ToolbarDivider ────────────────────────────────────────────────
+
+export interface ToolbarDividerProps {
+  /** Visual orientation of the divider line.
+   * - 'vertical'   → thin vertical bar (for horizontal toolbars)
+   * - 'horizontal' → thin horizontal bar (for vertical toolbars)
+   * Defaults to 'vertical'. */
+  orientation?: 'horizontal' | 'vertical';
+}
+
+/**
+ * ToolbarDivider — a lightweight separator for use inside FloatingButtonArray.
+ *
+ * Drop it between groups of toolbar buttons to visually divide them.
+ * The orientation mirrors the direction of the surrounding toolbar:
+ * use 'vertical' (default) inside a horizontal toolbar row.
+ */
+export function ToolbarDivider({ orientation = 'vertical' }: ToolbarDividerProps) {
+  return (
+    <div
+      className={`toolbar-divider toolbar-divider--${orientation}`}
+      role="separator"
+      aria-orientation={orientation}
+    />
+  );
+}
+
 export interface FloatingButtonArrayProps {
   /** Button elements to display */
   children: ReactNode;
