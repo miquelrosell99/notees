@@ -59,13 +59,13 @@ function getHitTestCtx(): CanvasRenderingContext2D | null {
 /**
  * Returns true when `canvasPoint` is on the actual stroke polyline
  * rather than just inside its bounding box.
- * Stroke points are element-local; hit radius = half stroke width + 6px slop.
+ * Stroke points are element-local; hit radius = half stroke width + 14px slop.
  */
 function isPointOnStroke(canvasPoint: Point, el: WhiteboardStrokeElement): boolean {
   const lx = canvasPoint.x - el.x;
   const ly = canvasPoint.y - el.y;
   const { points, strokeWidth } = el;
-  const hitRadius = strokeWidth / 2 + 6;
+  const hitRadius = strokeWidth / 2 + 14;
 
   for (let i = 0; i < points.length - 1; i++) {
     const ax = points[i].x, ay = points[i].y;
@@ -96,8 +96,9 @@ function isPointOnStroke(canvasPoint: Point, el: WhiteboardStrokeElement): boole
 function isPointInShapePath(canvasPoint: Point, el: WhiteboardShapeElement): boolean {
   const px = canvasPoint.x - el.x;
   const py = canvasPoint.y - el.y;
+  const margin = 14;
   // Quick bounding-box pre-check
-  if (px < -1 || py < -1 || px > el.width + 1 || py > el.height + 1) return false;
+  if (px < -margin || py < -margin || px > el.width + margin || py > el.height + margin) return false;
 
   const ctx = getHitTestCtx();
   if (!ctx) return true; // fallback: accept
@@ -108,8 +109,8 @@ function isPointInShapePath(canvasPoint: Point, el: WhiteboardShapeElement): boo
   const isFilled = el.fill !== 'transparent' && el.fill !== 'none' && el.fill !== '';
   if (isFilled && ctx.isPointInPath(path, px, py)) return true;
 
-  // Stroke edge: generous hit area (at least 8px wide)
-  ctx.lineWidth = Math.max((el.strokeWidth ?? 1) + 4, 8);
+  // Stroke edge: generous hit area (at least 20px wide)
+  ctx.lineWidth = Math.max((el.strokeWidth ?? 1) + 16, 20);
   if (ctx.isPointInStroke(path, px, py)) return true;
 
   return false;
