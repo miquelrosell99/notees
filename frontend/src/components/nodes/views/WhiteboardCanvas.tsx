@@ -43,6 +43,78 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.1;
 
+// ─── Shape hit-testing via Path2D ─────────────────────────────────
+// Reuse a single off-screen canvas context across all hit tests.
+let _hitTestCtx: CanvasRenderingContext2D | null = null;
+function getHitTestCtx(): CanvasRenderingContext2D | null {
+  if (!_hitTestCtx) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    _hitTestCtx = canvas.getContext('2d');
+  }
+  return _hitTestCtx;
+}
+
+/**
+ * Returns true when `canvasPoint` is on the actual stroke polyline
+ * rather than just inside its bounding box.
+ * Stroke points are element-local; hit radius = half stroke width + 6px slop.
+ */
+function isPointOnStroke(canvasPoint: Point, el: WhiteboardStrokeElement): boolean {
+  const lx = canvasPoint.x - el.x;
+  const ly = canvasPoint.y - el.y;
+  const { points, strokeWidth } = el;
+  const hitRadius = strokeWidth / 2 + 6;
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const ax = points[i].x, ay = points[i].y;
+    const bx = points[i + 1].x, by = points[i + 1].y;
+    const dx = bx - ax, dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t = 0;
+    if (lenSq > 0) {
+      t = Math.max(0, Math.min(1, ((lx - ax) * dx + (ly - ay) * dy) / lenSq));
+    }
+    const closestX = ax + t * dx;
+    const closestY = ay + t * dy;
+    const distSq = (lx - closestX) ** 2 + (ly - closestY) ** 2;
+    if (distSq <= hitRadius * hitRadius) return true;
+  }
+  // Also check individual points (for single-dot strokes)
+  for (const p of points) {
+    const distSq = (lx - p.x) ** 2 + (ly - p.y) ** 2;
+    if (distSq <= hitRadius * hitRadius) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true when `canvasPoint` lies on the actual shape geometry
+ * (fill area OR stroke edge) rather than just the bounding box.
+ */
+function isPointInShapePath(canvasPoint: Point, el: WhiteboardShapeElement): boolean {
+  const px = canvasPoint.x - el.x;
+  const py = canvasPoint.y - el.y;
+  // Quick bounding-box pre-check
+  if (px < -1 || py < -1 || px > el.width + 1 || py > el.height + 1) return false;
+
+  const ctx = getHitTestCtx();
+  if (!ctx) return true; // fallback: accept
+
+  const path = new Path2D(getShapePath(el.shapeType, el.width, el.height));
+
+  // Filled shapes: click inside the fill
+  const isFilled = el.fill !== 'transparent' && el.fill !== 'none' && el.fill !== '';
+  if (isFilled && ctx.isPointInPath(path, px, py)) return true;
+
+  // Stroke edge: generous hit area (at least 8px wide)
+  ctx.lineWidth = Math.max((el.strokeWidth ?? 1) + 4, 8);
+  if (ctx.isPointInStroke(path, px, py)) return true;
+
+  return false;
+}
+
 export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   wb,
   onContextMenu,
@@ -104,9 +176,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     const sorted = [...data.elements].sort((a, b) => b.zIndex - a.zIndex);
     for (const el of sorted) {
       if (el.locked) continue;
-      const bounds: Bounds = { x: el.x, y: el.y, width: el.width, height: el.height };
-      if (isPointInBounds(canvasPoint, bounds)) {
-        return el;
+      // Shapes use precise path-based hit testing so that, e.g., clicking in
+      // the corner of an ellipse's bounding box does NOT select the ellipse.
+      if (el.type === 'shape') {
+        if (isPointInShapePath(canvasPoint, el as WhiteboardShapeElement)) return el;
+      } else if (el.type === 'stroke') {
+        // Strokes use segment-distance hit testing so empty space within the
+        // stroke's bounding box does NOT trigger selection.
+        if (isPointOnStroke(canvasPoint, el as WhiteboardStrokeElement)) return el;
+      } else {
+        const bounds: Bounds = { x: el.x, y: el.y, width: el.width, height: el.height };
+        if (isPointInBounds(canvasPoint, bounds)) return el;
       }
     }
     return null;
