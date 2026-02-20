@@ -366,6 +366,39 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         propIdMap.set('logseq.property/description', descriptionProp.id);
       }
 
+      // Map logseq.property/status and logseq.property/priority → Notees task system properties.
+      // Option UUIDs are matched by value name (case-insensitive) since Logseq UUIDs differ from Notees.
+      const LOGSEQ_SYSTEM_PROP_MAP: Array<{ logseqId: string; notesUuid: string }> = [
+        { logseqId: 'logseq.property/status',   notesUuid: SYSTEM_PROPERTY_UUIDS.task_status },
+        { logseqId: 'logseq.property/priority',  notesUuid: SYSTEM_PROPERTY_UUIDS.task_priority },
+      ];
+      for (const { logseqId, notesUuid } of LOGSEQ_SYSTEM_PROP_MAP) {
+        const sysProp = existingProperties.find(p => p.uuid === notesUuid);
+        if (!sysProp) continue;
+        propIdMap.set(logseqId, sysProp.id);
+        // Match Logseq closed-value UUIDs to Notees option node IDs by value name
+        const logseqProp = parsed.properties.find(lp => lp.id === logseqId);
+        if (logseqProp?.selectionOptions && sysProp.options) {
+          // Logseq→Notees name translations for values that don't match exactly
+          const LOGSEQ_TO_NOTEES_NAME: Record<string, string> = {
+            'todo': 'pending',
+            'in review': 'reviewing',
+            'canceled': 'cancelled',
+          };
+          for (const lsOpt of logseqProp.selectionOptions) {
+            if (!lsOpt.uuid) continue;
+            const lsName = String(lsOpt.value).toLowerCase();
+            const notesName = LOGSEQ_TO_NOTEES_NAME[lsName] ?? lsName;
+            const notesOpt = sysProp.options.find(
+              o => o.name.toLowerCase() === notesName
+            );
+            if (notesOpt) {
+              uuidMap.set(lsOpt.uuid, { id: notesOpt.id, uuid: '' });
+            }
+          }
+        }
+      }
+
       // Build set of notees property IDs that are text-type (stored as block node references)
       const textPropIds = new Set<number>(
         existingProperties.filter(p => p.type === 'text').map(p => p.id)
