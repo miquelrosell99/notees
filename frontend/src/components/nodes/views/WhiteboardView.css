@@ -207,10 +207,14 @@
   box-shadow: var(--elevation-1);
   pointer-events: auto;
   z-index: 20;
-  transition: transform var(--motion-duration-short) var(--motion-easing-tactile);
+  opacity: 0;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .whiteboard-element__resize-handle:hover {
+  opacity: 1;
   background: var(--color-primary);
   transform: scale(1.3);
 }
