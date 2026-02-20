@@ -15,6 +15,7 @@ import type {
   ASTDocument,
   ASTParagraph,
   ASTHeading,
+  ASTWhiteboard,
   ASTText,
   ASTHardBreak,
   ASTCode,
@@ -27,6 +28,7 @@ import type {
   ASTExternalLink,
   ASTInlineNode,
 } from '@/types/ast';
+import type { WhiteboardData } from '@/types/whiteboard';
 
 // Re-export types for convenience
 export type { ASTDocument, ASTInlineNode };
@@ -143,6 +145,9 @@ export function paragraph(...children: ASTInlineNode[]): ASTParagraph {
 }
 export function heading(...children: ASTInlineNode[]): ASTHeading {
   return { type: 'heading', children };
+}
+export function whiteboard(title: string, data: WhiteboardData): ASTWhiteboard {
+  return { type: 'whiteboard', title, data };
 }
 /**
  * Build a complete document from paragraphs.

@@ -103,6 +103,21 @@ export interface ASTHeading {
   readonly children: ASTInlineNode[];
 }
 
+/**
+ * Whiteboard block. Stores layout data inline in the AST.
+ *
+ * A whiteboard node's `name` is:
+ *   `[{ type: 'whiteboard', title: '...', data: { ...WhiteboardData } }]`
+ *
+ * `title` is the page title (plain text).
+ * `data` holds the full WhiteboardData (viewport, elements, grid, background).
+ */
+export interface ASTWhiteboard {
+  readonly type: 'whiteboard';
+  readonly title: string;
+  readonly data: import('./whiteboard').WhiteboardData;
+}
+
 // ─── Union types ───────────────────────────────────────────────────
 
 /** Any node that can appear inside a paragraph or formatting mark. */
@@ -119,13 +134,20 @@ export type ASTInlineNode =
   | ASTExternalLink;
 
 /** Top-level node. A `name` column stores an array of these. */
-export type ASTBlockNode = ASTParagraph | ASTHeading;
+export type ASTBlockNode = ASTParagraph | ASTHeading | ASTWhiteboard;
 
 /**
  * Returns true if the block node is a heading.
  */
 export function isHeadingBlock(node: ASTBlockNode): node is ASTHeading {
   return node.type === 'heading';
+}
+
+/**
+ * Returns true if the block node is a whiteboard.
+ */
+export function isWhiteboardBlock(node: ASTBlockNode): node is ASTWhiteboard {
+  return node.type === 'whiteboard';
 }
 
 /**
