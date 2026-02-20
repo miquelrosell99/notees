@@ -264,6 +264,10 @@ export interface PenSettings {
   opacity: number;
 }
 
+export interface EraserSettings {
+  strokeWidth: number;
+}
+
 export interface ShapeSettings {
   fill: string;
   stroke: string;
@@ -292,6 +296,7 @@ export interface ConnectorSettings {
 export interface WhiteboardSettings {
   pen: PenSettings;
   highlighter: PenSettings;
+  eraser: EraserSettings;
   shape: ShapeSettings;
   text: TextSettings;
   connector: ConnectorSettings;
@@ -331,6 +336,10 @@ export const DEFAULT_HIGHLIGHTER_SETTINGS: PenSettings = {
   opacity: 0.4,
 };
 
+export const DEFAULT_ERASER_SETTINGS: EraserSettings = {
+  strokeWidth: 15,
+};
+
 export const DEFAULT_SHAPE_SETTINGS: ShapeSettings = {
   fill: 'transparent',
   stroke: 'var(--color-on-surface)',
@@ -359,6 +368,7 @@ export const DEFAULT_CONNECTOR_SETTINGS: ConnectorSettings = {
 export const DEFAULT_WHITEBOARD_SETTINGS: WhiteboardSettings = {
   pen: DEFAULT_PEN_SETTINGS,
   highlighter: DEFAULT_HIGHLIGHTER_SETTINGS,
+  eraser: DEFAULT_ERASER_SETTINGS,
   shape: DEFAULT_SHAPE_SETTINGS,
   text: DEFAULT_TEXT_SETTINGS,
   connector: DEFAULT_CONNECTOR_SETTINGS,
