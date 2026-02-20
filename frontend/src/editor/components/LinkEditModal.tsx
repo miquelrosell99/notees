@@ -13,6 +13,7 @@ import { mdiLinkVariant, mdiWeb } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
+import { TextField } from '@/components/core/TextField';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
@@ -35,6 +36,8 @@ export interface LinkEditModalProps {
   currentLabel?: string | null;
   /** Modal title — defaults to "Edit Link" */
   title?: string;
+  /** When true, hides the URL mode option (node-only picker) */
+  hideUrlMode?: boolean;
   /** Called when saving changes */
   onSave: (result: LinkEditResult) => void;
   /** Called when closing without saving */
@@ -68,6 +71,7 @@ export function LinkEditModal({
   currentUrl,
   currentLabel,
   title = 'Edit Link',
+  hideUrlMode = false,
   onSave,
   onClose,
 }: LinkEditModalProps) {
@@ -110,15 +114,12 @@ export function LinkEditModal({
 
   // ─── Handlers ──────────────────────────────────────────────
 
-  const handleNodeChange = useCallback((value: number | number[] | null) => {
-    // When cleared, reset selection
-    if (value === null) {
-      setSelectedNode(null);
-    }
-  }, []);
-
   const handleNodeAdd = useCallback((node: Node) => {
     setSelectedNode(node);
+  }, []);
+
+  const handleNodeClear = useCallback(() => {
+    setSelectedNode(null);
   }, []);
 
   const handleSave = useCallback(() => {
@@ -175,12 +176,14 @@ export function LinkEditModal({
         
         {/* Mode toggle */}
         <div className="link-edit-modal__section link-edit-modal__mode-section">
-          <SelectionButton
-            options={LINK_MODE_OPTIONS}
-            value={linkMode}
-            onChange={(v) => setLinkMode(v as LinkMode)}
-            size="sm"
-          />
+          {!hideUrlMode && (
+            <SelectionButton
+              options={LINK_MODE_OPTIONS}
+              value={linkMode}
+              onChange={(v) => setLinkMode(v as LinkMode)}
+              size="sm"
+            />
+          )}
         {/* Inline class indicator */}
         {isInlineClassLink && (
           <div className="link-edit-modal__info">
@@ -204,8 +207,8 @@ export function LinkEditModal({
                 searchMode="pages"
                 placeholder="Select a node..."
                 searchPlaceholder="Search pages..."
-                onChange={handleNodeChange}
                 onAdd={handleNodeAdd}
+                onClearAll={handleNodeClear}
               />
               {isInlineClassLink && !isTargetNodeClass && (
                 <span className="link-edit-modal__hint link-edit-modal__hint--warning">
@@ -231,11 +234,8 @@ export function LinkEditModal({
           <label className="link-edit-modal__label" htmlFor="link-label-input">
             Display Label
           </label>
-          <input
+          <TextField
             id="link-label-input"
-            type="text"
-            className="link-edit-modal__input"
-            placeholder=""
             value={label}
             onChange={e => setLabel(e.target.value)}
             autoComplete="off"
