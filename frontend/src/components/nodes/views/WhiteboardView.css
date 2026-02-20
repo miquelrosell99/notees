@@ -488,11 +488,11 @@
 
 .whiteboard-view__selection-box {
   position: absolute;
-  border: 1px solid var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 2px dashed var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   pointer-events: none;
   z-index: var(--wb-z-overlay);
-  border-radius: var(--shape-extra-small);
+  border-radius: var(--shape-large);
 }
 
 /* ────────────────────────────────────────────────────────────── */
