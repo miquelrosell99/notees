@@ -17,6 +17,7 @@ import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAt
 import { createPortal } from 'react-dom';
 import { mdiTrashCanOutline } from '@mdi/js';
 import { Button } from './Button';
+import { TextField } from './TextField';
 import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -47,6 +48,31 @@ function isValidHexColor(color: string): boolean {
 
 function normalizeHex(color: string): string {
   return `#${color.replace('#', '')}`;
+}
+
+/** Internal non-forwarded swatch used inside the picker popover. */
+function ColorSwatch({
+  color,
+  size = 'sm',
+  active = false,
+  className = '',
+  disabled,
+  ...props
+}: Omit<ColorButtonProps, 'showPicker' | 'showNoneOption' | 'colors' | 'onColorChange'>) {
+  const classNames = [
+    'color-btn',
+    `color-btn--${size}`,
+    active && 'color-btn--active',
+    disabled && 'color-btn--disabled',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <button className={classNames} disabled={disabled} type="button" {...props}>
+      <span className="color-btn__fill" style={{ backgroundColor: color }} />
+    </button>
+  );
 }
 
 export interface ColorButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'onChange'> {
@@ -227,7 +253,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
         >
           <div className="color-btn-picker__grid">
             {palette.map(({ cssVar, label }) => (
-              <ColorButton
+              <ColorSwatch
                 key={cssVar}
                 color={cssVar}
                 size="xs"
@@ -242,8 +268,8 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           </div>
 
           <div className="color-btn-picker__custom">
-            <input
-              type="text"
+            <TextField
+              size="md"
               value={hexInput}
               onChange={handleHexChange}
               onKeyDown={(e) => {
@@ -253,9 +279,10 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               }}
               placeholder="3b82f6"
               maxLength={6}
-              className="color-btn-picker__input"
+              error={hexInput.length > 0 && !isHexValid}
+              style={{ fontFamily: "'Consolas', 'Monaco', monospace" }}
             />
-            <ColorButton
+            <ColorSwatch
               color={previewColor}
               size="xs"
               active={isHexValid}
