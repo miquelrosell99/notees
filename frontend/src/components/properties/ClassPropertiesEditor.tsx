@@ -111,12 +111,6 @@ export function ClassPropertiesEditor({
     ];
   }, [openPropertyView, handleRemoveProperty]);
 
-  // Render value function for PropertyList
-  const renderValue = useCallback((entry: PropertyEntry, readOnly: boolean) => {
-    return (
-      <span className="class-property-placeholder">Add description</span>
-    );
-  }, []);
   
   if (isLoading) {
     return <div className={`properties-view class-definition-variant loading ${className}`}>Loading...</div>;
@@ -132,20 +126,16 @@ export function ClassPropertiesEditor({
       hideWhenEmpty={false}
     >
       <div className="class-properties-content">
-        <p className="class-properties-description">
-          Class properties are inherited by all nodes with this class.
-        </p>
-        
         {/* Properties list */}
         {propertyEntries.length > 0 ? (
           <PropertyList
             properties={propertyEntries}
             readOnly={readOnly}
             showHiddenSection={true}
-            renderValue={renderValue}
+            renderValue={() => null}
             getContextMenuItems={getContextMenuItems}
             variant="page"
-            showBullets={true}
+            showBullets={false}
           />
         ) : (
           <p className="class-properties-empty">No properties defined yet.</p>
