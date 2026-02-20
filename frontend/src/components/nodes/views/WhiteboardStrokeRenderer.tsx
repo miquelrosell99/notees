@@ -1,8 +1,8 @@
 /**
  * WhiteboardStrokeRenderer — Renders freehand strokes as SVG paths with pressure-based width.
  *
- * Uses average-point smoothing and variable-width polyline to simulate
- * pen pressure. Supports stylus pressure data from PointerEvent.
+ * Uses average-point smoothing and cubic Bézier splines (Catmull-Rom conversion)
+ * to produce smooth curves. Supports stylus pressure data from PointerEvent.
  */
 import React, { useMemo } from 'react';
 import type { WhiteboardStrokeElement, StrokePoint } from '@/types/whiteboard';
@@ -15,10 +15,44 @@ interface Props {
 }
 
 /**
+ * Build a smooth SVG path through an array of {x, y} points using cubic
+ * Bézier curves derived from the Catmull-Rom spline formula.
+ * Adjacent segments share tangent directions, so the path is C1-continuous.
+ */
+function pointsToSplinePath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return '';
+  if (pts.length === 2) {
+    return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)} ${pts[1].y.toFixed(1)}`;
+  }
+
+  const parts: string[] = [`M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`];
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+    // Catmull-Rom → cubic Bézier control points (tension = 1/6)
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    parts.push(
+      `C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    );
+  }
+
+  return parts.join(' ');
+}
+
+/**
  * Convert stroke points with pressure into an SVG path with variable width.
  *
- * The technique: for each segment, create a polygon that widens/narrows
- * based on pressure, then merge into a single filled path.
+ * The technique: for each segment, create an outline that widens/narrows
+ * based on pressure, then connect both sides with smooth Bézier splines
+ * and close the shape.
  */
 function strokeToPath(points: StrokePoint[], baseWidth: number, offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
@@ -26,7 +60,7 @@ function strokeToPath(points: StrokePoint[], baseWidth: number, offsetX = 0, off
   // Smooth the points
   const smoothed = smoothPoints(points);
 
-  // Build outline polygon
+  // Build outline polygon vertices
   const leftSide: { x: number; y: number }[] = [];
   const rightSide: { x: number; y: number }[] = [];
 
@@ -70,18 +104,13 @@ function strokeToPath(points: StrokePoint[], baseWidth: number, offsetX = 0, off
     });
   }
 
-  // Build path: left side forward, right side backward
-  const parts: string[] = [];
-  parts.push(`M ${leftSide[0].x.toFixed(1)} ${leftSide[0].y.toFixed(1)}`);
-  for (let i = 1; i < leftSide.length; i++) {
-    parts.push(`L ${leftSide[i].x.toFixed(1)} ${leftSide[i].y.toFixed(1)}`);
-  }
-  for (let i = rightSide.length - 1; i >= 0; i--) {
-    parts.push(`L ${rightSide[i].x.toFixed(1)} ${rightSide[i].y.toFixed(1)}`);
-  }
-  parts.push('Z');
+  // Build path: left side forward as spline, right side backward as spline
+  const leftPath = pointsToSplinePath(leftSide);
+  const rightReversed = [...rightSide].reverse();
+  // Drop the M from right-side path and join after left side
+  const rightPath = pointsToSplinePath(rightReversed).replace(/^M[^C|L]+/, 'L');
 
-  return parts.join(' ');
+  return `${leftPath} ${rightPath} Z`;
 }
 
 /**
@@ -113,15 +142,13 @@ function smoothPoints(points: StrokePoint[], windowSize = 3): StrokePoint[] {
 }
 
 /**
- * Simple center-line path (fallback for very short strokes).
+ * Smooth center-line path (fallback for very short strokes).
+ * Uses cubic Bézier splines for consistency with the full renderer.
  */
 function strokeToCenterLine(points: StrokePoint[], offsetX = 0, offsetY = 0): string {
   if (points.length < 2) return '';
-  const parts: string[] = [`M ${(points[0].x + offsetX).toFixed(1)} ${(points[0].y + offsetY).toFixed(1)}`];
-  for (let i = 1; i < points.length; i++) {
-    parts.push(`L ${(points[i].x + offsetX).toFixed(1)} ${(points[i].y + offsetY).toFixed(1)}`);
-  }
-  return parts.join(' ');
+  const pts = points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+  return pointsToSplinePath(pts);
 }
 
 export const WhiteboardStrokeRenderer: React.FC<Props> = ({ element, isAbsolute, isSelected, dimmed }) => {
