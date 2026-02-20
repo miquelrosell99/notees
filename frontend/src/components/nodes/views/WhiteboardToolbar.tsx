@@ -4,8 +4,7 @@
  * Modeled after the GraphView toolbar pattern with FloatingButtonArray,
  * ButtonWithPanel, and SelectionButton components.
  */
-import React from 'react';
-import Icon from '@mdi/react';
+import React, { useState } from 'react';
 import {
   mdiCursorDefaultOutline,
   mdiHandBackRight,
@@ -41,9 +40,10 @@ import {
 import { FloatingButtonArray } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
-import { Card } from '@/components/core/Card';
 import { ColorButton, type ColorEntry } from '@/components/core/ColorButton';
-import type { WhiteboardTool, PenSettings } from '@/types/whiteboard';
+import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
+import { Slider } from '@/components/core/Slider';
+import type { WhiteboardTool, PenSettings, EraserSettings, ShapeSettings } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import './WhiteboardView.css';
 
@@ -105,6 +105,29 @@ const WB_COLOR_VARS: ColorEntry[] = [
 ];
 
 const STROKE_WIDTHS = [1, 2, 3, 5, 8, 12];
+const ERASER_WIDTHS = [5, 10, 15, 25, 40];
+
+/**
+ * Generate a filled-rectangle SVG path in a 24×24 viewport to visually
+ * represent a stroke of the given pixel width.
+ */
+function makeWidthIconPath(w: number, maxH = 14): string {
+  const h = Math.max(1.5, Math.min(maxH, w * 1.2));
+  const y = (24 - h) / 2;
+  return `M2,${y.toFixed(1)} L22,${y.toFixed(1)} L22,${(y + h).toFixed(1)} L2,${(y + h).toFixed(1)} Z`;
+}
+
+const PEN_WIDTH_OPTIONS: SelectionButtonOption[] = STROKE_WIDTHS.map((w) => ({
+  value: String(w),
+  icon: makeWidthIconPath(w),
+  label: `${w}px`,
+}));
+
+const ERASER_WIDTH_OPTIONS: SelectionButtonOption[] = ERASER_WIDTHS.map((w) => ({
+  value: String(w),
+  icon: makeWidthIconPath(w, 16),
+  label: `${w}px`,
+}));
 
 export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   wb,
@@ -115,7 +138,15 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   const { interaction, data, settings } = wb;
   const activeTool = interaction.tool;
 
-  // ─── Main toolbar (bottom center) ─────────────────────────────────
+  // Track the last selected shape so left-clicking the shapes button re-activates it.
+  const [lastShapeTool, setLastShapeTool] = useState<WhiteboardTool>(
+    isShapeTool(activeTool) ? activeTool : 'rectangle'
+  );
+
+  const handleShapeSelect = (tool: WhiteboardTool) => {
+    setLastShapeTool(tool);
+    wb.setTool(tool);
+  };
 
   return (
     <>
@@ -136,45 +167,116 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           <div className="whiteboard-toolbar__separator" />
 
-          {/* Shape tools — collapsed into a selectable group */}
+          {/* Shape tools — collapsed into a selectable group.
+               Left click  → activate the last chosen shape tool.
+               Right click → open picker + style settings panel. */}
           <ButtonWithPanel
-            icon={getShapeIcon(activeTool)}
-            variant={isShapeTool(activeTool) ? 'primary' : 'ghost'}
+            icon={getShapeIcon(isShapeTool(activeTool) ? activeTool : lastShapeTool)}
             size="sm"
             tooltip="Shapes"
             panelPosition="top"
             panelAlignment="center"
             usePortal
+            panelWidth={220}
+            openPanelOnRightClick
+            active={isShapeTool(activeTool)}
+            onActivate={() => wb.setTool(lastShapeTool)}
           >
             {(closePanel) => (
-              <div style={{ padding: 8, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 200 }}>
-                {TOOL_GROUPS[1].tools.map(t => (
-                  <ToolButton
-                    key={t.tool}
-                    icon={t.icon}
-                    label={t.label}
-                    shortcut={t.shortcut}
-                    active={activeTool === t.tool}
-                    onClick={() => { wb.setTool(t.tool); closePanel(); }}
-                  />
-                ))}
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Shape picker */}
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 192 }}>
+                  {TOOL_GROUPS[1].tools.map(t => (
+                    <ToolButton
+                      key={t.tool}
+                      icon={t.icon}
+                      label={t.label}
+                      shortcut={t.shortcut}
+                      active={activeTool === t.tool}
+                      onClick={() => { handleShapeSelect(t.tool); closePanel(); }}
+                    />
+                  ))}
+                </div>
+                <div style={{ height: 1, background: 'var(--color-outline-variant)', margin: '0 4px' }} />
+                {/* Shape style settings */}
+                <ShapeSettingsPanel
+                  settings={settings.shape}
+                  onChange={(s) => wb.setSettings(prev => ({ ...prev, shape: s }))}
+                />
               </div>
             )}
           </ButtonWithPanel>
 
           <div className="whiteboard-toolbar__separator" />
 
-          {/* Drawing tools */}
-          {TOOL_GROUPS[2].tools.map(t => (
-            <ToolButton
-              key={t.tool}
-              icon={t.icon}
-              label={t.label}
-              shortcut={t.shortcut}
-              active={activeTool === t.tool}
-              onClick={() => wb.setTool(t.tool)}
-            />
-          ))}
+          {/* Drawing tools.
+               Left click  → activate the tool.
+               Right click → open settings panel (color / size / opacity). */}
+
+          {/* Pen */}
+          <ButtonWithPanel
+            icon={mdiPencilOutline}
+            size="sm"
+            tooltip="Pen (P)"
+            panelPosition="top"
+            panelAlignment="center"
+            usePortal
+            panelWidth={220}
+            openPanelOnRightClick
+            active={activeTool === 'pen'}
+            onActivate={() => wb.setTool('pen')}
+          >
+            {() => (
+              <PenSettingsPanel
+                settings={settings.pen}
+                onChange={(s) => wb.setSettings(prev => ({ ...prev, pen: s }))}
+                widthOptions={PEN_WIDTH_OPTIONS}
+              />
+            )}
+          </ButtonWithPanel>
+
+          {/* Highlighter */}
+          <ButtonWithPanel
+            icon={mdiMarker}
+            size="sm"
+            tooltip="Highlighter"
+            panelPosition="top"
+            panelAlignment="center"
+            usePortal
+            panelWidth={220}
+            openPanelOnRightClick
+            active={activeTool === 'highlighter'}
+            onActivate={() => wb.setTool('highlighter')}
+          >
+            {() => (
+              <PenSettingsPanel
+                settings={settings.highlighter}
+                onChange={(s) => wb.setSettings(prev => ({ ...prev, highlighter: s }))}
+                widthOptions={PEN_WIDTH_OPTIONS}
+              />
+            )}
+          </ButtonWithPanel>
+
+          {/* Eraser */}
+          <ButtonWithPanel
+            icon={mdiEraserVariant}
+            size="sm"
+            tooltip="Eraser (E)"
+            panelPosition="top"
+            panelAlignment="center"
+            usePortal
+            panelWidth={220}
+            openPanelOnRightClick
+            active={activeTool === 'eraser'}
+            onActivate={() => wb.setTool('eraser')}
+          >
+            {() => (
+              <EraserSettingsPanel
+                settings={settings.eraser}
+                onChange={(s) => wb.setSettings(prev => ({ ...prev, eraser: s }))}
+              />
+            )}
+          </ButtonWithPanel>
 
           <div className="whiteboard-toolbar__separator" />
 
@@ -301,21 +403,6 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
         </FloatingButtonArray>
       </div>
 
-      {/* Top right — pen/shape settings panel (contextual) */}
-      {(activeTool === 'pen' || activeTool === 'highlighter') && (
-        <div className="whiteboard-toolbar whiteboard-toolbar--top-right">
-          <PenSettingsPanel
-            settings={activeTool === 'highlighter' ? settings.highlighter : settings.pen}
-            onChange={(penSettings) => {
-              wb.setSettings(prev => ({
-                ...prev,
-                [activeTool]: penSettings,
-              }));
-            }}
-          />
-        </div>
-      )}
-
       {/* Selection actions */}
       {interaction.selectedIds.size > 0 && activeTool === 'select' && (
         <div className="whiteboard-toolbar whiteboard-toolbar--top-right">
@@ -352,60 +439,116 @@ const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, shortcut, active, 
 interface PenSettingsPanelProps {
   settings: PenSettings;
   onChange: (settings: PenSettings) => void;
+  widthOptions: SelectionButtonOption[];
 }
 
-const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange }) => (
-  <Card elevation="medium" variant="filled" padding paddingSize="sm">
-    <div className="whiteboard-properties">
-      <div className="whiteboard-properties__section">
-        <div className="whiteboard-properties__label">Color</div>
-        <ColorButton
-          color={settings.color}
-          showPicker
-          colors={WB_COLOR_VARS}
-          onColorChange={(cssVar) => onChange({ ...settings, color: cssVar })}
-          size="sm"
-          title="Pick color"
-        />
-      </div>
-      <div className="whiteboard-properties__section">
-        <div className="whiteboard-properties__label">Width</div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {STROKE_WIDTHS.map(w => (
-            <Button
-              key={w}
-              variant={settings.strokeWidth === w ? 'primary' : 'ghost'}
-              size="xs"
-              active={settings.strokeWidth === w}
-              onClick={() => onChange({ ...settings, strokeWidth: w })}
-              title={`${w}px`}
-            >
-              <div
-                style={{
-                  width: Math.min(w * 3, 20),
-                  height: Math.min(w, 8),
-                  background: 'currentColor',
-                  borderRadius: 999,
-                }}
-              />
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="whiteboard-properties__section">
-        <div className="whiteboard-properties__label">Opacity</div>
-        <input
-          type="range"
-          min="0.1"
-          max="1"
-          step="0.1"
-          value={settings.opacity}
-          onChange={(e) => onChange({ ...settings, opacity: parseFloat(e.target.value) })}
-          style={{ width: '100%' }}
-        />
-      </div>
+const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange, widthOptions }) => (
+  <div className="whiteboard-properties" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="whiteboard-properties__section">
+      <div className="whiteboard-properties__label">Color</div>
+      <ColorButton
+        color={settings.color}
+        showPicker
+        colors={WB_COLOR_VARS}
+        onColorChange={(cssVar) => onChange({ ...settings, color: cssVar })}
+        size="sm"
+        title="Pick color"
+      />
     </div>
-  </Card>
+    <div className="whiteboard-properties__section">
+      <SelectionButton
+        label="Size"
+        options={widthOptions}
+        value={String(settings.strokeWidth)}
+        onChange={(v) => onChange({ ...settings, strokeWidth: Number(v) })}
+        size="sm"
+      />
+    </div>
+    <div className="whiteboard-properties__section">
+      <Slider
+        label="Opacity"
+        showValue
+        formatValue={(v) => `${Math.round(v * 100)}%`}
+        min={0.1}
+        max={1}
+        step={0.05}
+        value={settings.opacity}
+        onChange={(v) => onChange({ ...settings, opacity: v })}
+        size="sm"
+      />
+    </div>
+  </div>
+);
+
+// ─── Eraser settings panel ─────────────────────────────────────────
+
+interface EraserSettingsPanelProps {
+  settings: EraserSettings;
+  onChange: (settings: EraserSettings) => void;
+}
+
+const EraserSettingsPanel: React.FC<EraserSettingsPanelProps> = ({ settings, onChange }) => (
+  <div className="whiteboard-properties" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="whiteboard-properties__section">
+      <SelectionButton
+        label="Size"
+        options={ERASER_WIDTH_OPTIONS}
+        value={String(settings.strokeWidth)}
+        onChange={(v) => onChange({ ...settings, strokeWidth: Number(v) })}
+        size="sm"
+      />
+    </div>
+  </div>
+);
+
+// ─── Shape settings panel ──────────────────────────────────────────
+
+interface ShapeSettingsPanelProps {
+  settings: ShapeSettings;
+  onChange: (settings: ShapeSettings) => void;
+}
+
+const SHAPE_STROKE_WIDTHS = [1, 2, 3, 5, 8];
+const SHAPE_WIDTH_OPTIONS: SelectionButtonOption[] = SHAPE_STROKE_WIDTHS.map((w) => ({
+  value: String(w),
+  icon: makeWidthIconPath(w),
+  label: `${w}px`,
+}));
+
+const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onChange }) => (
+  <div className="whiteboard-properties" style={{ padding: '4px 8px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="whiteboard-properties__section">
+      <div className="whiteboard-properties__label">Fill</div>
+      <ColorButton
+        color={settings.fill}
+        showPicker
+        colors={WB_COLOR_VARS}
+        onColorChange={(cssVar) => onChange({ ...settings, fill: cssVar })}
+        size="sm"
+        title="Fill color"
+      />
+    </div>
+    <div className="whiteboard-properties__section">
+      <div className="whiteboard-properties__label">Stroke</div>
+      <ColorButton
+        color={settings.stroke}
+        showPicker
+        colors={WB_COLOR_VARS}
+        onColorChange={(cssVar) => onChange({ ...settings, stroke: cssVar })}
+        size="sm"
+        title="Stroke color"
+      />
+    </div>
+    <div className="whiteboard-properties__section">
+      <SelectionButton
+        label="Width"
+        options={SHAPE_WIDTH_OPTIONS}
+        value={String(settings.strokeWidth)}
+        onChange={(v) => onChange({ ...settings, strokeWidth: Number(v) })}
+        size="sm"
+      />
+    </div>
+  </div>
 );
 
 // ─── Selection actions panel ───────────────────────────────────────
