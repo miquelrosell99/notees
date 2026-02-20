@@ -54,6 +54,12 @@
   cursor: crosshair;
 }
 
+.whiteboard-view--drawing .whiteboard-element,
+.whiteboard-view--drawing .whiteboard-element * {
+  cursor: crosshair !important;
+  pointer-events: none !important;
+}
+
 /* ────────────────────────────────────────────────────────────── */
 /*  CANVAS LAYER                                                 */
 /* ────────────────────────────────────────────────────────────── */
