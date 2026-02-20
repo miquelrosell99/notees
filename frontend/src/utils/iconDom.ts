@@ -46,27 +46,16 @@ export function formatIconField(icon: string, color?: string | null): string {
 
 /**
  * Convert an icon name to its MDI SVG path string.
- * Accepts formats: "mdi-calendar-today", "mdiCalendarToday", "calendar-today".
- * Also accepts JSON-encoded icon fields like `{"icon":"mdi:...","color":"..."}`.
- * Returns null when the name is not a recognised MDI icon (treated as emoji).
+ * Expects the canonical camelCase format as exported by \`@mdi/js\` (e.g. "mdiHeartOutline").
+ * Also accepts JSON-encoded icon fields like \`{"icon":"mdiHeartOutline","color":"..."}\`.
+ * Returns null for anything that is not a recognised MDI key (treated as emoji).
  */
 export function getMdiPath(iconName: string): string | null {
   // Handle JSON-encoded icon field
   const { icon } = parseIconField(iconName);
-  if (icon !== iconName) {
-    // Was JSON — recurse with the plain icon name
-    return getMdiPath(icon);
-  }
-  let normalized = iconName
-    .replace(/^mdi[:_-]/i, '')                         // strip "mdi-", "mdi:", "mdi_" prefix
-    .replace(/^mdi(?=[A-Z])/i, '')                     // strip bare mdi before CamelCase
-    .replace(/^mdi$/i, '')                             // strip bare mdi
-    .replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase()); // kebab → camelCase (including digits)
-
-  if (!normalized) return null;
-  normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
-
-  const path = (mdiIcons as Record<string, string>)[normalized];
+  if (icon !== iconName) return getMdiPath(icon);
+  if (!iconName) return null;
+  const path = (mdiIcons as Record<string, string>)[iconName];
   return path || null;
 }
 

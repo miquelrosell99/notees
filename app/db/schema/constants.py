@@ -129,21 +129,21 @@ SYSTEM_CLASS_UUIDS = {
     "table": "00000000-0000-0000-0001-000000000015",
 }
 
-# Default icons for system classes (MDI icon names)
+# Default icons for system classes (MDI camelCase keys as exported by @mdi/js)
 SYSTEM_CLASS_ICONS = {
-    "class": "tag-multiple",
-    "day": "calendar-today",
-    "month": "calendar-month",
-    "year": "calendar-text",
-    "quote": "format-quote-close",
-    "query": "magnify",
-    "asset": "paperclip",
-    "whiteboard": "draw",
-    "card": "card-outline",
-    "template": "file-document-outline",
-    "task": "checkbox-marked-circle-outline",
-    "comment": "comment-outline",
-    "table": "table",
+    "class": "mdiTagMultiple",
+    "day": "mdiCalendarToday",
+    "month": "mdiCalendarMonth",
+    "year": "mdiCalendarText",
+    "quote": "mdiFormatQuoteClose",
+    "query": "mdiMagnify",
+    "asset": "mdiPaperclip",
+    "whiteboard": "mdiDraw",
+    "card": "mdiCardOutline",
+    "template": "mdiFileDocumentOutline",
+    "task": "mdiCheckboxMarkedCircleOutline",
+    "comment": "mdiCommentOutline",
+    "table": "mdiTable",
 }
 
 # System properties with fixed UUIDs

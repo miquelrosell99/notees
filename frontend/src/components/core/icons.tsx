@@ -377,7 +377,7 @@ export function getDefaultIcon(type: keyof typeof DEFAULT_ICONS): React.Componen
  * 
  * Supports:
  * - Emoji characters (rendered as-is)
- * - MDI icon names like "mdi-calendar" or "mdiCalendar" or "calendar"
+ * - MDI icon names in camelCase as exported by @mdi/js (e.g. "mdiCalendarToday")
  * - Falls back to type-based defaults (page → document, block → bullet)
  * 
  * Note: Date pages (daily/monthly/yearly) inherit icons from their type definitions.
@@ -395,7 +395,7 @@ export function NodeIcon({
   className?: string;
   color?: string | null;
 }) {
-  // Parse JSON-encoded icon fields like {"icon":"mdi:...","color":"var(--color-preset-green)"}
+  // Parse JSON-encoded icon fields like {"icon":"mdiCalendarToday","color":"var(--color-preset-green)"}
   let icon = rawIcon;
   let parsedColor: string | undefined;
   if (rawIcon) {
@@ -425,9 +425,8 @@ export function NodeIcon({
       return <Icon path={path} size={getSize(size)} className={className} color={color || undefined} />;
     }
     
-    // If not an MDI icon, it might be an emoji - render as text
-    // Check if it looks like an emoji (not an MDI-like pattern)
-    if (!icon.match(/^mdi/i) && !icon.match(/^[a-z-]+$/i)) {
+    // If not an MDI icon, treat as emoji
+    if (!icon.match(/^mdi[A-Z]/)) {
       // Render as emoji with appropriate size
       const emojiSize = getSize(size) * 24; // Convert to px (base is 24px)
       return (
@@ -461,22 +460,11 @@ export function NodeIcon({
 }
 
 /**
- * Convert an icon name to an MDI path
- * Accepts formats: "mdi-calendar-today", "mdiCalendarToday", "calendar-today", "calendarToday"
+ * Convert a camelCase MDI key (as exported by @mdi/js) to its SVG path.
+ * e.g. "mdiCalendarToday" → path string, or null if not found.
  */
 function getMdiPath(iconName: string): string | null {
-  // Normalize: remove "mdi-", "mdi:", or "mdi" prefix, convert kebab-case to camelCase
-  let normalized = iconName
-    .replace(/^mdi[:_-]/i, '')  // Remove mdi-, mdi:, mdi_ prefix
-    .replace(/^mdi(?=[A-Z])/i, '')  // Remove bare mdi prefix before CamelCase
-    .replace(/^mdi$/i, '')  // Remove bare mdi
-    .replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());  // kebab to camelCase (including digits)
-  
-  // Ensure first letter is uppercase, then prepend "mdi"
-  if (!normalized) return null;
-  normalized = 'mdi' + normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  
-  // Look up in the mdiIcons object
-  const path = (mdiIcons as Record<string, string>)[normalized];
+  if (!iconName) return null;
+  const path = (mdiIcons as Record<string, string>)[iconName];
   return path || null;
 }
