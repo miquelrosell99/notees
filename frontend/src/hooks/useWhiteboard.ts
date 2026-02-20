@@ -225,8 +225,23 @@ export function useWhiteboard(nodeId: number | null) {
   }, [updateElements]);
 
   const resizeElement = useCallback((id: string, bounds: Bounds) => {
-    updateElement(id, { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-  }, [updateElement]);
+    updateElements(elements =>
+      elements.map(el => {
+        if (el.id !== id) return el;
+        if (el.type === 'stroke') {
+          const scaleX = el.width > 0 ? bounds.width / el.width : 1;
+          const scaleY = el.height > 0 ? bounds.height / el.height : 1;
+          const scaledPoints = (el as WhiteboardStrokeElement).points.map(p => ({
+            ...p,
+            x: p.x * scaleX,
+            y: p.y * scaleY,
+          }));
+          return { ...el, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, points: scaledPoints } as WhiteboardElement;
+        }
+        return { ...el, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } as WhiteboardElement;
+      })
+    );
+  }, [updateElements]);
 
   const duplicateElements = useCallback((ids: string[]) => {
     updateElements(elements => {
