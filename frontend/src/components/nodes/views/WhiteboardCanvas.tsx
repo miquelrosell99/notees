@@ -51,6 +51,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isEmptyPanning, setIsEmptyPanning] = useState(false);
+  // Tracks shift key during shape creation drag for preview re-renders
+  const [shiftConstraint, setShiftConstraint] = useState(false);
 
   // Track pointer state
   const pointerState = useRef({
@@ -65,6 +67,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     startedOnEmpty: false,
     isEmptyPanning: false,
     lastPanPos: { x: 0, y: 0 } as Point,
+    shiftHeld: false,
   });
 
   const { data, interaction, setInteraction } = wb;
@@ -348,6 +351,26 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // Drawing
     if (interaction.isDrawing) {
       const pressure = e.pressure > 0 ? e.pressure : 0.5;
+
+      // Shift: snap to horizontal, vertical, or 45° diagonal from stroke start
+      if (e.shiftKey && interaction.currentStroke.length > 0) {
+        const startPoint = interaction.currentStroke[0];
+        const rawDx = canvasPos.x - startPoint.x;
+        const rawDy = canvasPos.y - startPoint.y;
+        const angle = Math.atan2(rawDy, rawDx);
+        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+        const snappedX = startPoint.x + dist * Math.cos(snappedAngle);
+        const snappedY = startPoint.y + dist * Math.sin(snappedAngle);
+        const newPoint = { x: snappedX, y: snappedY, pressure, timestamp: Date.now() };
+        // Replace with [start, snapped] to keep the stroke as a clean straight line
+        setInteraction(prev => ({
+          ...prev,
+          currentStroke: [prev.currentStroke[0], newPoint],
+        }));
+        return;
+      }
+
       const newPoint = { x: canvasPos.x, y: canvasPos.y, pressure, timestamp: Date.now() };
       setInteraction(prev => {
         const stroke = prev.currentStroke;
@@ -436,15 +459,35 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Shape creation drag
     if (interaction.isDragging && interaction.dragStart && ['rectangle', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'].includes(interaction.tool)) {
-      // Visual preview handled via selectionBox
       const start = interaction.dragStart;
+      const tool = interaction.tool;
+      const isShift = e.shiftKey;
+
+      // Track shift state so the preview can re-render accordingly
+      if (isShift !== pointerState.current.shiftHeld) {
+        pointerState.current.shiftHeld = isShift;
+        setShiftConstraint(isShift);
+      }
+
+      let endX = canvasPos.x;
+      let endY = canvasPos.y;
+
+      // Shift + rectangle → constrain to square
+      if (isShift && tool === 'rectangle') {
+        const rawW = Math.abs(endX - start.x);
+        const rawH = Math.abs(endY - start.y);
+        const size = Math.min(rawW, rawH);
+        endX = start.x + Math.sign(endX - start.x || 1) * size;
+        endY = start.y + Math.sign(endY - start.y || 1) * size;
+      }
+
       setInteraction(prev => ({
         ...prev,
         selectionBox: {
-          x: Math.min(start.x, canvasPos.x),
-          y: Math.min(start.y, canvasPos.y),
-          width: Math.abs(canvasPos.x - start.x),
-          height: Math.abs(canvasPos.y - start.y),
+          x: Math.min(start.x, endX),
+          y: Math.min(start.y, endY),
+          width: Math.abs(endX - start.x),
+          height: Math.abs(endY - start.y),
         },
       }));
       return;
@@ -525,7 +568,21 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       if (hitElement) {
         end = { type: 'element', elementId: hitElement.id, anchor: 'center' };
       } else {
-        end = { type: 'point', x: canvasPos.x, y: canvasPos.y };
+        // Shift: snap angle to H/V/45° from start
+        let endX = canvasPos.x;
+        let endY = canvasPos.y;
+        if (e.shiftKey && interaction.connectorStart.type === 'point') {
+          const sx = interaction.connectorStart.x;
+          const sy = interaction.connectorStart.y;
+          const dx = endX - sx;
+          const dy = endY - sy;
+          const angle = Math.atan2(dy, dx);
+          const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          endX = sx + dist * Math.cos(snappedAngle);
+          endY = sy + dist * Math.sin(snappedAngle);
+        }
+        end = { type: 'point', x: endX, y: endY };
       }
       const connector = wb.createConnector(interaction.connectorStart, end);
       wb.addElement(connector);
@@ -536,22 +593,30 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     // End shape creation
     if (interaction.isDragging && interaction.dragStart && interaction.selectionBox) {
       const tool = interaction.tool;
+      const isShift = e.shiftKey || pointerState.current.shiftHeld;
       const shapeMap: Record<string, WhiteboardShapeElement['shapeType']> = {
         rectangle: 'rectangle',
         ellipse: 'ellipse',
-        triangle: 'triangle',
+        triangle: isShift ? 'triangle-right' : 'triangle',
         diamond: 'diamond',
-        hexagon: 'hexagon',
+        hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
         star: 'star',
       };
       if (tool in shapeMap) {
         const bounds = interaction.selectionBox;
         if (bounds.width > 5 && bounds.height > 5) {
           const shape = wb.createShape(shapeMap[tool], bounds);
-          wb.addElement(shape);
+          // Rectangle + Shift → rotate 45° (rhombus look)
+          if (isShift && tool === 'rectangle') {
+            wb.addElement({ ...shape, rotation: 45 });
+          } else {
+            wb.addElement(shape);
+          }
           wb.selectElements([shape.id]);
         }
       }
+      pointerState.current.shiftHeld = false;
+      setShiftConstraint(false);
       setInteraction(prev => ({
         ...prev,
         isDragging: false,
@@ -745,6 +810,32 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return '';
   }, [interaction.tool, interaction.isPanning, isEmptyPanning]);
 
+  // ─── Selection bounding card ──────────────────────────────────────
+  // Computes the union bounding box (canvas coords) of all selected elements.
+
+  const selectionCardBounds = useMemo(() => {
+    if (interaction.selectedIds.size === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let found = false;
+    for (const el of data.elements) {
+      if (!interaction.selectedIds.has(el.id)) continue;
+      found = true;
+      minX = Math.min(minX, el.x);
+      minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + el.width);
+      maxY = Math.max(maxY, el.y + el.height);
+    }
+    if (!found) return null;
+    // Padding in canvas units (stays visually proportional)
+    const pad = 10 / viewport.zoom;
+    return {
+      left: (minX - pad) * viewport.zoom + viewport.x,
+      top: (minY - pad) * viewport.zoom + viewport.y,
+      width: (maxX - minX + 2 * pad) * viewport.zoom,
+      height: (maxY - minY + 2 * pad) * viewport.zoom,
+    };
+  }, [data.elements, interaction.selectedIds, viewport]);
+
   // ─── Render element ───────────────────────────────────────────────
 
   const renderElement = useCallback((el: WhiteboardElement) => {
@@ -867,7 +958,11 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       <svg className="whiteboard-view__strokes-svg">
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
           {strokeElements.map(stroke => (
-            <WhiteboardStrokeRenderer key={stroke.id} element={stroke} />
+            <WhiteboardStrokeRenderer
+              key={stroke.id}
+              element={stroke}
+              isSelected={interaction.selectedIds.has(stroke.id)}
+            />
           ))}
           {/* Current stroke being drawn */}
           {interaction.isDrawing && interaction.currentStroke.length > 1 && (
@@ -1030,6 +1125,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           .map(renderElement)}
       </div>
 
+      {/* Selection bounds card — encompasses all selected items (including strokes) */}
+      {selectionCardBounds && !interaction.isSelectionBox && (
+        <div
+          className="whiteboard-view__selection-card"
+          style={{
+            left: selectionCardBounds.left,
+            top: selectionCardBounds.top,
+            width: selectionCardBounds.width,
+            height: selectionCardBounds.height,
+          }}
+        />
+      )}
+
       {/* Selection box */}
       {interaction.selectionBox && interaction.isSelectionBox && (
         <div
@@ -1045,9 +1153,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       {/* Shape creation preview — live fainted shape */}
       {interaction.selectionBox && interaction.isDragging && !interaction.isSelectionBox && (() => {
+        const isShift = shiftConstraint;
         const shapeMap: Record<string, string> = {
-          rectangle: 'rectangle', ellipse: 'ellipse', triangle: 'triangle',
-          diamond: 'diamond', hexagon: 'hexagon', star: 'star',
+          rectangle: 'rectangle',
+          ellipse: 'ellipse',
+          triangle: isShift ? 'triangle-right' : 'triangle',
+          diamond: 'diamond',
+          hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
+          star: 'star',
         };
         const shapeType = shapeMap[interaction.tool];
         if (!shapeType) return null;
@@ -1058,6 +1171,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         const st = box.y * viewport.zoom + viewport.y;
         const { fill, stroke, strokeWidth, strokeStyle, borderRadius } = wb.settings.shape;
         const dashArray = strokeStyle === 'dashed' ? '8 4' : strokeStyle === 'dotted' ? '2 4' : undefined;
+        // Rectangle + Shift → rotate 45° in preview
+        const previewRotation = isShift && interaction.tool === 'rectangle' ? 45 : 0;
         return (
           <div
             style={{
@@ -1069,6 +1184,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               opacity: 0.45,
               pointerEvents: 'none',
               zIndex: 'var(--wb-z-overlay)' as any,
+              transform: previewRotation ? `rotate(${previewRotation}deg)` : undefined,
             }}
           >
             <svg

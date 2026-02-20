@@ -157,7 +157,10 @@
   border-radius: inherit;
   pointer-events: none;
   z-index: 10;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 10px 2px color-mix(in srgb, var(--color-primary) 45%, transparent),
+    0 0 24px 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 /* Hover Effect (when not selected) */
@@ -480,6 +483,24 @@
 .whiteboard-zoom__level:hover {
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  SELECTION CARD (bounding box for all selected items)          */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view__selection-card {
+  position: absolute;
+  border: 1.5px solid var(--color-primary);
+  border-radius: var(--shape-large);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+  pointer-events: none;
+  z-index: 50; /* above elements (20), below UI (100) */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-primary) 20%, transparent),
+    0 0 16px 4px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  /* Stays crisp during drag/pan transforms */
+  will-change: left, top, width, height;
 }
 
 /* ────────────────────────────────────────────────────────────── */
