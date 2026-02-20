@@ -92,6 +92,7 @@ export function useWhiteboard(nodeId: number | null) {
     dragStart: null,
     resizeHandle: null,
     currentStroke: [],
+    eraserMarkedIds: new Set(),
     connectorStart: null,
   });
 
