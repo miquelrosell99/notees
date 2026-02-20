@@ -475,6 +475,16 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+/*  NODE CARD IN WHITEBOARD                                       */
+/* ────────────────────────────────────────────────────────────── */
+
+/* NodeCard (from CardItem) must fill its element container so the
+   visual card matches the element bounds used for the selection box. */
+.whiteboard-element .node-card.card {
+  height: 100%;
+}
+
+/* ────────────────────────────────────────────────────────────── */
 /*  SELECTION CARD (bounding box for all selected items)          */
 /* ────────────────────────────────────────────────────────────── */
 
