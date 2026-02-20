@@ -826,7 +826,7 @@ export const NodeCard = memo(function NodeCard({
               variant="ghost"
               size="xs"
               icon={mdiPlus}
-              className="node-card__add-metadata-btn"
+              className={`node-card__add-metadata-btn${classDetails.length > 0 ? ' node-card__action-button' : ''}`}
               title="Add class"
             >
               {classDetails.length === 0 ? 'Add class' : ''}
@@ -852,7 +852,7 @@ export const NodeCard = memo(function NodeCard({
               variant="ghost"
               size="xs"
               icon={mdiPlus}
-              className="node-card__add-metadata-btn"
+              className={`node-card__add-metadata-btn${tagDetails.length > 0 ? ' node-card__action-button' : ''}`}
               title="Add tag"
             >
               {tagDetails.length === 0 ? 'Add tag' : ''}
