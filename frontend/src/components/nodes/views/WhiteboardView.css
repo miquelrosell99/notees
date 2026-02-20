@@ -507,27 +507,6 @@
   padding: var(--spacing-1);
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  REF SEARCH OVERLAY                                            */
-/* ────────────────────────────────────────────────────────────── */
-
-.whiteboard-ref-search-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: var(--wb-z-overlay);
-  background: var(--color-scrim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(2px);
-}
-
-.whiteboard-ref-search-popup {
-  width: 400px;
-  max-width: 90%;
-  animation: wb-pop-in var(--motion-duration-medium) var(--motion-easing-decelerate);
-}
-
 /* Pen/shape properties panel — matches graph view panel style */
 .whiteboard-properties {
   padding: 4px 0;

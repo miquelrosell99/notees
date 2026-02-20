@@ -20,9 +20,7 @@ import { useWhiteboard } from '@/hooks/useWhiteboard';
 import { useCreateNode } from '@/hooks/useNodes';
 import { useAppStore } from '@/stores/appStore';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
-import { SearchBox } from '@/components/core/SearchBox';
-import { Card } from '@/components/core/Card';
-import type { Node } from '@/types/api';
+import { LinkEditModal, type LinkEditResult } from '@/editor/components/LinkEditModal';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { createElementId } from '@/types/whiteboard';
 import './WhiteboardView.css';
@@ -44,12 +42,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     elementId: string | null;
   } | null>(null);
 
-  // Reference card search popup state
-  const [refCardSearch, setRefCardSearch] = useState<{
-    /** Screen position where the card should be placed */
-    screenX: number;
-    screenY: number;
-  } | null>(null);
+  // Reference card modal state — stores canvas coords where the card will be placed
+  const [refCardPos, setRefCardPos] = useState<{ x: number; y: number } | null>(null);
 
   // ─── Context menu handler ─────────────────────────────────────────
 
@@ -121,48 +115,38 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     );
   }, [nodeId, createNode, wb, screenToCanvas]);
 
-  // ─── Add reference card (pick existing node → embed as read-only) ─
+  // ─── Add reference card (pick existing node via LinkEditModal → embed as read-only) ─
 
   const handleAddReferenceCard = useCallback(() => {
     const center = viewportCenter();
-    setRefCardSearch({ screenX: center.x, screenY: center.y });
+    setRefCardPos({ x: center.x - 200, y: center.y - 160 });
   }, [viewportCenter]);
 
   const handleAddReferenceCardAtPosition = useCallback((screenX: number, screenY: number) => {
-    // Convert screen → canvas for where the card goes; SearchBox position stays screen coords
-    setRefCardSearch({ screenX, screenY });
-  }, []);
+    setRefCardPos(screenToCanvas(screenX, screenY));
+  }, [screenToCanvas]);
 
-  const handleRefNodeSelected = useCallback((selectedNode: Node) => {
-    if (!refCardSearch) return;
+  const handleRefCardSave = useCallback((result: LinkEditResult) => {
+    if (!refCardPos || result.mode !== 'node' || !result.targetNode) {
+      setRefCardPos(null);
+      return;
+    }
 
+    const selectedNode = result.targetNode;
     // Create a child block whose name is a link to the selected node: [[nodeUuid]]
     const linkName = `[[${selectedNode.uuid}]]`;
     createNode.mutate(
       { name: linkName, parent_id: nodeId },
       {
         onSuccess: (newBlock) => {
-          // Place card at the stored position (already canvas coords for center,
-          // or needs conversion for screen coords from context menu)
-          let pos: { x: number; y: number };
-          // If we came from the toolbar (center), coords are already canvas.
-          // If from context menu, we stored raw screen coords.
-          const containerRect = document.querySelector('.whiteboard-view__canvas')?.getBoundingClientRect();
-          if (containerRect && (refCardSearch.screenX > containerRect.right || refCardSearch.screenY > containerRect.bottom)) {
-            // Toolbar click — already canvas coords
-            pos = { x: refCardSearch.screenX - 200, y: refCardSearch.screenY - 160 };
-          } else {
-            pos = screenToCanvas(refCardSearch.screenX, refCardSearch.screenY);
-          }
-
-          const card = wb.createReferenceCard(newBlock.id, selectedNode.uuid, pos);
+          const card = wb.createReferenceCard(newBlock.id, selectedNode.uuid, refCardPos);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
-    setRefCardSearch(null);
-  }, [refCardSearch, nodeId, createNode, wb, screenToCanvas]);
+    setRefCardPos(null);
+  }, [refCardPos, nodeId, createNode, wb]);
 
   // ─── Add image ────────────────────────────────────────────────────
 
@@ -272,26 +256,16 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
         document.body
       )}
 
-      {/* Reference card node search popup */}
-      {refCardSearch && (
-        <div className="whiteboard-ref-search-overlay" onClick={() => setRefCardSearch(null)}>
-          <div
-            className="whiteboard-ref-search-popup"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Card elevation="high" variant="filled" padding paddingSize="sm">
-              <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13 }}>
-                Select node to reference
-              </div>
-              <SearchBox
-                placeholder="Search pages..."
-                autoFocus
-                filterFn={(n: Node) => n.is_page && n.id !== nodeId}
-                onSelect={handleRefNodeSelected}
-              />
-            </Card>
-          </div>
-        </div>
+      {/* Reference card node picker — uses LinkEditModal in node mode */}
+      {refCardPos && (
+        <LinkEditModal
+          isOpen={true}
+          linkId=""
+          refType="node"
+          title="Add Reference Card"
+          onSave={handleRefCardSave}
+          onClose={() => setRefCardPos(null)}
+        />
       )}
     </div>
   );
