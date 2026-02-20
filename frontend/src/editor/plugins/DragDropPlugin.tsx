@@ -1,16 +1,19 @@
 /**
  * DragDropPlugin — Custom mouse-based block drag & drop with ghost preview.
  *
- * Instead of a line indicator the dragged block becomes a floating ghost
- * that follows the cursor (anchored at the bullet). When the ghost is
- * near a valid drop position it snaps into place, giving a live preview
- * of where the block will land. Moving further away un-snaps the ghost
- * so it resumes following the cursor.
+ * Drop targets are invisible anchor points computed from the block tree.
+ * They live at every position where a bullet *would be* if a block existed
+ * there — between siblings, before the first child, after all children, etc.
+ *
+ * The dragged block turns into a floating ghost that follows the cursor.
+ * When the cursor gets close to a drop target the ghost snaps to that
+ * position, previewing where the block will land.
  */
 
 import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { getDragCoordinator } from '../../runtime/DragCoordinator';
+import type { DropTarget as CoordinatorTarget } from '../../runtime/types';
 
 export interface DragDropPluginProps {
   editorId: string;
@@ -18,6 +21,21 @@ export interface DragDropPluginProps {
 }
 
 const DRAG_THRESHOLD = 5;
+/** Max distance (px) from cursor to a drop target to snap */
+const SNAP_DISTANCE = 40;
+
+// ─── Types ───────────────────────────────────────────────────
+
+/** A computed drop target — a phantom insertion point */
+interface DropAnchor {
+  /** Screen position where the bullet would be */
+  x: number;
+  y: number;
+  /** The depth this insertion would have */
+  depth: number;
+  /** Coordinator-compatible target info */
+  target: CoordinatorTarget;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -26,60 +44,227 @@ function findBlockRow(el: HTMLElement | null): HTMLElement | null {
   return el.closest('.node-block[data-block-id]') as HTMLElement | null;
 }
 
+function escapeHtml(t: string): string {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
- * Scan all visible blocks in an editor root and return the best
- * drop target for a given Y coordinate, skipping the dragged block
- * and its descendants.
+ * Get the bullet center X for a given block element.
+ * Falls back to the block's left edge if no bullet found.
  */
-function findDropTarget(
+function getBulletCenterX(blockEl: HTMLElement): number {
+  const bullet = blockEl.querySelector(':scope > .block-ui > .bullet-wrapper');
+  if (bullet) {
+    const r = bullet.getBoundingClientRect();
+    return r.left + r.width / 2;
+  }
+  return blockEl.getBoundingClientRect().left + 16;
+}
+
+/**
+ * Compute all drop anchors for a given editor root, excluding
+ * the dragged block and its descendants.
+ *
+ * Walk blocks in DOM order. Between each pair of consecutive visible
+ * blocks (prev, curr), we insert anchors at every valid depth level
+ * for the gap between them.
+ *
+ * Rules:
+ * 1. Between a parent and its first child → depth = child depth
+ *    ("insert as first child")
+ * 2. Between siblings → depth = sibling depth ("insert between siblings")
+ * 3. When depth decreases (outdent) from prev to curr, one anchor
+ *    per depth from prevDepth down to currDepth ("insert after subtree
+ *    at each level")
+ * 4. After the very last block → one anchor per depth from lastDepth
+ *    down to 0 ("append at each level")
+ * 5. Before the very first block → depth 0 ("prepend at root level")
+ * 6. Below any leaf block → depth+1 ("add as child")
+ */
+function computeDropAnchors(
   rootEl: HTMLElement,
-  y: number,
   dragBlockId: string,
-): { blockEl: HTMLElement; position: 'before' | 'after' } | null {
-  const allBlocks = Array.from(
+  editorId: string,
+): DropAnchor[] {
+  const dragBlockEl = rootEl.querySelector(
+    `.node-block[data-block-id="${dragBlockId}"]`,
+  );
+
+  // Collect all visible blocks in DOM order, excluding the drag source subtree
+  const allBlockEls = Array.from(
     rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]'),
-  ).filter((b) => {
-    const id = b.getAttribute('data-block-id');
-    if (id === dragBlockId) return false;
-    if (b.closest(`.node-block[data-block-id="${dragBlockId}"]`)) return false;
+  ).filter((el) => {
+    if (el === dragBlockEl) return false;
+    if (dragBlockEl && dragBlockEl.contains(el)) return false;
     return true;
   });
-  if (allBlocks.length === 0) return null;
 
-  const firstRect = allBlocks[0].getBoundingClientRect();
-  if (y < firstRect.top) return { blockEl: allBlocks[0], position: 'before' };
+  if (allBlockEls.length === 0) return [];
 
-  const lastBlock = allBlocks[allBlocks.length - 1];
-  if (y > lastBlock.getBoundingClientRect().bottom)
-    return { blockEl: lastBlock, position: 'after' };
+  // Compute the bullet X position for each depth level by sampling real blocks.
+  // We need this so we can position anchors at depths that may not have a
+  // corresponding block at that point, using an inferred indent.
+  const bulletXByDepth = new Map<number, number>();
+  let baseLeft = 0;
+  let indentPerLevel = 32; // fallback
+  for (const el of allBlockEls) {
+    const d = parseInt(el.getAttribute('data-depth') || '0', 10);
+    if (!bulletXByDepth.has(d)) {
+      bulletXByDepth.set(d, getBulletCenterX(el));
+    }
+  }
+  // Infer indent per level from two different depths
+  const sortedDepths = [...bulletXByDepth.keys()].sort((a, b) => a - b);
+  if (sortedDepths.length >= 2) {
+    const d0 = sortedDepths[0];
+    const d1 = sortedDepths[1];
+    indentPerLevel = (bulletXByDepth.get(d1)! - bulletXByDepth.get(d0)!) / (d1 - d0);
+  }
+  if (bulletXByDepth.has(0)) {
+    baseLeft = bulletXByDepth.get(0)!;
+  } else if (sortedDepths.length > 0) {
+    baseLeft = bulletXByDepth.get(sortedDepths[0])! - sortedDepths[0] * indentPerLevel;
+  }
 
-  for (const block of allBlocks) {
-    const r = block.getBoundingClientRect();
-    if (y >= r.top && y <= r.bottom) {
-      return {
-        blockEl: block,
-        position: (y - r.top) / r.height < 0.5 ? 'before' : 'after',
-      };
+  /** Return the X for a given depth, inferring if needed */
+  function bulletXForDepth(depth: number): number {
+    if (bulletXByDepth.has(depth)) return bulletXByDepth.get(depth)!;
+    return baseLeft + depth * indentPerLevel;
+  }
+
+  const anchors: DropAnchor[] = [];
+
+  // Helper: info about a block element
+  function blockInfo(el: HTMLElement) {
+    const id = el.getAttribute('data-block-id')!;
+    const depth = parseInt(el.getAttribute('data-depth') || '0', 10);
+    const rect = el.getBoundingClientRect();
+    // Check if block has visible children (next sibling in our list is deeper)
+    return { id, depth, rect, el };
+  }
+
+  const blocks = allBlockEls.map(blockInfo);
+
+  // ── Before the first block: insert at depth 0 ──
+  {
+    const first = blocks[0];
+    anchors.push({
+      x: bulletXForDepth(first.depth),
+      y: first.rect.top - 4,
+      depth: first.depth,
+      target: { blockId: first.id, position: 'before', targetEditorId: editorId },
+    });
+  }
+
+  // ── Between consecutive blocks ──
+  for (let i = 0; i < blocks.length; i++) {
+    const curr = blocks[i];
+    const next = i + 1 < blocks.length ? blocks[i + 1] : null;
+
+    // The Y midpoint of the gap between this block and the next
+    const gapY = next
+      ? (curr.rect.bottom + next.rect.top) / 2
+      : curr.rect.bottom + 8;
+
+    // Does this block have visible children? (next block is deeper)
+    const hasVisibleChildren = next && next.depth > curr.depth;
+    // Is this block collapsed? Check DOM
+    const isCollapsed = curr.el.classList.contains('node-block--collapsed');
+
+    // Rule 6: If block is a leaf (no visible children and not collapsed),
+    // offer "add as child" at depth+1
+    if (!hasVisibleChildren && !isCollapsed) {
+      anchors.push({
+        x: bulletXForDepth(curr.depth + 1),
+        y: gapY,
+        depth: curr.depth + 1,
+        target: { blockId: curr.id, position: 'child', targetEditorId: editorId },
+      });
+    }
+
+    // Rule 1: If next block is a child of current (deeper), offer
+    // "insert as first child" at next's depth (between parent & first child)
+    if (hasVisibleChildren && next) {
+      const childGapY = (curr.rect.bottom + next.rect.top) / 2;
+      anchors.push({
+        x: bulletXForDepth(next.depth),
+        y: childGapY,
+        depth: next.depth,
+        target: { blockId: next.id, position: 'before', targetEditorId: editorId },
+      });
+    }
+
+    if (!next) {
+      // ── After the last block: anchors at each depth going up ──
+      // Rule 4: from currDepth down to 0
+      for (let d = curr.depth; d >= 0; d--) {
+        const offsetY = (curr.depth - d) * 6; // slight vertical stagger
+        anchors.push({
+          x: bulletXForDepth(d),
+          y: curr.rect.bottom + 8 + offsetY,
+          depth: d,
+          target: { blockId: curr.id, position: 'after', targetEditorId: editorId },
+        });
+      }
+    } else if (next.depth < curr.depth) {
+      // Rule 3: Depth decreases — "outdent" gap. One anchor per depth
+      // from curr.depth down to next.depth (next.depth itself is a
+      // regular sibling slot, handled by next iteration's "before")
+      for (let d = curr.depth; d > next.depth; d--) {
+        const offsetY = (curr.depth - d) * 4;
+        anchors.push({
+          x: bulletXForDepth(d),
+          y: gapY + offsetY,
+          depth: d,
+          target: { blockId: curr.id, position: 'after', targetEditorId: editorId },
+        });
+      }
+      // Rule 2: sibling at next.depth
+      anchors.push({
+        x: bulletXForDepth(next.depth),
+        y: gapY,
+        depth: next.depth,
+        target: { blockId: next.id, position: 'before', targetEditorId: editorId },
+      });
+    } else if (next.depth === curr.depth && !hasVisibleChildren) {
+      // Rule 2: same-level sibling
+      anchors.push({
+        x: bulletXForDepth(curr.depth),
+        y: gapY,
+        depth: curr.depth,
+        target: { blockId: next.id, position: 'before', targetEditorId: editorId },
+      });
     }
   }
 
-  // Between blocks — nearest center
-  let closest = allBlocks[0];
-  let closestDist = Infinity;
-  for (const block of allBlocks) {
-    const r = block.getBoundingClientRect();
-    const d = Math.abs(y - (r.top + r.height / 2));
-    if (d < closestDist) { closestDist = d; closest = block; }
-  }
-  const cr = closest.getBoundingClientRect();
-  return {
-    blockEl: closest,
-    position: y < cr.top + cr.height / 2 ? 'before' : 'after',
-  };
+  return anchors;
 }
 
-function escapeHtml(t: string): string {
-  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/**
+ * Find the nearest drop anchor to a cursor position.
+ * Returns null if all anchors are beyond SNAP_DISTANCE.
+ */
+function findNearestAnchor(
+  anchors: DropAnchor[],
+  cx: number,
+  cy: number,
+): DropAnchor | null {
+  let best: DropAnchor | null = null;
+  let bestDist = SNAP_DISTANCE;
+
+  for (const a of anchors) {
+    // Weight X distance more than Y — horizontal position determines
+    // which depth level you're targeting when multiple anchors share
+    // the same gap. Y just needs to be roughly in the right gap.
+    const dy = Math.abs(cy - a.y);
+    const dx = Math.abs(cx - a.x);
+    const dist = Math.sqrt(dx * dx * 0.5 + dy * dy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = a;
+    }
+  }
+  return best;
 }
 
 // ─── Component ───────────────────────────────────────────────
@@ -87,6 +272,8 @@ function escapeHtml(t: string): string {
 export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const ghostRef = useRef<HTMLDivElement | null>(null);
+  const anchorsRef = useRef<DropAnchor[]>([]);
+  const activeAnchorRef = useRef<DropAnchor | null>(null);
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -97,9 +284,6 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     blockEl: HTMLElement;
     sourceDepth: number;
     ghostText: string;
-    /** Offset from cursor to the bullet center in the source block */
-    bulletOffsetX: number;
-    bulletOffsetY: number;
     snapped: boolean;
   } | null>(null);
 
@@ -150,15 +334,9 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
       const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
 
-      // Grab text for the ghost label
       const contentEl = blockEl.querySelector('.node-block-content');
       let ghostText = contentEl?.textContent?.trim() || '';
       if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
-
-      // Compute bullet anchor offset from the cursor
-      const bulletRect = bullet.getBoundingClientRect();
-      const bulletCX = bulletRect.left + bulletRect.width / 2;
-      const bulletCY = bulletRect.top + bulletRect.height / 2;
 
       dragStateRef.current = {
         active: false,
@@ -169,8 +347,6 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         blockEl,
         sourceDepth: depth,
         ghostText,
-        bulletOffsetX: bulletCX - e.clientX,
-        bulletOffsetY: bulletCY - e.clientY,
         snapped: false,
       };
     };
@@ -197,12 +373,25 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
           sourceDepth: state.sourceDepth,
         });
 
-        // Build ghost content
+        // Compute drop anchors from all editors on the page
+        const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+        let allAnchors: DropAnchor[] = [];
+        editorRoots.forEach((root) => {
+          const rootEditorId =
+            root.closest('[data-editor-id]')?.getAttribute('data-editor-id') || editorId;
+          allAnchors = allAnchors.concat(
+            computeDropAnchors(root, state.blockId, rootEditorId),
+          );
+        });
+        anchorsRef.current = allAnchors;
+
+        // Build ghost
         const ghost = ghostRef.current!;
         ghost.innerHTML =
           '<div class="block-drag-ghost__bullet"></div>' +
           `<div class="block-drag-ghost__content">${escapeHtml(state.ghostText)}</div>`;
         ghost.style.display = 'flex';
+        positionGhostFloat(ghost, e);
 
         state.blockEl.classList.add('node-block--drag-source');
         document.body.classList.add('notees-dragging-block');
@@ -213,72 +402,40 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       const ghost = ghostRef.current!;
       const coordinator = getDragCoordinator();
 
-      // ── Resolve drop target ──
-      let drop: { blockEl: HTMLElement; position: 'before' | 'after' } | null = null;
+      // Find nearest drop anchor
+      const anchor = findNearestAnchor(anchorsRef.current, e.clientX, e.clientY);
 
-      // Direct hit on a block
-      const hitBlock = findBlockRow(e.target as HTMLElement);
-      if (hitBlock) {
-        const id = hitBlock.getAttribute('data-block-id');
-        if (id && id !== state.blockId && !hitBlock.closest(`.node-block[data-block-id="${state.blockId}"]`)) {
-          const r = hitBlock.getBoundingClientRect();
-          drop = { blockEl: hitBlock, position: (e.clientY - r.top) / r.height < 0.5 ? 'before' : 'after' };
-        }
-      }
+      if (anchor) {
+        coordinator.updateTarget(anchor.target);
 
-      // Fallback: scan editor content area (handles empty space, gaps)
-      if (!drop) {
-        const editorContent =
-          (e.target as HTMLElement).closest('.notees-editor-content') as HTMLElement ||
-          document.querySelector('.main-content .notees-editor-content') as HTMLElement;
-        if (editorContent) {
-          drop = findDropTarget(editorContent, e.clientY, state.blockId);
-        }
-      }
-
-      // ── Position ghost ──
-      if (drop) {
-        const { blockEl: targetBlock, position } = drop;
-        const targetId = targetBlock.getAttribute('data-block-id')!;
-        const targetEditorRoot = targetBlock.closest('[data-editor-id]');
-        const targetEditorId = targetEditorRoot?.getAttribute('data-editor-id') || editorId;
-
-        coordinator.updateTarget({ blockId: targetId, position, targetEditorId });
-
-        // Compute where the ghost should snap
-        const targetRect = targetBlock.getBoundingClientRect();
-        const targetBullet = targetBlock.querySelector('.bullet-wrapper');
-        const targetBulletRect = targetBullet?.getBoundingClientRect();
-        const snapLeft = targetBulletRect ? targetBulletRect.left : targetRect.left;
-        const snapWidth = targetRect.right - snapLeft;
-        const snapTop = position === 'before' ? targetRect.top : targetRect.bottom;
-
-        // Animate when snapping or moving between snap positions
+        // Snap ghost to anchor position
         if (!state.snapped) {
           ghost.style.transition =
-            'top 0.15s ease-out, left 0.15s ease-out, width 0.15s ease-out, opacity 0.15s ease-out';
+            'top 0.12s ease-out, left 0.12s ease-out, width 0.12s ease-out';
         }
         ghost.classList.add('block-drag-ghost--snapped');
         ghost.classList.remove('block-drag-ghost--floating');
-        ghost.style.top = `${snapTop - 14}px`;
-        ghost.style.left = `${snapLeft}px`;
-        ghost.style.width = `${snapWidth}px`;
+        ghost.style.top = `${anchor.y - 14}px`;
+        ghost.style.left = `${anchor.x - 11}px`;
+        ghost.style.width = '200px';
         state.snapped = true;
+        activeAnchorRef.current = anchor;
       } else {
         coordinator.updateTarget(null);
-
-        // Float at cursor, anchored at bullet
-        if (state.snapped) {
-          ghost.style.transition = 'none'; // instant un-snap
-        }
-        ghost.classList.remove('block-drag-ghost--snapped');
-        ghost.classList.add('block-drag-ghost--floating');
-        ghost.style.top = `${e.clientY + state.bulletOffsetY - 14}px`;
-        ghost.style.left = `${e.clientX + state.bulletOffsetX - 3}px`;
-        ghost.style.width = '';
+        positionGhostFloat(ghost, e);
         state.snapped = false;
+        activeAnchorRef.current = null;
       }
     };
+
+    function positionGhostFloat(ghost: HTMLDivElement, e: MouseEvent) {
+      ghost.style.transition = 'none';
+      ghost.classList.remove('block-drag-ghost--snapped');
+      ghost.classList.add('block-drag-ghost--floating');
+      ghost.style.top = `${e.clientY - 14}px`;
+      ghost.style.left = `${e.clientX - 11}px`;
+      ghost.style.width = '';
+    }
 
     // ── Mouseup ──────────────────────────────────────────────
     const handleMouseUp = () => {
@@ -313,6 +470,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       }
       state.blockEl.classList.remove('node-block--drag-source');
       document.body.classList.remove('notees-dragging-block');
+      anchorsRef.current = [];
+      activeAnchorRef.current = null;
     }
 
     // ── Bind ─────────────────────────────────────────────────
