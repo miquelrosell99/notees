@@ -1,5 +1,5 @@
 /**
- * ImportLogseqModal - Modal for importing Logseq EDN graph exports
+ * ImportLogseqModal - Modal for importing Logseq graph exports
  *
  * Import flow (7 phases):
  * 1. Create classes (type nodes)
@@ -24,6 +24,7 @@ import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
+import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
@@ -116,6 +117,9 @@ interface NodeInfo {
 /** Import mode: additive only adds new entities, override also updates existing ones */
 type ImportMode = 'additive' | 'override';
 
+/** Input source: EDN text paste or SQLite file upload */
+type InputSource = 'edn' | 'sqlite';
+
 interface ImportLogseqModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -127,10 +131,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [parsed, setParsed] = useState<LogseqExport | null>(null);
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
+  const [importProgress, setImportProgress] = useState(0);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>(
     () => (localStorage.getItem('logseq-import-mode') as ImportMode | null) ?? 'additive'
   );
+  const [inputSource, setInputSource] = useState<InputSource>('edn');
+  const [sqliteFileName, setSqliteFileName] = useState<string | null>(null);
+  const [sqliteParsing, setSqliteParsing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportModeChange = (checked: boolean) => {
     const mode: ImportMode = checked ? 'override' : 'additive';
@@ -158,13 +167,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setParsed(null);
       setImporting(false);
       setImportStatus('');
+      setImportProgress(0);
       setReport(null);
-      setTimeout(() => textareaRef.current?.focus(), 0);
+      setSqliteFileName(null);
+      setSqliteParsing(false);
+      if (inputSource === 'edn') {
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      }
     }
   }, [isOpen]);
 
   // Validate EDN as user types (debounced by paste)
   useEffect(() => {
+    if (inputSource !== 'edn') return;
     if (!content.trim()) {
       setError(null);
       setParsed(null);
@@ -180,15 +195,86 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         setError(e instanceof Error ? e.message : 'Invalid EDN format');
       }
     }
-  }, [content]);
+  }, [content, inputSource]);
+
+  /** Handle SQLite file selection. */
+  const handleSqliteFile = useCallback(async (file: File) => {
+    setSqliteFileName(file.name);
+    setSqliteParsing(true);
+    setError(null);
+    setParsed(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const result = await parseLogseqSqlite(buffer);
+      setParsed(result);
+      setError(null);
+    } catch (e) {
+      setParsed(null);
+      setError(e instanceof Error ? e.message : 'Failed to parse SQLite file');
+    } finally {
+      setSqliteParsing(false);
+    }
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) handleSqliteFile(file);
+    },
+    [handleSqliteFile],
+  );
+
+  const handleFileDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files?.[0];
+      if (file && (file.name.endsWith('.sqlite') || file.name.endsWith('.sqlite3') || file.name.endsWith('.db'))) {
+        handleSqliteFile(file);
+      } else {
+        setError('Please drop a Logseq .sqlite database file');
+      }
+    },
+    [handleSqliteFile],
+  );
+
+  const handleInputSourceChange = useCallback((source: InputSource) => {
+    setInputSource(source);
+    setError(null);
+    setParsed(null);
+    setContent('');
+    setSqliteFileName(null);
+  }, []);
 
   const handleImport = useCallback(async () => {
     if (!parsed || !pageClassId) return;
     setImporting(true);
     setReport(null);
+    setImportProgress(0);
 
     const override = importMode === 'override';
     const phases: PhaseResult[] = [];
+
+    // ── Progress tracking ──────────────────────────────────────
+    // Estimate total work items for percentage calculation.
+    // Counts: classes + class-extends + properties + pages + prop-bindings
+    //       + pages-with-props + contentQueue (≈blocks) + aliases
+    const classExtends = parsed.classes.filter(c => c.extends).length;
+    const propBindings = parsed.classes.reduce((s, c) => s + (c.properties?.length ?? 0), 0);
+    const pagesWithProps = parsed.pages.filter(p => p.properties && Object.keys(p.properties).length > 0).length;
+    const pagesWithAliases = parsed.pages.filter(p => (p.aliases && p.aliases.length > 0) || (p.aliasOfUuids && p.aliasOfUuids.length > 0)).length;
+    const totalBlocks = parsed.pages.reduce((s, p) => s + countBlocks(p.blocks), 0)
+      + (parsed.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
+    const estimatedTotal = Math.max(1,
+      parsed.classes.length + classExtends + parsed.properties.length
+      + parsed.pages.length + propBindings + pagesWithProps
+      + totalBlocks + pagesWithAliases
+    );
+    let completedItems = 0;
+    const tick = () => {
+      completedItems++;
+      setImportProgress(Math.min(99, Math.round((completedItems / estimatedTotal) * 100)));
+    };
 
     try {
       // ── Maps built during import ─────────────────────────────
@@ -245,6 +331,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 await updateNodeMutation.mutateAsync({ id: existing.id, data: { name: cls.title } });
               }
               p1.succeeded++;
+              tick();
               continue;
             }
             const node = await createNodeMutation.mutateAsync({
@@ -257,8 +344,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               uuidMap.set(cls.uuid, { id: node.id, uuid: node.uuid });
             }
             p1.succeeded++;
+            tick();
           } catch (e) {
             p1.failed++;
+            tick();
             p1.errors.push({ item: cls.title, message: errorMessage(e) });
           }
         }
@@ -275,6 +364,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           try {
             await addClassExtends(noteesClassId, noteesParentClassId);
             p1b.succeeded++;
+            tick();
           } catch (e) {
             const msg = errorMessage(e);
             if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
@@ -283,6 +373,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p1b.failed++;
               p1b.errors.push({ item: `${cls.title} extends ${cls.extends}`, message: msg });
             }
+            tick();
           }
         }
       }
@@ -334,6 +425,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
             }
             p2.succeeded++;
+            tick();
             continue;
           }
 
@@ -354,8 +446,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             }
           }
           p2.succeeded++;
+          tick();
         } catch (e) {
           p2.failed++;
+          tick();
           p2.errors.push({ item: prop.title, message: errorMessage(e) });
         }
       }
@@ -456,6 +550,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p3.failed++;
               p3.errors.push({ item: `Journal: ${page.journal}`, message: errorMessage(e) });
             }
+            tick();
             continue;
           }
 
@@ -505,6 +600,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 page.blocks, existingPage.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
               );
             }
+            tick();
             continue;
           }
 
@@ -525,8 +621,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               page.blocks, pageNode.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
             );
           }
+          tick();
         } catch (e) {
           p3.failed++;
+          tick();
           p3.errors.push({ item: `Page: ${page.title}`, message: errorMessage(e) });
         }
       }
@@ -634,6 +732,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               propertyId: noteesPropId,
             });
             p4.succeeded++;
+            tick();
           } catch (e) {
             // Treat "already bound" / conflict as success
             const msg = errorMessage(e);
@@ -643,6 +742,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p4.failed++;
               p4.errors.push({ item: `${cls.title} ← ${logseqPropId}`, message: msg });
             }
+            tick();
           }
         }
       }
@@ -666,6 +766,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         const isExisting = existingNodeIds.has(nodeInfo.id);
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
         await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, isExisting, textPropIds);
+        tick();
       }
       for (const page of parsed.pages) {
         await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds, textPropIds);
@@ -704,8 +805,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           for (const result of batchResult.results) {
             if (result.success) {
               p6.succeeded++;
+              tick();
             } else {
               p6.failed++;
+              tick();
               const item = chunk[result.index];
               p6.errors.push({ item: `Node ${item?.id}`, message: result.error || 'Unknown error' });
             }
@@ -737,8 +840,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 titleToNodeInfo.set(aliasTitle, { id: aliasNode.id, uuid: aliasNode.uuid });
                 await addAlias(mainInfo.id, aliasNode.id);
                 p7.succeeded++;
+                tick();
               } catch (e) {
                 p7.failed++;
+                tick();
                 p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: errorMessage(e) });
               }
             } else {
@@ -746,6 +851,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               try {
                 await addAlias(mainInfo.id, aliasInfo.id);
                 p7.succeeded++;
+                tick();
               } catch (e) {
                 const msg = errorMessage(e);
                 if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
@@ -754,6 +860,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                   p7.failed++;
                   p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: msg });
                 }
+                tick();
               }
             }
           }
@@ -775,6 +882,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 // so target is the main node (first arg) and this page is the alias (second arg)
                 await addAlias(targetInfo.id, thisPageInfo.id);
                 p7.succeeded++;
+                tick();
               } catch (e) {
                 const msg = errorMessage(e);
                 if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
@@ -783,6 +891,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                   p7.failed++;
                   p7.errors.push({ item: `Alias: ${page.title} → UUID ${targetUuid}`, message: msg });
                 }
+                tick();
               }
             }
           }
@@ -800,6 +909,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
 
       setReport({ phases, totalSucceeded, totalFailed });
+      setImportProgress(100);
       setImportStatus('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed');
@@ -977,7 +1087,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Import Logseq EDN"
+      title="Import from Logseq"
       size="lg"
       footer={
         <>
@@ -996,20 +1106,81 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
     >
       <div className="import-logseq__body" onKeyDown={handleKeyDown}>
-        <p className="import-logseq__description">
-          Paste the raw EDN content from a Logseq database graph export.
-        </p>
+        {/* ── Input source tabs ────────────────────────────── */}
+        <div className="import-logseq__source-tabs">
+          <button
+            className={`import-logseq__source-tab${inputSource === 'edn' ? ' import-logseq__source-tab--active' : ''}`}
+            onClick={() => handleInputSourceChange('edn')}
+            disabled={importing}
+          >
+            EDN Paste
+          </button>
+          <button
+            className={`import-logseq__source-tab${inputSource === 'sqlite' ? ' import-logseq__source-tab--active' : ''}`}
+            onClick={() => handleInputSourceChange('sqlite')}
+            disabled={importing}
+          >
+            SQLite File
+          </button>
+        </div>
 
-        <textarea
-          ref={textareaRef}
-          className={`import-logseq__textarea${
-            error ? ' import-logseq__textarea--error' : ''
-          }${parsed ? ' import-logseq__textarea--valid' : ''}`}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
-          spellCheck={false}
-        />
+        {inputSource === 'edn' ? (
+          <>
+            <p className="import-logseq__description">
+              Paste the raw EDN content from a Logseq database graph export.
+            </p>
+            <textarea
+              ref={textareaRef}
+              className={`import-logseq__textarea${
+                error ? ' import-logseq__textarea--error' : ''
+              }${parsed ? ' import-logseq__textarea--valid' : ''}`}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
+              spellCheck={false}
+            />
+          </>
+        ) : (
+          <>
+            <p className="import-logseq__description">
+              Upload a Logseq SQLite database file (<code>.sqlite</code>). These are
+              found in your Logseq data directory for DB-based graphs.
+            </p>
+            <div
+              className={`import-logseq__dropzone${
+                error ? ' import-logseq__dropzone--error' : ''
+              }${parsed ? ' import-logseq__dropzone--valid' : ''
+              }${sqliteParsing ? ' import-logseq__dropzone--loading' : ''}`}
+              onDrop={handleFileDrop}
+              onDragOver={(e) => e.preventDefault()}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".sqlite,.sqlite3,.db"
+                onChange={handleFileInputChange}
+                style={{ display: 'none' }}
+              />
+              {sqliteParsing ? (
+                <span className="import-logseq__dropzone-text">Parsing database…</span>
+              ) : sqliteFileName ? (
+                <span className="import-logseq__dropzone-text">
+                  <strong>{sqliteFileName}</strong>
+                  <br />
+                  {parsed ? 'Ready to import' : 'Click to choose a different file'}
+                </span>
+              ) : (
+                <span className="import-logseq__dropzone-text">
+                  Drop a <code>.sqlite</code> file here or click to browse
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
         {parsed && (
           <div className="import-logseq__mode-selector">
@@ -1053,8 +1224,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           </div>
         )}
 
-        {importing && importStatus && (
-          <div className="import-logseq__status">{importStatus}</div>
+        {importing && (
+          <div className="import-logseq__progress-area">
+            <div className="import-logseq__progress-bar-track">
+              <div
+                className="import-logseq__progress-bar-fill"
+                style={{ width: `${importProgress}%` }}
+              />
+            </div>
+            <div className="import-logseq__progress-text">
+              <span>{importProgress}%</span>
+              {importStatus && <span className="import-logseq__progress-status">{importStatus}</span>}
+            </div>
+          </div>
         )}
       </div>
     </Modal>

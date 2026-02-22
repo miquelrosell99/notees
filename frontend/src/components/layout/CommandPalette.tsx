@@ -342,7 +342,7 @@ export function CommandPalette({
   // Command definitions for the palette
   const commands = useMemo(() => {
     const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus'; requiresPage?: boolean }> = [
-      { id: 'import-logseq', label: 'Import Logseq EDN', icon: 'import' },
+      { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
