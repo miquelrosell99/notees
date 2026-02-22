@@ -285,16 +285,22 @@ async def delete_workspace(user_id: str, workspace_uuid: str) -> bool:
         workspace_uuid = str(workspace_row['uuid'])
         
         # For large workspaces the CASCADE delete can exceed the pool's command_timeout.
-        # Work around this by:
-        # 1. Clearing self-referential FKs on node (parent_id / page_id / aliased_id)
-        #    so PostgreSQL doesn't have to do per-row SET NULL updates during cascade.
-        # 2. Deleting nodes and properties explicitly before removing the workspace row,
-        #    so the final DELETE is a simple single-row operation.
-        # All calls use timeout=None to bypass the pool-level 60-second limit.
+        # The node_path closure table has per-row triggers (node_path_update /
+        # node_path_delete) that do expensive subqueries on every affected node row.
+        # With 21k+ nodes these trigger invocations alone can blow the 60-second limit.
+        #
+        # Strategy (all with timeout=None to bypass the pool limit):
+        # 1. Delete all node_path rows for workspace nodes in one bulk statement.
+        #    This makes subsequent trigger invocations no-ops.
+        # 2. Delete all nodes in one bulk statement.  The node_path_delete trigger
+        #    fires per row but finds nothing to delete (no-op).
+        #    The self-referential parent_id / page_id FKs (ON DELETE SET NULL) are
+        #    handled correctly by PostgreSQL within a single DELETE statement.
+        # 3. Delete properties, then the workspace row itself.
         await conn.execute(
-            """UPDATE node
-               SET parent_id = NULL, page_id = NULL, aliased_id = NULL
-               WHERE workspace_id = $1""",
+            """DELETE FROM node_path
+               WHERE ancestor_id IN (SELECT id FROM node WHERE workspace_id = $1)
+                  OR descendant_id IN (SELECT id FROM node WHERE workspace_id = $1)""",
             workspace_id, timeout=None
         )
         await conn.execute(
