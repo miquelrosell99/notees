@@ -75,7 +75,8 @@ export function ImageNode({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: false });
-  const { openNode, addSidebarCard } = useAppStore();
+  const openNode = useAppStore(s => s.openNode);
+  const addSidebarCard = useAppStore(s => s.addSidebarCard);
 
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {

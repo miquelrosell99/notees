@@ -301,8 +301,9 @@ export const NodeCard = memo(function NodeCard({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
 
-  // Store actions
-  const { openNode, addSidebarCard } = useAppStore();
+  // Store actions (use selectors to avoid full-store re-renders)
+  const openNode = useAppStore(s => s.openNode);
+  const addSidebarCard = useAppStore(s => s.addSidebarCard);
 
   // Content save hook
   const { handleContentChange: saveContent } = useContentSave();
