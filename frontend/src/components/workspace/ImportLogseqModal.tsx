@@ -26,11 +26,12 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty, useSetNodeProperty, useAddPropertyToClass } from '@/hooks';
+import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
+import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
@@ -152,8 +153,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const createNodeMutation = useCreateNode();
   const updateNodeMutation = useUpdateNode();
   const createPropertyMutation = useCreateProperty();
-  const setNodePropertyMutation = useSetNodeProperty();
-  const addPropertyToClassMutation = useAddPropertyToClass();
   const addClassMutation = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
@@ -712,52 +711,70 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 4: Bind properties to classes (idempotent — duplicates are OK)
+      // PHASE 4: Bind properties to classes — batched
       // ──────────────────────────────────────────────────────────
       const p4 = createPhase('Bind properties to classes');
       phases.push(p4);
+      const PHASE4_WHITELIST = new Set(['logseq.property/description', 'logseq.property/status', 'logseq.property/priority']);
+      const classPropertyItems: Array<{ class_node_id: number; property_id: number; label: string }> = [];
       for (const cls of parsed.classes) {
         const noteesClassId = classIdMap.get(cls.id);
         if (!noteesClassId || !cls.properties) continue;
         for (const logseqPropId of cls.properties) {
-          // Skip logseq system properties, but allow whitelisted ones (description, status, priority) through
-          const PHASE4_WHITELIST = new Set(['logseq.property/description', 'logseq.property/status', 'logseq.property/priority']);
           if (logseqPropId.startsWith('logseq.property') && !PHASE4_WHITELIST.has(logseqPropId)) continue;
           const noteesPropId = propIdMap.get(logseqPropId);
           if (!noteesPropId) continue;
-          setImportStatus(`Binding property to class: ${cls.title}`);
+          classPropertyItems.push({ class_node_id: noteesClassId, property_id: noteesPropId, label: `${cls.title} ← ${logseqPropId}` });
+        }
+      }
+      if (classPropertyItems.length > 0) {
+        setImportStatus(`Binding ${classPropertyItems.length} properties to classes…`);
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < classPropertyItems.length; i += BATCH_SIZE) {
+          const chunk = classPropertyItems.slice(i, i + BATCH_SIZE);
           try {
-            await addPropertyToClassMutation.mutateAsync({
-              classId: noteesClassId,
-              propertyId: noteesPropId,
-            });
-            p4.succeeded++;
-            tick();
-          } catch (e) {
-            // Treat "already bound" / conflict as success
-            const msg = errorMessage(e);
-            if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
-              p4.succeeded++;
-            } else {
-              p4.failed++;
-              p4.errors.push({ item: `${cls.title} ← ${logseqPropId}`, message: msg });
+            const res = await batchAddClassProperties(chunk.map(({ class_node_id, property_id }) => ({ class_node_id, property_id })));
+            for (const r of res.results) {
+              if (r.success) {
+                p4.succeeded++;
+              } else {
+                p4.failed++;
+                p4.errors.push({ item: chunk[r.index].label, message: r.error || 'Unknown error' });
+              }
+              tick();
             }
-            tick();
+          } catch (e) {
+            // If the whole batch fails, count each item as failed
+            for (const item of chunk) {
+              p4.failed++;
+              p4.errors.push({ item: item.label, message: errorMessage(e) });
+              tick();
+            }
           }
         }
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 5: Assign property values to pages and blocks
+      // PHASE 5: Assign property values to pages and blocks — batched
       // ──────────────────────────────────────────────────────────
       const p5 = createPhase('Assign property values');
       phases.push(p5);
       console.log('[IMPORT] Phase 5: Starting property assignment');
       console.log('[IMPORT] titleToNodeInfo has', titleToNodeInfo.size, 'entries');
       console.log('[IMPORT] Sample titles:', Array.from(titleToNodeInfo.keys()).slice(0, 20));
+
+      // Collector: instead of sending one-by-one, we gather all resolved
+      // (node_id, property_id, value) tuples and batch-send at the end.
+      const pendingPropertySets: Array<{ node_id: number; property_id: number; value: unknown }> = [];
+      const propertySetCollector = {
+        mutateAsync: async (args: { nodeId: number; propertyId: number; value: unknown }) => {
+          pendingPropertySets.push({ node_id: args.nodeId, property_id: args.propertyId, value: args.value });
+          return {} as unknown;
+        },
+      };
+
       for (const page of parsed.pages) {
         if (!page.properties) continue;
-        // Look up node by UUID first, then fall back to title
         const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
         if (!nodeInfo) {
           console.warn(`[IMPORT] Cannot find node for page: ${page.title}`);
@@ -765,15 +782,34 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
         const isExisting = existingNodeIds.has(nodeInfo.id);
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, isExisting, textPropIds);
+        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, isExisting, textPropIds);
         tick();
       }
       for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds, textPropIds);
+        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, existingNodeIds, textPropIds);
       }
-      // Also assign properties for standalone blocks (block-only EDN)
       if (parsed.standaloneBlocks) {
-        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, p5, override, existingNodeIds, textPropIds);
+        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, existingNodeIds, textPropIds);
+      }
+
+      // Now send all collected property values in batches
+      if (pendingPropertySets.length > 0) {
+        setImportStatus(`Sending ${pendingPropertySets.length} property values in batch…`);
+        const PROP_BATCH_SIZE = 100;
+        for (let i = 0; i < pendingPropertySets.length; i += PROP_BATCH_SIZE) {
+          const chunk = pendingPropertySets.slice(i, i + PROP_BATCH_SIZE);
+          try {
+            const res = await batchSetPropertyValues(chunk);
+            for (const r of res.results) {
+              if (!r.success) {
+                console.error(`[IMPORT] Batch property set failed for item ${r.index}:`, r.error);
+                // Don't double-count — the resolve phase already tallied succeeded/failed
+              }
+            }
+          } catch (e) {
+            console.error('[IMPORT] Batch property set request failed:', e);
+          }
+        }
       }
 
       // ──────────────────────────────────────────────────────────
@@ -916,7 +952,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     } finally {
       setImporting(false);
     }
-  }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, setNodePropertyMutation, addPropertyToClassMutation, addClassMutation, onClose]);
+  }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, addClassMutation, onClose]);
 
   /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
    *  Sibling blocks are created in a single batch request. Children are processed
@@ -1020,12 +1056,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
     }
 
-    // Recursively create children (each group is batched too)
-    for (const { block, parentNodeId } of childWork) {
-      await createBlocksRecursively(
-        block.children!, parentNodeId, 0, uuidMap, classIdMap, contentQueue, phase, override,
-      );
-    }
+    // Recursively create children in parallel (each group is independent)
+    await Promise.all(
+      childWork.map(({ block, parentNodeId }) =>
+        createBlocksRecursively(
+          block.children!, parentNodeId, 0, uuidMap, classIdMap, contentQueue, phase, override,
+        )
+      )
+    );
   };
 
   const handleKeyDown = useCallback(

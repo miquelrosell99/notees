@@ -435,3 +435,96 @@ async def clear_selection_values(
     
     count = await repo.clear_selection_values(node_id, property_id)
     return {"status": "ok", "deleted_count": count}
+
+
+# ============== Batch set property values ==============
+
+class BatchSetPropertyItem(BaseModel):
+    """One property assignment in a batch."""
+    node_id: int
+    property_id: int
+    value: Any
+
+
+class BatchSetPropertyRequest(BaseModel):
+    """Request body for batch property value assignment."""
+    items: List[BatchSetPropertyItem]
+
+
+class BatchSetPropertyResultItem(BaseModel):
+    index: int
+    success: bool
+    error: str | None = None
+
+
+class BatchSetPropertyResponse(BaseModel):
+    results: List[BatchSetPropertyResultItem]
+    succeeded: int
+    failed: int
+
+
+@router.post("/batch/set")
+async def batch_set_property_values(
+    request: BatchSetPropertyRequest,
+    user: User = Depends(get_current_user),
+):
+    """Set property values for many (node, property, value) tuples in one request.
+
+    Each item is processed independently — a failure on one does not prevent
+    others from being set.  Returns per-item results.
+    """
+    repo = await _get_property_repo(user)
+
+    # Pre-fetch all referenced properties once to avoid N lookups
+    prop_ids = list({item.property_id for item in request.items})
+    prop_cache: Dict[int, Any] = {}
+    for pid in prop_ids:
+        p = await repo.get_by_id(pid)
+        if p:
+            prop_cache[pid] = p
+
+    results: List[BatchSetPropertyResultItem] = []
+    succeeded = 0
+    failed = 0
+
+    for i, item in enumerate(request.items):
+        try:
+            prop = prop_cache.get(item.property_id)
+            if not prop:
+                raise ValueError(f"Property {item.property_id} not found")
+
+            if prop.type in SCALAR_TYPES:
+                await repo.set_scalar_value(item.node_id, item.property_id, item.value)
+            elif prop.type in RELATION_TYPES:
+                if item.value == '' or item.value is None:
+                    await repo.assign_property_to_node(item.node_id, item.property_id)
+                elif isinstance(item.value, list):
+                    unique_values = list(dict.fromkeys(item.value))
+                    await repo.clear_relation_values(item.node_id, item.property_id)
+                    for target_id in unique_values:
+                        await repo.set_relation_value(item.node_id, item.property_id, int(target_id))
+                elif isinstance(item.value, int):
+                    await repo.set_relation_value(item.node_id, item.property_id, item.value)
+                else:
+                    raise ValueError(f"Relation property expects int or list, got {type(item.value)}")
+            else:
+                # selection type
+                if item.value == '' or item.value is None:
+                    await repo.assign_property_to_node(item.node_id, item.property_id)
+                elif isinstance(item.value, list):
+                    unique_values = list(dict.fromkeys(item.value))
+                    await repo.clear_selection_values(item.node_id, item.property_id)
+                    for sel_id in unique_values:
+                        await repo.set_selection_value(item.node_id, item.property_id, int(sel_id))
+                elif isinstance(item.value, int):
+                    await repo.set_selection_value(item.node_id, item.property_id, item.value)
+                else:
+                    raise ValueError(f"Selection property expects int or list, got {type(item.value)}")
+
+            results.append(BatchSetPropertyResultItem(index=i, success=True))
+            succeeded += 1
+        except Exception as e:
+            results.append(BatchSetPropertyResultItem(index=i, success=False, error=str(e)))
+            failed += 1
+
+    return BatchSetPropertyResponse(results=results, succeeded=succeeded, failed=failed)
