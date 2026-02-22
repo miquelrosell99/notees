@@ -1614,6 +1614,7 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
   }
 
   for (const para of contentAST) {
+    if (!('children' in para)) continue; // whiteboard/query blocks have no inline children
     for (const inline of para.children) {
       appendInlineNode(block, inline, 0);
     }
@@ -1649,6 +1650,7 @@ function populateBlockContentLight(block: BlockNode, contentAST: ContentAST): bo
 
   let hasPills = false;
   for (const para of contentAST) {
+    if (!('children' in para)) continue; // whiteboard/query blocks have no inline children
     for (const inline of para.children) {
       if (appendInlineNodeLight(block, inline, 0)) hasPills = true;
     }
