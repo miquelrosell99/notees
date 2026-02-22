@@ -21,7 +21,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from '@/editor/theme';
-import { EDITOR_NODES, serializeContentAST } from '@/editor/BlockEditor';
+import { EDITOR_NODES, serializeContentAST } from '@/editor/editorConfig';
 import { BlockPlugin } from '@/editor/plugins/BlockPlugin';
 import { NodeLinkPlugin } from '@/editor/plugins/NodeLinkPlugin';
 import { DragDropPlugin } from '@/editor/plugins/DragDropPlugin';

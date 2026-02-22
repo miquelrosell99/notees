@@ -20,12 +20,8 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import { notesEditorTheme } from './theme';
-import { BlockNode } from './nodes/BlockNode';
-import { InlineLinkNode } from './nodes/InlineLinkNode';
 import type { InlineLinkRefType } from './nodes/InlineLinkNode';
-import { BlockHeadingNode } from './nodes/BlockHeadingNode';
-import { BlockCodeNode } from './nodes/BlockCodeNode';
-import { BlockTableCellNode } from './nodes/BlockTableCellNode';
+import { EDITOR_NODES, serializeContentAST } from './editorConfig';
 
 import { BlockPlugin } from './plugins/BlockPlugin';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
@@ -68,16 +64,6 @@ import { parseLinkId, buildLinkId } from '../lib/astBuilder';
 import { useAddClass, useRemoveClass, useClassClass } from '@/hooks';
 
 import './BlockEditor.css';
-
-// ─── Lexical node registry (shared between List and Card editors) ─
-
-export const EDITOR_NODES = [
-  BlockNode,
-  InlineLinkNode,
-  BlockHeadingNode,
-  BlockCodeNode,
-  BlockTableCellNode,
-];
 
 // ─── Props ────────────────────────────────────────────────────────
 
@@ -151,17 +137,6 @@ export interface BlockEditorProps {
 }
 
 // ─── Shared content serializer ────────────────────────────────────
-
-/**
- * Serialize a ContentAST to a JSON string suitable for API persistence.
- *
- * The `name` column in the database stores the full AST as JSON —
- * NOT plain text — so we must preserve every formatting mark,
- * node-link, and structural node.
- */
-export function serializeContentAST(contentAST: ContentAST): string {
-  return JSON.stringify(contentAST);
-}
 
 // ─── Component ────────────────────────────────────────────────────
 
