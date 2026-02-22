@@ -327,7 +327,7 @@ function MultiNodePropertyCell({
   editable: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode } = useAppStore();
+  const openNode = useAppStore(s => s.openNode);
 
   // Fetch all nodes in parallel
   const nodeQueries = useQueries({
@@ -407,7 +407,7 @@ function NodePropertyCell({
   isAssetProperty: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const { openNode } = useAppStore();
+  const openNode = useAppStore(s => s.openNode);
 
   // Parse node IDs from value
   const isMultiValue = property.is_multi || Array.isArray(value);

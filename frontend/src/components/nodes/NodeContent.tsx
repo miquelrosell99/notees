@@ -60,7 +60,8 @@ export function NodeContent({
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const { addSidebarCard, openCommentsForNode } = useAppStore();
+  const addSidebarCard = useAppStore(s => s.addSidebarCard);
+  const openCommentsForNode = useAppStore(s => s.openCommentsForNode);
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Lazy-load children of collapsed blocks when they are expanded
