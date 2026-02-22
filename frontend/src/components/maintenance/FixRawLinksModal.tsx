@@ -7,9 +7,11 @@
 import { useState, useCallback } from 'react';
 import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiLinkVariant } from '@mdi/js';
 import Icon from '@mdi/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
+import { nodeKeys } from '@/hooks/queryKeys';
 import '../workspace/ImportLogseqModal.css';
 import './RebuildLinksModal.css';
 
@@ -60,6 +62,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   const [isFixing, setIsFixing] = useState(false);
   const [result, setResult] = useState<FixRawUuidLinksResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const handleConfirm = useCallback(async () => {
     setIsFixing(true);
@@ -67,12 +70,16 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     try {
       const response = await fixRawUuidLinks();
       setResult(response);
+      // Invalidate queries so the UI reflects updated node content and links
+      if (response.nodes_fixed > 0) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fix raw UUID links');
     } finally {
       setIsFixing(false);
     }
-  }, []);
+  }, [queryClient]);
 
   const handleClose = useCallback(() => {
     setResult(null);
