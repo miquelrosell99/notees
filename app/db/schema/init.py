@@ -34,9 +34,12 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Execute schema (creates tables if they don't exist)
     await conn.execute(SCHEMA_SQL)
     
-    # Rebuild the node_path closure table to ensure consistency
-    # This is idempotent and handles cases where nodes exist but node_path is empty
-    await conn.execute("SELECT rebuild_node_path()")
+    # Rebuild the node_path closure table only if it is empty.
+    # Triggers keep it up-to-date during normal operation, so a full rebuild on
+    # every startup is unnecessary and extremely slow on large datasets.
+    node_path_count = await conn.fetchval("SELECT COUNT(*) FROM node_path")
+    if node_path_count == 0:
+        await conn.execute("SELECT rebuild_node_path()")
     
     # Store schema version
     await conn.execute("""
