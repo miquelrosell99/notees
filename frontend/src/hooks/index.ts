@@ -18,6 +18,7 @@ export * from './useViewportFlip';
 export * from './useNodeSearch';
 export * from './useQuickAdd';
 export * from './useContentSave';
+export * from './useNodeDisplay';
 export * from './useKeyboardShortcuts';
 export * from './useLinkedReferencesCount';
 export * from './useFocusTrap';

@@ -56,7 +56,7 @@ import { useAppStore } from '@/stores';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { Checkbox } from '@/components/core/Checkbox';
-import { NodePill } from '@/components/nodes/NodePill';
+import { NodeRef } from '@/components/nodes/NodeRef';
 import { ImageNode } from '@/components/nodes/ImageNode';
 import { AddCoverButton } from '@/components/core/AddCoverButton';
 import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
@@ -814,7 +814,7 @@ export const NodeCard = memo(function NodeCard({
         {(editable || classDetails.length > 0) && (
         <div className="node-card__metadata-row node-card__classes-row">
           {classDetails.map((cls) => (
-            <NodePill
+            <NodeRef
               key={cls.id}
               node={cls}
               readOnly={!editable}
@@ -840,7 +840,7 @@ export const NodeCard = memo(function NodeCard({
         {(editable || tagDetails.length > 0) && (
         <div className="node-card__metadata-row node-card__tags-row">
           {tagDetails.map((tag) => (
-            <NodePill
+            <NodeRef
               key={tag.id}
               node={tag}
               readOnly={!editable}

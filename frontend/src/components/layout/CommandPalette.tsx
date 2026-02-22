@@ -23,7 +23,7 @@ import Icon from '@mdi/react';
 import { mdiExport, mdiDatabaseRefresh, mdiBrain } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
-import { NodePill } from '../nodes/NodePill';
+import { NodeRef } from '../nodes/NodeRef';
 import { DuplicatePageModal } from './DuplicatePageModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { useQueryClient } from '@tanstack/react-query';
@@ -685,7 +685,7 @@ export function CommandPalette({
           {selectedClasses.length > 0 && (
             <div className="command-palette__class-pills">
               {selectedClasses.map(classNode => (
-                <NodePill
+                <NodeRef
                   key={classNode.id}
                   node={classNode}
                   onRemove={() => handleRemoveClass(classNode.id)}
