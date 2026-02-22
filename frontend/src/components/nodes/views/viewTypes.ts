@@ -345,7 +345,9 @@ export const getRenderSkip = (nodeCount: number): number => {
   if (nodeCount < 200) return 1;
   if (nodeCount < 500) return 2;
   if (nodeCount < 1000) return 3;
-  return 4;
+  if (nodeCount < 2000) return 4;
+  if (nodeCount < 4000) return 5;
+  return 6;
 };
 
 /**
@@ -449,15 +451,25 @@ export const getNodeColor = (
 };
 
 /**
- * Convert hex color to rgba
+ * Convert hex color to rgba (cached for hot-path rendering)
  */
+const _hexToRgbaCache = new Map<string, string>();
 export const hexToRgba = (hex: string, alpha: number): string => {
+  // Quantize alpha to 2 decimal places to improve cache hit rate
+  const a = Math.round(alpha * 100) / 100;
+  const key = hex + a;
+  let result = _hexToRgbaCache.get(key);
+  if (result !== undefined) return result;
   let h = hex.replace('#', '');
   if (h.length === 3) h = h.split('').map(c => c + c).join('');
   const r = parseInt(h.substring(0, 2), 16);
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  result = `rgba(${r}, ${g}, ${b}, ${a})`;
+  // Cap cache size to prevent unbounded growth
+  if (_hexToRgbaCache.size > 2000) _hexToRgbaCache.clear();
+  _hexToRgbaCache.set(key, result);
+  return result;
 };
 
 /**
