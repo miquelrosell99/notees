@@ -789,3 +789,26 @@ export async function rebuildAllLinks(): Promise<RebuildLinksResponse> {
   const response = await api.post<RebuildLinksResponse>(`${BASE}/rebuild-links`);
   return response.data;
 }
+
+/**
+ * Fix raw [[uuid]] text in AST content by converting to proper node_link nodes.
+ * 
+ * This command:
+ * 1. Scans all nodes' AST content for text containing [[uuid]] patterns
+ * 2. Resolves each UUID to an existing node
+ * 3. Replaces the raw text with proper node_link AST objects
+ * 4. Saves updated AST and rebuilds link records
+ */
+export interface FixRawUuidLinksResponse {
+  success: boolean;
+  nodes_processed: number;
+  nodes_fixed: number;
+  links_converted: number;
+  errors: string[];
+  total_errors: number;
+}
+
+export async function fixRawUuidLinks(): Promise<FixRawUuidLinksResponse> {
+  const response = await api.post<FixRawUuidLinksResponse>(`${BASE}/fix-raw-uuid-links`);
+  return response.data;
+}
