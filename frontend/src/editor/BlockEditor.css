@@ -460,6 +460,17 @@
   margin-top: 4px;
 }
 
+/* Query block inline results inside the editor */
+.node-block--query .query-block-results--inline {
+  width: 100%;
+}
+
+/* Constrain nested block editors inside query results to avoid runaway depth */
+.node-block--query .node-block-query-preview .node-collection {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
 /* ─── Asset block ──────────────────────────────────────────────── */
 
 .node-block--asset {
