@@ -355,6 +355,14 @@ export class BlockNode extends ElementNode {
     }
     afterContentUI.appendChild(classPills);
 
+    // Query toolbar container — React portal target for QueryBlockPlugin
+    // to render filter/view controls inline with class pills
+    if (this.__nodeType === 'query') {
+      const queryToolbar = document.createElement('div');
+      queryToolbar.className = 'node-block-query-toolbar';
+      afterContentUI.appendChild(queryToolbar);
+    }
+
     // Property icons container (before_content position = after text) — React portal target
     const propIconsBeforeContent = document.createElement('div');
     propIconsBeforeContent.className = 'node-block-prop-icons node-block-prop-icons--before-content';
@@ -472,6 +480,23 @@ export class BlockNode extends ElementNode {
         dom.appendChild(queryPreview);
       } else if (this.__nodeType !== 'query' && existingQuery) {
         existingQuery.remove();
+      }
+
+      // Add/remove query toolbar container in after-content area when type changes
+      const afterContent = dom.querySelector('.block-ui--after-content');
+      const existingQueryToolbar = afterContent?.querySelector('.node-block-query-toolbar');
+      if (this.__nodeType === 'query' && !existingQueryToolbar && afterContent) {
+        const propIcons = afterContent.querySelector('.node-block-prop-icons--before-content');
+        const queryToolbar = document.createElement('div');
+        queryToolbar.className = 'node-block-query-toolbar';
+        // Insert before property icons to keep pills → toolbar → prop-icons order
+        if (propIcons) {
+          afterContent.insertBefore(queryToolbar, propIcons);
+        } else {
+          afterContent.appendChild(queryToolbar);
+        }
+      } else if (this.__nodeType !== 'query' && existingQueryToolbar) {
+        existingQueryToolbar.remove();
       }
 
       // Add/remove code gutter container when type changes

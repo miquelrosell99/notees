@@ -23,7 +23,8 @@ import { useQueryBlock } from '@/hooks/useQueryBlock';
 interface QueryBlockInfo {
   blockId: string;
   serverId: number;
-  container: HTMLElement;
+  container: HTMLElement;           // .node-block-query-preview (results)
+  toolbarContainer: HTMLElement;    // .node-block-query-toolbar (controls in after-content)
 }
 
 // ─── Inner Component (per query block) ────────────────────────────
@@ -31,18 +32,23 @@ interface QueryBlockInfo {
 interface QueryPreviewProps {
   blockId: string;
   serverId: number;
+  toolbarContainer: HTMLElement;
 }
 
 /**
  * Renders a single query block's results using QueryNodeCollection.
  * Reads the QueryAST from the node's `name` AST field (inline mode).
  *
+ * Controls (filter button, view mode switcher) are portaled into the
+ * `.node-block-query-toolbar` container alongside class pills.
+ * Results are rendered inline in the `.node-block-query-preview` container.
+ *
  * Wraps everything in an event-isolating container so that mousedown events
  * don't bubble to Lexical's handlers (BlockDragSelectionPlugin, EmptyClickPlugin,
  * BlurOnClickOutsidePlugin) which would trigger editor state changes, re-scans,
  * and remount this component — losing modal state.
  */
-function QueryPreview({ blockId, serverId }: QueryPreviewProps): JSX.Element {
+function QueryPreview({ blockId, serverId, toolbarContainer }: QueryPreviewProps): JSX.Element {
   const openNode = useAppStore(state => state.openNode);
   const openNodeInSidebar = useAppStore(state => state.openNodeInSidebar);
   const { queryAST, saveQueryAST } = useQueryBlock(serverId);
@@ -74,6 +80,24 @@ function QueryPreview({ blockId, serverId }: QueryPreviewProps): JSX.Element {
     };
   }, []);
 
+  // Also isolate events on the toolbar container (portaled into after-content area,
+  // separate DOM subtree from the preview isolator)
+  useEffect(() => {
+    const el = toolbarContainer;
+    if (!el) return;
+
+    const stopNative = (e: Event) => {
+      e.stopPropagation();
+    };
+
+    el.addEventListener('mousedown', stopNative);
+    el.addEventListener('pointerdown', stopNative);
+    return () => {
+      el.removeEventListener('mousedown', stopNative);
+      el.removeEventListener('pointerdown', stopNative);
+    };
+  }, [toolbarContainer]);
+
   return (
     <div
       ref={isolatorRef}
@@ -91,14 +115,22 @@ function QueryPreview({ blockId, serverId }: QueryPreviewProps): JSX.Element {
             openNodeInSidebar(nodeId, 'block');
           }
         }}
-        hideToolbar={false}
+        hideToolbar={true}
         hideViewManagement={false}
         showAddButton={false}
         queryAST={queryAST}
         onQueryASTChange={saveQueryAST}
       >
-        {({ results }) => {
-          return <div className="query-block-results query-block-results--inline">{results}</div>;
+        {({ results, controls }) => {
+          return (
+            <>
+              {controls && createPortal(
+                <div className="query-block-toolbar-inline">{controls}</div>,
+                toolbarContainer
+              )}
+              <div className="query-block-results query-block-results--inline">{results}</div>
+            </>
+          );
         }}
       </QueryNodeCollection>
     </div>
@@ -142,11 +174,14 @@ export function QueryBlockPlugin(): JSX.Element | null {
         const container = blockEl.querySelector('.node-block-query-preview') as HTMLElement;
         if (!container) continue;
 
+        const toolbarContainer = blockEl.querySelector('.node-block-query-toolbar') as HTMLElement;
+        if (!toolbarContainer) continue;
+
         // Resolve serverId from runtime
         const graphNode = runtime.getNode(blockId);
         if (!graphNode?.serverId) continue;
 
-        infos.push({ blockId, serverId: graphNode.serverId, container });
+        infos.push({ blockId, serverId: graphNode.serverId, container, toolbarContainer });
       }
 
       // Only update state if the block list actually changed
@@ -157,7 +192,8 @@ export function QueryBlockPlugin(): JSX.Element | null {
         infos.some((info, i) =>
           prev[i].blockId !== info.blockId ||
           prev[i].serverId !== info.serverId ||
-          prev[i].container !== info.container
+          prev[i].container !== info.container ||
+          prev[i].toolbarContainer !== info.toolbarContainer
         );
 
       if (changed) {
@@ -182,12 +218,13 @@ export function QueryBlockPlugin(): JSX.Element | null {
 
   return (
     <>
-      {queryBlocks.map(({ blockId, serverId, container }) =>
+      {queryBlocks.map(({ blockId, serverId, container, toolbarContainer }) =>
         createPortal(
           <QueryPreview
             key={blockId}
             blockId={blockId}
             serverId={serverId}
+            toolbarContainer={toolbarContainer}
           />,
           container,
         ),
