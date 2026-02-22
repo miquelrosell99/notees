@@ -414,12 +414,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
             }
 
-            // Map selection option UUIDs for existing properties
+            // Map selection option UUIDs for existing properties (match by name, not index)
             if (prop.selectionOptions && existingProp.options) {
-              for (let i = 0; i < prop.selectionOptions.length && i < existingProp.options.length; i++) {
-                const opt = prop.selectionOptions[i];
-                if (opt.uuid) {
-                  uuidMap.set(opt.uuid, { id: existingProp.options[i].id, uuid: '' });
+              for (const opt of prop.selectionOptions) {
+                if (!opt.uuid) continue;
+                const optValue = String(opt.value).toLowerCase();
+                const matching = existingProp.options.find(o => o.name.toLowerCase() === optValue);
+                if (matching) {
+                  uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+                } else {
+                  console.warn(`[IMPORT] Selection option "${opt.value}" not found in existing property "${prop.title}"`);
                 }
               }
             }
@@ -437,10 +441,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           propIdMap.set(prop.id, created.id);
 
           if (prop.selectionOptions && created.options) {
-            for (let i = 0; i < prop.selectionOptions.length && i < created.options.length; i++) {
-              const opt = prop.selectionOptions[i];
-              if (opt.uuid) {
-                uuidMap.set(opt.uuid, { id: created.options[i].id, uuid: '' });
+            // Match by name since the created options should mirror the input order,
+            // but name-matching is more robust against API ordering differences.
+            for (const opt of prop.selectionOptions) {
+              if (!opt.uuid) continue;
+              const optValue = String(opt.value).toLowerCase();
+              const matching = created.options.find(o => o.name.toLowerCase() === optValue);
+              if (matching) {
+                uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+              } else {
+                console.warn(`[IMPORT] Created selection option "${opt.value}" not found in response for "${prop.title}"`);
               }
             }
           }
