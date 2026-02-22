@@ -406,6 +406,7 @@ export function WorkspaceManagementView({
                             size="sm"
                             onClick={() => deleteMutation.mutate(workspace.name)}
                             title="Confirm delete"
+                            disabled={deleteMutation.isPending}
                           >
                             <CheckIcon size="sm" />
                           </Button>
@@ -414,6 +415,7 @@ export function WorkspaceManagementView({
                             size="sm"
                             onClick={() => setDeleteConfirm(null)}
                             title="Cancel"
+                            disabled={deleteMutation.isPending}
                           >
                             <CloseIcon size="sm" />
                           </Button>
@@ -535,6 +537,16 @@ export function WorkspaceManagementView({
         isOpen={isUserSettingsOpen}
         onClose={() => setIsUserSettingsOpen(false)}
       />
+
+      {/* Deleting overlay – locks the interface during workspace deletion */}
+      {deleteMutation.isPending && (
+        <div className="workspace-management__deleting-overlay" aria-live="assertive" role="status">
+          <div className="workspace-management__deleting-box">
+            <div className="workspace-management__spinner" />
+            <span>Deleting workspace…</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
