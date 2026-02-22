@@ -11,7 +11,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, GroupNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/nodeView';
 
@@ -45,7 +45,7 @@ function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
 
 interface SystemSectionRequirement {
   viewType: NodeViewType | string;
-  requiresCondition: (_ast: QueryAST, context: SystemContext) => ConditionNode | null;
+  requiresCondition: (_ast: QueryAST, context: SystemContext) => ConditionNode | GroupNode | null;
   hasRequiredCondition: (ast: QueryAST, context: SystemContext) => boolean;
 }
 
@@ -157,24 +157,47 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
   
-  // Unlinked References - content search for the current node's display name
+  // Unlinked References - content search for the current node's display name OR UUID
+  // Uses an OR group so blocks containing either the node name or a [[uuid]] reference are found
   {
     viewType: 'unlinked_references',
     requiresCondition: (_ast, _context) => {
       return markAsSystemNode({
-        type: 'condition',
-        condition_type: 'content',
-        operator: 'contains',
-        value: '{current_node_name}',
-      });
+        type: 'group',
+        logic: 'OR',
+        children: [
+          markAsSystemNode({
+            type: 'condition',
+            condition_type: 'content',
+            operator: 'contains',
+            value: '{current_node_name}',
+          } as ContentCondition),
+          markAsSystemNode({
+            type: 'condition',
+            condition_type: 'content',
+            operator: 'contains',
+            value: '{current_node_uuid}',
+          } as ContentCondition),
+        ],
+      } as GroupNode);
     },
     hasRequiredCondition: (ast, _context) => {
-      return ast.root_group.children.some(
-        (child) =>
-          child.type === 'condition' &&
-          isContentCondition(child as ConditionNode) &&
-          (child as ContentCondition).value === '{current_node_name}'
-      );
+      return ast.root_group.children.some((child) => {
+        // New-style: OR group with both content conditions (name and uuid)
+        if (child.type === 'group' && (child as GroupNode).logic === 'OR') {
+          const group = child as GroupNode;
+          const hasName = group.children.some(
+            (c) => c.type === 'condition' && isContentCondition(c as ConditionNode) &&
+              (c as ContentCondition).value === '{current_node_name}'
+          );
+          const hasUuid = group.children.some(
+            (c) => c.type === 'condition' && isContentCondition(c as ConditionNode) &&
+              (c as ContentCondition).value === '{current_node_uuid}'
+          );
+          return hasName && hasUuid;
+        }
+        return false;
+      });
     },
   },
 
@@ -303,14 +326,25 @@ export function autoFixSystemQuery(
             if (extCond.extends_class_uuid === context.nodeUuid || extCond.extends_class_uuid === '{current_node_uuid}') {
               return markAsSystemNode(child);
             }
-          } else if (viewType === 'unlinked_references' && isContentCondition(child as ConditionNode)) {
-            const contentCond = child as ContentCondition;
-            if (contentCond.value === '{current_node_name}') {
-              return markAsSystemNode(child);
-            }
           } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
             const propCond = child as PropertyCondition;
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') {
+              return markAsSystemNode(child);
+            }
+          }
+        } else if (child.type === 'group' && viewType === 'unlinked_references') {
+          // Mark the OR group for unlinked references content+uuid search as system
+          const group = child as GroupNode;
+          if (group.logic === 'OR') {
+            const hasName = group.children.some(
+              (c) => c.type === 'condition' && isContentCondition(c as ConditionNode) &&
+                (c as ContentCondition).value === '{current_node_name}'
+            );
+            const hasUuid = group.children.some(
+              (c) => c.type === 'condition' && isContentCondition(c as ConditionNode) &&
+                (c as ContentCondition).value === '{current_node_uuid}'
+            );
+            if (hasName && hasUuid) {
               return markAsSystemNode(child);
             }
           }
@@ -363,6 +397,16 @@ export function autoFixSystemQuery(
           } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
             const propCond = child as PropertyCondition;
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') return false;
+          }
+        }
+        // Also remove old-style OR groups for unlinked references that match the content pattern
+        if (child.type === 'group' && viewType === 'unlinked_references') {
+          const group = child as GroupNode;
+          if (group.logic === 'OR') {
+            const hasContentConditions = group.children.some(
+              (c) => c.type === 'condition' && isContentCondition(c as ConditionNode)
+            );
+            if (hasContentConditions) return false;
           }
         }
         
