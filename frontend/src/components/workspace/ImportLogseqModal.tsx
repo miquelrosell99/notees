@@ -35,7 +35,7 @@ import { batchSetPropertyValues, batchAddClassProperties } from '@/api/propertie
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
-import type { PropertyType, Node } from '@/types/api';
+import type { PropertyType, Property, Node } from '@/types/api';
 import './ImportLogseqModal.css';
 
 // ── Error tracking types ───────────────────────────────────────
@@ -421,8 +421,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           if (existingProp) {
             propIdMap.set(prop.id, existingProp.id);
 
-            // Update is_multi flag if it changed
-            if (existingProp.multi !== isMulti) {
+            // Update is_multi flag if it changed (skip for system properties — they can't be modified)
+            if (existingProp.multi !== isMulti && !existingProp.is_system) {
               try {
                 await updateProperty(existingProp.id, { multi: isMulti });
               } catch (e) {
@@ -448,12 +448,42 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             continue;
           }
 
-          const created = await createPropertyMutation.mutateAsync({
-            name: prop.title,
-            type: finalType,
-            is_multi: isMulti,
-            selection_lines: selectionLines,
-          } as Record<string, unknown> & { name: string });
+          let created: Property | undefined;
+          try {
+            created = await createPropertyMutation.mutateAsync({
+              name: prop.title,
+              type: finalType,
+              is_multi: isMulti,
+              selection_lines: selectionLines,
+            } as Record<string, unknown> & { name: string });
+          } catch (createErr) {
+            // If 409 (property already exists), re-fetch and reuse the existing one
+            const resp = (createErr as { response?: { status?: number } }).response;
+            if (resp?.status === 409) {
+              const refreshed = await listProperties();
+              const found = refreshed.find(p => p.name.toLowerCase() === prop.title.toLowerCase());
+              if (found) {
+                propIdMap.set(prop.id, found.id);
+                existingPropByName.set(prop.title.toLowerCase(), found);
+                // Map selection option UUIDs for the found property
+                if (prop.selectionOptions && found.options) {
+                  for (const opt of prop.selectionOptions) {
+                    if (!opt.uuid) continue;
+                    const optValue = String(opt.value).toLowerCase();
+                    const matching = found.options.find(o => o.name.toLowerCase() === optValue);
+                    if (matching) {
+                      uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+                    }
+                  }
+                }
+                p2.succeeded++;
+                tick();
+                continue;
+              }
+            }
+            // Re-throw if not a 409 or if the property wasn't found after refresh
+            throw createErr;
+          }
           propIdMap.set(prop.id, created.id);
 
           if (prop.selectionOptions && created.options) {
