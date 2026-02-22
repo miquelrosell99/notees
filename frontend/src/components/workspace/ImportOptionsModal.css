@@ -1,0 +1,71 @@
+.import-options__description {
+  margin: 0 0 var(--spacing-4) 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.import-options__grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-options__card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.import-options__card:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface-hover);
+}
+
+.import-options__card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  color: var(--color-on-surface);
+  background-color: var(--color-surface-variant);
+}
+
+.import-options__card-icon--json {
+  color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.import-options__card-icon--logseq {
+  color: var(--color-success, #4caf50);
+  background-color: color-mix(in srgb, var(--color-success, #4caf50) 12%, transparent);
+}
+
+.import-options__card-icon--markdown {
+  color: var(--color-warning, #ff9800);
+  background-color: color-mix(in srgb, var(--color-warning, #ff9800) 12%, transparent);
+}
+
+.import-options__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.import-options__card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.import-options__card-desc {
+  font-size: 0.78rem;
+  color: var(--color-on-surface-variant);
+  line-height: 1.3;
+}

@@ -13,6 +13,7 @@ import {
   renameWorkspace,
   getWorkspaceExportUrl,
   importWorkspace,
+  createWorkspace,
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
@@ -174,17 +175,39 @@ export function WorkspaceManagementView({
     onWorkspaceSelected?.();
   };
 
-  // Handle import option selection (after file is chosen)
-  const handleImportOptionSelected = (type: ImportType, file: File) => {
+  // Handle import option selection
+  const handleImportOptionSelected = (type: ImportType, file?: File) => {
     setIsImportOptionsOpen(false);
     setImportError(null);
-    setImportNameModalState({ isOpen: true, file, type });
+    setImportNameModalState({ isOpen: true, file: file ?? null, type });
   };
 
   // Handle import name submission
-  const handleImportNameSubmit = (name: string) => {
-    if (importNameModalState.file) {
-      importMutation.mutate({ name, file: importNameModalState.file });
+  const handleImportNameSubmit = async (name: string) => {
+    const { type, file } = importNameModalState;
+
+    if (type === 'json' && file) {
+      // JSON dump: upload file to backend
+      importMutation.mutate({ name, file });
+    } else if (type === 'logseq' || type === 'markdown') {
+      // Create a fresh workspace, switch to it, then open the import modal
+      try {
+        const newWorkspace = await createWorkspace(name);
+
+        // Set the import modal flag before switching so Layout picks it up
+        if (type === 'logseq') {
+          useAppStore.getState().setImportLogseqModalOpen(true);
+        } else {
+          useAppStore.getState().setImportMarkdownModalOpen(true);
+        }
+
+        setImportNameModalState({ isOpen: false, file: null, type: null });
+        setImportError(null);
+        await switchMutation.mutateAsync(newWorkspace.uuid);
+        onWorkspaceSelected?.();
+      } catch (err) {
+        setImportError((err as Error).message || 'Failed to create workspace');
+      }
     }
   };
 

@@ -1,21 +1,23 @@
 /**
  * ImportOptionsModal Component
- * 
- * Modal for importing workspaces from JSON dump files.
- * The dump file is produced by the workspace export feature.
+ *
+ * Modal for selecting how to import a workspace.
+ * Supports JSON dump, Logseq (EDN/SQLite), and Markdown import.
  */
 import { useRef } from 'react';
 import Icon from '@mdi/react';
-import { mdiDatabaseImport } from '@mdi/js';
+import { mdiDatabaseImport, mdiGraphOutline, mdiLanguageMarkdownOutline } from '@mdi/js';
 import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Card } from '../core/Card';
+import './ImportOptionsModal.css';
 
-type ImportType = 'json';
+export type ImportType = 'json' | 'logseq' | 'markdown';
 
 interface ImportOptionsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectOption: (type: ImportType, file: File) => void;
+  /** Called when an import option is selected. File is provided only for 'json'. */
+  onSelectOption: (type: ImportType, file?: File) => void;
 }
 
 export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOptionsModalProps) {
@@ -40,19 +42,77 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
       title="Import Workspace"
       size="sm"
     >
-      <p style={{ margin: '0 0 var(--spacing-4) 0', color: 'var(--color-on-surface-variant)', fontSize: '0.875rem' }}>
-        Import a workspace from a JSON dump file. All data will be assigned
-        new identifiers so the imported workspace is independent from the original.
+      <p className="import-options__description">
+        Choose an import source. A new workspace will be created for the imported data.
       </p>
 
-      <Button
-        variant="default"
-        onClick={handleJsonClick}
-        style={{ width: '100%', justifyContent: 'flex-start', gap: 'var(--spacing-3)' }}
-      >
-        <Icon path={mdiDatabaseImport} size={0.9} />
-        Select JSON Dump File
-      </Button>
+      <div className="import-options__grid">
+        {/* JSON Dump */}
+        <Card
+          variant="outlined"
+          elevation="none"
+          interactive
+          padding
+          paddingSize="md"
+          radius="md"
+          className="import-options__card"
+          onClick={handleJsonClick}
+        >
+          <div className="import-options__card-icon import-options__card-icon--json">
+            <Icon path={mdiDatabaseImport} size={1.1} />
+          </div>
+          <div className="import-options__card-body">
+            <span className="import-options__card-title">JSON Dump</span>
+            <span className="import-options__card-desc">
+              Restore from a workspace export file (.json)
+            </span>
+          </div>
+        </Card>
+
+        {/* Logseq */}
+        <Card
+          variant="outlined"
+          elevation="none"
+          interactive
+          padding
+          paddingSize="md"
+          radius="md"
+          className="import-options__card"
+          onClick={() => onSelectOption('logseq')}
+        >
+          <div className="import-options__card-icon import-options__card-icon--logseq">
+            <Icon path={mdiGraphOutline} size={1.1} />
+          </div>
+          <div className="import-options__card-body">
+            <span className="import-options__card-title">Logseq Graph</span>
+            <span className="import-options__card-desc">
+              Import from Logseq via EDN export or SQLite database
+            </span>
+          </div>
+        </Card>
+
+        {/* Markdown */}
+        <Card
+          variant="outlined"
+          elevation="none"
+          interactive
+          padding
+          paddingSize="md"
+          radius="md"
+          className="import-options__card"
+          onClick={() => onSelectOption('markdown')}
+        >
+          <div className="import-options__card-icon import-options__card-icon--markdown">
+            <Icon path={mdiLanguageMarkdownOutline} size={1.1} />
+          </div>
+          <div className="import-options__card-body">
+            <span className="import-options__card-title">Markdown Files</span>
+            <span className="import-options__card-desc">
+              Import .md files from Logseq or Obsidian
+            </span>
+          </div>
+        </Card>
+      </div>
 
       <input
         ref={jsonInputRef}
@@ -66,4 +126,3 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
 }
 
 export default ImportOptionsModal;
-export type { ImportType };

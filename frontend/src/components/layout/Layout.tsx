@@ -300,7 +300,7 @@ export function Layout() {
           <GraphMinimap onClose={() => setMinimapOpen(false)} />
         )}
 
-        {/* Import Logseq EDN Modal */}
+        {/* Import Logseq Modal */}
         <ImportLogseqModal
           isOpen={isImportLogseqModalOpen}
           onClose={() => setImportLogseqModalOpen(false)}
