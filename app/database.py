@@ -271,21 +271,45 @@ async def delete_workspace(user_id: str, name: str) -> bool:
         return False
     
     async with get_connection() as conn:
-        # First, get the workspace UUID before deletion
+        # First, get the workspace ID and UUID before deletion
         workspace_row = await conn.fetchrow(
-            "SELECT uuid FROM workspace WHERE create_uid = $1 AND name = $2",
-            numeric_user_id, name
+            "SELECT id, uuid FROM workspace WHERE create_uid = $1 AND name = $2",
+            numeric_user_id, name,
+            timeout=None
         )
         
         if not workspace_row:
             return False
         
+        workspace_id = workspace_row['id']
         workspace_uuid = str(workspace_row['uuid'])
         
-        # Delete the workspace from database (CASCADE will delete related data)
+        # For large workspaces the CASCADE delete can exceed the pool's command_timeout.
+        # Work around this by:
+        # 1. Clearing self-referential FKs on node (parent_id / page_id / aliased_id)
+        #    so PostgreSQL doesn't have to do per-row SET NULL updates during cascade.
+        # 2. Deleting nodes and properties explicitly before removing the workspace row,
+        #    so the final DELETE is a simple single-row operation.
+        # All calls use timeout=None to bypass the pool-level 60-second limit.
+        await conn.execute(
+            """UPDATE node
+               SET parent_id = NULL, page_id = NULL, aliased_id = NULL
+               WHERE workspace_id = $1""",
+            workspace_id, timeout=None
+        )
+        await conn.execute(
+            "DELETE FROM node WHERE workspace_id = $1",
+            workspace_id, timeout=None
+        )
+        await conn.execute(
+            "DELETE FROM property WHERE workspace_id = $1",
+            workspace_id, timeout=None
+        )
+
+        # With all heavy child data gone, this is now a fast single-row delete.
         result = await conn.execute(
-            "DELETE FROM workspace WHERE create_uid = $1 AND name = $2",
-            numeric_user_id, name
+            "DELETE FROM workspace WHERE id = $1",
+            workspace_id, timeout=None
         )
         
         deleted = result.split()[-1] != '0'
