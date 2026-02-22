@@ -16,7 +16,7 @@ import { mdiPencilOutline, mdiTrashCanOutline } from '@mdi/js';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
-import { serializeContentAST } from '../BlockEditor';
+import { serializeContentAST } from '../editorConfig';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
