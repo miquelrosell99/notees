@@ -38,6 +38,7 @@
     "lexical": "^0.40.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sql.js": "^1.14.0",
     "zustand": "^5.0.10"
   },
   "devDependencies": {
