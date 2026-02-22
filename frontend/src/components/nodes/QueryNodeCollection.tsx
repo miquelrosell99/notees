@@ -919,8 +919,8 @@ export function QueryNodeCollection({
             </div>
           )}
           
-          {/* Hide add view button for pseudo-nodes (all_pages, etc.) */}
-          {!isPseudoNode && (
+          {/* Hide add view button for pseudo-nodes and inline mode (query blocks manage AST directly) */}
+          {!isPseudoNode && !isInlineMode && (
             <Button
               icon={mdiPlusBox}
               iconOnly
