@@ -439,6 +439,8 @@ class QueryASTToSQL:
         
         Extracts plain text from JSON AST before matching, so searches
         work on readable text rather than raw JSON strings.
+        Also searches raw n.name column to find UUID references stored
+        in JSON structure (e.g., link_id values in node_link objects).
         """
         if not condition.value:
             return None
@@ -448,9 +450,9 @@ class QueryASTToSQL:
         
         if condition.operator == 'contains':
             if condition.case_sensitive:
-                return f"{text_expr} LIKE '%%' || %({value_param})s || '%%'"
+                return f"({text_expr} LIKE '%%' || %({value_param})s || '%%' OR COALESCE(n.name, '') LIKE '%%' || %({value_param})s || '%%')"
             else:
-                return f"{text_expr} ILIKE '%%' || %({value_param})s || '%%'"
+                return f"({text_expr} ILIKE '%%' || %({value_param})s || '%%' OR COALESCE(n.name, '') ILIKE '%%' || %({value_param})s || '%%')"
         
         elif condition.operator == 'starts_with':
             if condition.case_sensitive:
