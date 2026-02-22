@@ -278,6 +278,57 @@ export async function validateClassExtends(
   return response.data;
 }
 
+// ============== Batch Operations ==============
+
+export interface BatchSetPropertyItem {
+  node_id: number;
+  property_id: number;
+  value: unknown;
+}
+
+export interface BatchSetPropertyResponse {
+  results: Array<{ index: number; success: boolean; error?: string | null }>;
+  succeeded: number;
+  failed: number;
+}
+
+/**
+ * Set property values on multiple nodes in a single request.
+ */
+export async function batchSetPropertyValues(
+  items: BatchSetPropertyItem[]
+): Promise<BatchSetPropertyResponse> {
+  const response = await api.post<BatchSetPropertyResponse>(
+    `${BASE}/batch/set`,
+    { items }
+  );
+  return response.data;
+}
+
+export interface BatchClassPropertyItem {
+  class_node_id: number;
+  property_id: number;
+}
+
+export interface BatchClassPropertyResponse {
+  results: Array<{ index: number; success: boolean; error?: string | null }>;
+  succeeded: number;
+  failed: number;
+}
+
+/**
+ * Link properties to classes in bulk.
+ */
+export async function batchAddClassProperties(
+  items: BatchClassPropertyItem[]
+): Promise<BatchClassPropertyResponse> {
+  const response = await api.post<BatchClassPropertyResponse>(
+    `${BASE}/classes/batch/properties`,
+    { items }
+  );
+  return response.data;
+}
+
 // ============== Node Properties ==============
 
 /**

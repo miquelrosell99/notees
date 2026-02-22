@@ -1,6 +1,7 @@
 """Class properties and class extends (inheritance) endpoints."""
-from typing import cast
+from typing import cast, List
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 import asyncpg
 
 from ..auth import get_current_user
@@ -105,6 +106,66 @@ async def remove_class_property(
         raise HTTPException(404, "Class property not found")
     
     return {"status": "ok"}
+
+
+# ============== Batch Class Properties ==============
+
+class BatchClassPropertyItem(BaseModel):
+    class_node_id: int
+    property_id: int
+
+
+class BatchClassPropertyRequest(BaseModel):
+    items: List[BatchClassPropertyItem]
+
+
+class BatchClassPropertyResultItem(BaseModel):
+    index: int
+    success: bool
+    error: str | None = None
+
+
+class BatchClassPropertyResponse(BaseModel):
+    results: List[BatchClassPropertyResultItem]
+    succeeded: int
+    failed: int
+
+
+@router.post("/classes/batch/properties")
+async def batch_add_class_properties(
+    request: BatchClassPropertyRequest,
+    user: User = Depends(get_current_user),
+):
+    """Link properties to classes in bulk.
+
+    Each item is processed independently.  Duplicates (already bound) are
+    treated as successes.
+    """
+    repo = await _get_property_repo(user)
+
+    results: List[BatchClassPropertyResultItem] = []
+    succeeded = 0
+    failed = 0
+
+    for i, item in enumerate(request.items):
+        try:
+            await repo.add_class_property(item.class_node_id, item.property_id)
+            results.append(BatchClassPropertyResultItem(index=i, success=True))
+            succeeded += 1
+        except ValueError as e:
+            msg = str(e)
+            # Treat "already bound" as success
+            if "already" in msg.lower():
+                results.append(BatchClassPropertyResultItem(index=i, success=True))
+                succeeded += 1
+            else:
+                results.append(BatchClassPropertyResultItem(index=i, success=False, error=msg))
+                failed += 1
+        except Exception as e:
+            results.append(BatchClassPropertyResultItem(index=i, success=False, error=str(e)))
+            failed += 1
+
+    return BatchClassPropertyResponse(results=results, succeeded=succeeded, failed=failed)
 
 
 # ============== Class Extends (Inheritance) ==============
