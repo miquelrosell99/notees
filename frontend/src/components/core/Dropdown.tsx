@@ -66,6 +66,8 @@ export interface DropdownProps<T = string> {
   renderOption?: (option: DropdownOption<T>, isSelected: boolean) => ReactNode;
   /** Extra content rendered next to the search input */
   searchExtra?: ReactNode;
+  /** Content rendered at the bottom of the dropdown menu, below the options list */
+  footer?: ReactNode;
   /** Empty state content */
   emptyContent?: ReactNode;
   /** Additional className */
@@ -92,6 +94,7 @@ export function Dropdown<T = string>({
   renderTrigger,
   renderOption,
   searchExtra,
+  footer,
   emptyContent = 'No options',
   className = '',
 }: DropdownProps<T>) {
@@ -308,6 +311,11 @@ export function Dropdown<T = string>({
                 ))
               )}
             </div>
+            {footer && (
+              <div className="dropdown-footer">
+                {footer}
+              </div>
+            )}
           </Card>,
           document.body
         )}
