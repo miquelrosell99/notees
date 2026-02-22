@@ -204,15 +204,25 @@ async def update_property(
                 request.multi, utc_now(), int(user.id), property_id
             )
     
-    try:
-        prop = await repo.update(property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    
-    if not prop:
-        raise HTTPException(404, "Property not found")
-    
-    return _property_to_response(prop)
+    # Only call repo.update() if there are name/icon/icon_visibility changes.
+    # This avoids the "Cannot modify system properties" error when only
+    # the multi flag was changed (already handled above).
+    if request.name is not None or request.icon is not None or request.icon_visibility is not None:
+        try:
+            prop = await repo.update(property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        
+        if not prop:
+            raise HTTPException(404, "Property not found")
+        
+        return _property_to_response(prop)
+    else:
+        # Only multi changed (or nothing) — reload and return
+        prop = await repo.get_by_id(property_id)
+        if not prop:
+            raise HTTPException(404, "Property not found")
+        return _property_to_response(prop)
 
 
 @router.post("/{property_id}/change-type")
