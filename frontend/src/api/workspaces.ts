@@ -59,10 +59,10 @@ export async function switchWorkspace(uuid: string): Promise<{ status: string; a
 }
 
 /**
- * Delete a workspace
+ * Delete a workspace by UUID
  */
-export async function deleteWorkspace(name: string): Promise<{ status: string }> {
-  const response = await api.delete(`/workspaces/${encodeURIComponent(name)}`);
+export async function deleteWorkspace(uuid: string): Promise<{ status: string }> {
+  const response = await api.delete(`/workspaces/${encodeURIComponent(uuid)}`);
   return response.data;
 }
 

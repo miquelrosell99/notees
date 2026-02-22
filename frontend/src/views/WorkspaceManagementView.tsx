@@ -58,7 +58,7 @@ export function WorkspaceManagementView({
     type: ImportType | null;
   }>({ isOpen: false, file: null, type: null });
   const [importError, setImportError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // stores uuid
   const [renameModalState, setRenameModalState] = useState<{
     isOpen: boolean;
     workspaceName: string | null;
@@ -361,7 +361,7 @@ export function WorkspaceManagementView({
               {workspaces.map((workspace) => (
                 <Card 
                   key={workspace.uuid} 
-                  className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.name ? 'workspace-management__card--delete-confirm' : ''}`}
+                  className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.uuid ? 'workspace-management__card--delete-confirm' : ''}`}
                   elevation="low"
                   padding={false}
                   selected={workspace.uuid === data?.active}
@@ -399,12 +399,12 @@ export function WorkspaceManagementView({
                       >
                         <Icon path={mdiBackupRestore} size={0.7} />
                       </Button>
-                      {deleteConfirm === workspace.name ? (
+                      {deleteConfirm === workspace.uuid ? (
                         <>
                           <Button
                             variant="danger"
                             size="sm"
-                            onClick={() => deleteMutation.mutate(workspace.name)}
+                            onClick={() => deleteMutation.mutate(workspace.uuid)}
                             title="Confirm delete"
                             disabled={deleteMutation.isPending}
                           >
@@ -424,7 +424,7 @@ export function WorkspaceManagementView({
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={() => setDeleteConfirm(workspace.name)}
+                          onClick={() => setDeleteConfirm(workspace.uuid)}
                           title="Delete"
                           className="workspace-management__delete-btn"
                         >
