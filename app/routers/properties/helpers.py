@@ -2,18 +2,14 @@
 
 Updated for workspace-based schema:
 - workspace_id -> workspace_id
-- Uses get_or_create_user_workspace
+- Uses _get_workspace_context_cached (respects active workspace)
 - Repositories now take user_id for audit trails
 """
-from typing import cast
-import asyncpg
-
 from ...domain.entities import (
     Property, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
 )
 from ...domain.repositories import PostgresPropertyRepository
-from ...db.connection import acquire_connection, get_pool
-from ...db.schema import get_or_create_user_workspace
+from ...db.connection import get_pool
 from ...models import User
 from .models import (
     PropertyResponse,
@@ -26,10 +22,10 @@ from .models import (
 
 async def _get_property_repo(user: User) -> PostgresPropertyRepository:
     """Get PropertyRepository for user's workspace."""
+    from ...dependencies import _get_workspace_context_cached
     pool = await get_pool()
     user_id = int(user.id)
-    async with acquire_connection(pool) as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     return PostgresPropertyRepository(pool, workspace_id, user_id)
 
 

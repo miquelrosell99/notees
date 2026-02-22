@@ -331,17 +331,14 @@ async def get_nodes_with_property(
     user: User = Depends(get_current_user),
 ):
     """Get all nodes that have this property assigned."""
-    from typing import cast
-    import asyncpg
     from ...db.connection import get_pool
-    from ...db.schema import get_or_create_user_workspace
+    from ...dependencies import _get_workspace_context_cached
     from ...domain.repositories import PostgresPropertyRepository
     from ..nodes.helpers import extract_properties_dict
     
     pool = await get_pool()
     user_id = int(user.id)
-    async with acquire_connection(pool) as conn:
-        workspace_id = await get_or_create_user_workspace(cast(asyncpg.Connection, conn), user_id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     repo = PostgresPropertyRepository(pool, workspace_id, user_id)
     
     # Check property exists
