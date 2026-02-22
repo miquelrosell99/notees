@@ -1,37 +1,39 @@
 /**
- * NodePill - Universal pill component for displaying any node
+ * NodeRef — Universal component for displaying a node reference.
  * 
- * Used for:
- * - Inline links in block content ([[page]] or ((block)))
- * - Class/tag pills on blocks and pages
- * - Any node reference display
+ * Three variants:
+ * - 'default': Interactive pill with remove/color-change (class/tag chips)
+ * - 'link': Interactive pill with navigation on click (inline links outside editor)
+ * - 'inline': Bare icon + text spans — no interactivity, no Pill wrapper.
+ *            Used inside Lexical DecoratorNodes where the editor owns the DOM.
  * 
- * Features:
- * - Can accept a node object directly OR a nodeId to fetch
- * - Optional click count badge (for link tracking)
- * - Optional remove button
- * - Optional color picker via right-click
- * - Faded background color based on node's isPage status
+ * Node resolution:
+ * - `node` prop: use directly (cheapest)
+ * - `nodeId` (number): batch-fetched via useBatchedNode
+ * - `nodeUuid` (string): resolved via ReferencedNodesContext → useNodeByUuid fallback
  */
 import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import { Pill } from '../core/Pill';
 import { NodeIcon, CloseIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ColorPickerRow } from './NodeContextMenu';
-import { useBatchedNode, useClasses } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useBatchedNode } from '@/hooks';
+import { useNodeDisplay } from '@/hooks/useNodeDisplay';
+import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
+import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useAppStore } from '@/stores';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
-import './NodePill.css';
+import './NodeRef.css';
 
-export interface NodePillProps {
-  /** The node to display (if provided, nodeId is ignored) */
+export interface NodeRefProps {
+  /** The node to display (if provided, nodeId/nodeUuid are ignored) */
   node?: Node;
-  /** Node ID to fetch (used if node is not provided) */
+  /** Node ID to fetch by numeric ID (used if node is not provided) */
   nodeId?: number;
-  /** Display variant: 'default' for class pills, 'link' for inline links with faded colors */
-  variant?: 'default' | 'link';
+  /** Node UUID to resolve (via ReferencedNodesContext then API fallback). Used by Lexical decorators. */
+  nodeUuid?: string;
+  /** Display variant: 'default' for class pills, 'link' for inline links, 'inline' for bare icon+text */
+  variant?: 'default' | 'link' | 'inline';
   /** Reference type: 'node' for regular links, 'class' for inline class references */
   refType?: 'node' | 'class';
   /** When true, clicking selects the pill (for contenteditable edit mode) instead of navigating */
@@ -54,9 +56,81 @@ export interface NodePillProps {
   customName?: string | null;
 }
 
-export const NodePill = memo(function NodePill({
+/** @deprecated Use NodeRefProps instead */
+export type NodePillProps = NodeRefProps;
+
+export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
+  // Dispatch to the lightweight inline renderer when variant === 'inline'
+  if (props.variant === 'inline') {
+    return <NodeRefInline {...props} />;
+  }
+  return <NodeRefInteractive {...props} />;
+}, (prev, next) => {
+  // Custom comparator: skip re-render when only function props change
+  // (all callers use inline callbacks that change every render)
+  return (
+    prev.node?.id === next.node?.id &&
+    prev.node?.name === next.node?.name &&
+    prev.node?.color === next.node?.color &&
+    prev.node?.icon === next.node?.icon &&
+    prev.node?.is_page === next.node?.is_page &&
+    prev.nodeId === next.nodeId &&
+    prev.nodeUuid === next.nodeUuid &&
+    prev.variant === next.variant &&
+    prev.refType === next.refType &&
+    prev.editMode === next.editMode &&
+    prev.clickCount === next.clickCount &&
+    prev.readOnly === next.readOnly &&
+    prev.className === next.className &&
+    prev.customName === next.customName
+  );
+});
+
+// ─── Inline variant (bare spans, no state, no store) ─────────────────────
+
+/** Lightweight renderer for Lexical decorator nodes — icon + text only. */
+function NodeRefInline({
   node: providedNode,
   nodeId,
+  nodeUuid,
+  refType = 'node',
+  customName,
+}: NodeRefProps) {
+  // Resolve node: provided > uuid context > uuid fetch > batched ID fetch
+  const refNode = useReferencedNode(nodeUuid ?? null);
+  const { data: uuidFallback } = useNodeByUuid(!providedNode && !refNode && nodeUuid ? nodeUuid : null);
+  const { data: idFallback } = useBatchedNode(!providedNode && !refNode && !nodeUuid ? (nodeId ?? null) : null);
+  const node = providedNode ?? refNode ?? uuidFallback ?? idFallback ?? null;
+
+  const { effectiveIcon, displayText: nodeDisplayText, isPage, color } = useNodeDisplay(
+    node,
+    nodeUuid ? (nodeUuid.slice(0, 8) + '…') : '[Loading...]',
+  );
+
+  const displayText = customName || nodeDisplayText;
+
+  return (
+    <span
+      className="inline-link-inner"
+      data-ref-type={refType}
+      style={color ? { textDecorationColor: color, color } : undefined}
+    >
+      {effectiveIcon && (
+        <span className="inline-link-icon">
+          <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
+        </span>
+      )}
+      <span className="inline-link-text">{displayText}</span>
+    </span>
+  );
+}
+
+// ─── Interactive variant (Pill + context menu + navigation) ──────────────
+
+function NodeRefInteractive({
+  node: providedNode,
+  nodeId,
+  nodeUuid,
   variant = 'default',
   refType = 'node',
   editMode = false,
@@ -68,7 +142,7 @@ export const NodePill = memo(function NodePill({
   readOnly = false,
   className = '',
   customName,
-}: NodePillProps) {
+}: NodeRefProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -79,34 +153,27 @@ export const NodePill = memo(function NodePill({
   // Use selectors to avoid subscribing to full store — actions are stable refs
   const openNode = useAppStore(s => s.openNode);
   const addSidebarCard = useAppStore(s => s.addSidebarCard);
-  const { data: allClasses } = useClasses();
   
   // Only batch-fetch when no node is provided (need to fetch by ID)
   const { data: fetchedNode } = useBatchedNode(providedNode ? null : (nodeId ?? null));
   
+  // UUID resolution (for non-inline interactive links that happen to have a UUID)
+  const refNode = useReferencedNode(nodeUuid ?? null);
+  const { data: uuidFallback } = useNodeByUuid(!providedNode && !fetchedNode && !refNode && nodeUuid ? nodeUuid : null);
+  
   // Use provided node directly, or fetched node for ID-only usage
-  const node = providedNode ?? fetchedNode;
+  const node = providedNode ?? fetchedNode ?? refNode ?? uuidFallback;
   
-  // Get effective icon (considers inherited icons from classes)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
-  
-  // Actual node name (for tooltip when customName is used)
-  const actualNodeName = useMemo(() => {
-    if (!node) return '';
-    const textContent = nodeNameToText(node.name);
-    if (!textContent || textContent.trim() === '') {
-      return node.is_page ? '[Untitled Page]' : '[Empty Block]';
-    }
-    if (!node.is_page && textContent.length > 50) {
-      return `${textContent.slice(0, 50)}...`;
-    }
-    return textContent;
-  }, [node]);
+  // Shared display data (icon, text, color) — deduplicated with InlineLink
+  const { effectiveIcon, displayText: actualNodeName, isPage: _isPage } = useNodeDisplay(
+    node,
+    nodeId ? '[Loading...]' : '[Missing]',
+  );
 
   // Display text: prefer custom name, fall back to actual node name
   const displayText = useMemo(() => {
     if (customName) return customName;
-    if (!node) return nodeId ? `[Loading...]` : '[Missing]';
+    if (!node) return nodeId ? '[Loading...]' : '[Missing]';
     return actualNodeName;
   }, [customName, node, nodeId, actualNodeName]);
   
@@ -355,25 +422,10 @@ export const NodePill = memo(function NodePill({
 
     </>
   );
-}, (prev, next) => {
-  // Custom comparator: skip re-render when only function props change
-  // (all callers use inline callbacks that change every render)
-  return (
-    prev.node?.id === next.node?.id &&
-    prev.node?.name === next.node?.name &&
-    prev.node?.color === next.node?.color &&
-    prev.node?.icon === next.node?.icon &&
-    prev.node?.is_page === next.node?.is_page &&
-    prev.nodeId === next.nodeId &&
-    prev.variant === next.variant &&
-    prev.refType === next.refType &&
-    prev.editMode === next.editMode &&
-    prev.clickCount === next.clickCount &&
-    prev.readOnly === next.readOnly &&
-    prev.className === next.className &&
-    prev.customName === next.customName
-  );
-});
+}
+
+/** @deprecated Use NodeRef instead */
+export const NodePill = NodeRef;
 
 
 /**

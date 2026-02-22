@@ -3,7 +3,7 @@
  * 
  * Automatically batches individual node-by-ID requests into a single
  * POST /batch-get API call. This eliminates N+1 query waterfalls when
- * many components (NodePill, breadcrumbs, table rows, etc.) each need
+ * many components (NodeRef, breadcrumbs, table rows, etc.) each need
  * to fetch a node independently.
  * 
  * How it works:
@@ -102,7 +102,7 @@ function queueForBatch(id: number, queryClient: QueryClient): Promise<Record<str
  * are automatically combined into a single POST /batch-get API call.
  * 
  * Use this instead of useNode(id) when you only need basic node data
- * (no children, backlinks, or properties) — e.g., NodePill, breadcrumbs,
+ * (no children, backlinks, or properties) — e.g., NodeRef, breadcrumbs,
  * link previews, table cells.
  */
 export function useBatchedNode(id: number | null) {

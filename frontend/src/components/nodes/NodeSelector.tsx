@@ -20,7 +20,7 @@ import { createPortal } from 'react-dom';
 import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
-import { NodePill } from './NodePill';
+import { NodeRef } from './NodeRef';
 import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
@@ -404,10 +404,10 @@ export function NodeSelector({
         >
           {hasValue ? (
             multi ? (
-              // Multi-select: Show NodePills with remove buttons
+              // Multi-select: Show NodeRefs with remove buttons
               <div className="node-selector__selected-pills">
                 {nodes.map(node => (
-                  <NodePill
+                  <NodeRef
                     key={node.id}
                     nodeId={node.id}
                     onClick={() => onNodeClick?.(node)}
@@ -551,7 +551,7 @@ export function NodeSelector({
       {nodes.map((node) => {
         const isRemovable = onRemove && (!canRemove || canRemove(node));
         return (
-          <NodePill
+          <NodeRef
             key={node.id}
             node={node}
             onClick={() => onNodeClick?.(node)}

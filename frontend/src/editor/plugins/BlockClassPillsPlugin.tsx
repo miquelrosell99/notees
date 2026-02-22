@@ -1,7 +1,7 @@
 /**
  * BlockClassPillsPlugin — Renders class pills on each block in the Lexical editor.
  *
- * Reads classIds from each BlockNode and renders NodePill components
+ * Reads classIds from each BlockNode and renders NodeRef components
  * (the same component used by the page header class section) into the
  * `.node-block-class-pills` container via React portals.
  * This makes class pills visible in list and document view modes.
@@ -14,7 +14,7 @@ import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { NodePill } from '@/components/nodes/NodePill';
+import { NodeRef } from '@/components/nodes/NodeRef';
 import type { Node } from '@/types';
 import { useClasses, useRemoveClass } from '@/hooks';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
@@ -131,7 +131,7 @@ export function BlockClassPillsPlugin({
         return createPortal(
           <span key={blockId} className="node-block-class-pills-inner">
             {resolvedClasses.map(cls => (
-              <NodePill
+              <NodeRef
                 key={cls.id}
                 node={cls}
                 className="node-block-class-pill"
