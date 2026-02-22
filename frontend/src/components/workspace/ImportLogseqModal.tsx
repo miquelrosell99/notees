@@ -673,20 +673,48 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         const p3b = createPhase('Set page parents');
         phases.push(p3b);
 
-        // Build batch update items, skipping unresolved pages
+        // Build case-insensitive lookup for parent resolution
+        const titleToNodeInfoLower = new Map<string, NodeInfo>();
+        for (const [title, info] of titleToNodeInfo) {
+          titleToNodeInfoLower.set(title.toLowerCase(), info);
+        }
+
+        // Build batch update items, auto-creating missing parent pages
         const batchItems: Array<{ id: number; parent_id: number }> = [];
         const batchMeta: Array<{ pageTitle: string; parentTitle: string }> = [];
 
         for (const page of pagesWithParent) {
           const pageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-          const parentInfo = titleToNodeInfo.get(page.parent!);
-          if (!pageInfo || !parentInfo) {
+          let parentInfo = titleToNodeInfo.get(page.parent!)
+            ?? titleToNodeInfoLower.get(page.parent!.toLowerCase());
+          if (!pageInfo) {
             p3b.failed++;
-            p3b.errors.push({
-              item: `${page.title} → ${page.parent}`,
-              message: parentInfo ? 'Page not found' : `Parent page "${page.parent}" not found`,
-            });
+            p3b.errors.push({ item: `${page.title} → ${page.parent}`, message: 'Page not found' });
             continue;
+          }
+          // Auto-create missing parent page
+          if (!parentInfo) {
+            try {
+              const searchResults = await searchNodes(page.parent!);
+              const existing = searchResults.find(
+                n => n.is_page && nodeNameToText(n.name).toLowerCase() === page.parent!.toLowerCase()
+              );
+              if (existing) {
+                parentInfo = { id: existing.id, uuid: existing.uuid };
+              } else {
+                const newParent = await createNodeApi({ name: page.parent!, classes: [pageClassId] });
+                parentInfo = { id: newParent.id, uuid: newParent.uuid };
+              }
+              titleToNodeInfo.set(page.parent!, parentInfo);
+              titleToNodeInfoLower.set(page.parent!.toLowerCase(), parentInfo);
+            } catch (e) {
+              p3b.failed++;
+              p3b.errors.push({
+                item: `${page.title} → ${page.parent}`,
+                message: `Failed to create parent "${page.parent}": ${errorMessage(e)}`,
+              });
+              continue;
+            }
           }
           batchItems.push({ id: pageInfo.id, parent_id: parentInfo.id });
           batchMeta.push({ pageTitle: page.title, parentTitle: page.parent! });
@@ -1775,11 +1803,55 @@ async function resolvePropertyValueForImport(
         }
       }
       case 'uuid-ref': {
-        const info = uuidMap.get(typed.uuid as string);
-        if (!info) {
-          console.warn(`[IMPORT] UUID reference not found: ${typed.uuid}`);
+        const uuid = typed.uuid as string;
+        const fallbackTitle = typed.title as string | undefined;
+
+        // 1. Check uuidMap (nodes imported in this session)
+        const info = uuidMap.get(uuid);
+        if (info) return info.id;
+
+        // 2. Try database lookup by UUID (nodes from a previous import)
+        try {
+          const existing = await getNodeByUuid(uuid);
+          if (existing) {
+            uuidMap.set(uuid, { id: existing.id, uuid: existing.uuid });
+            if (fallbackTitle) titleToNodeInfo.set(fallbackTitle, { id: existing.id, uuid: existing.uuid });
+            return existing.id;
+          }
+        } catch { /* not found — continue */ }
+
+        // 3. Fallback: look up by title
+        if (fallbackTitle) {
+          const titleInfo = titleToNodeInfo.get(fallbackTitle);
+          if (titleInfo) return titleInfo.id;
+
+          // Search database by title
+          try {
+            const searchResults = await searchNodes(fallbackTitle);
+            const existing = searchResults.find(
+              n => nodeNameToText(n.name).toLowerCase() === fallbackTitle.toLowerCase()
+            );
+            if (existing) {
+              titleToNodeInfo.set(fallbackTitle, { id: existing.id, uuid: existing.uuid });
+              uuidMap.set(uuid, { id: existing.id, uuid: existing.uuid });
+              return existing.id;
+            }
+          } catch { /* search failed — continue */ }
+
+          // 4. Auto-create the referenced page
+          try {
+            const newPage = await createNodeApi({ name: fallbackTitle, classes: [pageClassId] });
+            titleToNodeInfo.set(fallbackTitle, { id: newPage.id, uuid: newPage.uuid });
+            uuidMap.set(uuid, { id: newPage.id, uuid: newPage.uuid });
+            console.log(`[IMPORT] uuid-ref fallback: created page "${fallbackTitle}" id=${newPage.id}`);
+            return newPage.id;
+          } catch (createErr) {
+            console.error(`[IMPORT] uuid-ref fallback: failed to create "${fallbackTitle}"`, createErr);
+          }
         }
-        return info?.id ?? undefined;
+
+        console.warn(`[IMPORT] UUID reference not found: ${uuid}${fallbackTitle ? ` (title: ${fallbackTitle})` : ''}`);
+        return undefined;
       }
     }
   }
