@@ -1,5 +1,5 @@
 /**
- * NodePill styles — TE-inspired inline link pills.
+ * NodeRef styles — TE-inspired inline link pills.
  * Rounded rectangle, tactile hover/press, grayscale only.
  */
 
@@ -94,7 +94,7 @@
   z-index: 1001;
 }
 
-/* Mount point placeholder in contenteditable — transparent container for portal-rendered NodePill */
+/* Mount point placeholder in contenteditable — transparent container for portal-rendered NodeRef */
 .node-link-mount {
   display: inline;
   vertical-align: baseline;

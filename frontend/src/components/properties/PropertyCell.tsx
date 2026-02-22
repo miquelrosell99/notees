@@ -19,7 +19,7 @@ import { useClickOutside } from '@/hooks/useClickOutside';
 import * as nodesApi from '@/api/nodes';
 import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../nodes/ImageNode';
-import { NodePill } from '../nodes/NodePill';
+import { NodeRef } from '../nodes/NodeRef';
 import { NodeSelector } from '../nodes/NodeSelector';
 import { Pill } from '../core/Pill';
 import { NodeIcon } from '../core/icons';
