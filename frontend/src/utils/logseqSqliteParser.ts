@@ -242,10 +242,31 @@ function mapPropertyType(rawType: unknown): string {
   }
 }
 
-/** Convert YYYYMMDD integer to YYYY-MM-DD string. */
-function journalDayToDate(day: number): string {
+/** Minimum length for a valid UUID (32 hex chars without dashes). */
+const MIN_UUID_LENGTH = 32;
+
+/** Check whether a string looks like a valid UUID (32-36 chars, hex+dashes). */
+function isValidUuid(s: string): boolean {
+  return s.length >= MIN_UUID_LENGTH && s.length <= 36 && /^[0-9a-f-]+$/i.test(s);
+}
+
+/**
+ * Convert YYYYMMDD integer to YYYY-MM-DD string.
+ * Returns `undefined` if the value does not encode a valid calendar date.
+ */
+function journalDayToDate(day: number): string | undefined {
   const s = String(day);
-  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  if (s.length !== 8) return undefined;
+  const yyyy = s.slice(0, 4);
+  const mm   = s.slice(4, 6);
+  const dd   = s.slice(6, 8);
+  const month = Number(mm);
+  const dayN  = Number(dd);
+  if (month < 1 || month > 12 || dayN < 1 || dayN > 31) return undefined;
+  // Final validation via Date constructor
+  const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+  if (isNaN(d.getTime())) return undefined;
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /**
@@ -253,11 +274,11 @@ function journalDayToDate(day: number): string {
  * by ImportLogseqModal's 7-phase pipeline.
  */
 function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
-  // Build eid→UUID lookup
+  // Build eid→UUID lookup (skip invalid UUIDs — short Transit artefacts like "a1V")
   const eidToUuid = new Map<number, string>();
   for (const [eid, attrs] of entities) {
     const uuid = attrs['block/uuid'];
-    if (typeof uuid === 'string') {
+    if (typeof uuid === 'string' && isValidUuid(uuid)) {
       eidToUuid.set(eid, uuid);
     }
   }
@@ -452,11 +473,12 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
    */
   function resolvePropertyValue(value: unknown, propType: string): unknown {
     if (typeof value === 'number' && (propType === ':node' || propType === ':entity')) {
-      // Entity ID reference → page-ref marker
+      // Entity ID reference → page-ref / uuid-ref marker
       const refUuid = eidToUuid.get(value);
       const refTitle = eidToTitle.get(value);
       if (refUuid) {
-        return { __type: 'uuid-ref', uuid: refUuid };
+        // Include title for fallback resolution in case the UUID isn't imported
+        return { __type: 'uuid-ref', uuid: refUuid, ...(refTitle ? { title: refTitle } : {}) };
       }
       if (refTitle) {
         return { __type: 'page-ref', title: refTitle };
@@ -467,7 +489,8 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
       // Date references point to journal day entities
       const dateEntity = entities.get(value);
       if (dateEntity && 'block/journal-day' in dateEntity) {
-        return { __type: 'date-ref', date: journalDayToDate(dateEntity['block/journal-day'] as number) };
+        const dateStr = journalDayToDate(dateEntity['block/journal-day'] as number);
+        if (dateStr) return { __type: 'date-ref', date: dateStr };
       }
       // Might be a direct reference to a date page
       const dateUuid = eidToUuid.get(value);
@@ -486,7 +509,8 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
         }
         // General entity reference
         if (refUuid) {
-          return { __type: 'uuid-ref', uuid: refUuid };
+          const refTitle = eidToTitle.get(value);
+          return { __type: 'uuid-ref', uuid: refUuid, ...(refTitle ? { title: refTitle } : {}) };
         }
         const refTitle = eidToTitle.get(value);
         if (refTitle) {
@@ -648,7 +672,8 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
       blocks,
     };
     if (uuid) page.uuid = uuid;
-    if (journalDay) page.journal = journalDayToDate(journalDay);
+    const journalDateStr = journalDay ? journalDayToDate(journalDay) : undefined;
+    if (journalDateStr) page.journal = journalDateStr;
     if (tags.length > 0) page.tags = tags;
     if (aliasOfUuids?.length) page.aliasOfUuids = aliasOfUuids;
     if (parent) page.parent = parent;
