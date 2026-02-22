@@ -25,7 +25,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { setShowDbManagement } = useAppStore();
+  const { setShowWorkspaceManager } = useAppStore();
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
   useEscapeKey(() => setIsOpen(false));
@@ -53,7 +53,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
 
   const handleManageGraphs = () => {
     setIsOpen(false);
-    setShowDbManagement(true);
+    setShowWorkspaceManager(true);
   };
 
   const handleLogout = () => {

@@ -40,7 +40,7 @@ function GlobalKeyboardHandler() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleQuickAdd, toggleCalendar, showDbManagement, setShowDbManagement } = useAppStore();
+  const { toggleQuickAdd, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useAppStore();
   
   // Fetch workspaces when authenticated
   const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
@@ -226,16 +226,16 @@ function AppContent() {
   const hasNoWorkspaces = !dbData?.workspaces || dbData.workspaces.length === 0;
   const hasNoActiveWorkspace = !dbData?.active;
   
-  if (hasNoWorkspaces || hasNoActiveWorkspace || showDbManagement) {
-    log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showDbManagement });
+  if (hasNoWorkspaces || hasNoActiveWorkspace || showWorkspaceManager) {
+    log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showWorkspaceManager });
     return (
       <WorkspaceManagementView 
         onWorkspaceSelected={() => {
-          setShowDbManagement(false);
+          setShowWorkspaceManager(false);
           refetchWorkspaces();
         }}
         showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
-        onClose={() => setShowDbManagement(false)}
+        onClose={() => setShowWorkspaceManager(false)}
       />
     );
   }

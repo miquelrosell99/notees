@@ -88,7 +88,7 @@ interface NodesState {
   isImportMarkdownModalOpen: boolean;
   isExportPageModalOpen: boolean;
   isRebuildLinksModalOpen: boolean;
-  showDbManagement: boolean;
+  showWorkspaceManager: boolean;
   isMinimapOpen: boolean;
   
   // New features state
@@ -140,7 +140,7 @@ interface NodesState {
   openCommentsForNode: (nodeId: number) => void;
   closeCommentsSidebar: () => void;
   toggleCommentsSidebar: () => void;
-  setShowDbManagement: (show: boolean) => void;
+  setShowWorkspaceManager: (show: boolean) => void;
   toggleMinimap: () => void;
   setMinimapOpen: (open: boolean) => void;
   // New feature actions
@@ -184,7 +184,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isImportMarkdownModalOpen: false,
   isExportPageModalOpen: false,
   isRebuildLinksModalOpen: false,
-  showDbManagement: false,
+  showWorkspaceManager: false,
   isMinimapOpen: false,
   // New features state
   contentDisplayMode: 'bullet' as ContentDisplayMode,
@@ -378,7 +378,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   toggleCommentsSidebar: () => set((state) => ({
     commentsSidebarOpen: !state.commentsSidebarOpen,
   })),
-  setShowDbManagement: (show) => set({ showDbManagement: show }),
+  setShowWorkspaceManager: (show) => set({ showWorkspaceManager: show }),
   toggleMinimap: () => set((state) => ({ isMinimapOpen: !state.isMinimapOpen })),
   setMinimapOpen: (open) => set({ isMinimapOpen: open }),
   // New feature actions
