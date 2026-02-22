@@ -7,7 +7,7 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiPlus, mdiDatabaseOutline } from '@mdi/js';
+import { mdiPlus, mdiDatabaseOutline, mdiViewDashboard } from '@mdi/js';
 import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useAppStore, useFavoritesStore } from '@/stores';
 import { Button } from '../core/Button';
@@ -20,6 +20,7 @@ interface WorkspaceSwitcherProps {
 
 export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   const queryClient = useQueryClient();
+  const { setShowWorkspaceManager } = useAppStore();
 
   const { data } = useQuery({
     queryKey: ['workspaces'],
@@ -99,6 +100,15 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
               title="Create Workspace"
               onClick={onAddWorkspace}
             />
+          }
+          footer={
+            <button
+              className="workspace-switcher__manage-btn"
+              onClick={() => setShowWorkspaceManager(true)}
+            >
+              <Icon path={mdiViewDashboard} size={0.6} />
+              <span>Workspaces</span>
+            </button>
           }
           className="workspace-switcher__dropdown"
         />
