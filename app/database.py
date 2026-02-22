@@ -284,27 +284,68 @@ async def delete_workspace(user_id: str, workspace_uuid: str) -> bool:
         workspace_id = workspace_row['id']
         workspace_uuid = str(workspace_row['uuid'])
         
-        # For large workspaces the CASCADE delete can exceed the pool's command_timeout.
-        # The node_path closure table has per-row triggers (node_path_update /
-        # node_path_delete) that do expensive subqueries on every affected node row.
-        # With 21k+ nodes these trigger invocations alone can blow the 60-second limit.
+        # Large workspaces (21k+ nodes) blow the 60-second pool command_timeout because
+        # PostgreSQL's FK enforcement fires per-row SET NULL / CASCADE triggers for every
+        # deleted node.  We avoid this by deleting every dependent table explicitly and
+        # in the right order so that by the time we reach DELETE FROM node, there are no
+        # remaining FK references that require per-row trigger work.
         #
-        # Strategy (all with timeout=None to bypass the pool limit):
-        # 1. Delete all node_path rows for workspace nodes in one bulk statement.
-        #    This makes subsequent trigger invocations no-ops.
-        # 2. Delete all nodes in one bulk statement.  The node_path_delete trigger
-        #    fires per row but finds nothing to delete (no-op).
-        #    The self-referential parent_id / page_id FKs (ON DELETE SET NULL) are
-        #    handled correctly by PostgreSQL within a single DELETE statement.
-        # 3. Delete properties, then the workspace row itself.
+        # All statements use timeout=None to bypass the pool-level 60-second limit.
+        #
+        # Collect workspace node IDs once for use in subqueries.
+        # Step 1 – node_path closure table.
+        #   The node_path_update() trigger fires on UPDATE node (parent_id change) and
+        #   node_path_delete() fires on DELETE node.  Pre-deleting the rows makes both
+        #   triggers no-ops for subsequent statements.
         await conn.execute(
             """DELETE FROM node_path
                WHERE ancestor_id IN (SELECT id FROM node WHERE workspace_id = $1)
                   OR descendant_id IN (SELECT id FROM node WHERE workspace_id = $1)""",
             workspace_id, timeout=None
         )
+
+        # Step 2 – node_activity.
+        #   node_id has ON DELETE CASCADE (would cascade from node deletion),
+        #   but target_node_id has ON DELETE SET NULL and fires a per-row UPDATE for
+        #   every node deleted.  Deleting up-front removes both FK concerns in one shot.
+        await conn.execute(
+            "DELETE FROM node_activity WHERE node_id IN (SELECT id FROM node WHERE workspace_id = $1)",
+            workspace_id, timeout=None
+        )
+
+        # Step 3 – link_click.
+        #   source_node_id and target_node_id both CASCADE, but pre-deleting avoids
+        #   the per-row cascade work during the main node delete.
+        await conn.execute(
+            """DELETE FROM link_click
+               WHERE source_node_id IN (SELECT id FROM node WHERE workspace_id = $1)
+                  OR target_node_id IN (SELECT id FROM node WHERE workspace_id = $1)""",
+            workspace_id, timeout=None
+        )
+
+        # Step 4 – node self-referential FKs (parent_id, page_id, aliased_id).
+        #   These are ON DELETE SET NULL and would fire the node_path_update() trigger
+        #   per row.  node_path is now empty (step 1), so the trigger is a no-op and
+        #   this UPDATE is fast.
+        await conn.execute(
+            "UPDATE node SET parent_id = NULL, page_id = NULL, aliased_id = NULL WHERE workspace_id = $1",
+            workspace_id, timeout=None
+        )
+
+        # Step 5 – delete all nodes.
+        #   Remaining child tables (node_share, node_property, property_value_*,
+        #   node_link, node_view, class_property, class_extend, node_path) all have
+        #   ON DELETE CASCADE on node_id and will be cleaned up automatically.
+        #   No SET NULL FKs remain, so no per-row trigger overhead.
         await conn.execute(
             "DELETE FROM node WHERE workspace_id = $1",
+            workspace_id, timeout=None
+        )
+
+        # Step 6 – delete workspace-scoped properties (and their selection lines,
+        #   which CASCADE from property).
+        await conn.execute(
+            "DELETE FROM property WHERE workspace_id = $1",
             workspace_id, timeout=None
         )
         await conn.execute(
