@@ -2,7 +2,7 @@
  * FixRawLinksModal - Convert raw [[uuid]] text to proper node_link AST nodes
  *
  * Provides a confirmation dialog before running the fix operation,
- * then displays a results report.
+ * then displays a phase-based results report (same style as Logseq import).
  */
 import { useState, useCallback } from 'react';
 import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiLinkVariant } from '@mdi/js';
@@ -10,11 +10,50 @@ import Icon from '@mdi/react';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
+import '../workspace/ImportLogseqModal.css';
 import './RebuildLinksModal.css';
 
 interface FixRawLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface PhaseResult {
+  label: string;
+  succeeded: number;
+  failed: number;
+  errors: Array<{ item: string; message: string }>;
+}
+
+function buildPhases(result: FixRawUuidLinksResponse): PhaseResult[] {
+  const phases: PhaseResult[] = [];
+
+  // Phase 1: Scan nodes
+  phases.push({
+    label: 'Scan nodes for raw [[uuid]] text',
+    succeeded: result.nodes_processed,
+    failed: 0,
+    errors: [],
+  });
+
+  // Phase 2: Convert links
+  const convertErrors = result.errors.map(err => ({ item: 'Node', message: err }));
+  phases.push({
+    label: 'Convert raw links to node_link AST',
+    succeeded: result.links_converted,
+    failed: result.total_errors,
+    errors: convertErrors,
+  });
+
+  // Phase 3: Update nodes
+  phases.push({
+    label: 'Update nodes with fixed content',
+    succeeded: result.nodes_fixed,
+    failed: 0,
+    errors: [],
+  });
+
+  return phases;
 }
 
 export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
@@ -41,52 +80,40 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     onClose();
   }, [onClose]);
 
-  // Results view (after fix completes)
+  // Report view (after fix completes)
   if (result) {
+    const phases = buildPhases(result);
+    const totalSucceeded = result.nodes_fixed + result.links_converted;
     const hasErrors = result.total_errors > 0;
+
     return (
       <Modal
         isOpen={isOpen}
         onClose={handleClose}
         title="Fix Raw UUID Links Report"
-        size="md"
+        size="lg"
         footer={
           <Button variant="primary" onClick={handleClose}>
             Close
           </Button>
         }
       >
-        <div className="rebuild-links__report">
-          <div className={`rebuild-links__report-summary ${hasErrors ? 'rebuild-links__report-summary--warning' : 'rebuild-links__report-summary--success'}`}>
-            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1.2} />
+        <div className="import-logseq__report">
+          <div className={`import-logseq__report-summary ${hasErrors ? 'import-logseq__report-summary--warning' : 'import-logseq__report-summary--success'}`}>
+            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1} />
             <div>
               <strong>{hasErrors ? 'Fix completed with errors' : 'Fix completed successfully'}</strong>
-              <div className="rebuild-links__report-stats">
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.nodes_processed}</span>
-                  <span className="rebuild-links__stat-label">nodes scanned</span>
-                </div>
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.nodes_fixed}</span>
-                  <span className="rebuild-links__stat-label">nodes fixed</span>
-                </div>
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.links_converted}</span>
-                  <span className="rebuild-links__stat-label">links converted</span>
-                </div>
-                {hasErrors && (
-                  <div className="rebuild-links__stat rebuild-links__stat--error">
-                    <span className="rebuild-links__stat-value">{result.total_errors}</span>
-                    <span className="rebuild-links__stat-label">errors</span>
-                  </div>
-                )}
-              </div>
+              <span className="import-logseq__report-totals">
+                {totalSucceeded} succeeded{result.total_errors > 0 ? `, ${result.total_errors} failed` : ''}
+              </span>
             </div>
           </div>
 
-          {result.errors.length > 0 && (
-            <ErrorList errors={result.errors} totalErrors={result.total_errors} />
-          )}
+          <div className="import-logseq__report-phases">
+            {phases.map((phase, idx) => (
+              <ReportPhaseRow key={idx} phase={phase} />
+            ))}
+          </div>
         </div>
       </Modal>
     );
@@ -159,31 +186,40 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   );
 }
 
-function ErrorList({ errors, totalErrors }: { errors: string[]; totalErrors: number }) {
+function ReportPhaseRow({ phase }: { phase: PhaseResult }) {
   const [expanded, setExpanded] = useState(false);
+  const hasErrors = phase.failed > 0;
+  const total = phase.succeeded + phase.failed;
+
+  if (total === 0) return null;
 
   return (
-    <div className="rebuild-links__errors">
+    <div className="import-logseq__phase">
       <div
-        className="rebuild-links__errors-header"
-        onClick={() => setExpanded(!expanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
+        className={`import-logseq__phase-header ${hasErrors ? 'import-logseq__phase-header--error' : ''}`}
+        onClick={() => hasErrors && setExpanded(!expanded)}
+        role={hasErrors ? 'button' : undefined}
+        tabIndex={hasErrors ? 0 : undefined}
+        onKeyDown={(e) => { if (hasErrors && (e.key === 'Enter' || e.key === ' ')) setExpanded(!expanded); }}
       >
-        <span><strong>{totalErrors}</strong> error{totalErrors !== 1 ? 's' : ''}</span>
-        <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
-      </div>
-      {expanded && (
-        <ul className="rebuild-links__errors-list">
-          {errors.map((err, i) => (
-            <li key={i}>{err}</li>
-          ))}
-          {totalErrors > errors.length && (
-            <li className="rebuild-links__errors-truncated">
-              ... and {totalErrors - errors.length} more errors
-            </li>
+        <span className="import-logseq__phase-label">{phase.label}</span>
+        <span className="import-logseq__phase-counts">
+          <span className="import-logseq__phase-ok">{phase.succeeded} <Icon path={mdiCheckCircleOutline} size={0.6} /></span>
+          {hasErrors && (
+            <>
+              <span className="import-logseq__phase-fail">{phase.failed} failed</span>
+              <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
+            </>
           )}
+        </span>
+      </div>
+      {expanded && phase.errors.length > 0 && (
+        <ul className="import-logseq__phase-errors">
+          {phase.errors.map((err, i) => (
+            <li key={i} className="import-logseq__phase-error">
+              <strong>{err.item}</strong>: {err.message}
+            </li>
+          ))}
         </ul>
       )}
     </div>
