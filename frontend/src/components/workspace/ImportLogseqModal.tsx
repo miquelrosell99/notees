@@ -1,7 +1,7 @@
 /**
  * ImportLogseqModal - Modal for importing Logseq graph exports
  *
- * Import flow (8 phases):
+ * Import flow (7 phases):
  * 1. Create classes (type nodes)
  * 2. Create properties (with correct backend field names)
  * 3. Create all nodes (pages + blocks) with classes assigned at creation,
@@ -11,7 +11,6 @@
  * 6. Update node content with proper AST containing node_link entries,
  *    which triggers the backend to create link records automatically
  * 7. Assign aliases between pages (from logseq.property/alias)
- * 8. Fix raw UUID links — convert any remaining [[uuid]] text to proper node_link AST nodes
  *
  * Every operation is wrapped in try/catch so a single failure never aborts
  * the import. Errors are collected and presented in a status report modal
@@ -30,7 +29,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes, batchPermanentDelete, fixRawUuidLinks } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes, batchPermanentDelete } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -1023,26 +1022,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             }
           }
         }
-      }
-
-      // ──────────────────────────────────────────────────────────
-      // PHASE 8: Fix raw UUID links — convert [[uuid]] text to node_link
-      // ──────────────────────────────────────────────────────────
-      const p8 = createPhase('Fix raw UUID links');
-      phases.push(p8);
-      setImportStatus('Fixing raw UUID links…');
-      try {
-        const fixResult = await fixRawUuidLinks();
-        p8.succeeded = fixResult.links_converted;
-        p8.failed = fixResult.total_errors;
-        if (fixResult.errors.length > 0) {
-          for (const err of fixResult.errors) {
-            p8.errors.push({ item: 'Fix raw links', message: err });
-          }
-        }
-      } catch (e) {
-        p8.failed++;
-        p8.errors.push({ item: 'Fix raw UUID links', message: errorMessage(e) });
       }
 
       // ── Build final report ────────────────────────────────────
