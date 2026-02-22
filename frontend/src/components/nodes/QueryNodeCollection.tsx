@@ -1281,7 +1281,7 @@ export function QueryNodeCollection({
   );
 
   return children({
-    controls: null,  // No longer separate - integrated into NodeCollection toolbar
+    controls: toolbarPrefix,
     results,
     count: resultCount,
     isLoading: isQueryLoading,
