@@ -11,6 +11,7 @@
  * - Consistent header/footer structure
  */
 import { useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { mdiClose } from '@mdi/js';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -98,7 +99,7 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  const modal = (
     <div className="modal-backdrop" onClick={handleBackdropClick}>
       <Card
         ref={containerRef}
@@ -144,6 +145,11 @@ export function Modal({
       </Card>
     </div>
   );
+
+  // Portal to document.body so modals always float above everything,
+  // even when rendered inside Lexical editor portals or other
+  // constrained DOM contexts (contentEditable, overflow containers, etc.)
+  return createPortal(modal, document.body);
 }
 
 export default Modal;
