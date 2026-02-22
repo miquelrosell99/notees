@@ -9,7 +9,7 @@
  * Supports URL pills (refType === 'url') that render an external-link pill.
  */
 
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import Icon from '@mdi/react';
 import { mdiWeb } from '@mdi/js';
 import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
@@ -53,7 +53,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
 }
 
 /** Inner component for node/class/embed pills — uses hooks that need stable renders. */
-function NodeLinkPill({ linkId, refType, label }: { linkId: string; refType: 'node' | 'class' | 'embed'; label?: string }) {
+const NodeLinkPill = memo(function NodeLinkPill({ linkId, refType, label }: { linkId: string; refType: 'node' | 'class' | 'embed'; label?: string }) {
   const { nodeUuid } = parseLinkId(linkId);
 
   // 1. Try the pre-fetched referenced_nodes map (from page content response — zero API calls)
@@ -105,4 +105,4 @@ function NodeLinkPill({ linkId, refType, label }: { linkId: string; refType: 'no
       </span>
     </span>
   );
-}
+});

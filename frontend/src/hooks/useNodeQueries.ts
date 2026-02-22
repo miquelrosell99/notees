@@ -380,6 +380,7 @@ export function useClasses() {
     queryKey: nodeKeys.classes(),
     queryFn: () => nodesApi.listClasses(),
     placeholderData: [],
+    staleTime: 1000 * 60 * 5, // 5 minutes - class list rarely changes
   });
 }
 

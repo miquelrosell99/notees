@@ -13,7 +13,7 @@
  * - Optional color picker via right-click
  * - Faded background color based on node's isPage status
  */
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import { Pill } from '../core/Pill';
 import { NodeIcon, CloseIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -54,7 +54,7 @@ export interface NodePillProps {
   customName?: string | null;
 }
 
-export function NodePill({
+export const NodePill = memo(function NodePill({
   node: providedNode,
   nodeId,
   variant = 'default',
@@ -76,16 +76,16 @@ export function NodePill({
   const pillRef = useRef<HTMLDivElement>(null);
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
   
-  const { openNode, addSidebarCard } = useAppStore();
+  // Use selectors to avoid subscribing to full store — actions are stable refs
+  const openNode = useAppStore(s => s.openNode);
+  const addSidebarCard = useAppStore(s => s.addSidebarCard);
   const { data: allClasses } = useClasses();
   
-  // Always fetch node to subscribe to cache updates
-  // Use providedNode's id if available, otherwise use nodeId prop
-  const effectiveNodeId = providedNode?.id ?? nodeId ?? null;
-  const { data: fetchedNode } = useBatchedNode(effectiveNodeId);
+  // Only batch-fetch when no node is provided (need to fetch by ID)
+  const { data: fetchedNode } = useBatchedNode(providedNode ? null : (nodeId ?? null));
   
-  // Prefer fetched node (has latest cache data) over provided node
-  const node = fetchedNode ?? providedNode;
+  // Use provided node directly, or fetched node for ID-only usage
+  const node = providedNode ?? fetchedNode;
   
   // Get effective icon (considers inherited icons from classes)
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
@@ -355,7 +355,25 @@ export function NodePill({
 
     </>
   );
-}
+}, (prev, next) => {
+  // Custom comparator: skip re-render when only function props change
+  // (all callers use inline callbacks that change every render)
+  return (
+    prev.node?.id === next.node?.id &&
+    prev.node?.name === next.node?.name &&
+    prev.node?.color === next.node?.color &&
+    prev.node?.icon === next.node?.icon &&
+    prev.node?.is_page === next.node?.is_page &&
+    prev.nodeId === next.nodeId &&
+    prev.variant === next.variant &&
+    prev.refType === next.refType &&
+    prev.editMode === next.editMode &&
+    prev.clickCount === next.clickCount &&
+    prev.readOnly === next.readOnly &&
+    prev.className === next.className &&
+    prev.customName === next.customName
+  );
+});
 
 
 /**
