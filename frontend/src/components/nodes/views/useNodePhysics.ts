@@ -67,6 +67,7 @@ import {
   COLLISION_VEL_DAMPENING,
   TANGENTIAL_OVERLAP_RESOLVE,
   LINK_TYPE_PRIORITY,
+  NODE_RADIUS_MAX,
   // Helpers
   getRenderSkip,
   getTerrainRenderSkip,
@@ -207,6 +208,9 @@ export function useNodePhysics({
   const allReferenceLinkCountsRef = useRef<Map<number, number>>(new Map());
   const linkForceJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random force multiplier [0.6, 1.0]
   const linkDistJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random rest distance multiplier [0.8, 1.2]
+  
+  // Spatial hash grid for O(n) collision resolution
+  const collisionGridRef = useRef<Map<number, number[]>>(new Map());
   
   // Barnes-Hut quadtree pool
   const quadPoolRef = useRef<QuadNode[]>([]);
@@ -1025,26 +1029,23 @@ export function useNodePhysics({
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
     
-    let maxConnections = 0, maxMass = 0;
-    const hitLinkDir = currentSettings.linkDirection;
-    for (const node of nodesRef.current) {
-      const dirCount = hitLinkDir === 'in' ? node.inLinkCount : hitLinkDir === 'out' ? node.outLinkCount : node.connectionCount;
-      maxConnections = Math.max(maxConnections, dirCount);
-      maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
-    }
-    let maxContentSizeHit = 0;
-    for (const node of nodesRef.current) {
-      if (node.contentSize > maxContentSizeHit) maxContentSizeHit = node.contentSize;
-    }
+    // Use cached stats from the last simulation frame instead of recomputing
+    const { maxConnections, maxMass, maxContentSize: maxContentSizeHit } = frameDataRef.current;
+    
+    // Use the largest possible hit radius for a quick bounding-box pre-filter
+    const maxHitRadius = (NODE_RADIUS_MAX + 2 + 4) / t.scale;
     
     for (let i = nodesRef.current.length - 1; i >= 0; i--) {
       const node = nodesRef.current[i];
       if (!node.visible) continue;
       
-      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSizeHit, currentSettings.linkDirection);
-      const hitRadius = (nodeRadius + 2 + 4) / t.scale;
+      // Quick bounding-box reject before expensive radius calculation
       const dx = x - node.x;
       const dy = y - node.y;
+      if (Math.abs(dx) > maxHitRadius || Math.abs(dy) > maxHitRadius) continue;
+      
+      const nodeRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSizeHit, currentSettings.linkDirection);
+      const hitRadius = (nodeRadius + 2 + 4) / t.scale;
       if (dx * dx + dy * dy < hitRadius * hitRadius) {
         return node;
       }
@@ -1059,26 +1060,20 @@ export function useNodePhysics({
     
     const hitThreshold = 8 / t.scale;
     
-    const nodeMap = new Map<number, GraphNode>();
-    let maxConnections = 0, maxMass = 0;
-    const linkHitDir = currentSettings.linkDirection;
-    for (const node of nodesRef.current) {
-      if (node.visible) {
-        nodeMap.set(node.id, node);
-        const dirCount = linkHitDir === 'in' ? node.inLinkCount : linkHitDir === 'out' ? node.outLinkCount : node.connectionCount;
-        maxConnections = Math.max(maxConnections, dirCount);
-        maxMass = Math.max(maxMass, (node as GraphNode & { _mass?: number })._mass ?? 1);
-      }
-    }
-    let maxContentSizeLink = 0;
-    for (const node of nodesRef.current) {
-      if (node.visible && node.contentSize > maxContentSizeLink) maxContentSizeLink = node.contentSize;
-    }
+    // Use cached nodeMap and stats from the last simulation frame
+    const { nodeMap, maxConnections, maxMass, maxContentSize: maxContentSizeLink } = frameDataRef.current;
     
     for (const link of linksRef.current) {
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
+      
+      // Quick bounding-box reject: skip links far from the click point
+      const lMinX = Math.min(source.x, target.x) - hitThreshold;
+      const lMaxX = Math.max(source.x, target.x) + hitThreshold;
+      const lMinY = Math.min(source.y, target.y) - hitThreshold;
+      const lMaxY = Math.max(source.y, target.y) + hitThreshold;
+      if (x < lMinX || x > lMaxX || y < lMinY || y > lMaxY) continue;
       
       const dx = target.x - source.x;
       const dy = target.y - source.y;
@@ -1658,72 +1653,123 @@ export function useNodePhysics({
       }
       
       // Collision resolution (position-based + velocity dampening)
+      // Uses spatial hash grid for O(n) average-case instead of O(n²) brute force.
       // Runs AFTER velocity integration so position corrections are the
       // final authority and aren't partially undone by node.x += node.vx.
       const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
       
       if (!skipCollisions) {
+        // Pre-compute radii for all visible nodes (avoid recomputing inside inner loop)
+        const nodeRadii = new Float64Array(nodes.length);
+        let maxCollisionRadius = 0;
+        for (let i = 0; i < nodes.length; i++) {
+          if (!nodes[i].visible) { nodeRadii[i] = 0; continue; }
+          const r = getGlareRadius(nodes[i], currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection) * COLLISION_PADDING;
+          nodeRadii[i] = r;
+          if (r > maxCollisionRadius) maxCollisionRadius = r;
+        }
+        
+        // Build spatial hash grid — cell size = 2x max radius so colliding pairs
+        // are always in the same or adjacent cells
+        const cellSize = Math.max(maxCollisionRadius * 2, 1);
+        const invCellSize = 1 / cellSize;
+        const grid = collisionGridRef.current;
+        grid.clear();
+        
+        const cellKey = (cx: number, cy: number): number => cx * 73856093 + cy * 19349663;
+        
+        for (let i = 0; i < nodes.length; i++) {
+          if (!nodes[i].visible) continue;
+          const n = nodes[i];
+          const cx = Math.floor(n.x * invCellSize);
+          const cy = Math.floor(n.y * invCellSize);
+          const key = cellKey(cx, cy);
+          let bucket = grid.get(key);
+          if (!bucket) { bucket = []; grid.set(key, bucket); }
+          bucket.push(i);
+        }
+        
+        // Check each node against neighbors in its 3x3 cell neighborhood
+        const visitedPairs = new Set<number>();
+        const pairId = (a: number, b: number): number => a < b ? a * nodes.length + b : b * nodes.length + a;
+        
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
           if (!a.visible) continue;
           const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-          const radiusA = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection) * COLLISION_PADDING;
+          const radiusA = nodeRadii[i];
           
-          for (let j = i + 1; j < nodes.length; j++) {
-            const b = nodes[j];
-            if (!b.visible) continue;
-            const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
-            if (aImmovable && bImmovable) continue;
-            
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const distSq = dx * dx + dy * dy;
-            const radiusB = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection) * COLLISION_PADDING;
-            const minDist = radiusA + radiusB;
-            
-            if (distSq >= minDist * minDist) continue;
-            
-            const dist = Math.sqrt(distSq) || 0.1;
-            const overlap = minDist - dist;
-            
-            const nx = dx / dist;
-            const ny = dy / dist;
-            
-            // Position-based correction (no energy injection)
-            const correction = overlap * COLLISION_RESOLVE;
-            
-            if (aImmovable) {
-              b.x += nx * correction;
-              b.y += ny * correction;
-            } else if (bImmovable) {
-              a.x -= nx * correction;
-              a.y -= ny * correction;
-            } else {
-              const halfCorrection = correction * 0.5;
-              a.x -= nx * halfCorrection;
-              a.y -= ny * halfCorrection;
-              b.x += nx * halfCorrection;
-              b.y += ny * halfCorrection;
-            }
-            
-            // Dampen approaching velocity along collision normal
-            // to prevent nodes from immediately re-overlapping
-            const relVelNormal = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-            if (relVelNormal < 0) {
-              // Nodes are approaching — absorb the approaching component
-              const dampFactor = COLLISION_VEL_DAMPENING;
-              if (!aImmovable && !bImmovable) {
-                const halfAbsorb = relVelNormal * dampFactor * 0.5;
-                a.vx += nx * halfAbsorb;
-                a.vy += ny * halfAbsorb;
-                b.vx -= nx * halfAbsorb;
-                b.vy -= ny * halfAbsorb;
-              } else if (aImmovable) {
-                b.vx -= nx * relVelNormal * dampFactor;
-                b.vy -= ny * relVelNormal * dampFactor;
-              } else {
-                a.vx += nx * relVelNormal * dampFactor;
-                a.vy += ny * relVelNormal * dampFactor;
+          const cx = Math.floor(a.x * invCellSize);
+          const cy = Math.floor(a.y * invCellSize);
+          
+          // Check 3x3 neighborhood
+          for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+              const bucket = grid.get(cellKey(cx + dx, cy + dy));
+              if (!bucket) continue;
+              
+              for (const j of bucket) {
+                if (j <= i) continue; // avoid duplicate pairs
+                const pid = pairId(i, j);
+                if (visitedPairs.has(pid)) continue;
+                visitedPairs.add(pid);
+                
+                const b = nodes[j];
+                if (!b.visible) continue;
+                const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
+                if (aImmovable && bImmovable) continue;
+                
+                const cdx = b.x - a.x;
+                const cdy = b.y - a.y;
+                const distSq = cdx * cdx + cdy * cdy;
+                const radiusB = nodeRadii[j];
+                const minDist = radiusA + radiusB;
+                
+                if (distSq >= minDist * minDist) continue;
+                
+                const dist = Math.sqrt(distSq) || 0.1;
+                const overlap = minDist - dist;
+                
+                const nx = cdx / dist;
+                const ny = cdy / dist;
+                
+                // Position-based correction (no energy injection)
+                const correction = overlap * COLLISION_RESOLVE;
+                
+                if (aImmovable) {
+                  b.x += nx * correction;
+                  b.y += ny * correction;
+                } else if (bImmovable) {
+                  a.x -= nx * correction;
+                  a.y -= ny * correction;
+                } else {
+                  const halfCorrection = correction * 0.5;
+                  a.x -= nx * halfCorrection;
+                  a.y -= ny * halfCorrection;
+                  b.x += nx * halfCorrection;
+                  b.y += ny * halfCorrection;
+                }
+                
+                // Dampen approaching velocity along collision normal
+                // to prevent nodes from immediately re-overlapping
+                const relVelNormal = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+                if (relVelNormal < 0) {
+                  // Nodes are approaching — absorb the approaching component
+                  const dampFactor = COLLISION_VEL_DAMPENING;
+                  if (!aImmovable && !bImmovable) {
+                    const halfAbsorb = relVelNormal * dampFactor * 0.5;
+                    a.vx += nx * halfAbsorb;
+                    a.vy += ny * halfAbsorb;
+                    b.vx -= nx * halfAbsorb;
+                    b.vy -= ny * halfAbsorb;
+                  } else if (aImmovable) {
+                    b.vx -= nx * relVelNormal * dampFactor;
+                    b.vy -= ny * relVelNormal * dampFactor;
+                  } else {
+                    a.vx += nx * relVelNormal * dampFactor;
+                    a.vy += ny * relVelNormal * dampFactor;
+                  }
+                }
               }
             }
           }

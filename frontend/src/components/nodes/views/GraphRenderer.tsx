@@ -206,6 +206,19 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const { textColor, accentColor, dimColor, outlineColor, warningColor } = cssVarsRef.current;
     const { visibleNodes, visibleLinks, nodeMap, maxConnections, maxMass, maxContentSize } = frameDataRef.current;
 
+    // Compute viewport bounds in world coordinates for frustum culling
+    const invScale = 1 / t.scale;
+    const vpLeft = -t.x * invScale;
+    const vpTop = -t.y * invScale;
+    const vpRight = vpLeft + w * invScale;
+    const vpBottom = vpTop + h * invScale;
+    // Margin so nodes/links near the edge still render (max glare + label)
+    const vpMargin = 40 * invScale;
+    const vpL = vpLeft - vpMargin;
+    const vpT = vpTop - vpMargin;
+    const vpR = vpRight + vpMargin;
+    const vpB = vpBottom + vpMargin;
+
     // Build link direction map
     const linkDirections = linkDirCacheRef.current;
     linkDirections.clear();
@@ -227,6 +240,14 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
+      
+      // Viewport culling: skip links entirely outside the viewport
+      // A link is visible if its bounding box intersects the viewport
+      const lMinX = Math.min(source.x, target.x);
+      const lMaxX = Math.max(source.x, target.x);
+      const lMinY = Math.min(source.y, target.y);
+      const lMaxY = Math.max(source.y, target.y);
+      if (lMaxX < vpL || lMinX > vpR || lMaxY < vpT || lMinY > vpB) continue;
       
       const linkKey = pairKey(link.source, link.target) * 10 + linkclassId(link.type);
       if (drawnLinks.has(linkKey)) continue;
@@ -384,9 +405,17 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const liftProgress = dragLiftProgressRef.current;
     const currentHoveredNode = hoveredNodeRef.current;
     
+    // Set label font once outside the loop (all nodes share the same font)
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    
     let draggedNode: GraphNode | null = null;
     for (const node of visibleNodes) {
       if (node.id === draggedNodeId) { draggedNode = node; continue; }
+      
+      // Viewport culling: skip nodes outside the viewport
+      if (node.x < vpL || node.x > vpR || node.y < vpT || node.y > vpB) continue;
       
       const isHovered = currentHoveredNode?.id === node.id;
       const isDragging = node.id === draggedNodeId;
@@ -478,11 +507,10 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         ctx.restore();
       }
       
-      // Label
+      // Label — skip entirely when zoomed out (opacity would be 0)
       const currentScale = transformRef.current.scale;
-      const zoomOpacity = currentScale <= LABEL_FADE_ZOOM_MIN 
-        ? 0 
-        : currentScale >= LABEL_FADE_ZOOM_MAX 
+      if (currentScale > LABEL_FADE_ZOOM_MIN) {
+      const zoomOpacity = currentScale >= LABEL_FADE_ZOOM_MAX 
           ? 1 
           : (currentScale - LABEL_FADE_ZOOM_MIN) / (LABEL_FADE_ZOOM_MAX - LABEL_FADE_ZOOM_MIN);
       const dimOpacity = node.glare === 'dim' ? 0.12 : 1;
@@ -490,15 +518,13 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       
       ctx.fillStyle = textColor;
       ctx.globalAlpha = labelOpacity;
-      ctx.font = '10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
       
       const displayName = node.displayName.length > 35 
         ? node.displayName.slice(0, 35) + '...' 
         : node.displayName;
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
+      } // end label zoom check
     }
     
     // Second pass: draw dragged node on top

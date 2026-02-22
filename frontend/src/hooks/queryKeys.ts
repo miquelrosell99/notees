@@ -5,6 +5,15 @@
  * Use these consistently for cache invalidation and query matching.
  */
 
+// Fast numeric hash for large ID arrays (avoids spreading 4000+ IDs into query keys)
+function hashNumberArray(ids: number[]): number {
+  let hash = ids.length;
+  for (let i = 0; i < ids.length; i++) {
+    hash = ((hash << 5) - hash + ids[i]) | 0;
+  }
+  return hash;
+}
+
 // ==================== Node Query Keys ====================
 
 export const nodeKeys = {
@@ -34,7 +43,7 @@ export const nodeKeys = {
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
   graphNodes: () => [...nodeKeys.all, 'graph-nodes'] as const,
-  graphLinks: (nodeIds: number[], scope?: string) => [...nodeKeys.all, 'graph-links', scope ?? 'between', ...nodeIds.sort()] as const,
+  graphLinks: (nodeIds: number[], scope?: string) => [...nodeKeys.all, 'graph-links', scope ?? 'between', nodeIds.length, hashNumberArray(nodeIds)] as const,
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution
