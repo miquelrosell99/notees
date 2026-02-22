@@ -2,7 +2,8 @@
  * Editor barrel export.
  */
 
-export { BlockEditor, EDITOR_NODES, serializeContentAST } from './BlockEditor';
+export { BlockEditor } from './BlockEditor';
+export { EDITOR_NODES, serializeContentAST } from './editorConfig';
 export type { BlockEditorProps, EditorMode } from './BlockEditor';
 
 // Nodes
