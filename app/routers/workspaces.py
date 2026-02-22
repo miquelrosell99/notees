@@ -83,13 +83,13 @@ async def rename_workspace(name: str, data: WorkspaceCreate, user: User = Depend
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{name}")
-async def delete_workspace(name: str, user: User = Depends(get_current_user)):
-    """Delete a workspace."""
+@router.delete("/{uuid}")
+async def delete_workspace(uuid: str, user: User = Depends(get_current_user)):
+    """Delete a workspace by UUID."""
     try:
-        success = await db.delete_workspace(user.id, name)
+        success = await db.delete_workspace(user.id, uuid)
         if not success:
-            raise HTTPException(status_code=404, detail=f"Workspace '{name}' not found")
+            raise HTTPException(status_code=404, detail=f"Workspace '{uuid}' not found")
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

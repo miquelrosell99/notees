@@ -253,7 +253,7 @@ async def rename_workspace(user_id: str, old_name: str, new_name: str) -> Dict[s
         }
 
 
-async def delete_workspace(user_id: str, name: str) -> bool:
+async def delete_workspace(user_id: str, workspace_uuid: str) -> bool:
     """Delete a workspace.
     
     Only the workspace owner can delete it. This is a hard delete.
@@ -261,7 +261,7 @@ async def delete_workspace(user_id: str, name: str) -> bool:
     
     Args:
         user_id: User ID (must be owner)
-        name: Workspace name to delete
+        workspace_uuid: Workspace UUID to delete
         
     Returns:
         True if deleted, False if not found
@@ -271,10 +271,10 @@ async def delete_workspace(user_id: str, name: str) -> bool:
         return False
     
     async with get_connection() as conn:
-        # First, get the workspace ID and UUID before deletion
+        # First, get the workspace ID before deletion
         workspace_row = await conn.fetchrow(
-            "SELECT id, uuid FROM workspace WHERE create_uid = $1 AND name = $2",
-            numeric_user_id, name,
+            "SELECT id, uuid FROM workspace WHERE create_uid = $1 AND uuid::text = $2",
+            numeric_user_id, workspace_uuid,
             timeout=None
         )
         
@@ -326,7 +326,7 @@ async def delete_workspace(user_id: str, name: str) -> bool:
                     # Continue even if folder deletion fails
             
             # Clear from active tracking
-            if _active_workspaces.get(user_id) == name:
+            if _active_workspaces.get(user_id) == workspace_uuid:
                 del _active_workspaces[user_id]
         
         return deleted
