@@ -29,7 +29,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes, batchPermanentDelete } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -73,36 +73,52 @@ function errorMessage(e: unknown): string {
 }
 
 /**
- * Recursively collect all child UUIDs from a node tree.
+ * Collect UUIDs and IDs recursively from children for deletion.
  * Used in override mode to delete existing blocks before importing.
  */
-function collectChildUuids(node: Node): string[] {
+function collectChildInfo(node: Node): { uuids: string[]; ids: number[] } {
   const uuids: string[] = [];
+  const ids: number[] = [];
   if (node.children && node.children.length > 0) {
     for (const child of node.children) {
       uuids.push(child.uuid);
-      uuids.push(...collectChildUuids(child));
+      ids.push(child.id);
+      const childInfo = collectChildInfo(child);
+      uuids.push(...childInfo.uuids);
+      ids.push(...childInfo.ids);
     }
   }
-  return uuids;
+  return { uuids, ids };
 }
 
 /**
  * Delete all children of a page in override mode.
+ * Two-step: soft-delete first, then hard-delete to free UUIDs so
+ * new blocks can be created with the same Logseq UUIDs.
  * Returns number of blocks deleted.
  */
 async function deleteExistingBlocks(pageId: number, queryClient: QueryClient): Promise<number> {
   // Fetch the page with all children
   const fullPage = await getNode(pageId, { include_children: true });
-  const childUuids = collectChildUuids(fullPage);
+  const { uuids: childUuids, ids: childIds } = collectChildInfo(fullPage);
   
   if (childUuids.length === 0) {
     return 0;
   }
 
-  // Delete all children in a single batch
+  // Step 1: Soft-delete (sets is_deleted = TRUE)
   const result = await batchDeleteNodes({ uuids: childUuids });
   
+  // Step 2: Hard-delete to free UUID uniqueness constraints
+  // This allows re-creating blocks with the same Logseq UUIDs
+  if (childIds.length > 0) {
+    try {
+      await batchPermanentDelete({ ids: childIds });
+    } catch (e) {
+      console.warn('[IMPORT] Hard-delete of old blocks failed (non-critical):', e);
+    }
+  }
+
   // Invalidate queries for this page to ensure UI updates
   queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(pageId) });
   
