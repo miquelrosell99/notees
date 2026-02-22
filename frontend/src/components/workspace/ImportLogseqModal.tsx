@@ -347,7 +347,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           } catch (e) {
             p1.failed++;
             tick();
-            p1.errors.push({ item: cls.title, message: errorMessage(e) });
+            p1.errors.push({ item: `${cls.title}${cls.uuid ? ` [${cls.uuid}]` : ''}`, message: errorMessage(e) });
           }
         }
 
@@ -370,7 +370,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p1b.succeeded++;
             } else {
               p1b.failed++;
-              p1b.errors.push({ item: `${cls.title} extends ${cls.extends}`, message: msg });
+              p1b.errors.push({ item: `${cls.title}${cls.uuid ? ` [${cls.uuid}]` : ''} extends ${cls.extends}`, message: msg });
             }
             tick();
           }
@@ -547,7 +547,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
             } catch (e) {
               p3.failed++;
-              p3.errors.push({ item: `Journal: ${page.journal}`, message: errorMessage(e) });
+              p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
             }
             tick();
             continue;
@@ -624,7 +624,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         } catch (e) {
           p3.failed++;
           tick();
-          p3.errors.push({ item: `Page: ${page.title}`, message: errorMessage(e) });
+          p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
         }
       }
 
@@ -689,7 +689,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             ?? titleToNodeInfoLower.get(page.parent!.toLowerCase());
           if (!pageInfo) {
             p3b.failed++;
-            p3b.errors.push({ item: `${page.title} → ${page.parent}`, message: 'Page not found' });
+            p3b.errors.push({ item: `${page.title}${page.uuid ? ` [${page.uuid}]` : ''} → ${page.parent}`, message: 'Page not found' });
             continue;
           }
           // Auto-create missing parent page
@@ -809,8 +809,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           continue;
         }
         const isExisting = existingNodeIds.has(nodeInfo.id);
+        const pageLabel = `${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`;
         console.log(`[IMPORT] Assigning properties to page: ${page.title} (id=${nodeInfo.id}, isExisting=${isExisting}, override=${override})`);
-        await assignProperties(page.properties, nodeInfo.id, page.title, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, isExisting, textPropIds);
+        await assignProperties(page.properties, nodeInfo.id, pageLabel, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, isExisting, textPropIds);
         tick();
       }
       for (const page of parsed.pages) {
@@ -845,6 +846,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // ──────────────────────────────────────────────────────────
       const p6 = createPhase('Set content & links');
       phases.push(p6);
+      // Build nodeId→uuid reverse lookup for error reporting
+      const nodeIdToUuid = new Map<number, string>();
+      for (const [uuid, info] of uuidMap) nodeIdToUuid.set(info.id, uuid);
+
       if (contentQueue.length > 0) {
         // Build batch items, converting content to AST ahead of time
         const batchItems: Array<{ id: number; name: string }> = [];
@@ -857,7 +862,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             batchItems.push({ id, name: JSON.stringify(ast) });
           } catch (e) {
             p6.failed++;
-            p6.errors.push({ item: `Node ${id}`, message: errorMessage(e) });
+            p6.errors.push({ item: `Node ${id}${nodeIdToUuid.has(id) ? ` [${nodeIdToUuid.get(id)}]` : ''}`, message: errorMessage(e) });
           }
         }
 
@@ -874,7 +879,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               p6.failed++;
               tick();
               const item = chunk[result.index];
-              p6.errors.push({ item: `Node ${item?.id}`, message: result.error || 'Unknown error' });
+              const itemUuid = item ? nodeIdToUuid.get(item.id) : undefined;
+              p6.errors.push({ item: `Node ${item?.id}${itemUuid ? ` [${itemUuid}]` : ''}`, message: result.error || 'Unknown error' });
             }
           }
         }
@@ -908,7 +914,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               } catch (e) {
                 p7.failed++;
                 tick();
-                p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: errorMessage(e) });
+                p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
               }
             } else {
               setImportStatus(`Assigning alias: ${aliasTitle} → ${page.title}`);
@@ -922,7 +928,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                   p7.succeeded++;
                 } else {
                   p7.failed++;
-                  p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}`, message: msg });
+                  p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: msg });
                 }
                 tick();
               }
@@ -1077,7 +1083,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         if (!recovered) {
           phase.failed++;
           phase.errors.push({
-            item: `Block: ${block.title?.slice(0, 60) || '(empty)'}`,
+            item: `Block: ${block.title?.slice(0, 60) || '(empty)'}${block.uuid ? ` [${block.uuid}]` : ''}`,
             message: result.error || 'Unknown error',
           });
         }
@@ -1681,8 +1687,9 @@ async function assignBlockProperties(
       const nodeInfo = uuidMap.get(block.uuid);
       if (nodeInfo) {
         const isExisting = existingNodeIds.has(nodeInfo.id);
+        const blockLabel = `${block.title || '(block)'} [${block.uuid}]`;
         await assignProperties(
-          block.properties, nodeInfo.id, block.title || '(block)',
+          block.properties, nodeInfo.id, blockLabel,
           propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, setNodePropertyMutation, phase,
           override, isExisting, textPropIds,
         );
