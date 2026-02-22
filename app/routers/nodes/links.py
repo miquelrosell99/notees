@@ -702,3 +702,234 @@ async def rebuild_all_links(
     except Exception as e:
         logger.error(f"[REBUILD_LINKS] Fatal error: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to rebuild links: {str(e)}")
+
+
+@router.post("/fix-raw-uuid-links")
+async def fix_raw_uuid_links(
+    user: User = Depends(get_current_user),
+):
+    """Find raw [[uuid]] text in AST content and convert them to proper node_link AST nodes.
+    
+    This command:
+    1. Scans all nodes' AST content for text nodes containing [[uuid]] patterns
+    2. Resolves each UUID to an existing node
+    3. Replaces the raw text with proper node_link AST objects
+    4. Saves updated AST and rebuilds link records
+    
+    Use this when blocks contain raw UUID references instead of proper node links.
+    """
+    import re
+    import json
+    import uuid as uuid_module
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    
+    nodes_processed = 0
+    nodes_fixed = 0
+    links_converted = 0
+    errors = []
+    
+    # Pattern to find [[uuid]] in text - UUID v4 format
+    uuid_pattern = re.compile(
+        r'\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]',
+        re.IGNORECASE
+    )
+    
+    def transform_text_node(text_value: str, uuid_to_node: dict) -> list:
+        """Split a text node containing [[uuid]] into text + node_link nodes."""
+        parts = []
+        last_end = 0
+        
+        for match in uuid_pattern.finditer(text_value):
+            target_uuid = match.group(1).lower()
+            if target_uuid not in uuid_to_node:
+                continue
+            
+            # Text before the match
+            before = text_value[last_end:match.start()]
+            if before:
+                parts.append({"type": "text", "text": before})
+            
+            # Create proper node_link
+            link_uuid = str(uuid_module.uuid4())
+            link_id = f"{target_uuid}:{link_uuid}"
+            parts.append({
+                "type": "node_link",
+                "link_id": link_id,
+                "ref_type": "node",
+            })
+            
+            last_end = match.end()
+        
+        # Remaining text after last match
+        if last_end < len(text_value):
+            remaining = text_value[last_end:]
+            if remaining:
+                parts.append({"type": "text", "text": remaining})
+        
+        return parts
+    
+    def walk_and_transform(nodes: list, uuid_to_node: dict) -> tuple:
+        """Walk AST nodes, replacing text containing [[uuid]] with node_link nodes.
+        
+        Returns (new_nodes, count_of_links_converted).
+        """
+        converted = 0
+        new_nodes = []
+        
+        for node in nodes:
+            if not isinstance(node, dict):
+                new_nodes.append(node)
+                continue
+            
+            if node.get('type') == 'text':
+                text_val = node.get('text', '')
+                if uuid_pattern.search(text_val):
+                    replacement = transform_text_node(text_val, uuid_to_node)
+                    if replacement and replacement != [node]:
+                        # Count how many node_links were created
+                        link_count = sum(1 for r in replacement if isinstance(r, dict) and r.get('type') == 'node_link')
+                        if link_count > 0:
+                            new_nodes.extend(replacement)
+                            converted += link_count
+                            continue
+                new_nodes.append(node)
+            elif 'children' in node:
+                child_nodes, child_converted = walk_and_transform(node['children'], uuid_to_node)
+                new_node = {**node, 'children': child_nodes}
+                new_nodes.append(new_node)
+                converted += child_converted
+            else:
+                new_nodes.append(node)
+        
+        return new_nodes, converted
+    
+    try:
+        # Step 1: Get all active nodes
+        async with acquire_connection(service._pool) as conn:
+            all_nodes = await conn.fetch("""
+                SELECT id, name 
+                FROM node 
+                WHERE workspace_id = $1 AND active = TRUE
+                ORDER BY id
+            """, service._workspace_id)
+        
+        logger.info(f"[FIX_RAW_UUID_LINKS] Processing {len(all_nodes)} nodes")
+        
+        # Step 2: First pass — collect all UUIDs referenced in raw [[uuid]] text
+        all_referenced_uuids = set()
+        for node_row in all_nodes:
+            content = node_row['name']
+            if not content:
+                continue
+            # Quick check before parsing JSON
+            if '[[' not in content:
+                continue
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+            
+            # Walk the AST to find text nodes with [[uuid]]
+            def collect_uuids(nodes):
+                for n in nodes:
+                    if not isinstance(n, dict):
+                        continue
+                    if n.get('type') == 'text':
+                        for m in uuid_pattern.finditer(n.get('text', '')):
+                            all_referenced_uuids.add(m.group(1).lower())
+                    if 'children' in n:
+                        collect_uuids(n['children'])
+            
+            collect_uuids(ast)
+        
+        if not all_referenced_uuids:
+            logger.info("[FIX_RAW_UUID_LINKS] No raw UUID links found")
+            return {
+                "success": True,
+                "nodes_processed": len(all_nodes),
+                "nodes_fixed": 0,
+                "links_converted": 0,
+                "errors": [],
+                "total_errors": 0,
+            }
+        
+        logger.info(f"[FIX_RAW_UUID_LINKS] Found {len(all_referenced_uuids)} unique referenced UUIDs")
+        
+        # Step 3: Resolve all referenced UUIDs to nodes (batch lookup)
+        uuid_to_node = {}
+        async with acquire_connection(service._pool) as conn:
+            for ref_uuid in all_referenced_uuids:
+                row = await conn.fetchrow(
+                    "SELECT id, uuid FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE",
+                    ref_uuid, service._workspace_id
+                )
+                if row:
+                    uuid_to_node[ref_uuid] = {'id': row['id'], 'uuid': row['uuid']}
+        
+        logger.info(f"[FIX_RAW_UUID_LINKS] Resolved {len(uuid_to_node)}/{len(all_referenced_uuids)} UUIDs to existing nodes")
+        
+        # Step 4: Second pass — transform AST and save
+        for node_row in all_nodes:
+            node_id = node_row['id']
+            content = node_row['name']
+            nodes_processed += 1
+            
+            if not content or '[[' not in content:
+                continue
+            
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+                if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+            
+            try:
+                new_ast, converted = walk_and_transform(ast, uuid_to_node)
+                
+                if converted > 0:
+                    # Save updated AST
+                    new_content = json.dumps(new_ast, ensure_ascii=False)
+                    async with acquire_connection(service._pool) as conn:
+                        await conn.execute(
+                            "UPDATE node SET name = $1, write_date = $2 WHERE id = $3 AND workspace_id = $4",
+                            new_content, datetime.now(timezone.utc), node_id, service._workspace_id
+                        )
+                    
+                    # Rebuild links for this node
+                    await service._link_service.update_node_links(node_id, new_content)
+                    await service._link_service.update_inline_classes(node_id, new_content)
+                    
+                    nodes_fixed += 1
+                    links_converted += converted
+                    
+                    if nodes_fixed % 50 == 0:
+                        logger.info(f"[FIX_RAW_UUID_LINKS] Progress: {nodes_fixed} nodes fixed, {links_converted} links converted")
+            
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[FIX_RAW_UUID_LINKS] Error processing node {node_id}: {e}")
+                continue
+        
+        logger.info(f"[FIX_RAW_UUID_LINKS] Completed: {nodes_processed} processed, {nodes_fixed} fixed, {links_converted} links converted, {len(errors)} errors")
+        
+        return {
+            "success": True,
+            "nodes_processed": nodes_processed,
+            "nodes_fixed": nodes_fixed,
+            "links_converted": links_converted,
+            "errors": errors[:100],
+            "total_errors": len(errors),
+        }
+    
+    except Exception as e:
+        logger.error(f"[FIX_RAW_UUID_LINKS] Fatal error: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to fix raw UUID links: {str(e)}")
