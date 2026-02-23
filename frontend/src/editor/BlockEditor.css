@@ -130,8 +130,8 @@
   cursor: grab;
 }
 
-/* Show collapse arrow when hovering bullet (if has children) or collapsed */
-.node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow,
+/* Show collapse arrow when hovering block (if has children) or collapsed */
+.node-block--has-children:hover .bullet-collapse-arrow,
 .node-block--collapsed .bullet-collapse-arrow {
   opacity: 0.6;
 }
@@ -143,16 +143,6 @@
 
 .bullet-collapse-arrow:active {
   transform: translateY(-50%) scale(var(--tactile-press-scale));
-}
-
-/* Bullet glow pulse when block is being edited — hover circle breathes */
-.node-block--editing > .block-ui > .bullet-wrapper {
-  animation: bullet-glow-breathe 2s ease-in-out infinite;
-}
-
-@keyframes bullet-glow-breathe {
-  0%, 100% { background-color: transparent; transform: scale(1); }
-  50%      { background-color: color-mix(in srgb, var(--color-hover-overlay) 50%, transparent); transform: scale(1.05); }
 }
 
 /* Content wrapper — fills the remaining flex space after the bullet.
@@ -904,7 +894,7 @@ body.notees-dragging-block .node-block:hover {
   background: none;
 }
 
-body.notees-dragging-block .node-block--has-children .bullet-wrapper:hover .bullet-collapse-arrow {
+body.notees-dragging-block .node-block--has-children:hover .bullet-collapse-arrow {
   opacity: 0;
 }
 
