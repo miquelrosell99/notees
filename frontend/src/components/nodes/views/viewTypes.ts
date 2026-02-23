@@ -193,7 +193,7 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 export const LINKED_ATTRACTION_DISTANCE = 40;
 export const ATTRACTION_STRENGTH = 0.18;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
-export const LINK_DAMPING = 0.22;
+export const LINK_DAMPING = 0.45;
 
 // Unlinked repulsion
 // Previous 2000@300 still created uniform scatter at 4k nodes because
@@ -206,12 +206,10 @@ export const MIN_REPULSION_DISTANCE = 12;
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
 
-// Centering gravity
-// Warmup gravity: light pull toward center. Too strong = crushes clusters together.
-// Let clusters form naturally and use sustained gravity only for drift correction.
-export const CENTER_GRAVITY = 0.001;
-// Sustained gravity: permanent center-of-mass drift correction to prevent eternal expansion
-export const CENTER_GRAVITY_SUSTAINED = 0.002;
+// Centering: pure center-of-mass recentering (no force injection).
+// Every frame, all nodes are translated so the centroid stays at canvas center.
+// This keeps the graph on screen without crushing clusters into a ball.
+// No CENTER_GRAVITY constants needed — recentering is always 100%.
 
 // Velocity constraints
 export const MAX_VELOCITY = 10;
@@ -222,12 +220,12 @@ export const TERRAIN_VELOCITY_DEADZONE = 0.1;
 export const TERRAIN_LINK_DAMPING = 0.12;
 export const TERRAIN_MAX_VELOCITY = 10;
 
-// Post-warmup cooling: after warmup, progressively increase damping and
-// reduce force multiplier over COOLING_DURATION frames. This ensures the
-// simulation converges to equilibrium instead of stirring forever.
-export const COOLING_DURATION_FRAMES = 200;
-export const COOLING_DAMPING_TARGET = 0.50;
-export const COOLING_FORCE_MIN = 0.30;  // forces scale to 30% at full cooling
+// Simulation phases: warmup → full force (permanent)
+export const WARMUP_DURATION_FRAMES = 45;
+
+// Force-aware damping: nodes with negligible acceleration get heavy damping to stop quickly.
+export const IDLE_VELOCITY_DAMPING = 0.3;    // heavy damping when forces are near-zero
+export const FORCE_IDLE_THRESHOLD = 0.08;     // acceleration magnitude below this = "idle"
 
 // Sleep tuning (uses average KE per node, not total)
 export const GRAPH_SLEEP_THRESHOLD = 0.00005;
@@ -256,13 +254,10 @@ export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCI
 // Collision resolution (position-based)
 export const COLLISION_PADDING = 1.0;
 export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
-export const COLLISION_LINKED_RESOLVE = 0.08; // much softer for linked pairs — spring handles equilibrium
+export const COLLISION_LINKED_RESOLVE = 0.02; // very soft for linked pairs — spring handles equilibrium
 export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
-export const COLLISION_LINKED_VEL_DAMPENING = 0.3; // softer dampening for linked pairs
+export const COLLISION_LINKED_VEL_DAMPENING = 0.1; // minimal dampening for linked pairs
 export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
-
-// Simulation warmup
-export const WARMUP_DURATION_FRAMES = 45;
 
 // ==================== Terrain Physics Constants ====================
 
