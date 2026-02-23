@@ -67,7 +67,9 @@ import {
   TERRAIN_MAX_VELOCITY_SQ,
   COLLISION_PADDING,
   COLLISION_RESOLVE,
+  COLLISION_LINKED_RESOLVE,
   COLLISION_VEL_DAMPENING,
+  COLLISION_LINKED_VEL_DAMPENING,
   TANGENTIAL_OVERLAP_RESOLVE,
   LINK_TYPE_PRIORITY,
   NODE_RADIUS_MAX,
@@ -1792,8 +1794,13 @@ export function useNodePhysics({
                 const nx = cdx / dist;
                 const ny = cdy / dist;
                 
+                // Linked pairs: soften collision so springs can pull them close
+                // without collision constantly pushing them apart.
+                const isLinked = connectedPairs.has(pairKey(a.id, b.id));
+                const resolveStr = isLinked ? COLLISION_LINKED_RESOLVE : COLLISION_RESOLVE;
+                
                 // Position-based correction (no energy injection)
-                const correction = overlap * COLLISION_RESOLVE;
+                const correction = overlap * resolveStr;
                 
                 if (aImmovable) {
                   b.x += nx * correction;
@@ -1814,7 +1821,7 @@ export function useNodePhysics({
                 const relVelNormal = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
                 if (relVelNormal < 0) {
                   // Nodes are approaching — absorb the approaching component
-                  const dampFactor = COLLISION_VEL_DAMPENING;
+                  const dampFactor = isLinked ? COLLISION_LINKED_VEL_DAMPENING : COLLISION_VEL_DAMPENING;
                   if (!aImmovable && !bImmovable) {
                     const halfAbsorb = relVelNormal * dampFactor * 0.5;
                     a.vx += nx * halfAbsorb;

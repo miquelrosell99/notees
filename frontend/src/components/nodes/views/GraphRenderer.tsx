@@ -918,8 +918,12 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     // NOT fall through to the main-thread getContext path.
     let canvasTransferred = false;
     
-    // Try OffscreenCanvas worker mode
-    if (isOffscreenCanvasSupported()) {
+    // Try OffscreenCanvas worker mode.
+    // Disabled in development: React Strict Mode double-invokes effects, and
+    // canvas.transferControlToOffscreen() is irreversible — the canvas element
+    // stays permanently detached after cleanup, causing DOMException on the
+    // second effect run.  In production effects run once so this is safe.
+    if (isOffscreenCanvasSupported() && !import.meta.env.DEV) {
       try {
         const offscreen = canvas.transferControlToOffscreen();
         canvasTransferred = true; // canvas is now detached — do not call getContext after this

@@ -242,7 +242,9 @@ export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCI
 // Collision resolution (position-based)
 export const COLLISION_PADDING = 1.05;
 export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
+export const COLLISION_LINKED_RESOLVE = 0.08; // much softer for linked pairs — spring handles equilibrium
 export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
+export const COLLISION_LINKED_VEL_DAMPENING = 0.3; // softer dampening for linked pairs
 export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
 
 // Simulation warmup
