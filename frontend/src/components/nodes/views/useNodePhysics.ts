@@ -37,8 +37,6 @@ import {
   UNLINKED_REPULSION_DISTANCE,
   MIN_REPULSION_DISTANCE,
   RETURN_FORCE,
-  CENTER_GRAVITY,
-  CENTER_GRAVITY_SUSTAINED,
   MAX_VELOCITY,
   VELOCITY_DAMPING,
   VELOCITY_DEADZONE,
@@ -54,9 +52,8 @@ import {
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
   WARMUP_DURATION_FRAMES,
-  COOLING_DURATION_FRAMES,
-  COOLING_DAMPING_TARGET,
-  COOLING_FORCE_MIN,
+  IDLE_VELOCITY_DAMPING,
+  FORCE_IDLE_THRESHOLD,
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
@@ -1226,18 +1223,15 @@ export function useNodePhysics({
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
       
       const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
-      const warmupMultiplierBase = warmupT * warmupT;
-      
-      // Post-warmup progressive cooling: once warmup finishes, ramp damping
-      // from base value toward COOLING_DAMPING_TARGET and scale forces down
-      // toward COOLING_FORCE_MIN over COOLING_DURATION_FRAMES.
-      // Cooling both the force magnitude AND the damping kills the micro-
-      // oscillations that BH approximation jitter and force residuals cause.
-      const coolingFrame = warmupFrameRef.current - WARMUP_DURATION_FRAMES;
-      const coolingT = coolingFrame > 0 ? Math.min(1, coolingFrame / COOLING_DURATION_FRAMES) : 0;
-      // Force multiplier: 1.0 during warmup → decays to COOLING_FORCE_MIN
-      const warmupMultiplier = warmupMultiplierBase * (1 - coolingT * (1 - COOLING_FORCE_MIN));
+      const warmupMultiplier = warmupT * warmupT;  // ramp from 0→1, stays at 1 forever
       warmupFrameRef.current++;
+      
+      // Snapshot velocities before forces for per-node acceleration detection
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        (node as any)._prevVx = node.vx;
+        (node as any)._prevVy = node.vy;
+      }
       
       // Return-to-target force (constrained modes)
       if (isConstrainedMode) {
@@ -1256,42 +1250,22 @@ export function useNodePhysics({
         }
       }
       
-      // Centering gravity (two phases)
+      // Centering: pure center-of-mass recentering (position-only, no forces).
+      // Translates all nodes so their centroid stays at canvas center.
+      // This keeps the graph on screen without injecting energy or crushing clusters.
       if (!isConstrainedMode) {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
         
-        // Phase 1 (warmup): per-node pull toward canvas center, ramps up
-        // to help the initial layout converge quickly.
-        if (warmupT < 1) {
+        if (comCount > 0) {
+          const avgX = comX / comCount;
+          const avgY = comY / comCount;
+          const driftX = cx - avgX;
+          const driftY = cy - avgY;
           for (const node of nodes) {
             if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-            const dx = cx - node.x;
-            const dy = cy - node.y;
-            node.vx += dx * CENTER_GRAVITY * warmupMultiplier;
-            node.vy += dy * CENTER_GRAVITY * warmupMultiplier;
-          }
-        }
-        
-        // Phase 2 (sustained): center-of-mass drift correction.
-        // Compute the centroid of all movable nodes and shift every node
-        // so the centroid moves back toward the canvas center.  Applied as
-        // a direct position correction (not velocity) to avoid injecting
-        // kinetic energy that would keep nodes perpetually moving.
-        // The same delta is applied to every node so the relative layout
-        // is not distorted — only the global drift is corrected.
-        // (COM was pre-computed in the merged stats loop above)
-        {
-          if (comCount > 0) {
-            const avgX = comX / comCount;
-            const avgY = comY / comCount;
-            const driftX = (cx - avgX) * CENTER_GRAVITY_SUSTAINED;
-            const driftY = (cy - avgY) * CENTER_GRAVITY_SUSTAINED;
-            for (const node of nodes) {
-              if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-              node.x += driftX;
-              node.y += driftY;
-            }
+            node.x += driftX;
+            node.y += driftY;
           }
         }
       }
@@ -1674,8 +1648,6 @@ export function useNodePhysics({
       
       // Update positions + accumulate kinetic energy (merged to save an O(n) pass)
       const baseDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
-      // Apply progressive cooling: blend from baseDamping toward target over cooling window
-      const velDamping = baseDamping + (COOLING_DAMPING_TARGET - baseDamping) * coolingT;
       const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
       const maxVelSq = isTerrainModeNow ? TERRAIN_MAX_VELOCITY_SQ : MAX_VELOCITY_SQ;
       const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
@@ -1694,8 +1666,16 @@ export function useNodePhysics({
           }
           node.x += node.vx;
           node.y += node.vy;
-          node.vx *= velDamping;
-          node.vy *= velDamping;
+          
+          // Force-aware damping: nodes with near-zero acceleration stop fast
+          const prevVx = (node as any)._prevVx ?? 0;
+          const prevVy = (node as any)._prevVy ?? 0;
+          const accelX = node.vx - prevVx;
+          const accelY = node.vy - prevVy;
+          const accelMag = Math.abs(accelX) + Math.abs(accelY);  // L1 norm, cheap
+          const damping = accelMag < FORCE_IDLE_THRESHOLD ? IDLE_VELOCITY_DAMPING : baseDamping;
+          node.vx *= damping;
+          node.vy *= damping;
           
           if (Math.abs(node.vx) < velDeadzone) node.vx = 0;
           if (Math.abs(node.vy) < velDeadzone) node.vy = 0;
