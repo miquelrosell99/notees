@@ -1267,7 +1267,22 @@ export function useNodePhysics({
         // spacing.  Switching to mass mode then appeared to shrink links
         // because normalized masses are much smaller than the raw ones.
         const uniformMasses = useMass ? normalizedMasses : null;
-        const treeMasses = uniformMasses ?? new Map<number, number>(nodes.map(n => [n.id, 1]));
+        const baseMasses = uniformMasses ?? new Map<number, number>(nodes.map(n => [n.id, 1]));
+        
+        // Degree-scaled repulsion: hubs (highly-connected nodes) get higher
+        // mass in the Barnes-Hut tree so they repel neighbors more strongly.
+        // This creates natural breathing room around hubs and pushes distinct
+        // clusters apart, preventing the "hairball" collapse into a dense core.
+        // Note: nodeMass (used for force division) is NOT degree-scaled, so
+        // hubs push harder without becoming harder to push.
+        const connectionCounts = connectionCountsRef.current;
+        const treeMasses = new Map<number, number>();
+        for (const node of nodes) {
+          const base = baseMasses.get(node.id) ?? 1;
+          const connCount = connectionCounts.get(node.id) ?? 0;
+          const degreeFactor = 1 + Math.log2(1 + connCount);
+          treeMasses.set(node.id, base * degreeFactor);
+        }
         const tree = buildQuadtreeRef.current(nodes, treeMasses);
         
         if (tree) {
