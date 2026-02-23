@@ -56,6 +56,7 @@ import {
   WARMUP_DURATION_FRAMES,
   COOLING_DURATION_FRAMES,
   COOLING_DAMPING_TARGET,
+  COOLING_FORCE_MIN,
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
@@ -1225,13 +1226,17 @@ export function useNodePhysics({
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
       
       const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
-      const warmupMultiplier = warmupT * warmupT;
+      const warmupMultiplierBase = warmupT * warmupT;
       
       // Post-warmup progressive cooling: once warmup finishes, ramp damping
-      // from base value toward COOLING_DAMPING_TARGET over COOLING_DURATION_FRAMES.
-      // This kills micro-oscillations that BH approximation jitter and force
-      // residuals would otherwise sustain indefinitely.
+      // from base value toward COOLING_DAMPING_TARGET and scale forces down
+      // toward COOLING_FORCE_MIN over COOLING_DURATION_FRAMES.
+      // Cooling both the force magnitude AND the damping kills the micro-
+      // oscillations that BH approximation jitter and force residuals cause.
       const coolingFrame = warmupFrameRef.current - WARMUP_DURATION_FRAMES;
+      const coolingT = coolingFrame > 0 ? Math.min(1, coolingFrame / COOLING_DURATION_FRAMES) : 0;
+      // Force multiplier: 1.0 during warmup → decays to COOLING_FORCE_MIN
+      const warmupMultiplier = warmupMultiplierBase * (1 - coolingT * (1 - COOLING_FORCE_MIN));
       warmupFrameRef.current++;
       
       // Return-to-target force (constrained modes)
@@ -1670,7 +1675,6 @@ export function useNodePhysics({
       // Update positions + accumulate kinetic energy (merged to save an O(n) pass)
       const baseDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
       // Apply progressive cooling: blend from baseDamping toward target over cooling window
-      const coolingT = coolingFrame > 0 ? Math.min(1, coolingFrame / COOLING_DURATION_FRAMES) : 0;
       const velDamping = baseDamping + (COOLING_DAMPING_TARGET - baseDamping) * coolingT;
       const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
       const maxVelSq = isTerrainModeNow ? TERRAIN_MAX_VELOCITY_SQ : MAX_VELOCITY_SQ;
