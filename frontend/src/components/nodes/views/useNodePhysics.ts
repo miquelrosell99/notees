@@ -1434,14 +1434,12 @@ export function useNodePhysics({
           // mass-mode where heavier nodes overshoot the boundary).
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
           if (dist < UNLINKED_REPULSION_DISTANCE) {
-            // Blend factor: 0 at (restDist - zone) → 1 at restDist
-            // This smoothly transitions from full BH repulsion to full
-            // compensation over a 30-unit transition zone.
-            const blendZone = 30;
-            const blendStart = restDist - blendZone;
+            // Blend factor: 0 at (restDist * 0.25) → 1 at restDist
+            // Proportional to restDist so it works at any rest distance.
+            const blendStart = restDist * 0.25;
             const blend = dist <= blendStart ? 0
               : dist >= restDist ? 1
-              : (dist - blendStart) / blendZone;
+              : (dist - blendStart) / (restDist - blendStart);
             
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
