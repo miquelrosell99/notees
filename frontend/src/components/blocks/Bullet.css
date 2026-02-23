@@ -74,8 +74,8 @@
 .bullet-interactive::after {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background-color: transparent;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
