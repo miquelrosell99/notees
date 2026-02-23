@@ -287,8 +287,9 @@ export class BlockNode extends ElementNode {
     if (this.__collapsed) bullet.classList.add('bullet-collapsed');
     bullet.dataset.blockId = this.__blockId;
     
-    // Collapse arrow (only create if has children)
-    if (this.__hasChildren) {
+    // Collapse arrow (create if has children OR is collapsed — so collapsed
+    // blocks always have an expand affordance even before children are loaded)
+    if (this.__hasChildren || this.__collapsed) {
       const collapseArrow = document.createElement('button');
       collapseArrow.className = 'bullet-collapse-arrow';
       collapseArrow.setAttribute('aria-label', this.__collapsed ? 'Expand' : 'Collapse');
@@ -438,6 +439,17 @@ export class BlockNode extends ElementNode {
         collapseArrow.innerHTML = this.__collapsed
           ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
           : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
+        // Remove arrow when un-collapsing if there are no children to toggle
+        if (!this.__collapsed && !this.__hasChildren) {
+          collapseArrow.remove();
+        }
+      } else if (this.__collapsed && bullet) {
+        // Block just became collapsed but arrow doesn't exist yet — create it
+        const newArrow = document.createElement('button');
+        newArrow.className = 'bullet-collapse-arrow';
+        newArrow.setAttribute('aria-label', 'Expand');
+        newArrow.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>';
+        bullet.insertBefore(newArrow, bullet.firstChild);
       }
     }
 
@@ -529,7 +541,9 @@ export class BlockNode extends ElementNode {
             ? '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>'
             : '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>';
           bullet.insertBefore(collapseArrow, bullet.firstChild);
-        } else if (!this.__hasChildren && existingArrow) {
+        } else if (!this.__hasChildren && existingArrow && !this.__collapsed) {
+          // Only remove the arrow if there are no children AND the block is not collapsed.
+          // Keep it when collapsed so the user can always expand a collapsed block.
           existingArrow.remove();
         }
       }
