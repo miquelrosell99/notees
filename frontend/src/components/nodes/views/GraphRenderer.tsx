@@ -45,6 +45,9 @@ import {
   hexToRgba,
 } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
+import { isOffscreenCanvasSupported } from './useGraphWorker';
+import { encodeGlare, encodeLinkType, packNodeFlags } from './graphWorkerProtocol';
+import type { FrameMessage, NodeMetadataMessage, StyleMessage } from './graphWorkerProtocol';
 import './graph-renderer.css';
 
 // ==================== Types ====================
@@ -118,6 +121,20 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
   // Link direction cache (reused per frame)
   const linkDirCacheRef = useRef(new Map<number, number>());
   const drawnLinksCacheRef = useRef(new Set<number>());
+  
+  // OffscreenCanvas worker rendering
+  const workerRef = useRef<Worker | null>(null);
+  const workerReadyRef = useRef(false);
+  const workerActiveRef = useRef(false);
+  // Reusable typed arrays for frame packing (avoid per-frame GC in worker mode)
+  const wkPositionBufRef = useRef(new Float32Array(0));
+  const wkStateBufRef = useRef(new Uint8Array(0));
+  const wkLinkBufRef = useRef(new Int32Array(0));
+  const wkLinkTypeBufRef = useRef(new Uint8Array(0));
+  const wkNodeOrderRef = useRef(new Map<number, number>());
+  // Change detection for metadata + style (avoid resending every frame)
+  const wkLastMetaHashRef = useRef('');
+  const wkLastStyleHashRef = useRef('');
   
   // Physics hook
   const physics = useNodePhysics({
@@ -194,6 +211,137 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
   // ==================== Render Function ====================
   
   const render = useCallback((ctx: CanvasRenderingContext2D) => {
+    // ---- Worker mode: pack frame data and send to OffscreenCanvas worker ----
+    if (workerActiveRef.current && workerRef.current && workerReadyRef.current) {
+      const fd = frameDataRef.current;
+      const t = transformRef.current;
+      const s = settingsRef.current;
+      const vm = viewModeRef.current as GraphLayoutMode;
+      const { visibleNodes, visibleLinks, maxConnections, maxMass, maxContentSize } = fd;
+      const nc = visibleNodes.length;
+      const lc = visibleLinks.length;
+      
+      // --- Send metadata when node list changes ---
+      const metaHash = `${nc}-${visibleNodes[0]?.id ?? ''}-${visibleNodes[nc - 1]?.id ?? ''}-${visibleNodes[Math.floor(nc / 2)]?.id ?? ''}`;
+      if (metaHash !== wkLastMetaHashRef.current) {
+        wkLastMetaHashRef.current = metaHash;
+        const metaMsg: NodeMetadataMessage = {
+          type: 'nodeMetadata',
+          nodeIds: visibleNodes.map(n => n.id),
+          nodeUuids: visibleNodes.map(n => n.uuid),
+          displayNames: visibleNodes.map(n => n.displayName),
+          connectionCounts: visibleNodes.map(n => n.connectionCount),
+          inLinkCounts: visibleNodes.map(n => n.inLinkCount),
+          outLinkCounts: visibleNodes.map(n => n.outLinkCount),
+          masses: visibleNodes.map(n => (n as GraphNode & { _mass?: number })._mass ?? 1),
+          contentSizes: visibleNodes.map(n => n.contentSize),
+          nodeTypeIds: visibleNodes.map(n => n.types || []),
+          nodeColors: visibleNodes.map(n => n.color || null),
+          isClassNodes: visibleNodes.map(n => n.isClassNode),
+          treeRadii: visibleNodes.map(n => (n as GraphNode & { _treeRadius?: number })._treeRadius),
+        };
+        workerRef.current.postMessage(metaMsg);
+      }
+      
+      // --- Send style when colors change ---
+      const cv = cssVarsRef.current;
+      const currentClassColors = classColorsRef.current;
+      const styleHash = `${cv.textColor}-${cv.accentColor}-${cv.dimColor}-${currentClassColors.length}-${currentClassColors[0]?.color ?? ''}`;
+      if (styleHash !== wkLastStyleHashRef.current) {
+        wkLastStyleHashRef.current = styleHash;
+        const styleMsg: StyleMessage = {
+          type: 'style',
+          classColors: currentClassColors.map(cc => ({ classId: cc.classId, color: cc.color, order: cc.order })),
+          textColor: cv.textColor,
+          accentColor: cv.accentColor,
+          dimColor: cv.dimColor,
+          outlineColor: cv.outlineColor,
+          warningColor: cv.warningColor,
+        };
+        workerRef.current.postMessage(styleMsg);
+      }
+      
+      // --- Pack positions & state into typed arrays ---
+      if (wkPositionBufRef.current.length < nc * 2)
+        wkPositionBufRef.current = new Float32Array(Math.max(nc * 2, 1024));
+      if (wkStateBufRef.current.length < nc * 4)
+        wkStateBufRef.current = new Uint8Array(Math.max(nc * 4, 2048));
+      if (wkLinkBufRef.current.length < lc * 2)
+        wkLinkBufRef.current = new Int32Array(Math.max(lc * 2, 1024));
+      if (wkLinkTypeBufRef.current.length < lc)
+        wkLinkTypeBufRef.current = new Uint8Array(Math.max(lc, 512));
+      
+      const positions = wkPositionBufRef.current;
+      const states = wkStateBufRef.current;
+      const order = wkNodeOrderRef.current;
+      const hoveredId = hoveredNodeRef.current?.id ?? -1;
+      const dragId = dragNodeRef.current?.id ?? -1;
+      let dragIdx = -1;
+      
+      order.clear();
+      for (let i = 0; i < nc; i++) {
+        const n = visibleNodes[i];
+        order.set(n.id, i);
+        positions[i * 2] = n.x;
+        positions[i * 2 + 1] = n.y;
+        const isHov = n.id === hoveredId;
+        const isDrg = n.id === dragId;
+        if (isDrg) dragIdx = i;
+        states[i * 4] = packNodeFlags(n.visible, isHov, isDrg, n.pinned);
+        states[i * 4 + 1] = encodeGlare(n.glare);
+        states[i * 4 + 2] = 0;
+        states[i * 4 + 3] = 0;
+      }
+      
+      // Pack links
+      const linkArr = wkLinkBufRef.current;
+      const typeArr = wkLinkTypeBufRef.current;
+      for (let i = 0; i < lc; i++) {
+        const l = visibleLinks[i];
+        const si = order.get(l.source);
+        const ti = order.get(l.target);
+        if (si === undefined || ti === undefined) {
+          linkArr[i * 2] = linkArr[i * 2 + 1] = 0;
+          typeArr[i] = 0;
+          continue;
+        }
+        linkArr[i * 2] = si;
+        linkArr[i * 2 + 1] = ti;
+        typeArr[i] = encodeLinkType(l.type);
+      }
+      
+      // Slice to exact size and transfer ownership
+      const posCopy = positions.slice(0, nc * 2);
+      const stateCopy = states.slice(0, nc * 4);
+      const linkCopy = linkArr.slice(0, lc * 2);
+      const typeCopy = typeArr.slice(0, lc);
+      
+      const msg: FrameMessage = {
+        type: 'frame',
+        positionBuffer: posCopy,
+        stateBuffer: stateCopy,
+        nodeCount: nc,
+        linkBuffer: linkCopy,
+        linkTypeBuffer: typeCopy,
+        linkCount: lc,
+        maxConnections,
+        maxMass,
+        maxContentSize,
+        transformX: t.x,
+        transformY: t.y,
+        transformScale: t.scale,
+        dragNodeIndex: dragIdx,
+        dragLiftProgress: dragLiftProgressRef.current,
+        viewMode: vm,
+        nodeSizeMode: s.nodeSizeMode,
+        linkDirection: s.linkDirection,
+      };
+      
+      workerRef.current.postMessage(msg, [posCopy.buffer, stateCopy.buffer, linkCopy.buffer, typeCopy.buffer]);
+      return;
+    }
+    
+    // ---- Main-thread render (fallback with LOD) ----
     const { width: w, height: h } = dimensions;
     const t = transformRef.current;
     const currentSettings = settingsRef.current;
@@ -754,7 +902,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     ctx.restore();
   }, [dimensions]);
   
-  // Set up render function and context
+  // Set up render function and context (or OffscreenCanvas worker)
   useEffect(() => {
     renderRef.current = render;
   }, [render, renderRef]);
@@ -762,11 +910,61 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctxRef.current = ctx;
+    
+    // Try OffscreenCanvas worker mode
+    if (isOffscreenCanvasSupported()) {
+      try {
+        const offscreen = canvas.transferControlToOffscreen();
+        const dpr = window.devicePixelRatio || 1;
+        const worker = new Worker(
+          new URL('./graphRenderWorker.ts', import.meta.url),
+          { type: 'module' },
+        );
+        worker.onmessage = (e: MessageEvent) => {
+          if (e.data.type === 'ready') workerReadyRef.current = true;
+        };
+        worker.onerror = (err) => {
+          console.error('[GraphWorker]', err.message);
+        };
+        const w = canvas.clientWidth || 800;
+        const h = canvas.clientHeight || 600;
+        worker.postMessage(
+          { type: 'init', canvas: offscreen, width: w, height: h, dpr },
+          [offscreen],
+        );
+        workerRef.current = worker;
+        workerActiveRef.current = true;
+        // Dummy context so physics guard (ctxRef.current && renderRef.current) passes
+        ctxRef.current = {} as CanvasRenderingContext2D;
+        
+        return () => {
+          worker.postMessage({ type: 'destroy' });
+          worker.terminate();
+          workerRef.current = null;
+          workerReadyRef.current = false;
+          workerActiveRef.current = false;
+        };
+      } catch {
+        // OffscreenCanvas transfer failed — fall through to main-thread mode
+      }
     }
+    
+    // Main-thread mode: get real 2D context
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctxRef.current = ctx;
   }, [ctxRef]);
+  
+  // Resize worker canvas when dimensions change
+  useEffect(() => {
+    if (!workerActiveRef.current || !workerRef.current) return;
+    const dpr = window.devicePixelRatio || 1;
+    workerRef.current.postMessage({
+      type: 'resize',
+      width: dimensions.width,
+      height: dimensions.height,
+      dpr,
+    });
+  }, [dimensions.width, dimensions.height]);
   
   // ==================== Event Handlers ====================
   
