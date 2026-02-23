@@ -430,19 +430,19 @@ export const getNodeRadius = (
     const count = linkDirection === 'in' ? node.inLinkCount 
       : linkDirection === 'out' ? node.outLinkCount 
       : node.connectionCount;
-    const ratio = maxConnections > 0 ? count / maxConnections : 0;
+    const ratio = maxConnections > 0 ? Math.min(count / maxConnections, 1) : 0;
     return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_CONN_SCALE);
   }
   
   if (nodeSizeMode === 'mass') {
     const mass = (node as GraphNode & { _mass?: number })._mass ?? 1;
-    const ratio = maxMass > 1 ? (mass - 1) / (maxMass - 1) : 0;
+    const ratio = maxMass > 1 ? Math.min((mass - 1) / (maxMass - 1), 1) : 0;
     return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_MASS_SCALE);
   }
 
   if (nodeSizeMode === 'content') {
     const count = node.contentSize;
-    const ratio = maxContentSize > 0 ? count / maxContentSize : 0;
+    const ratio = maxContentSize > 0 ? Math.min(count / maxContentSize, 1) : 0;
     return NODE_RADIUS_MIN + (NODE_RADIUS_MAX - NODE_RADIUS_MIN) * Math.pow(ratio, NODE_RADIUS_CONN_SCALE);
   }
   

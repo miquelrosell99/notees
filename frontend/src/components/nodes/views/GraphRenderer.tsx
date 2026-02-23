@@ -22,6 +22,7 @@ import type {
 } from './viewTypes';
 import {
   // Constants
+  NODE_RADIUS_BASE,
   NODE_HOVER_RADIUS_EXTRA,
   GLARE_SCALE_NORMAL,
   GLARE_SCALE_BRIGHT,
@@ -351,6 +352,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     ctx.clearRect(0, 0, w, h);
 
     ctx.save();
+    try { // try/finally guarantees ctx.restore() even if drawing throws
     ctx.translate(t.x, t.y);
     ctx.scale(t.scale, t.scale);
     
@@ -657,36 +659,25 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         ctx.fill();
       }
     } else if (lod === 1) {
-      // LOD 1: Simplified nodes — no glare gradient, uniform small radius, no labels, no pin indicator.
-      // Still per-node color but use a single circle per node instead of glare + circle + pin.
+      // LOD 1: Simplified nodes — capped radius, no glare, no labels, no pin indicator.
+      // Radii are capped to NODE_RADIUS_BASE to prevent giant circles at LOD transitions.
       let draggedNode: GraphNode | null = null;
       for (const node of visibleNodes) {
         if (node.id === draggedNodeId) { draggedNode = node; continue; }
         if (node.x < vpL || node.x > vpR || node.y < vpT || node.y > vpB) continue;
         
-        const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
+        const baseRadius = Math.min(
+          getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection),
+          NODE_RADIUS_BASE
+        );
         const isHovered = currentHoveredNode?.id === node.id;
-        const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
+        const circleRadius = isHovered ? baseRadius + 1 : baseRadius;
         
         let displayColor = getNodeColor(node, currentClassColors, accentColor);
         let nodeOpacity = 1;
         if (node.glare === 'dim') {
           displayColor = dimColor;
           nodeOpacity = 0.25;
-        }
-        
-        // Single glare circle (flat, no gradient)
-        if (node.glare !== 'dim') {
-          const glareRadius = baseRadius * GLARE_SCALE_NORMAL;
-          const glareOpacity = node.glare === 'bright' ? GLARE_OPACITY_BRIGHT
-            : node.glare === 'current' ? 0.5
-            : GLARE_OPACITY_NORMAL;
-          ctx.beginPath();
-          ctx.fillStyle = node.glare === 'current'
-            ? hexToRgba(warningColor, glareOpacity)
-            : hexToRgba(displayColor, glareOpacity);
-          ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
-          ctx.fill();
         }
         
         ctx.beginPath();
@@ -699,9 +690,12 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       // Dragged node on top (LOD 1)
       if (draggedNode) {
         const node = draggedNode;
-        const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
+        const baseRadius = Math.min(
+          getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection),
+          NODE_RADIUS_BASE
+        );
         const isHovered = currentHoveredNode?.id === node.id;
-        const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
+        const circleRadius = isHovered ? baseRadius + 1 : baseRadius;
         const nodeColor = getNodeColor(node, currentClassColors, accentColor);
         ctx.beginPath();
         ctx.fillStyle = nodeColor;
@@ -900,7 +894,9 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     }
     } // end LOD 0 nodes
     
+    } finally { // matches try { after ctx.save()
     ctx.restore();
+    } // end try/finally
   }, [dimensions]);
   
   // Set up render function and context (or OffscreenCanvas worker)
