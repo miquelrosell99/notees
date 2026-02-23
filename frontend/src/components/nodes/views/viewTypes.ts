@@ -187,7 +187,7 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 // ==================== Physics Constants ====================
 
 // Linked pair attraction
-export const LINKED_ATTRACTION_DISTANCE = 90;
+export const LINKED_ATTRACTION_DISTANCE = 140;
 export const ATTRACTION_STRENGTH = 0.025;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.005;
 export const LINK_DAMPING = 0.08;
