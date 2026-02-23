@@ -71,9 +71,23 @@
   pointer-events: auto;
 }
 
+.bullet-interactive::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: transparent;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  pointer-events: none;
+}
+
 .bullet-interactive:hover {
-  background-color: color-mix(in srgb, var(--color-hover-overlay) 60%, transparent);
   transform: scale(1.06);
+}
+
+.bullet-interactive:hover::after {
+  background-color: color-mix(in srgb, var(--color-hover-overlay) 60%, transparent);
 }
 
 .bullet-interactive[draggable="true"] {
