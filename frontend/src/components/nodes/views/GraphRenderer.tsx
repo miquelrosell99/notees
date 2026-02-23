@@ -33,6 +33,9 @@ import {
   LABEL_FADE_ZOOM_MAX,
   LINE_DASH_NONE,
   LINE_DASH_DOTTED,
+  // LOD
+  getLODLevel,
+  type LODLevel,
   // Helpers
   pairKey,
   linkclassId,
@@ -219,6 +222,9 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const vpR = vpRight + vpMargin;
     const vpB = vpBottom + vpMargin;
 
+    // LOD (Level of Detail) — reduce draw calls at high node counts / low zoom
+    const lod: LODLevel = getLODLevel(visibleNodes.length, t.scale);
+
     // Build link direction map
     const linkDirections = linkDirCacheRef.current;
     linkDirections.clear();
@@ -236,7 +242,63 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const drawnLinks = drawnLinksCacheRef.current;
     drawnLinks.clear();
     
-    for (const link of visibleLinks) {
+    if (lod === 2) {
+      // LOD 2: All links as thin hairlines in a single batched path — no dashing, no dots
+      ctx.beginPath();
+      ctx.strokeStyle = hexToRgba(outlineColor, 0.2);
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash(LINE_DASH_NONE);
+      for (const link of visibleLinks) {
+        const source = nodeMap.get(link.source);
+        const target = nodeMap.get(link.target);
+        if (!source || !target) continue;
+        const lMinX = Math.min(source.x, target.x);
+        const lMaxX = Math.max(source.x, target.x);
+        const lMinY = Math.min(source.y, target.y);
+        const lMaxY = Math.max(source.y, target.y);
+        if (lMaxX < vpL || lMinX > vpR || lMaxY < vpT || lMinY > vpB) continue;
+        const linkKey = pairKey(link.source, link.target) * 10 + linkclassId(link.type);
+        if (drawnLinks.has(linkKey)) continue;
+        drawnLinks.add(linkKey);
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+      }
+      ctx.stroke();
+    } else if (lod === 1) {
+      // LOD 1: Styled lines (solid/dotted) but no arrow dots, no wavy class lines
+      for (const link of visibleLinks) {
+        const source = nodeMap.get(link.source);
+        const target = nodeMap.get(link.target);
+        if (!source || !target) continue;
+        const lMinX = Math.min(source.x, target.x);
+        const lMaxX = Math.max(source.x, target.x);
+        const lMinY = Math.min(source.y, target.y);
+        const lMaxY = Math.max(source.y, target.y);
+        if (lMaxX < vpL || lMinX > vpR || lMaxY < vpT || lMinY > vpB) continue;
+        const linkKey = pairKey(link.source, link.target) * 10 + linkclassId(link.type);
+        if (drawnLinks.has(linkKey)) continue;
+        drawnLinks.add(linkKey);
+        
+        const isParentLink = link.type === 'parent';
+        const isClassLink = link.type === 'class';
+        const isExtendsLink = link.type === 'extends';
+        const renderAsParent = isParentLink || isExtendsLink;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = hexToRgba(outlineColor, 0.4);
+        ctx.lineWidth = 1;
+        if (renderAsParent || isClassLink) {
+          ctx.setLineDash(LINE_DASH_NONE);
+        } else {
+          ctx.setLineDash(LINE_DASH_DOTTED);
+        }
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+      }
+      ctx.setLineDash(LINE_DASH_NONE);
+    } else {
+    // LOD 0: Full detail links (original code)
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
@@ -375,6 +437,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     }
     
     ctx.setLineDash(LINE_DASH_NONE);
+    } // end LOD 0 links
     
     // Draw level circle guides (tree/circle modes)
     if (currentViewMode === 'tree' || currentViewMode === 'circle') {
@@ -404,6 +467,100 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const draggedNodeId = dragNodeRef.current?.id ?? null;
     const liftProgress = dragLiftProgressRef.current;
     const currentHoveredNode = hoveredNodeRef.current;
+    
+    if (lod === 2) {
+      // LOD 2: Batch all nodes as tiny dots — group by color for minimal draw calls.
+      // Dim nodes get a single faint batch, non-dim get one batch per class color.
+      const colorBuckets = new Map<string, { x: number; y: number }[]>();
+      const dimBucket: { x: number; y: number }[] = [];
+      
+      for (const node of visibleNodes) {
+        if (node.x < vpL || node.x > vpR || node.y < vpT || node.y > vpB) continue;
+        if (node.glare === 'dim') {
+          dimBucket.push({ x: node.x, y: node.y });
+        } else {
+          const color = getNodeColor(node, currentClassColors, accentColor);
+          let bucket = colorBuckets.get(color);
+          if (!bucket) { bucket = []; colorBuckets.set(color, bucket); }
+          bucket.push({ x: node.x, y: node.y });
+        }
+      }
+      
+      // Draw dim nodes
+      if (dimBucket.length > 0) {
+        ctx.beginPath();
+        ctx.fillStyle = hexToRgba(dimColor, 0.15);
+        for (const p of dimBucket) {
+          ctx.moveTo(p.x + 1.5, p.y);
+          ctx.arc(p.x, p.y, 1.5, 0, 2 * Math.PI);
+        }
+        ctx.fill();
+      }
+      
+      // Draw colored nodes — one batch per color
+      for (const [color, bucket] of colorBuckets) {
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        for (const p of bucket) {
+          ctx.moveTo(p.x + 2, p.y);
+          ctx.arc(p.x, p.y, 2, 0, 2 * Math.PI);
+        }
+        ctx.fill();
+      }
+    } else if (lod === 1) {
+      // LOD 1: Simplified nodes — no glare gradient, uniform small radius, no labels, no pin indicator.
+      // Still per-node color but use a single circle per node instead of glare + circle + pin.
+      let draggedNode: GraphNode | null = null;
+      for (const node of visibleNodes) {
+        if (node.id === draggedNodeId) { draggedNode = node; continue; }
+        if (node.x < vpL || node.x > vpR || node.y < vpT || node.y > vpB) continue;
+        
+        const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
+        const isHovered = currentHoveredNode?.id === node.id;
+        const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
+        
+        let displayColor = getNodeColor(node, currentClassColors, accentColor);
+        let nodeOpacity = 1;
+        if (node.glare === 'dim') {
+          displayColor = dimColor;
+          nodeOpacity = 0.25;
+        }
+        
+        // Single glare circle (flat, no gradient)
+        if (node.glare !== 'dim') {
+          const glareRadius = baseRadius * GLARE_SCALE_NORMAL;
+          const glareOpacity = node.glare === 'bright' ? GLARE_OPACITY_BRIGHT
+            : node.glare === 'current' ? 0.5
+            : GLARE_OPACITY_NORMAL;
+          ctx.beginPath();
+          ctx.fillStyle = node.glare === 'current'
+            ? hexToRgba(warningColor, glareOpacity)
+            : hexToRgba(displayColor, glareOpacity);
+          ctx.arc(node.x, node.y, glareRadius, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        
+        ctx.beginPath();
+        ctx.globalAlpha = nodeOpacity;
+        ctx.fillStyle = displayColor;
+        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      // Dragged node on top (LOD 1)
+      if (draggedNode) {
+        const node = draggedNode;
+        const baseRadius = getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection);
+        const isHovered = currentHoveredNode?.id === node.id;
+        const circleRadius = isHovered ? baseRadius + NODE_HOVER_RADIUS_EXTRA : baseRadius;
+        const nodeColor = getNodeColor(node, currentClassColors, accentColor);
+        ctx.beginPath();
+        ctx.fillStyle = nodeColor;
+        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    } else {
+    // LOD 0: Full detail nodes (original code)
     
     // Set label font once outside the loop (all nodes share the same font)
     ctx.font = '10px Inter, sans-serif';
@@ -592,6 +749,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       ctx.fillText(displayName, node.x, node.y + baseRadius + 10);
       ctx.globalAlpha = 1;
     }
+    } // end LOD 0 nodes
     
     ctx.restore();
   }, [dimensions]);

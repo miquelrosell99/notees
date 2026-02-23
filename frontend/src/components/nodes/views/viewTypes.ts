@@ -259,6 +259,23 @@ export const TERRAIN_REF_PATH_KE_THRESHOLD = 0.025;
 
 // ==================== Rendering Constants ====================
 
+// LOD (Level of Detail) system for large graph performance
+export type LODLevel = 0 | 1 | 2;
+
+/** 
+ * Compute LOD level based on node count and current zoom. 
+ * - LOD 0: Full detail (glare, labels, styled links, arrow dots)
+ * - LOD 1: Medium (no labels, simplified glare, no arrow dots)
+ * - LOD 2: Minimal (pixel dots, hairline links, batched by color)
+ */
+export const getLODLevel = (nodeCount: number, scale: number): LODLevel => {
+  // "density" approximates how many nodes compete for screen space
+  const density = nodeCount / (scale * scale);
+  if (density < 2000) return 0;
+  if (density < 10000) return 1;
+  return 2;
+};
+
 // Node radii
 export const NODE_RADIUS_BASE = 6;
 export const NODE_RADIUS_MIN = 4;
