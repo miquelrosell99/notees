@@ -22,7 +22,6 @@ import type {
 } from './viewTypes';
 import {
   // Constants
-  NODE_RADIUS_BASE,
   NODE_HOVER_RADIUS_EXTRA,
   GLARE_SCALE_NORMAL,
   GLARE_SCALE_BRIGHT,
@@ -392,8 +391,8 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const drawnLinks = drawnLinksCacheRef.current;
     drawnLinks.clear();
     
-    if (lod === 2) {
-      // LOD 2: All links as thin hairlines in a single batched path — no dashing, no dots
+    if (lod === 1) {
+      // LOD 1: All links as thin hairlines in a single batched path — no dashing, no dots
       ctx.beginPath();
       ctx.strokeStyle = hexToRgba(outlineColor, 0.35);
       ctx.lineWidth = 0.8;
@@ -414,39 +413,6 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         ctx.lineTo(target.x, target.y);
       }
       ctx.stroke();
-    } else if (lod === 1) {
-      // LOD 1: Styled lines (solid/dotted) but no arrow dots, no wavy class lines
-      for (const link of visibleLinks) {
-        const source = nodeMap.get(link.source);
-        const target = nodeMap.get(link.target);
-        if (!source || !target) continue;
-        const lMinX = Math.min(source.x, target.x);
-        const lMaxX = Math.max(source.x, target.x);
-        const lMinY = Math.min(source.y, target.y);
-        const lMaxY = Math.max(source.y, target.y);
-        if (lMaxX < vpL || lMinX > vpR || lMaxY < vpT || lMinY > vpB) continue;
-        const linkKey = pairKey(link.source, link.target) * 10 + linkclassId(link.type);
-        if (drawnLinks.has(linkKey)) continue;
-        drawnLinks.add(linkKey);
-        
-        const isParentLink = link.type === 'parent';
-        const isClassLink = link.type === 'class';
-        const isExtendsLink = link.type === 'extends';
-        const renderAsParent = isParentLink || isExtendsLink;
-        
-        ctx.beginPath();
-        ctx.strokeStyle = hexToRgba(outlineColor, 0.5);
-        ctx.lineWidth = 1;
-        if (renderAsParent || isClassLink) {
-          ctx.setLineDash(LINE_DASH_NONE);
-        } else {
-          ctx.setLineDash(LINE_DASH_DOTTED);
-        }
-        ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
-        ctx.stroke();
-      }
-      ctx.setLineDash(LINE_DASH_NONE);
     } else {
     // LOD 0: Full detail links (original code)
     for (const link of visibleLinks) {
@@ -619,8 +585,8 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const liftProgress = dragLiftProgressRef.current;
     const currentHoveredNode = hoveredNodeRef.current;
     
-    if (lod === 2) {
-      // LOD 2: Batch all nodes as tiny dots — group by color for minimal draw calls.
+    if (lod === 1) {
+      // LOD 1: Batch all nodes as tiny dots — group by color for minimal draw calls.
       // Dim nodes get a single faint batch, non-dim get one batch per class color.
       const colorBuckets = new Map<string, { x: number; y: number }[]>();
       const dimBucket: { x: number; y: number }[] = [];
@@ -656,50 +622,6 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
           ctx.moveTo(p.x + 3, p.y);
           ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
         }
-        ctx.fill();
-      }
-    } else if (lod === 1) {
-      // LOD 1: Simplified nodes — capped radius, no glare, no labels, no pin indicator.
-      // Radii are capped to NODE_RADIUS_BASE to prevent giant circles at LOD transitions.
-      let draggedNode: GraphNode | null = null;
-      for (const node of visibleNodes) {
-        if (node.id === draggedNodeId) { draggedNode = node; continue; }
-        if (node.x < vpL || node.x > vpR || node.y < vpT || node.y > vpB) continue;
-        
-        const baseRadius = Math.min(
-          getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection),
-          NODE_RADIUS_BASE
-        );
-        const isHovered = currentHoveredNode?.id === node.id;
-        const circleRadius = isHovered ? baseRadius + 1 : baseRadius;
-        
-        let displayColor = getNodeColor(node, currentClassColors, accentColor);
-        let nodeOpacity = 1;
-        if (node.glare === 'dim') {
-          displayColor = dimColor;
-          nodeOpacity = 0.25;
-        }
-        
-        ctx.beginPath();
-        ctx.globalAlpha = nodeOpacity;
-        ctx.fillStyle = displayColor;
-        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-      // Dragged node on top (LOD 1)
-      if (draggedNode) {
-        const node = draggedNode;
-        const baseRadius = Math.min(
-          getNodeRadius(node, currentSettings.nodeSizeMode, maxConnections, maxMass, maxContentSize, currentSettings.linkDirection),
-          NODE_RADIUS_BASE
-        );
-        const isHovered = currentHoveredNode?.id === node.id;
-        const circleRadius = isHovered ? baseRadius + 1 : baseRadius;
-        const nodeColor = getNodeColor(node, currentClassColors, accentColor);
-        ctx.beginPath();
-        ctx.fillStyle = nodeColor;
-        ctx.arc(node.x, node.y, circleRadius, 0, 2 * Math.PI);
         ctx.fill();
       }
     } else {

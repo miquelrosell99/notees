@@ -211,8 +211,8 @@ function renderFrame(msg: FrameMessage): void {
 
   const drawnLinks = new Set<number>();
 
-  if (lod === 2) {
-    // LOD 2: batch all links as thin hairlines
+  if (lod === 1) {
+    // LOD 1: batch all links as thin hairlines
     ctx.beginPath();
     ctx.strokeStyle = hexToRgba(outlineColor, 0.2);
     ctx.lineWidth = 0.5;
@@ -232,31 +232,6 @@ function renderFrame(msg: FrameMessage): void {
       ctx.lineTo(ex, ey);
     }
     ctx.stroke();
-  } else if (lod === 1) {
-    // LOD 1: styled lines, no dots
-    for (let i = 0; i < lc; i++) {
-      const si = links[i * 2];
-      const ti = links[i * 2 + 1];
-      const sx = positions[si * 2], sy = positions[si * 2 + 1];
-      const ex = positions[ti * 2], ey = positions[ti * 2 + 1];
-      const minX = sx < ex ? sx : ex, maxX = sx > ex ? sx : ex;
-      const minY = sy < ey ? sy : ey, maxY = sy > ey ? sy : ey;
-      if (maxX < vpL || minX > vpR || maxY < vpT || minY > vpB) continue;
-      const lt = linkTypes[i];
-      const key = pairKey(nodeIds[si], nodeIds[ti]) * 10 + linkTypeId(lt);
-      if (drawnLinks.has(key)) continue;
-      drawnLinks.add(key);
-      const isParent = lt === 0 || lt === 4; // parent or extends
-      const isClass = lt === 3;
-      ctx.beginPath();
-      ctx.strokeStyle = hexToRgba(outlineColor, 0.4);
-      ctx.lineWidth = 1;
-      ctx.setLineDash((isParent || isClass) ? LINE_DASH_NONE : LINE_DASH_DOTTED);
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-    }
-    ctx.setLineDash(LINE_DASH_NONE);
   } else {
     // LOD 0: Full detail links
     // Build direction map
@@ -408,8 +383,8 @@ function renderFrame(msg: FrameMessage): void {
 
   // ==================== Draw Nodes ====================
 
-  if (lod === 2) {
-    // LOD 2: batch by color
+  if (lod === 1) {
+    // LOD 1: batch by color
     const colorBuckets = new Map<string, number[]>(); // color → [idx, idx, ...]
     const dimBucket: number[] = [];
     for (let i = 0; i < nc; i++) {
@@ -445,52 +420,6 @@ function renderFrame(msg: FrameMessage): void {
         ctx.moveTo(x + 2, y);
         ctx.arc(x, y, 2, 0, 2 * Math.PI);
       }
-      ctx.fill();
-    }
-  } else if (lod === 1) {
-    // LOD 1: simplified nodes
-    for (let i = 0; i < nc; i++) {
-      if (i === dragIdx) continue;
-      const flags = states[i * 4];
-      if (!(flags & 1)) continue;
-      const x = positions[i * 2], y = positions[i * 2 + 1];
-      if (x < vpL || x > vpR || y < vpT || y > vpB) continue;
-      const glare: GlareState = decodeGlare(states[i * 4 + 1]);
-      const isHovered = !!(flags & 2);
-      const br = getNodeRadius(i, nsm, maxConn, maxMass, maxCS, ld);
-      const cr = isHovered ? br + NODE_HOVER_RADIUS_EXTRA : br;
-      let displayColor = getNodeColor(i);
-      let nodeOpacity = 1;
-      if (glare === 'dim') { displayColor = dimColor; nodeOpacity = 0.25; }
-      // Simplified glare
-      if (glare !== 'dim') {
-        const gr = br * GLARE_SCALE_NORMAL;
-        const go = glare === 'bright' ? GLARE_OPACITY_BRIGHT
-          : glare === 'current' ? 0.5
-          : GLARE_OPACITY_NORMAL;
-        ctx.beginPath();
-        ctx.fillStyle = glare === 'current'
-          ? hexToRgba(warningColor, go)
-          : hexToRgba(displayColor, go);
-        ctx.arc(x, y, gr, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-      ctx.beginPath();
-      ctx.globalAlpha = nodeOpacity;
-      ctx.fillStyle = displayColor;
-      ctx.arc(x, y, cr, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    // Dragged node on top
-    if (dragIdx >= 0) {
-      const x = positions[dragIdx * 2], y = positions[dragIdx * 2 + 1];
-      const br = getNodeRadius(dragIdx, nsm, maxConn, maxMass, maxCS, ld);
-      const cr = br;
-      const color = getNodeColor(dragIdx);
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.arc(x, y, cr, 0, 2 * Math.PI);
       ctx.fill();
     }
   } else {
