@@ -54,6 +54,8 @@ import {
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
   WARMUP_DURATION_FRAMES,
+  COOLING_DURATION_FRAMES,
+  COOLING_DAMPING_TARGET,
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
@@ -1224,6 +1226,12 @@ export function useNodePhysics({
       
       const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
       const warmupMultiplier = warmupT * warmupT;
+      
+      // Post-warmup progressive cooling: once warmup finishes, ramp damping
+      // from base value toward COOLING_DAMPING_TARGET over COOLING_DURATION_FRAMES.
+      // This kills micro-oscillations that BH approximation jitter and force
+      // residuals would otherwise sustain indefinitely.
+      const coolingFrame = warmupFrameRef.current - WARMUP_DURATION_FRAMES;
       warmupFrameRef.current++;
       
       // Return-to-target force (constrained modes)
@@ -1660,15 +1668,20 @@ export function useNodePhysics({
       }
       
       // Update positions + accumulate kinetic energy (merged to save an O(n) pass)
-      const velDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
+      const baseDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
+      // Apply progressive cooling: blend from baseDamping toward target over cooling window
+      const coolingT = coolingFrame > 0 ? Math.min(1, coolingFrame / COOLING_DURATION_FRAMES) : 0;
+      const velDamping = baseDamping + (COOLING_DAMPING_TARGET - baseDamping) * coolingT;
       const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
       const maxVelSq = isTerrainModeNow ? TERRAIN_MAX_VELOCITY_SQ : MAX_VELOCITY_SQ;
       const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
       let totalKE = 0;
+      let mobileCount = 0;
       for (const node of nodes) {
         const speedSq = node.vx * node.vx + node.vy * node.vy;
-        totalKE += speedSq;
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
+          totalKE += speedSq;
+          mobileCount++;
           // Guard: only compute sqrt when velocity actually exceeds max
           if (speedSq > maxVelSq) {
             const scale = maxVel / Math.sqrt(speedSq);
@@ -1958,13 +1971,16 @@ export function useNodePhysics({
       // BH stack entries are overwritten each frame — no need to null them.
       quadPoolIdxRef.current = 0;
       
-      // Sleep detection: put simulation to sleep when total kinetic energy is negligible
+      // Sleep detection: put simulation to sleep when average kinetic energy per
+      // mobile node is negligible.  Using average instead of total prevents 4k
+      // stationary nodes from keeping the sim awake due to a handful of stirring ones.
       // (totalKE was accumulated during the velocity integration loop above)
       {
         const sleepThreshold = isTerrainModeNow ? TERRAIN_SLEEP_THRESHOLD : GRAPH_SLEEP_THRESHOLD;
         const sleepFrames = isTerrainModeNow ? TERRAIN_SLEEP_FRAMES : GRAPH_SLEEP_FRAMES;
-        kineticEnergyRef.current = totalKE;
-        if (totalKE < sleepThreshold) {
+        const avgKE = mobileCount > 0 ? totalKE / mobileCount : 0;
+        kineticEnergyRef.current = avgKE;
+        if (avgKE < sleepThreshold) {
           sleepCounterRef.current++;
           if (sleepCounterRef.current > sleepFrames) {
             simulationSleepingRef.current = true;

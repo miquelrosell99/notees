@@ -193,7 +193,7 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 export const LINKED_ATTRACTION_DISTANCE = 40;
 export const ATTRACTION_STRENGTH = 0.18;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
-export const LINK_DAMPING = 0.15;
+export const LINK_DAMPING = 0.22;
 
 // Unlinked repulsion
 // Previous 2000@300 still created uniform scatter at 4k nodes because
@@ -215,16 +215,22 @@ export const CENTER_GRAVITY_SUSTAINED = 0.005;
 
 // Velocity constraints
 export const MAX_VELOCITY = 10;
-export const VELOCITY_DAMPING = 0.85;
-export const VELOCITY_DEADZONE = 0.01;
+export const VELOCITY_DAMPING = 0.80;
+export const VELOCITY_DEADZONE = 0.06;
 export const TERRAIN_VELOCITY_DAMPING = 0.80;
 export const TERRAIN_VELOCITY_DEADZONE = 0.1;
 export const TERRAIN_LINK_DAMPING = 0.12;
 export const TERRAIN_MAX_VELOCITY = 10;
 
-// Sleep tuning
-export const GRAPH_SLEEP_THRESHOLD = 0.001;
-export const GRAPH_SLEEP_FRAMES = 60;
+// Post-warmup cooling: after warmup, progressively increase damping over
+// COOLING_DURATION frames, ramping from VELOCITY_DAMPING toward COOLING_DAMPING_TARGET.
+// This ensures the simulation converges to a frozen state instead of stirring forever.
+export const COOLING_DURATION_FRAMES = 300;
+export const COOLING_DAMPING_TARGET = 0.55;
+
+// Sleep tuning (uses average KE per node, not total)
+export const GRAPH_SLEEP_THRESHOLD = 0.00005;
+export const GRAPH_SLEEP_FRAMES = 30;
 export const TERRAIN_SLEEP_THRESHOLD = 0.0005;
 export const TERRAIN_SLEEP_FRAMES = 30;
 
