@@ -187,28 +187,33 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 // ==================== Physics Constants ====================
 
 // Linked pair attraction
-export const LINKED_ATTRACTION_DISTANCE = 140;
-export const ATTRACTION_STRENGTH = 0.025;
-export const ATTRACTION_STRENGTH_LINK_COUNT = 0.005;
-export const LINK_DAMPING = 0.08;
+// Obsidian/Logseq use short rest distances (~30-50 equiv) and strong springs.
+// Shorter rest + stronger pull → tight linked clusters with clear structure.
+export const LINKED_ATTRACTION_DISTANCE = 70;
+export const ATTRACTION_STRENGTH = 0.06;
+export const ATTRACTION_STRENGTH_LINK_COUNT = 0.012;
+export const LINK_DAMPING = 0.12;
 
 // Unlinked repulsion
-export const REPULSION_STRENGTH = 6000;
-export const UNLINKED_REPULSION_DISTANCE = 600;
-export const MIN_REPULSION_DISTANCE = 20;
+// Previous 6000@600 was ~200x stronger than d3-force, scattering 4k-node graphs.
+// 2000@300 gives strong local separation but lets clusters form organically.
+export const REPULSION_STRENGTH = 2000;
+export const UNLINKED_REPULSION_DISTANCE = 300;
+export const MIN_REPULSION_DISTANCE = 15;
 
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
 
 // Centering gravity
 // Warmup gravity: per-node pull toward canvas center during initial layout (ramps with warmup)
-export const CENTER_GRAVITY = 0.001;
+// Stronger gravity keeps the graph compact and prevents infinite expansion.
+export const CENTER_GRAVITY = 0.004;
 // Sustained gravity: permanent center-of-mass drift correction to prevent eternal expansion
-export const CENTER_GRAVITY_SUSTAINED = 0.003;
+export const CENTER_GRAVITY_SUSTAINED = 0.008;
 
 // Velocity constraints
-export const MAX_VELOCITY = 15;
-export const VELOCITY_DAMPING = 0.92;
+export const MAX_VELOCITY = 12;
+export const VELOCITY_DAMPING = 0.88;
 export const VELOCITY_DEADZONE = 0.01;
 export const TERRAIN_VELOCITY_DAMPING = 0.80;
 export const TERRAIN_VELOCITY_DEADZONE = 0.1;
@@ -240,7 +245,7 @@ export const MAX_VELOCITY_SQ = MAX_VELOCITY * MAX_VELOCITY;
 export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCITY;
 
 // Collision resolution (position-based)
-export const COLLISION_PADDING = 1.05;
+export const COLLISION_PADDING = 1.0;
 export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
 export const COLLISION_LINKED_RESOLVE = 0.08; // much softer for linked pairs — spring handles equilibrium
 export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
@@ -277,10 +282,11 @@ export type LODLevel = 0 | 1 | 2;
  * - LOD 2: Minimal (pixel dots, hairline links, batched by color)
  */
 export const getLODLevel = (nodeCount: number, scale: number): LODLevel => {
-  // "density" approximates how many nodes compete for screen space
+  // "density" approximates how many nodes compete for screen space.
+  // Higher thresholds keep richer detail visible longer at typical zoom levels.
   const density = nodeCount / (scale * scale);
-  if (density < 2000) return 0;
-  if (density < 10000) return 1;
+  if (density < 4000) return 0;
+  if (density < 20000) return 1;
   return 2;
 };
 
