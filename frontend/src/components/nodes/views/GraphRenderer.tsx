@@ -35,7 +35,6 @@ import {
   LINE_DASH_DOTTED,
   // LOD
   getLODLevel,
-  type LODLevel,
   // Helpers
   pairKey,
   linkclassId,
@@ -44,6 +43,7 @@ import {
   getNodeColor,
   hexToRgba,
 } from './viewTypes';
+import type { LODLevel } from './viewTypes';
 import { useNodePhysics } from './useNodePhysics';
 import { isOffscreenCanvasSupported } from './useGraphWorker';
 import { encodeGlare, encodeLinkType, packNodeFlags } from './graphWorkerProtocol';
@@ -447,6 +447,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       ctx.setLineDash(LINE_DASH_NONE);
     } else {
     // LOD 0: Full detail links (original code)
+    for (const link of visibleLinks) {
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (!source || !target) continue;
