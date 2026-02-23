@@ -87,8 +87,15 @@ export class NodeGraphRuntime {
   /**
    * Incrementally update/add nodes from the backend.
    * Only emits events when data actually changes to prevent infinite loops.
+   *
+   * @param options.preserveCollapsed  When true (default), keeps the runtime's
+   *   collapsed state for existing nodes — protecting client-side
+   *   collapse/expand from being overwritten by API syncs (e.g. after a
+   *   color change).  Pass false on initial view load so the DB collapsed
+   *   value is used instead of a stale runtime value from a previous view.
    */
-  upsertNodes(nodes: GraphNode[]): void {
+  upsertNodes(nodes: GraphNode[], options?: { preserveCollapsed?: boolean }): void {
+    const preserveCollapsed = options?.preserveCollapsed ?? true;
     const changedParents = new Set<string>();
     const changedBlockIds: string[] = [];
 
@@ -105,14 +112,14 @@ export class NodeGraphRuntime {
         // content during editing.  API syncs (optimistic cache updates,
         // refetches) may carry stale / debounced content that would
         // overwrite the user's latest edits if blindly applied.
-        // PRESERVE collapsed: collapse state is managed client-side via
-        // applyIntent and is not persisted on metadata updates (color, icon,
-        // etc.).  An API sync after e.g. a color change would otherwise reset
-        // a block's collapsed state to whatever the server last stored.
+        // OPTIONALLY PRESERVE collapsed: collapse state is managed
+        // client-side via applyIntent.  During in-view API syncs (e.g.
+        // after a color change) we preserve it, but on initial view load
+        // we use the API value so a previous view's state doesn't leak.
         const merged: GraphNode = {
           ...node,
           contentAST: existing.contentAST,
-          collapsed: existing.collapsed,
+          collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
         };
 
         if (existing.parentId !== node.parentId) {

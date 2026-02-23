@@ -90,12 +90,11 @@
   cursor: default;
   /* Re-enable pointer events on blocks */
   pointer-events: auto;
-  /* Browser-level rendering optimisation: skip layout/paint for off-screen
-     blocks.  The `auto` value lets the browser decide when to apply
-     containment.  `contain-intrinsic-size` provides an estimated height so
-     the scrollbar remains stable while off-screen blocks are not laid out. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 28px;
+  /* Layout + style containment helps the browser optimise recalcs without
+     paint containment which clips absolutely-positioned children (e.g. the
+     collapse arrow at left: -18px).  The manual VirtualizationPlugin
+     handles off-screen rendering savings instead of content-visibility. */
+  contain: layout style;
 }
 
 /* ─── Block UI container (non-editable) ─────────────────────────── */

@@ -12,7 +12,7 @@
  * NOT used for Card Mode — see CardModeView for per-card editors.
  */
 
-import { useCallback, useMemo, useId, useLayoutEffect, useState, type JSX } from 'react';
+import { useCallback, useMemo, useId, useLayoutEffect, useRef, useState, type JSX } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -64,6 +64,10 @@ import { parseLinkId, buildLinkId } from '../lib/astBuilder';
 import { useAddClass, useRemoveClass, useClassClass } from '@/hooks';
 
 import './BlockEditor.css';
+// Ensure shared Bullet styles (collapse arrow dimensions, positioning) are
+// always loaded when the block editor renders, even if no React Bullet
+// component is mounted on the page.
+import '../components/blocks/Bullet.css';
 
 // ─── Props ────────────────────────────────────────────────────────
 
@@ -173,6 +177,10 @@ export function BlockEditor({
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
 
+  // Track whether the initial data sync has run, so subsequent syncs
+  // preserve client-side collapsed state while the first one uses the DB value.
+  const hasInitializedRef = useRef(false);
+
   // Hooks for class management  
   const addClassMutation = useAddClass();
   const removeClassMutation = useRemoveClass();
@@ -220,7 +228,13 @@ export function BlockEditor({
     // runtime before we remove stale ones. Both calls emit events
     // that drive syncProjection; doing upsert-then-remove ensures
     // the first (non-coalesced) sync sees the new block immediately.
-    runtime.upsertNodes(graphNodes);
+    //
+    // On the initial sync we use the DB's collapsed values so that a
+    // previous view's client-side collapse state doesn't leak into
+    // this view.  Subsequent syncs preserve client-side collapsed state.
+    const isInitial = !hasInitializedRef.current;
+    hasInitializedRef.current = true;
+    runtime.upsertNodes(graphNodes, { preserveCollapsed: !isInitial });
 
     // Clean up stale children that are no longer in the API response
     // but keep optimistic blocks (no serverId) that haven't been persisted yet.
