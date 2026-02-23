@@ -912,10 +912,17 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const canvas = canvasRef.current;
     if (!canvas) return;
     
+    // Track whether canvas.transferControlToOffscreen() has been called.
+    // Once transferred, the canvas element is detached — calling getContext('2d')
+    // on it throws DOMException.  If worker setup throws AFTER the transfer we must
+    // NOT fall through to the main-thread getContext path.
+    let canvasTransferred = false;
+    
     // Try OffscreenCanvas worker mode
     if (isOffscreenCanvasSupported()) {
       try {
         const offscreen = canvas.transferControlToOffscreen();
+        canvasTransferred = true; // canvas is now detached — do not call getContext after this
         const dpr = window.devicePixelRatio || 1;
         const worker = new Worker(
           new URL('./graphRenderWorker.ts', import.meta.url),
@@ -946,13 +953,16 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
           workerActiveRef.current = false;
         };
       } catch {
-        // OffscreenCanvas transfer failed — fall through to main-thread mode
+        // OffscreenCanvas transfer failed — fall through to main-thread mode only if
+        // the canvas was NOT already transferred (otherwise getContext('2d') will throw)
       }
     }
     
-    // Main-thread mode: get real 2D context
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctxRef.current = ctx;
+    // Main-thread mode: get real 2D context (only safe if canvas was not transferred)
+    if (!canvasTransferred) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctxRef.current = ctx;
+    }
   }, [ctxRef]);
   
   // Resize worker canvas when dimensions change
