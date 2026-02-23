@@ -61,7 +61,10 @@ import {
   TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
-  BH_THETA,
+  BH_THETA_SQ,
+  UNLINKED_REPULSION_DIST_SQ,
+  MAX_VELOCITY_SQ,
+  TERRAIN_MAX_VELOCITY_SQ,
   COLLISION_PADDING,
   COLLISION_RESOLVE,
   COLLISION_VEL_DAMPENING,
@@ -217,6 +220,9 @@ export function useNodePhysics({
   // Reusable Maps for BH mass computation (cleared & refilled each frame)
   const normalizedMassesRef = useRef<Map<number, number>>(new Map());
   const treeMassesRef = useRef<Map<number, number>>(new Map());
+  // Topology-stable caches: Math.log / Math.log2 results computed once per topology change
+  const cachedLogMassesRef = useRef<Map<number, number>>(new Map());    // id → 1 + log(raw)
+  const cachedDegreeFactorsRef = useRef<Map<number, number>>(new Map()); // id → 1 + log2(1 + conn)
   
   // Barnes-Hut quadtree pool
   const quadPoolRef = useRef<QuadNode[]>([]);
@@ -771,6 +777,22 @@ export function useNodePhysics({
     inReferenceLinkCountsRef.current = inReferenceLinkCounts;
     outReferenceLinkCountsRef.current = outReferenceLinkCounts;
     allReferenceLinkCountsRef.current = allReferenceLinkCounts;
+    
+    // Pre-compute transcendental functions for BH masses (avoid Math.log/log2 per frame)
+    const cachedLogMasses = new Map<number, number>();
+    for (const node of nodes) {
+      const raw = massCache.get(node.id) ?? 1;
+      cachedLogMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
+    }
+    cachedLogMassesRef.current = cachedLogMasses;
+    
+    const cachedDegreeFactors = new Map<number, number>();
+    for (const node of nodes) {
+      const connCount = connectionCounts.get(node.id) ?? 0;
+      cachedDegreeFactors.set(node.id, 1 + Math.log2(1 + connCount));
+    }
+    cachedDegreeFactorsRef.current = cachedDegreeFactors;
+    
     topologyDirtyRef.current = false;
     terrainDataDirtyRef.current = true; // Recompute terrain heights/radii on topology change
   }, []);
@@ -1259,13 +1281,15 @@ export function useNodePhysics({
       // Barnes-Hut N-body simulation
       if (usePhysics) {
         
-        // Reuse Maps across frames to avoid GC pressure at 4k+ nodes
+        // Reuse Maps across frames to avoid GC pressure at 4k+ nodes.
+        // Log-based normalized masses are pre-computed at topology-rebuild time
+        // (cachedLogMassesRef) to eliminate per-frame Math.log calls.
         const normalizedMasses = normalizedMassesRef.current;
         normalizedMasses.clear();
         if (useMass) {
+          const cachedLogMasses = cachedLogMassesRef.current;
           for (const node of nodes) {
-            const raw = massCache.get(node.id) ?? 1;
-            normalizedMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
+            normalizedMasses.set(node.id, cachedLogMasses.get(node.id) ?? 1);
           }
         }
         // When mass mode is off, use uniform mass 1 for all nodes so the
@@ -1281,13 +1305,14 @@ export function useNodePhysics({
         // clusters apart, preventing the "hairball" collapse into a dense core.
         // Note: nodeMass (used for force division) is NOT degree-scaled, so
         // hubs push harder without becoming harder to push.
-        const connectionCounts = connectionCountsRef.current;
+        // Degree factors are pre-computed at topology-rebuild time (cachedDegreeFactorsRef)
+        // to eliminate per-frame Math.log2 calls.
+        const cachedDegreeFactors = cachedDegreeFactorsRef.current;
         const treeMasses = treeMassesRef.current;
         treeMasses.clear();
         for (const node of nodes) {
           const base = useMass ? (normalizedMasses.get(node.id) ?? 1) : 1;
-          const connCount = connectionCounts.get(node.id) ?? 0;
-          const degreeFactor = 1 + Math.log2(1 + connCount);
+          const degreeFactor = cachedDegreeFactors.get(node.id) ?? 1;
           treeMasses.set(node.id, base * degreeFactor);
         }
         const tree = buildQuadtreeRef.current(nodes, treeMasses);
@@ -1310,14 +1335,16 @@ export function useNodePhysics({
               const dx = cell.cx - node.x;
               const dy = cell.cy - node.y;
               const distSq = dx * dx + dy * dy;
-              const dist = Math.sqrt(distSq) || 1;
               
               if (cell.nodeIdx === i) continue;
               
               const cellSize = cell.x1 - cell.x0;
               
-              if (cell.nodeIdx >= 0 || (cellSize / dist) < BH_THETA) {
-                if (dist < UNLINKED_REPULSION_DISTANCE) {
+              // Opening criterion: cellSize/dist < θ  ↔  cellSize² < θ²·distSq
+              // Defers Math.sqrt to the force-application branch only (~48k fewer sqrts/frame at 4k nodes)
+              if (cell.nodeIdx >= 0 || cellSize * cellSize < BH_THETA_SQ * distSq) {
+                if (distSq < UNLINKED_REPULSION_DIST_SQ) {
+                  const dist = Math.sqrt(distSq) || 1;
                   const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
                   const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * warmupMultiplier;
                   const fx = (dx / dist) * force;
@@ -1629,15 +1656,19 @@ export function useNodePhysics({
         }
       }
       
-      // Update positions
+      // Update positions + accumulate kinetic energy (merged to save an O(n) pass)
       const velDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
       const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
+      const maxVelSq = isTerrainModeNow ? TERRAIN_MAX_VELOCITY_SQ : MAX_VELOCITY_SQ;
       const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
+      let totalKE = 0;
       for (const node of nodes) {
+        const speedSq = node.vx * node.vx + node.vy * node.vy;
+        totalKE += speedSq;
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
-          const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-          if (speed > maxVel) {
-            const scale = maxVel / speed;
+          // Guard: only compute sqrt when velocity actually exceeds max
+          if (speedSq > maxVelSq) {
+            const scale = maxVel / Math.sqrt(speedSq);
             node.vx *= scale;
             node.vy *= scale;
           }
@@ -1915,28 +1946,17 @@ export function useNodePhysics({
         }
       }
       
-      // Cleanup quadtree refs
-      const bhStack = bhStackRef.current;
-      for (let i = 0, len = bhStack.length; i < len; i++) {
-        bhStack[i] = null;
-      }
-      
-      const pool = quadPoolRef.current;
-      const usedPoolSize = quadPoolIdxRef.current;
-      for (let i = usedPoolSize, len = pool.length; i < len; i++) {
-        pool[i].c0 = pool[i].c1 = pool[i].c2 = pool[i].c3 = null;
-      }
+      // Reset quadtree pool index for next frame (allocQuadNode nulls children on reuse)
+      // BH stack entries are overwritten each frame — no need to null them.
+      quadPoolIdxRef.current = 0;
       
       // Sleep detection: put simulation to sleep when total kinetic energy is negligible
+      // (totalKE was accumulated during the velocity integration loop above)
       {
         const sleepThreshold = isTerrainModeNow ? TERRAIN_SLEEP_THRESHOLD : GRAPH_SLEEP_THRESHOLD;
         const sleepFrames = isTerrainModeNow ? TERRAIN_SLEEP_FRAMES : GRAPH_SLEEP_FRAMES;
-        let totalEnergy = 0;
-        for (const node of nodes) {
-          totalEnergy += node.vx * node.vx + node.vy * node.vy;
-        }
-        kineticEnergyRef.current = totalEnergy;
-        if (totalEnergy < sleepThreshold) {
+        kineticEnergyRef.current = totalKE;
+        if (totalKE < sleepThreshold) {
           sleepCounterRef.current++;
           if (sleepCounterRef.current > sleepFrames) {
             simulationSleepingRef.current = true;

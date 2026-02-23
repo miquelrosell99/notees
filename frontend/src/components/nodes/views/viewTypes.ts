@@ -232,6 +232,12 @@ export const REFERENCE_LINK_FORCE_MULTIPLIER = 0.3;
 
 // Barnes-Hut
 export const BH_THETA = 0.7;
+export const BH_THETA_SQ = BH_THETA * BH_THETA;
+
+// Pre-computed squared distances (avoid sqrt in hot loops)
+export const UNLINKED_REPULSION_DIST_SQ = UNLINKED_REPULSION_DISTANCE * UNLINKED_REPULSION_DISTANCE;
+export const MAX_VELOCITY_SQ = MAX_VELOCITY * MAX_VELOCITY;
+export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCITY;
 
 // Collision resolution (position-based)
 export const COLLISION_PADDING = 1.05;
