@@ -1108,29 +1108,6 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     const { x: screenX, y: screenY } = getCanvasCoordinates(e);
     const now = Date.now();
     
-    // Check link click
-    const link = getLinkAtPosition(screenX, screenY);
-    if (link) {
-      const lastLink = lastClickedLinkRef.current;
-      const isSameLink = lastLink && 
-        ((lastLink.source === link.source && lastLink.target === link.target) ||
-         (lastLink.source === link.target && lastLink.target === link.source));
-      
-      const currentSelection = selectedNodeIds;
-      const bothSelected = currentSelection.includes(link.source) && currentSelection.includes(link.target);
-      
-      if (isSameLink && bothSelected) {
-        onSelectionChange?.([]);
-        lastClickedLinkRef.current = null;
-      } else {
-        onSelectionChange?.([link.source, link.target]);
-        lastClickedLinkRef.current = { source: link.source, target: link.target };
-      }
-      return;
-    }
-    
-    lastClickedLinkRef.current = null;
-    
     // Check node click
     const node = getNodeAtPosition(screenX, screenY);
     
