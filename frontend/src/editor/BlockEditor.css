@@ -885,6 +885,10 @@ body.notees-dragging-block .bullet-interactive:hover {
   transform: none;
 }
 
+body.notees-dragging-block .bullet-interactive:hover::after {
+  background-color: transparent;
+}
+
 body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
   opacity: 0.55;
 }
