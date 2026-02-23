@@ -393,8 +393,8 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
     if (lod === 2) {
       // LOD 2: All links as thin hairlines in a single batched path — no dashing, no dots
       ctx.beginPath();
-      ctx.strokeStyle = hexToRgba(outlineColor, 0.2);
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = hexToRgba(outlineColor, 0.35);
+      ctx.lineWidth = 0.8;
       ctx.setLineDash(LINE_DASH_NONE);
       for (const link of visibleLinks) {
         const source = nodeMap.get(link.source);
@@ -433,7 +433,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         const renderAsParent = isParentLink || isExtendsLink;
         
         ctx.beginPath();
-        ctx.strokeStyle = hexToRgba(outlineColor, 0.4);
+        ctx.strokeStyle = hexToRgba(outlineColor, 0.5);
         ctx.lineWidth = 1;
         if (renderAsParent || isClassLink) {
           ctx.setLineDash(LINE_DASH_NONE);
@@ -474,7 +474,7 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       const renderAsParent = isParentLink || isExtendsLink;
       
       ctx.beginPath();
-      ctx.strokeStyle = hexToRgba(outlineColor, 0.4);
+      ctx.strokeStyle = hexToRgba(outlineColor, 0.5);
       ctx.lineWidth = 1.5;
       
       if (renderAsParent || isClassLink) {
@@ -638,10 +638,10 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
       // Draw dim nodes
       if (dimBucket.length > 0) {
         ctx.beginPath();
-        ctx.fillStyle = hexToRgba(dimColor, 0.15);
+        ctx.fillStyle = hexToRgba(dimColor, 0.2);
         for (const p of dimBucket) {
-          ctx.moveTo(p.x + 1.5, p.y);
-          ctx.arc(p.x, p.y, 1.5, 0, 2 * Math.PI);
+          ctx.moveTo(p.x + 2.5, p.y);
+          ctx.arc(p.x, p.y, 2.5, 0, 2 * Math.PI);
         }
         ctx.fill();
       }
@@ -651,8 +651,8 @@ export const GraphRenderer = forwardRef<GraphRendererRef, GraphRendererProps>(({
         ctx.beginPath();
         ctx.fillStyle = color;
         for (const p of bucket) {
-          ctx.moveTo(p.x + 2, p.y);
-          ctx.arc(p.x, p.y, 2, 0, 2 * Math.PI);
+          ctx.moveTo(p.x + 3, p.y);
+          ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
         }
         ctx.fill();
       }

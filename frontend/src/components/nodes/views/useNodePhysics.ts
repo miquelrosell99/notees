@@ -791,7 +791,10 @@ export function useNodePhysics({
     const cachedDegreeFactors = new Map<number, number>();
     for (const node of nodes) {
       const connCount = connectionCounts.get(node.id) ?? 0;
-      cachedDegreeFactors.set(node.id, 1 + Math.log2(1 + connCount));
+      // Cap degree factor at 3.0 to prevent hubs from inflating the graph.
+      // Without capping, nodes with 20+ connections get 5x+ tree mass,
+      // scattering everything around them.
+      cachedDegreeFactors.set(node.id, Math.min(3.0, 1 + Math.log2(1 + connCount)));
     }
     cachedDegreeFactorsRef.current = cachedDegreeFactors;
     
