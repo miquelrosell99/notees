@@ -187,33 +187,35 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 // ==================== Physics Constants ====================
 
 // Linked pair attraction
-// Obsidian/Logseq use short rest distances (~30-50 equiv) and strong springs.
-// Shorter rest + stronger pull → tight linked clusters with clear structure.
-export const LINKED_ATTRACTION_DISTANCE = 70;
-export const ATTRACTION_STRENGTH = 0.06;
-export const ATTRACTION_STRENGTH_LINK_COUNT = 0.012;
-export const LINK_DAMPING = 0.12;
+// At 4k nodes, aggregate repulsion from hundreds of nearby unlinked nodes
+// overwhelms weak springs. Very strong springs + short rest distance create
+// tight linked clusters that visually stand out against the repulsion field.
+export const LINKED_ATTRACTION_DISTANCE = 40;
+export const ATTRACTION_STRENGTH = 0.18;
+export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
+export const LINK_DAMPING = 0.15;
 
 // Unlinked repulsion
-// Previous 6000@600 was ~200x stronger than d3-force, scattering 4k-node graphs.
-// 2000@300 gives strong local separation but lets clusters form organically.
-export const REPULSION_STRENGTH = 2000;
-export const UNLINKED_REPULSION_DISTANCE = 300;
-export const MIN_REPULSION_DISTANCE = 15;
+// Previous 2000@300 still created uniform scatter at 4k nodes because
+// each node had 100-200 others within range. Shorter range (150) means
+// far fewer nodes contribute repulsion, letting springs dominate.
+export const REPULSION_STRENGTH = 800;
+export const UNLINKED_REPULSION_DISTANCE = 150;
+export const MIN_REPULSION_DISTANCE = 12;
 
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
 
 // Centering gravity
-// Warmup gravity: per-node pull toward canvas center during initial layout (ramps with warmup)
-// Stronger gravity keeps the graph compact and prevents infinite expansion.
-export const CENTER_GRAVITY = 0.004;
+// Warmup gravity: light pull toward center. Too strong = crushes clusters together.
+// Let clusters form naturally and use sustained gravity only for drift correction.
+export const CENTER_GRAVITY = 0.002;
 // Sustained gravity: permanent center-of-mass drift correction to prevent eternal expansion
-export const CENTER_GRAVITY_SUSTAINED = 0.008;
+export const CENTER_GRAVITY_SUSTAINED = 0.005;
 
 // Velocity constraints
-export const MAX_VELOCITY = 12;
-export const VELOCITY_DAMPING = 0.88;
+export const MAX_VELOCITY = 10;
+export const VELOCITY_DAMPING = 0.85;
 export const VELOCITY_DEADZONE = 0.01;
 export const TERRAIN_VELOCITY_DAMPING = 0.80;
 export const TERRAIN_VELOCITY_DEADZONE = 0.1;
