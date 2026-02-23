@@ -346,8 +346,9 @@ export const getRenderSkip = (nodeCount: number): number => {
   if (nodeCount < 500) return 2;
   if (nodeCount < 1000) return 3;
   if (nodeCount < 2000) return 4;
-  if (nodeCount < 4000) return 5;
-  return 6;
+  if (nodeCount < 4000) return 6;
+  if (nodeCount < 8000) return 8;
+  return 10;
 };
 
 /**

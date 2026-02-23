@@ -212,6 +212,12 @@ export function useNodePhysics({
   // Spatial hash grid for O(n) collision resolution
   const collisionGridRef = useRef<Map<number, number[]>>(new Map());
   
+  // Reusable typed arrays for per-frame computation (avoids GC thrashing at 4k+ nodes)
+  const nodeRadiiRef = useRef<Float64Array>(new Float64Array(0));
+  // Reusable Maps for BH mass computation (cleared & refilled each frame)
+  const normalizedMassesRef = useRef<Map<number, number>>(new Map());
+  const treeMassesRef = useRef<Map<number, number>>(new Map());
+  
   // Barnes-Hut quadtree pool
   const quadPoolRef = useRef<QuadNode[]>([]);
   const quadPoolIdxRef = useRef(0);
@@ -1166,6 +1172,12 @@ export function useNodePhysics({
       
       let maxConnections = 0, maxMass = 0, maxContentSize = 0;
       const linkDir = currentSettings.linkDirection;
+      
+      // Single pass: compute per-node stats + build nodeMap + compute center-of-mass
+      // (merges what were 3-4 separate loops over all nodes)
+      const nodeMap = frameNodeMapRef.current;
+      nodeMap.clear();
+      let comX = 0, comY = 0, comCount = 0;
       for (const node of nodes) {
         const mass = useMass ? (massCache.get(node.id) ?? 1) : 1;
         (node as GraphNode & { _mass?: number })._mass = mass;
@@ -1173,12 +1185,12 @@ export function useNodePhysics({
         if (dirCount > maxConnections) maxConnections = dirCount;
         if (mass > maxMass) maxMass = mass;
         if (node.contentSize > maxContentSize) maxContentSize = node.contentSize;
-      }
-      
-      const nodeMap = frameNodeMapRef.current;
-      nodeMap.clear();
-      for (const node of nodes) {
         nodeMap.set(node.id, node);
+        if (!node.pinned) {
+          comX += node.x;
+          comY += node.y;
+          comCount++;
+        }
       }
       
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
@@ -1228,19 +1240,13 @@ export function useNodePhysics({
         // kinetic energy that would keep nodes perpetually moving.
         // The same delta is applied to every node so the relative layout
         // is not distorted — only the global drift is corrected.
+        // (COM was pre-computed in the merged stats loop above)
         {
-          let comX = 0, comY = 0, count = 0;
-          for (const node of nodes) {
-            if (node.pinned) continue;
-            comX += node.x;
-            comY += node.y;
-            count++;
-          }
-          if (count > 0) {
-            comX /= count;
-            comY /= count;
-            const driftX = (cx - comX) * CENTER_GRAVITY_SUSTAINED;
-            const driftY = (cy - comY) * CENTER_GRAVITY_SUSTAINED;
+          if (comCount > 0) {
+            const avgX = comX / comCount;
+            const avgY = comY / comCount;
+            const driftX = (cx - avgX) * CENTER_GRAVITY_SUSTAINED;
+            const driftY = (cy - avgY) * CENTER_GRAVITY_SUSTAINED;
             for (const node of nodes) {
               if (dragNodeRef.current?.id === node.id || node.pinned) continue;
               node.x += driftX;
@@ -1253,7 +1259,9 @@ export function useNodePhysics({
       // Barnes-Hut N-body simulation
       if (usePhysics) {
         
-        const normalizedMasses = new Map<number, number>();
+        // Reuse Maps across frames to avoid GC pressure at 4k+ nodes
+        const normalizedMasses = normalizedMassesRef.current;
+        normalizedMasses.clear();
         if (useMass) {
           for (const node of nodes) {
             const raw = massCache.get(node.id) ?? 1;
@@ -1266,8 +1274,6 @@ export function useNodePhysics({
         // dividing by 1, making parents super-repulsive and inflating
         // spacing.  Switching to mass mode then appeared to shrink links
         // because normalized masses are much smaller than the raw ones.
-        const uniformMasses = useMass ? normalizedMasses : null;
-        const baseMasses = uniformMasses ?? new Map<number, number>(nodes.map(n => [n.id, 1]));
         
         // Degree-scaled repulsion: hubs (highly-connected nodes) get higher
         // mass in the Barnes-Hut tree so they repel neighbors more strongly.
@@ -1276,9 +1282,10 @@ export function useNodePhysics({
         // Note: nodeMass (used for force division) is NOT degree-scaled, so
         // hubs push harder without becoming harder to push.
         const connectionCounts = connectionCountsRef.current;
-        const treeMasses = new Map<number, number>();
+        const treeMasses = treeMassesRef.current;
+        treeMasses.clear();
         for (const node of nodes) {
-          const base = baseMasses.get(node.id) ?? 1;
+          const base = useMass ? (normalizedMasses.get(node.id) ?? 1) : 1;
           const connCount = connectionCounts.get(node.id) ?? 0;
           const degreeFactor = 1 + Math.log2(1 + connCount);
           treeMasses.set(node.id, base * degreeFactor);
@@ -1671,11 +1678,17 @@ export function useNodePhysics({
       // Uses spatial hash grid for O(n) average-case instead of O(n²) brute force.
       // Runs AFTER velocity integration so position corrections are the
       // final authority and aren't partially undone by node.x += node.vx.
-      const skipCollisions = isConstrainedMode && currentSettings.constraintMode === 'equidistant';
+      // Skip during early warmup — nodes are moving fast and collisions just burn CPU.
+      const skipCollisions = (isConstrainedMode && currentSettings.constraintMode === 'equidistant')
+        || warmupT < 0.5;
       
       if (!skipCollisions) {
         // Pre-compute radii for all visible nodes (avoid recomputing inside inner loop)
-        const nodeRadii = new Float64Array(nodes.length);
+        // Reuse typed array across frames — only reallocate when node count grows
+        if (nodeRadiiRef.current.length < nodes.length) {
+          nodeRadiiRef.current = new Float64Array(Math.max(nodes.length, 512));
+        }
+        const nodeRadii = nodeRadiiRef.current;
         let maxCollisionRadius = 0;
         for (let i = 0; i < nodes.length; i++) {
           if (!nodes[i].visible) { nodeRadii[i] = 0; continue; }
