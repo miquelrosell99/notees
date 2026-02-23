@@ -199,8 +199,8 @@ export const LINK_DAMPING = 0.22;
 // Previous 2000@300 still created uniform scatter at 4k nodes because
 // each node had 100-200 others within range. Shorter range (150) means
 // far fewer nodes contribute repulsion, letting springs dominate.
-export const REPULSION_STRENGTH = 800;
-export const UNLINKED_REPULSION_DISTANCE = 150;
+export const REPULSION_STRENGTH = 1500;
+export const UNLINKED_REPULSION_DISTANCE = 200;
 export const MIN_REPULSION_DISTANCE = 12;
 
 // Return-to-target force (constrained modes)
@@ -209,9 +209,9 @@ export const RETURN_FORCE = 0.05;
 // Centering gravity
 // Warmup gravity: light pull toward center. Too strong = crushes clusters together.
 // Let clusters form naturally and use sustained gravity only for drift correction.
-export const CENTER_GRAVITY = 0.002;
+export const CENTER_GRAVITY = 0.001;
 // Sustained gravity: permanent center-of-mass drift correction to prevent eternal expansion
-export const CENTER_GRAVITY_SUSTAINED = 0.005;
+export const CENTER_GRAVITY_SUSTAINED = 0.002;
 
 // Velocity constraints
 export const MAX_VELOCITY = 10;
@@ -222,11 +222,12 @@ export const TERRAIN_VELOCITY_DEADZONE = 0.1;
 export const TERRAIN_LINK_DAMPING = 0.12;
 export const TERRAIN_MAX_VELOCITY = 10;
 
-// Post-warmup cooling: after warmup, progressively increase damping over
-// COOLING_DURATION frames, ramping from VELOCITY_DAMPING toward COOLING_DAMPING_TARGET.
-// This ensures the simulation converges to a frozen state instead of stirring forever.
-export const COOLING_DURATION_FRAMES = 300;
-export const COOLING_DAMPING_TARGET = 0.55;
+// Post-warmup cooling: after warmup, progressively increase damping and
+// reduce force multiplier over COOLING_DURATION frames. This ensures the
+// simulation converges to equilibrium instead of stirring forever.
+export const COOLING_DURATION_FRAMES = 200;
+export const COOLING_DAMPING_TARGET = 0.50;
+export const COOLING_FORCE_MIN = 0.30;  // forces scale to 30% at full cooling
 
 // Sleep tuning (uses average KE per node, not total)
 export const GRAPH_SLEEP_THRESHOLD = 0.00005;
