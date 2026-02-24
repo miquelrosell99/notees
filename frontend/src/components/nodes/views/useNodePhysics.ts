@@ -31,9 +31,6 @@ import {
   // Constants
   LINKED_ATTRACTION_DISTANCE,
   LINK_DISTANCE_DEGREE_SCALE,
-  ATTRACTION_STRENGTH,
-  ATTRACTION_STRENGTH_LINK_COUNT,
-  LINK_DAMPING,
   REPULSION_STRENGTH,
   UNLINKED_REPULSION_DISTANCE,
   MIN_REPULSION_DISTANCE,
@@ -41,7 +38,6 @@ import {
   VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DEADZONE,
-  TERRAIN_LINK_DAMPING,
   TERRAIN_MAX_VELOCITY,
   GRAPH_SLEEP_THRESHOLD,
   GRAPH_SLEEP_FRAMES,
@@ -1195,8 +1191,6 @@ export function useNodePhysics({
       }
       
       const connectedPairs = connectedPairsRef.current;
-      const linkForceJitter = linkForceJitterRef.current;
-      const linkDistJitter = linkDistJitterRef.current;
       const adjacency = adjacencyRef.current;
       const massCache = massCacheRef.current;
       const useMass = currentSettings.heightMode === 'hierarchy';
@@ -1354,7 +1348,7 @@ export function useNodePhysics({
           }
         }
         
-        // Link attraction
+        // Link attraction (d3-force style)
         for (const link of links) {
           const nodeA = nodeMap.get(link.source);
           const nodeB = nodeMap.get(link.target);
@@ -1369,12 +1363,9 @@ export function useNodePhysics({
           const dy = nodeB.y - nodeA.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
           
-          let attractionStrength = ATTRACTION_STRENGTH;
-          if (currentSettings.linkCountAttraction) {
-            const totalConnections = nodeA.connectionCount + nodeB.connectionCount;
-            const linkFactor = Math.log2(2 + totalConnections);
-            attractionStrength = ATTRACTION_STRENGTH_LINK_COUNT * linkFactor;
-          }
+          // d3 link strength: 1 / min(degreeA, degreeB)
+          // This automatically weakens springs on hubs so all links stretch proportionally.
+          let linkStrength = 1 / Math.min(nodeA.connectionCount || 1, nodeB.connectionCount || 1);
           
           // In terrain mode, skip attraction for reference links entirely —
           // they use only the minimum-separation force for valley routing
@@ -1382,9 +1373,9 @@ export function useNodePhysics({
             if (link.type === 'reference' || link.type === 'property-reference') continue;
           } else {
             if (link.type === 'property-reference') {
-              attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
+              linkStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
             } else if (link.type === 'reference') {
-              attractionStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+              linkStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
             }
           }
           
@@ -1397,60 +1388,20 @@ export function useNodePhysics({
             restDist += LINK_DISTANCE_DEGREE_SCALE * Math.log2(minDeg);
           }
           
-          // Apply per-link random jitter for parent and sibling links
-          const forceJitter = linkForceJitter.get(key);
-          if (forceJitter !== undefined) {
-            attractionStrength *= forceJitter;
-            restDist *= linkDistJitter.get(key) ?? 1;
-          }
-          
-          // d3-force: spring force applied as velocity delta, split by mass ratio
-          // d3 default link strength = 1 / min(degreeA, degreeB)
-          let netForce = (dist - restDist) * attractionStrength * alpha;
-          
-          const massA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
-          const massB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
-          
-          const rvx = nodeB.vx - nodeA.vx;
-          const rvy = nodeB.vy - nodeA.vy;
-          const relVelAlongSpring = (rvx * dx + rvy * dy) / dist;
-          const linkDamping = isTerrainModeNow ? TERRAIN_LINK_DAMPING : LINK_DAMPING;
-          netForce += relVelAlongSpring * linkDamping;
-          
-          const sfx = (dx / dist) * netForce;
-          const sfy = (dy / dist) * netForce;
-          
-          // Repulsion compensation: cancel BH repulsion between linked pairs
-          // so the spring alone sets link length. Without this, local density
-          // variation causes wildly different link lengths.
-          let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
-          if (dist < UNLINKED_REPULSION_DISTANCE) {
-            const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-            const clampedDistSq = clampedDist * clampedDist;
-            const dirX = dx / dist;
-            const dirY = dy / dist;
-            // Estimate BH repulsion that was applied to each node and cancel it.
-            // In the BH loop: node.vx -= (REPULSION_STRENGTH * cell.mass / clampedDistSq) * alpha * dirX / nodeMass
-            // nodeMass = normalizedMasses, treeMass = normalizedMasses * degreeFactor
-            const nodeMassA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
-            const nodeMassB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
-            const treeMassA = treeMasses.get(nodeA.id) ?? 1;
-            const treeMassB = treeMasses.get(nodeB.id) ?? 1;
-            const compA = (REPULSION_STRENGTH * treeMassB / clampedDistSq) * alpha;
-            compAx = dirX * compA / nodeMassA;
-            compAy = dirY * compA / nodeMassA;
-            const compB = (REPULSION_STRENGTH * treeMassA / clampedDistSq) * alpha;
-            compBx = dirX * compB / nodeMassB;
-            compBy = dirY * compB / nodeMassB;
-          }
+          // d3-force: pure Hooke's law. Force = (dist - distance) * strength * alpha
+          // No velocity-based spring damping, no jitter.
+          const bias = 0.5; // d3 default: equal split between source and target
+          const force = (dist - restDist) / dist * linkStrength * alpha;
+          const fx = dx * force;
+          const fy = dy * force;
           
           if (!nodeA.pinned) {
-            nodeA.vx += sfx / massA + compAx;
-            nodeA.vy += sfy / massA + compAy;
+            nodeA.vx += fx * bias;
+            nodeA.vy += fy * bias;
           }
           if (!nodeB.pinned) {
-            nodeB.vx -= sfx / massB + compBx;
-            nodeB.vy -= sfy / massB + compBy;
+            nodeB.vx -= fx * (1 - bias);
+            nodeB.vy -= fy * (1 - bias);
           }
         }
       }
