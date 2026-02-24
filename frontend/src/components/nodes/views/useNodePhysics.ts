@@ -1251,7 +1251,9 @@ export function useNodePhysics({
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
         
-        // COM recentering (position translation)
+        // COM recentering (position translation, NOT velocity-based).
+        // This is a rigid frame translation that keeps the centroid at canvas center
+        // without injecting energy — intentionally bypasses the force pipeline.
         if (comCount > 0) {
           const avgX = comX / comCount;
           const avgY = comY / comCount;
@@ -1417,7 +1419,8 @@ export function useNodePhysics({
         }
       }
       
-      // Terrain mode: cone-based collision avoidance
+      // Terrain mode: cone-based collision avoidance (velocity-based)
+      // Uses velocity so the force goes through damping + integration like all other forces.
       if (isTerrainModeNow && usePhysics) {
         const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
         const terrainHeights = frameDataRef.current.terrainHeights;
@@ -1454,12 +1457,12 @@ export function useNodePhysics({
             if (dist >= effectiveConeRadius) continue;
             
             const overlap = effectiveConeRadius - dist;
-            const correction = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
+            const force = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
             const nx = dx / dist;
             const ny = dy / dist;
             
-            shortNode.x += nx * correction;
-            shortNode.y += ny * correction;
+            shortNode.vx += nx * force;
+            shortNode.vy += ny * force;
           }
         }
       }
@@ -1507,7 +1510,8 @@ export function useNodePhysics({
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
       const currentLinkDirection = currentSettings.linkDirection;
       
-      // Tangential overlap prevention (constrained modes)
+      // Tangential overlap prevention (constrained modes, velocity-based)
+      // Uses velocity so the force goes through damping + integration like all other forces.
       if (isConstrainedMode && currentSettings.constraintMode !== 'equidistant') {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
@@ -1548,22 +1552,22 @@ export function useNodePhysics({
             const tangY = radialX * sign;
             
             const overlap = minGlareDist - dist;
-            const correction = overlap * TANGENTIAL_OVERLAP_RESOLVE;
+            const force = overlap * TANGENTIAL_OVERLAP_RESOLVE;
             
             const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
             const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
             
             if (aMovable && bMovable) {
-              a.x -= tangX * correction * 0.5;
-              a.y -= tangY * correction * 0.5;
-              b.x += tangX * correction * 0.5;
-              b.y += tangY * correction * 0.5;
+              a.vx -= tangX * force * 0.5;
+              a.vy -= tangY * force * 0.5;
+              b.vx += tangX * force * 0.5;
+              b.vy += tangY * force * 0.5;
             } else if (aMovable) {
-              a.x -= tangX * correction;
-              a.y -= tangY * correction;
+              a.vx -= tangX * force;
+              a.vy -= tangY * force;
             } else if (bMovable) {
-              b.x += tangX * correction;
-              b.y += tangY * correction;
+              b.vx += tangX * force;
+              b.vy += tangY * force;
             }
           }
         }
@@ -1627,6 +1631,9 @@ export function useNodePhysics({
           totalKE += node.vx * node.vx + node.vy * node.vy;
           mobileCount++;
           
+          // Constraint projection (position-based, NOT velocity-based).
+          // Projects nodes back onto their designated ring radius after integration.
+          // This is a geometric constraint, not a force — intentionally bypasses velocity.
           if (isConstrainedMode) {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
             if (treeRadius !== undefined) {
