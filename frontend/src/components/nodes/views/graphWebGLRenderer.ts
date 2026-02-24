@@ -76,17 +76,23 @@ void main() {
 }
 `;
 
-// Edge vertex: expand a unit quad [-0.5..0.5, 0..1] along the edge direction.
-// a_local.x = side (-0.5 or +0.5), a_local.y = t (0 or 1, start vs end)
+/**
+ * Edge vertex shader — reads endpoint positions from the RG32F position texture
+ * rather than from per-instance vertex data.  This means:
+ *   • Edge instance buffer is STATIC topology (sourceIdx, targetIdx, width, color).
+ *   • Positions are uploaded once per frame as a texture on the main thread.
+ *   • No per-frame edge CPU repack when nodes move — GPU does the lookup.
+ *   • Camera pan/zoom never touches edge data at all.
+ */
 const EDGE_VERT_SRC = /* glsl */ `#version 300 es
 precision highp float;
 
-// Per-vertex (local edge-quad coords)
-in vec2 a_local; // x = side (-0.5..0.5), y = t (0..1)
+// Per-vertex local quad coords
+in vec2  a_local; // x = side (-0.5..0.5), y = t (0..1 along edge)
 
-// Per-instance
-in vec2  a_p1;    // world-space start
-in vec2  a_p2;    // world-space end
+// Per-instance — STATIC topology, no positions baked in
+in float a_i1;    // source node index → texelFetch into u_positions
+in float a_i2;    // target node index → texelFetch into u_positions
 in float a_width; // world-space half-width
 in vec4  a_color; // RGBA 0..1
 
@@ -95,19 +101,27 @@ uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
 
+// RG32F position texture: texel(i, 0).rg = (x, y) for node i
+uniform highp sampler2D u_positions;
+
 out vec4 v_color;
 
 void main() {
   v_color = a_color;
 
-  vec2 dir  = a_p2 - a_p1;
+  // Zero-copy GPU-side position read
+  int si = int(a_i1);
+  int ti = int(a_i2);
+  vec2 p1 = texelFetch(u_positions, ivec2(si, 0), 0).rg;
+  vec2 p2 = texelFetch(u_positions, ivec2(ti, 0), 0).rg;
+
+  vec2 dir  = p2 - p1;
   float len = length(dir);
   vec2 perp = (len > 0.001)
     ? vec2(-dir.y, dir.x) / len
     : vec2(0.0, 1.0);
 
-  // world-space position of this quad vertex
-  vec2 base  = mix(a_p1, a_p2, a_local.y);
+  vec2 base  = mix(p1, p2, a_local.y);
   vec2 world = base + perp * a_local.x * a_width;
 
   vec2 screen = (world - u_camera) * u_zoom;
@@ -161,9 +175,9 @@ export interface CameraState {
 }
 
 // Floats per node instance
-const NODE_STRIDE  = 7; // x, y, radius, r, g, b, a
-// Floats per edge instance
-const EDGE_STRIDE  = 9; // x1, y1, x2, y2, width, r, g, b, a
+const NODE_STRIDE = 7; // x, y, radius, r, g, b, a
+// Floats per edge instance (no positions baked in — GPU samples from texture)
+const EDGE_STRIDE = 7; // i1, i2, width, r, g, b, a
 
 // ─── WebGL Helpers ────────────────────────────────────────────────────────────
 
@@ -289,13 +303,19 @@ export class GraphWebGLRenderer {
   private nodeInstData: Float32Array = new Float32Array(0);
   private nodeInstCount = 0;
 
-  // --- Edge VAO / buffers ---
+  // --- Edge VAO / buffers (STATIC topology) ---
   private edgeVAO: WebGLVertexArrayObject | null = null;
   private edgeQuadBuf: WebGLBuffer | null = null;
   private edgeInstBuf: WebGLBuffer | null = null;
   private edgeInstCapacity = 0;
   private edgeInstData: Float32Array = new Float32Array(0);
   private edgeInstCount = 0;
+
+  // --- Position texture (RG32F) ---
+  // Uploaded once per physics frame; edge shader samples by node index.
+  // Eliminates all per-frame O(E) edge CPU work.
+  private posTex: WebGLTexture | null = null;
+  private posTexWidth = 0; // currently allocated texture width (= node count)
 
   // --- Camera ---
   private camera: CameraState = { x: 0, y: 0, zoom: 1 };
@@ -316,20 +336,28 @@ export class GraphWebGLRenderer {
   private edges: Array<{ source: number; target: number }> = [];
 
   // --- Cached uniform locations (looked up once at init, not per frame) ---
-  private nodeUniforms: { resolution: WebGLUniformLocation | null; camera: WebGLUniformLocation | null; zoom: WebGLUniformLocation | null } = { resolution: null, camera: null, zoom: null };
-  private edgeUniforms: { resolution: WebGLUniformLocation | null; camera: WebGLUniformLocation | null; zoom: WebGLUniformLocation | null } = { resolution: null, camera: null, zoom: null };
+  private nodeUniforms: {
+    resolution: WebGLUniformLocation | null;
+    camera: WebGLUniformLocation | null;
+    zoom: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null };
+
+  private edgeUniforms: {
+    resolution: WebGLUniformLocation | null;
+    camera: WebGLUniformLocation | null;
+    zoom: WebGLUniformLocation | null;
+    positions: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null };
 
   // --- Pre-allocated typed arrays for uniforms (zero per-frame GC) ---
   private readonly _resBuf = new Float32Array(2);
   private readonly _camBuf = new Float32Array(2);
 
-  // --- Dirty tracking: defer packing to render() ---
-  /** True when positions or topology changed since last pack. */
-  private _dirty = false;
-  /** Previous camera state used for packing — re-pack if camera moved. */
-  private _packCamX = NaN;
-  private _packCamY = NaN;
-  private _packCamZoom = NaN;
+  // --- Fine-grained dirty flags ---
+  /** True when physics delivered new positions → upload texture + repack nodes. */
+  private _posDirty = false;
+  /** True when edges or node IDs changed → rebuild static edge instance buffer. */
+  private _edgeDirty = false;
 
   // --- Options ---
   private opts: Required<RendererOptions>;
@@ -379,10 +407,12 @@ export class GraphWebGLRenderer {
       resolution: gl.getUniformLocation(this.edgeProg, 'u_resolution'),
       camera:     gl.getUniformLocation(this.edgeProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.edgeProg, 'u_zoom'),
+      positions:  gl.getUniformLocation(this.edgeProg, 'u_positions'),
     };
 
     this._initNodeBuffers();
     this._initEdgeBuffers();
+    this._initPositionTexture();
     ensureThemeObserver();
 
     this.canvasW = canvas.width;
@@ -403,6 +433,7 @@ export class GraphWebGLRenderer {
     gl.deleteBuffer(this.edgeInstBuf);
     gl.deleteVertexArray(this.nodeVAO);
     gl.deleteVertexArray(this.edgeVAO);
+    gl.deleteTexture(this.posTex);
 
     this.gl = null;
   }
@@ -467,36 +498,54 @@ export class GraphWebGLRenderer {
     gl.enableVertexAttribArray(aLocal);
     gl.vertexAttribPointer(aLocal, 2, gl.FLOAT, false, 0, 0);
 
-    // Dynamic instance buffer
+    // Static topology instance buffer
+    // Layout: [ i1(f32), i2(f32), width(f32), r, g, b, a ] = 7 floats = 28 bytes
     this.edgeInstCapacity = this.opts.initialCapacity * EDGE_STRIDE;
     this.edgeInstData     = new Float32Array(this.edgeInstCapacity);
     this.edgeInstBuf      = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstData, gl.DYNAMIC_DRAW);
 
-    const STRIDE  = EDGE_STRIDE * 4;
-    const aP1     = gl.getAttribLocation(this.edgeProg!, 'a_p1');
-    const aP2     = gl.getAttribLocation(this.edgeProg!, 'a_p2');
-    const aWidth  = gl.getAttribLocation(this.edgeProg!, 'a_width');
-    const aColor  = gl.getAttribLocation(this.edgeProg!, 'a_color');
+    const STRIDE = EDGE_STRIDE * 4; // 28 bytes
+    const aI1    = gl.getAttribLocation(this.edgeProg!, 'a_i1');
+    const aI2    = gl.getAttribLocation(this.edgeProg!, 'a_i2');
+    const aWidth = gl.getAttribLocation(this.edgeProg!, 'a_width');
+    const aColor = gl.getAttribLocation(this.edgeProg!, 'a_color');
 
-    gl.enableVertexAttribArray(aP1);
-    gl.vertexAttribPointer(aP1, 2, gl.FLOAT, false, STRIDE, 0);
-    gl.vertexAttribDivisor(aP1, 1);
+    // a_i1: float at offset 0
+    gl.enableVertexAttribArray(aI1);
+    gl.vertexAttribPointer(aI1, 1, gl.FLOAT, false, STRIDE, 0);
+    gl.vertexAttribDivisor(aI1, 1);
 
-    gl.enableVertexAttribArray(aP2);
-    gl.vertexAttribPointer(aP2, 2, gl.FLOAT, false, STRIDE, 8);
-    gl.vertexAttribDivisor(aP2, 1);
+    // a_i2: float at offset 4
+    gl.enableVertexAttribArray(aI2);
+    gl.vertexAttribPointer(aI2, 1, gl.FLOAT, false, STRIDE, 4);
+    gl.vertexAttribDivisor(aI2, 1);
 
+    // a_width: float at offset 8
     gl.enableVertexAttribArray(aWidth);
-    gl.vertexAttribPointer(aWidth, 1, gl.FLOAT, false, STRIDE, 16);
+    gl.vertexAttribPointer(aWidth, 1, gl.FLOAT, false, STRIDE, 8);
     gl.vertexAttribDivisor(aWidth, 1);
 
+    // a_color: vec4 at offset 12
     gl.enableVertexAttribArray(aColor);
-    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 20);
+    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
     gl.vertexAttribDivisor(aColor, 1);
 
     gl.bindVertexArray(null);
+  }
+
+  private _initPositionTexture(): void {
+    const gl = this.gl!;
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    // Nearest filtering — we use exact texelFetch, no interpolation
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    this.posTex = tex;
   }
 
   // ─── Dynamic updates ───────────────────────────────────────────────────────
@@ -518,11 +567,15 @@ export class GraphWebGLRenderer {
       this.nodeIdOrder[i] = id;
       this.nodeIndex.set(id, i);
     }
+    // Node indices changed — edge topology needs re-resolution
+    this._edgeDirty = true;
+    this._posDirty  = true;
   }
 
   /** Replace the edge list. Edges reference node IDs. */
   setEdges(edges: Array<{ source: number; target: number }>): void {
     this.edges = edges;
+    this._edgeDirty = true;
   }
 
   /**
@@ -539,11 +592,10 @@ export class GraphWebGLRenderer {
       for (let i = 0; i < nodeIds.length; i++) {
         this.nodeIndex.set(nodeIds[i], i);
       }
+      // Node order changed — re-resolve edge indices
+      this._edgeDirty = true;
     }
-    // Don't pack here — defer to render() so packing + upload + draw are
-    // batched in the same RAF frame.  Multiple worker messages between
-    // frames just overwrite the positions pointer (cheap).
-    this._dirty = true;
+    this._posDirty = true;
   }
 
   /** Override a single node's position (e.g., during drag on main thread). */
@@ -553,7 +605,7 @@ export class GraphWebGLRenderer {
     if (this.positions.length >= (idx + 1) * 2) {
       this.positions[idx * 2]     = x;
       this.positions[idx * 2 + 1] = y;
-      this._dirty = true;
+      this._posDirty = true;
     }
   }
 
@@ -561,6 +613,7 @@ export class GraphWebGLRenderer {
 
   setCamera(x: number, y: number, zoom: number): void {
     this.camera = { x, y, zoom };
+    // Camera is only a uniform — no dirty flag needed, no CPU repack required.
   }
 
   /** Call after canvas resize. */
@@ -589,65 +642,74 @@ export class GraphWebGLRenderer {
       gl.bufferData(gl.ARRAY_BUFFER, this.nodeInstCapacity * 4, gl.DYNAMIC_DRAW);
     }
 
-    const { x: cx, y: cy, zoom } = this.camera;
-    const cullM = this.opts.cullMargin;
-    const halfW = this.canvasW * 0.5;
-    const halfH = this.canvasH * 0.5;
-
     const pos = this.positions;
     const defaultColor = getCssNodeDefaultColor();
-    let count = 0;
 
+    // No CPU culling — GPU clip space discards off-screen quads for free.
     for (let i = 0; i < n; i++) {
-      const id  = this.nodeIdOrder[i];
-      const px  = pos[i * 2];
-      const py  = pos[i * 2 + 1];
-
-      // Single visuals lookup per node (was previously looked up twice)
+      const id     = this.nodeIdOrder[i];
       const vis    = this.nodeVisuals.get(id);
       const radius = vis?.radius ?? this.opts.defaultRadius;
-
-      // CPU-side culling (world → screen)
-      if (cullM > 0) {
-        const r   = radius * zoom;
-        const sx  = (px - cx) * zoom;
-        const sy  = (py - cy) * zoom;
-        if (
-          sx + r < -halfW - cullM ||
-          sx - r >  halfW + cullM ||
-          sy + r < -halfH - cullM ||
-          sy - r >  halfH + cullM
-        ) continue;
-      }
-
       const color  = vis?.color;
       const def    = color ? null : defaultColor;
 
-      const base = count * NODE_STRIDE;
-      this.nodeInstData[base    ] = px;
-      this.nodeInstData[base + 1] = py;
+      const base = i * NODE_STRIDE;
+      this.nodeInstData[base    ] = pos[i * 2];
+      this.nodeInstData[base + 1] = pos[i * 2 + 1];
       this.nodeInstData[base + 2] = radius;
       this.nodeInstData[base + 3] = color ? color[0] : def![0];
       this.nodeInstData[base + 4] = color ? color[1] : def![1];
       this.nodeInstData[base + 5] = color ? color[2] : def![2];
       this.nodeInstData[base + 6] = color ? color[3] : def![3];
-      count++;
     }
 
-    this.nodeInstCount = count;
+    this.nodeInstCount = n;
 
     const gl = this.gl!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeInstBuf);
-    gl.bufferSubData(
-      gl.ARRAY_BUFFER,
-      0,
-      this.nodeInstData,
-      0,
-      count * NODE_STRIDE,
-    );
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.nodeInstData, 0, n * NODE_STRIDE);
   }
 
-  private _packEdgeInstances(): void {
+  /**
+   * Upload the current positions Float32Array directly as an RG32F texture.
+   * Each texel (i, 0) stores (x, y) for node i.
+   * This is a single DMA transfer — the positions buffer IS the texture data.
+   */
+  private _uploadPositionTexture(): void {
+    const gl = this.gl!;
+    const n = this.nodeIdOrder.length;
+    if (n === 0 || !this.posTex) return;
+
+    gl.bindTexture(gl.TEXTURE_2D, this.posTex);
+
+    if (n !== this.posTexWidth) {
+      // Reallocate texture storage for new node count
+      gl.texImage2D(
+        gl.TEXTURE_2D, 0,
+        gl.RG32F,        // internal format: two 32-bit floats per texel
+        n, 1, 0,
+        gl.RG, gl.FLOAT,
+        this.positions.subarray(0, n * 2),
+      );
+      this.posTexWidth = n;
+    } else {
+      // Update existing allocation (no GPU realloc — cheaper)
+      gl.texSubImage2D(
+        gl.TEXTURE_2D, 0,
+        0, 0, n, 1,
+        gl.RG, gl.FLOAT,
+        this.positions.subarray(0, n * 2),
+      );
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  /**
+   * Resolve edge source/target IDs → node indices and pack into the static
+   * edge instance buffer.  Runs ONLY on topology change, never when nodes move.
+   */
+  private _rebuildEdgeTopology(): void {
     const edges = this.edges;
     const ne = edges.length;
     const needed = ne * EDGE_STRIDE;
@@ -661,50 +723,25 @@ export class GraphWebGLRenderer {
       gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstCapacity * 4, gl.DYNAMIC_DRAW);
     }
 
-    const { x: cx, y: cy, zoom } = this.camera;
-    const cullM = this.opts.cullMargin;
-    const halfW = this.canvasW * 0.5;
-    const halfH = this.canvasH * 0.5;
-
     const [er, eg, eb, ea] = getCssEdgeColor();
     const width = this.opts.edgeWidth;
-    const pos   = this.positions;
 
     let count = 0;
-
     for (let i = 0; i < ne; i++) {
       const { source, target } = edges[i];
       const si = this.nodeIndex.get(source);
       const ti = this.nodeIndex.get(target);
       if (si === undefined || ti === undefined) continue;
 
-      const x1 = pos[si * 2];
-      const y1 = pos[si * 2 + 1];
-      const x2 = pos[ti * 2];
-      const y2 = pos[ti * 2 + 1];
-
-      // Cull edges: skip if both endpoints are offscreen
-      if (cullM > 0) {
-        const s1x = (x1 - cx) * zoom, s1y = (y1 - cy) * zoom;
-        const s2x = (x2 - cx) * zoom, s2y = (y2 - cy) * zoom;
-        const minX = Math.min(s1x, s2x), maxX = Math.max(s1x, s2x);
-        const minY = Math.min(s1y, s2y), maxY = Math.max(s1y, s2y);
-        if (
-          maxX < -halfW - cullM || minX > halfW + cullM ||
-          maxY < -halfH - cullM || minY > halfH + cullM
-        ) continue;
-      }
-
+      // Store indices as floats — shader casts to int via int()
       const base = count * EDGE_STRIDE;
-      this.edgeInstData[base    ] = x1;
-      this.edgeInstData[base + 1] = y1;
-      this.edgeInstData[base + 2] = x2;
-      this.edgeInstData[base + 3] = y2;
-      this.edgeInstData[base + 4] = width;
-      this.edgeInstData[base + 5] = er;
-      this.edgeInstData[base + 6] = eg;
-      this.edgeInstData[base + 7] = eb;
-      this.edgeInstData[base + 8] = ea;
+      this.edgeInstData[base    ] = si;   // source node index
+      this.edgeInstData[base + 1] = ti;   // target node index
+      this.edgeInstData[base + 2] = width;
+      this.edgeInstData[base + 3] = er;
+      this.edgeInstData[base + 4] = eg;
+      this.edgeInstData[base + 5] = eb;
+      this.edgeInstData[base + 6] = ea;
       count++;
     }
 
@@ -712,13 +749,7 @@ export class GraphWebGLRenderer {
 
     const gl = this.gl!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
-    gl.bufferSubData(
-      gl.ARRAY_BUFFER,
-      0,
-      this.edgeInstData,
-      0,
-      count * EDGE_STRIDE,
-    );
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.edgeInstData, 0, count * EDGE_STRIDE);
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -728,33 +759,40 @@ export class GraphWebGLRenderer {
     const gl = this.gl;
     if (!gl) return;
 
-    // Re-pack instances if positions changed OR camera moved since last pack
-    const { x: cx, y: cy, zoom } = this.camera;
-    const cameraMoved = cx !== this._packCamX || cy !== this._packCamY || zoom !== this._packCamZoom;
-    if (this._dirty || cameraMoved) {
-      this._dirty = false;
-      this._packCamX    = cx;
-      this._packCamY    = cy;
-      this._packCamZoom  = zoom;
-      this._packNodeInstances();
-      this._packEdgeInstances();
+    // ── Topology rebuild (O(E), only when graph structure changes) ──
+    if (this._edgeDirty) {
+      this._edgeDirty = false;
+      this._rebuildEdgeTopology();
+    }
+
+    // ── Position update (O(N), every physics frame) ──
+    // Upload positions texture + repack node instances.
+    // Camera movement does NOT reach this path — camera is just a uniform.
+    if (this._posDirty) {
+      this._posDirty = false;
+      this._uploadPositionTexture(); // zero-copy: positions buffer IS the texture data
+      this._packNodeInstances();     // O(N): positions + radii + colors per node
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Reuse pre-allocated typed arrays — zero per-frame allocation
+    const { x: cx, y: cy, zoom } = this.camera;
     this._resBuf[0] = this.canvasW;
     this._resBuf[1] = this.canvasH;
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
-    // ── Draw edges ────────────────────────────────────────────
-    if (this.edgeInstCount > 0) {
+    // ── Draw edges (GPU samples positions from texture — O(1) CPU per frame) ──
+    if (this.edgeInstCount > 0 && this.posTex) {
       gl.useProgram(this.edgeProg);
       gl.bindVertexArray(this.edgeVAO);
       gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
       gl.uniform2fv(this.edgeUniforms.camera, this._camBuf);
       gl.uniform1f( this.edgeUniforms.zoom, zoom);
+      // Bind position texture to unit 0 for the edge shader
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.posTex);
+      gl.uniform1i(this.edgeUniforms.positions, 0);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.edgeInstCount);
     }
 
