@@ -195,8 +195,8 @@ export const ATTRACTION_STRENGTH = 0.1;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
 export const LINK_DAMPING = 0.45;
 
-// Unlinked repulsion (Logseq: strength -600, distanceMax 500)
-export const REPULSION_STRENGTH = 600;
+// Unlinked repulsion
+export const REPULSION_STRENGTH = 3000;
 export const UNLINKED_REPULSION_DISTANCE = 500;
 export const MIN_REPULSION_DISTANCE = 1;
 
@@ -207,7 +207,7 @@ export const RETURN_FORCE = 0.05;
 // Connected nodes resist via springs; orphans settle at the radius where
 // gravity = repulsion, forming a natural ring at the periphery.
 // This is equivalent to d3.forceX(cx) + d3.forceY(cy) with the given strength.
-export const CENTER_GRAVITY_STRENGTH = 0.03;
+export const CENTER_GRAVITY_STRENGTH = 0.01;
 
 // Velocity constraints (d3-force: velocityDecay=0.4 → multiply by 0.6)
 // Logseq uses velocityDecay=0.6 → multiply by 0.4
@@ -238,7 +238,7 @@ export const DRAG_PULL_STRENGTH = 0.03;
 export const PARENT_MASS_PER_CHILD = 1.0;
 
 // Reference link force multiplier (weaker than parent/class)
-export const REFERENCE_LINK_FORCE_MULTIPLIER = 0.3;
+export const REFERENCE_LINK_FORCE_MULTIPLIER = 1.0;
 
 // Barnes-Hut
 export const BH_THETA = 0.7;
