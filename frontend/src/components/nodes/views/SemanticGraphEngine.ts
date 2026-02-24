@@ -394,18 +394,18 @@ function findConnectedComponents(
 const DEFAULT_CONFIG: SGEConfig = {
   seed: 42,
 
-  springStrength: 0.08,
+  springStrength: 0.06,
   idealDistance: 80,
 
-  clusterStrength: 0.012,
+  clusterStrength: 0.002,
   clusterRepelStrength: 8000,
   clusterSpacing: 200,
 
-  localRepelStrength: 2000,
-  localRepelRadius: 120,
+  localRepelStrength: 4000,
+  localRepelRadius: 500,
 
-  radialStrength: 0.002,
-  componentCenterStrength: 0.005,
+  radialStrength: 0.001,
+  componentCenterStrength: 0.001,
   componentSpacing: 500,
 
   damping: 0.88,
