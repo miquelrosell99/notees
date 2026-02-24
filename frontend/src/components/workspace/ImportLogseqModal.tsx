@@ -4,12 +4,14 @@
  * Import flow (7 phases):
  * 1. Create classes (type nodes)
  * 2. Create properties (with correct backend field names)
- * 3. Create all nodes (pages + blocks) with classes assigned at creation,
- *    using plain-text names initially — builds UUID→nodeInfo map
+ * 3. Create all nodes (pages + blocks) with UUID-only skeletons (no name, no
+ *    parent, no classes) — registers every UUID in DB before any content is written
  * 4. Bind properties to classes
  * 5. Assign property values to nodes
- * 6. Update node content with proper AST containing node_link entries,
- *    which triggers the backend to create link records automatically
+ * 6. Combined update pass: name (with [[uuid]] links resolved) + parent +
+ *    sequence + classes for every page and block created in step 3.
+ *    Because all UUIDs exist at this point, every link resolves correctly.
+ * 7. Standalone-block content (from EDN block exports) — Phase 7 in old numbering
  * 7. Assign aliases between pages (from logseq.property/alias)
  *
  * Every operation is wrapped in try/catch so a single failure never aborts
@@ -35,7 +37,7 @@ import { batchSetPropertyValues, batchAddClassProperties } from '@/api/propertie
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
-import type { PropertyType, Property, Node } from '@/types/api';
+import type { PropertyType, Property, Node, BatchNodeUpdateItem } from '@/types/api';
 import './ImportLogseqModal.css';
 
 // ── Error tracking types ───────────────────────────────────────
@@ -557,15 +559,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // PHASE 3: Create all nodes (pages + blocks) + wire hierarchy
       //
       // Strategy:
-      //   3a) Journal pages: sequential getOrCreateDaily
-      //   3b) Journal additive: parallel fetch of existing child counts
+      //   3a) Journal pages: batch getOrCreateDaily
+      //   3b) Journal additive: fetch existing child counts
       //   3c) Regular pages: parallel existence checks
-      //   3d) Override mode: parallel delete of existing blocks
-      //   3e) Batch-create new regular pages
-      //   3f) Existing-page metadata updates (name / classes) — parallel
-      //   3g) Flatten ALL block trees into one list (no parent_id yet)
-      //   3h) Batch-create all blocks in chunks
-      //   3i) Batch-update all blocks with parent_id + sequence
+      //   3d) Override: parallel delete of existing blocks
+      //   3e) Batch-create new pages — UUID skeleton only (no name, no classes)
+      //   3f) Batch-create all blocks — UUID skeleton only (no name, no parent)
+      //   3g) Combined update: name + parent + sequence + classes for everything
+      //       [[uuid]] links resolve fully because all UUIDs are in the DB now
       // ──────────────────────────────────────────────────────────
       const p3 = createPhase('Create nodes');
       phases.push(p3);
@@ -663,14 +664,12 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         ]);
       }
 
-      // ── 3e: Batch-create new regular pages ──────────────────────
+      // ── 3e: Batch-create new pages — UUID skeleton only ─────────
       if (pagesToCreate.length > 0) {
         setImportStatus(`Creating ${pagesToCreate.length} new pages…`);
         try {
           const batchResult = await batchCreateNodes({
-            nodes: pagesToCreate.map(({ page, pageClasses }) => ({
-              name: page.title,
-              classes: pageClasses,
+            nodes: pagesToCreate.map(({ page }) => ({
               ...(page.uuid ? { uuid: page.uuid } : {}),
             })),
           });
@@ -696,22 +695,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
       }
 
-      // ── 3f: Existing-page metadata updates — parallel ────────────
-      await Promise.all(regularPages.map(async (page, i) => {
-        const existingPage = existingPageMap.get(page.title);
-        if (!existingPage) return;
-        if (override && nodeNameToText(existingPage.name) !== page.title) {
-          try { await updateNodeMutation.mutateAsync({ id: existingPage.id, data: { name: page.title } }); } catch { /* ignore */ }
-        }
-        const existingClassIds = new Set(existingPage.classes ?? []);
-        for (const classId of regularPageClasses[i]) {
-          if (!existingClassIds.has(classId)) {
-            try { await addClassMutation.mutateAsync({ nodeId: existingPage.id, classId }); } catch { /* already has class */ }
-          }
-        }
-      }));
-
-      // ── 3g: Flatten ALL block trees into one list ────────────────
+      // ── 3f: Flatten ALL block trees into one list ─────────────────
       type FlatBlock = {
         block: LogseqBlock;
         classes: number[];
@@ -767,8 +751,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           try {
             const batchResult = await batchCreateNodes({
               nodes: chunk.map(item => ({
-                name: '',
-                ...(item.classes.length > 0 ? { classes: item.classes } : {}),
                 ...(item.block.uuid ? { uuid: item.block.uuid } : {}),
               })),
             });
@@ -778,7 +760,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 const info: NodeInfo = { id: result.node.id, uuid: result.node.uuid };
                 tempIdxToNodeInfo.set(item.tempIdx, info);
                 if (item.block.uuid) uuidMap.set(item.block.uuid, info);
-                if (item.block.title) contentQueue.push({ id: result.node.id, title: item.block.title });
                 p3.succeeded++;
               } else {
                 // UUID conflict: try to recover the existing node
@@ -790,7 +771,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                       const info: NodeInfo = { id: existing.id, uuid: existing.uuid };
                       tempIdxToNodeInfo.set(item.tempIdx, info);
                       uuidMap.set(item.block.uuid, info);
-                      if (item.block.title && override) contentQueue.push({ id: existing.id, title: item.block.title });
                       p3.succeeded++;
                       recovered = true;
                     }
@@ -817,10 +797,32 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
       }
 
-      // ── 3i: Batch-update all blocks with parent_id + sequence ────
-      if (flatBlocks.length > 0) {
-        setImportStatus('Wiring block parents…');
-        const updateItems: Array<{ id: number; parent_id: number; sequence: number }> = [];
+      // ── 3g: Combined update — name + parent + sequence + classes ─
+      // All UUIDs are now registered, so [[uuid]] links resolve fully.
+      {
+        setImportStatus('Setting content and wiring nodes…');
+        const combinedItems: BatchNodeUpdateItem[] = [];
+
+        // Regular pages: new → name + classes; existing → conditional name + class union
+        for (let i = 0; i < regularPages.length; i++) {
+          const page = regularPages[i];
+          const nodeInfo = titleToNodeInfo.get(page.title);
+          if (!nodeInfo) continue;
+          const existingPage = existingPageMap.get(page.title);
+          const item: BatchNodeUpdateItem = { id: nodeInfo.id };
+          if (!existingPage) {
+            item.name = page.title;
+            if (regularPageClasses[i].length > 0) item.classes = regularPageClasses[i];
+          } else {
+            if (override && nodeNameToText(existingPage.name) !== page.title) item.name = page.title;
+            const existing = new Set(existingPage.classes ?? []);
+            const toAdd = regularPageClasses[i].filter(c => !existing.has(c));
+            if (toAdd.length > 0) item.classes = [...(existingPage.classes ?? []), ...toAdd];
+          }
+          if (item.name !== undefined || item.classes !== undefined) combinedItems.push(item);
+        }
+
+        // Blocks: name (AST w/ links resolved) + parent_id + sequence + classes
         for (const item of flatBlocks) {
           const nodeInfo = tempIdxToNodeInfo.get(item.tempIdx);
           if (!nodeInfo) continue;
@@ -831,13 +833,25 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             parentId = tempIdxToNodeInfo.get(item.parent.tempIdx)?.id;
           }
           if (!parentId) continue;
-          updateItems.push({ id: nodeInfo.id, parent_id: parentId, sequence: item.sequence });
+          let name = '';
+          if (item.block.title) {
+            try {
+              const ast = buildAstFromLogseqText(item.block.title, uuidMap, titleToNodeInfo);
+              name = ast.length > 0 ? JSON.stringify(ast) : '';
+            } catch {
+              name = item.block.title;
+            }
+          }
+          const updateItem: BatchNodeUpdateItem = { id: nodeInfo.id, name, parent_id: parentId, sequence: item.sequence };
+          if (item.classes.length > 0) updateItem.classes = item.classes;
+          combinedItems.push(updateItem);
         }
-        for (let offset = 0; offset < updateItems.length; offset += BATCH_CHUNK) {
+
+        for (let offset = 0; offset < combinedItems.length; offset += BATCH_CHUNK) {
           try {
-            await batchUpdateNodes({ nodes: updateItems.slice(offset, offset + BATCH_CHUNK) });
+            await batchUpdateNodes({ nodes: combinedItems.slice(offset, offset + BATCH_CHUNK) });
           } catch (e) {
-            console.error('Failed to wire block parents:', e);
+            console.error('Failed combined update pass:', e);
           }
         }
       }
@@ -1056,18 +1070,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 6: Update node content with proper AST + links — batched
+      // PHASE 6: Set content for standalone blocks (main import uses combined pass in step 3g)
       // ──────────────────────────────────────────────────────────
-      const p6 = createPhase('Set content & links');
+      const p6 = createPhase('Set standalone block content');
       phases.push(p6);
-      // Build nodeId→uuid reverse lookup for error reporting
-      const nodeIdToUuid = new Map<number, string>();
-      for (const [uuid, info] of uuidMap) nodeIdToUuid.set(info.id, uuid);
 
       if (contentQueue.length > 0) {
-        // Build batch items, converting content to AST ahead of time
+        const nodeIdToUuid = new Map<number, string>();
+        for (const [uuid, info] of uuidMap) nodeIdToUuid.set(info.id, uuid);
+
         const batchItems: Array<{ id: number; name: string }> = [];
-        const BATCH_SIZE = 50; // Send in chunks to avoid oversized requests
+        const BATCH_SIZE = 50;
 
         for (const { id, title } of contentQueue) {
           if (!title) continue;
@@ -1080,18 +1093,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           }
         }
 
-        // Send in chunks
         for (let offset = 0; offset < batchItems.length; offset += BATCH_SIZE) {
           const chunk = batchItems.slice(offset, offset + BATCH_SIZE);
-          setImportStatus(`Setting content with links (${offset + 1}–${offset + chunk.length} of ${batchItems.length})…`);
+          setImportStatus(`Setting standalone block content (${offset + 1}–${offset + chunk.length} of ${batchItems.length})…`);
           const batchResult = await batchUpdateNodes({ nodes: chunk });
           for (const result of batchResult.results) {
-            if (result.success) {
-              p6.succeeded++;
-              tick();
-            } else {
-              p6.failed++;
-              tick();
+            if (result.success) { p6.succeeded++; tick(); }
+            else {
+              p6.failed++; tick();
               const item = chunk[result.index];
               const itemUuid = item ? nodeIdToUuid.get(item.id) : undefined;
               p6.errors.push({ item: `Node ${item?.id}${itemUuid ? ` [${itemUuid}]` : ''}`, message: result.error || 'Unknown error' });
