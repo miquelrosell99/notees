@@ -4,7 +4,7 @@ from typing import Optional, List, Dict
 from fastapi import APIRouter, HTTPException, Depends, Path
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError
+from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError, SystemClassConstraintError
 from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
 from ..auth import get_current_user
 from ...models import User
@@ -193,6 +193,8 @@ async def batch_update_nodes(
             "data": data,
             "expected_version": item.expected_version,
             "original_index": i,
+            "classes": item.classes,
+            "properties": item.properties,
         })
     
     # Execute batch update via service
@@ -216,6 +218,15 @@ async def batch_update_nodes(
     for j, r in enumerate(raw_results):
         original_index = update_items[j]["original_index"]
         if r["success"]:
+            node_id = update_items[j]["node_id"]
+            item_classes = update_items[j]["classes"]
+            item_properties = update_items[j]["properties"]
+            # Apply class reconciliation and property values if provided
+            if item_classes is not None or item_properties:
+                try:
+                    await _apply_node_extras(service, node_id, item_classes, item_properties)
+                except Exception as extras_err:
+                    logger.warning(f"[BATCH_UPDATE] extras failed for node {node_id}: {extras_err}")
             updated += 1
             results.append(BatchNodeUpdateResultItem(
                 index=original_index,
@@ -963,6 +974,58 @@ async def get_page_content(
     return page_response
 
 
+async def _apply_node_extras(service, node_id: int, classes, properties) -> None:
+    """Reconcile classes and apply property values alongside a core node update.
+
+    - ``classes``: when not None, the node's classes are set to exactly this list
+      (adds missing, removes extras — Odoo-style).
+    - ``properties``: dict of {property_id: value}; each pair is applied using
+      the same dispatch logic as the ``POST /{node_id}/properties`` endpoint.
+    """
+    if classes is not None:
+        async with acquire_connection(service._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, service._workspace_id,
+            )
+        current = set(row["class_ids"] or []) if row else set()
+        want = set(classes)
+        for cls_id in want - current:
+            await service.add_class(node_id, cls_id)
+        for cls_id in current - want:
+            await service.remove_class(node_id, cls_id)
+
+    if properties:
+        from ...domain.entities.property import SCALAR_TYPES, RELATION_TYPES
+        repo = service._property_repo
+        for prop_id, value in properties.items():
+            prop = await repo.get_by_id(prop_id)
+            if not prop:
+                continue
+            if prop.type in SCALAR_TYPES:
+                await repo.set_scalar_value(node_id, prop_id, value)
+            elif prop.type in RELATION_TYPES:
+                if value == "" or value is None:
+                    await repo.assign_property_to_node(node_id, prop_id)
+                elif isinstance(value, list):
+                    unique_vals = list(dict.fromkeys(value))
+                    await repo.clear_relation_values(node_id, prop_id)
+                    for target_id in unique_vals:
+                        await repo.set_relation_value(node_id, prop_id, int(target_id))
+                else:
+                    await repo.set_relation_value(node_id, prop_id, int(value))
+            else:  # SELECTION
+                if value == "" or value is None:
+                    await repo.assign_property_to_node(node_id, prop_id)
+                elif isinstance(value, list):
+                    unique_vals = list(dict.fromkeys(value))
+                    await repo.clear_selection_values(node_id, prop_id)
+                    for sel_id in unique_vals:
+                        await repo.set_selection_value(node_id, prop_id, int(sel_id))
+                else:
+                    await repo.set_selection_value(node_id, prop_id, int(value))
+
+
 @router.put("/{node_id}")
 async def update_node(
     node_id: int,
@@ -1001,10 +1064,16 @@ async def update_node(
             raise HTTPException(404, "Node not found")
         
         logger.info(f"[UPDATE_NODE] result node.color={node.color!r}")
-        
+
+        # Apply class reconciliation and property values if provided
+        if request.classes is not None or request.properties:
+            await _apply_node_extras(service, node_id, request.classes, request.properties)
+
         return _node_to_response(node)
     except OptimisticLockError as e:
         raise HTTPException(409, str(e))
+    except SystemClassConstraintError as e:
+        raise HTTPException(422, str(e))
 
 
 @router.put("/{node_id}/move")

@@ -250,6 +250,10 @@ export interface NodeUpdate {
   sequence?: number | null;
   collapsed?: boolean | null;
   expected_version?: number;  // For optimistic locking
+  /** When provided, reconcile node classes to exactly this set (Odoo-style write) */
+  classes?: number[];
+  /** When provided, apply each property_id -> value pair */
+  properties?: Record<number, unknown>;
 }
 
 // ==================== Batch Read Operations ====================
@@ -341,6 +345,10 @@ export interface BatchNodeUpdateItem {
   sequence?: number | null;
   collapsed?: boolean | null;
   expected_version?: number;
+  /** When provided, reconcile node classes to exactly this set */
+  classes?: number[];
+  /** When provided, apply each property_id -> value pair */
+  properties?: Record<number, unknown>;
 }
 
 /**
