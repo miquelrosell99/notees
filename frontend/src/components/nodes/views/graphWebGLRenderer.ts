@@ -822,6 +822,8 @@ export class GraphWebGLRenderer {
     const gl = this.gl!;
     const n = this.nodeIdOrder.length;
     if (n === 0 || !this.posTex) return;
+    // Positions buffer not yet received from physics worker — skip silently.
+    if (this.positions.length < n * 2) return;
 
     gl.bindTexture(gl.TEXTURE_2D, this.posTex);
 
