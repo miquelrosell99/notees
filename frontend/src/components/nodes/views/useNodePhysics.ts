@@ -30,6 +30,7 @@ import type {
 import {
   // Constants
   LINKED_ATTRACTION_DISTANCE,
+  LINK_DISTANCE_DEGREE_SCALE,
   ATTRACTION_STRENGTH,
   ATTRACTION_STRENGTH_LINK_COUNT,
   LINK_DAMPING,
@@ -1388,6 +1389,13 @@ export function useNodePhysics({
           }
           
           let restDist = LINKED_ATTRACTION_DISTANCE;
+          
+          // Degree-based distance scaling: leaf→hub = short, hub→hub = long.
+          // This creates tight spoke clusters around hubs with longer bridges between clusters.
+          const minDeg = Math.min(nodeA.connectionCount, nodeB.connectionCount);
+          if (minDeg > 1) {
+            restDist += LINK_DISTANCE_DEGREE_SCALE * Math.log2(minDeg);
+          }
           
           // Apply per-link random jitter for parent and sibling links
           const forceJitter = linkForceJitter.get(key);

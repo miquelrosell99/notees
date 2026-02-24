@@ -187,7 +187,10 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 // ==================== Physics Constants ====================
 
 // Linked pair attraction (Logseq: distance 70, strength 0.1)
+// LINKED_ATTRACTION_DISTANCE is the BASE rest distance for leaf→hub links (degree 1).
+// For hub→hub links, rest distance scales up with min(degreeA, degreeB).
 export const LINKED_ATTRACTION_DISTANCE = 70;
+export const LINK_DISTANCE_DEGREE_SCALE = 15;  // extra distance per log2(minDegree)
 export const ATTRACTION_STRENGTH = 0.1;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
 export const LINK_DAMPING = 0.45;
