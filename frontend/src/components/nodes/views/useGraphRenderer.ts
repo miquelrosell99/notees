@@ -154,6 +154,22 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const statsAccRef = useRef({ alpha: 1, energy: 0, ticks: 0 });
   const fpsRef      = useRef({ frames: 0, last: performance.now() });
 
+  // ── Dirty tracking for skip-frame optimisation ──
+  // We only re-render when something actually changed:
+  //   • Physics delivered new positions
+  //   • Camera moved (pan/zoom)
+  //   • Hover or selection changed
+  const dirtyRef = useRef({
+    positions: false,
+    camera: false,
+    hover: false,
+    /** Last camera state we rendered at */
+    lastCamX: 0, lastCamY: 0, lastCamZoom: 1,
+    /** Cached font string — only rebuild when zoom changes */
+    lastFontZoom: -1,
+    cachedFont: '',
+  });
+
   // Keep opts ref current so callbacks don't go stale
   useEffect(() => { optsRef.current = opts; }, [opts]);
 
@@ -196,22 +212,65 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         statsAccRef.current.alpha  = msg.alpha;
         statsAccRef.current.energy = msg.energy;
         statsAccRef.current.ticks  = msg.ticks;
+        // Mark frame dirty so the RAF loop knows to re-render
+        dirtyRef.current.positions = true;
       }
     };
 
     worker.onerror = (e) => console.error('[SGEWorker]', e);
 
     // ── RAF render loop ──
+    // Only does GPU/canvas work when something actually changed.
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop);
 
       const rend = rendRef.current;
       if (!rend) return;
 
-      // Sync camera
-      const cam = camRef.current;
-      rend.setCamera(cam.x, cam.y, cam.zoom);
+      const cam   = camRef.current;
+      const dirty = dirtyRef.current;
 
+      // Detect camera movement
+      if (cam.x !== dirty.lastCamX || cam.y !== dirty.lastCamY || cam.zoom !== dirty.lastCamZoom) {
+        dirty.camera   = true;
+        dirty.lastCamX = cam.x;
+        dirty.lastCamY = cam.y;
+        dirty.lastCamZoom = cam.zoom;
+      }
+
+      // Skip entire frame if nothing changed
+      const needsRender = dirty.positions || dirty.camera || dirty.hover;
+      if (!needsRender) {
+        // Still count FPS even on skipped frames
+        const fr = fpsRef.current;
+        fr.frames++;
+        const now = performance.now();
+        if (now - fr.last >= 1000) {
+          const fps     = Math.round((fr.frames * 1000) / (now - fr.last));
+          const s       = statsAccRef.current;
+          const rStats  = rend.stats;
+          setStats(prev => ({
+            ...prev,
+            visibleNodes: rStats.nodeInstCount,
+            visibleEdges: rStats.edgeInstCount,
+            alpha:  s.alpha,
+            energy: s.energy,
+            ticks:  s.ticks,
+            fps,
+          }));
+          fr.frames = 0;
+          fr.last   = now;
+        }
+        return;
+      }
+
+      // Clear dirty flags
+      dirty.positions = false;
+      dirty.camera    = false;
+      dirty.hover     = false;
+
+      // Sync camera & render WebGL
+      rend.setCamera(cam.x, cam.y, cam.zoom);
       rend.render();
 
       // ── 2D label overlay ──
@@ -229,17 +288,43 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             const n     = order.length;
             const dpr   = devicePixelRatio;
 
+            // Cache font string — only rebuild when zoom changes
             const fontSize  = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
+            if (dirty.lastFontZoom !== fontSize) {
+              dirty.lastFontZoom = fontSize;
+              dirty.cachedFont   = `${fontSize}px system-ui, -apple-system, sans-serif`;
+            }
             const labelAlpha = Math.min(1, (zoom - 0.25) / 0.4); // fade in
 
+            // Limit label count to avoid CPU thrash at low zoom with many nodes.
+            // At zoom < 1, many labels overlap and are unreadable anyway.
+            const maxLabels = zoom < 0.5 ? 60 : zoom < 1.0 ? 150 : 500;
+
             ctx.save();
-            ctx.globalAlpha = labelAlpha;
-            ctx.font        = `${fontSize}px system-ui, -apple-system, sans-serif`;
-            ctx.textAlign   = 'center';
+            ctx.globalAlpha  = labelAlpha;
+            ctx.font         = dirty.cachedFont;
+            ctx.textAlign    = 'center';
             ctx.textBaseline = 'top';
 
-            for (let i = 0; i < n; i++) {
+            // Use shadow for text halo instead of expensive strokeText.
+            // One fillText call per label instead of strokeText + fillText.
+            ctx.shadowColor   = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur    = 4 * dpr;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+
+            // Pre-compute viewport bounds for culling
+            const cw      = lc.width;
+            const ch      = lc.height;
+            const margin  = 100;
+            let rendered  = 0;
+
+            // Batch by fill color to minimise state changes.
+            // Phase 1: default color labels
+            ctx.fillStyle = 'rgba(200,210,225,0.80)';
+            for (let i = 0; i < n && rendered < maxLabels; i++) {
               const id = order[i];
+              if (id === selectedRef.current || id === hoveredNodeRef.current) continue;
               const name = names.get(id);
               if (!name) continue;
 
@@ -249,23 +334,43 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               const sx = sp.x * dpr;
               const sy = sp.y * dpr;
 
-              // Skip if outside canvas
-              if (sx < -200 || sx > lc.width + 200 || sy < -40 || sy > lc.height + 40) continue;
+              if (sx < -margin || sx > cw + margin || sy < -40 || sy > ch + 40) continue;
 
-              // Truncate long names
               const label = name.length > 28 ? name.slice(0, 27) + '\u2026' : name;
-
-              // Shadow / halo for readability
-              ctx.lineWidth   = 3 * dpr;
-              ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-              ctx.strokeText(label, sx, sy + 12 * dpr);
-              ctx.fillStyle   = id === selectedRef.current
-                ? 'rgba(140,190,255,0.95)'
-                : id === hoveredNodeRef.current
-                  ? 'rgba(220,235,255,0.95)'
-                  : 'rgba(200,210,225,0.80)';
               ctx.fillText(label, sx, sy + 12 * dpr);
+              rendered++;
             }
+
+            // Phase 2: hovered label (on top, brighter)
+            if (hoveredNodeRef.current >= 0 && hoveredNodeRef.current !== selectedRef.current) {
+              const hIdx = rend.nodeOrder.indexOf(hoveredNodeRef.current);
+              if (hIdx >= 0) {
+                const hName = names.get(hoveredNodeRef.current);
+                if (hName) {
+                  const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x * dpr;
+                  const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y * dpr;
+                  ctx.fillStyle = 'rgba(220,235,255,0.95)';
+                  const label = hName.length > 28 ? hName.slice(0, 27) + '\u2026' : hName;
+                  ctx.fillText(label, sx, sy + 12 * dpr);
+                }
+              }
+            }
+
+            // Phase 3: selected label (on top, accent)
+            if (selectedRef.current >= 0) {
+              const sIdx = rend.nodeOrder.indexOf(selectedRef.current);
+              if (sIdx >= 0) {
+                const sName = names.get(selectedRef.current);
+                if (sName) {
+                  const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x * dpr;
+                  const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y * dpr;
+                  ctx.fillStyle = 'rgba(140,190,255,0.95)';
+                  const label = sName.length > 28 ? sName.slice(0, 27) + '\u2026' : sName;
+                  ctx.fillText(label, sx, sy + 12 * dpr);
+                }
+              }
+            }
+
             ctx.restore();
           }
         }
@@ -469,6 +574,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       if (hit !== hoveredNodeRef.current) {
         hoveredNodeRef.current = hit;
         rend.setHoveredNode(hit);
+        dirtyRef.current.hover = true;
       }
       if (d.mode === 'none') {
         canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
@@ -509,6 +615,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         selectedRef.current = nodeId;
         setSelectedNodeId(nodeId);
         rendRef.current?.setSelectedNode(nodeId);
+        dirtyRef.current.hover = true;
         optsRef.current.onNodeClick?.(nodeId);
       }
     }
