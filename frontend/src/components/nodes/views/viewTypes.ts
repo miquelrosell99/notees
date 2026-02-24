@@ -203,10 +203,11 @@ export const MIN_REPULSION_DISTANCE = 1;
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
 
-// Centering: pure center-of-mass recentering (no force injection).
-// Every frame, all nodes are translated so the centroid stays at canvas center.
-// This keeps the graph on screen without crushing clusters into a ball.
-// No CENTER_GRAVITY constants needed — recentering is always 100%.
+// Center gravity: weak force pulling all nodes toward canvas center.
+// Connected nodes resist via springs; orphans settle at the radius where
+// gravity = repulsion, forming a natural ring at the periphery.
+// This is equivalent to d3.forceX(cx) + d3.forceY(cy) with the given strength.
+export const CENTER_GRAVITY_STRENGTH = 0.03;
 
 // Velocity constraints (d3-force: velocityDecay=0.4 → multiply by 0.6)
 // Logseq uses velocityDecay=0.6 → multiply by 0.4
