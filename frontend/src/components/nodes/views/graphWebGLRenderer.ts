@@ -132,7 +132,8 @@ void main() {
 
 export interface NodeVisual {
   radius: number;
-  color: Float32Array; // [r, g, b, a]
+  /** Explicit RGBA color. When undefined, the renderer uses --color-outline from CSS. */
+  color?: Float32Array;
 }
 
 export interface RendererOptions {
@@ -193,6 +194,62 @@ function linkProgram(
   gl.deleteShader(vert);
   gl.deleteShader(frag);
   return prog;
+}
+
+// ─── CSS colour helpers (theme-reactive) ────────────────────────────────────
+
+function hexToTuple(hex: string, alpha = 1): [number, number, number, number] {
+  const c = hex.replace('#', '');
+  const len = c.length;
+  let r = 0, g = 0, b = 0;
+  if (len === 3) {
+    r = parseInt(c[0] + c[0], 16);
+    g = parseInt(c[1] + c[1], 16);
+    b = parseInt(c[2] + c[2], 16);
+  } else if (len >= 6) {
+    r = parseInt(c.slice(0, 2), 16);
+    g = parseInt(c.slice(2, 4), 16);
+    b = parseInt(c.slice(4, 6), 16);
+  }
+  return [r / 255, g / 255, b / 255, alpha];
+}
+
+const cssCache: {
+  nodeDefault: [number, number, number, number] | null;
+  edge: [number, number, number, number] | null;
+} = { nodeDefault: null, edge: null };
+
+function invalidateCssCache() {
+  cssCache.nodeDefault = null;
+  cssCache.edge = null;
+}
+
+let themeObserverReady = false;
+function ensureThemeObserver() {
+  if (themeObserverReady || typeof MutationObserver === 'undefined') return;
+  themeObserverReady = true;
+  new MutationObserver(invalidateCssCache).observe(
+    document.documentElement,
+    { attributes: true, attributeFilter: ['data-theme', 'class'] },
+  );
+}
+
+function getCssNodeDefaultColor(): [number, number, number, number] {
+  if (!cssCache.nodeDefault) {
+    const hex = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-outline').trim();
+    cssCache.nodeDefault = hex ? hexToTuple(hex) : [0.64, 0.64, 0.64, 1.0];
+  }
+  return cssCache.nodeDefault;
+}
+
+function getCssEdgeColor(): [number, number, number, number] {
+  if (!cssCache.edge) {
+    const hex = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-outline').trim();
+    cssCache.edge = hex ? hexToTuple(hex, 0.55) : [0.6, 0.6, 0.6, 0.55];
+  }
+  return cssCache.edge;
 }
 
 // Unit quad: 6 vertices (2 triangles), each a vec2 in [-0.5, 0.5]
@@ -298,6 +355,7 @@ export class GraphWebGLRenderer {
 
     this._initNodeBuffers();
     this._initEdgeBuffers();
+    ensureThemeObserver();
 
     this.canvasW = canvas.width;
     this.canvasH = canvas.height;
@@ -505,7 +563,6 @@ export class GraphWebGLRenderer {
     const halfW = this.canvasW * 0.5;
     const halfH = this.canvasH * 0.5;
 
-    const defaultColor = this.opts.defaultNodeColor;
     const pos = this.positions;
     let count = 0;
 
@@ -531,15 +588,16 @@ export class GraphWebGLRenderer {
       const vis    = this.nodeVisuals.get(id);
       const radius = vis?.radius ?? this.opts.defaultRadius;
       const color  = vis?.color;
+      const def    = color ? null : getCssNodeDefaultColor();
 
       const base = count * NODE_STRIDE;
       this.nodeInstData[base    ] = px;
       this.nodeInstData[base + 1] = py;
       this.nodeInstData[base + 2] = radius;
-      this.nodeInstData[base + 3] = color ? color[0] : defaultColor[0];
-      this.nodeInstData[base + 4] = color ? color[1] : defaultColor[1];
-      this.nodeInstData[base + 5] = color ? color[2] : defaultColor[2];
-      this.nodeInstData[base + 6] = color ? color[3] : defaultColor[3];
+      this.nodeInstData[base + 3] = color ? color[0] : def![0];
+      this.nodeInstData[base + 4] = color ? color[1] : def![1];
+      this.nodeInstData[base + 5] = color ? color[2] : def![2];
+      this.nodeInstData[base + 6] = color ? color[3] : def![3];
       count++;
     }
 
@@ -575,7 +633,7 @@ export class GraphWebGLRenderer {
     const halfW = this.canvasW * 0.5;
     const halfH = this.canvasH * 0.5;
 
-    const [er, eg, eb, ea] = this.opts.edgeColor;
+    const [er, eg, eb, ea] = getCssEdgeColor();
     const width = this.opts.edgeWidth;
     const pos   = this.positions;
 
