@@ -33,18 +33,10 @@ import {
   UNLINKED_REPULSION_DISTANCE,
   RETURN_FORCE,
   VELOCITY_DAMPING,
-  TERRAIN_VELOCITY_DAMPING,
-  TERRAIN_VELOCITY_DEADZONE,
-  TERRAIN_MAX_VELOCITY,
-  GRAPH_SLEEP_THRESHOLD,
-  GRAPH_SLEEP_FRAMES,
-  TERRAIN_SLEEP_THRESHOLD,
-  TERRAIN_SLEEP_FRAMES,
   DRAG_PULL_STRENGTH,
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
   ALPHA_INITIAL,
-  ALPHA_MIN,
   ALPHA_DECAY,
   ALPHA_TARGET,
   ALPHA_REHEAT,
@@ -55,7 +47,6 @@ import {
   TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
-  TERRAIN_MAX_VELOCITY_SQ,
   COLLISION_PADDING,
   COLLISION_RESOLVE,
   COLLISION_LINKED_RESOLVE,
@@ -1215,13 +1206,13 @@ export function useNodePhysics({
             if (dragNodeRef.current?.id === a.id || a.pinned) continue;
             const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
             if (aRadius === undefined) continue;
-            const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
+            const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection);
             for (let j = i + 1; j < nodes.length; j++) {
               const b = nodes[j];
               if (dragNodeRef.current?.id === b.id || b.pinned) continue;
               const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
               if (bRadius === undefined) continue;
-              const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
+              const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection);
               const minGlareDist = (aGlare + bGlare) * 1.05;
               if (Math.abs(aRadius - bRadius) > minGlareDist) continue;
               const dx = b.x - a.x;
