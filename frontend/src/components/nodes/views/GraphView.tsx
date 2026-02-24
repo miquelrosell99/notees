@@ -32,7 +32,7 @@ import type {
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -78,7 +78,7 @@ export function GraphView({
   currentNodeId: _currentNodeId = null,
   showSettings = true,
   showSearch = true,
-  showViewModes: _showViewModes = true,
+  showViewModes = true,
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
   const rendererRef = useRef<SGEGraphViewRef>(null);
@@ -136,7 +136,7 @@ export function GraphView({
   const [typeVisibilityOpen, setTypeVisibilityOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [viewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
+  const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
@@ -787,6 +787,22 @@ export function GraphView({
         className="node-graph-view__renderer"
       />
       
+      {/* Bottom Center: View mode switcher (normal / circle / tree) */}
+      {showViewModes && (
+        <div className="node-graph-view__bottom-center">
+          <SelectionButton
+            size="sm"
+            options={[
+              { value: 'normal', icon: mdiAtom, label: 'Normal' },
+              { value: 'circle', icon: mdiCircleOutline, label: 'Circle' },
+              { value: 'tree', icon: mdiFileTree, label: 'Tree' },
+            ]}
+            value={viewMode}
+            onChange={(value) => setViewMode(value as 'normal' | 'circle' | 'tree')}
+          />
+        </div>
+      )}
+
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">
         <Button
