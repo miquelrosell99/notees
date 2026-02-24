@@ -42,7 +42,7 @@ export function useProperty(id: number | null) {
 export function useBatchPropertyValues(nodeIds: number[]) {
   return useQuery<BatchPropertiesResult>({
     queryKey: nodeKeys.batchProperties(nodeIds),
-    queryFn: () => nodesApi.getBatchPropertyValues(nodeIds),
+    queryFn: () => nodesApi.batchGetPropertyValues(nodeIds),
     enabled: nodeIds.length > 0,
     staleTime: 30_000,
   });

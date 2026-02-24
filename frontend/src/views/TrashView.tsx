@@ -10,7 +10,7 @@ import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar
 import { TrashIcon } from '../components/core/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useAppStore } from '@/stores';
-import { getTrash, restoreNode, permanentDeleteNode, emptyTrash, batchPermanentDelete } from '@/api/nodes';
+import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -48,7 +48,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   });
   
   const permanentDeleteMutation = useMutation({
-    mutationFn: permanentDeleteNode,
+    mutationFn: permanentlyDeleteNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -65,7 +65,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   });
   
   const batchDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => batchPermanentDelete({ ids }),
+    mutationFn: (ids: number[]) => batchPermanentlyDeleteNodes({ ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
