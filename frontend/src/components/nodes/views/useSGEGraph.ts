@@ -103,6 +103,10 @@ export interface SGEGraphHandle {
   stats: SGEGraphStats;
   /** Restart the physics simulation cooling schedule. */
   reheat: () => void;
+  /** Pause the physics simulation without destroying state. */
+  pause: () => void;
+  /** Resume the physics simulation. */
+  resume: () => void;
   /** Live-update physics config without restarting the worker. */
   setConfig: (cfg: Partial<SGEConfig>) => void;
   /** Programmatically centre the camera on the graph centroid. */
@@ -407,6 +411,14 @@ export function useSGEGraph(opts: SGEGraphOptions): SGEGraphHandle {
     post({ type: 'reheat' });
   }, [post]);
 
+  const pause = useCallback(() => {
+    post({ type: 'pause' });
+  }, [post]);
+
+  const resume = useCallback(() => {
+    post({ type: 'resume' });
+  }, [post]);
+
   const setConfig = useCallback((cfg: Partial<SGEConfig>) => {
     post({ type: 'setConfig', config: cfg });
   }, [post]);
@@ -430,6 +442,8 @@ export function useSGEGraph(opts: SGEGraphOptions): SGEGraphHandle {
     canvasRef: canvasRef as React.RefObject<HTMLCanvasElement | null>,
     stats,
     reheat,
+    pause,
+    resume,
     setConfig,
     recenter,
     screenToWorld,
