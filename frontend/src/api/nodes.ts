@@ -21,6 +21,8 @@ import type {
   BatchPermanentDeleteResponse,
   BatchGetNodesRequest,
   BatchGetNodesResponse,
+  BatchNodeDailyRequest,
+  BatchNodeDailyResponse,
   BreadcrumbsResponse,
 } from '@/types/api';
 
@@ -158,8 +160,8 @@ export async function getOrCreateDaily(dateStr: string): Promise<Node> {
 /**
  * Get or create multiple daily notes in a single batch request.
  */
-export async function batchGetOrCreateDaily(dates: string[]): Promise<import('@/types/api').BatchDailyResponse> {
-  const response = await api.post<import('@/types/api').BatchDailyResponse>(`${BASE}/daily/batch`, { dates });
+export async function batchGetOrCreateDaily(dates: string[]): Promise<BatchNodeDailyResponse> {
+  const response = await api.post<BatchNodeDailyResponse>(`${BASE}/daily/batch`, { dates });
   return response.data;
 }
 
