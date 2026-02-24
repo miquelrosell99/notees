@@ -1,8 +1,12 @@
 /**
- * SGEGraphView
+ * SGEGraphCanvas
  *
- * Production-ready graph view component backed by the SGE physics worker
- * and the WebGL2 renderer.
+ * Production-ready WebGL2 canvas component backed by the SGE physics worker.
+ * This is a low-level rendering primitive — it owns the <canvas>, the WebGL2
+ * context, the physics Web Worker, and all pointer/zoom interaction.
+ *
+ * For the full graph view with settings panels, search, class colors, and
+ * visibility filters, use GraphView instead.
  *
  * Features
  * ─────────
@@ -10,8 +14,8 @@
  * • Multi-scale force physics running in a dedicated Web Worker.
  * • Drag to pan, scroll-wheel to zoom, pointer-drag on nodes to reposition.
  * • Debug stats overlay (toggled via `showStats` prop).
- * • Node click callback.
- * • Reheat / recenter controls.
+ * • Node click / double-click callbacks.
+ * • Reheat / recenter controls exposed via imperative ref.
  * • Graceful fallback message when WebGL2 is unavailable.
  */
 
@@ -19,11 +23,11 @@ import { useRef, useCallback, memo, forwardRef, useImperativeHandle } from 'reac
 import { useSGEGraph, type SGEGraphOptions } from './useSGEGraph';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
-import './SGEGraphView.css';
+import './SGEGraphCanvas.css';
 
 // ─── Imperative ref API ───────────────────────────────────────────────────────
 
-export interface SGEGraphViewRef {
+export interface SGEGraphCanvasRef {
   /** Restart the physics cooling schedule. */
   reheat: () => void;
   /** Pause the physics tick loop. */
@@ -38,7 +42,7 @@ export interface SGEGraphViewRef {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-export interface SGEGraphViewProps {
+export interface SGEGraphCanvasProps {
   /** Graph nodes. */
   nodes: GraphNode[];
   /** Graph edges. */
@@ -100,7 +104,7 @@ function StatsOverlay({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const SGEGraphView = memo(forwardRef<SGEGraphViewRef, SGEGraphViewProps>(function SGEGraphView({
+export const SGEGraphCanvas = memo(forwardRef<SGEGraphCanvasRef, SGEGraphCanvasProps>(function SGEGraphCanvas({
   nodes,
   edges,
   config,
