@@ -623,6 +623,9 @@ export class GraphWebGLRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.bindTexture(gl.TEXTURE_2D, null);
     this.posTex = tex;
+    // Reset so that the first upload always calls texImage2D (not texSubImage2D
+    // on an uninitialised texture), even when init() is called more than once.
+    this.posTexWidth = 0;
   }
 
   private _initRingBuffers(): void {
