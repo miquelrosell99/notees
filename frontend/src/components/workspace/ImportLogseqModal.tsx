@@ -317,6 +317,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         const systemClass = existingClasses.find(c => c.uuid === noteesUuid);
         if (systemClass) {
           classIdMap.set(logseqKey, systemClass.id);
+          const info = { id: systemClass.id, uuid: systemClass.uuid };
+          // Register display name so title-based alias/link lookups resolve correctly
+          const displayName = nodeNameToText(systemClass.name);
+          if (displayName) {
+            titleToNodeInfo.set(displayName, info);
+            titleToNodeInfo.set(displayName.toLowerCase(), info);
+          }
+          // Register the Logseq-side UUID so UUID-based lookups (e.g. aliasOfUuids)
+          // resolve without needing a fallback scan.
+          const lsClass = parsed.classes.find(c => c.id === logseqKey);
+          if (lsClass?.uuid) {
+            uuidMap.set(lsClass.uuid, info);
+          }
         }
       }
       const contentQueue: Array<{ id: number; title: string }> = [];
