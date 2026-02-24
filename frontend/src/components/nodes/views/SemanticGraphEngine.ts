@@ -79,13 +79,6 @@ export interface SGEState {
   ticks: number;
 }
 
-interface ClusterData {
-  cx: number;
-  cy: number;
-  count: number;
-  componentId: number;
-}
-
 // ============================================================
 // Deterministic PRNG (xoshiro128**)
 // ============================================================
@@ -143,6 +136,9 @@ class SpatialHashGrid {
   private reusableBuckets: number[][];
   private reusableIdx: number;
 
+  // Pre-allocated result buffer for zero-alloc neighbour queries
+  resultBuf: Int32Array = new Int32Array(512);
+
   constructor(cellSize: number) {
     this.invCellSize = 1 / cellSize;
     this.cells = new Map();
@@ -194,7 +190,13 @@ class SpatialHashGrid {
     this.getBucket(cx, cy).push(index);
   }
 
-  query(x: number, y: number, callback: (index: number) => void): void {
+  /**
+   * Query neighbours into the pre-allocated resultBuf.
+   * Returns the count of results.  Caller reads resultBuf[0..count-1].
+   * Zero per-call allocation, no closure overhead.
+   */
+  queryInto(x: number, y: number): number {
+    let count = 0;
     const cx = Math.floor(x * this.invCellSize);
     const cy = Math.floor(y * this.invCellSize);
     for (let dx = -1; dx <= 1; dx++) {
@@ -202,12 +204,20 @@ class SpatialHashGrid {
         const k = this.key(cx + dx, cy + dy);
         const bucket = this.cells.get(k);
         if (bucket) {
-          for (let i = 0; i < bucket.length; i++) {
-            callback(bucket[i]);
+          const blen = bucket.length;
+          // Grow buffer if needed (rare — only on first few frames)
+          if (count + blen > this.resultBuf.length) {
+            const newBuf = new Int32Array(Math.max(this.resultBuf.length * 2, count + blen + 64));
+            newBuf.set(this.resultBuf.subarray(0, count));
+            this.resultBuf = newBuf;
+          }
+          for (let bi = 0; bi < blen; bi++) {
+            this.resultBuf[count++] = bucket[bi];
           }
         }
       }
     }
+    return count;
   }
 }
 
@@ -467,11 +477,23 @@ export class SemanticGraphEngine {
   private nodeIndex: Map<number, number>; // id -> array index
   private componentMap: Map<number, number>;
   private clusterMap: Map<number, number>;
-  private componentCenters: Map<number, { x: number; y: number; count: number }>;
 
-  // Cluster management
-  private clusterData: Map<number, ClusterData>;
-  private clusterIds: number[];
+  // Cluster management — flat indexed arrays (clusterId is 0..K-1)
+  // Replaces Map<clusterId, ClusterData> to eliminate per-step Map overhead.
+  private clCx: Float64Array = new Float64Array(0);   // centroid X
+  private clCy: Float64Array = new Float64Array(0);   // centroid Y
+  private clCount: Int32Array = new Int32Array(0);     // node count per cluster
+  private clFx: Float64Array = new Float64Array(0);    // force accumulator X
+  private clFy: Float64Array = new Float64Array(0);    // force accumulator Y
+  // Only clusters with count > 1 go into pairwise repulsion (Section B).
+  // Singleton clusters (orphan pages) are handled by local repulsion (Section D).
+  private bigClusterBuf: Int32Array = new Int32Array(0);
+  private bigClusterCount = 0;
+
+  // Component centers — flat indexed arrays (componentId is 0..C-1)
+  private ccX: Float64Array = new Float64Array(0);
+  private ccY: Float64Array = new Float64Array(0);
+  private ccCount: Int32Array = new Int32Array(0);
 
   // Spatial hash
   private spatialGrid: SpatialHashGrid;
@@ -504,9 +526,6 @@ export class SemanticGraphEngine {
     this.nodeIndex = new Map();
     this.componentMap = new Map();
     this.clusterMap = new Map();
-    this.componentCenters = new Map();
-    this.clusterData = new Map();
-    this.clusterIds = [];
     this.spatialGrid = new SpatialHashGrid(this.config.localRepelRadius);
     this.alpha = this.config.alpha;
     this.energy = Infinity;
@@ -714,28 +733,62 @@ export class SemanticGraphEngine {
   // Cluster Data Management
   // ============================================================
 
+  /** Ensure cluster/component index arrays are large enough. */
+  private ensureClusterBuffers(k: number): void {
+    if (this.clCx.length >= k) return;
+    const cap = Math.max(k, 256);
+    this.clCx    = new Float64Array(cap);
+    this.clCy    = new Float64Array(cap);
+    this.clCount = new Int32Array(cap);
+    this.clFx    = new Float64Array(cap);
+    this.clFy    = new Float64Array(cap);
+    this.bigClusterBuf = new Int32Array(cap);
+  }
+
+  private ensureComponentBuffers(c: number): void {
+    if (this.ccX.length >= c) return;
+    const cap = Math.max(c, 64);
+    this.ccX     = new Float64Array(cap);
+    this.ccY     = new Float64Array(cap);
+    this.ccCount = new Int32Array(cap);
+  }
+
   private updateClusterData(): void {
-    this.clusterData.clear();
+    const nodes = this.nodes;
+    const n = nodes.length;
 
-    for (const node of this.nodes) {
-      let data = this.clusterData.get(node.clusterId);
-      if (!data) {
-        data = { cx: 0, cy: 0, count: 0, componentId: node.componentId };
-        this.clusterData.set(node.clusterId, data);
-      }
-      data.cx += node.x;
-      data.cy += node.y;
-      data.count++;
+    // Find max cluster ID to size arrays
+    let maxClId = 0;
+    for (let i = 0; i < n; i++) {
+      if (nodes[i].clusterId > maxClId) maxClId = nodes[i].clusterId;
+    }
+    const K = maxClId + 1;
+    this.ensureClusterBuffers(K);
+
+    const cx = this.clCx;
+    const cy = this.clCy;
+    const cc = this.clCount;
+    for (let i = 0; i < K; i++) { cx[i] = 0; cy[i] = 0; cc[i] = 0; }
+
+    for (let i = 0; i < n; i++) {
+      const c = nodes[i].clusterId;
+      cx[c] += nodes[i].x;
+      cy[c] += nodes[i].y;
+      cc[c]++;
     }
 
-    this.clusterIds = [];
-    for (const [id, data] of this.clusterData) {
-      if (data.count > 0) {
-        data.cx /= data.count;
-        data.cy /= data.count;
-        this.clusterIds.push(id);
+    // Finalise centroids and collect non-singleton cluster IDs for Section B
+    let bigCount = 0;
+    for (let i = 0; i < K; i++) {
+      if (cc[i] > 0) {
+        cx[i] /= cc[i];
+        cy[i] /= cc[i];
+        if (cc[i] > 1) {
+          this.bigClusterBuf[bigCount++] = i;
+        }
       }
     }
+    this.bigClusterCount = bigCount;
   }
 
   // ============================================================
@@ -761,67 +814,56 @@ export class SemanticGraphEngine {
     this.updateClusterData();
 
     // A) Intra-Cluster Cohesion (shell model)
-    // Nodes are attracted to a target-radius shell around the cluster centroid,
-    // NOT to the centroid itself.  This prevents centroid over-pulling:
-    //   • Inside the shell  → pushed outward (very weak)
-    //   • On the shell       → zero force
-    //   • Outside the shell → pulled inward (proportional to overshoot)
-    // Shell radius scales with √count so larger clusters get wider shells.
     const clusterStr = cfg.clusterStrength * alpha;
+    const clCx = this.clCx;
+    const clCy = this.clCy;
+    const clCC = this.clCount;
     for (let i = 0; i < n; i++) {
       const node = nodes[i];
       if (node.pinned) continue;
-      const cluster = this.clusterData.get(node.clusterId);
-      if (!cluster || cluster.count <= 1) continue;
-      const dx = node.x - cluster.cx;
-      const dy = node.y - cluster.cy;
+      const cid = node.clusterId;
+      const cnt = clCC[cid];
+      if (cnt <= 1) continue;
+      const dx = node.x - clCx[cid];
+      const dy = node.y - clCy[cid];
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      // Target shell radius: enough room for count nodes at idealDistance spacing
-      const shellRadius = cfg.idealDistance * 0.5 * Math.sqrt(cluster.count);
+      const shellRadius = cfg.idealDistance * 0.5 * Math.sqrt(cnt);
       const radiusError = dist - shellRadius;
-      // Only pull inward when outside the shell; very mild push outward when inside
-      // This asymmetry prevents collapse while still keeping clusters coherent.
       const strength = radiusError > 0
-        ? -clusterStr * radiusError          // outside → pull inward
-        : -clusterStr * radiusError * 0.15;  // inside  → gentle push outward
+        ? -clusterStr * radiusError
+        : -clusterStr * radiusError * 0.15;
       ax[i] += (dx / dist) * strength;
       ay[i] += (dy / dist) * strength;
     }
 
     // B) Inter-Cluster Repulsion (centroid-to-centroid, mass-scaled, √n-adjusted)
-    // This is the ONLY long-range force — it acts as the macro pressure field.
-    // Force ∝ √(count_a × count_b) / d², repels ALL cluster pairs.
-    // Base strength is scaled by √n so equilibrium density stays constant as the
-    // graph grows (more nodes → more pairwise pressure → division by √n normalises).
+    // Only non-singleton clusters participate — orphan pages are spaced by
+    // local repulsion (Section D).  This reduces O(K²) dramatically when
+    // many pages have no links (each is its own cluster).
     const nScale = n > 1 ? Math.sqrt(n) : 1;
     const clusterRepelStr = cfg.clusterRepelStrength * alpha * nScale;
-    const clusterIds = this.clusterIds;
-    const clusterCount = clusterIds.length;
-    const clusterFx = new Map<number, number>();
-    const clusterFy = new Map<number, number>();
-    for (const id of clusterIds) {
-      clusterFx.set(id, 0);
-      clusterFy.set(id, 0);
-    }
+    const bigIds  = this.bigClusterBuf;
+    const bigK    = this.bigClusterCount;
+    const clFx    = this.clFx;
+    const clFy    = this.clFy;
+    // Zero force accumulators for participating clusters only
+    for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
 
-    for (let a = 0; a < clusterCount; a++) {
-      const ca = this.clusterData.get(clusterIds[a])!;
-      for (let b = a + 1; b < clusterCount; b++) {
-        const cb = this.clusterData.get(clusterIds[b])!;
-        const dx = ca.cx - cb.cx;
-        const dy = ca.cy - cb.cy;
+    for (let a = 0; a < bigK; a++) {
+      const ai = bigIds[a];
+      const caCx = clCx[ai], caCy = clCy[ai], caCnt = clCC[ai];
+      for (let b = a + 1; b < bigK; b++) {
+        const bi = bigIds[b];
+        const dx = caCx - clCx[bi];
+        const dy = caCy - clCy[bi];
         const distSq = dx * dx + dy * dy;
         const dist = Math.sqrt(distSq) || 1;
-        // Mass-scaled: heavier clusters push harder (geometric mean)
-        const massFactor = Math.sqrt(ca.count * cb.count);
+        const massFactor = Math.sqrt(caCnt * clCC[bi]);
         const force = clusterRepelStr * massFactor / (distSq || 1);
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
-
-        clusterFx.set(clusterIds[a], clusterFx.get(clusterIds[a])! + fx);
-        clusterFy.set(clusterIds[a], clusterFy.get(clusterIds[a])! + fy);
-        clusterFx.set(clusterIds[b], clusterFx.get(clusterIds[b])! - fx);
-        clusterFy.set(clusterIds[b], clusterFy.get(clusterIds[b])! - fy);
+        clFx[ai] += fx;  clFy[ai] += fy;
+        clFx[bi] -= fx;  clFy[bi] -= fy;
       }
     }
 
@@ -829,11 +871,11 @@ export class SemanticGraphEngine {
     for (let i = 0; i < n; i++) {
       const node = nodes[i];
       if (node.pinned) continue;
-      const cCount = this.clusterData.get(node.clusterId)?.count ?? 1;
-      const cfx = clusterFx.get(node.clusterId) ?? 0;
-      const cfy = clusterFy.get(node.clusterId) ?? 0;
-      ax[i] += cfx / cCount;
-      ay[i] += cfy / cCount;
+      const cid = node.clusterId;
+      const cnt = clCC[cid];
+      if (cnt <= 1) continue; // singleton → no cluster repulsion
+      ax[i] += clFx[cid] / cnt;
+      ay[i] += clFy[cid] / cnt;
     }
 
     // C) Local Edge Springs (Hooke's law with degree scaling)
@@ -870,8 +912,16 @@ export class SemanticGraphEngine {
     // D) Node Repulsion with smooth falloff (spatial hash grid, no hard boundary)
     // Uses 1/d² core with quintic smoothing near the cutoff radius,
     // so force tapers to zero continuously (no stiff wall).
+    //
+    // Adaptive radius: for large graphs (>1000 nodes) we scale down the
+    // repel radius so each query touches fewer neighbours.  The inter-cluster
+    // repulsion (Section B) handles macro-level spacing, so cutting the
+    // local radius only affects close-range smoothing.
+    const baseRepelRadius = cfg.localRepelRadius;
+    const repelRadius = n > 1000
+      ? baseRepelRadius * Math.min(1, Math.sqrt(1000 / n))
+      : baseRepelRadius;
     const repelStr = cfg.localRepelStrength * alpha;
-    const repelRadius = cfg.localRepelRadius;
     const repelRadiusSq = repelRadius * repelRadius;
     const invRepelRadius = 1 / repelRadius;
 
@@ -881,16 +931,23 @@ export class SemanticGraphEngine {
       this.spatialGrid.insert(i, nodes[i].x, nodes[i].y);
     }
 
+    // Buffer-based query: zero closures, zero per-call allocation.
+    const grid = this.spatialGrid;
     for (let i = 0; i < n; i++) {
       const ni = nodes[i];
       if (ni.pinned) continue;
-      this.spatialGrid.query(ni.x, ni.y, (j: number) => {
-        if (j <= i) return; // avoid double-counting
+      const nix = ni.x;
+      const niy = ni.y;
+      const nCount = grid.queryInto(nix, niy);
+      const nbuf = grid.resultBuf;
+      for (let k = 0; k < nCount; k++) {
+        const j = nbuf[k];
+        if (j <= i) continue; // avoid double-counting
         const nj = nodes[j];
-        const dx = ni.x - nj.x;
-        const dy = ni.y - nj.y;
+        const dx = nix - nj.x;
+        const dy = niy - nj.y;
         const distSq = dx * dx + dy * dy;
-        if (distSq >= repelRadiusSq || distSq < 0.01) return;
+        if (distSq >= repelRadiusSq || distSq < 0.01) continue;
         const dist = Math.sqrt(distSq);
         // Smooth quintic envelope: t goes 1→0 as dist goes 0→repelRadius
         // smoothstep(t) = t³(6t²−15t+10) — C² continuous at boundary
@@ -905,7 +962,7 @@ export class SemanticGraphEngine {
           ax[j] -= fx;
           ay[j] -= fy;
         }
-      });
+      }
     }
 
     // E) Radial Stability Constraint
@@ -914,10 +971,10 @@ export class SemanticGraphEngine {
       for (let i = 0; i < n; i++) {
         const node = nodes[i];
         if (node.pinned) continue;
-        const cluster = this.clusterData.get(node.clusterId);
-        if (!cluster) continue;
-        const dx = node.x - cluster.cx;
-        const dy = node.y - cluster.cy;
+        const cid = node.clusterId;
+        if (clCC[cid] === 0) continue;
+        const dx = node.x - clCx[cid];
+        const dy = node.y - clCy[cid];
         const currentRadius = Math.sqrt(dx * dx + dy * dy) || 1;
         const radiusDiff = currentRadius - node.initialRadius;
         const radialForce = -radialStr * radiusDiff;
@@ -929,32 +986,34 @@ export class SemanticGraphEngine {
     // F) Center Gravity (per connected component, very weak)
     const centerStr = cfg.componentCenterStrength * alpha;
     if (centerStr > 0) {
-      // Compute component centers
-      this.componentCenters.clear();
-      for (const node of nodes) {
-        let cc = this.componentCenters.get(node.componentId);
-        if (!cc) {
-          cc = { x: 0, y: 0, count: 0 };
-          this.componentCenters.set(node.componentId, cc);
-        }
-        cc.x += node.x;
-        cc.y += node.y;
-        cc.count++;
+      // Compute component centers using flat indexed arrays
+      let maxCompId = 0;
+      for (let i = 0; i < n; i++) {
+        if (nodes[i].componentId > maxCompId) maxCompId = nodes[i].componentId;
       }
-      for (const cc of this.componentCenters.values()) {
-        if (cc.count > 0) {
-          cc.x /= cc.count;
-          cc.y /= cc.count;
-        }
+      const C = maxCompId + 1;
+      this.ensureComponentBuffers(C);
+      const compX = this.ccX;
+      const compY = this.ccY;
+      const compC = this.ccCount;
+      for (let i = 0; i < C; i++) { compX[i] = 0; compY[i] = 0; compC[i] = 0; }
+
+      for (let i = 0; i < n; i++) {
+        const cid = nodes[i].componentId;
+        compX[cid] += nodes[i].x;
+        compY[cid] += nodes[i].y;
+        compC[cid]++;
+      }
+      for (let i = 0; i < C; i++) {
+        if (compC[i] > 0) { compX[i] /= compC[i]; compY[i] /= compC[i]; }
       }
 
       for (let i = 0; i < n; i++) {
         const node = nodes[i];
         if (node.pinned) continue;
-        const cc = this.componentCenters.get(node.componentId);
-        if (!cc) continue;
-        ax[i] -= centerStr * (node.x - cc.x);
-        ay[i] -= centerStr * (node.y - cc.y);
+        const cid = node.componentId;
+        ax[i] -= centerStr * (node.x - compX[cid]);
+        ay[i] -= centerStr * (node.y - compY[cid]);
       }
     }
 
@@ -1373,8 +1432,6 @@ export class SemanticGraphEngine {
     this.edges = [];
     this.adjacency.clear();
     this.nodeIndex.clear();
-    this.clusterData.clear();
-    this.componentCenters.clear();
     this.spatialGrid.clear();
   }
 }

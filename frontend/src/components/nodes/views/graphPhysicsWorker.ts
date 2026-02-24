@@ -44,6 +44,10 @@ const workerPost = (
 /** Target physics update interval in ms.  ~60 Hz. */
 const TICK_MS = 16;
 
+/** Maximum time budget per tick in ms.  If a step overruns, subsequent ticks
+ *  are scheduled immediately but never stacked. */
+const MAX_TICK_BUDGET_MS = 50;
+
 /**
  * If alpha has cooled below this threshold AND kinetic energy is tiny,
  * the worker pauses the interval and waits for a reheat signal.
@@ -63,8 +67,9 @@ let nodeIds: Int32Array = new Int32Array(0);
 /** True once the engine is initialised. */
 let ready = false;
 
-/** Interval handle for the physics tick loop. */
-let tickInterval: ReturnType<typeof setInterval> | undefined = undefined;
+/** Timeout handle for the physics tick loop (setTimeout recursion, NOT
+ *  setInterval — ensures a slow step() doesn't cause ticks to stack). */
+let tickTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
 
 /**
  * Triple buffer: we cycle through 3 buffers so that:
@@ -156,33 +161,49 @@ function rebuildNodeIds(): void {
 // ============================================================
 
 function startLoop(): void {
-  if (tickInterval !== undefined) return;
-  tickInterval = setInterval(tick, TICK_MS);
+  if (tickTimeout !== undefined) return;
+  scheduleTick();
 }
 
 function stopLoop(): void {
-  if (tickInterval !== undefined) {
-    clearInterval(tickInterval);
-    tickInterval = undefined;
+  if (tickTimeout !== undefined) {
+    clearTimeout(tickTimeout);
+    tickTimeout = undefined;
   }
 }
 
+function scheduleTick(): void {
+  tickTimeout = setTimeout(tick, TICK_MS);
+}
+
 function tick(): void {
+  tickTimeout = undefined;
   if (!engine) return;
 
+  const t0 = performance.now();
   engine.step();
+  const elapsed = performance.now() - t0;
+
+  // Log slow steps so the user can see what's happening (worker console)
+  if (elapsed > 50) {
+    console.warn(`[SGE] step took ${elapsed.toFixed(0)}ms (${engine.nodeCount} nodes)`);
+  }
 
   const state = engine.getState();
 
   // Auto-sleep when converged
   if (state.alpha < SLEEP_ALPHA && state.energy < SLEEP_ENERGY) {
-    // Post one final frame then pause
     postFrame();
-    stopLoop();
+    // Don't schedule next tick — sleep until reheated
     return;
   }
 
   postFrame();
+
+  // Schedule next tick: if step was slow, fire immediately (0ms) to maximise
+  // throughput; otherwise honour the target interval.
+  const delay = elapsed > MAX_TICK_BUDGET_MS ? 0 : Math.max(0, TICK_MS - elapsed);
+  tickTimeout = setTimeout(tick, delay);
 }
 
 // ============================================================
