@@ -37,9 +37,7 @@ import {
   UNLINKED_REPULSION_DISTANCE,
   MIN_REPULSION_DISTANCE,
   RETURN_FORCE,
-  MAX_VELOCITY,
   VELOCITY_DAMPING,
-  VELOCITY_DEADZONE,
   TERRAIN_VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DEADZONE,
   TERRAIN_LINK_DAMPING,
@@ -51,9 +49,11 @@ import {
   DRAG_PULL_STRENGTH,
   PARENT_MASS_PER_CHILD,
   REFERENCE_LINK_FORCE_MULTIPLIER,
-  WARMUP_DURATION_FRAMES,
-  IDLE_VELOCITY_DAMPING,
-  FORCE_IDLE_THRESHOLD,
+  ALPHA_INITIAL,
+  ALPHA_MIN,
+  ALPHA_DECAY,
+  ALPHA_TARGET,
+  ALPHA_REHEAT,
   TERRAIN_BASE_FOOTPRINT,
   TERRAIN_PEAK_FOOTPRINT,
   TERRAIN_SEPARATION_STRENGTH,
@@ -63,7 +63,6 @@ import {
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
   BH_THETA_SQ,
   UNLINKED_REPULSION_DIST_SQ,
-  MAX_VELOCITY_SQ,
   TERRAIN_MAX_VELOCITY_SQ,
   COLLISION_PADDING,
   COLLISION_RESOLVE,
@@ -191,7 +190,7 @@ export function useNodePhysics({
   
   // Simulation state
   const animationRef = useRef<number>(0);
-  const warmupFrameRef = useRef(0);
+  const alphaRef = useRef(ALPHA_INITIAL);
   const initialFitDoneRef = useRef(false);
   const topologyDirtyRef = useRef(true);
   
@@ -1154,6 +1153,10 @@ export function useNodePhysics({
     const wake = () => {
       if (simulationGenerationRef.current !== thisGeneration) return;
       sleepCounterRef.current = 0;
+      // Reheat alpha so forces resume with meaningful strength
+      if (alphaRef.current < ALPHA_REHEAT) {
+        alphaRef.current = ALPHA_REHEAT;
+      }
       if (simulationSleepingRef.current) {
         simulationSleepingRef.current = false;
         animationRef.current = requestAnimationFrame(simulate);
@@ -1222,16 +1225,10 @@ export function useNodePhysics({
       
       const usePhysics = !isConstrainedMode || currentSettings.constraintMode === 'physics';
       
-      const warmupT = Math.min(1, warmupFrameRef.current / WARMUP_DURATION_FRAMES);
-      const warmupMultiplier = warmupT * warmupT;  // ramp from 0→1, stays at 1 forever
-      warmupFrameRef.current++;
-      
-      // Snapshot velocities before forces for per-node acceleration detection
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        (node as any)._prevVx = node.vx;
-        (node as any)._prevVy = node.vy;
-      }
+      // Alpha decay (d3-force style): all forces are multiplied by alpha.
+      // Alpha decays exponentially each tick toward alphaTarget.
+      const alpha = alphaRef.current;
+      alphaRef.current += (ALPHA_TARGET - alphaRef.current) * ALPHA_DECAY;
       
       // Return-to-target force (constrained modes)
       if (isConstrainedMode) {
@@ -1338,7 +1335,7 @@ export function useNodePhysics({
                 if (distSq < UNLINKED_REPULSION_DIST_SQ) {
                   const dist = Math.sqrt(distSq) || 1;
                   const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-                  const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * warmupMultiplier;
+                  const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * alpha;
                   const fx = (dx / dist) * force;
                   const fy = (dy / dist) * force;
                   
@@ -1399,7 +1396,9 @@ export function useNodePhysics({
             restDist *= linkDistJitter.get(key) ?? 1;
           }
           
-          let netForce = (dist - restDist) * attractionStrength * warmupMultiplier;
+          // d3-force: spring force applied as velocity delta, split by mass ratio
+          // d3 default link strength = 1 / min(degreeA, degreeB)
+          let netForce = (dist - restDist) * attractionStrength * alpha;
           
           const massA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
           const massB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
@@ -1413,31 +1412,28 @@ export function useNodePhysics({
           const sfx = (dx / dist) * netForce;
           const sfy = (dy / dist) * netForce;
           
-          // Repulsion compensation: cancel Barnes-Hut repulsion between linked
-          // pairs so the spring alone determines their equilibrium distance.
-          // Below restDist the BH repulsion is allowed through to prevent
-          // crowding.  A smooth blend zone around restDist avoids a force
-          // discontinuity that would cause oscillation (especially with
-          // mass-mode where heavier nodes overshoot the boundary).
+          // Repulsion compensation: cancel BH repulsion between linked pairs
+          // so the spring alone sets link length. Without this, local density
+          // variation causes wildly different link lengths.
           let compAx = 0, compAy = 0, compBx = 0, compBy = 0;
           if (dist < UNLINKED_REPULSION_DISTANCE) {
-            // Blend factor: 0 at (restDist * 0.25) → 1 at restDist
-            // Proportional to restDist so it works at any rest distance.
-            const blendStart = restDist * 0.25;
-            const blend = dist <= blendStart ? 0
-              : dist >= restDist ? 1
-              : (dist - blendStart) / (restDist - blendStart);
-            
             const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
             const clampedDistSq = clampedDist * clampedDist;
             const dirX = dx / dist;
             const dirY = dy / dist;
-            const compA = (REPULSION_STRENGTH * massB / clampedDistSq) * warmupMultiplier * blend;
-            compAx = dirX * compA / massA;
-            compAy = dirY * compA / massA;
-            const compB = (REPULSION_STRENGTH * massA / clampedDistSq) * warmupMultiplier * blend;
-            compBx = dirX * compB / massB;
-            compBy = dirY * compB / massB;
+            // Estimate BH repulsion that was applied to each node and cancel it.
+            // In the BH loop: node.vx -= (REPULSION_STRENGTH * cell.mass / clampedDistSq) * alpha * dirX / nodeMass
+            // nodeMass = normalizedMasses, treeMass = normalizedMasses * degreeFactor
+            const nodeMassA = useMass ? (normalizedMasses.get(nodeA.id) ?? 1) : 1;
+            const nodeMassB = useMass ? (normalizedMasses.get(nodeB.id) ?? 1) : 1;
+            const treeMassA = treeMasses.get(nodeA.id) ?? 1;
+            const treeMassB = treeMasses.get(nodeB.id) ?? 1;
+            const compA = (REPULSION_STRENGTH * treeMassB / clampedDistSq) * alpha;
+            compAx = dirX * compA / nodeMassA;
+            compAy = dirY * compA / nodeMassA;
+            const compB = (REPULSION_STRENGTH * treeMassA / clampedDistSq) * alpha;
+            compBx = dirX * compB / nodeMassB;
+            compBy = dirY * compB / nodeMassB;
           }
           
           if (!nodeA.pinned) {
@@ -1488,7 +1484,7 @@ export function useNodePhysics({
             if (dist >= effectiveConeRadius) continue;
             
             const overlap = effectiveConeRadius - dist;
-            const correction = overlap * TERRAIN_SEPARATION_STRENGTH * warmupMultiplier;
+            const correction = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
             const nx = dx / dist;
             const ny = dy / dist;
             
@@ -1523,7 +1519,7 @@ export function useNodePhysics({
           if (dist >= minSep) continue;
           
           const overlap = minSep - dist;
-          const force = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * warmupMultiplier;
+          const force = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * alpha;
           const nx = dx / dist;
           const ny = dy / dist;
           
@@ -1646,39 +1642,20 @@ export function useNodePhysics({
         }
       }
       
-      // Update positions + accumulate kinetic energy (merged to save an O(n) pass)
+      // Integration: d3-force order — damp FIRST, then move.
+      // d3: node.vx *= velocityDecay; node.x += node.vx;
+      // No max velocity cap, no deadzone — let alpha decay handle convergence.
       const baseDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
-      const velDeadzone = isTerrainModeNow ? TERRAIN_VELOCITY_DEADZONE : VELOCITY_DEADZONE;
-      const maxVelSq = isTerrainModeNow ? TERRAIN_MAX_VELOCITY_SQ : MAX_VELOCITY_SQ;
-      const maxVel = isTerrainModeNow ? TERRAIN_MAX_VELOCITY : MAX_VELOCITY;
       let totalKE = 0;
       let mobileCount = 0;
       for (const node of nodes) {
-        const speedSq = node.vx * node.vx + node.vy * node.vy;
         if (dragNodeRef.current?.id !== node.id && !node.pinned) {
-          totalKE += speedSq;
-          mobileCount++;
-          // Guard: only compute sqrt when velocity actually exceeds max
-          if (speedSq > maxVelSq) {
-            const scale = maxVel / Math.sqrt(speedSq);
-            node.vx *= scale;
-            node.vy *= scale;
-          }
+          node.vx *= baseDamping;
+          node.vy *= baseDamping;
           node.x += node.vx;
           node.y += node.vy;
-          
-          // Force-aware damping: nodes with near-zero acceleration stop fast
-          const prevVx = (node as any)._prevVx ?? 0;
-          const prevVy = (node as any)._prevVy ?? 0;
-          const accelX = node.vx - prevVx;
-          const accelY = node.vy - prevVy;
-          const accelMag = Math.abs(accelX) + Math.abs(accelY);  // L1 norm, cheap
-          const damping = accelMag < FORCE_IDLE_THRESHOLD ? IDLE_VELOCITY_DAMPING : baseDamping;
-          node.vx *= damping;
-          node.vy *= damping;
-          
-          if (Math.abs(node.vx) < velDeadzone) node.vx = 0;
-          if (Math.abs(node.vy) < velDeadzone) node.vy = 0;
+          totalKE += node.vx * node.vx + node.vy * node.vy;
+          mobileCount++;
           
           if (isConstrainedMode) {
             const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
@@ -1710,8 +1687,9 @@ export function useNodePhysics({
       // Runs AFTER velocity integration so position corrections are the
       // final authority and aren't partially undone by node.x += node.vx.
       // Skip during early warmup — nodes are moving fast and collisions just burn CPU.
-      const skipCollisions = (isConstrainedMode && currentSettings.constraintMode === 'equidistant')
-        || warmupT < 0.5;
+      const skipCollisions = true; // Disabled: let repulsion handle spacing (like Obsidian/Logseq)
+      // const skipCollisions = (isConstrainedMode && currentSettings.constraintMode === 'equidistant')
+      //   || warmupT < 0.5;
       
       if (!skipCollisions) {
         // Pre-compute radii for all visible nodes (avoid recomputing inside inner loop)
@@ -1955,28 +1933,10 @@ export function useNodePhysics({
       // BH stack entries are overwritten each frame — no need to null them.
       quadPoolIdxRef.current = 0;
       
-      // Sleep detection: put simulation to sleep when average kinetic energy per
-      // mobile node is negligible.  Using average instead of total prevents 4k
-      // stationary nodes from keeping the sim awake due to a handful of stirring ones.
-      // (totalKE was accumulated during the velocity integration loop above)
+      // Track kinetic energy for diagnostics (no sleep — simulation runs forever)
       {
-        const sleepThreshold = isTerrainModeNow ? TERRAIN_SLEEP_THRESHOLD : GRAPH_SLEEP_THRESHOLD;
-        const sleepFrames = isTerrainModeNow ? TERRAIN_SLEEP_FRAMES : GRAPH_SLEEP_FRAMES;
         const avgKE = mobileCount > 0 ? totalKE / mobileCount : 0;
         kineticEnergyRef.current = avgKE;
-        if (avgKE < sleepThreshold) {
-          sleepCounterRef.current++;
-          if (sleepCounterRef.current > sleepFrames) {
-            simulationSleepingRef.current = true;
-            sleepCounterRef.current = 0;
-            if (ctxRef.current && renderRef.current) {
-              renderRef.current(ctxRef.current);
-            }
-            return;
-          }
-        } else {
-          sleepCounterRef.current = 0;
-        }
       }
       
       animationRef.current = requestAnimationFrame(simulate);
@@ -2208,7 +2168,7 @@ export function useNodePhysics({
     topologyDirtyRef.current = true;
     wakeSimulationRef.current();
     
-    warmupFrameRef.current = 0;
+    alphaRef.current = ALPHA_INITIAL;
     
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
       // For terrain mode, recenter immediately to ensure bullets spawn centered
