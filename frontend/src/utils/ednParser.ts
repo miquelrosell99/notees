@@ -261,7 +261,7 @@ export interface LogseqPage {
   journal?: string;     // YYYY-MM-DD date string for journal/daily pages
   tags?: string[];      // class ids
   aliases?: string[];   // alias page titles (from logseq.property/alias)
-  aliasOfUuids?: string[]; // UUIDs from :block/alias (this page is an alias of those targets)
+  aliasOfUuids?: string[]; // UUIDs from :block/alias (those pages are aliases OF this page)
   parent?: string;      // Parent page title (from logseq.property/parent namespace hierarchy)
   properties?: Record<string, unknown>;
   blocks: LogseqBlock[];
@@ -464,7 +464,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       }
 
       // :block/alias — set of [:block/uuid #uuid "..."] references
-      // When present, this page is an alias OF the referenced target pages
+      // When present, the referenced pages are aliases OF this page
       const aliasSet = mapGet(pageMap, 'block/alias');
       const aliasOfUuids: string[] = [];
       if (aliasSet instanceof Set) {

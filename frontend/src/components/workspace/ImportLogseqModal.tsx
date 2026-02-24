@@ -991,22 +991,22 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             }
           }
 
-          // Handle :block/alias — this page is an alias OF the target UUIDs
+          // Handle :block/alias — the referenced UUIDs are aliases OF this page
           if (page.aliasOfUuids) {
-            for (const targetUuid of page.aliasOfUuids) {
-              const targetInfo = uuidMap.get(targetUuid);
-              if (!targetInfo) {
+            for (const aliasUuid of page.aliasOfUuids) {
+              const aliasInfo = uuidMap.get(aliasUuid);
+              if (!aliasInfo) {
                 p7.failed++;
-                p7.errors.push({ item: `Alias: ${page.title} → UUID ${targetUuid}`, message: 'Target page UUID not found' });
+                p7.errors.push({ item: `Alias: UUID ${aliasUuid} → ${page.title}`, message: 'Alias page UUID not found' });
                 continue;
               }
               const thisPageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
               if (!thisPageInfo) continue;
-              setImportStatus(`Assigning alias: ${page.title} → target UUID ${targetUuid}`);
+              setImportStatus(`Assigning alias: UUID ${aliasUuid} → ${page.title}`);
               try {
-                // :block/alias means THIS page is an alias OF the target,
-                // so target is the main node (first arg) and this page is the alias (second arg)
-                await addAlias(targetInfo.id, thisPageInfo.id);
+                // :block/alias means the referenced pages are aliases OF this page,
+                // so this page is the main node (first arg) and the referenced page is the alias (second arg)
+                await addAlias(thisPageInfo.id, aliasInfo.id);
                 p7.succeeded++;
                 tick();
               } catch (e) {
@@ -1015,7 +1015,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                   p7.succeeded++;
                 } else {
                   p7.failed++;
-                  p7.errors.push({ item: `Alias: ${page.title} → UUID ${targetUuid}`, message: msg });
+                  p7.errors.push({ item: `Alias: UUID ${aliasUuid} → ${page.title}`, message: msg });
                 }
                 tick();
               }
