@@ -398,10 +398,10 @@ const DEFAULT_CONFIG: SGEConfig = {
   idealDistance: 80,
 
   clusterStrength: 0.002,
-  clusterRepelStrength: 8000,
+  clusterRepelStrength: 5000,
   clusterSpacing: 200,
 
-  localRepelStrength: 4000,
+  localRepelStrength: 3000,
   localRepelRadius: 500,
 
   radialStrength: 0.001,
@@ -734,12 +734,12 @@ export class SemanticGraphEngine {
       ay[i] -= clusterStr * (node.y - cluster.cy);
     }
 
-    // B) Inter-Cluster Repulsion (centroid-to-centroid)
+    // B) Inter-Cluster Repulsion (centroid-to-centroid, mass-scaled)
+    // This is the ONLY long-range force — it acts as the macro pressure field.
+    // Force ∝ (count_a × count_b) / d², repels ALL cluster pairs (not just same-component).
     const clusterRepelStr = cfg.clusterRepelStrength * alpha;
     const clusterIds = this.clusterIds;
     const clusterCount = clusterIds.length;
-    // Compute per-cluster repulsion forces on centroids, then distribute to nodes
-    // Pre-compute centroid forces
     const clusterFx = new Map<number, number>();
     const clusterFy = new Map<number, number>();
     for (const id of clusterIds) {
@@ -751,13 +751,13 @@ export class SemanticGraphEngine {
       const ca = this.clusterData.get(clusterIds[a])!;
       for (let b = a + 1; b < clusterCount; b++) {
         const cb = this.clusterData.get(clusterIds[b])!;
-        // Only repel clusters in the same component
-        if (ca.componentId !== cb.componentId) continue;
         const dx = ca.cx - cb.cx;
         const dy = ca.cy - cb.cy;
         const distSq = dx * dx + dy * dy;
         const dist = Math.sqrt(distSq) || 1;
-        const force = clusterRepelStr / (distSq || 1);
+        // Mass-scaled: heavier clusters push harder (geometric mean)
+        const massFactor = Math.sqrt(ca.count * cb.count);
+        const force = clusterRepelStr * massFactor / (distSq || 1);
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
 
@@ -810,10 +810,13 @@ export class SemanticGraphEngine {
       }
     }
 
-    // D) Mild Node Repulsion (local only via spatial hash grid)
+    // D) Node Repulsion with smooth falloff (spatial hash grid, no hard boundary)
+    // Uses 1/d² core with quintic smoothing near the cutoff radius,
+    // so force tapers to zero continuously (no stiff wall).
     const repelStr = cfg.localRepelStrength * alpha;
     const repelRadius = cfg.localRepelRadius;
     const repelRadiusSq = repelRadius * repelRadius;
+    const invRepelRadius = 1 / repelRadius;
 
     this.spatialGrid.setCellSize(repelRadius);
     this.spatialGrid.clear();
@@ -832,7 +835,11 @@ export class SemanticGraphEngine {
         const distSq = dx * dx + dy * dy;
         if (distSq >= repelRadiusSq || distSq < 0.01) return;
         const dist = Math.sqrt(distSq);
-        const force = repelStr / distSq;
+        // Smooth quintic envelope: t goes 1→0 as dist goes 0→repelRadius
+        // smoothstep(t) = t³(6t²−15t+10) — C² continuous at boundary
+        const t = 1 - dist * invRepelRadius;
+        const envelope = t * t * t * (t * (t * 6 - 15) + 10);
+        const force = repelStr * envelope / distSq;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
         ax[i] += fx;
