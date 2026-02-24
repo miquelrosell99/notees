@@ -315,6 +315,14 @@ export class GraphWebGLRenderer {
   // --- Edge topology ---
   private edges: Array<{ source: number; target: number }> = [];
 
+  // --- Cached uniform locations (looked up once at init, not per frame) ---
+  private nodeUniforms: { resolution: WebGLUniformLocation | null; camera: WebGLUniformLocation | null; zoom: WebGLUniformLocation | null } = { resolution: null, camera: null, zoom: null };
+  private edgeUniforms: { resolution: WebGLUniformLocation | null; camera: WebGLUniformLocation | null; zoom: WebGLUniformLocation | null } = { resolution: null, camera: null, zoom: null };
+
+  // --- Pre-allocated typed arrays for uniforms (zero per-frame GC) ---
+  private readonly _resBuf = new Float32Array(2);
+  private readonly _camBuf = new Float32Array(2);
+
   // --- Options ---
   private opts: Required<RendererOptions>;
 
@@ -352,6 +360,18 @@ export class GraphWebGLRenderer {
 
     this.nodeProg = linkProgram(gl, NODE_VERT_SRC, NODE_FRAG_SRC);
     this.edgeProg = linkProgram(gl, EDGE_VERT_SRC, EDGE_FRAG_SRC);
+
+    // Cache uniform locations once — they never change after linking
+    this.nodeUniforms = {
+      resolution: gl.getUniformLocation(this.nodeProg, 'u_resolution'),
+      camera:     gl.getUniformLocation(this.nodeProg, 'u_camera'),
+      zoom:       gl.getUniformLocation(this.nodeProg, 'u_zoom'),
+    };
+    this.edgeUniforms = {
+      resolution: gl.getUniformLocation(this.edgeProg, 'u_resolution'),
+      camera:     gl.getUniformLocation(this.edgeProg, 'u_camera'),
+      zoom:       gl.getUniformLocation(this.edgeProg, 'u_zoom'),
+    };
 
     this._initNodeBuffers();
     this._initEdgeBuffers();
@@ -698,16 +718,20 @@ export class GraphWebGLRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     const { x: cx, y: cy, zoom } = this.camera;
-    const res = new Float32Array([this.canvasW, this.canvasH]);
-    const cam = new Float32Array([cx, cy]);
+
+    // Reuse pre-allocated typed arrays — zero per-frame allocation
+    this._resBuf[0] = this.canvasW;
+    this._resBuf[1] = this.canvasH;
+    this._camBuf[0] = cx;
+    this._camBuf[1] = cy;
 
     // ── Draw edges ────────────────────────────────────────────
     if (this.edgeInstCount > 0) {
       gl.useProgram(this.edgeProg);
       gl.bindVertexArray(this.edgeVAO);
-      gl.uniform2fv(gl.getUniformLocation(this.edgeProg!, 'u_resolution'), res);
-      gl.uniform2fv(gl.getUniformLocation(this.edgeProg!, 'u_camera'), cam);
-      gl.uniform1f( gl.getUniformLocation(this.edgeProg!, 'u_zoom'), zoom);
+      gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.edgeUniforms.camera, this._camBuf);
+      gl.uniform1f( this.edgeUniforms.zoom, zoom);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.edgeInstCount);
     }
 
@@ -715,9 +739,9 @@ export class GraphWebGLRenderer {
     if (this.nodeInstCount > 0) {
       gl.useProgram(this.nodeProg);
       gl.bindVertexArray(this.nodeVAO);
-      gl.uniform2fv(gl.getUniformLocation(this.nodeProg!, 'u_resolution'), res);
-      gl.uniform2fv(gl.getUniformLocation(this.nodeProg!, 'u_camera'), cam);
-      gl.uniform1f( gl.getUniformLocation(this.nodeProg!, 'u_zoom'), zoom);
+      gl.uniform2fv(this.nodeUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
+      gl.uniform1f( this.nodeUniforms.zoom, zoom);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 

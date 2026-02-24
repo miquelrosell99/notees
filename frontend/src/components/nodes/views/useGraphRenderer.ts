@@ -254,53 +254,83 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, []);
 
   // ─── Topology sync: nodes + edges → worker + renderer ──────────────────────
+  // Track the last topology fingerprint to skip no-op re-inits (e.g., TanStack
+  // Query returning a new reference with identical data).
+  const topoFingerprintRef = useRef('');
+  // Debounce timer to coalesce rapid successive topology changes (e.g.,
+  // placeholder → real data transitions) into a single worker init.
+  const topoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const worker   = workerRef.current;
     const renderer = rendRef.current;
     if (!worker || !renderer) return;
 
-    const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
+    // Build a fingerprint from node IDs + edge pairs + sizing mode.
+    // Cheap string comparison prevents duplicate worker re-inits.
+    const nodeIdStr = nodes.map(n => n.id).join(',');
+    const edgeStr   = edges.map(e => `${e.source}-${e.target}`).join(',');
+    const fingerprint = `${nodeIdStr}|${edgeStr}|${sizeByConnections}`;
 
-    // Build physics nodes (compact)
-    const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
+    if (fingerprint === topoFingerprintRef.current) return;
+    topoFingerprintRef.current = fingerprint;
 
-    // Build edges (only unique source/target pairs)
-    const physEdges = edges.map(e => ({ source: e.source, target: e.target }));
+    // Clear any pending debounced init
+    if (topoTimerRef.current) clearTimeout(topoTimerRef.current);
 
-    // Build visual metadata map
-    const visuals = new Map<number, NodeVisual>();
-    for (const n of nodes) {
-      visuals.set(n.id, {
-        radius: sizeByConnections ? nodeRadius(n, maxConn) : BASE_RADIUS,
-        color:  nodeColor(n),
-      });
-    }
+    // Debounce: wait a tick before committing to let rapid changes coalesce
+    topoTimerRef.current = setTimeout(() => {
+      topoTimerRef.current = null;
 
-    // Register with renderer
-    const idArr = new Int32Array(nodes.map(n => n.id));
-    renderer.setNodeVisuals(idArr, visuals);
-    renderer.setEdges(physEdges);
+      const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
 
-    // Send to worker (full topology init/swap)
-    worker.postMessage({
-      type: 'init',
-      nodes: physNodes,
-      edges: physEdges,
-      config,
-    } satisfies MainToPhysicsMessage);
+      // Build physics nodes (compact)
+      const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
 
-    // Compute a sensible initial camera centre (centroid of all nodes)
-    if (nodes.length > 0) {
-      let sumX = 0, sumY = 0;
-      for (const n of nodes) { sumX += n.x; sumY += n.y; }
-      camRef.current.x = sumX / nodes.length;
-      camRef.current.y = sumY / nodes.length;
-    }
+      // Build edges (only unique source/target pairs)
+      const physEdges = edges.map(e => ({ source: e.source, target: e.target }));
 
-    setStats(prev => ({ ...prev, nodeCount: nodes.length, edgeCount: edges.length }));
-  // Stringify key to avoid re-triggering on every JS reference change
+      // Build visual metadata map
+      const visuals = new Map<number, NodeVisual>();
+      for (const n of nodes) {
+        visuals.set(n.id, {
+          radius: sizeByConnections ? nodeRadius(n, maxConn) : BASE_RADIUS,
+          color:  nodeColor(n),
+        });
+      }
+
+      // Register with renderer
+      const idArr = new Int32Array(nodes.map(n => n.id));
+      renderer.setNodeVisuals(idArr, visuals);
+      renderer.setEdges(physEdges);
+
+      // Send to worker (full topology init/swap)
+      worker.postMessage({
+        type: 'init',
+        nodes: physNodes,
+        edges: physEdges,
+        config,
+      } satisfies MainToPhysicsMessage);
+
+      // Compute a sensible initial camera centre (centroid of all nodes)
+      if (nodes.length > 0) {
+        let sumX = 0, sumY = 0;
+        for (const n of nodes) { sumX += n.x; sumY += n.y; }
+        camRef.current.x = sumX / nodes.length;
+        camRef.current.y = sumY / nodes.length;
+      }
+
+      setStats(prev => ({ ...prev, nodeCount: nodes.length, edgeCount: edges.length }));
+    }, 30); // 30ms debounce — coalesces fast successive updates without visible delay
+
+    return () => {
+      if (topoTimerRef.current) {
+        clearTimeout(topoTimerRef.current);
+        topoTimerRef.current = null;
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes.length, edges.length, sizeByConnections]);
+  }, [nodes, edges, sizeByConnections]);
 
   // ─── Pointer interaction ────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {

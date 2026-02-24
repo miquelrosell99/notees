@@ -66,12 +66,18 @@ let ready = false;
 /** Interval handle for the physics tick loop. */
 let tickInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
-/** Double buffer: we alternate which buffer is "live" each frame.
- *  When a buffer is transferred its byteLength drops to 0; we detect that
- *  and use the other buffer next frame.                                  */
-let bufA = new Float32Array(0);
-let bufB = new Float32Array(0);
-let useA = true;
+/**
+ * Triple buffer: we cycle through 3 buffers so that:
+ *   - One was just transferred (ownership with main thread, byteLength=0)
+ *   - One may still be in the message queue
+ *   - One is always available to write to
+ * Buffers are allocated to the EXACT size needed (n*2 floats) so they can
+ * be transferred directly without .slice() — zero per-frame allocation.
+ */
+let bufs: Float32Array[] = [new Float32Array(0), new Float32Array(0), new Float32Array(0)];
+let bufIdx = 0;
+/** Track the last allocated size so we can resize all 3 buffers on topology change. */
+let allocatedSize = 0;
 
 // ============================================================
 // Helpers
@@ -79,8 +85,13 @@ let useA = true;
 
 function ensureBuffers(n: number): void {
   const needed = n * 2;
-  if (bufA.length < needed) bufA = new Float32Array(Math.max(needed, 16));
-  if (bufB.length < needed) bufB = new Float32Array(Math.max(needed, 16));
+  if (needed !== allocatedSize) {
+    // Topology changed — reallocate all buffers to exact size.
+    for (let i = 0; i < bufs.length; i++) {
+      bufs[i] = new Float32Array(needed);
+    }
+    allocatedSize = needed;
+  }
 }
 
 /** Post a frame message with the current node positions. */
@@ -92,31 +103,33 @@ function postFrame(): void {
 
   if (n === 0) return;
 
-  ensureBuffers(n);
-
-  // Pick the active buffer; if it was transferred (byteLength = 0), use the other.
-  let buf: Float32Array;
-  if (useA) {
-    buf = bufA.byteLength > 0 ? bufA : (useA = false, bufB);
-  } else {
-    buf = bufB.byteLength > 0 ? bufB : (useA = true, bufA);
+  // Find a buffer that hasn't been transferred (byteLength > 0)
+  let buf: Float32Array | null = null;
+  for (let attempts = 0; attempts < bufs.length; attempts++) {
+    const idx = bufIdx % bufs.length;
+    bufIdx++;
+    if (bufs[idx].byteLength > 0) {
+      buf = bufs[idx];
+      break;
+    }
   }
 
-  // Pack positions
+  // Fallback: all 3 buffers transferred (very fast ticks, slow main thread)
+  if (!buf) {
+    buf = new Float32Array(n * 2);
+    bufs[bufIdx % bufs.length] = buf;
+    bufIdx++;
+  }
+
+  // Pack positions directly into the buffer we'll transfer
   for (let i = 0; i < n; i++) {
     buf[i * 2]     = nodes[i].x;
     buf[i * 2 + 1] = nodes[i].y;
   }
 
-  // Slice only the used portion so transfer is minimal
-  const slice = buf.slice(0, n * 2);
-
-  // Alternate for next frame
-  useA = !useA;
-
   const msg: PhysicsFrameMessage = {
     type: 'frame',
-    positions: slice,
+    positions: buf,
     nodeIds,          // shared reference — not transferred; re-sent on topology change
     nodeCount: n,
     alpha: state.alpha,
@@ -124,8 +137,8 @@ function postFrame(): void {
     ticks: state.ticks,
   };
 
-  // Transfer the positions buffer (zero-copy)
-  workerPost(msg, [slice.buffer]);
+  // Transfer the positions buffer (zero-copy to main thread)
+  workerPost(msg, [buf.buffer]);
 }
 
 /** Build the nodeIds Int32Array from the engine's current node list. */
