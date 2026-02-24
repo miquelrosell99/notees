@@ -325,10 +325,6 @@ async def get_links_for_nodes(
     if scope not in ("between", "touching"):
         raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
     
-    # Limit to prevent abuse
-    if len(node_ids) > 5000:
-        raise HTTPException(status_code=400, detail="Too many node IDs (max 5000)")
-    
     service = await _get_node_service(user)
     
     async with acquire_connection(service._pool) as conn:
