@@ -914,9 +914,15 @@ export class GraphWebGLRenderer {
     // Upload positions texture + repack node instances.
     // Camera movement does NOT reach this path — camera is just a uniform.
     if (this._posDirty) {
-      this._posDirty = false;
-      this._uploadPositionTexture(); // zero-copy: positions buffer IS the texture data
-      this._packNodeInstances();     // O(N): positions + radii + colors per node
+      const n = this.nodeIdOrder.length;
+      // Only clear the dirty flag once positions are actually available.
+      // If the physics worker hasn't sent data yet we keep _posDirty=true so
+      // the upload is retried next frame instead of drawing with a blank texture.
+      if (n === 0 || this.positions.length >= n * 2) {
+        this._posDirty = false;
+        this._uploadPositionTexture(); // zero-copy: positions buffer IS the texture data
+        this._packNodeInstances();     // O(N): positions + radii + colors per node
+      }
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -928,7 +934,8 @@ export class GraphWebGLRenderer {
     this._camBuf[1] = cy;
 
     // ── Draw edges (GPU samples positions from texture — O(1) CPU per frame) ──
-    if (this.edgeInstCount > 0 && this.posTex) {
+    // posTexWidth > 0 ensures texImage2D has been called; skip if not yet ready.
+    if (this.edgeInstCount > 0 && this.posTex && this.posTexWidth > 0) {
       gl.useProgram(this.edgeProg);
       gl.bindVertexArray(this.edgeVAO);
       gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
