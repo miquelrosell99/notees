@@ -1,5 +1,4 @@
 """Daily, monthly, and yearly date page endpoints."""
-import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -217,8 +216,10 @@ async def batch_get_or_create_daily(
             logger.error(f"batch daily error for {date_str}: {e}")
             return BatchNodeDailyResultItem(date=date_str, success=False, error=str(e))
 
-    results = await asyncio.gather(*[_one(d) for d in body.dates])
-    return BatchNodeDailyResponse(results=list(results))
+    results = []
+    for d in body.dates:
+        results.append(await _one(d))
+    return BatchNodeDailyResponse(results=results)
 
 
 @router.post("/monthly")
