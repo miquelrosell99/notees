@@ -295,7 +295,7 @@ export async function removeProperty(
  */
 export type BatchPropertiesResult = Record<string, Record<string, unknown>>;
 
-export async function getBatchPropertyValues(
+export async function batchGetPropertyValues(
   nodeIds: number[]
 ): Promise<BatchPropertiesResult> {
   const response = await api.post<BatchPropertiesResult>(
@@ -600,7 +600,7 @@ export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
  * Get text links for multiple nodes in a single request.
  * Returns a map of node ID to its text links.
  */
-export async function getBatchTextLinks(nodeIds: number[]): Promise<Record<string, TextLink[]>> {
+export async function batchGetTextLinks(nodeIds: number[]): Promise<Record<string, TextLink[]>> {
   if (nodeIds.length === 0) return {};
   const response = await api.post<{ links_by_node: Record<string, TextLink[]> }>(`${BASE}/batch-text-links`, {
     node_ids: nodeIds,
@@ -755,7 +755,7 @@ export async function restoreNode(nodeId: number): Promise<Node> {
 /**
  * Permanently delete a node (hard delete)
  */
-export async function permanentDeleteNode(nodeId: number): Promise<void> {
+export async function permanentlyDeleteNode(nodeId: number): Promise<void> {
   await api.delete(`${BASE}/${nodeId}/permanent`);
 }
 
@@ -771,7 +771,7 @@ export async function emptyTrash(): Promise<{ deleted_count: number }> {
  * Permanently delete multiple nodes from trash by ID.
  * Each node is processed independently — failures don't block others.
  */
-export async function batchPermanentDelete(request: BatchPermanentDeleteRequest): Promise<BatchPermanentDeleteResponse> {
+export async function batchPermanentlyDeleteNodes(request: BatchPermanentDeleteRequest): Promise<BatchPermanentDeleteResponse> {
   const response = await api.post<BatchPermanentDeleteResponse>(`${BASE}/trash/batch-delete`, request);
   return response.data;
 }

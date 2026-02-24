@@ -168,7 +168,7 @@ export function TableView({
   // Fetch batch text links for all nodes
   const { data: batchTextLinks = {} } = useQuery({
     queryKey: ['batchTextLinks', allNodeIds],
-    queryFn: () => nodesApi.getBatchTextLinks(allNodeIds),
+    queryFn: () => nodesApi.batchGetTextLinks(allNodeIds),
     enabled: allNodeIds.length > 0,
     staleTime: 30000,
   });

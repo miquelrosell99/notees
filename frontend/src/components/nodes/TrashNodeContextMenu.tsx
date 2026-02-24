@@ -5,7 +5,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { restoreNode, permanentDeleteNode } from '@/api/nodes';
+import { restoreNode, permanentlyDeleteNode } from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { nodeKeys } from '@/hooks/useNodes';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -42,7 +42,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   
   // Permanent delete mutation
   const permanentDeleteMutation = useMutation({
-    mutationFn: permanentDeleteNode,
+    mutationFn: permanentlyDeleteNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       onClose();
