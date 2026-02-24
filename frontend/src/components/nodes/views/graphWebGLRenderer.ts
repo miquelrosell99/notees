@@ -121,8 +121,13 @@ void main() {
     ? vec2(-dir.y, dir.x) / len
     : vec2(0.0, 1.0);
 
+  // Ensure edge is at least 1.0 screen-pixel wide to prevent
+  // sub-pixel aliasing that makes lines appear dashed when zoomed out.
+  float minWorldWidth = 1.0 / u_zoom;
+  float halfWidth = max(a_width, minWorldWidth);
+
   vec2 base  = mix(p1, p2, a_local.y);
-  vec2 world = base + perp * a_local.x * a_width;
+  vec2 world = base + perp * a_local.x * halfWidth;
 
   vec2 screen = (world - u_camera) * u_zoom;
   vec2 clip   = screen / (u_resolution * 0.5);
