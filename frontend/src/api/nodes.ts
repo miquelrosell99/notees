@@ -156,6 +156,14 @@ export async function getOrCreateDaily(dateStr: string): Promise<Node> {
 }
 
 /**
+ * Get or create multiple daily notes in a single batch request.
+ */
+export async function batchGetOrCreateDaily(dates: string[]): Promise<import('@/types/api').BatchDailyResponse> {
+  const response = await api.post<import('@/types/api').BatchDailyResponse>(`${BASE}/daily/batch`, { dates });
+  return response.data;
+}
+
+/**
  * Get or create a monthly note
  */
 export async function getOrCreateMonthly(year: number, month: number): Promise<Node> {

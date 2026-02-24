@@ -12,6 +12,7 @@ from ...db.schema import (
 )
 from ..auth import get_current_user
 from ...models import User
+import asyncio
 from .helpers import (
     _get_node_service,
     _node_to_response,
@@ -22,6 +23,7 @@ from .helpers import (
     _format_year,
 )
 from ...db.connection import acquire_connection
+from .models import BatchDailyRequest, BatchDailyResponse, BatchDailyResultItem
 
 
 router = APIRouter()
@@ -192,6 +194,32 @@ async def get_or_create_daily(
         logger.error(f"DAILY ERROR creating daily page: {e}")
         logger.error(traceback.format_exc())
         raise
+
+
+@router.post("/daily/batch")
+async def batch_get_or_create_daily(
+    body: BatchDailyRequest,
+    user: User = Depends(get_current_user),
+):
+    """Get or create multiple daily notes in one request.
+    
+    Each date is processed concurrently. Race conditions on year/month page
+    creation are handled via duplicate-key recovery (same as the single endpoint).
+    """
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
+
+    async def _one(date_str: str) -> BatchDailyResultItem:
+        try:
+            result = await get_or_create_daily(date=date_str, user=user)
+            return BatchDailyResultItem(date=date_str, success=True, node=result)
+        except Exception as e:
+            logger.error(f"batch daily error for {date_str}: {e}")
+            return BatchDailyResultItem(date=date_str, success=False, error=str(e))
+
+    results = await asyncio.gather(*[_one(d) for d in body.dates])
+    return BatchDailyResponse(results=list(results))
 
 
 @router.post("/monthly")
