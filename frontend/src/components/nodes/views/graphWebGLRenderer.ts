@@ -142,6 +142,54 @@ void main() {
 }
 `;
 
+/**
+ * Ring shader — drawn on top of nodes for hover and selection highlights.
+ * Shares the same vertex layout as NODE (7 floats / instance).
+ * Renders a smooth annulus around the node.
+ */
+const RING_VERT_SRC = /* glsl */ `#version 300 es
+precision highp float;
+
+in vec2  a_quad;
+in vec2  a_pos;
+in float a_radius;
+in vec4  a_color;
+
+uniform vec2  u_resolution;
+uniform vec2  u_camera;
+uniform float u_zoom;
+
+out vec2 v_uv;
+out vec4 v_color;
+
+void main() {
+  v_uv    = a_quad * 2.0;
+  v_color = a_color;
+  vec2 world  = a_pos + a_quad * a_radius * 2.0;
+  vec2 screen = (world - u_camera) * u_zoom;
+  vec2 clip   = screen / (u_resolution * 0.5);
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+}
+`;
+
+/** Ring fragment: smooth annulus between inner ~0.65 and outer ~1.0. */
+const RING_FRAG_SRC = /* glsl */ `#version 300 es
+precision mediump float;
+
+in vec2 v_uv;
+in vec4 v_color;
+out vec4 outColor;
+
+void main() {
+  float d     = length(v_uv);
+  float outer = 1.0 - smoothstep(0.90, 1.00, d);
+  float inner = smoothstep(0.60, 0.72, d);
+  float alpha = outer * inner;
+  if (alpha <= 0.01) discard;
+  outColor = vec4(v_color.rgb, v_color.a * alpha);
+}
+`;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface NodeVisual {
@@ -294,6 +342,7 @@ export class GraphWebGLRenderer {
   // --- Programs ---
   private nodeProg: WebGLProgram | null = null;
   private edgeProg: WebGLProgram | null = null;
+  private ringProg: WebGLProgram | null = null;
 
   // --- Node VAO / buffers ---
   private nodeVAO: WebGLVertexArrayObject | null = null;
@@ -310,6 +359,23 @@ export class GraphWebGLRenderer {
   private edgeInstCapacity = 0;
   private edgeInstData: Float32Array = new Float32Array(0);
   private edgeInstCount = 0;
+
+  // --- Ring VAO / buffer (hover + selection highlight) ---
+  // Reuses NODE_STRIDE layout; at most 2 instances (hover + selected).
+  private ringVAO: WebGLVertexArrayObject | null = null;
+  private ringQuadBuf: WebGLBuffer | null = null;
+  private ringInstBuf: WebGLBuffer | null = null;
+  private readonly ringInstData = new Float32Array(NODE_STRIDE * 2); // max 2 rings
+  private ringInstCount = 0;
+  private ringUniforms: {
+    resolution: WebGLUniformLocation | null;
+    camera:     WebGLUniformLocation | null;
+    zoom:       WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null };
+
+  // --- Hover / selection state ---
+  private _hoveredNodeId  = -1;
+  private _selectedNodeId = -1;
 
   // --- Position texture (RG32F) ---
   // Uploaded once per physics frame; edge shader samples by node index.
@@ -396,6 +462,7 @@ export class GraphWebGLRenderer {
 
     this.nodeProg = linkProgram(gl, NODE_VERT_SRC, NODE_FRAG_SRC);
     this.edgeProg = linkProgram(gl, EDGE_VERT_SRC, EDGE_FRAG_SRC);
+    this.ringProg = linkProgram(gl, RING_VERT_SRC, RING_FRAG_SRC);
 
     // Cache uniform locations once — they never change after linking
     this.nodeUniforms = {
@@ -409,9 +476,15 @@ export class GraphWebGLRenderer {
       zoom:       gl.getUniformLocation(this.edgeProg, 'u_zoom'),
       positions:  gl.getUniformLocation(this.edgeProg, 'u_positions'),
     };
+    this.ringUniforms = {
+      resolution: gl.getUniformLocation(this.ringProg, 'u_resolution'),
+      camera:     gl.getUniformLocation(this.ringProg, 'u_camera'),
+      zoom:       gl.getUniformLocation(this.ringProg, 'u_zoom'),
+    };
 
     this._initNodeBuffers();
     this._initEdgeBuffers();
+    this._initRingBuffers();
     this._initPositionTexture();
     ensureThemeObserver();
 
@@ -427,12 +500,16 @@ export class GraphWebGLRenderer {
 
     gl.deleteProgram(this.nodeProg);
     gl.deleteProgram(this.edgeProg);
+    gl.deleteProgram(this.ringProg);
     gl.deleteBuffer(this.nodeQuadBuf);
     gl.deleteBuffer(this.nodeInstBuf);
     gl.deleteBuffer(this.edgeQuadBuf);
     gl.deleteBuffer(this.edgeInstBuf);
+    gl.deleteBuffer(this.ringQuadBuf);
+    gl.deleteBuffer(this.ringInstBuf);
     gl.deleteVertexArray(this.nodeVAO);
     gl.deleteVertexArray(this.edgeVAO);
+    gl.deleteVertexArray(this.ringVAO);
     gl.deleteTexture(this.posTex);
 
     this.gl = null;
@@ -548,6 +625,45 @@ export class GraphWebGLRenderer {
     this.posTex = tex;
   }
 
+  private _initRingBuffers(): void {
+    const gl = this.gl!;
+    this.ringVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.ringVAO);
+
+    // Reuse the same unit quad geometry
+    this.ringQuadBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.ringQuadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, QUAD_VERTS, gl.STATIC_DRAW);
+
+    const aQuad = gl.getAttribLocation(this.ringProg!, 'a_quad');
+    gl.enableVertexAttribArray(aQuad);
+    gl.vertexAttribPointer(aQuad, 2, gl.FLOAT, false, 0, 0);
+
+    // Dynamic instance buffer — max 2 rings (hover + selected), NODE_STRIDE layout
+    this.ringInstBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.ringInstBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.ringInstData, gl.DYNAMIC_DRAW);
+
+    const STRIDE  = NODE_STRIDE * 4;
+    const aPos    = gl.getAttribLocation(this.ringProg!, 'a_pos');
+    const aRadius = gl.getAttribLocation(this.ringProg!, 'a_radius');
+    const aColor  = gl.getAttribLocation(this.ringProg!, 'a_color');
+
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, STRIDE, 0);
+    gl.vertexAttribDivisor(aPos, 1);
+
+    gl.enableVertexAttribArray(aRadius);
+    gl.vertexAttribPointer(aRadius, 1, gl.FLOAT, false, STRIDE, 8);
+    gl.vertexAttribDivisor(aRadius, 1);
+
+    gl.enableVertexAttribArray(aColor);
+    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
+    gl.vertexAttribDivisor(aColor, 1);
+
+    gl.bindVertexArray(null);
+  }
+
   // ─── Dynamic updates ───────────────────────────────────────────────────────
 
   /**
@@ -614,6 +730,30 @@ export class GraphWebGLRenderer {
   setCamera(x: number, y: number, zoom: number): void {
     this.camera = { x, y, zoom };
     // Camera is only a uniform — no dirty flag needed, no CPU repack required.
+  }
+
+  /** Signal the renderer which node is currently hovered (for ring highlight). */
+  setHoveredNode(id: number): void {
+    this._hoveredNodeId = id;
+  }
+
+  /** Signal the renderer which node is currently selected (for ring highlight). */
+  setSelectedNode(id: number): void {
+    this._selectedNodeId = id;
+  }
+
+  /** Read-only access to the latest physics positions (for label rendering). */
+  get nodePositions(): Float32Array { return this.positions; }
+  /** Read-only ordered list of node IDs (index matches nodePositions). */
+  get nodeOrder(): Int32Array { return this.nodeIdOrder; }
+
+  /** Convert world-space coords to canvas-pixel coords. */
+  worldToScreen(wx: number, wy: number): { x: number; y: number } {
+    const { x: cx, y: cy, zoom } = this.camera;
+    return {
+      x: (wx - cx) * zoom + this.canvasW * 0.5,
+      y: (wy - cy) * zoom + this.canvasH * 0.5,
+    };
   }
 
   /** Call after canvas resize. */
@@ -804,6 +944,46 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
       gl.uniform1f( this.nodeUniforms.zoom, zoom);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
+    }
+
+    // ── Draw hover / selection rings (on top of nodes) ────────
+    this.ringInstCount = 0;
+    const rid = this.ringInstData;
+
+    // Helper: write one ring instance into ringInstData at offset `base`.
+    // Hover ring: faint, off-white.  Selected ring: bright accent.
+    const writeRing = (nodeId: number, scale: number, r: number, g: number, b: number, a: number): void => {
+      const idx = this.nodeIndex.get(nodeId);
+      if (idx === undefined) return;
+      const px  = this.positions[idx * 2];
+      const py  = this.positions[idx * 2 + 1];
+      const vis = this.nodeVisuals.get(nodeId);
+      const baseRadius = vis?.radius ?? this.opts.defaultRadius;
+      const base = this.ringInstCount * NODE_STRIDE;
+      rid[base    ] = px;
+      rid[base + 1] = py;
+      rid[base + 2] = baseRadius * scale;
+      rid[base + 3] = r;
+      rid[base + 4] = g;
+      rid[base + 5] = b;
+      rid[base + 6] = a;
+      this.ringInstCount++;
+    };
+
+    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.85, 0.42, 0.72, 1.0, 0.85);
+    if (this._hoveredNodeId >= 0 && this._hoveredNodeId !== this._selectedNodeId) {
+      writeRing(this._hoveredNodeId, 1.85, 1.0, 1.0, 1.0, 0.35);
+    }
+
+    if (this.ringInstCount > 0 && this.ringVAO) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.ringInstBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, rid, 0, this.ringInstCount * NODE_STRIDE);
+      gl.useProgram(this.ringProg);
+      gl.bindVertexArray(this.ringVAO);
+      gl.uniform2fv(this.ringUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.ringUniforms.camera, this._camBuf);
+      gl.uniform1f( this.ringUniforms.zoom, zoom);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.ringInstCount);
     }
 
     gl.bindVertexArray(null);
