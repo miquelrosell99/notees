@@ -397,8 +397,8 @@ const DEFAULT_CONFIG: SGEConfig = {
   springStrength: 0.06,
   idealDistance: 80,
 
-  clusterStrength: 0.002,
-  clusterRepelStrength: 5000,
+  clusterStrength: 0.004,
+  clusterRepelStrength: 800,
   clusterSpacing: 200,
 
   localRepelStrength: 3000,
@@ -723,21 +723,41 @@ export class SemanticGraphEngine {
     // Update cluster centroids
     this.updateClusterData();
 
-    // A) Intra-Cluster Cohesion
+    // A) Intra-Cluster Cohesion (shell model)
+    // Nodes are attracted to a target-radius shell around the cluster centroid,
+    // NOT to the centroid itself.  This prevents centroid over-pulling:
+    //   • Inside the shell  → pushed outward (very weak)
+    //   • On the shell       → zero force
+    //   • Outside the shell → pulled inward (proportional to overshoot)
+    // Shell radius scales with √count so larger clusters get wider shells.
     const clusterStr = cfg.clusterStrength * alpha;
     for (let i = 0; i < n; i++) {
       const node = nodes[i];
       if (node.pinned) continue;
       const cluster = this.clusterData.get(node.clusterId);
       if (!cluster || cluster.count <= 1) continue;
-      ax[i] -= clusterStr * (node.x - cluster.cx);
-      ay[i] -= clusterStr * (node.y - cluster.cy);
+      const dx = node.x - cluster.cx;
+      const dy = node.y - cluster.cy;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      // Target shell radius: enough room for count nodes at idealDistance spacing
+      const shellRadius = cfg.idealDistance * 0.5 * Math.sqrt(cluster.count);
+      const radiusError = dist - shellRadius;
+      // Only pull inward when outside the shell; very mild push outward when inside
+      // This asymmetry prevents collapse while still keeping clusters coherent.
+      const strength = radiusError > 0
+        ? -clusterStr * radiusError          // outside → pull inward
+        : -clusterStr * radiusError * 0.15;  // inside  → gentle push outward
+      ax[i] += (dx / dist) * strength;
+      ay[i] += (dy / dist) * strength;
     }
 
-    // B) Inter-Cluster Repulsion (centroid-to-centroid, mass-scaled)
+    // B) Inter-Cluster Repulsion (centroid-to-centroid, mass-scaled, √n-adjusted)
     // This is the ONLY long-range force — it acts as the macro pressure field.
-    // Force ∝ (count_a × count_b) / d², repels ALL cluster pairs (not just same-component).
-    const clusterRepelStr = cfg.clusterRepelStrength * alpha;
+    // Force ∝ √(count_a × count_b) / d², repels ALL cluster pairs.
+    // Base strength is scaled by √n so equilibrium density stays constant as the
+    // graph grows (more nodes → more pairwise pressure → division by √n normalises).
+    const nScale = n > 1 ? Math.sqrt(n) : 1;
+    const clusterRepelStr = cfg.clusterRepelStrength * alpha * nScale;
     const clusterIds = this.clusterIds;
     const clusterCount = clusterIds.length;
     const clusterFx = new Map<number, number>();
