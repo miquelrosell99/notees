@@ -130,6 +130,10 @@ class NodeUpdateRequest(BaseModel):
     sequence: Optional[int] = None
     collapsed: Optional[bool] = None
     expected_version: Optional[int] = None  # For optimistic locking
+    # Optional: when provided, reconcile node classes to exactly this set
+    classes: Optional[List[int]] = None
+    # Optional: when provided, apply each property_id -> value pair
+    properties: Optional[Dict[int, Any]] = None
 
 
 class ClassRequest(BaseModel):
@@ -292,6 +296,9 @@ class BatchNodeUpdateItem(BaseModel):
     sequence: Optional[int] = None
     collapsed: Optional[bool] = None
     expected_version: Optional[int] = None
+    # Optional: reconcile classes / apply property values in the same request
+    classes: Optional[List[int]] = None
+    properties: Optional[Dict[int, Any]] = None
 
 
 class BatchNodeUpdateRequest(BaseModel):
