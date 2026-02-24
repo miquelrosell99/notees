@@ -84,8 +84,22 @@ export function GraphView({
   const rendererRef = useRef<SGEGraphViewRef>(null);
   
   // Fetch links between the provided nodes
+  // Stabilize nodeIds with a content-based key so useGraphLinks doesn't refetch
+  // when apiNodes is a new array reference with the same IDs (common with TanStack Query)
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
-  const { data: apiLinks = [] } = useGraphLinks(nodeIds);
+  const prevNodeIdsRef = useRef<number[]>([]);
+  const stableNodeIds = useMemo(() => {
+    const prev = prevNodeIdsRef.current;
+    if (
+      prev.length === nodeIds.length &&
+      prev.every((id, i) => id === nodeIds[i])
+    ) {
+      return prev;
+    }
+    prevNodeIdsRef.current = nodeIds;
+    return nodeIds;
+  }, [nodeIds]);
+  const { data: apiLinks = [] } = useGraphLinks(stableNodeIds);
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();

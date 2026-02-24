@@ -221,6 +221,9 @@ function detectCommunities(
   adjacency: Map<number, Set<number>>,
   edgeCount: number,
   rng: SeededRNG,
+  /** Warm-start: previous community assignment. Nodes present here start in
+   *  their old community instead of singleton, letting Louvain converge faster. */
+  priorCommunities?: Map<number, number>,
 ): Map<number, number> {
   const community = new Map<number, number>();
   const idToIdx = new Map<number, number>();
@@ -239,23 +242,49 @@ function detectCommunities(
     deg[i] = adjacency.get(nodeIds[i])?.size ?? 0;
   }
 
+  // Node -> community mapping (indexed)
+  const nodeCommunity = new Int32Array(nodeCount);
+
+  // Warm-start: seed from prior communities if available
+  if (priorCommunities && priorCommunities.size > 0) {
+    // Remap prior community IDs to local indices: collect unique prior IDs
+    // and assign contiguous IDs starting from 0.
+    const priorIdRemap = new Map<number, number>();
+    let nextPriorId = 0;
+    for (let i = 0; i < nodeCount; i++) {
+      const priorComm = priorCommunities.get(nodeIds[i]);
+      if (priorComm !== undefined) {
+        if (!priorIdRemap.has(priorComm)) {
+          priorIdRemap.set(priorComm, nextPriorId++);
+        }
+        nodeCommunity[i] = priorIdRemap.get(priorComm)!;
+      } else {
+        // New node: assign to singleton (unique index beyond existing communities)
+        nodeCommunity[i] = nextPriorId++;
+      }
+    }
+  } else {
+    for (let i = 0; i < nodeCount; i++) {
+      nodeCommunity[i] = i;
+    }
+  }
+
   // Community -> sum of degrees
   const communityDegSum = new Float64Array(nodeCount);
   for (let i = 0; i < nodeCount; i++) {
-    communityDegSum[i] = deg[i];
+    communityDegSum[nodeCommunity[i]] += deg[i];
   }
 
   // Community -> internal edges * 2
   const communityInternalEdges = new Float64Array(nodeCount);
 
-  // Node -> community mapping (indexed)
-  const nodeCommunity = new Int32Array(nodeCount);
-  for (let i = 0; i < nodeCount; i++) {
-    nodeCommunity[i] = i;
-  }
-
-  // Run multiple passes until no improvement
-  const maxPasses = 20;
+  // Scale max passes: large graphs converge with fewer passes;
+  // warm-started graphs converge even faster.
+  const hasWarmStart = priorCommunities && priorCommunities.size > 0;
+  const basePasses = hasWarmStart ? 6 : 20;
+  const maxPasses = nodeCount > 2000
+    ? Math.max(3, Math.min(basePasses, Math.ceil(8000 / nodeCount)))
+    : basePasses;
   const shuffled = new Int32Array(nodeCount);
   for (let i = 0; i < nodeCount; i++) shuffled[i] = i;
 
@@ -274,6 +303,7 @@ function detectCommunities(
 
   for (let pass = 0; pass < maxPasses; pass++) {
     let improved = false;
+    let totalGain = 0;
     shuffle();
 
     for (let si = 0; si < nodeCount; si++) {
@@ -326,10 +356,13 @@ function detectCommunities(
         communityInternalEdges[bestComm] += edgesToBest * 2;
         
         improved = true;
+        totalGain += bestGain;
       }
     }
 
     if (!improved) break;
+    // Early exit: if total modularity gain this pass is negligible, stop
+    if (totalGain < 1e-6) break;
   }
 
   // Compact community IDs to 0..K-1
@@ -521,12 +554,16 @@ export class SemanticGraphEngine {
 
     // LAYER 1: Topological preprocessing
     this.componentMap = findConnectedComponents(nodeIds, this.adjacency);
+    // Warm-start: pass previous cluster assignments so Louvain converges faster
+    // when topology changed only slightly (common for incremental updates).
+    const priorClusters = this.clusterMap.size > 0 ? this.clusterMap : undefined;
     this.clusterMap = detectCommunities(
       inputNodes.length,
       nodeIds,
       this.adjacency,
       edgeCount,
       this.rng,
+      priorClusters,
     );
 
     // Create SGENode objects
