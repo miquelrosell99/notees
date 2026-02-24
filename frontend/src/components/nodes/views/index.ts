@@ -21,10 +21,10 @@ export { WhiteboardView } from './WhiteboardView';
 export { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 
 // Graph canvas (physics worker + WebGL2 renderer)
-export { GraphCanvas } from './GraphCanvas';
-export type { GraphCanvasProps, GraphCanvasRef } from './GraphCanvas';
-export { useGraphCanvas } from './useGraphCanvas';
-export type { GraphCanvasOptions, GraphCanvasHandle, GraphCanvasStats } from './useGraphCanvas';
+export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
+export type { GraphRendererProps } from './GraphRenderer';
+export { useGraphRenderer } from './useGraphRenderer';
+export type { GraphRendererOptions, GraphRendererHandle, GraphRendererStats } from './useGraphRenderer';
 export { GraphWebGLRenderer } from './graphWebGLRenderer';
 export type { NodeVisual, RendererOptions, CameraState } from './graphWebGLRenderer';
 

@@ -74,7 +74,7 @@ function nodeRadius(n: GraphNode, maxConnections: number): number {
 
 // ─── Public API types ─────────────────────────────────────────────────────────
 
-export interface GraphCanvasStats {
+export interface GraphRendererStats {
   nodeCount: number;
   edgeCount: number;
   visibleNodes: number;
@@ -85,7 +85,7 @@ export interface GraphCanvasStats {
   fps: number;
 }
 
-export interface GraphCanvasOptions {
+export interface GraphRendererOptions {
   nodes: GraphNode[];
   edges: GraphLink[];
   /** Initial / overriding physics config. */
@@ -96,7 +96,7 @@ export interface GraphCanvasOptions {
   onNodeClick?: (nodeId: number) => void;
 }
 
-export interface GraphCanvasHandle {
+export interface GraphRendererHandle {
   /** Ref to attach to the <canvas> element. */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Runtime stats for debug overlays. */
@@ -117,7 +117,7 @@ export interface GraphCanvasHandle {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useGraphCanvas(opts: GraphCanvasOptions): GraphCanvasHandle {
+export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandle {
   const { nodes, edges, config, sizeByConnections = true } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
@@ -147,7 +147,7 @@ export function useGraphCanvas(opts: GraphCanvasOptions): GraphCanvasHandle {
   });
 
   // Physics stats (only re-render periodically)
-  const [stats, setStats] = useState<GraphCanvasStats>({
+  const [stats, setStats] = useState<GraphRendererStats>({
     nodeCount: 0, edgeCount: 0, visibleNodes: 0, visibleEdges: 0,
     alpha: 1, energy: 0, ticks: 0, fps: 0,
   });
@@ -453,7 +453,7 @@ export function useGraphCanvas(opts: GraphCanvasOptions): GraphCanvasHandle {
     _pointerMove:  onPointerMove,
     _pointerUp:    onPointerUp,
     _wheel:        onWheel,
-  } as GraphCanvasHandle & {
+  } as GraphRendererHandle & {
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
