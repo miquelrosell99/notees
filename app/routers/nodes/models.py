@@ -354,12 +354,12 @@ class BatchPermanentDeleteResponse(BaseModel):
     failed: int
 
 
-class BatchDailyRequest(BaseModel):
+class BatchNodeDailyRequest(BaseModel):
     """Request to get-or-create multiple daily pages in one call."""
     dates: List[str]  # List of YYYY-MM-DD strings
 
 
-class BatchDailyResultItem(BaseModel):
+class BatchNodeDailyResultItem(BaseModel):
     """Result for a single date in a batch daily request."""
     date: str
     success: bool
@@ -367,6 +367,6 @@ class BatchDailyResultItem(BaseModel):
     error: Optional[str] = None
 
 
-class BatchDailyResponse(BaseModel):
+class BatchNodeDailyResponse(BaseModel):
     """Response for batch daily get-or-create."""
-    results: List[BatchDailyResultItem]
+    results: List[BatchNodeDailyResultItem]
