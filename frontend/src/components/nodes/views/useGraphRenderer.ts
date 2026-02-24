@@ -20,6 +20,7 @@ import type {
   MainToPhysicsMessage,
   PhysicsToMainMessage,
 } from './graphPhysicsWorkerProtocol';
+import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
 
@@ -117,6 +118,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const rafRef     = useRef<number>(0);
   const optsRef    = useRef(opts);
 
+  // ── SharedArrayBuffer shared-memory path ──────────────────────────────────
+  // When crossOriginIsolated, the worker writes positions into a SAB each tick
+  // and increments a seq counter.  RAF polls the counter; when it changes, reads
+  // positions directly — no postMessage overhead per frame.
+  const sabPosRef    = useRef<Float32Array  | null>(null);
+  const sabMetaI32   = useRef<Int32Array    | null>(null);
+  const sabMetaF32   = useRef<Float32Array  | null>(null);
+  const sabNodeIds   = useRef<Int32Array    | null>(null);
+  const sabSeq       = useRef<number>(0);
+
   // Camera state (mutable, not React state — avoid re-renders on every frame)
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
 
@@ -205,6 +216,17 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         return;
       }
 
+      // ── SharedArrayBuffer path ─ store views, reset seq counter ────────
+      if (msg.type === 'sharedBuffer') {
+        sabPosRef.current  = new Float32Array(msg.positions);
+        sabMetaI32.current = new Int32Array(msg.meta);
+        sabMetaF32.current = new Float32Array(msg.meta);
+        sabNodeIds.current = msg.nodeIds;
+        sabSeq.current     = Atomics.load(sabMetaI32.current, META_SEQ);
+        return;
+      }
+
+      // ── Transferable fallback (no crossOriginIsolated) ────────────────
       if (msg.type === 'frame') {
         // Update renderer positions (packs instance buffers on CPU, uploads to GPU)
         renderer.updatePositions(msg.positions, msg.nodeIds);
@@ -219,7 +241,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     worker.onerror = (e) => console.error('[SGEWorker]', e);
 
-    // ── RAF render loop ──
+    // ── RAF render loop ────────────────────────────────────────────────────────────────────────────
     // Only does GPU/canvas work when something actually changed.
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop);
@@ -227,6 +249,23 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const rend = rendRef.current;
       if (!rend) return;
 
+      // ── SAB poll: check if worker wrote new physics data ────────────────
+      const metaI32  = sabMetaI32.current;
+      const metaF32  = sabMetaF32.current;
+      const sabPos   = sabPosRef.current;
+      const sabNids  = sabNodeIds.current;
+      if (metaI32 && metaF32 && sabPos && sabNids) {
+        const seq = Atomics.load(metaI32, META_SEQ);
+        if (seq !== sabSeq.current) {
+          sabSeq.current = seq;
+          const n = Atomics.load(metaI32, META_COUNT);
+          rend.updatePositions(sabPos.subarray(0, n * 2), sabNids.subarray(0, n));
+          statsAccRef.current.alpha  = metaF32[META_ALPHA];
+          statsAccRef.current.energy = metaF32[META_ENERGY];
+          statsAccRef.current.ticks  = Atomics.load(metaI32, META_TICKS);
+          dirtyRef.current.positions = true;
+        }
+      }
       const cam   = camRef.current;
       const dirty = dirtyRef.current;
 

@@ -1,42 +1,19 @@
 /**
- * SemanticGraphEngine — Hybrid, stability-optimized, cluster-aware layout engine
- * for knowledge graphs. Replaces classical force-directed physics with a 3-layer
- * model: topological preprocessing, cluster-aware forces, and stabilized integration.
+ * SemanticGraphEngine — high-performance force-directed layout engine.
  *
- * Features:
- * - Deterministic layout via seeded PRNG
- * - Louvain-inspired community detection for cluster coherence
- * - Spatial hash grid for O(n) local repulsion (no global n²)
- * - Cluster-level repulsion (centroid-to-centroid)
- * - Velocity Verlet integration with adaptive timestep
- * - Energy-based convergence and auto-freeze
- * - Incremental node/edge updates without full reset
+ * Architecture
+ * ─────────────
+ * • Full Structure-of-Arrays (SoA) Float32 physics data — cache-line friendly.
+ * • Open-addressing typed-array spatial hash — replaces Map-based grid.
+ * • Pre-resolved edge index arrays — eliminates 2E Map lookups per step.
+ * • Barnes–Hut quadtree for O(K log K) inter-cluster repulsion.
+ * • Fixed-timestep integration driven by the caller (graphPhysicsWorker).
+ * • SGEState exposes raw typed-array views — zero-copy to worker postFrame.
  *
  * Zero external dependencies. Renderer-agnostic.
  */
 
-// ============================================================
-// Types
-// ============================================================
-
-export interface SGENode {
-  id: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  ax: number;
-  ay: number;
-  fx: number;
-  fy: number;
-  pinned: boolean;
-  componentId: number;
-  clusterId: number;
-  degree: number;
-  centrality: number;
-  initialRadius: number;
-  initialAngle: number;
-}
+// ─── Public types ──────────────────────────────────────────────────────────────
 
 export interface SGEEdge {
   source: number;
@@ -45,52 +22,57 @@ export interface SGEEdge {
 
 export interface SGEConfig {
   seed: number;
-
   springStrength: number;
   idealDistance: number;
-
   clusterStrength: number;
   clusterRepelStrength: number;
   clusterSpacing: number;
-
   localRepelStrength: number;
   localRepelRadius: number;
-
   radialStrength: number;
   componentCenterStrength: number;
   componentSpacing: number;
-
   damping: number;
   maxVelocity: number;
-
   alpha: number;
   alphaDecay: number;
   alphaMin: number;
   reheatFactor: number;
-
   dt: number;
+  /** Barnes–Hut opening criterion. Lower = more accurate, slower. Default 0.8 */
+  bhTheta: number;
 }
 
+/** Typed-array views into the SoA physics state. All valid for [0..nodeCount). */
 export interface SGEState {
-  nodes: ReadonlyArray<Readonly<SGENode>>;
+  posX: Float32Array;
+  posY: Float32Array;
+  velX: Float32Array;
+  velY: Float32Array;
+  /** Node IDs in the same order as posX/posY. */
+  nodeIdArr: Int32Array;
+  nodeCount: number;
   alpha: number;
   energy: number;
   running: boolean;
   ticks: number;
 }
 
-// ============================================================
-// Deterministic PRNG (xoshiro128**)
-// ============================================================
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function nextPow2(v: number): number {
+  let n = 1;
+  while (n < v) n <<= 1;
+  return n;
+}
+
+// ─── Deterministic PRNG (xoshiro128**) ────────────────────────────────────────
 
 class SeededRNG {
-  private s0: number;
-  private s1: number;
-  private s2: number;
-  private s3: number;
+  private s0: number; private s1: number;
+  private s2: number; private s3: number;
 
   constructor(seed: number) {
-    // SplitMix32 seeding
     let s = seed | 0;
     const sm = (): number => {
       s = (s + 0x9e3779b9) | 0;
@@ -98,122 +80,173 @@ class SeededRNG {
       t = Math.imul(t, 0x21f0aaad);
       t = t ^ (t >>> 15);
       t = Math.imul(t, 0x735a2d97);
-      t = t ^ (t >>> 15);
-      return t >>> 0;
+      return (t ^ (t >>> 15)) >>> 0;
     };
-    this.s0 = sm();
-    this.s1 = sm();
-    this.s2 = sm();
-    this.s3 = sm();
+    this.s0 = sm(); this.s1 = sm(); this.s2 = sm(); this.s3 = sm();
   }
 
-  /** Returns a float in [0, 1) */
   next(): number {
     const result = Math.imul(this.s1 * 5, 7) >>> 0;
     const t = this.s1 << 9;
-    this.s2 ^= this.s0;
-    this.s3 ^= this.s1;
-    this.s1 ^= this.s2;
-    this.s0 ^= this.s3;
+    this.s2 ^= this.s0; this.s3 ^= this.s1;
+    this.s1 ^= this.s2; this.s0 ^= this.s3;
     this.s2 ^= t;
     this.s3 = (this.s3 << 11) | (this.s3 >>> 21);
     return (result >>> 0) / 4294967296;
   }
 
-  /** Returns a float in [min, max) */
-  range(min: number, max: number): number {
-    return min + this.next() * (max - min);
-  }
+  range(min: number, max: number): number { return min + this.next() * (max - min); }
 }
 
-// ============================================================
-// Spatial Hash Grid
-// ============================================================
+// ─── Typed-array Robin Hood spatial hash ─────────────────────────────────────
+//
+// Each slot stores (cellKey, chainHead, PSL).  Multiple nodes in the same cell
+// are chained via next[nodeIdx].  The PSL (probe sequence length) is stored as
+// an Int8Array where -1 marks an empty slot.
+//
+// Robin Hood invariant: every occupied slot's stored PSL equals the distance
+// from its ideal home slot, kept ≥ its neighbours.  On insert we steal a slot
+// whenever our PSL exceeds the incumbent's, then re-home the evicted entry.
+// This caps the maximum probe chain to O(log N) in practice vs O(N) for linear
+// probing at load >0.7.  Table size is always ≥3N so load ≤0.33.
+//
+// Insert is two-phase:
+//   Phase 1 – Robin Hood lookup: if targetKey already has a slot, prepend node.
+//   Phase 2 – Robin Hood insert: key absent, create new (key, head) entry.
+// Query gets a free early-exit: if tblPSL[slot] < currentPSL, key is absent.
 
-class SpatialHashGrid {
-  private invCellSize: number;
-  private cells: Map<number, number[]>;
-  private reusableBuckets: number[][];
-  private reusableIdx: number;
+class FastSpatialHash {
+  private invCell: number;
+  private mask = 0;
+  private tblKey:  Int32Array = new Int32Array(0);  // cell-key at each slot
+  private tblHead: Int32Array = new Int32Array(0);  // chain head (node index)
+  private tblPSL:  Int8Array  = new Int8Array(0);   // probe sequence length; -1 = empty
+  private next:    Int32Array = new Int32Array(0);   // per-node linked list
+  resultBuf: Int32Array = new Int32Array(256);
 
-  // Pre-allocated result buffer for zero-alloc neighbour queries
-  resultBuf: Int32Array = new Int32Array(512);
-
-  constructor(cellSize: number) {
-    this.invCellSize = 1 / cellSize;
-    this.cells = new Map();
-    this.reusableBuckets = [];
-    this.reusableIdx = 0;
+  constructor(cellSize: number, capacity: number) {
+    this.invCell = 1 / cellSize;
+    this._alloc(capacity);
   }
 
-  clear(): void {
-    // Reclaim buckets for reuse instead of allocating new arrays
-    for (const bucket of this.cells.values()) {
-      bucket.length = 0;
-      if (this.reusableIdx < this.reusableBuckets.length) {
-        this.reusableBuckets[this.reusableIdx++] = bucket;
-      } else {
-        this.reusableBuckets.push(bucket);
-        this.reusableIdx++;
-      }
+  private _alloc(n: number): void {
+    const sz     = nextPow2(Math.max(n * 3, 64));
+    this.mask    = sz - 1;
+    this.tblKey  = new Int32Array(sz).fill(-1);
+    this.tblHead = new Int32Array(sz).fill(-1);
+    this.tblPSL  = new Int8Array(sz).fill(-1);   // -1 = empty sentinel
+    if (this.next.length < n) this.next = new Int32Array(Math.max(n * 2, 256)).fill(-1);
+  }
+
+  setCellSize(size: number): void { this.invCell = 1 / size; }
+
+  /** Reset for a new frame. O(tableSize), not O(N). */
+  clear(n: number): void {
+    const sz = this.mask + 1;
+    if (n * 3 > sz) {
+      this._alloc(n);
+    } else {
+      this.tblKey.fill(-1,  0, sz);
+      this.tblHead.fill(-1, 0, sz);
+      this.tblPSL.fill(-1,  0, sz);
     }
-    this.cells.clear();
-    this.reusableIdx = 0;
+    if (this.next.length < n) this.next = new Int32Array(Math.max(n * 2, 256)).fill(-1);
+    this.next.fill(-1, 0, n);
   }
 
-  setCellSize(size: number): void {
-    this.invCellSize = 1 / size;
-  }
-
-  private key(cx: number, cy: number): number {
-    // Large primes for hashing grid coordinates
+  private cellKey(cx: number, cy: number): number {
     return ((cx * 73856093) ^ (cy * 19349663)) | 0;
   }
 
-  private getBucket(cx: number, cy: number): number[] {
-    const k = this.key(cx, cy);
-    let bucket = this.cells.get(k);
-    if (!bucket) {
-      if (this.reusableIdx > 0) {
-        bucket = this.reusableBuckets[--this.reusableIdx];
-      } else {
-        bucket = [];
+  insert(idx: number, x: number, y: number): void {
+    const cx  = Math.floor(x * this.invCell) | 0;
+    const cy  = Math.floor(y * this.invCell) | 0;
+    const targetKey = this.cellKey(cx, cy);
+    const mask    = this.mask;
+    const tblKey  = this.tblKey;
+    const tblHead = this.tblHead;
+    const tblPSL  = this.tblPSL;
+    const next    = this.next;
+
+    // ── Phase 1: Robin Hood lookup ──────────────────────────────────────────
+    // If targetKey already has a slot, prepend idx to its chain and return.
+    // Robin Hood early exit: if stored PSL < our probe distance, key is absent.
+    {
+      let slot = (targetKey >>> 0) & mask;
+      let psl  = 0;
+      for (;;) {
+        const sp = tblPSL[slot];
+        if (sp < 0 || sp < psl) break;          // empty or RH early-exit → key absent
+        if (tblKey[slot] === targetKey) {         // cell already in table
+          next[idx]     = tblHead[slot];
+          tblHead[slot] = idx;
+          return;
+        }
+        slot = (slot + 1) & mask;
+        psl++;
       }
-      this.cells.set(k, bucket);
     }
-    return bucket;
+
+    // ── Phase 2: Robin Hood insert ──────────────────────────────────────────
+    // Key absent — create a new (targetKey, idx) entry using Robin Hood steal.
+    // next[idx] is already -1 from clear(), so it becomes a single-node chain.
+    {
+      let probeKey : number = targetKey;
+      let probeHead: number = idx;
+      let psl      : number = 0;
+      let slot = (targetKey >>> 0) & mask;
+      for (;;) {
+        const sp = tblPSL[slot];
+        if (sp < 0) {                             // empty slot — place here
+          tblKey[slot]  = probeKey;
+          tblHead[slot] = probeHead;
+          tblPSL[slot]  = psl;
+          return;
+        }
+        if (sp < psl) {                           // Robin Hood: steal from rich
+          const tmpK    = tblKey[slot];  tblKey[slot]  = probeKey;  probeKey  = tmpK;
+          const tmpH    = tblHead[slot]; tblHead[slot] = probeHead; probeHead = tmpH;
+          tblPSL[slot]  = psl;           psl           = sp;
+        }
+        slot = (slot + 1) & mask;
+        psl++;
+      }
+    }
   }
 
-  insert(index: number, x: number, y: number): void {
-    const cx = Math.floor(x * this.invCellSize);
-    const cy = Math.floor(y * this.invCellSize);
-    this.getBucket(cx, cy).push(index);
-  }
-
-  /**
-   * Query neighbours into the pre-allocated resultBuf.
-   * Returns the count of results.  Caller reads resultBuf[0..count-1].
-   * Zero per-call allocation, no closure overhead.
-   */
+  /** Fill resultBuf with all nodes in the 3×3 cell neighbourhood. Returns count. */
   queryInto(x: number, y: number): number {
+    const cx      = Math.floor(x * this.invCell) | 0;
+    const cy      = Math.floor(y * this.invCell) | 0;
+    const mask    = this.mask;
+    const tblKey  = this.tblKey;
+    const tblHead = this.tblHead;
+    const tblPSL  = this.tblPSL;
+    const next    = this.next;
     let count = 0;
-    const cx = Math.floor(x * this.invCellSize);
-    const cy = Math.floor(y * this.invCellSize);
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
-        const k = this.key(cx + dx, cy + dy);
-        const bucket = this.cells.get(k);
-        if (bucket) {
-          const blen = bucket.length;
-          // Grow buffer if needed (rare — only on first few frames)
-          if (count + blen > this.resultBuf.length) {
-            const newBuf = new Int32Array(Math.max(this.resultBuf.length * 2, count + blen + 64));
-            newBuf.set(this.resultBuf.subarray(0, count));
-            this.resultBuf = newBuf;
+        const k    = this.cellKey(cx + dx, cy + dy);
+        let   slot = (k >>> 0) & mask;
+        let   psl  = 0;
+        for (;;) {
+          const sp = tblPSL[slot];
+          if (sp < 0 || sp < psl) break;         // empty or RH early-exit
+          if (tblKey[slot] === k) {
+            let cur = tblHead[slot];
+            while (cur !== -1) {
+              if (count >= this.resultBuf.length) {
+                const nb = new Int32Array(this.resultBuf.length * 2);
+                nb.set(this.resultBuf.subarray(0, count));
+                this.resultBuf = nb;
+              }
+              this.resultBuf[count++] = cur;
+              cur = next[cur];
+            }
+            break;
           }
-          for (let bi = 0; bi < blen; bi++) {
-            this.resultBuf[count++] = bucket[bi];
-          }
+          slot = (slot + 1) & mask;
+          psl++;
         }
       }
     }
@@ -221,9 +254,212 @@ class SpatialHashGrid {
   }
 }
 
-// ============================================================
-// Community Detection (Louvain-inspired modularity optimization)
-// ============================================================
+// ─── Barnes–Hut quadtree for cluster repulsion ────────────────────────────────
+//
+// Used when bigK ≥ BH_THRESHOLD.  Below that, direct O(K²) is cheaper.
+// Pool-based: no heap allocation after the first build.
+//
+// Per-node layout:
+//   Floats (stride BHNF=4): cx, cy, mass, halfSize
+//   Ints   (stride BHNI=5): child0, child1, child2, child3, leafClusterIdx
+
+const BH_THRESHOLD = 32;
+const BHNF = 4;
+const BHNI = 5;
+
+class BHQuadTree {
+  private poolF: Float32Array;
+  private poolI: Int32Array;
+  private size = 0;
+  private cap:   number;
+
+  constructor(initialCap: number) {
+    this.cap   = Math.max(initialCap * 4, 128);
+    this.poolF = new Float32Array(this.cap * BHNF);
+    this.poolI = new Int32Array(this.cap * BHNI).fill(-1);
+  }
+
+  private _grow(): void {
+    this.cap *= 2;
+    const nf = new Float32Array(this.cap * BHNF); nf.set(this.poolF); this.poolF = nf;
+    const ni = new Int32Array(this.cap * BHNI).fill(-1); ni.set(this.poolI); this.poolI = ni;
+  }
+
+  private _alloc(cx: number, cy: number, mass: number, halfSize: number, leafIdx: number): number {
+    if (this.size >= this.cap) this._grow();
+    const n = this.size++;
+    const f = n * BHNF; const ii = n * BHNI;
+    this.poolF[f    ] = cx;
+    this.poolF[f + 1] = cy;
+    this.poolF[f + 2] = mass;
+    this.poolF[f + 3] = halfSize;
+    this.poolI[ii    ] = -1; this.poolI[ii + 1] = -1;
+    this.poolI[ii + 2] = -1; this.poolI[ii + 3] = -1;
+    this.poolI[ii + 4] = leafIdx;
+    return n;
+  }
+
+  /** Build tree from bigIds[0..bigK). */
+  build(
+    cx: Float32Array, cy: Float32Array, cc: Int32Array,
+    bigIds: Int32Array, bigK: number,
+  ): number {
+    this.size = 0;
+    if (bigK === 0) return -1;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < bigK; i++) {
+      const c = bigIds[i];
+      if (cx[c] < minX) minX = cx[c]; if (cx[c] > maxX) maxX = cx[c];
+      if (cy[c] < minY) minY = cy[c]; if (cy[c] > maxY) maxY = cy[c];
+    }
+    const hw  = Math.max(maxX - minX, maxY - minY) * 0.5 + 1;
+    const rcx = (minX + maxX) * 0.5;
+    const rcy = (minY + maxY) * 0.5;
+
+    const root = this._alloc(rcx, rcy, 0, hw, -1);
+    for (let i = 0; i < bigK; i++) this._insert(root, bigIds[i], cx, cy, cc);
+    return root;
+  }
+
+  private _insert(
+    node: number, clIdx: number,
+    cx: Float32Array, cy: Float32Array, cc: Int32Array,
+  ): void {
+    const f  = node * BHNF; const ii = node * BHNI;
+    const clx   = cx[clIdx], cly = cy[clIdx], clm = cc[clIdx];
+    const oldM  = this.poolF[f + 2];
+    const newM  = oldM + clm;
+    this.poolF[f    ] = (this.poolF[f    ] * oldM + clx * clm) / newM;
+    this.poolF[f + 1] = (this.poolF[f + 1] * oldM + cly * clm) / newM;
+    this.poolF[f + 2] = newM;
+
+    const leafIdx = this.poolI[ii + 4];
+    const half    = this.poolF[f + 3];
+    const quarter = half * 0.5;
+    const ncx     = this.poolF[f    ];
+    const ncy     = this.poolF[f + 1];
+
+    if (leafIdx === -1 && this.poolI[ii] === -1) {
+      // Currently empty internal node — place as leaf
+      this.poolI[ii + 4] = clIdx;
+      return;
+    }
+
+    if (leafIdx !== -1) {
+      // Was a leaf — subdivide: push existing cluster into child
+      this.poolI[ii + 4] = -1;
+      const child = this._getOrCreateChild(node, leafIdx, cx, cy, ncx, ncy, quarter);
+      const cf  = child * BHNF;
+      this.poolF[cf + 2] = 0; // reset mass so re-insert calculates correctly
+      this._insert(child, leafIdx, cx, cy, cc);
+    }
+
+    const child2 = this._getOrCreateChild(node, clIdx, cx, cy, ncx, ncy, quarter);
+    this._insert(child2, clIdx, cx, cy, cc);
+  }
+
+  private _getOrCreateChild(
+    node: number, clIdx: number,
+    cx: Float32Array, cy: Float32Array,
+    ncx: number, ncy: number, quarter: number,
+  ): number {
+    const ii      = node * BHNI;
+    const clx     = cx[clIdx], cly = cy[clIdx];
+    const quadrant = (clx >= ncx ? 1 : 0) | (cly >= ncy ? 2 : 0);
+
+    let child = this.poolI[ii + quadrant];
+    if (child === -1) {
+      const ccx = ncx + (clx >= ncx ?  quarter : -quarter);
+      const ccy = ncy + (cly >= ncy ?  quarter : -quarter);
+      child = this._alloc(ccx, ccy, 0, quarter, -1);
+      this.poolI[ii + quadrant] = child;
+    }
+    return child;
+  }
+
+  /**
+   * Walk the tree and accumulate repulsion force on cluster aIdx into fxOut/fyOut.
+   * theta2 = (bhTheta)². Lower = more accurate.
+   */
+  computeForce(
+    root: number, aIdx: number,
+    cx: Float32Array, cy: Float32Array, cc: Int32Array,
+    repelStr: number, theta2: number,
+    fxOut: Float32Array, fyOut: Float32Array,
+  ): void {
+    if (root === -1) return;
+    this._traverse(root, aIdx, cx[aIdx], cy[aIdx], cc[aIdx], cx, cy, cc, repelStr, theta2, fxOut, fyOut);
+  }
+
+  private _traverse(
+    node: number, aIdx: number,
+    ax: number, ay: number, aMass: number,
+    cx: Float32Array, cy: Float32Array, cc: Int32Array,
+    repelStr: number, theta2: number,
+    fxOut: Float32Array, fyOut: Float32Array,
+  ): void {
+    if (node === -1) return;
+    const f  = node * BHNF; const ii = node * BHNI;
+    const ncx      = this.poolF[f    ];
+    const ncy      = this.poolF[f + 1];
+    const nmass    = this.poolF[f + 2];
+    const half     = this.poolF[f + 3];
+    const leafIdx  = this.poolI[ii + 4];
+
+    const dx = ax - ncx, dy = ay - ncy;
+    const distSq = dx * dx + dy * dy;
+
+    if (leafIdx !== -1) {
+      if (leafIdx === aIdx || distSq < 0.01) return;
+      const dist = Math.sqrt(distSq);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSq;
+      fxOut[aIdx] += (dx / dist) * f_;
+      fyOut[aIdx] += (dy / dist) * f_;
+      return;
+    }
+
+    // Barnes–Hut criterion: (2*half)² / distSq < theta²  →  use approximation
+    const size2 = half * half * 4;
+    if (size2 < theta2 * distSq) {
+      if (distSq < 0.01 || nmass === 0) return;
+      const dist = Math.sqrt(distSq);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSq;
+      fxOut[aIdx] += (dx / dist) * f_;
+      fyOut[aIdx] += (dy / dist) * f_;
+      return;
+    }
+
+    for (let q = 0; q < 4; q++) {
+      this._traverse(this.poolI[ii + q], aIdx, ax, ay, aMass, cx, cy, cc, repelStr, theta2, fxOut, fyOut);
+    }
+  }
+}
+
+// Direct O(K²) for small K (cheaper than building BH tree)
+function directClusterRepulsion(
+  cx: Float32Array, cy: Float32Array, cc: Int32Array,
+  bigIds: Int32Array, bigK: number,
+  clFx: Float32Array, clFy: Float32Array,
+  repelStr: number,
+): void {
+  for (let a = 0; a < bigK; a++) {
+    const ai = bigIds[a];
+    for (let b = a + 1; b < bigK; b++) {
+      const bi = bigIds[b];
+      const dx = cx[ai] - cx[bi], dy = cy[ai] - cy[bi];
+      const distSq = dx * dx + dy * dy;
+      if (distSq < 0.01) continue;
+      const dist = Math.sqrt(distSq);
+      const force = repelStr * Math.sqrt(cc[ai] * cc[bi]) / distSq;
+      const fx = (dx / dist) * force, fy = (dy / dist) * force;
+      clFx[ai] += fx; clFy[ai] += fy;
+      clFx[bi] -= fx; clFy[bi] -= fy;
+    }
+  }
+}
+
+// ─── Community Detection (Louvain-inspired) ───────────────────────────────────
 
 function detectCommunities(
   nodeCount: number,
@@ -231,171 +467,115 @@ function detectCommunities(
   adjacency: Map<number, Set<number>>,
   edgeCount: number,
   rng: SeededRNG,
-  /** Warm-start: previous community assignment. Nodes present here start in
-   *  their old community instead of singleton, letting Louvain converge faster. */
   priorCommunities?: Map<number, number>,
 ): Map<number, number> {
-  const community = new Map<number, number>();
   const idToIdx = new Map<number, number>();
-  for (let i = 0; i < nodeIds.length; i++) {
-    community.set(nodeIds[i], i);
-    idToIdx.set(nodeIds[i], i);
+  for (let i = 0; i < nodeIds.length; i++) idToIdx.set(nodeIds[i], i);
+
+  if (edgeCount === 0) {
+    const r = new Map<number, number>();
+    for (let i = 0; i < nodeIds.length; i++) r.set(nodeIds[i], i);
+    return r;
   }
 
-  if (edgeCount === 0) return community;
+  const m2 = edgeCount * 2;
+  const deg = new Float32Array(nodeCount);
+  for (let i = 0; i < nodeIds.length; i++) deg[i] = adjacency.get(nodeIds[i])?.size ?? 0;
 
-  const m2 = edgeCount * 2; // 2 * total edges
-  
-  // Degree of each node
-  const deg = new Float64Array(nodeCount);
-  for (let i = 0; i < nodeIds.length; i++) {
-    deg[i] = adjacency.get(nodeIds[i])?.size ?? 0;
-  }
-
-  // Node -> community mapping (indexed)
   const nodeCommunity = new Int32Array(nodeCount);
-
-  // Warm-start: seed from prior communities if available
   if (priorCommunities && priorCommunities.size > 0) {
-    // Remap prior community IDs to local indices: collect unique prior IDs
-    // and assign contiguous IDs starting from 0.
     const priorIdRemap = new Map<number, number>();
     let nextPriorId = 0;
     for (let i = 0; i < nodeCount; i++) {
-      const priorComm = priorCommunities.get(nodeIds[i]);
-      if (priorComm !== undefined) {
-        if (!priorIdRemap.has(priorComm)) {
-          priorIdRemap.set(priorComm, nextPriorId++);
-        }
-        nodeCommunity[i] = priorIdRemap.get(priorComm)!;
+      const pc = priorCommunities.get(nodeIds[i]);
+      if (pc !== undefined) {
+        if (!priorIdRemap.has(pc)) priorIdRemap.set(pc, nextPriorId++);
+        nodeCommunity[i] = priorIdRemap.get(pc)!;
       } else {
-        // New node: assign to singleton (unique index beyond existing communities)
         nodeCommunity[i] = nextPriorId++;
       }
     }
   } else {
-    for (let i = 0; i < nodeCount; i++) {
-      nodeCommunity[i] = i;
-    }
+    for (let i = 0; i < nodeCount; i++) nodeCommunity[i] = i;
   }
 
-  // Community -> sum of degrees
   const communityDegSum = new Float64Array(nodeCount);
-  for (let i = 0; i < nodeCount; i++) {
-    communityDegSum[nodeCommunity[i]] += deg[i];
-  }
+  for (let i = 0; i < nodeCount; i++) communityDegSum[nodeCommunity[i]] += deg[i];
 
-  // Community -> internal edges * 2
   const communityInternalEdges = new Float64Array(nodeCount);
-
-  // Scale max passes: large graphs converge with fewer passes;
-  // warm-started graphs converge even faster.
   const hasWarmStart = priorCommunities && priorCommunities.size > 0;
-  const basePasses = hasWarmStart ? 6 : 20;
-  const maxPasses = nodeCount > 2000
+  const basePasses  = hasWarmStart ? 6 : 20;
+  const maxPasses   = nodeCount > 2000
     ? Math.max(3, Math.min(basePasses, Math.ceil(8000 / nodeCount)))
     : basePasses;
+
   const shuffled = new Int32Array(nodeCount);
   for (let i = 0; i < nodeCount; i++) shuffled[i] = i;
-
-  // Fisher-Yates shuffle with seeded RNG for determinism
   const shuffle = (): void => {
     for (let i = nodeCount - 1; i > 0; i--) {
       const j = Math.floor(rng.next() * (i + 1));
-      const tmp = shuffled[i];
-      shuffled[i] = shuffled[j];
-      shuffled[j] = tmp;
+      const tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
     }
   };
 
-  // Temporary storage for neighbor community edge counts
   const neighborComm = new Map<number, number>();
-
   for (let pass = 0; pass < maxPasses; pass++) {
-    let improved = false;
-    let totalGain = 0;
+    let improved = false; let totalGain = 0;
     shuffle();
-
     for (let si = 0; si < nodeCount; si++) {
       const i = shuffled[si];
-      const nodeId = nodeIds[i];
+      const nodeId    = nodeIds[i];
       const neighbors = adjacency.get(nodeId);
       if (!neighbors || neighbors.size === 0) continue;
 
       const currentComm = nodeCommunity[i];
       const ki = deg[i];
 
-      // Count edges to each neighboring community
       neighborComm.clear();
       let edgesToCurrentComm = 0;
-      for (const neighborId of neighbors) {
-        const nIdx = idToIdx.get(neighborId);
+      for (const nId of neighbors) {
+        const nIdx = idToIdx.get(nId);
         if (nIdx === undefined) continue;
-        const nComm = nodeCommunity[nIdx];
-        neighborComm.set(nComm, (neighborComm.get(nComm) ?? 0) + 1);
-        if (nComm === currentComm) edgesToCurrentComm++;
+        const nc = nodeCommunity[nIdx];
+        neighborComm.set(nc, (neighborComm.get(nc) ?? 0) + 1);
+        if (nc === currentComm) edgesToCurrentComm++;
       }
 
-      // Modularity gain of removing node from current community
       const sigmaCurrentWithout = communityDegSum[currentComm] - ki;
       const removeLoss = edgesToCurrentComm / m2 - (ki * sigmaCurrentWithout) / (m2 * m2);
 
-      // Find best community to move to
-      let bestComm = currentComm;
-      let bestGain = 0;
-
+      let bestComm = currentComm, bestGain = 0;
       for (const [candidateComm, edgesToCandidate] of neighborComm) {
         if (candidateComm === currentComm) continue;
-        const sigmaCandidateTotal = communityDegSum[candidateComm];
-        const moveGain = edgesToCandidate / m2 - (ki * sigmaCandidateTotal) / (m2 * m2);
-        const netGain = moveGain - removeLoss;
-        if (netGain > bestGain) {
-          bestGain = netGain;
-          bestComm = candidateComm;
-        }
+        const netGain = edgesToCandidate / m2 - (ki * communityDegSum[candidateComm]) / (m2 * m2) - removeLoss;
+        if (netGain > bestGain) { bestGain = netGain; bestComm = candidateComm; }
       }
 
       if (bestComm !== currentComm && bestGain > 1e-10) {
-        // Move node to best community
         communityDegSum[currentComm] -= ki;
         communityInternalEdges[currentComm] -= edgesToCurrentComm * 2;
-        
         nodeCommunity[i] = bestComm;
         communityDegSum[bestComm] += ki;
-        const edgesToBest = neighborComm.get(bestComm) ?? 0;
-        communityInternalEdges[bestComm] += edgesToBest * 2;
-        
-        improved = true;
-        totalGain += bestGain;
+        communityInternalEdges[bestComm] += (neighborComm.get(bestComm) ?? 0) * 2;
+        improved = true; totalGain += bestGain;
       }
     }
-
-    if (!improved) break;
-    // Early exit: if total modularity gain this pass is negligible, stop
-    if (totalGain < 1e-6) break;
+    if (!improved || totalGain < 1e-6) break;
   }
 
-  // Compact community IDs to 0..K-1
-  const uniqueComms = new Set<number>();
-  for (let i = 0; i < nodeCount; i++) {
-    uniqueComms.add(nodeCommunity[i]);
-  }
   const commRemap = new Map<number, number>();
   let nextId = 0;
-  for (const c of uniqueComms) {
-    commRemap.set(c, nextId++);
+  for (let i = 0; i < nodeCount; i++) {
+    const c = nodeCommunity[i];
+    if (!commRemap.has(c)) commRemap.set(c, nextId++);
   }
 
   const result = new Map<number, number>();
-  for (let i = 0; i < nodeCount; i++) {
-    result.set(nodeIds[i], commRemap.get(nodeCommunity[i])!);
-  }
+  for (let i = 0; i < nodeCount; i++) result.set(nodeIds[i], commRemap.get(nodeCommunity[i])!);
   return result;
 }
 
-// ============================================================
-// Connected Components (BFS)
-// ============================================================
+// ─── Connected Components (BFS) ───────────────────────────────────────────────
 
 function findConnectedComponents(
   nodeIds: number[],
@@ -408,20 +588,14 @@ function findConnectedComponents(
 
   for (const startId of nodeIds) {
     if (visited.has(startId)) continue;
-    queue.length = 0;
-    queue.push(startId);
-    visited.add(startId);
-
+    queue.length = 0; queue.push(startId); visited.add(startId);
     while (queue.length > 0) {
       const nodeId = queue.shift()!;
       component.set(nodeId, componentId);
       const neighbors = adjacency.get(nodeId);
       if (neighbors) {
         for (const nId of neighbors) {
-          if (!visited.has(nId)) {
-            visited.add(nId);
-            queue.push(nId);
-          }
+          if (!visited.has(nId)) { visited.add(nId); queue.push(nId); }
         }
       }
     }
@@ -430,136 +604,229 @@ function findConnectedComponents(
   return component;
 }
 
-// ============================================================
-// Default Configuration
-// ============================================================
+// ─── Default Configuration ────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: SGEConfig = {
   seed: 42,
-
   springStrength: 0.06,
   idealDistance: 80,
-
   clusterStrength: 0.004,
   clusterRepelStrength: 800,
   clusterSpacing: 200,
-
   localRepelStrength: 3000,
   localRepelRadius: 500,
-
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
   componentSpacing: 500,
-
   damping: 0.88,
   maxVelocity: 50,
-
   alpha: 1.0,
   alphaDecay: 0.005,
   alphaMin: 0.001,
   reheatFactor: 0.3,
-
   dt: 1.0,
+  bhTheta: 0.8,
 };
 
-// ============================================================
-// SemanticGraphEngine
-// ============================================================
+// ─── SemanticGraphEngine ──────────────────────────────────────────────────────
 
 export class SemanticGraphEngine {
-  private nodes: SGENode[];
-  private edges: SGEEdge[];
   private config: SGEConfig;
   private rng: SeededRNG;
 
-  // Topology
-  private adjacency: Map<number, Set<number>>;
-  private nodeIndex: Map<number, number>; // id -> array index
-  private componentMap: Map<number, number>;
-  private clusterMap: Map<number, number>;
+  // ── SoA physics arrays ─────────────────────────────────────────────────────────
+  private n   = 0; // live node count
+  private cap = 0; // allocation capacity
 
-  // Cluster management — flat indexed arrays (clusterId is 0..K-1)
-  // Replaces Map<clusterId, ClusterData> to eliminate per-step Map overhead.
-  private clCx: Float64Array = new Float64Array(0);   // centroid X
-  private clCy: Float64Array = new Float64Array(0);   // centroid Y
-  private clCount: Int32Array = new Int32Array(0);     // node count per cluster
-  private clFx: Float64Array = new Float64Array(0);    // force accumulator X
-  private clFy: Float64Array = new Float64Array(0);    // force accumulator Y
-  // Only clusters with count > 1 go into pairwise repulsion (Section B).
-  // Singleton clusters (orphan pages) are handled by local repulsion (Section D).
-  private bigClusterBuf: Int32Array = new Int32Array(0);
-  private bigClusterCount = 0;
+  // Motion slab: posX | posY | velX | velY — one ArrayBuffer.
+  // integrate() touches all 4 per node; one slab keeps them in the same OS pages.
+  private posX:  Float32Array = new Float32Array(0);
+  private posY:  Float32Array = new Float32Array(0);
+  private velX:  Float32Array = new Float32Array(0);
+  private velY:  Float32Array = new Float32Array(0);
 
-  // Component centers — flat indexed arrays (componentId is 0..C-1)
-  private ccX: Float64Array = new Float64Array(0);
-  private ccY: Float64Array = new Float64Array(0);
-  private ccCount: Int32Array = new Int32Array(0);
+  // Force ping-pong pair — two independent ArrayBuffers so their pointers can be
+  // swapped in O(1) after every integrate(), replacing N scatter-writes `oldAx[i]=nax`.
+  // axBuf/ayBuf = current scratch (zeroed at end of integrate).
+  // oldAx/oldAy = previous step's accelerations (read-only during integrate).
+  private axBuf: Float32Array = new Float32Array(0);
+  private ayBuf: Float32Array = new Float32Array(0);
+  private oldAx: Float32Array = new Float32Array(0);
+  private oldAy: Float32Array = new Float32Array(0);
+  // Per-node metadata
+  private pinnedArr:  Uint8Array   = new Uint8Array(0);
+  private clIdArr:    Int32Array   = new Int32Array(0);
+  private compIdArr:  Int32Array   = new Int32Array(0);
+  private degArr:     Int32Array   = new Int32Array(0);
+  private iRadArr:    Float32Array = new Float32Array(0);
+  private nodeIdArr:  Int32Array   = new Int32Array(0);
 
-  // Spatial hash
-  private spatialGrid: SpatialHashGrid;
+  // ── Pre-resolved edge index arrays ─ rebuilt once per topology change ────────
+  private edgeSrc:   Int32Array   = new Int32Array(0);
+  private edgeTgt:   Int32Array   = new Int32Array(0);
+  private edgeRest:  Float32Array = new Float32Array(0); // rest length per edge
+  private edgeStiff: Float32Array = new Float32Array(0); // 1/√(maxDeg) per edge
+  private numEdges = 0;
 
-  // Simulation state
-  private alpha: number;
-  private energy: number;
-  private running: boolean;
-  private frozen: boolean;
-  private ticks: number;
-  private rafId: number;
-  private prevDt: number;
-  private oscillationCounter: number;
-  private prevEnergy: number;
+  // ── Active (unpinned) node index list ─ rebuilt on every pin-state change ────
+  // Lets integrate() and force loops skip the branch entirely.
+  private activeNodeIndices: Int32Array = new Int32Array(0);
+  private activeCount = 0;
 
-  // Pre-allocated acceleration buffer
-  private axBuf: Float64Array;
-  private ayBuf: Float64Array;
+  // ── Topology (used only at init / incremental updates) ────────────────────── 
+  private edges: SGEEdge[] = [];
+  private adjacency  = new Map<number, Set<number>>();
+  private nodeIndex  = new Map<number, number>();   // id → array index
+  private componentMap = new Map<number, number>();
+  private clusterMap   = new Map<number, number>();
+
+  // ── Cluster centroid flat arrays (indexed by clusterId 0..K) ─────────────────
+  private clCx:    Float32Array = new Float32Array(0);
+  private clCy:    Float32Array = new Float32Array(0);
+  private clCount: Int32Array   = new Int32Array(0);
+  private clFx:    Float32Array = new Float32Array(0);
+  private clFy:    Float32Array = new Float32Array(0);
+  private bigClusterBuf:   Int32Array = new Int32Array(0);
+  private bigClusterCount  = 0;
+
+  // ── Component centroid arrays ─────────────────────────────────────────────────
+  private ccX:    Float32Array = new Float32Array(0);
+  private ccY:    Float32Array = new Float32Array(0);
+  private ccCount: Int32Array  = new Int32Array(0);
+
+  // ── Sub-systems ───────────────────────────────────────────────────────────────
+  private spatialHash: FastSpatialHash;
+  private bhTree = new BHQuadTree(64);
+
+  // ── Simulation state ──────────────────────────────────────────────────────────
+  private alpha    = 1.0;
+  private energy   = Infinity;
+  private running  = false;
+  private frozen   = false;
+  private ticks    = 0;
+  private rafId    = 0;
+  private prevDt:  number;
+  private oscillationCounter = 0;
+  private prevEnergy = Infinity;
 
   constructor(
     inputNodes: Array<{ id: number; x?: number; y?: number }>,
     inputEdges: SGEEdge[],
     config?: Partial<SGEConfig>,
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-    this.rng = new SeededRNG(this.config.seed);
-    this.nodes = [];
-    this.edges = [];
-    this.adjacency = new Map();
-    this.nodeIndex = new Map();
-    this.componentMap = new Map();
-    this.clusterMap = new Map();
-    this.spatialGrid = new SpatialHashGrid(this.config.localRepelRadius);
-    this.alpha = this.config.alpha;
-    this.energy = Infinity;
-    this.running = false;
-    this.frozen = false;
-    this.ticks = 0;
-    this.rafId = 0;
-    this.prevDt = this.config.dt;
-    this.oscillationCounter = 0;
-    this.prevEnergy = Infinity;
-    this.axBuf = new Float64Array(0);
-    this.ayBuf = new Float64Array(0);
-
+    this.config  = { ...DEFAULT_CONFIG, ...config };
+    this.rng     = new SeededRNG(this.config.seed);
+    this.prevDt  = this.config.dt;
+    this.spatialHash = new FastSpatialHash(this.config.localRepelRadius, 512);
     this.initializeGraph(inputNodes, inputEdges);
   }
 
-  // ============================================================
-  // Initialization
-  // ============================================================
+  // ─── Memory management ────────────────────────────────────────────────────────
+
+  private _growTyped<T extends Float32Array | Int32Array | Uint8Array>(
+    old: T, Ctor: new (n: number) => T, newCap: number,
+  ): T {
+    const a = new Ctor(newCap);
+    (a as unknown as Float32Array).set(old as unknown as Float32Array);
+    return a;
+  }
+
+  private _rebuildActiveIndices(): void {
+    const N   = this.n;
+    const pin = this.pinnedArr;
+    if (this.activeNodeIndices.length < N) {
+      this.activeNodeIndices = new Int32Array(Math.max(N, 256));
+    }
+    const idx = this.activeNodeIndices;
+    let count = 0;
+    for (let i = 0; i < N; i++) {
+      if (!pin[i]) idx[count++] = i;
+    }
+    this.activeCount = count;
+  }
+
+  private ensureCap(needed: number): void {
+    if (needed <= this.cap) return;
+    const c   = Math.max(needed, 256);
+    const old = this.cap;
+
+    // ── Motion slab: posX | posY | velX | velY ────────────────────────────────
+    // One ArrayBuffer so all 4 arrays are contiguous in physical memory.
+    const motBuf = new ArrayBuffer(4 * c * 4);
+    const posX   = new Float32Array(motBuf, 0 * c * 4, c);
+    const posY   = new Float32Array(motBuf, 1 * c * 4, c);
+    const velX   = new Float32Array(motBuf, 2 * c * 4, c);
+    const velY   = new Float32Array(motBuf, 3 * c * 4, c);
+    if (old > 0) {
+      posX.set(this.posX.subarray(0, old)); posY.set(this.posY.subarray(0, old));
+      velX.set(this.velX.subarray(0, old)); velY.set(this.velY.subarray(0, old));
+    }
+    this.posX = posX; this.posY = posY;
+    this.velX = velX; this.velY = velY;
+
+    // ── Force ping-pong: two independent pair-slabs (ax+ay each) ─────────────
+    // Independent buffers let us swap pointers in O(1) after integrate().
+    // Each slab stores ax then ay contiguously so both are on the same cache line
+    // when forces are applied per node.
+    const pingBuf = new ArrayBuffer(2 * c * 4);
+    const axBuf   = new Float32Array(pingBuf, 0,       c);
+    const ayBuf   = new Float32Array(pingBuf, c * 4,   c);
+    const pongBuf = new ArrayBuffer(2 * c * 4);
+    const oldAx   = new Float32Array(pongBuf, 0,       c);
+    const oldAy   = new Float32Array(pongBuf, c * 4,   c);
+    if (old > 0) {
+      axBuf.set(this.axBuf.subarray(0, old)); ayBuf.set(this.ayBuf.subarray(0, old));
+      oldAx.set(this.oldAx.subarray(0, old)); oldAy.set(this.oldAy.subarray(0, old));
+    }
+    this.axBuf = axBuf; this.ayBuf = ayBuf;
+    this.oldAx = oldAx; this.oldAy = oldAy;
+
+    // ── Per-node metadata (separate allocations — infrequently accessed) ──────
+    this.pinnedArr = this._growTyped(this.pinnedArr,  Uint8Array,  c);
+    this.clIdArr   = this._growTyped(this.clIdArr,   Int32Array,   c);
+    this.compIdArr = this._growTyped(this.compIdArr, Int32Array,   c);
+    this.degArr    = this._growTyped(this.degArr,    Int32Array,   c);
+    this.iRadArr   = this._growTyped(this.iRadArr,   Float32Array, c);
+    this.nodeIdArr = this._growTyped(this.nodeIdArr, Int32Array,   c);
+    this.cap = c;
+  }
+
+  private ensureClusterCap(k: number): void {
+    if (this.clCx.length >= k) return;
+    const c = Math.max(k, 128);
+    this.clCx    = new Float32Array(c);
+    this.clCy    = new Float32Array(c);
+    this.clCount = new Int32Array(c);
+    this.clFx    = new Float32Array(c);
+    this.clFy    = new Float32Array(c);
+    this.bigClusterBuf = new Int32Array(c);
+  }
+
+  private ensureComponentCap(c: number): void {
+    if (this.ccX.length >= c) return;
+    const cc = Math.max(c, 64);
+    this.ccX     = new Float32Array(cc);
+    this.ccY     = new Float32Array(cc);
+    this.ccCount = new Int32Array(cc);
+  }
+
+  // ─── Graph initialization ─────────────────────────────────────────────────────
 
   private initializeGraph(
     inputNodes: Array<{ id: number; x?: number; y?: number }>,
     inputEdges: SGEEdge[],
   ): void {
-    // Build adjacency
-    const nodeIdSet = new Set(inputNodes.map(n => n.id));
+    const N = inputNodes.length;
+    this.ensureCap(N);
+    this.n = N;
+
     this.adjacency.clear();
-    for (const n of inputNodes) {
-      this.adjacency.set(n.id, new Set());
-    }
-    
-    // Filter edges to only include valid node pairs
+    this.nodeIndex.clear();
+    for (const nd of inputNodes) this.adjacency.set(nd.id, new Set());
+
     this.edges = [];
     let edgeCount = 0;
+    const nodeIdSet = new Set(inputNodes.map(nd => nd.id));
     for (const e of inputEdges) {
       if (nodeIdSet.has(e.source) && nodeIdSet.has(e.target) && e.source !== e.target) {
         this.edges.push({ source: e.source, target: e.target });
@@ -569,870 +836,614 @@ export class SemanticGraphEngine {
       }
     }
 
-    const nodeIds = inputNodes.map(n => n.id);
-
-    // LAYER 1: Topological preprocessing
+    const nodeIds = inputNodes.map(nd => nd.id);
     this.componentMap = findConnectedComponents(nodeIds, this.adjacency);
-    // Warm-start: pass previous cluster assignments so Louvain converges faster
-    // when topology changed only slightly (common for incremental updates).
     const priorClusters = this.clusterMap.size > 0 ? this.clusterMap : undefined;
-    this.clusterMap = detectCommunities(
-      inputNodes.length,
-      nodeIds,
-      this.adjacency,
-      edgeCount,
-      this.rng,
-      priorClusters,
-    );
+    this.clusterMap = detectCommunities(N, nodeIds, this.adjacency, edgeCount, this.rng, priorClusters);
 
-    // Create SGENode objects
-    this.nodes = [];
-    this.nodeIndex.clear();
-    for (let i = 0; i < inputNodes.length; i++) {
+    for (let i = 0; i < N; i++) {
       const inp = inputNodes[i];
-      const degree = this.adjacency.get(inp.id)?.size ?? 0;
-      const node: SGENode = {
-        id: inp.id,
-        x: 0,
-        y: 0,
-        vx: 0,
-        vy: 0,
-        ax: 0,
-        ay: 0,
-        fx: 0,
-        fy: 0,
-        pinned: false,
-        componentId: this.componentMap.get(inp.id) ?? 0,
-        clusterId: this.clusterMap.get(inp.id) ?? 0,
-        degree,
-        centrality: degree, // degree centrality approximation
-        initialRadius: 0,
-        initialAngle: 0,
-      };
-      this.nodes.push(node);
+      this.nodeIdArr[i]  = inp.id;
+      this.posX[i]       = 0; this.posY[i]  = 0;
+      this.velX[i]       = 0; this.velY[i]  = 0;
+      this.oldAx[i]      = 0; this.oldAy[i] = 0;
+      this.pinnedArr[i]  = 0;
+      this.clIdArr[i]    = this.clusterMap.get(inp.id) ?? 0;
+      this.compIdArr[i]  = this.componentMap.get(inp.id) ?? 0;
+      this.degArr[i]     = this.adjacency.get(inp.id)?.size ?? 0;
+      this.iRadArr[i]    = 0;
       this.nodeIndex.set(inp.id, i);
     }
 
-    // Deterministic initial positioning
-    this.computeInitialPositions(inputNodes);
+    this._computeInitialPositions();
 
-    // Override with user-provided positions if available
-    for (let i = 0; i < inputNodes.length; i++) {
+    // Apply user-provided position overrides
+    for (let i = 0; i < N; i++) {
       const inp = inputNodes[i];
-      if (inp.x !== undefined && inp.x !== 0) this.nodes[i].x = inp.x;
-      if (inp.y !== undefined && inp.y !== 0) this.nodes[i].y = inp.y;
+      if (inp.x !== undefined && inp.x !== 0) this.posX[i] = inp.x;
+      if (inp.y !== undefined && inp.y !== 0) this.posY[i] = inp.y;
     }
 
-    // Allocate acceleration buffers
-    this.ensureBuffers(this.nodes.length);
-
-    // Build initial cluster data
+    this._rebuildEdgeArrays();
+    this._rebuildActiveIndices();
     this.updateClusterData();
   }
 
-  private ensureBuffers(count: number): void {
-    if (this.axBuf.length < count) {
-      this.axBuf = new Float64Array(Math.max(count, 256));
-      this.ayBuf = new Float64Array(Math.max(count, 256));
+  private _rebuildEdgeArrays(): void {
+    const E   = this.edges.length;
+    const cap = Math.max(E * 2, 64);
+    if (this.edgeSrc.length < E) {
+      this.edgeSrc   = new Int32Array(cap);
+      this.edgeTgt   = new Int32Array(cap);
+      this.edgeRest  = new Float32Array(cap);
+      this.edgeStiff = new Float32Array(cap);
     }
+    const deg     = this.degArr;
+    const rest0   = this.config.idealDistance;
+    let valid = 0;
+    for (const e of this.edges) {
+      const si = this.nodeIndex.get(e.source);
+      const ti = this.nodeIndex.get(e.target);
+      if (si === undefined || ti === undefined) continue;
+      const maxDeg = Math.max(deg[si], deg[ti], 1);
+      this.edgeSrc[valid]   = si;
+      this.edgeTgt[valid]   = ti;
+      this.edgeRest[valid]  = rest0;
+      this.edgeStiff[valid] = 1 / Math.sqrt(maxDeg);
+      valid++;
+    }
+    this.numEdges = valid;
   }
 
-  private computeInitialPositions(
-    _inputNodes: Array<{ id: number; x?: number; y?: number }>,
-  ): void {
-    const cfg = this.config;
-    const rng = this.rng;
+  /** Fast path: only rest lengths changed (topology/stiffness unchanged). */
+  private _rebuildEdgeRest(): void {
+    const rest0 = this.config.idealDistance;
+    const E     = this.numEdges;
+    const eRest = this.edgeRest;
+    for (let e = 0; e < E; e++) eRest[e] = rest0;
+  }
 
-    // Group nodes by component
+  private _computeInitialPositions(): void {
+    const cfg = this.config, rng = this.rng, N = this.n;
+
     const componentGroups = new Map<number, number[]>();
-    for (let i = 0; i < this.nodes.length; i++) {
-      const cId = this.nodes[i].componentId;
-      let group = componentGroups.get(cId);
-      if (!group) {
-        group = [];
-        componentGroups.set(cId, group);
-      }
-      group.push(i);
+    for (let i = 0; i < N; i++) {
+      const cId = this.compIdArr[i];
+      let g = componentGroups.get(cId);
+      if (!g) { g = []; componentGroups.set(cId, g); }
+      g.push(i);
     }
 
-    // Place components radially
-    const componentIds = [...componentGroups.keys()].sort((a, b) => {
-      return (componentGroups.get(b)?.length ?? 0) - (componentGroups.get(a)?.length ?? 0);
-    });
+    const componentIds = [...componentGroups.keys()].sort(
+      (a, b) => (componentGroups.get(b)?.length ?? 0) - (componentGroups.get(a)?.length ?? 0),
+    );
 
     let componentAngle = 0;
-    const componentSpacing = cfg.componentSpacing;
-    const clusterSpacing = cfg.clusterSpacing;
-    const totalComponents = componentIds.length;
-
-    for (let ci = 0; ci < totalComponents; ci++) {
+    for (let ci = 0; ci < componentIds.length; ci++) {
       const cId = componentIds[ci];
       const nodeIndices = componentGroups.get(cId)!;
-
-      // Component center — first and largest component at origin
-      let compCenterX = 0;
-      let compCenterY = 0;
+      let compCX = 0, compCY = 0;
       if (ci > 0) {
-        const radius = componentSpacing * Math.sqrt(ci);
-        compCenterX = radius * Math.cos(componentAngle);
-        compCenterY = radius * Math.sin(componentAngle);
-        componentAngle += 2.399963; // golden angle
+        const r = cfg.componentSpacing * Math.sqrt(ci);
+        compCX = r * Math.cos(componentAngle);
+        compCY = r * Math.sin(componentAngle);
+        componentAngle += 2.399963;
       }
 
-      // Group nodes within component by cluster
       const clusterGroups = new Map<number, number[]>();
       for (const idx of nodeIndices) {
-        const clustId = this.nodes[idx].clusterId;
-        let cGroup = clusterGroups.get(clustId);
-        if (!cGroup) {
-          cGroup = [];
-          clusterGroups.set(clustId, cGroup);
-        }
-        cGroup.push(idx);
+        const kId = this.clIdArr[idx];
+        let cg = clusterGroups.get(kId);
+        if (!cg) { cg = []; clusterGroups.set(kId, cg); }
+        cg.push(idx);
       }
 
-      // Place clusters in circular shells around component center
-      const clusterIdsSorted = [...clusterGroups.keys()].sort((a, b) => {
-        return (clusterGroups.get(b)?.length ?? 0) - (clusterGroups.get(a)?.length ?? 0);
-      });
+      const clIds = [...clusterGroups.keys()].sort(
+        (a, b) => (clusterGroups.get(b)?.length ?? 0) - (clusterGroups.get(a)?.length ?? 0),
+      );
 
       let clusterAngle = rng.next() * Math.PI * 2;
-
-      for (let ki = 0; ki < clusterIdsSorted.length; ki++) {
-        const kId = clusterIdsSorted[ki];
-        const members = clusterGroups.get(kId)!;
-
-        // Cluster center
-        let clusterCenterX = compCenterX;
-        let clusterCenterY = compCenterY;
+      for (let ki = 0; ki < clIds.length; ki++) {
+        const members = clusterGroups.get(clIds[ki])!;
+        let clCX = compCX, clCY = compCY;
         if (ki > 0) {
-          const clusterRadius = clusterSpacing * Math.sqrt(ki);
-          clusterCenterX = compCenterX + clusterRadius * Math.cos(clusterAngle);
-          clusterCenterY = compCenterY + clusterRadius * Math.sin(clusterAngle);
-          clusterAngle += 2.399963; // golden angle
+          const r = cfg.clusterSpacing * Math.sqrt(ki);
+          clCX = compCX + r * Math.cos(clusterAngle);
+          clCY = compCY + r * Math.sin(clusterAngle);
+          clusterAngle += 2.399963;
         }
 
-        // Distribute nodes within cluster using golden-angle spiral
-        const goldenAngle = 2.399963229728653; // π(3−√5)
-        let spiralAngle = rng.next() * Math.PI * 2;
+        const goldenAngle = 2.399963229728653;
+        const spiralAngle0 = rng.next() * Math.PI * 2;
         for (let ni = 0; ni < members.length; ni++) {
           const idx = members[ni];
           const r = cfg.idealDistance * 0.5 * Math.sqrt(ni + 1);
-          const angle = spiralAngle + ni * goldenAngle;
-
-          this.nodes[idx].x = clusterCenterX + r * Math.cos(angle);
-          this.nodes[idx].y = clusterCenterY + r * Math.sin(angle);
-          this.nodes[idx].initialRadius = r;
-          this.nodes[idx].initialAngle = angle;
+          const angle = spiralAngle0 + ni * goldenAngle;
+          this.posX[idx]  = clCX + r * Math.cos(angle);
+          this.posY[idx]  = clCY + r * Math.sin(angle);
+          this.iRadArr[idx] = r;
         }
       }
     }
   }
 
-  // ============================================================
-  // Cluster Data Management
-  // ============================================================
-
-  /** Ensure cluster/component index arrays are large enough. */
-  private ensureClusterBuffers(k: number): void {
-    if (this.clCx.length >= k) return;
-    const cap = Math.max(k, 256);
-    this.clCx    = new Float64Array(cap);
-    this.clCy    = new Float64Array(cap);
-    this.clCount = new Int32Array(cap);
-    this.clFx    = new Float64Array(cap);
-    this.clFy    = new Float64Array(cap);
-    this.bigClusterBuf = new Int32Array(cap);
-  }
-
-  private ensureComponentBuffers(c: number): void {
-    if (this.ccX.length >= c) return;
-    const cap = Math.max(c, 64);
-    this.ccX     = new Float64Array(cap);
-    this.ccY     = new Float64Array(cap);
-    this.ccCount = new Int32Array(cap);
-  }
+  // ─── Cluster centroids ────────────────────────────────────────────────────────
 
   private updateClusterData(): void {
-    const nodes = this.nodes;
-    const n = nodes.length;
-
-    // Find max cluster ID to size arrays
+    const N    = this.n;
+    const clId = this.clIdArr;
     let maxClId = 0;
-    for (let i = 0; i < n; i++) {
-      if (nodes[i].clusterId > maxClId) maxClId = nodes[i].clusterId;
-    }
+    for (let i = 0; i < N; i++) { if (clId[i] > maxClId) maxClId = clId[i]; }
     const K = maxClId + 1;
-    this.ensureClusterBuffers(K);
+    this.ensureClusterCap(K);
 
-    const cx = this.clCx;
-    const cy = this.clCy;
-    const cc = this.clCount;
-    for (let i = 0; i < K; i++) { cx[i] = 0; cy[i] = 0; cc[i] = 0; }
+    const cx = this.clCx, cy = this.clCy, cc = this.clCount;
+    cx.fill(0, 0, K); cy.fill(0, 0, K); cc.fill(0, 0, K);
 
-    for (let i = 0; i < n; i++) {
-      const c = nodes[i].clusterId;
-      cx[c] += nodes[i].x;
-      cy[c] += nodes[i].y;
-      cc[c]++;
+    const posX = this.posX, posY = this.posY;
+    for (let i = 0; i < N; i++) {
+      const c = clId[i]; cx[c] += posX[i]; cy[c] += posY[i]; cc[c]++;
     }
 
-    // Finalise centroids and collect non-singleton cluster IDs for Section B
     let bigCount = 0;
     for (let i = 0; i < K; i++) {
       if (cc[i] > 0) {
-        cx[i] /= cc[i];
-        cy[i] /= cc[i];
-        if (cc[i] > 1) {
-          this.bigClusterBuf[bigCount++] = i;
-        }
+        cx[i] /= cc[i]; cy[i] /= cc[i];
+        if (cc[i] > 1) this.bigClusterBuf[bigCount++] = i;
       }
     }
     this.bigClusterCount = bigCount;
   }
 
-  // ============================================================
-  // LAYER 2: Force Computation
-  // ============================================================
+  // ─── Force computation ────────────────────────────────────────────────────────
 
-  /** Phase 1: Compute all engine forces. Call integrate() after injecting any external forces. */
   computeForces(): void {
-    const nodes = this.nodes;
-    const n = nodes.length;
-    const cfg = this.config;
+    const N     = this.n;
+    const cfg   = this.config;
     const alpha = this.alpha;
+    const posX = this.posX, posY = this.posY;
+    const pin  = this.pinnedArr;
+    const clId = this.clIdArr, compId = this.compIdArr;
+    const iRad = this.iRadArr;
+    const ax = this.axBuf, ay = this.ayBuf;
+    const activeIdx   = this.activeNodeIndices;
+    const activeCount = this.activeCount;
+    // ax/ay are already zeroed — cleared at the tail of the previous integrate().
 
-    // Zero acceleration buffers
-    const ax = this.axBuf;
-    const ay = this.ayBuf;
-    for (let i = 0; i < n; i++) {
-      ax[i] = 0;
-      ay[i] = 0;
-    }
-
-    // Update cluster centroids
     this.updateClusterData();
+    const clCx = this.clCx, clCy = this.clCy, clCC = this.clCount;
 
-    // A) Intra-Cluster Cohesion (shell model)
+    // ─ A) Intra-cluster cohesion (shell model) ─────────────────────────────────
     const clusterStr = cfg.clusterStrength * alpha;
-    const clCx = this.clCx;
-    const clCy = this.clCy;
-    const clCC = this.clCount;
-    for (let i = 0; i < n; i++) {
-      const node = nodes[i];
-      if (node.pinned) continue;
-      const cid = node.clusterId;
-      const cnt = clCC[cid];
+    const idealDist  = cfg.idealDistance;
+    for (let i = 0; i < N; i++) {
+      if (pin[i]) continue;
+      const c = clId[i]; const cnt = clCC[c];
       if (cnt <= 1) continue;
-      const dx = node.x - clCx[cid];
-      const dy = node.y - clCy[cid];
+      const dx = posX[i] - clCx[c], dy = posY[i] - clCy[c];
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const shellRadius = cfg.idealDistance * 0.5 * Math.sqrt(cnt);
-      const radiusError = dist - shellRadius;
-      const strength = radiusError > 0
-        ? -clusterStr * radiusError
-        : -clusterStr * radiusError * 0.15;
-      ax[i] += (dx / dist) * strength;
-      ay[i] += (dy / dist) * strength;
+      const shellR = idealDist * 0.5 * Math.sqrt(cnt);
+      const err = dist - shellR;
+      const f = (err > 0 ? -clusterStr * err : -clusterStr * err * 0.15) / dist;
+      ax[i] += dx * f; ay[i] += dy * f;
     }
 
-    // B) Inter-Cluster Repulsion (centroid-to-centroid, mass-scaled, √n-adjusted)
-    // Only non-singleton clusters participate — orphan pages are spaced by
-    // local repulsion (Section D).  This reduces O(K²) dramatically when
-    // many pages have no links (each is its own cluster).
-    const nScale = n > 1 ? Math.sqrt(n) : 1;
-    const clusterRepelStr = cfg.clusterRepelStrength * alpha * nScale;
-    const bigIds  = this.bigClusterBuf;
-    const bigK    = this.bigClusterCount;
-    const clFx    = this.clFx;
-    const clFy    = this.clFy;
-    // Zero force accumulators for participating clusters only
-    for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
+    // ─ B) Inter-cluster repulsion ─ Barnes–Hut or direct O(K²) ──────────────── 
+    const bigIds   = this.bigClusterBuf, bigK = this.bigClusterCount;
+    const clFx = this.clFx, clFy = this.clFy;
+    const nScale   = N > 1 ? Math.sqrt(N) : 1;
+    const repelStr = cfg.clusterRepelStrength * alpha * nScale;
 
-    for (let a = 0; a < bigK; a++) {
-      const ai = bigIds[a];
-      const caCx = clCx[ai], caCy = clCy[ai], caCnt = clCC[ai];
-      for (let b = a + 1; b < bigK; b++) {
-        const bi = bigIds[b];
-        const dx = caCx - clCx[bi];
-        const dy = caCy - clCy[bi];
-        const distSq = dx * dx + dy * dy;
-        const dist = Math.sqrt(distSq) || 1;
-        const massFactor = Math.sqrt(caCnt * clCC[bi]);
-        const force = clusterRepelStr * massFactor / (distSq || 1);
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        clFx[ai] += fx;  clFy[ai] += fy;
-        clFx[bi] -= fx;  clFy[bi] -= fy;
-      }
-    }
+    if (bigK > 0) {
+      for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
 
-    // Distribute cluster repulsion to member nodes
-    for (let i = 0; i < n; i++) {
-      const node = nodes[i];
-      if (node.pinned) continue;
-      const cid = node.clusterId;
-      const cnt = clCC[cid];
-      if (cnt <= 1) continue; // singleton → no cluster repulsion
-      ax[i] += clFx[cid] / cnt;
-      ay[i] += clFy[cid] / cnt;
-    }
-
-    // C) Local Edge Springs (Hooke's law with degree scaling)
-    const springStr = cfg.springStrength * alpha;
-    const idealDist = cfg.idealDistance;
-    for (const edge of this.edges) {
-      const si = this.nodeIndex.get(edge.source);
-      const ti = this.nodeIndex.get(edge.target);
-      if (si === undefined || ti === undefined) continue;
-      const ns = nodes[si];
-      const nt = nodes[ti];
-      const dx = nt.x - ns.x;
-      const dy = nt.y - ns.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const displacement = dist - idealDist;
-
-      // Spring strength scales by 1/sqrt(max(degree_s, degree_t))
-      const maxDeg = Math.max(ns.degree, nt.degree, 1);
-      const degScale = 1 / Math.sqrt(maxDeg);
-      const force = springStr * displacement * degScale;
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-
-      if (!ns.pinned) {
-        ax[si] += fx;
-        ay[si] += fy;
-      }
-      if (!nt.pinned) {
-        ax[ti] -= fx;
-        ay[ti] -= fy;
-      }
-    }
-
-    // D) Node Repulsion with smooth falloff (spatial hash grid, no hard boundary)
-    // Uses 1/d² core with quintic smoothing near the cutoff radius,
-    // so force tapers to zero continuously (no stiff wall).
-    //
-    // Adaptive radius: for large graphs (>1000 nodes) we scale down the
-    // repel radius so each query touches fewer neighbours.  The inter-cluster
-    // repulsion (Section B) handles macro-level spacing, so cutting the
-    // local radius only affects close-range smoothing.
-    const baseRepelRadius = cfg.localRepelRadius;
-    const repelRadius = n > 1000
-      ? baseRepelRadius * Math.min(1, Math.sqrt(1000 / n))
-      : baseRepelRadius;
-    const repelStr = cfg.localRepelStrength * alpha;
-    const repelRadiusSq = repelRadius * repelRadius;
-    const invRepelRadius = 1 / repelRadius;
-
-    this.spatialGrid.setCellSize(repelRadius);
-    this.spatialGrid.clear();
-    for (let i = 0; i < n; i++) {
-      this.spatialGrid.insert(i, nodes[i].x, nodes[i].y);
-    }
-
-    // Buffer-based query: zero closures, zero per-call allocation.
-    const grid = this.spatialGrid;
-    for (let i = 0; i < n; i++) {
-      const ni = nodes[i];
-      if (ni.pinned) continue;
-      const nix = ni.x;
-      const niy = ni.y;
-      const nCount = grid.queryInto(nix, niy);
-      const nbuf = grid.resultBuf;
-      for (let k = 0; k < nCount; k++) {
-        const j = nbuf[k];
-        if (j <= i) continue; // avoid double-counting
-        const nj = nodes[j];
-        const dx = nix - nj.x;
-        const dy = niy - nj.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq >= repelRadiusSq || distSq < 0.01) continue;
-        const dist = Math.sqrt(distSq);
-        // Smooth quintic envelope: t goes 1→0 as dist goes 0→repelRadius
-        // smoothstep(t) = t³(6t²−15t+10) — C² continuous at boundary
-        const t = 1 - dist * invRepelRadius;
-        const envelope = t * t * t * (t * (t * 6 - 15) + 10);
-        const force = repelStr * envelope / distSq;
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        ax[i] += fx;
-        ay[i] += fy;
-        if (!nj.pinned) {
-          ax[j] -= fx;
-          ay[j] -= fy;
+      if (bigK >= BH_THRESHOLD) {
+        const root   = this.bhTree.build(clCx, clCy, clCC, bigIds, bigK);
+        const theta2 = cfg.bhTheta * cfg.bhTheta;
+        for (let i = 0; i < bigK; i++) {
+          this.bhTree.computeForce(root, bigIds[i], clCx, clCy, clCC, repelStr, theta2, clFx, clFy);
         }
+      } else {
+        directClusterRepulsion(clCx, clCy, clCC, bigIds, bigK, clFx, clFy, repelStr);
+      }
+
+      // Distribute forces to member nodes
+      for (let k = 0; k < activeCount; k++) {
+        const i = activeIdx[k];
+        const c = clId[i]; const cnt = clCC[c];
+        if (cnt <= 1) continue;
+        ax[i] += clFx[c] / cnt; ay[i] += clFy[c] / cnt;
       }
     }
 
-    // E) Radial Stability Constraint
+    // ─ C) Edge springs ─ pure arithmetic, no topology or derived math per step ─
+    const springStr  = cfg.springStrength * alpha;
+    const E          = this.numEdges;
+    const eSrc       = this.edgeSrc,   eTgt   = this.edgeTgt;
+    const eRest      = this.edgeRest,  eStiff = this.edgeStiff;
+    for (let e = 0; e < E; e++) {
+      const si = eSrc[e], ti = eTgt[e];
+      const dx = posX[ti] - posX[si], dy = posY[ti] - posY[si];
+      const dist  = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = springStr * eStiff[e] * (dist - eRest[e]);
+      const fx = dx / dist * force, fy = dy / dist * force;
+      if (!pin[si]) { ax[si] += fx; ay[si] += fy; }
+      if (!pin[ti]) { ax[ti] -= fx; ay[ti] -= fy; }
+    }
+
+    // ─ D) Local repulsion ─ open-addressing typed-array spatial hash ─────────── 
+    const baseRepelRadius = cfg.localRepelRadius;
+    const repelRadius  = N > 1000 ? baseRepelRadius * Math.min(1, Math.sqrt(1000 / N)) : baseRepelRadius;
+    const localStr     = cfg.localRepelStrength * alpha;
+    const repelRadSq   = repelRadius * repelRadius;
+    const invRepelRad  = 1 / repelRadius;
+
+    const grid = this.spatialHash;
+    grid.setCellSize(repelRadius);
+    grid.clear(N);
+    for (let i = 0; i < N; i++) grid.insert(i, posX[i], posY[i]);
+
+    for (let k = 0; k < activeCount; k++) {
+      const i = activeIdx[k];
+      const nix = posX[i], niy = posY[i];
+      const nCount = grid.queryInto(nix, niy);
+      const nbuf   = grid.resultBuf;
+      for (let q = 0; q < nCount; q++) {
+        const j = nbuf[q];
+        if (j <= i) continue;
+        const dx = nix - posX[j], dy = niy - posY[j];
+        const distSq = dx * dx + dy * dy;
+        if (distSq >= repelRadSq || distSq < 0.01) continue;
+        const dist = Math.sqrt(distSq);
+        const t    = 1 - dist * invRepelRad;
+        const env  = t * t * t * (t * (t * 6 - 15) + 10);
+        const force = localStr * env / distSq;
+        const fx = dx / dist * force, fy = dy / dist * force;
+        ax[i] += fx; ay[i] += fy;
+        if (!pin[j]) { ax[j] -= fx; ay[j] -= fy; }
+      }
+    }
+
+    // ─ E) Radial stability ───────────────────────────────────────────────────── 
     const radialStr = cfg.radialStrength * alpha;
     if (radialStr > 0) {
-      for (let i = 0; i < n; i++) {
-        const node = nodes[i];
-        if (node.pinned) continue;
-        const cid = node.clusterId;
-        if (clCC[cid] === 0) continue;
-        const dx = node.x - clCx[cid];
-        const dy = node.y - clCy[cid];
-        const currentRadius = Math.sqrt(dx * dx + dy * dy) || 1;
-        const radiusDiff = currentRadius - node.initialRadius;
-        const radialForce = -radialStr * radiusDiff;
-        ax[i] += (dx / currentRadius) * radialForce;
-        ay[i] += (dy / currentRadius) * radialForce;
+      for (let k = 0; k < activeCount; k++) {
+        const i = activeIdx[k];
+        const c = clId[i]; if (clCC[c] === 0) continue;
+        const dx = posX[i] - clCx[c], dy = posY[i] - clCy[c];
+        const r = Math.sqrt(dx * dx + dy * dy) || 1;
+        const f = -radialStr * (r - iRad[i]) / r;
+        ax[i] += dx * f; ay[i] += dy * f;
       }
     }
 
-    // F) Center Gravity (per connected component, very weak)
+    // ─ F) Component gravity ────────────────────────────────────────────────────  
     const centerStr = cfg.componentCenterStrength * alpha;
     if (centerStr > 0) {
-      // Compute component centers using flat indexed arrays
       let maxCompId = 0;
-      for (let i = 0; i < n; i++) {
-        if (nodes[i].componentId > maxCompId) maxCompId = nodes[i].componentId;
-      }
+      for (let i = 0; i < N; i++) { if (compId[i] > maxCompId) maxCompId = compId[i]; }
       const C = maxCompId + 1;
-      this.ensureComponentBuffers(C);
-      const compX = this.ccX;
-      const compY = this.ccY;
-      const compC = this.ccCount;
-      for (let i = 0; i < C; i++) { compX[i] = 0; compY[i] = 0; compC[i] = 0; }
-
-      for (let i = 0; i < n; i++) {
-        const cid = nodes[i].componentId;
-        compX[cid] += nodes[i].x;
-        compY[cid] += nodes[i].y;
-        compC[cid]++;
+      this.ensureComponentCap(C);
+      const cpX = this.ccX, cpY = this.ccY, cpC = this.ccCount;
+      cpX.fill(0, 0, C); cpY.fill(0, 0, C); cpC.fill(0, 0, C);
+      for (let i = 0; i < N; i++) { const c = compId[i]; cpX[c] += posX[i]; cpY[c] += posY[i]; cpC[c]++; }
+      for (let i = 0; i < C; i++) { if (cpC[i] > 0) { cpX[i] /= cpC[i]; cpY[i] /= cpC[i]; } }
+      for (let k = 0; k < activeCount; k++) {
+        const i = activeIdx[k];
+        const c = compId[i];
+        ax[i] -= centerStr * (posX[i] - cpX[c]);
+        ay[i] -= centerStr * (posY[i] - cpY[c]);
       }
-      for (let i = 0; i < C; i++) {
-        if (compC[i] > 0) { compX[i] /= compC[i]; compY[i] /= compC[i]; }
-      }
-
-      for (let i = 0; i < n; i++) {
-        const node = nodes[i];
-        if (node.pinned) continue;
-        const cid = node.componentId;
-        ax[i] -= centerStr * (node.x - compX[cid]);
-        ay[i] -= centerStr * (node.y - compY[cid]);
-      }
-    }
-
-    // Store forces in nodes
-    for (let i = 0; i < n; i++) {
-      nodes[i].fx = ax[i];
-      nodes[i].fy = ay[i];
     }
   }
 
-  // ============================================================
-  // LAYER 3: Stabilized Integrator (Velocity Verlet)
-  // ============================================================
+  // ─── Velocity Verlet integration ──────────────────────────────────────────────
 
-  /** Phase 2: Verlet integration + alpha cooling. Call after computeForces() + any applyForce() calls. */
   integrate(): void {
-    const nodes = this.nodes;
-    const n = nodes.length;
-    const cfg = this.config;
-    const dt = this.prevDt;
-    const halfDtSq = 0.5 * dt * dt;
-    const maxVel = cfg.maxVelocity;
-    const maxVelSq = maxVel * maxVel;
-    const damping = cfg.damping;
+    const N = this.n, cfg = this.config;
+    const dt = this.prevDt, hdt2 = 0.5 * dt * dt;
+    const maxVel = cfg.maxVelocity, maxV2 = maxVel * maxVel;
+    const damp = cfg.damping;
 
+    // Motion slab locals (contiguous in memory).
+    const posX = this.posX, posY = this.posY;
+    const velX = this.velX, velY = this.velY;
+    // Force ping-pong locals: ax=scratch (this step), oldAx=prev step.
+    const ax    = this.axBuf, ay    = this.ayBuf;
+    const oldAx = this.oldAx, oldAy = this.oldAy;
+    const activeIdx   = this.activeNodeIndices;
+    const activeCount = this.activeCount;
     let totalEnergy = 0;
 
-    for (let i = 0; i < n; i++) {
-      const node = nodes[i];
-      if (node.pinned) continue;
-
-      // Velocity Verlet: x += vx * dt + 0.5 * ax_old * dt^2
-      node.x += node.vx * dt + node.ax * halfDtSq;
-      node.y += node.vy * dt + node.ay * halfDtSq;
-
-      // Update velocity: vx += 0.5 * (ax_old + ax_new) * dt
-      const newAx = node.fx;
-      const newAy = node.fy;
-      node.vx += 0.5 * (node.ax + newAx) * dt;
-      node.vy += 0.5 * (node.ay + newAy) * dt;
-
-      // Apply damping
-      node.vx *= damping;
-      node.vy *= damping;
-
-      // Hard velocity cap
-      const velSq = node.vx * node.vx + node.vy * node.vy;
-      if (velSq > maxVelSq) {
-        const scale = maxVel / Math.sqrt(velSq);
-        node.vx *= scale;
-        node.vy *= scale;
-      }
-
-      // Store new acceleration for next step
-      node.ax = newAx;
-      node.ay = newAy;
-
-      totalEnergy += node.vx * node.vx + node.vy * node.vy;
+    for (let k = 0; k < activeCount; k++) {
+      const i = activeIdx[k];
+      const oax = oldAx[i], oay = oldAy[i];
+      const nax = ax[i],    nay = ay[i];
+      posX[i] += velX[i] * dt + oax * hdt2;
+      posY[i] += velY[i] * dt + oay * hdt2;
+      let vx = (velX[i] + 0.5 * (oax + nax) * dt) * damp;
+      let vy = (velY[i] + 0.5 * (oay + nay) * dt) * damp;
+      const v2 = vx * vx + vy * vy;
+      if (v2 > maxV2) { const s = maxVel / Math.sqrt(v2); vx *= s; vy *= s; }
+      velX[i] = vx; velY[i] = vy;
+      totalEnergy += vx * vx + vy * vy;
     }
 
-    this.energy = n > 0 ? totalEnergy / n : 0;
+    // ── Force buffer swap ────────────────────────────────────────────────────
+    // Promote current scratch (ax/ay) → oldAx/oldAy for next Verlet step.
+    // Demote spent oldAx/oldAy → fresh scratch. O(1) pointer swap replaces the
+    // previous N scatter-writes `oldAx[i]=nax`.
+    // Zero the freshly demoted scratch now while force buffer pages are still hot.
+    this.oldAx = ax;   this.oldAy = ay;
+    this.axBuf = oldAx; this.ayBuf = oldAy;
+    this.axBuf.fill(0, 0, N); this.ayBuf.fill(0, 0, N);
 
-    // Adaptive timestep: reduce if oscillation detected
+    this.energy = N > 0 ? totalEnergy / N : 0;
+
+    // Adaptive timestep: back off if diverging
     if (this.energy > this.prevEnergy * 1.1 && this.energy > 0.01) {
-      this.oscillationCounter++;
-      if (this.oscillationCounter > 3) {
+      if (++this.oscillationCounter > 3) {
         this.prevDt = Math.max(cfg.dt * 0.25, this.prevDt * 0.8);
         this.oscillationCounter = 0;
       }
     } else {
       this.oscillationCounter = 0;
-      // Slowly restore dt
-      if (this.prevDt < cfg.dt) {
-        this.prevDt = Math.min(cfg.dt, this.prevDt * 1.02);
-      }
+      if (this.prevDt < cfg.dt) this.prevDt = Math.min(cfg.dt, this.prevDt * 1.02);
     }
-
     this.prevEnergy = this.energy;
-
-    // Alpha cooling
     this.alpha += (0 - this.alpha) * cfg.alphaDecay;
-
     this.ticks++;
   }
 
-  // ============================================================
-  // Public API
-  // ============================================================
+  // ─── Public step/state API ────────────────────────────────────────────────────
 
-  /** Run a single tick of the simulation (computeForces + integrate). */
   step(): void {
     if (this.frozen) return;
     this.computeForces();
     this.integrate();
   }
 
+  getState(): SGEState {
+    return {
+      posX:      this.posX.subarray(0, this.n),
+      posY:      this.posY.subarray(0, this.n),
+      velX:      this.velX.subarray(0, this.n),
+      velY:      this.velY.subarray(0, this.n),
+      nodeIdArr: this.nodeIdArr.subarray(0, this.n),
+      nodeCount: this.n,
+      alpha:     this.alpha,
+      energy:    this.energy,
+      running:   this.running,
+      ticks:     this.ticks,
+    };
+  }
+
+  // ─── Node/edge manipulation ───────────────────────────────────────────────────
+
+  syncPosition(id: number, x: number, y: number, vx = 0, vy = 0): void {
+    const idx = this.nodeIndex.get(id);
+    if (idx === undefined) return;
+    this.posX[idx] = x; this.posY[idx] = y;
+    this.velX[idx] = vx; this.velY[idx] = vy;
+  }
+
+  pinNode(id: number): void {
+    const idx = this.nodeIndex.get(id);
+    if (idx !== undefined) {
+      this.pinnedArr[idx] = 1;
+      this._rebuildActiveIndices();
+    }
+  }
+
+  unpinNode(id: number): void {
+    const idx = this.nodeIndex.get(id);
+    if (idx !== undefined) {
+      this.pinnedArr[idx] = 0;
+      this.velX[idx] = 0; this.velY[idx] = 0;
+      this._rebuildActiveIndices();
+    }
+    this.reheat();
+  }
+
+  moveNode(id: number, x: number, y: number): void {
+    const idx = this.nodeIndex.get(id);
+    if (idx !== undefined) { this.posX[idx] = x; this.posY[idx] = y; }
+  }
+
+  addNode(inputNode: { id: number; x?: number; y?: number }, connectedToIds?: number[]): void {
+    let px = 0, py = 0, weight = 0;
+    if (connectedToIds) {
+      for (const nid of connectedToIds) {
+        const ni = this.nodeIndex.get(nid);
+        if (ni !== undefined) { px += this.posX[ni]; py += this.posY[ni]; weight++; }
+      }
+    }
+    if (weight > 0) {
+      px = px / weight + this.rng.range(-20, 20);
+      py = py / weight + this.rng.range(-20, 20);
+    } else if (this.n > 0) {
+      let sx = 0, sy = 0;
+      for (let i = 0; i < this.n; i++) { sx += this.posX[i]; sy += this.posY[i]; }
+      px = sx / this.n + this.rng.range(-100, 100);
+      py = sy / this.n + this.rng.range(-100, 100);
+    }
+    if (inputNode.x !== undefined && inputNode.x !== 0) px = inputNode.x;
+    if (inputNode.y !== undefined && inputNode.y !== 0) py = inputNode.y;
+
+    const idx = this.n;
+    this.ensureCap(idx + 1);
+    this.n++;
+
+    this.nodeIdArr[idx] = inputNode.id;
+    this.posX[idx] = px; this.posY[idx] = py;
+    this.velX[idx] = 0;  this.velY[idx] = 0;
+    this.oldAx[idx] = 0; this.oldAy[idx] = 0;
+    this.pinnedArr[idx] = 0;
+    this.degArr[idx]    = connectedToIds?.length ?? 0;
+    this.iRadArr[idx]   = 0;
+
+    let cid = 0, compid = 0;
+    if (connectedToIds && connectedToIds.length > 0) {
+      const ni = this.nodeIndex.get(connectedToIds[0]);
+      if (ni !== undefined) { cid = this.clIdArr[ni]; compid = this.compIdArr[ni]; }
+    }
+    this.clIdArr[idx]   = cid;
+    this.compIdArr[idx] = compid;
+
+    this.nodeIndex.set(inputNode.id, idx);
+    this.adjacency.set(inputNode.id, new Set());
+    this._rebuildActiveIndices();
+    this.reheat();
+  }
+
+  removeNode(id: number): void {
+    const idx = this.nodeIndex.get(id);
+    if (idx === undefined) return;
+    const last = this.n - 1;
+
+    if (idx !== last) {
+      this.posX[idx]      = this.posX[last];
+      this.posY[idx]      = this.posY[last];
+      this.velX[idx]      = this.velX[last];
+      this.velY[idx]      = this.velY[last];
+      this.oldAx[idx]     = this.oldAx[last];
+      this.oldAy[idx]     = this.oldAy[last];
+      this.pinnedArr[idx] = this.pinnedArr[last];
+      this.clIdArr[idx]   = this.clIdArr[last];
+      this.compIdArr[idx] = this.compIdArr[last];
+      this.degArr[idx]    = this.degArr[last];
+      this.iRadArr[idx]   = this.iRadArr[last];
+      this.nodeIdArr[idx] = this.nodeIdArr[last];
+      this.nodeIndex.set(this.nodeIdArr[idx], idx);
+    }
+    this.n--;
+    this.nodeIndex.delete(id);
+
+    const neighbors = this.adjacency.get(id);
+    if (neighbors) {
+      for (const nid of neighbors) {
+        this.adjacency.get(nid)?.delete(id);
+        const ni = this.nodeIndex.get(nid);
+        if (ni !== undefined) this.degArr[ni] = this.adjacency.get(nid)?.size ?? 0;
+      }
+    }
+    this.adjacency.delete(id);
+    this.edges = this.edges.filter(e => e.source !== id && e.target !== id);
+    this._rebuildEdgeArrays();
+    this._rebuildActiveIndices();
+    this.reheat();
+  }
+
+  addEdge(edge: SGEEdge): void {
+    if (!this.adjacency.has(edge.source) || !this.adjacency.has(edge.target)) return;
+    if (edge.source === edge.target) return;
+    this.edges.push({ source: edge.source, target: edge.target });
+    this.adjacency.get(edge.source)!.add(edge.target);
+    this.adjacency.get(edge.target)!.add(edge.source);
+    const si = this.nodeIndex.get(edge.source), ti = this.nodeIndex.get(edge.target);
+    if (si !== undefined) this.degArr[si] = this.adjacency.get(edge.source)!.size;
+    if (ti !== undefined) this.degArr[ti] = this.adjacency.get(edge.target)!.size;
+    this._rebuildEdgeArrays();
+    this.reheat();
+  }
+
+  setNodes(inputNodes: Array<{ id: number; x?: number; y?: number }>): void {
+    const prev = new Map<number, { x: number; y: number; vx: number; vy: number }>();
+    for (let i = 0; i < this.n; i++) {
+      prev.set(this.nodeIdArr[i], { x: this.posX[i], y: this.posY[i], vx: this.velX[i], vy: this.velY[i] });
+    }
+    this.initializeGraph(inputNodes, this.edges);
+    for (let i = 0; i < this.n; i++) {
+      const p = prev.get(this.nodeIdArr[i]);
+      if (p) { this.posX[i] = p.x; this.posY[i] = p.y; this.velX[i] = p.vx; this.velY[i] = p.vy; }
+    }
+    this.reheat();
+  }
+
+  setEdges(edges: SGEEdge[]): void {
+    const prev = new Map<number, { x: number; y: number; vx: number; vy: number }>();
+    for (let i = 0; i < this.n; i++) {
+      prev.set(this.nodeIdArr[i], { x: this.posX[i], y: this.posY[i], vx: this.velX[i], vy: this.velY[i] });
+    }
+    const inputNodes = [];
+    for (let i = 0; i < this.n; i++) inputNodes.push({ id: this.nodeIdArr[i], x: this.posX[i], y: this.posY[i] });
+    this.initializeGraph(inputNodes, edges);
+    for (let i = 0; i < this.n; i++) {
+      const p = prev.get(this.nodeIdArr[i]);
+      if (p) { this.posX[i] = p.x; this.posY[i] = p.y; this.velX[i] = p.vx; this.velY[i] = p.vy; }
+    }
+    this.reheat();
+  }
+
+  setConfig(partial: Partial<SGEConfig>): void {
+    Object.assign(this.config, partial);
+    if (partial.localRepelRadius !== undefined) this.spatialHash.setCellSize(partial.localRepelRadius);
+    if (partial.seed !== undefined) this.rng = new SeededRNG(partial.seed);
+    if (partial.idealDistance !== undefined) this._rebuildEdgeRest();
+  }
+
+  getNodePosition(id: number): { x: number; y: number } | undefined {
+    const idx = this.nodeIndex.get(id);
+    if (idx === undefined) return undefined;
+    return { x: this.posX[idx], y: this.posY[idx] };
+  }
+
+  /** Returns true if the given node ID exists in the engine. */
+  getNode(id: number): boolean {
+    return this.nodeIndex.has(id);
+  }
+
   /**
-   * Inject an external force on a node. Call between computeForces() and integrate().
-   * Forces accumulate additively with the engine's own forces.
+   * Inject an external force into the current step's force accumulator.
+   * Must be called AFTER computeForces() and BEFORE integrate().
    */
   applyForce(id: number, fx: number, fy: number): void {
     const idx = this.nodeIndex.get(id);
-    if (idx === undefined) return;
-    this.nodes[idx].fx += fx;
-    this.nodes[idx].fy += fy;
+    if (idx === undefined || this.pinnedArr[idx]) return;
+    this.axBuf[idx] += fx;
+    this.ayBuf[idx] += fy;
   }
 
-  /**
-   * Sync a node's position (and optionally velocity) into the engine
-   * after external constraint projection.
-   */
-  syncPosition(id: number, x: number, y: number, vx?: number, vy?: number): void {
-    const idx = this.nodeIndex.get(id);
-    if (idx !== undefined) {
-      this.nodes[idx].x = x;
-      this.nodes[idx].y = y;
-      if (vx !== undefined) this.nodes[idx].vx = vx;
-      if (vy !== undefined) this.nodes[idx].vy = vy;
-    }
-  }
+  // ─── Simulation control ───────────────────────────────────────────────────────
 
-  /** Get the current alpha value */
-  getAlpha(): number {
-    return this.alpha;
-  }
-
-  /** Get the current average kinetic energy */
-  getEnergy(): number {
-    return this.energy;
-  }
-
-  /** Start the simulation loop (requestAnimationFrame) */
-  start(): void {
-    if (this.running) return;
-    this.running = true;
-    this.frozen = false;
-    const tick = (): void => {
-      if (!this.running) return;
-      this.step();
-      if (this.alpha < this.config.alphaMin && this.energy < 0.001) {
-        this.running = false;
-        return;
-      }
-      this.rafId = requestAnimationFrame(tick);
-    };
-    this.rafId = requestAnimationFrame(tick);
-  }
-
-  /** Stop the simulation loop */
-  stop(): void {
-    this.running = false;
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = 0;
-    }
-  }
-
-  /** Reheat the simulation (e.g., after node release) */
   reheat(): void {
-    this.alpha = Math.max(this.alpha, this.config.reheatFactor);
+    this.alpha  = Math.max(this.alpha, this.config.reheatFactor);
     this.frozen = false;
     this.prevDt = this.config.dt;
     this.oscillationCounter = 0;
   }
 
-  /** Freeze the simulation — no more ticks until reheated */
-  freeze(): void {
-    this.frozen = true;
-  }
+  freeze(): void { this.frozen = true; }
 
-  /** Replace the full node set */
-  setNodes(inputNodes: Array<{ id: number; x?: number; y?: number }>): void {
-    const preservedPositions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
-    for (const node of this.nodes) {
-      preservedPositions.set(node.id, { x: node.x, y: node.y, vx: node.vx, vy: node.vy });
-    }
-
-    this.initializeGraph(inputNodes, this.edges);
-
-    // Restore positions for nodes that existed before
-    for (const node of this.nodes) {
-      const prev = preservedPositions.get(node.id);
-      if (prev) {
-        node.x = prev.x;
-        node.y = prev.y;
-        node.vx = prev.vx;
-        node.vy = prev.vy;
-      }
-    }
-
-    this.reheat();
-  }
-
-  /** Replace the full edge set */
-  setEdges(edges: SGEEdge[]): void {
-    const preservedPositions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
-    for (const node of this.nodes) {
-      preservedPositions.set(node.id, { x: node.x, y: node.y, vx: node.vx, vy: node.vy });
-    }
-
-    const inputNodes = this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
-    this.initializeGraph(inputNodes, edges);
-
-    for (const node of this.nodes) {
-      const prev = preservedPositions.get(node.id);
-      if (prev) {
-        node.x = prev.x;
-        node.y = prev.y;
-        node.vx = prev.vx;
-        node.vy = prev.vy;
-      }
-    }
-
-    this.reheat();
-  }
-
-  /** Update config partially */
-  setConfig(partial: Partial<SGEConfig>): void {
-    Object.assign(this.config, partial);
-    if (partial.localRepelRadius !== undefined) {
-      this.spatialGrid.setCellSize(partial.localRepelRadius);
-    }
-    if (partial.seed !== undefined) {
-      this.rng = new SeededRNG(partial.seed);
-    }
-  }
-
-  /** Get current simulation state (readonly snapshot) */
-  getState(): SGEState {
-    return {
-      nodes: this.nodes,
-      alpha: this.alpha,
-      energy: this.energy,
-      running: this.running,
-      ticks: this.ticks,
+  start(): void {
+    if (this.running) return;
+    this.running = true; this.frozen = false;
+    const tick = (): void => {
+      if (!this.running) return;
+      this.step();
+      if (this.alpha < this.config.alphaMin && this.energy < 0.001) { this.running = false; return; }
+      this.rafId = requestAnimationFrame(tick);
     };
+    this.rafId = requestAnimationFrame(tick);
   }
 
-  /** Get a node by ID */
-  getNode(id: number): SGENode | undefined {
-    const idx = this.nodeIndex.get(id);
-    return idx !== undefined ? this.nodes[idx] : undefined;
+  stop(): void {
+    this.running = false;
+    if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = 0; }
   }
 
-  /** Pin a node at its current position (for dragging) */
-  pinNode(id: number): void {
-    const idx = this.nodeIndex.get(id);
-    if (idx !== undefined) {
-      this.nodes[idx].pinned = true;
-    }
-  }
+  getAlpha():  number { return this.alpha; }
+  getEnergy(): number { return this.energy; }
 
-  /** Set pinned node position directly (for drag tracking) */
-  moveNode(id: number, x: number, y: number): void {
-    const idx = this.nodeIndex.get(id);
-    if (idx !== undefined) {
-      this.nodes[idx].x = x;
-      this.nodes[idx].y = y;
-    }
-  }
+  get nodeCount(): number { return this.n; }
+  get edgeCount(): number { return this.edges.length; }
 
-  /** Unpin a node and reheat (for drag release) */
-  unpinNode(id: number): void {
-    const idx = this.nodeIndex.get(id);
-    if (idx !== undefined) {
-      this.nodes[idx].pinned = false;
-      this.nodes[idx].vx = 0;
-      this.nodes[idx].vy = 0;
-    }
-    this.reheat();
-  }
-
-  /** Add a node incrementally — placed near its neighbors (weighted barycentric) */
-  addNode(inputNode: { id: number; x?: number; y?: number }, connectedToIds?: number[]): void {
-    // Compute initial position by weighted barycentric placement near neighbors
-    let px = 0;
-    let py = 0;
-    let weight = 0;
-
-    if (connectedToIds && connectedToIds.length > 0) {
-      for (const nid of connectedToIds) {
-        const nIdx = this.nodeIndex.get(nid);
-        if (nIdx !== undefined) {
-          const neighbor = this.nodes[nIdx];
-          px += neighbor.x;
-          py += neighbor.y;
-          weight++;
-        }
-      }
-    }
-
-    if (weight > 0) {
-      px /= weight;
-      py /= weight;
-      // Add small random offset to prevent exact overlap
-      px += this.rng.range(-20, 20);
-      py += this.rng.range(-20, 20);
-    } else {
-      // No neighbors — place near graph center with jitter
-      let cx = 0, cy = 0, cnt = 0;
-      for (const node of this.nodes) {
-        cx += node.x;
-        cy += node.y;
-        cnt++;
-      }
-      if (cnt > 0) {
-        px = cx / cnt + this.rng.range(-100, 100);
-        py = cy / cnt + this.rng.range(-100, 100);
-      }
-    }
-
-    if (inputNode.x !== undefined && inputNode.x !== 0) px = inputNode.x;
-    if (inputNode.y !== undefined && inputNode.y !== 0) py = inputNode.y;
-
-    const degree = connectedToIds?.length ?? 0;
-    const newNode: SGENode = {
-      id: inputNode.id,
-      x: px,
-      y: py,
-      vx: 0,
-      vy: 0,
-      ax: 0,
-      ay: 0,
-      fx: 0,
-      fy: 0,
-      pinned: false,
-      componentId: 0,
-      clusterId: 0,
-      degree,
-      centrality: degree,
-      initialRadius: 0,
-      initialAngle: 0,
-    };
-
-    // Assign to nearest neighbor's cluster and component
-    if (connectedToIds && connectedToIds.length > 0) {
-      const firstNeighborIdx = this.nodeIndex.get(connectedToIds[0]);
-      if (firstNeighborIdx !== undefined) {
-        newNode.componentId = this.nodes[firstNeighborIdx].componentId;
-        newNode.clusterId = this.nodes[firstNeighborIdx].clusterId;
-      }
-    }
-
-    this.nodes.push(newNode);
-    this.nodeIndex.set(inputNode.id, this.nodes.length - 1);
-    this.adjacency.set(inputNode.id, new Set());
-    this.ensureBuffers(this.nodes.length);
-    this.reheat();
-  }
-
-  /** Remove a node incrementally */
-  removeNode(id: number): void {
-    const idx = this.nodeIndex.get(id);
-    if (idx === undefined) return;
-
-    // Remove from node array
-    this.nodes.splice(idx, 1);
-
-    // Rebuild index
-    this.nodeIndex.clear();
-    for (let i = 0; i < this.nodes.length; i++) {
-      this.nodeIndex.set(this.nodes[i].id, i);
-    }
-
-    // Remove edges
-    this.edges = this.edges.filter(e => e.source !== id && e.target !== id);
-
-    // Remove from adjacency
-    const neighbors = this.adjacency.get(id);
-    if (neighbors) {
-      for (const nid of neighbors) {
-        this.adjacency.get(nid)?.delete(id);
-        // Update degree
-        const nIdx = this.nodeIndex.get(nid);
-        if (nIdx !== undefined) {
-          this.nodes[nIdx].degree = this.adjacency.get(nid)?.size ?? 0;
-        }
-      }
-    }
-    this.adjacency.delete(id);
-
-    this.reheat();
-  }
-
-  /** Add an edge incrementally */
-  addEdge(edge: SGEEdge): void {
-    if (!this.adjacency.has(edge.source) || !this.adjacency.has(edge.target)) return;
-    if (edge.source === edge.target) return;
-    
-    this.edges.push({ source: edge.source, target: edge.target });
-    this.adjacency.get(edge.source)!.add(edge.target);
-    this.adjacency.get(edge.target)!.add(edge.source);
-
-    const si = this.nodeIndex.get(edge.source);
-    const ti = this.nodeIndex.get(edge.target);
-    if (si !== undefined) this.nodes[si].degree = this.adjacency.get(edge.source)!.size;
-    if (ti !== undefined) this.nodes[ti].degree = this.adjacency.get(edge.target)!.size;
-
-    this.reheat();
-  }
-
-  /** Get the number of nodes */
-  get nodeCount(): number {
-    return this.nodes.length;
-  }
-
-  /** Get the number of edges */
-  get edgeCount(): number {
-    return this.edges.length;
-  }
-
-  /** Cleanup — call when destroying the engine */
   dispose(): void {
     this.stop();
-    this.nodes = [];
+    this.n = 0;
     this.edges = [];
     this.adjacency.clear();
     this.nodeIndex.clear();
-    this.spatialGrid.clear();
   }
 }
 

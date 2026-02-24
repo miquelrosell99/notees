@@ -29,11 +29,13 @@ import type {
   MainToPhysicsMessage,
   PhysicsFrameMessage,
   PhysicsReadyMessage,
+  PhysicsSharedBufferMessage,
 } from './graphPhysicsWorkerProtocol';
+import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
 
 // Typed alias for the worker's postMessage that supports the transferable overload.
 const workerPost = (
-  msg: PhysicsFrameMessage | PhysicsReadyMessage,
+  msg: PhysicsFrameMessage | PhysicsReadyMessage | PhysicsSharedBufferMessage,
   transfer?: Transferable[],
 ) => (self as unknown as Worker).postMessage(msg, transfer as StructuredSerializeOptions);
 
@@ -67,9 +69,74 @@ let nodeIds: Int32Array = new Int32Array(0);
 /** True once the engine is initialised. */
 let ready = false;
 
-/** Timeout handle for the physics tick loop (setTimeout recursion, NOT
- *  setInterval — ensures a slow step() doesn't cause ticks to stack). */
+/** Timeout handle for the physics tick loop. */
 let tickTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
+
+// ============================================================
+// SharedArrayBuffer path (active when crossOriginIsolated)
+// ============================================================
+
+/**
+ * When cross-origin isolation is enabled the worker writes positions directly
+ * into a SharedArrayBuffer that the main thread reads in its RAF loop via
+ * Atomics.load.  No per-frame postMessage or structured-clone overhead.
+ */
+const SAB_ENABLED = typeof SharedArrayBuffer !== 'undefined' &&
+  (typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : false);
+
+let sPosF32:  Float32Array | null  = null;  // view of posSAB
+let sMetaI32: Int32Array  | null  = null;  // view of metaSAB (int fields)
+let sMetaF32: Float32Array | null  = null;  // view of metaSAB (float fields)
+let posSAB:   SharedArrayBuffer | null = null;
+let metaSAB:  SharedArrayBuffer | null = null;
+
+/** (Re)allocate SABs when node count changes.  Sends sharedBuffer message when done. */
+function ensureSABs(n: number): void {
+  if (!SAB_ENABLED) return;
+  const neededBytes = n * 2 * 4;
+  if (!posSAB || posSAB.byteLength < neededBytes) {
+    posSAB  = new SharedArrayBuffer(neededBytes);
+    metaSAB = new SharedArrayBuffer(5 * 4);
+    sPosF32  = new Float32Array(posSAB);
+    sMetaI32 = new Int32Array(metaSAB);
+    sMetaF32 = new Float32Array(metaSAB);
+    Atomics.store(sMetaI32, META_SEQ, 0);
+  }
+}
+
+/** Write current positions + meta into the SABs and signal the main thread. */
+function writeSABFrame(): void {
+  if (!sPosF32 || !sMetaI32 || !sMetaF32 || !engine) return;
+  const state = engine.getState();
+  const n     = state.nodeCount;
+  const posX  = state.posX, posY = state.posY;
+  for (let i = 0; i < n; i++) {
+    sPosF32[i * 2]     = posX[i];
+    sPosF32[i * 2 + 1] = posY[i];
+  }
+  sMetaF32[META_ALPHA]  = state.alpha;
+  sMetaF32[META_ENERGY] = state.energy;
+  Atomics.store(sMetaI32, META_COUNT, n);
+  Atomics.store(sMetaI32, META_TICKS, state.ticks);
+  // Increment seq last — main thread uses this as the "data ready" signal.
+  Atomics.add(sMetaI32, META_SEQ, 1);
+}
+
+/** Send SharedArrayBuffer references to the main thread (once per topology change). */
+function postSharedBufferRefs(): void {
+  if (!SAB_ENABLED || !posSAB || !metaSAB) return;
+  const msg: PhysicsSharedBufferMessage = {
+    type: 'sharedBuffer',
+    positions: posSAB,
+    meta:      metaSAB,
+    nodeIds,   // regular clone — only sent on topology change
+  };
+  workerPost(msg); // SABs clone by reference (spec); no transfer list needed
+}
+
+// ============================================================
+// Transferable triple-buffer fallback (no crossOriginIsolated)
+// ============================================================
 
 /**
  * Triple buffer: we cycle through 3 buffers so that:
@@ -81,7 +148,6 @@ let tickTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
  */
 let bufs: Float32Array[] = [new Float32Array(0), new Float32Array(0), new Float32Array(0)];
 let bufIdx = 0;
-/** Track the last allocated size so we can resize all 3 buffers on topology change. */
 let allocatedSize = 0;
 
 // ============================================================
@@ -89,9 +155,11 @@ let allocatedSize = 0;
 // ============================================================
 
 function ensureBuffers(n: number): void {
+  // SAB path: handled by ensureSABs.
+  if (SAB_ENABLED) { ensureSABs(n); return; }
+  // Fallback: transferable triple-buffer.
   const needed = n * 2;
   if (needed !== allocatedSize) {
-    // Topology changed — reallocate all buffers to exact size.
     for (let i = 0; i < bufs.length; i++) {
       bufs[i] = new Float32Array(needed);
     }
@@ -99,12 +167,12 @@ function ensureBuffers(n: number): void {
   }
 }
 
-/** Post a frame message with the current node positions. */
+/** Post a frame message with the current node positions (transferable fallback). */
 function postFrame(): void {
   if (!engine) return;
+  if (SAB_ENABLED) { writeSABFrame(); return; }
   const state = engine.getState();
-  const nodes = state.nodes;
-  const n = nodes.length;
+  const n = state.nodeCount;
 
   if (n === 0) return;
 
@@ -126,10 +194,11 @@ function postFrame(): void {
     bufIdx++;
   }
 
-  // Pack positions directly into the buffer we'll transfer
+  // Pack positions from SoA typed arrays
+  const posX = state.posX, posY = state.posY;
   for (let i = 0; i < n; i++) {
-    buf[i * 2]     = nodes[i].x;
-    buf[i * 2 + 1] = nodes[i].y;
+    buf[i * 2]     = posX[i];
+    buf[i * 2 + 1] = posY[i];
   }
 
   const msg: PhysicsFrameMessage = {
@@ -146,14 +215,12 @@ function postFrame(): void {
   workerPost(msg, [buf.buffer]);
 }
 
-/** Build the nodeIds Int32Array from the engine's current node list. */
+/** Build the nodeIds Int32Array from the engine's current state. */
 function rebuildNodeIds(): void {
   if (!engine) { nodeIds = new Int32Array(0); return; }
-  const nodes = engine.getState().nodes;
-  nodeIds = new Int32Array(nodes.length);
-  for (let i = 0; i < nodes.length; i++) {
-    nodeIds[i] = nodes[i].id;
-  }
+  const state = engine.getState();
+  // Copy the subarray view (can't transfer a view; need an owned copy)
+  nodeIds = new Int32Array(state.nodeIdArr);
 }
 
 // ============================================================
@@ -162,6 +229,9 @@ function rebuildNodeIds(): void {
 
 function startLoop(): void {
   if (tickTimeout !== undefined) return;
+  // Reset accumulator so we don't run many catch-up steps after a pause
+  accumulator  = 0;
+  lastTickTime = 0;
   scheduleTick();
 }
 
@@ -176,17 +246,36 @@ function scheduleTick(): void {
   tickTimeout = setTimeout(tick, TICK_MS);
 }
 
+// Fixed-timestep accumulator — decouples wall-clock variability from simulation dt.
+// Each real-time millisecond maps to one physics step.  We cap substeps at 4 to
+// prevent a spiral-of-death when the host is heavily loaded.
+const FIXED_DT_MS  = TICK_MS;   // one physics step per 16ms
+const MAX_SUBSTEPS = 4;
+let   accumulator  = 0;
+let   lastTickTime = 0;
+
 function tick(): void {
   tickTimeout = undefined;
   if (!engine) return;
 
-  const t0 = performance.now();
-  engine.step();
-  const elapsed = performance.now() - t0;
+  const now     = performance.now();
+  const frameMs = lastTickTime > 0 ? Math.min(now - lastTickTime, TICK_MS * 4) : TICK_MS;
+  lastTickTime  = now;
+  accumulator  += frameMs;
 
-  // Log slow steps so the user can see what's happening (worker console)
+  const t0 = now;
+  let   substeps = 0;
+  while (accumulator >= FIXED_DT_MS && substeps < MAX_SUBSTEPS) {
+    engine.step();
+    accumulator -= FIXED_DT_MS;
+    substeps++;
+  }
+  // Drain leftover accumulator if we hit the substep cap (avoid runaway growth)
+  if (accumulator >= FIXED_DT_MS * MAX_SUBSTEPS) accumulator = 0;
+
+  const elapsed = performance.now() - t0;
   if (elapsed > 50) {
-    console.warn(`[SGE] step took ${elapsed.toFixed(0)}ms (${engine.nodeCount} nodes)`);
+    console.warn(`[SGE] ${substeps} step(s) took ${elapsed.toFixed(0)}ms (${engine.nodeCount} nodes)`);
   }
 
   const state = engine.getState();
@@ -222,6 +311,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine = new SemanticGraphEngine(msg.nodes, msg.edges, msg.config);
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
+      if (SAB_ENABLED) postSharedBufferRefs();
 
       ready = true;
 
@@ -235,25 +325,33 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
     // ── Full topology swap ───────────────────────────────────
     case 'setTopology': {
       if (!engine) break;
+      // Snapshot positions from typed SoA arrays
       const prevPositions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
-      for (const n of engine.getState().nodes) {
-        prevPositions.set(n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy });
+      {
+        const oldState = engine.getState();
+        const { posX, posY, velX, velY, nodeIdArr, nodeCount } = oldState;
+        for (let i = 0; i < nodeCount; i++) {
+          prevPositions.set(nodeIdArr[i], { x: posX[i], y: posY[i], vx: velX[i], vy: velY[i] });
+        }
       }
 
       engine.dispose();
       engine = new SemanticGraphEngine(msg.nodes, msg.edges);
 
       // Restore positions of surviving nodes
-      for (const n of engine.getState().nodes) {
-        const prev = prevPositions.get(n.id);
-        if (prev) {
-          engine.syncPosition(n.id, prev.x, prev.y, prev.vx, prev.vy);
+      {
+        const newState = engine.getState();
+        const { nodeIdArr, nodeCount } = newState;
+        for (let i = 0; i < nodeCount; i++) {
+          const prev = prevPositions.get(nodeIdArr[i]);
+          if (prev) engine.syncPosition(nodeIdArr[i], prev.x, prev.y, prev.vx, prev.vy);
         }
       }
 
       engine.reheat();
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
+      if (SAB_ENABLED) postSharedBufferRefs();
 
       if (!ready) {
         const readyMsg: PhysicsReadyMessage = { type: 'ready', nodeCount: msg.nodes.length };
@@ -271,6 +369,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine.addNode(msg.node, msg.connectedToIds);
       rebuildNodeIds();
       ensureBuffers(engine.nodeCount);
+      if (SAB_ENABLED) postSharedBufferRefs();
       startLoop();
       break;
     }
@@ -320,7 +419,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine.moveNode(msg.nodeId, msg.x, msg.y);
       // Post a frame immediately so the renderer sees the updated drag position
       postFrame();
-      if (tickInterval === undefined) startLoop();
+      if (tickTimeout === undefined) startLoop();
       break;
     }
 
