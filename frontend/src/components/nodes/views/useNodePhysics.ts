@@ -1109,9 +1109,6 @@ export function useNodePhysics({
               seed: 42,
               idealDistance: LINKED_ATTRACTION_DISTANCE,
               localRepelRadius: UNLINKED_REPULSION_DISTANCE,
-              localRepelStrength: 4000,
-              clusterStrength: 0.002,
-              componentCenterStrength: 0.001,
             });
           }
           for (const node of nodes) {
