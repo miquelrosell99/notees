@@ -31,6 +31,41 @@
 import type { SGEConfig, SGEEdge } from './SemanticGraphEngine';
 
 // ============================================================
+// Shared-memory descriptor  (requires crossOriginIsolated)
+// ============================================================
+
+/**
+ * Sent once by the worker after every init / topology change when
+ * SharedArrayBuffer is available (crossOriginIsolated === true).
+ *
+ * The main thread stores these views and polls them in its RAF loop
+ * via Atomics.load(meta, META_SEQ) instead of receiving a postMessage
+ * every physics tick — eliminating per-frame serialisation entirely.
+ *
+ * Memory layout
+ * ─────────────
+ *  positions  Float32Array  [x0,y0, x1,y1, …]   n × 2 floats
+ *  meta                                           5 × 4 bytes
+ *   Int32 view:  [0]=seq  [1]=nodeCount  [2]=ticks
+ *   Float32 view:[3]=alpha               [4]=energy
+ */
+export const META_SEQ    = 0;  // Int32 slot: incremented by worker after each write
+export const META_COUNT  = 1;  // Int32 slot: active node count
+export const META_TICKS  = 2;  // Int32 slot: simulation tick counter
+export const META_ALPHA  = 3;  // Float32 slot: cooling alpha
+export const META_ENERGY = 4;  // Float32 slot: kinetic energy
+
+export interface PhysicsSharedBufferMessage {
+  type: 'sharedBuffer';
+  /** Interleaved [x0,y0, x1,y1, …] Float32 positions.  Size = n × 2 × 4 bytes. */
+  positions: SharedArrayBuffer;
+  /** 5-slot metadata buffer; use Int32Array and Float32Array views simultaneously. */
+  meta: SharedArrayBuffer;
+  /** Node IDs matching the positions order.  Owned copy, not transferred. */
+  nodeIds: Int32Array;
+}
+
+// ============================================================
 // Main → Worker
 // ============================================================
 
@@ -200,4 +235,4 @@ export interface PhysicsFrameMessage {
   ticks: number;
 }
 
-export type PhysicsToMainMessage = PhysicsReadyMessage | PhysicsFrameMessage;
+export type PhysicsToMainMessage = PhysicsReadyMessage | PhysicsFrameMessage | PhysicsSharedBufferMessage;
