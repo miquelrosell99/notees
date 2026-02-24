@@ -23,7 +23,7 @@ import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
-import { SGEGraphView, type SGEGraphViewRef } from './SGEGraphView';
+import { SGEGraphCanvas, type SGEGraphCanvasRef } from './SGEGraphCanvas';
 import type {
   GraphNode,
   GraphLink,
@@ -776,7 +776,7 @@ export function GraphView({
       )}
       
       {/* Canvas — SGE WebGL2 renderer */}
-      <SGEGraphView
+      <SGEGraphCanvas
         ref={rendererRef}
         nodes={nodes}
         edges={links}
