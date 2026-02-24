@@ -35,6 +35,7 @@ import {
   UNLINKED_REPULSION_DISTANCE,
   MIN_REPULSION_DISTANCE,
   RETURN_FORCE,
+  CENTER_GRAVITY_STRENGTH,
   VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DEADZONE,
@@ -1242,13 +1243,15 @@ export function useNodePhysics({
         }
       }
       
-      // Centering: pure center-of-mass recentering (position-only, no forces).
-      // Translates all nodes so their centroid stays at canvas center.
-      // This keeps the graph on screen without injecting energy or crushing clusters.
+      // Centering: COM recentering (position-only) + center gravity force.
+      // COM recentering keeps the graph centered without injecting energy.
+      // Center gravity (like d3.forceX/forceY) pulls all nodes toward center,
+      // creating the Logseq-style ring of orphan nodes at the periphery.
       if (!isConstrainedMode) {
         const cx = dimensionsRef.current.width / 2;
         const cy = dimensionsRef.current.height / 2;
         
+        // COM recentering (position translation)
         if (comCount > 0) {
           const avgX = comX / comCount;
           const avgY = comY / comCount;
@@ -1259,6 +1262,14 @@ export function useNodePhysics({
             node.x += driftX;
             node.y += driftY;
           }
+        }
+        
+        // Center gravity force: pull each node toward center (scaled by alpha).
+        // Equivalent to d3.forceX(cx, strength) + d3.forceY(cy, strength).
+        for (const node of nodes) {
+          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+          node.vx += (cx - node.x) * CENTER_GRAVITY_STRENGTH * alpha;
+          node.vy += (cy - node.y) * CENTER_GRAVITY_STRENGTH * alpha;
         }
       }
       
