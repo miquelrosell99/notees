@@ -133,6 +133,16 @@ export interface PhysicsReheatMessage {
   type: 'reheat';
 }
 
+/** Pause the physics tick loop without destroying the engine state. */
+export interface PhysicsPauseMessage {
+  type: 'pause';
+}
+
+/** Resume the physics tick loop (alias for reheat + restart). */
+export interface PhysicsResumeMessage {
+  type: 'resume';
+}
+
 /** Shut down the simulation and free resources. */
 export interface PhysicsDestroyMessage {
   type: 'destroy';
@@ -152,6 +162,8 @@ export type MainToPhysicsMessage =
   | PhysicsUnpinNodeMessage
   | PhysicsSetConfigMessage
   | PhysicsReheatMessage
+  | PhysicsPauseMessage
+  | PhysicsResumeMessage
   | PhysicsDestroyMessage;
 
 // ============================================================
