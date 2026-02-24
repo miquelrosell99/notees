@@ -129,6 +129,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
 
   const {
     canvasRef,
+    labelCanvasRef,
     stats,
     reheat,
     pause,
@@ -200,6 +201,13 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
         onWheel={_wheel}
         onDoubleClick={onDblClick}
         onContextMenu={onContextMenu}
+      />
+
+      {/* 2-D label overlay (pointer-events:none so clicks pass through) */}
+      <canvas
+        ref={labelCanvasRef}
+        className="sge-graph-view__label-canvas"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
       />
 
       {/* Toolbar */}
