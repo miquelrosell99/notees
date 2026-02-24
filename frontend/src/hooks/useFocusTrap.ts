@@ -127,7 +127,9 @@ export function useFocusTrap(
     }
   }, [containerRef, onEscape]);
   
-  // Set up focus trap
+  // Auto-focus and restore-focus: only runs when the trap is enabled/disabled,
+  // NOT when handleKeyDown changes (prevents re-focusing the first element on
+  // every re-render caused by query state updates, e.g. workspace name checks).
   useEffect(() => {
     if (!enabled || !containerRef.current) return;
     
@@ -147,18 +149,12 @@ export function useFocusTrap(
       }
     }
     
-    // Add keyboard listener
-    document.addEventListener('keydown', handleKeyDown);
-    
     // Capture ref values for cleanup
     const finalElement = finalFocusRef?.current;
     const previousElement = previousFocusRef.current;
     
-    // Cleanup
+    // Cleanup: restore focus when trap is disabled/unmounted
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      
-      // Restore focus
       if (restoreFocus) {
         const elementToFocus = finalElement || previousElement;
         if (elementToFocus && typeof elementToFocus.focus === 'function') {
@@ -169,7 +165,19 @@ export function useFocusTrap(
         }
       }
     };
-  }, [enabled, containerRef, autoFocus, restoreFocus, initialFocusRef, finalFocusRef, handleKeyDown]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]); // intentionally omit other deps — auto-focus must only fire on open/close
+
+  // Keyboard listener: updated whenever handleKeyDown changes, but does NOT
+  // trigger auto-focus so re-renders won't steal focus from the input.
+  useEffect(() => {
+    if (!enabled) return;
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [enabled, handleKeyDown]);
 }
 
 /**
