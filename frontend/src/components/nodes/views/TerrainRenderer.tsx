@@ -1,17 +1,21 @@
 /**
  * TerrainRenderer Component
- * 
- * Renders the terrain visualization with contour lines and colored plateau fills.
- * Uses useNodePhysics hook for simulation.
+ *
+ * Renders the terrain visualization with contour lines and coloured plateau fills.
+ * Uses useNodePhysics hook for CPU physics simulation.
+ * Contour lines are rendered by TerrainWebGLRenderer (GPU, analytical iso-lines).
  * Handles:
- * - Canvas rendering of contour lines (marching squares)
- * - Height map generation from node mass/positions
- * - Colored plateau fills per node (ownership map + offscreen canvas)
- * - Plateau-based hit testing for click/hover
+ * - Height map generation from node mass/positions (stamps + ridges + blur)
+ * - GPU texture upload: height map (R32F), ownership colour (RGBA8), selection mask (R8)
+ * - Plateau-based hit testing for click/hover (CPU owner-map)
  * - Mouse interactions (pan, zoom, click)
+ * - Overlay canvas: crosshair, hover labels, selection outlines
+ * - Reference path A* routing (drawn on the 2D ref-path canvas)
  */
 
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { TerrainWebGLRenderer } from './terrainWebGLRenderer';
+import type { TerrainCameraState } from './terrainWebGLRenderer';
 import { Card } from '../../core/Card';
 import type {
   GraphNode,
@@ -23,7 +27,6 @@ import type {
 } from './viewTypes';
 import {
   // Constants
-  LINE_DASH_NONE,
   CONTOUR_LEVELS,
   TERRAIN_GRID_RES,
   TERRAIN_BASE_PLATEAU_RADIUS,
@@ -359,11 +362,53 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     resizeObserver.observe(canvasRef.current);
     return () => resizeObserver.disconnect();
   }, []);
+
+  // ── WebGL terrain renderer lifecycle ─────────────────────────────────
+  // Initialise the WebGL2 renderer once when the webgl canvas mounts.
+  // The renderer is destroyed on unmount to prevent WebGL context leaks.
+  useEffect(() => {
+    const canvas = webglCanvasRef.current;
+    if (!canvas) return;
+    let renderer: TerrainWebGLRenderer | null = null;
+    try {
+      renderer = new TerrainWebGLRenderer();
+      renderer.init(canvas);
+      terrainGLRef.current = renderer;
+      // Force a cache invalidation so the next render re-uploads all textures
+      terrainCacheRef.current.valid = false;
+    } catch (err) {
+      console.error('[TerrainWebGL] Failed to initialise WebGL2 renderer:', err);
+    }
+    return () => {
+      renderer?.destroy();
+      terrainGLRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the WebGL canvas backing-buffer in sync with the container size.
+  useEffect(() => {
+    const canvas = webglCanvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(dimensions.width  * dpr);
+    const h = Math.round(dimensions.height * dpr);
+    canvas.width  = w;
+    canvas.height = h;
+    terrainGLRef.current?.resize(w, h);
+  }, [dimensions]);
   
   // ==================== Cached CSS Colors ====================
   
-  // Cache CSS variables to avoid getComputedStyle every frame
-  const cssColorsRef = useRef<{ lowR: number; lowG: number; lowB: number; highR: number; highG: number; highB: number } | null>(null);
+  // Cache CSS variables to avoid getComputedStyle every frame.
+  // lowHex / highHex are the raw CSS strings passed directly to the WebGL
+  // renderer as uniforms; the decomposed RGB fields are kept for reference-path
+  // colour tinting on the Canvas 2D overlay.
+  const cssColorsRef = useRef<{
+    lowR: number; lowG: number; lowB: number;
+    highR: number; highG: number; highB: number;
+    lowHex: string; highHex: string;
+  } | null>(null);
   const cssColorsDirtyRef = useRef(true);
   
   // Invalidate CSS cache on theme changes
@@ -380,10 +425,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   const ownerMapRef = useRef<Int32Array | null>(null);
   // Per-cell highest single-node contribution (for ownership with additive heights)
   const maxContribRef = useRef<Float32Array | null>(null);
-  
-  // Flat segment buffer for marching squares (4 floats per segment: x1,y1,x2,y2)
-  const segsBufRef = useRef<Float32Array | null>(null);
-  
+
+  // ── WebGL terrain renderer (GPU iso-contour lines) ────────────────────────
+  const webglCanvasRef = useRef<HTMLCanvasElement>(null);
+  const terrainGLRef   = useRef<TerrainWebGLRenderer | null>(null);
+
   // Time-throttle terrain rebuilds during active simulation
   const lastTerrainRebuildRef = useRef(0);
   
@@ -397,11 +443,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Per-node stamp cache: nodeId → cached stamp + parameters
   const stampCacheRef = useRef(new Map<number, StampCacheEntry>());
   
-  // Offscreen canvases for selection-aware contour compositing
-  const contourOffscreenRef = useRef<HTMLCanvasElement | null>(null);
-  const selectionMaskRef = useRef<HTMLCanvasElement | null>(null);
-  const colorMapRef = useRef<HTMLCanvasElement | null>(null);
-  
   // Store grid dims + owner map for plateau hit testing
   const plateauGridRef = useRef({ gridW: 0, gridH: 0, gs: TERRAIN_GRID_RES, originX: 0, originY: 0 });
   
@@ -412,17 +453,18 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Cache the expensive terrain computation (height map, contour chains, color map)
   // and only recompute when node positions, transform, or selection actually changed.
   
-  // Snapshot of node positions + transform used to generate current cache
+  // Snapshot of node positions + transform used to generate current cache.
+  // GPU texture uploads happen inside the same cache-rebuild block so they are
+  // also skipped when the cache is still valid (e.g. camera pan/zoom only).
   const terrainCacheRef = useRef<{
-    positionHash: number; // cheap hash of node positions + transform
-    selectionHash: number; // hash of selected node IDs
-    classColorsHash: number; // hash of class colors
+    positionHash: number;
+    selectionHash: number;
+    classColorsHash: number;
     gridW: number;
     gridH: number;
     gs: number;
     originX: number;
     originY: number;
-    allChains: Array<Array<Array<[number, number]>>>; // [level][chain][point]
     nodeChildDirs: Array<Array<{nx: number, ny: number}>>;
     idToIdx: Map<number, number>;
     nodeColors: Array<[number, number, number]>;
@@ -436,16 +478,12 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   }>({
     positionHash: 0, selectionHash: 0, classColorsHash: 0,
     gridW: 0, gridH: 0, gs: 4, originX: 0, originY: 0,
-    allChains: [], nodeChildDirs: [], idToIdx: new Map(), nodeColors: [],
+    nodeChildDirs: [], idToIdx: new Map(), nodeColors: [],
     lowR: 0, lowG: 0, lowB: 0, highR: 0, highG: 0, highB: 0,
     hasClassColors: false, hasSelection: false, selectedNodeIndices: new Set(),
     referencePaths: [],
     valid: false,
   });
-  
-  // Blurred mask canvas (pre-blurred at grid res instead of CSS filter on full canvas)
-  const blurredMaskRef = useRef<HTMLCanvasElement | null>(null);
-  const blurredColorMapRef = useRef<HTMLCanvasElement | null>(null);
   
   // ==================== Render Function ====================
   
@@ -919,7 +957,11 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       };
       const [lR, lG, lB] = parseHex(colorLow);
       const [hR, hG, hB] = parseHex(colorHigh);
-      cssColorsRef.current = { lowR: lR, lowG: lG, lowB: lB, highR: hR, highG: hG, highB: hB };
+      cssColorsRef.current = {
+        lowR: lR, lowG: lG, lowB: lB,
+        highR: hR, highG: hG, highB: hB,
+        lowHex: colorLow, highHex: colorHigh,
+      };
       cssColorsDirtyRef.current = false;
     }
     const { lowR, lowG, lowB, highR, highG, highB } = cssColorsRef.current;
@@ -941,82 +983,35 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       nodeColors[i] = parseHexRGB(color);
     }
     
-    // Build ownership color map at grid resolution for contour colorizing
-    if (!colorMapRef.current) colorMapRef.current = document.createElement('canvas');
-    const colorMapCanvas = colorMapRef.current;
-    if (colorMapCanvas.width !== gridW || colorMapCanvas.height !== gridH) {
-      colorMapCanvas.width = gridW; colorMapCanvas.height = gridH;
-    }
-    const colorMapCtx = colorMapCanvas.getContext('2d')!;
-    const colorMapData = colorMapCtx.createImageData(gridW, gridH);
-    const cmd = colorMapData.data;
-    for (let i = 0; i < gridW * gridH; i++) {
-      const owner = ownerMap[i];
-      const off = i * 4;
-      if (owner >= 0 && owner < visibleNodes.length) {
-        const [cr, cg, cb] = nodeColors[owner];
-        cmd[off] = cr; cmd[off + 1] = cg; cmd[off + 2] = cb; cmd[off + 3] = 255;
-      } else {
-        cmd[off] = lowR; cmd[off + 1] = lowG; cmd[off + 2] = lowB; cmd[off + 3] = 255;
-      }
-    }
-    colorMapCtx.putImageData(colorMapData, 0, 0);
+    // ── GPU texture uploads ────────────────────────────────────────────────────
+    // These replace the old Canvas 2D colour-map + selection-mask offscreen
+    // canvases.  Bilinear filtering on the GPU gives equivalent smooth-edge
+    // blending for free, without any JS per-pixel loops.
+    const hasClassColors = currentClassColors.length > 0;
     
-    // Pre-blur the color map at grid resolution (P2: replaces CSS filter blur)
-    if (!blurredColorMapRef.current) blurredColorMapRef.current = document.createElement('canvas');
-    const blurredColorMap = blurredColorMapRef.current;
-    const blurSize = Math.max(gridW * 2, 1);
-    const blurSizeH = Math.max(gridH * 2, 1);
-    if (blurredColorMap.width !== blurSize || blurredColorMap.height !== blurSizeH) {
-      blurredColorMap.width = blurSize; blurredColorMap.height = blurSizeH;
-    }
-    const blurredColorCtx = blurredColorMap.getContext('2d')!;
-    blurredColorCtx.imageSmoothingEnabled = true;
-    blurredColorCtx.imageSmoothingQuality = 'medium';
-    // Upscale color map with bilinear smoothing creates the gradient blur effect
-    blurredColorCtx.drawImage(colorMapCanvas, 0, 0, blurSize, blurSizeH);
-    
-    // Build set of selected node indices for dimming
+    // Build selected-node index set for the GPU selection mask texture.
     const selectedNodeIndices = new Set<number>();
     if (hasSelection) {
       for (let i = 0; i < visibleNodes.length; i++) {
-        if (selIdSet.has(visibleNodes[i].id)) {
-          selectedNodeIndices.add(i);
-        }
+        if (selIdSet.has(visibleNodes[i].id)) selectedNodeIndices.add(i);
       }
     }
-    
-    // Pre-blur the selection mask at grid resolution
-    if (hasSelection) {
-      if (!blurredMaskRef.current) blurredMaskRef.current = document.createElement('canvas');
-      const blurredMask = blurredMaskRef.current;
-      if (!selectionMaskRef.current) selectionMaskRef.current = document.createElement('canvas');
-      const maskCanvas = selectionMaskRef.current;
-      if (maskCanvas.width !== gridW || maskCanvas.height !== gridH) {
-        maskCanvas.width = gridW; maskCanvas.height = gridH;
+
+    {
+      const terrainGL = terrainGLRef.current;
+      if (terrainGL) {
+        // Height map: R32F texture — the shader derives gradient and iso-distances.
+        terrainGL.uploadHeightMap(heightMap, gridW, gridH, originX, originY, gs);
+        // Ownership colour: RGBA8, bilinear → free smooth blending between owners.
+        terrainGL.uploadOwnershipColors(ownerMap, gridW, gridH, nodeColors, [lowR, lowG, lowB]);
+        // Selection mask: R8, bilinear → smooth dim/bright region boundaries.
+        terrainGL.uploadSelectionMask(ownerMap, gridW, gridH, selectedNodeIndices);
       }
-      const maskCtx = maskCanvas.getContext('2d')!;
-      const maskData = maskCtx.createImageData(gridW, gridH);
-      const md = maskData.data;
-      for (let i = 0; i < gridW * gridH; i++) {
-        const owner = ownerMap[i];
-        const off = i * 4;
-        md[off] = md[off + 1] = md[off + 2] = 0;
-        md[off + 3] = (owner >= 0 && selectedNodeIndices.has(owner)) ? 255 : 0;
-      }
-      maskCtx.putImageData(maskData, 0, 0);
-      // Bilinear upscale creates smooth gradient at selection boundaries
-      if (blurredMask.width !== blurSize || blurredMask.height !== blurSizeH) {
-        blurredMask.width = blurSize; blurredMask.height = blurSizeH;
-      }
-      const blurredMaskCtx = blurredMask.getContext('2d')!;
-      blurredMaskCtx.imageSmoothingEnabled = true;
-      blurredMaskCtx.imageSmoothingQuality = 'medium';
-      blurredMaskCtx.clearRect(0, 0, blurSize, blurSizeH);
-      blurredMaskCtx.drawImage(maskCanvas, 0, 0, blurSize, blurSizeH);
     }
-    
-    const MIN_CHAIN_LEN = gs * 4;
+
+    // (Marching-squares chain building removed — the GPU fragment shader
+    //  computes analytical per-pixel iso-line distances instead.)
+    const MIN_CHAIN_LEN = gs * 4; // kept for reference-path minimum-length guard
     
     // ---- Pre-compute filtered contour chains for all levels ----
     type Pt = [number, number];
@@ -1207,7 +1202,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         .map(c => decimateChain(c, decimationEpsilon));
     }
     
-    // Store to cache
+    // Store to cache (allChains removed — contours are now GPU-rendered)
     cache.positionHash = positionHash;
     cache.selectionHash = selectionHash;
     cache.classColorsHash = classColorsHash;
@@ -1216,7 +1211,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     cache.gs = gs;
     cache.originX = originX;
     cache.originY = originY;
-    cache.allChains = allChains;
     cache.nodeChildDirs = nodeChildDirs;
     cache.idToIdx = idToIdx;
     cache.nodeColors = nodeColors;
@@ -1230,194 +1224,40 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     cache.valid = true;
     
     } // end if (!cacheValid)
-    
-    // ==================== Read from cache for drawing ====================
-    const cachedChains = cache.allChains;
+
+    // ── Read from cache — only what reference-path drawing needs ───────────────
     const cachedLowR = cache.lowR, cachedLowG = cache.lowG, cachedLowB = cache.lowB;
-    const cachedHighR = cache.highR, cachedHighG = cache.highG, cachedHighB = cache.highB;
-    const cachedHasClassColors = cache.hasClassColors;
-    const cachedHasSelection = cache.hasSelection;
     const cachedIdToIdx = cache.idToIdx;
     const cachedNodeColors = cache.nodeColors;
-    // Use cached grid geometry for drawing (must match the cached chains/color maps)
+    // Grid geometry used by the DEBUG overlay and reference-path transforms
     const drawOriginX = cache.originX;
     const drawOriginY = cache.originY;
     const drawGridW = cache.gridW;
     const drawGridH = cache.gridH;
     const drawGs = cache.gs;
-    
-    // Draw a chain as a smooth Catmull-Rom spline (converted to cubic Bezier curves).
-    // For each segment (i, i+1), control points are derived from neighbours:
-    //   CP1 = P_i   + (P_{i+1} - P_{i-1}) / 6
-    //   CP2 = P_{i+1} - (P_{i+2} - P_i)   / 6
-    // Boundary points are clamped (duplicating the first/last point).
-    const drawChainSmooth = (tgt: CanvasRenderingContext2D, chain: Array<[number, number]>) => {
-      const n = chain.length;
-      if (n < 2) return;
-      tgt.moveTo(chain[0][0], chain[0][1]);
-      if (n === 2) {
-        tgt.lineTo(chain[1][0], chain[1][1]);
-        return;
-      }
-      for (let i = 0; i < n - 1; i++) {
-        const p0 = chain[i > 0 ? i - 1 : 0];
-        const p1 = chain[i];
-        const p2 = chain[i + 1];
-        const p3 = chain[i + 2 < n ? i + 2 : n - 1];
-        tgt.bezierCurveTo(
-          p1[0] + (p2[0] - p0[0]) / 6,
-          p1[1] + (p2[1] - p0[1]) / 6,
-          p2[0] - (p3[0] - p1[0]) / 6,
-          p2[1] - (p3[1] - p1[1]) / 6,
-          p2[0], p2[1],
-        );
-      }
-    };
 
-    // Draw pre-computed chains for all contour levels onto a target context
-    const drawAllContours = (tgt: CanvasRenderingContext2D, styleFn: (level: number, isMajor: boolean, isHovered: boolean) => void) => {
-      for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-        const chains = cachedChains[li];
-        if (!chains || chains.length === 0) continue;
-        styleFn(CONTOUR_LEVELS[li], (li + 1) % 5 === 0, li === hoveredContourLevelRef.current);
-        tgt.beginPath();
-        for (const chain of chains) {
-          drawChainSmooth(tgt, chain);
-        }
-        tgt.stroke();
+    // ── GPU contour render ────────────────────────────────────────────────────
+    // setCamera() is cheap (stores 3 floats); called every frame so pan/zoom
+    // is reflected without a texture re-upload.
+    // setContourStyle() sets 4 uniforms.  render() runs the fullscreen-quad
+    // fragment shader — the GPU computes analytical per-pixel iso-line
+    // distances from the cached R32F height-map texture.
+    {
+      const terrainGL = terrainGLRef.current;
+      if (terrainGL) {
+        const camState: TerrainCameraState = { translateX: t.x, translateY: t.y, scale: t.scale };
+        terrainGL.setCamera(camState);
+        const cssColors = cssColorsRef.current;
+        terrainGL.setContourStyle({
+          hoveredLevelIndex: hoveredContourLevelRef.current,
+          hasClassColors:    cache.hasClassColors,
+          hasSelection:      cache.hasSelection,
+          lowColor:          cssColors?.lowHex  ?? '#a3a3a3',
+          highColor:         cssColors?.highHex ?? '#404040',
+        });
+        terrainGL.render();
       }
-    };
-
-    ctx.save();
-    ctx.lineCap = 'butt';
-    ctx.setLineDash(LINE_DASH_NONE);
-    const DIM_OPACITY_FACTOR = 0.25;
-    
-    const blurredColorMap = blurredColorMapRef.current;
-    
-    if (cachedHasSelection) {
-      // Offscreen canvas + pre-blurred mask approach
-      if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
-      const offCanvas = contourOffscreenRef.current;
-      const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
-      if (offCanvas.width !== bw || offCanvas.height !== bh) { offCanvas.width = bw; offCanvas.height = bh; }
-      const offCtx = offCanvas.getContext('2d')!;
-      
-      const blurredMask = blurredMaskRef.current;
-      
-      // --- Pass 1: DIM contours (non-selected regions) ---
-      offCtx.setTransform(1, 0, 0, 1, 0, 0);
-      offCtx.clearRect(0, 0, bw, bh);
-      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      offCtx.translate(t.x, t.y);
-      offCtx.scale(t.scale, t.scale);
-      offCtx.lineCap = 'butt';
-      offCtx.setLineDash(LINE_DASH_NONE);
-      drawAllContours(offCtx, (level, isMajor, isHov) => {
-        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
-        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        offCtx.strokeStyle = cachedHasClassColors
-          ? `rgba(255, 255, 255, ${baseOp * DIM_OPACITY_FACTOR})`
-          : `rgba(${cachedLowR}, ${cachedLowG}, ${cachedLowB}, ${baseOp * DIM_OPACITY_FACTOR})`;
-        offCtx.lineWidth = Math.max(0.5, baseLW * 0.7) / t.scale;
-      });
-      if (cachedHasClassColors && blurredColorMap) {
-        offCtx.save();
-        offCtx.globalCompositeOperation = 'source-in';
-        offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
-        offCtx.restore();
-      }
-      if (blurredMask) {
-        offCtx.save();
-        offCtx.globalCompositeOperation = 'destination-out';
-        offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
-        offCtx.restore();
-      }
-      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
-      
-      // --- Pass 2: BRIGHT contours (selected regions) ---
-      offCtx.setTransform(1, 0, 0, 1, 0, 0);
-      offCtx.clearRect(0, 0, bw, bh);
-      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      offCtx.translate(t.x, t.y);
-      offCtx.scale(t.scale, t.scale);
-      offCtx.lineCap = 'butt';
-      offCtx.setLineDash(LINE_DASH_NONE);
-      drawAllContours(offCtx, (level, isMajor, isHov) => {
-        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
-        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        if (cachedHasClassColors) {
-          offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
-        } else {
-          const r = Math.round(cachedLowR + (cachedHighR - cachedLowR) * level);
-          const g = Math.round(cachedLowG + (cachedHighG - cachedLowG) * level);
-          const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
-          offCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
-        }
-        offCtx.lineWidth = baseLW / t.scale;
-      });
-      if (cachedHasClassColors && blurredColorMap) {
-        offCtx.save();
-        offCtx.globalCompositeOperation = 'source-in';
-        offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
-        offCtx.restore();
-      }
-      if (blurredMask) {
-        offCtx.save();
-        offCtx.globalCompositeOperation = 'destination-in';
-        offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredMask, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
-        offCtx.restore();
-      }
-      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
-      
-    } else if (cachedHasClassColors) {
-      if (!contourOffscreenRef.current) contourOffscreenRef.current = document.createElement('canvas');
-      const offCanvas = contourOffscreenRef.current;
-      const bw = Math.ceil(w * dpr), bh = Math.ceil(h * dpr);
-      if (offCanvas.width !== bw || offCanvas.height !== bh) { offCanvas.width = bw; offCanvas.height = bh; }
-      const offCtx = offCanvas.getContext('2d')!;
-      offCtx.setTransform(1, 0, 0, 1, 0, 0);
-      offCtx.clearRect(0, 0, bw, bh);
-      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      offCtx.translate(t.x, t.y);
-      offCtx.scale(t.scale, t.scale);
-      offCtx.lineCap = 'butt';
-      offCtx.setLineDash(LINE_DASH_NONE);
-      drawAllContours(offCtx, (level, isMajor, isHov) => {
-        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
-        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        offCtx.strokeStyle = `rgba(255, 255, 255, ${baseOp})`;
-        offCtx.lineWidth = baseLW / t.scale;
-      });
-      if (blurredColorMap) {
-        offCtx.save();
-        offCtx.globalCompositeOperation = 'source-in';
-        offCtx.imageSmoothingEnabled = true;
-        offCtx.drawImage(blurredColorMap, drawOriginX, drawOriginY, drawGridW * drawGs, drawGridH * drawGs);
-        offCtx.restore();
-      }
-      ctx.drawImage(offCanvas, 0, 0, bw, bh, 0, 0, w, h);
-    } else {
-      ctx.save();
-      ctx.translate(t.x, t.y);
-      ctx.scale(t.scale, t.scale);
-      drawAllContours(ctx, (level, isMajor, isHov) => {
-        const baseOp = isHov ? 0.9 : 0.25 + level * 0.5;
-        const baseLW = isHov ? 2.5 : isMajor ? 1.6 + level * 1.2 : 0.8 + level * 0.8;
-        const r = Math.round(cachedLowR + (cachedHighR - cachedLowR) * level);
-        const g = Math.round(cachedLowG + (cachedHighG - cachedLowG) * level);
-        const b = Math.round(cachedLowB + (cachedHighB - cachedLowB) * level);
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOp})`;
-        ctx.lineWidth = baseLW / t.scale;
-      });
-      ctx.restore();
     }
-    
-    ctx.restore();
     
     // ==================== DEBUG: Draw Height Map Grid ====================
     if (settings.showDebugGrid && heightMapBufRef.current && drawGridW > 0 && drawGridH > 0) {
@@ -2272,9 +2112,18 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   }, []);
   
   // ==================== Render ====================
-  
+
   return (
     <div className={`node-graph-renderer ${className}`} ref={containerRef}>
+      {/* WebGL canvas — bottom layer: GPU-rendered terrain contours */}
+      <canvas
+        ref={webglCanvasRef}
+        width={dimensions.width * (window.devicePixelRatio || 1)}
+        height={dimensions.height * (window.devicePixelRatio || 1)}
+        className="node-graph-renderer__canvas"
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+      />
+      {/* Canvas 2D — middle layer: reference paths + drives physics render callback */}
       <canvas
         ref={canvasRef}
         width={dimensions.width * (window.devicePixelRatio || 1)}
@@ -2286,7 +2135,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        style={{ cursor: 'none' }}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'none', background: 'transparent' }}
       />
       <canvas
         ref={overlayCanvasRef}
