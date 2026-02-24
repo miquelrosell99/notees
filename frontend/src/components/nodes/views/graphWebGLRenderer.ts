@@ -217,7 +217,7 @@ const EDGE_QUAD_VERTS = new Float32Array([
 
 // ─── Main Renderer Class ──────────────────────────────────────────────────────
 
-export class SGEWebGLRenderer {
+export class GraphWebGLRenderer {
   private gl: WebGL2RenderingContext | null = null;
 
   // --- Programs ---

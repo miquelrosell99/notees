@@ -18,16 +18,15 @@ export { TerrainView } from './TerrainView';
 export type { TerrainViewProps } from './TerrainView';
 export { TimelineView } from './TimelineView';
 export { WhiteboardView } from './WhiteboardView';
-export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
 export { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 
-// SGE WebGL2 graph canvas (physics worker + GPU renderer)
-export { SGEGraphCanvas } from './SGEGraphCanvas';
-export type { SGEGraphCanvasProps, SGEGraphCanvasRef } from './SGEGraphCanvas';
-export { useSGEGraph } from './useSGEGraph';
-export type { SGEGraphOptions, SGEGraphHandle, SGEGraphStats } from './useSGEGraph';
-export { SGEWebGLRenderer } from './sgeWebGLRenderer';
-export type { NodeVisual, RendererOptions, CameraState } from './sgeWebGLRenderer';
+// Graph canvas (physics worker + WebGL2 renderer)
+export { GraphCanvas } from './GraphCanvas';
+export type { GraphCanvasProps, GraphCanvasRef } from './GraphCanvas';
+export { useGraphCanvas } from './useGraphCanvas';
+export type { GraphCanvasOptions, GraphCanvasHandle, GraphCanvasStats } from './useGraphCanvas';
+export { GraphWebGLRenderer } from './graphWebGLRenderer';
+export type { NodeVisual, RendererOptions, CameraState } from './graphWebGLRenderer';
 
 // Shared view types and helpers
 export * from './viewTypes';
