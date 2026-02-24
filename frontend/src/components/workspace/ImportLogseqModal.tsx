@@ -554,12 +554,18 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       );
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 3: Create all nodes (pages + blocks) with classes
+      // PHASE 3: Create all nodes (pages + blocks) + wire hierarchy
       //
-      // Optimised flow:
-      //   a) Journal pages → sequential getOrCreateDaily (no batch API)
-      //   b) Regular pages → parallel searchNodes, then one batchCreateNodes
-      //      for all new pages, then sequential block creation
+      // Strategy:
+      //   3a) Journal pages: sequential getOrCreateDaily
+      //   3b) Journal additive: parallel fetch of existing child counts
+      //   3c) Regular pages: parallel existence checks
+      //   3d) Override mode: parallel delete of existing blocks
+      //   3e) Batch-create new regular pages
+      //   3f) Existing-page metadata updates (name / classes) — parallel
+      //   3g) Flatten ALL block trees into one list (no parent_id yet)
+      //   3h) Batch-create all blocks in chunks
+      //   3i) Batch-update all blocks with parent_id + sequence
       // ──────────────────────────────────────────────────────────
       const p3 = createPhase('Create nodes');
       phases.push(p3);
@@ -567,7 +573,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const journalPages = parsed.pages.filter(p => p.journal);
       const regularPages = parsed.pages.filter(p => !p.journal);
 
-      // ── 3a: Journal pages (sequential, getOrCreateDaily) ────────
+      // ── 3a: Journal pages ──────────────────────────────────────
       for (const page of journalPages) {
         setImportStatus(`Creating journal: ${page.journal}`);
         try {
@@ -583,37 +589,45 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         tick();
       }
 
-      // ── 3b: Parallel existence checks for regular pages ─────────
+      // ── 3b: Journal additive — fetch existing child counts ──────
+      const journalStartSeqs = new Map<string, number>(); // title → firstFreeSeq
+      if (!override) {
+        await Promise.all(journalPages.map(async (page) => {
+          if (page.blocks.length === 0) return;
+          const nodeInfo = titleToNodeInfo.get(page.title);
+          if (!nodeInfo) return;
+          try {
+            const fullDay = await getNode(nodeInfo.id, { include_children: true });
+            journalStartSeqs.set(page.title, fullDay.children?.length ?? 0);
+          } catch { /* default to 0 */ }
+        }));
+      }
+
+      // ── 3c: Parallel existence checks for regular pages ─────────
+      const existingPageMap = new Map<string, Node>();
+      const regularPageClasses = regularPages.map(page => {
+        const cls = [pageClassId];
+        if (page.tags) {
+          for (const tag of page.tags) {
+            const mapped = classIdMap.get(tag);
+            if (mapped) cls.push(mapped);
+          }
+        }
+        return cls;
+      });
+      const pagesToCreate: Array<{ page: LogseqPage; pageClasses: number[] }> = [];
+
       if (regularPages.length > 0) {
         setImportStatus(`Checking ${regularPages.length} existing pages…`);
         const searchResultsAll = await Promise.allSettled(
           regularPages.map(page => searchNodes(page.title))
         );
-
-        // Compute page classes per page once (avoid recomputing in blocks pass)
-        const regularPageClasses = regularPages.map(page => {
-          const cls = [pageClassId];
-          if (page.tags) {
-            for (const tag of page.tags) {
-              const mapped = classIdMap.get(tag);
-              if (mapped) cls.push(mapped);
-            }
-          }
-          return cls;
-        });
-
-        // ── 3c: Split into existing vs. to-create ─────────────────
-        const existingPageMap = new Map<string, Node>();
-        const pagesToCreate: Array<{ page: LogseqPage; pageClasses: number[] }> = [];
-
         for (let i = 0; i < regularPages.length; i++) {
           const page = regularPages[i];
-          const pageClasses = regularPageClasses[i];
           const result = searchResultsAll[i];
           const existingPage = result.status === 'fulfilled'
             ? result.value.find(n => n.is_page && nodeNameToText(n.name).toLowerCase() === page.title.toLowerCase())
             : undefined;
-
           if (existingPage) {
             existingNodeIds.add(existingPage.id);
             if (page.uuid) uuidMap.set(page.uuid, { id: existingPage.id, uuid: existingPage.uuid });
@@ -622,115 +636,206 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             p3.succeeded++;
             tick();
           } else {
-            pagesToCreate.push({ page, pageClasses });
+            pagesToCreate.push({ page, pageClasses: regularPageClasses[i] });
           }
         }
-
-        // ── 3d: Batch-create all new regular pages ─────────────────
-        if (pagesToCreate.length > 0) {
-          setImportStatus(`Creating ${pagesToCreate.length} new pages…`);
-          try {
-            const batchResult = await batchCreateNodes({
-              nodes: pagesToCreate.map(({ page, pageClasses }) => ({
-                name: page.title,
-                classes: pageClasses,
-                ...(page.uuid ? { uuid: page.uuid } : {}),
-              })),
-            });
-            for (let i = 0; i < batchResult.results.length; i++) {
-              const result = batchResult.results[i];
-              const { page } = pagesToCreate[i];
-              if (result.success && result.node) {
-                if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
-                titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
-                p3.succeeded++;
-              } else {
-                p3.failed++;
-                p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
-              }
-              tick();
-            }
-          } catch (e) {
-            // Whole batch failed — mark every page as failed
-            for (const { page } of pagesToCreate) {
-              p3.failed++;
-              p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
-              tick();
-            }
-          }
-        }
-
-        // ── 3e: Existing-page updates + block creation (regular) — parallel ──
-        setImportStatus('Creating blocks for pages…');
-        await Promise.all(regularPages.map(async (page, i) => {
-          const existingPage = existingPageMap.get(page.title);
-
-          if (existingPage) {
-            // Override mode: update name if different (case-sensitive)
-            if (override && nodeNameToText(existingPage.name) !== page.title) {
-              try {
-                await updateNodeMutation.mutateAsync({ id: existingPage.id, data: { name: page.title } });
-              } catch { /* ignore */ }
-            }
-            // Add missing classes (always additive)
-            const existingClassIds = new Set(existingPage.classes ?? []);
-            for (const classId of regularPageClasses[i]) {
-              if (!existingClassIds.has(classId)) {
-                try {
-                  await addClassMutation.mutateAsync({ nodeId: existingPage.id, classId });
-                } catch { /* already has class */ }
-              }
-            }
-          }
-
-          if (page.blocks.length === 0) return;
-          const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-          if (!nodeInfo) return;
-
-          if (existingPage && override) {
-            try {
-              await deleteExistingBlocks(existingPage.id, queryClient);
-            } catch (e) {
-              console.error('Failed to delete existing blocks:', e);
-            }
-          }
-          try {
-            await createBlocksRecursively(
-              page.blocks, nodeInfo.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
-            );
-          } catch (e) {
-            p3.errors.push({ item: `Blocks for: ${page.title}`, message: errorMessage(e) });
-          }
-        }));
       }
 
-      // ── 3f: Block creation for journal pages — parallel ──────────
-      if (journalPages.some(p => p.blocks.length > 0)) {
-        setImportStatus('Creating blocks for journal pages…');
-        await Promise.all(journalPages.map(async (page) => {
-          if (page.blocks.length === 0) return;
-          const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-          if (!nodeInfo) return;
-          let startSeq = 0;
-          if (override) {
-            try {
-              await deleteExistingBlocks(nodeInfo.id, queryClient);
-            } catch (e) {
-              console.error('Failed to delete existing blocks:', e);
+      // ── 3d: Override mode — parallel delete of existing blocks ───
+      if (override) {
+        await Promise.all([
+          ...journalPages.map(async (page) => {
+            const nodeInfo = titleToNodeInfo.get(page.title);
+            if (!nodeInfo || page.blocks.length === 0) return;
+            try { await deleteExistingBlocks(nodeInfo.id, queryClient); } catch (e) {
+              console.error('Failed to delete journal blocks:', e);
             }
-          } else {
-            // In additive mode, append after existing children
-            const fullDay = await getNode(nodeInfo.id, { include_children: true });
-            startSeq = fullDay.children?.length ?? 0;
+          }),
+          ...[...existingPageMap.values()].map(async (existingPage) => {
+            try { await deleteExistingBlocks(existingPage.id, queryClient); } catch (e) {
+              console.error('Failed to delete existing page blocks:', e);
+            }
+          }),
+        ]);
+      }
+
+      // ── 3e: Batch-create new regular pages ──────────────────────
+      if (pagesToCreate.length > 0) {
+        setImportStatus(`Creating ${pagesToCreate.length} new pages…`);
+        try {
+          const batchResult = await batchCreateNodes({
+            nodes: pagesToCreate.map(({ page, pageClasses }) => ({
+              name: page.title,
+              classes: pageClasses,
+              ...(page.uuid ? { uuid: page.uuid } : {}),
+            })),
+          });
+          for (let i = 0; i < batchResult.results.length; i++) {
+            const result = batchResult.results[i];
+            const { page } = pagesToCreate[i];
+            if (result.success && result.node) {
+              if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
+              titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+              p3.succeeded++;
+            } else {
+              p3.failed++;
+              p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
+            }
+            tick();
           }
+        } catch (e) {
+          for (const { page } of pagesToCreate) {
+            p3.failed++;
+            p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+            tick();
+          }
+        }
+      }
+
+      // ── 3f: Existing-page metadata updates — parallel ────────────
+      await Promise.all(regularPages.map(async (page, i) => {
+        const existingPage = existingPageMap.get(page.title);
+        if (!existingPage) return;
+        if (override && nodeNameToText(existingPage.name) !== page.title) {
+          try { await updateNodeMutation.mutateAsync({ id: existingPage.id, data: { name: page.title } }); } catch { /* ignore */ }
+        }
+        const existingClassIds = new Set(existingPage.classes ?? []);
+        for (const classId of regularPageClasses[i]) {
+          if (!existingClassIds.has(classId)) {
+            try { await addClassMutation.mutateAsync({ nodeId: existingPage.id, classId }); } catch { /* already has class */ }
+          }
+        }
+      }));
+
+      // ── 3g: Flatten ALL block trees into one list ────────────────
+      type FlatBlock = {
+        block: LogseqBlock;
+        classes: number[];
+        parent: { kind: 'page'; title: string } | { kind: 'block'; tempIdx: number };
+        sequence: number;
+        tempIdx: number;
+      };
+      const flatBlocks: FlatBlock[] = [];
+      let nextTempIdx = 0;
+
+      const collectBlocks = (
+        blocks: LogseqBlock[],
+        parent: FlatBlock['parent'],
+        startSeq: number,
+      ) => {
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i];
+          const classes: number[] = [];
+          if (block.tags) {
+            for (const tag of block.tags) {
+              const mapped = classIdMap.get(tag);
+              if (mapped) classes.push(mapped);
+            }
+          }
+          const tempIdx = nextTempIdx++;
+          flatBlocks.push({ block, classes, parent, sequence: startSeq + i, tempIdx });
+          if (block.children?.length) {
+            collectBlocks(block.children, { kind: 'block', tempIdx }, 0);
+          }
+        }
+      };
+
+      for (const page of regularPages) {
+        if (page.blocks.length === 0) continue;
+        if (!titleToNodeInfo.has(page.title)) continue; // page creation failed
+        collectBlocks(page.blocks, { kind: 'page', title: page.title }, 0);
+      }
+      for (const page of journalPages) {
+        if (page.blocks.length === 0) continue;
+        if (!titleToNodeInfo.has(page.title)) continue;
+        const startSeq = journalStartSeqs.get(page.title) ?? 0;
+        collectBlocks(page.blocks, { kind: 'page', title: page.title }, startSeq);
+      }
+
+      // ── 3h: Batch-create all blocks (no parent_id yet) ──────────
+      const BATCH_CHUNK = 500;
+      const tempIdxToNodeInfo = new Map<number, NodeInfo>();
+
+      if (flatBlocks.length > 0) {
+        setImportStatus(`Creating ${flatBlocks.length} blocks…`);
+        for (let offset = 0; offset < flatBlocks.length; offset += BATCH_CHUNK) {
+          const chunk = flatBlocks.slice(offset, offset + BATCH_CHUNK);
           try {
-            await createBlocksRecursively(
-              page.blocks, nodeInfo.id, startSeq, uuidMap, classIdMap, contentQueue, p3, override,
-            );
+            const batchResult = await batchCreateNodes({
+              nodes: chunk.map(item => ({
+                name: '',
+                ...(item.classes.length > 0 ? { classes: item.classes } : {}),
+                ...(item.block.uuid ? { uuid: item.block.uuid } : {}),
+              })),
+            });
+            for (const result of batchResult.results) {
+              const item = chunk[result.index];
+              if (result.success && result.node) {
+                const info: NodeInfo = { id: result.node.id, uuid: result.node.uuid };
+                tempIdxToNodeInfo.set(item.tempIdx, info);
+                if (item.block.uuid) uuidMap.set(item.block.uuid, info);
+                if (item.block.title) contentQueue.push({ id: result.node.id, title: item.block.title });
+                p3.succeeded++;
+              } else {
+                // UUID conflict: try to recover the existing node
+                let recovered = false;
+                if (item.block.uuid) {
+                  try {
+                    const existing = await getNodeByUuid(item.block.uuid);
+                    if (existing) {
+                      const info: NodeInfo = { id: existing.id, uuid: existing.uuid };
+                      tempIdxToNodeInfo.set(item.tempIdx, info);
+                      uuidMap.set(item.block.uuid, info);
+                      if (item.block.title && override) contentQueue.push({ id: existing.id, title: item.block.title });
+                      p3.succeeded++;
+                      recovered = true;
+                    }
+                  } catch { /* fall through */ }
+                }
+                if (!recovered) {
+                  p3.failed++;
+                  p3.errors.push({
+                    item: `Block: ${item.block.title?.slice(0, 60) || '(empty)'}${item.block.uuid ? ` [${item.block.uuid}]` : ''}`,
+                    message: result.error ?? 'Unknown error',
+                  });
+                }
+              }
+            }
           } catch (e) {
-            p3.errors.push({ item: `Blocks for journal: ${page.journal}`, message: errorMessage(e) });
+            for (const item of chunk) {
+              p3.failed++;
+              p3.errors.push({
+                item: `Block: ${item.block.title?.slice(0, 60) || '(empty)'}`,
+                message: errorMessage(e),
+              });
+            }
           }
-        }));
+        }
+      }
+
+      // ── 3i: Batch-update all blocks with parent_id + sequence ────
+      if (flatBlocks.length > 0) {
+        setImportStatus('Wiring block parents…');
+        const updateItems: Array<{ id: number; parent_id: number; sequence: number }> = [];
+        for (const item of flatBlocks) {
+          const nodeInfo = tempIdxToNodeInfo.get(item.tempIdx);
+          if (!nodeInfo) continue;
+          let parentId: number | undefined;
+          if (item.parent.kind === 'page') {
+            parentId = titleToNodeInfo.get(item.parent.title)?.id;
+          } else {
+            parentId = tempIdxToNodeInfo.get(item.parent.tempIdx)?.id;
+          }
+          if (!parentId) continue;
+          updateItems.push({ id: nodeInfo.id, parent_id: parentId, sequence: item.sequence });
+        }
+        for (let offset = 0; offset < updateItems.length; offset += BATCH_CHUNK) {
+          try {
+            await batchUpdateNodes({ nodes: updateItems.slice(offset, offset + BATCH_CHUNK) });
+          } catch (e) {
+            console.error('Failed to wire block parents:', e);
+          }
+        }
       }
 
       // ── Standalone blocks (block-only EDN export) ──────────────
