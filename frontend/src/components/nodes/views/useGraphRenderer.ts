@@ -42,23 +42,19 @@ function hexToRGBA(hex: string, alpha = 1): Float32Array {
   return new Float32Array([r / 255, g / 255, b / 255, alpha]);
 }
 
-const COLOR_PAGE    = new Float32Array([0.42, 0.65, 1.00, 1.0]);
-const COLOR_DAILY   = new Float32Array([0.35, 0.85, 0.55, 1.0]);
-const COLOR_MONTHLY = new Float32Array([0.60, 0.80, 0.40, 1.0]);
-const COLOR_YEARLY  = new Float32Array([0.90, 0.70, 0.30, 1.0]);
-const COLOR_SYSTEM  = new Float32Array([0.70, 0.70, 0.70, 0.75]);
-const COLOR_BLOCK   = new Float32Array([0.55, 0.55, 0.65, 0.85]);
-const COLOR_CLASS   = new Float32Array([1.00, 0.65, 0.35, 1.00]);
+let COLOR_DEFAULT: Float32Array | null = null;
+function getDefaultColor(): Float32Array {
+  if (!COLOR_DEFAULT) {
+    const hex = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-outline').trim();
+    COLOR_DEFAULT = hex ? hexToRGBA(hex) : new Float32Array([0.64, 0.64, 0.64, 1.0]);
+  }
+  return COLOR_DEFAULT;
+}
 
 function nodeColor(n: GraphNode): Float32Array {
   if (n.color) return hexToRGBA(n.color);
-  if (n.isClassNode)  return COLOR_CLASS;
-  if (n.isSystemPage) return COLOR_SYSTEM;
-  if (n.isYearly)     return COLOR_YEARLY;
-  if (n.isMonthly)    return COLOR_MONTHLY;
-  if (n.isDaily)      return COLOR_DAILY;
-  if (n.type === 'page') return COLOR_PAGE;
-  return COLOR_BLOCK;
+  return getDefaultColor();
 }
 
 const BASE_RADIUS   = 7;
