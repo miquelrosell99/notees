@@ -421,6 +421,30 @@ export interface BatchPermanentDeleteResponse {
   failed: number;
 }
 
+/**
+ * Request to get-or-create multiple daily pages
+ */
+export interface BatchDailyRequest {
+  dates: string[]; // YYYY-MM-DD
+}
+
+/**
+ * Result for a single date in a batch daily request
+ */
+export interface BatchDailyResultItem {
+  date: string;
+  success: boolean;
+  node?: Node;
+  error?: string;
+}
+
+/**
+ * Response for batch daily get-or-create
+ */
+export interface BatchDailyResponse {
+  results: BatchDailyResultItem[];
+}
+
 // ==================== Property Types ====================
 
 /**

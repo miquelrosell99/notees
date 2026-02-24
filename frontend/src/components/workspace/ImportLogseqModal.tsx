@@ -29,7 +29,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
-import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, createNode as createNodeApi, batchDeleteNodes, batchPermanentDelete } from '@/api/nodes';
+import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, batchGetOrCreateDaily, createNode as createNodeApi, batchDeleteNodes, batchPermanentDelete } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -573,20 +573,24 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const journalPages = parsed.pages.filter(p => p.journal);
       const regularPages = parsed.pages.filter(p => !p.journal);
 
-      // ── 3a: Journal pages ──────────────────────────────────────
-      for (const page of journalPages) {
-        setImportStatus(`Creating journal: ${page.journal}`);
-        try {
-          const dayNode = await getOrCreateDaily(page.journal!);
-          existingNodeIds.add(dayNode.id);
-          if (page.uuid) uuidMap.set(page.uuid, { id: dayNode.id, uuid: dayNode.uuid });
-          titleToNodeInfo.set(page.title, { id: dayNode.id, uuid: dayNode.uuid });
-          p3.succeeded++;
-        } catch (e) {
-          p3.failed++;
-          p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+      // ── 3a: Journal pages — one batch call ────────────────────
+      if (journalPages.length > 0) {
+        setImportStatus(`Creating ${journalPages.length} journal pages…`);
+        const batchDailyResult = await batchGetOrCreateDaily(journalPages.map(p => p.journal!));
+        for (let i = 0; i < batchDailyResult.results.length; i++) {
+          const result = batchDailyResult.results[i];
+          const page = journalPages[i];
+          if (result.success && result.node) {
+            existingNodeIds.add(result.node.id);
+            if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
+            titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+            p3.succeeded++;
+          } else {
+            p3.failed++;
+            p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
+          }
+          tick();
         }
-        tick();
       }
 
       // ── 3b: Journal additive — fetch existing child counts ──────
