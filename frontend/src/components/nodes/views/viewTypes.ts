@@ -186,22 +186,16 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
 
 // ==================== Physics Constants ====================
 
-// Linked pair attraction
-// At 4k nodes, aggregate repulsion from hundreds of nearby unlinked nodes
-// overwhelms weak springs. Very strong springs + short rest distance create
-// tight linked clusters that visually stand out against the repulsion field.
-export const LINKED_ATTRACTION_DISTANCE = 40;
-export const ATTRACTION_STRENGTH = 0.18;
+// Linked pair attraction (Logseq: distance 70, strength 0.1)
+export const LINKED_ATTRACTION_DISTANCE = 70;
+export const ATTRACTION_STRENGTH = 0.1;
 export const ATTRACTION_STRENGTH_LINK_COUNT = 0.025;
 export const LINK_DAMPING = 0.45;
 
-// Unlinked repulsion
-// Previous 2000@300 still created uniform scatter at 4k nodes because
-// each node had 100-200 others within range. Shorter range (150) means
-// far fewer nodes contribute repulsion, letting springs dominate.
-export const REPULSION_STRENGTH = 1500;
-export const UNLINKED_REPULSION_DISTANCE = 200;
-export const MIN_REPULSION_DISTANCE = 12;
+// Unlinked repulsion (Logseq: strength -600, distanceMax 500)
+export const REPULSION_STRENGTH = 600;
+export const UNLINKED_REPULSION_DISTANCE = 500;
+export const MIN_REPULSION_DISTANCE = 1;
 
 // Return-to-target force (constrained modes)
 export const RETURN_FORCE = 0.05;
@@ -211,21 +205,21 @@ export const RETURN_FORCE = 0.05;
 // This keeps the graph on screen without crushing clusters into a ball.
 // No CENTER_GRAVITY constants needed — recentering is always 100%.
 
-// Velocity constraints
-export const MAX_VELOCITY = 10;
-export const VELOCITY_DAMPING = 0.80;
-export const VELOCITY_DEADZONE = 0.06;
-export const TERRAIN_VELOCITY_DAMPING = 0.80;
+// Velocity constraints (d3-force: velocityDecay=0.4 → multiply by 0.6)
+// Logseq uses velocityDecay=0.6 → multiply by 0.4
+export const VELOCITY_DAMPING = 0.6;   // Logseq: 0.4, d3 default: 0.6
+export const TERRAIN_VELOCITY_DAMPING = 0.6;
 export const TERRAIN_VELOCITY_DEADZONE = 0.1;
 export const TERRAIN_LINK_DAMPING = 0.12;
 export const TERRAIN_MAX_VELOCITY = 10;
 
-// Simulation phases: warmup → full force (permanent)
-export const WARMUP_DURATION_FRAMES = 45;
-
-// Force-aware damping: nodes with negligible acceleration get heavy damping to stop quickly.
-export const IDLE_VELOCITY_DAMPING = 0.3;    // heavy damping when forces are near-zero
-export const FORCE_IDLE_THRESHOLD = 0.08;     // acceleration magnitude below this = "idle"
+// Alpha decay (d3-force style): forces scale by alpha which decays exponentially.
+// Logseq: alphaDecay=0.02, d3 default: 0.0228
+export const ALPHA_INITIAL = 1;
+export const ALPHA_MIN = 0.001;
+export const ALPHA_DECAY = 0.006;     // slower decay: ~600 ticks (~10s) to settle
+export const ALPHA_TARGET = 0;
+export const ALPHA_REHEAT = 0.3;
 
 // Sleep tuning (uses average KE per node, not total)
 export const GRAPH_SLEEP_THRESHOLD = 0.00005;
@@ -248,7 +242,6 @@ export const BH_THETA_SQ = BH_THETA * BH_THETA;
 
 // Pre-computed squared distances (avoid sqrt in hot loops)
 export const UNLINKED_REPULSION_DIST_SQ = UNLINKED_REPULSION_DISTANCE * UNLINKED_REPULSION_DISTANCE;
-export const MAX_VELOCITY_SQ = MAX_VELOCITY * MAX_VELOCITY;
 export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCITY;
 
 // Collision resolution (position-based)
