@@ -23,18 +23,16 @@ import { useAppStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
-import { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
+import { SGEGraphView, type SGEGraphViewRef } from './SGEGraphView';
 import type {
   GraphNode,
   GraphLink,
   GraphSettings,
-  GraphViewMode,
-  GraphLayoutMode,
   VisibilityFilters,
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEyeOff, mdiEye, mdiVectorPolygon, mdiCircleOutline, mdiFileTreeOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -77,13 +75,13 @@ export function GraphView({
   viewId = 'default', 
   className = '',
   nodes: apiNodes,
-  currentNodeId = null,
+  currentNodeId: _currentNodeId = null,
   showSettings = true,
   showSearch = true,
-  showViewModes = true,
+  showViewModes: _showViewModes = true,
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
-  const rendererRef = useRef<GraphRendererRef>(null);
+  const rendererRef = useRef<SGEGraphViewRef>(null);
   
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
@@ -91,10 +89,9 @@ export function GraphView({
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
-  const { openNode, addSidebarCard } = useAppStore();
+  const { openNode } = useAppStore();
   
   // View state
-  const [viewMode, setViewMode] = useState<GraphViewMode>('normal');
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
   const [pinnedNodes, setPinnedNodes] = useState<Set<number>>(new Set());
   const [simulationPaused, setSimulationPaused] = useState(false);
@@ -269,28 +266,43 @@ export function GraphView({
   const sourceNodes = apiNodes;
   const sourceLinks = apiLinks;
   
-  // Convert API data to renderer format
+  // Convert API data to renderer format, applying visibility filters and class colors
   const { nodes, links } = useMemo(() => {
     if (!sourceNodes || sourceNodes.length === 0) return { nodes: [], links: [] };
     
     // Build parent map from links
-    // - 'parent' links: actual parent-child relationships (target is child of source)
-    // - 'extends' links: class inheritance (source extends target, so target is parent)
     const parentMap = new Map<number, number>();
     for (const link of sourceLinks) {
       if (link.type === 'parent') {
         parentMap.set(link.target, link.source);
       } else if (link.type === 'extends') {
-        // Class extends: source extends target, so target is the parent
         parentMap.set(link.source, link.target);
       }
     }
-    
-    const nodes: GraphNode[] = sourceNodes.map((apiNode: ApiGraphNode) => {
+
+    // Build class-color lookup: classId → hex color string
+    const classColorMap = new Map<number, string>();
+    for (const cc of classColors) {
+      classColorMap.set(cc.classId, cc.color);
+    }
+
+    // Build full nodes
+    const allNodes: GraphNode[] = sourceNodes.map((apiNode: ApiGraphNode) => {
       const nodeName = nodeNameToText(apiNode.name) || 'Untitled';
       const isSystemPage = DEFAULT_SYSTEM_PAGES.some(
         sysName => sysName.toLowerCase() === nodeName.toLowerCase()
       );
+      const isClassNode = apiNode.is_class || classIds.has(apiNode.id);
+
+      // Class color: first matching class in the node's type list
+      let resolvedColor = (apiNode.properties?.color as string) || undefined;
+      if (!resolvedColor) {
+        for (const typeId of (apiNode.class_ids || [])) {
+          const cc = classColorMap.get(typeId);
+          if (cc) { resolvedColor = cc; break; }
+        }
+      }
+
       return {
         id: apiNode.id,
         uuid: apiNode.uuid,
@@ -300,8 +312,8 @@ export function GraphView({
         vy: 0,
         targetX: 0,
         targetY: 0,
-        name: apiNode.name, // Keep raw AST name for NodeInline
-        displayName: nodeName, // Cache parsed name for canvas rendering
+        name: apiNode.name,
+        displayName: nodeName,
         type: apiNode.type || 'page',
         isDaily: apiNode.is_daily || false,
         isMonthly: apiNode.is_monthly || false,
@@ -312,91 +324,66 @@ export function GraphView({
         parentId: parentMap.get(apiNode.id) ?? null,
         glare: 'normal',
         pinned: pinnedNodes.has(apiNode.id),
-        color: (apiNode.properties?.color as string) || undefined,
-        connectionCount: 0, // computed by renderer from visible links
+        color: resolvedColor,
+        connectionCount: 0,
         inLinkCount: 0,
         outLinkCount: 0,
         contentSize: apiNode.block_count || 0,
         createdAt: apiNode.created_at,
         visible: true,
-        isClassNode: apiNode.is_class || classIds.has(apiNode.id),
+        isClassNode,
       };
     });
+
+    // Apply visibility filters to nodes
+    const visibleNodes = allNodes.filter(n => {
+      if (!visibilityFilters.showClassNodes && n.isClassNode) return false;
+      if (!visibilityFilters.showDayPages   && n.isDaily)    return false;
+      if (!visibilityFilters.showMonthPages && n.isMonthly)  return false;
+      if (!visibilityFilters.showYearPages  && n.isYearly)   return false;
+      if (!visibilityFilters.showSystemPages && n.isSystemPage) return false;
+      return true;
+    });
+
+    const visibleIds = new Set(visibleNodes.map(n => n.id));
+
+    // Apply visibility filters to links
+    const visibleLinks: GraphLink[] = sourceLinks
+      .filter(link => {
+        if (!visibleIds.has(link.source) || !visibleIds.has(link.target)) return false;
+        if (!visibilityFilters.showClassLinks &&
+            (link.type === 'class')) return false;
+        if (!visibilityFilters.showParentLinks &&
+            (link.type === 'parent' || link.type === 'extends')) return false;
+        if (!visibilityFilters.showReferenceLinks &&
+            (link.type === 'reference' || link.type === 'property-reference')) return false;
+        return true;
+      })
+      .map(link => ({ source: link.source, target: link.target, type: link.type }));
     
-    const links: GraphLink[] = sourceLinks.map(link => ({
-      source: link.source,
-      target: link.target,
-      type: link.type,
-    }));
-    
-    return { nodes, links };
-  }, [sourceNodes, sourceLinks, pinnedNodes, classIds]);
+    return { nodes: visibleNodes, links: visibleLinks };
+  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, classColors, visibilityFilters]);
   
-  // Selected node IDs
-  const selectedNodeIds = useMemo(() => selectedNodes.map(s => s.id), [selectedNodes]);
-  
-  // Event handlers
-  const handleNodeClick = useCallback((node: GraphNode, event: { shiftKey: boolean; ctrlKey: boolean }) => {
+  // Event handlers — SGEGraphView fires (nodeId: number) without event objects
+  const handleNodeClick = useCallback((nodeId: number) => {
     if (customNodeClick) {
-      customNodeClick(node.id);
+      customNodeClick(nodeId);
       return;
     }
-    if (event.shiftKey) {
-      addSidebarCard(node.id, node.type);
-    } else if (event.ctrlKey) {
-      // Ctrl+click: toggle selection
-      setSelectedNodes(prev => {
-        const exists = prev.find(s => s.id === node.id);
-        if (exists) {
-          return prev.filter(s => s.id !== node.id);
-        } else {
-          return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
-        }
-      });
-    } else {
-      // Regular click: toggle selection (add if not selected, remove if selected)
-      setSelectedNodes(prev => {
-        const exists = prev.find(s => s.id === node.id);
-        if (exists) {
-          return prev.filter(s => s.id !== node.id);
-        }
-        return [...prev, { id: node.id, name: node.displayName, order: prev.length }];
-      });
-    }
-  }, [customNodeClick, addSidebarCard]);
-  
-  const handleNodeDoubleClick = useCallback((node: GraphNode) => {
-    // Graph nodes are always pages (backend only returns is_page=TRUE nodes)
-    openNode(node.id);
+    // Toggle selection
+    setSelectedNodes(prev => {
+      const exists = prev.find(s => s.id === nodeId);
+      if (exists) return prev.filter(s => s.id !== nodeId);
+      const name = nodes.find(n => n.id === nodeId)?.displayName ?? 'Untitled';
+      return [...prev, { id: nodeId, name, order: prev.length }];
+    });
+  }, [customNodeClick, nodes]);
+
+  const handleNodeDoubleClick = useCallback((nodeId: number) => {
+    openNode(nodeId);
     setSelectedNodes([]);
   }, [openNode]);
-  
-  const handleNodeRightClick = useCallback((node: GraphNode) => {
-    setPinnedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(node.id)) {
-        newSet.delete(node.id);
-      } else {
-        newSet.add(node.id);
-      }
-      return newSet;
-    });
-  }, []);
-  
-  const handleSelectionChange = useCallback((nodeIds: number[]) => {
-    if (nodeIds.length === 0) {
-      setSelectedNodes([]);
-    } else {
-      // Convert node IDs to SelectedNodeItem objects
-      const nodeMap = new Map(nodes.map(n => [n.id, n.displayName]));
-      const newSelection = nodeIds.map((id, index) => ({
-        id,
-        name: nodeMap.get(id) || 'Untitled',
-        order: index,
-      }));
-      setSelectedNodes(newSelection);
-    }
-  }, [nodes]);
+
   
   // Class color handler
   const handleClassColorsChange = useCallback((newClassColors: ClassColor[]) => {
@@ -435,13 +422,6 @@ export function GraphView({
     setSearchQuery('');
     setSearchOpen(false);
   }, []);
-  
-  // View mode options (terrain is now its own view mode at NodeCollection level)
-  const modeOptions = [
-    { value: 'normal', icon: mdiVectorPolygon, label: 'Force-directed layout' },
-    { value: 'circle', icon: mdiCircleOutline, label: 'Circle layout' },
-    { value: 'tree', icon: mdiFileTreeOutline, label: 'Tree layout' },
-  ];
   
   if (!sourceNodes || sourceNodes.length === 0) {
     return (
@@ -722,8 +702,8 @@ export function GraphView({
         <Button
           icon={mdiHistory}
           size="sm"
-          onClick={() => rendererRef.current?.triggerCreationAnimation()}
-          title="Animate by creation time"
+          onClick={() => rendererRef.current?.reheat()}
+          title="Reheat physics simulation"
         />
       </div>
       )}
@@ -795,44 +775,16 @@ export function GraphView({
       </div>
       )}
       
-      {/* Canvas */}
-      <GraphRenderer
+      {/* Canvas — SGE WebGL2 renderer */}
+      <SGEGraphView
         ref={rendererRef}
         nodes={nodes}
-        links={links}
-        viewMode={viewMode as GraphLayoutMode}
-        settings={graphSettings}
-        classColors={classColors}
-        visibilityFilters={visibilityFilters}
-        currentNodeId={currentNodeId}
-        selectedNodeIds={selectedNodeIds}
+        edges={links}
+        sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
         onNodeClick={handleNodeClick}
-        onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeRightClick={handleNodeRightClick}
-        onSelectionChange={handleSelectionChange}
+        onNodeDblClick={handleNodeDoubleClick}
         className="node-graph-view__renderer"
       />
-      
-      {/* Bottom Center: Mode switcher */}
-      {showViewModes && (
-      <div className="node-graph-view__bottom-center">
-        <SelectionButton
-          options={modeOptions}
-          value={viewMode}
-          onChange={(val) => {
-            const newMode = val as GraphViewMode;
-            setViewMode(newMode);
-            // Auto-switch constraint mode default: tree→physics, circle→equidistant
-            if (newMode === 'tree') {
-              setGraphSettings(prev => ({ ...prev, constraintMode: 'physics' }));
-            } else if (newMode === 'circle') {
-              setGraphSettings(prev => ({ ...prev, constraintMode: 'equidistant' }));
-            }
-          }}
-          size="sm"
-        />
-      </div>
-      )}
       
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">

@@ -15,11 +15,26 @@
  * • Graceful fallback message when WebGL2 is unavailable.
  */
 
-import { useRef, useCallback, memo } from 'react';
+import { useRef, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
 import { useSGEGraph, type SGEGraphOptions } from './useSGEGraph';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
 import './SGEGraphView.css';
+
+// ─── Imperative ref API ───────────────────────────────────────────────────────
+
+export interface SGEGraphViewRef {
+  /** Restart the physics cooling schedule. */
+  reheat: () => void;
+  /** Pause the physics tick loop. */
+  pauseSimulation: () => void;
+  /** Resume the physics tick loop. */
+  resumeSimulation: () => void;
+  /** Centre the camera on the graph centroid. */
+  recenter: () => void;
+  /** Live-update SGE config without recreating the worker. */
+  setConfig: (cfg: Partial<SGEConfig>) => void;
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -85,7 +100,7 @@ function StatsOverlay({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const SGEGraphView = memo(function SGEGraphView({
+export const SGEGraphView = memo(forwardRef<SGEGraphViewRef, SGEGraphViewProps>(function SGEGraphView({
   nodes,
   edges,
   config,
@@ -94,7 +109,7 @@ export const SGEGraphView = memo(function SGEGraphView({
   className = '',
   onNodeClick,
   onNodeDblClick,
-}: SGEGraphViewProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Check WebGL2 once (stable ref)
@@ -112,6 +127,8 @@ export const SGEGraphView = memo(function SGEGraphView({
     canvasRef,
     stats,
     reheat,
+    pause,
+    resume,
     recenter,
     setConfig: _setConfig,
     _pointerDown,
@@ -124,6 +141,15 @@ export const SGEGraphView = memo(function SGEGraphView({
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
     _wheel:        React.WheelEventHandler<HTMLCanvasElement>;
   };
+
+  // Expose imperative API to parent via ref
+  useImperativeHandle(ref, () => ({
+    reheat,
+    pauseSimulation: pause,
+    resumeSimulation: resume,
+    recenter,
+    setConfig: _setConfig,
+  }), [reheat, pause, resume, recenter, _setConfig]);
 
   // Double-click: hit-test the node and call onNodeDblClick
   const onDblClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -205,6 +231,6 @@ export const SGEGraphView = memo(function SGEGraphView({
       )}
     </div>
   );
-});
+}));
 
 export type { SGEGraphOptions };

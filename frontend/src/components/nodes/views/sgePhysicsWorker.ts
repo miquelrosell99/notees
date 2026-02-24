@@ -31,6 +31,12 @@ import type {
   PhysicsReadyMessage,
 } from './sgePhysicsWorkerProtocol';
 
+// Typed alias for the worker's postMessage that supports the transferable overload.
+const workerPost = (
+  msg: PhysicsFrameMessage | PhysicsReadyMessage,
+  transfer?: Transferable[],
+) => (self as unknown as Worker).postMessage(msg, transfer as StructuredSerializeOptions);
+
 // ============================================================
 // Constants
 // ============================================================
@@ -119,7 +125,7 @@ function postFrame(): void {
   };
 
   // Transfer the positions buffer (zero-copy)
-  self.postMessage(msg, [slice.buffer]);
+  workerPost(msg, [slice.buffer]);
 }
 
 /** Build the nodeIds Int32Array from the engine's current node list. */
@@ -186,7 +192,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       ready = true;
 
       const readyMsg: PhysicsReadyMessage = { type: 'ready', nodeCount: msg.nodes.length };
-      self.postMessage(readyMsg);
+      workerPost(readyMsg);
 
       startLoop();
       break;
@@ -217,7 +223,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
 
       if (!ready) {
         const readyMsg: PhysicsReadyMessage = { type: 'ready', nodeCount: msg.nodes.length };
-        self.postMessage(readyMsg);
+        workerPost(readyMsg);
         ready = true;
       }
 
@@ -317,6 +323,20 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
 
     // ── Reheat ───────────────────────────────────────────────
     case 'reheat': {
+      if (!engine) break;
+      engine.reheat();
+      startLoop();
+      break;
+    }
+
+    // ── Pause physics ─────────────────────────────────────────
+    case 'pause': {
+      stopLoop();
+      break;
+    }
+
+    // ── Resume physics ────────────────────────────────────────
+    case 'resume': {
       if (!engine) break;
       engine.reheat();
       startLoop();
