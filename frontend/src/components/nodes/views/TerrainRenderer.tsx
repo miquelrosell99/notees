@@ -987,7 +987,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     // These replace the old Canvas 2D colour-map + selection-mask offscreen
     // canvases.  Bilinear filtering on the GPU gives equivalent smooth-edge
     // blending for free, without any JS per-pixel loops.
-    const hasClassColors = currentClassColors.length > 0;
     
     // Build selected-node index set for the GPU selection mask texture.
     const selectedNodeIndices = new Set<number>();
