@@ -85,8 +85,12 @@ export interface GraphRendererOptions {
 export interface GraphRendererHandle {
   /** Ref to attach to the <canvas> element. */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /** Ref to attach to the 2D label overlay <canvas>. */
+  labelCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Runtime stats for debug overlays. */
   stats: GraphRendererStats;
+  /** Currently selected node ID (-1 = none). */
+  selectedNodeId: number;
   /** Restart the physics simulation cooling schedule. */
   reheat: () => void;
   /** Pause the physics simulation without destroying state. */
@@ -107,6 +111,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const { nodes, edges, config, sizeByConnections = true } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
+  const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendRef    = useRef<GraphWebGLRenderer | null>(null);
   const workerRef  = useRef<Worker | null>(null);
   const rafRef     = useRef<number>(0);
@@ -114,6 +119,14 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   // Camera state (mutable, not React state — avoid re-renders on every frame)
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
+
+  // Hover / selection (mutable refs = no re-renders on mouse move)
+  const hoveredNodeRef = useRef(-1);
+  const selectedRef    = useRef(-1);
+  const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
+
+  // Node name map for label rendering (id → displayName)
+  const nodeNamesRef = useRef(new Map<number, string>());
 
   // Drag state
   type DragMode = 'none' | 'camera' | 'node';
@@ -200,6 +213,63 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       rend.setCamera(cam.x, cam.y, cam.zoom);
 
       rend.render();
+
+      // ── 2D label overlay ──
+      const lc = labelCanvasRef.current;
+      if (lc) {
+        const ctx = lc.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, lc.width, lc.height);
+          const zoom = cam.zoom;
+          // Only render labels when zoomed in enough to read them
+          if (zoom >= 0.25 && rend.nodeOrder.length > 0) {
+            const pos   = rend.nodePositions;
+            const order = rend.nodeOrder;
+            const names = nodeNamesRef.current;
+            const n     = order.length;
+            const dpr   = devicePixelRatio;
+
+            const fontSize  = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
+            const labelAlpha = Math.min(1, (zoom - 0.25) / 0.4); // fade in
+
+            ctx.save();
+            ctx.globalAlpha = labelAlpha;
+            ctx.font        = `${fontSize}px system-ui, -apple-system, sans-serif`;
+            ctx.textAlign   = 'center';
+            ctx.textBaseline = 'top';
+
+            for (let i = 0; i < n; i++) {
+              const id = order[i];
+              const name = names.get(id);
+              if (!name) continue;
+
+              const wx = pos[i * 2];
+              const wy = pos[i * 2 + 1];
+              const sp = rend.worldToScreen(wx, wy);
+              const sx = sp.x * dpr;
+              const sy = sp.y * dpr;
+
+              // Skip if outside canvas
+              if (sx < -200 || sx > lc.width + 200 || sy < -40 || sy > lc.height + 40) continue;
+
+              // Truncate long names
+              const label = name.length > 28 ? name.slice(0, 27) + '\u2026' : name;
+
+              // Shadow / halo for readability
+              ctx.lineWidth   = 3 * dpr;
+              ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+              ctx.strokeText(label, sx, sy + 12 * dpr);
+              ctx.fillStyle   = id === selectedRef.current
+                ? 'rgba(140,190,255,0.95)'
+                : id === hoveredNodeRef.current
+                  ? 'rgba(220,235,255,0.95)'
+                  : 'rgba(200,210,225,0.80)';
+              ctx.fillText(label, sx, sy + 12 * dpr);
+            }
+            ctx.restore();
+          }
+        }
+      }
 
       // FPS counter
       const fr = fpsRef.current;
@@ -304,6 +374,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       renderer.setNodeVisuals(idArr, visuals);
       renderer.setEdges(physEdges);
 
+      // Populate label name map
+      const names = nodeNamesRef.current;
+      names.clear();
+      for (const n of nodes) {
+        names.set(n.id, n.displayName || n.name || String(n.id));
+      }
+
       // Send to worker (full topology init/swap)
       worker.postMessage({
         type: 'init',
@@ -331,6 +408,21 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, sizeByConnections]);
+
+  // ─── Label canvas resize observer ─────────────────────────────────────────
+  useEffect(() => {
+    const lc = labelCanvasRef.current;
+    if (!lc) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        lc.width  = Math.round(width  * devicePixelRatio);
+        lc.height = Math.round(height * devicePixelRatio);
+      }
+    });
+    ro.observe(lc);
+    return () => ro.disconnect();
+  }, []);
 
   // ─── Pointer interaction ────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -363,15 +455,34 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, [post]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const d = dragRef.current;
-    if (d.mode === 'none') return;
-
+    const d      = dragRef.current;
     const canvas = canvasRef.current!;
     const rect   = canvas.getBoundingClientRect();
     const px     = (e.clientX - rect.left) * (canvas.width  / rect.width);
     const py     = (e.clientY - rect.top)  * (canvas.height / rect.height);
-    const dx     = px - d.startPx;
-    const dy     = py - d.startPy;
+
+    // Hover detection (always, even when not dragging)
+    const rend = rendRef.current;
+    if (rend) {
+      const world  = rend.screenToWorld(px, py);
+      const hit    = rend.pickNode(world.x, world.y, 20 / camRef.current.zoom) ?? -1;
+      if (hit !== hoveredNodeRef.current) {
+        hoveredNodeRef.current = hit;
+        rend.setHoveredNode(hit);
+      }
+      if (d.mode === 'none') {
+        canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
+      } else if (d.mode === 'node') {
+        canvas.style.cursor = 'grabbing';
+      } else {
+        canvas.style.cursor = 'grabbing';
+      }
+    }
+
+    if (d.mode === 'none') return;
+
+    const dx = px - d.startPx;
+    const dy = py - d.startPy;
     if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
 
     if (d.mode === 'camera') {
@@ -379,11 +490,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       camRef.current.x = d.camStartX - dx / zoom;
       camRef.current.y = d.camStartY - dy / zoom;
     } else if (d.mode === 'node') {
-      const world = rendRef.current?.screenToWorld(px, py);
+      const world = rend?.screenToWorld(px, py);
       if (!world) return;
       post({ type: 'dragMove', nodeId: d.nodeId, x: world.x, y: world.y });
       // Also override locally so drag feels instant (before next worker frame)
-      rendRef.current?.overridePosition(d.nodeId, world.x, world.y);
+      rend?.overridePosition(d.nodeId, world.x, world.y);
     }
   }, [post]);
 
@@ -393,8 +504,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     if (d.mode === 'node') {
       post({ type: 'dragEnd', nodeId: d.nodeId });
       if (!d.moved) {
-        // It was a tap/click — fire the callback
-        optsRef.current.onNodeClick?.(d.nodeId);
+        // It was a tap/click — select node and fire the callback
+        const nodeId = d.nodeId;
+        selectedRef.current = nodeId;
+        setSelectedNodeId(nodeId);
+        rendRef.current?.setSelectedNode(nodeId);
+        optsRef.current.onNodeClick?.(nodeId);
       }
     }
     d.mode   = 'none';
@@ -456,6 +571,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   return {
     canvasRef: canvasRef as React.RefObject<HTMLCanvasElement | null>,
+    labelCanvasRef,
+    selectedNodeId,
     stats,
     reheat,
     pause,
