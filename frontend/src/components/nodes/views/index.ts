@@ -21,6 +21,14 @@ export { WhiteboardView } from './WhiteboardView';
 export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
 export { TerrainRenderer, type TerrainRendererRef } from './TerrainRenderer';
 
+// SGE WebGL2 graph (physics worker + GPU renderer)
+export { SGEGraphView } from './SGEGraphView';
+export type { SGEGraphViewProps } from './SGEGraphView';
+export { useSGEGraph } from './useSGEGraph';
+export type { SGEGraphOptions, SGEGraphHandle, SGEGraphStats } from './useSGEGraph';
+export { SGEWebGLRenderer } from './sgeWebGLRenderer';
+export type { NodeVisual, RendererOptions, CameraState } from './sgeWebGLRenderer';
+
 // Shared view types and helpers
 export * from './viewTypes';
 export * from './viewHelpers';
