@@ -660,9 +660,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           }
         }
 
-        // ── 3e: Existing-page updates + block creation (regular) ───
-        for (let i = 0; i < regularPages.length; i++) {
-          const page = regularPages[i];
+        // ── 3e: Existing-page updates + block creation (regular) — parallel ──
+        setImportStatus('Creating blocks for pages…');
+        await Promise.all(regularPages.map(async (page, i) => {
           const existingPage = existingPageMap.get(page.title);
 
           if (existingPage) {
@@ -683,19 +683,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             }
           }
 
-          if (page.blocks.length === 0) continue;
+          if (page.blocks.length === 0) return;
           const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-          if (!nodeInfo) continue;
+          if (!nodeInfo) return;
 
           if (existingPage && override) {
-            setImportStatus(`Deleting existing blocks for: ${page.title}`);
             try {
               await deleteExistingBlocks(existingPage.id, queryClient);
             } catch (e) {
               console.error('Failed to delete existing blocks:', e);
             }
           }
-          setImportStatus(`Creating blocks for: ${page.title}`);
           try {
             await createBlocksRecursively(
               page.blocks, nodeInfo.id, 0, uuidMap, classIdMap, contentQueue, p3, override,
@@ -703,35 +701,36 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           } catch (e) {
             p3.errors.push({ item: `Blocks for: ${page.title}`, message: errorMessage(e) });
           }
-        }
+        }));
       }
 
-      // ── 3f: Block creation for journal pages ────────────────────
-      for (const page of journalPages) {
-        if (page.blocks.length === 0) continue;
-        const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-        if (!nodeInfo) continue;
-        let startSeq = 0;
-        if (override) {
-          setImportStatus(`Deleting existing blocks for journal: ${page.journal}`);
-          try {
-            await deleteExistingBlocks(nodeInfo.id, queryClient);
-          } catch (e) {
-            console.error('Failed to delete existing blocks:', e);
+      // ── 3f: Block creation for journal pages — parallel ──────────
+      if (journalPages.some(p => p.blocks.length > 0)) {
+        setImportStatus('Creating blocks for journal pages…');
+        await Promise.all(journalPages.map(async (page) => {
+          if (page.blocks.length === 0) return;
+          const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
+          if (!nodeInfo) return;
+          let startSeq = 0;
+          if (override) {
+            try {
+              await deleteExistingBlocks(nodeInfo.id, queryClient);
+            } catch (e) {
+              console.error('Failed to delete existing blocks:', e);
+            }
+          } else {
+            // In additive mode, append after existing children
+            const fullDay = await getNode(nodeInfo.id, { include_children: true });
+            startSeq = fullDay.children?.length ?? 0;
           }
-        } else {
-          // In additive mode, append after existing children
-          const fullDay = await getNode(nodeInfo.id, { include_children: true });
-          startSeq = fullDay.children?.length ?? 0;
-        }
-        setImportStatus(`Creating blocks for journal: ${page.journal}`);
-        try {
-          await createBlocksRecursively(
-            page.blocks, nodeInfo.id, startSeq, uuidMap, classIdMap, contentQueue, p3, override,
-          );
-        } catch (e) {
-          p3.errors.push({ item: `Blocks for journal: ${page.journal}`, message: errorMessage(e) });
-        }
+          try {
+            await createBlocksRecursively(
+              page.blocks, nodeInfo.id, startSeq, uuidMap, classIdMap, contentQueue, p3, override,
+            );
+          } catch (e) {
+            p3.errors.push({ item: `Blocks for journal: ${page.journal}`, message: errorMessage(e) });
+          }
+        }));
       }
 
       // ── Standalone blocks (block-only EDN export) ──────────────
