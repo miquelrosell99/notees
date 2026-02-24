@@ -3,8 +3,8 @@
  * 
  * Extracts the physics simulation engine from NodeGraphRenderer.
  * Handles:
- * - Barnes-Hut N-body simulation (O(n log n))
- * - Node position updates with velocity/damping
+ * - SemanticGraphEngine (cluster-aware hybrid layout) for all physics modes
+ * - Node position updates with Verlet integration (via SGE)
  * - Topology caching (adjacency, mass, connection counts)
  * - Constrained mode positioning (circle/tree layouts)
  * - Transform state (pan/zoom)
@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { SemanticGraphEngine } from './SemanticGraphEngine';
 import type {
   GraphNode,
   GraphLink,
@@ -21,7 +22,6 @@ import type {
   VisibilityFilters,
   GraphLayoutMode,
   NodeSizeMode,
-  QuadNode,
   FrameData,
   Transform,
   Dimensions,
@@ -30,12 +30,8 @@ import type {
 import {
   // Constants
   LINKED_ATTRACTION_DISTANCE,
-  LINK_DISTANCE_DEGREE_SCALE,
-  REPULSION_STRENGTH,
   UNLINKED_REPULSION_DISTANCE,
-  MIN_REPULSION_DISTANCE,
   RETURN_FORCE,
-  CENTER_GRAVITY_STRENGTH,
   VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DAMPING,
   TERRAIN_VELOCITY_DEADZONE,
@@ -59,8 +55,6 @@ import {
   TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
-  BH_THETA_SQ,
-  UNLINKED_REPULSION_DIST_SQ,
   TERRAIN_MAX_VELOCITY_SQ,
   COLLISION_PADDING,
   COLLISION_RESOLVE,
@@ -214,19 +208,12 @@ export function useNodePhysics({
   // Spatial hash grid for O(n) collision resolution
   const collisionGridRef = useRef<Map<number, number[]>>(new Map());
   
+  // SemanticGraphEngine — handles all physics modes (normal, constrained-physics, terrain)
+  const sgeRef = useRef<SemanticGraphEngine | null>(null);
+  const sgeTopologyDirtyRef = useRef(true);
+  
   // Reusable typed arrays for per-frame computation (avoids GC thrashing at 4k+ nodes)
   const nodeRadiiRef = useRef<Float64Array>(new Float64Array(0));
-  // Reusable Maps for BH mass computation (cleared & refilled each frame)
-  const normalizedMassesRef = useRef<Map<number, number>>(new Map());
-  const treeMassesRef = useRef<Map<number, number>>(new Map());
-  // Topology-stable caches: Math.log / Math.log2 results computed once per topology change
-  const cachedLogMassesRef = useRef<Map<number, number>>(new Map());    // id → 1 + log(raw)
-  const cachedDegreeFactorsRef = useRef<Map<number, number>>(new Map()); // id → 1 + log2(1 + conn)
-  
-  // Barnes-Hut quadtree pool
-  const quadPoolRef = useRef<QuadNode[]>([]);
-  const quadPoolIdxRef = useRef(0);
-  const bhStackRef = useRef<Array<QuadNode | null>>(new Array(256).fill(null));
   
   // Frame data (shared with render)
   const frameDataRef = useRef<FrameData>({
@@ -777,134 +764,10 @@ export function useNodePhysics({
     outReferenceLinkCountsRef.current = outReferenceLinkCounts;
     allReferenceLinkCountsRef.current = allReferenceLinkCounts;
     
-    // Pre-compute transcendental functions for BH masses (avoid Math.log/log2 per frame)
-    const cachedLogMasses = new Map<number, number>();
-    for (const node of nodes) {
-      const raw = massCache.get(node.id) ?? 1;
-      cachedLogMasses.set(node.id, raw <= 1 ? 1 : 1 + Math.log(raw));
-    }
-    cachedLogMassesRef.current = cachedLogMasses;
-    
-    const cachedDegreeFactors = new Map<number, number>();
-    for (const node of nodes) {
-      const connCount = connectionCounts.get(node.id) ?? 0;
-      // Cap degree factor at 3.0 to prevent hubs from inflating the graph.
-      // Without capping, nodes with 20+ connections get 5x+ tree mass,
-      // scattering everything around them.
-      cachedDegreeFactors.set(node.id, Math.min(3.0, 1 + Math.log2(1 + connCount)));
-    }
-    cachedDegreeFactorsRef.current = cachedDegreeFactors;
-    
     topologyDirtyRef.current = false;
+    sgeTopologyDirtyRef.current = true; // Signal SGE to rebuild on next tick
     terrainDataDirtyRef.current = true; // Recompute terrain heights/radii on topology change
   }, []);
-  
-  // ==================== Barnes-Hut Quadtree ====================
-  
-  const allocQuadNode = (x0: number, y0: number, x1: number, y1: number): QuadNode => {
-    const pool = quadPoolRef.current;
-    const idx = quadPoolIdxRef.current;
-    if (idx < pool.length) {
-      const n = pool[idx];
-      quadPoolIdxRef.current = idx + 1;
-      n.cx = 0; n.cy = 0; n.mass = 0;
-      n.x0 = x0; n.y0 = y0; n.x1 = x1; n.y1 = y1;
-      n.c0 = null; n.c1 = null; n.c2 = null; n.c3 = null;
-      n.nodeIdx = -1;
-      return n;
-    }
-    const n: QuadNode = { cx: 0, cy: 0, mass: 0, x0, y0, x1, y1, c0: null, c1: null, c2: null, c3: null, nodeIdx: -1 };
-    pool.push(n);
-    quadPoolIdxRef.current = idx + 1;
-    return n;
-  };
-  
-  const getChild = (node: QuadNode, q: number): QuadNode | null => {
-    switch (q) { case 0: return node.c0; case 1: return node.c1; case 2: return node.c2; default: return node.c3; }
-  };
-  
-  const setChild = (node: QuadNode, q: number, child: QuadNode): void => {
-    switch (q) { case 0: node.c0 = child; break; case 1: node.c1 = child; break; case 2: node.c2 = child; break; default: node.c3 = child; break; }
-  };
-  
-  const buildQuadtree = (nodes: GraphNode[], masses: Map<number, number>): QuadNode | null => {
-    if (nodes.length === 0) return null;
-    
-    quadPoolIdxRef.current = 0;
-    
-    const maxPoolSize = Math.max(nodes.length * 8, 1000);
-    const pool = quadPoolRef.current;
-    if (pool.length > maxPoolSize) {
-      pool.length = maxPoolSize;
-    }
-    
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const n of nodes) {
-      if (n.x < x0) x0 = n.x;
-      if (n.y < y0) y0 = n.y;
-      if (n.x > x1) x1 = n.x;
-      if (n.y > y1) y1 = n.y;
-    }
-    const pad = Math.max(x1 - x0, y1 - y0, 100) * 0.01;
-    x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
-    
-    const root = allocQuadNode(x0, y0, x1, y1);
-    
-    const insert = (tree: QuadNode, idx: number, nx: number, ny: number, nm: number) => {
-      const size = tree.x1 - tree.x0;
-      if (size < 0.01) return;
-      
-      if (tree.mass === 0) {
-        tree.cx = nx; tree.cy = ny; tree.mass = nm; tree.nodeIdx = idx;
-        return;
-      }
-      
-      if (tree.nodeIdx >= 0) {
-        const existIdx = tree.nodeIdx;
-        const ecx = tree.cx, ecy = tree.cy, em = tree.mass;
-        tree.nodeIdx = -1;
-        insertIntoQuadrant(tree, existIdx, ecx, ecy, em);
-      }
-      
-      insertIntoQuadrant(tree, idx, nx, ny, nm);
-      
-      const totalMass = tree.mass + nm;
-      tree.cx = (tree.cx * tree.mass + nx * nm) / totalMass;
-      tree.cy = (tree.cy * tree.mass + ny * nm) / totalMass;
-      tree.mass = totalMass;
-    };
-    
-    const insertIntoQuadrant = (tree: QuadNode, idx: number, nx: number, ny: number, nm: number) => {
-      const mx = (tree.x0 + tree.x1) / 2;
-      const my = (tree.y0 + tree.y1) / 2;
-      const q = (nx < mx ? 0 : 1) + (ny < my ? 0 : 2);
-      
-      let child = getChild(tree, q);
-      if (!child) {
-        const qx0 = q & 1 ? mx : tree.x0;
-        const qy0 = q & 2 ? my : tree.y0;
-        const qx1 = q & 1 ? tree.x1 : mx;
-        const qy1 = q & 2 ? tree.y1 : my;
-        child = allocQuadNode(qx0, qy0, qx1, qy1);
-        setChild(tree, q, child);
-      }
-      
-      insert(child, idx, nx, ny, nm);
-    };
-    
-    for (let i = 0; i < nodes.length; i++) {
-      const n = nodes[i];
-      insert(root, i, n.x, n.y, masses.get(n.id) || 1);
-    }
-    
-    return root;
-  };
-  
-  // Stable ref for buildQuadtree — prevents startSimulation from being
-  // recreated on every render (buildQuadtree is a plain function whose
-  // identity changes each render, but it only accesses refs internally).
-  const buildQuadtreeRef = useRef(buildQuadtree);
-  buildQuadtreeRef.current = buildQuadtree;
   
   // ==================== Node Management ====================
   
@@ -1226,386 +1089,302 @@ export function useNodePhysics({
       const alpha = alphaRef.current;
       alphaRef.current += (ALPHA_TARGET - alphaRef.current) * ALPHA_DECAY;
       
-      // Return-to-target force (constrained modes)
-      if (isConstrainedMode) {
-        const returnStrength = currentSettings.constraintMode === 'equidistant' ? 0.5 : RETURN_FORCE * 0.05;
-        for (const node of nodes) {
-          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-          
-          const dx = node.targetX - node.x;
-          const dy = node.targetY - node.y;
-          
-          const connCount = node.connectionCount;
-          const multiplier = (currentSettings.constraintMode === 'physics' && connCount === 0) ? 10 : 1;
-          
-          node.vx += dx * returnStrength * multiplier;
-          node.vy += dy * returnStrength * multiplier;
-        }
-      }
-      
-      // Centering: COM recentering (position-only) + center gravity force.
-      // COM recentering keeps the graph centered without injecting energy.
-      // Center gravity (like d3.forceX/forceY) pulls all nodes toward center,
-      // creating the Logseq-style ring of orphan nodes at the periphery.
-      if (!isConstrainedMode) {
-        const cx = dimensionsRef.current.width / 2;
-        const cy = dimensionsRef.current.height / 2;
-        
-        // COM recentering (position translation, NOT velocity-based).
-        // This is a rigid frame translation that keeps the centroid at canvas center
-        // without injecting energy — intentionally bypasses the force pipeline.
-        if (comCount > 0) {
-          const avgX = comX / comCount;
-          const avgY = comY / comCount;
-          const driftX = cx - avgX;
-          const driftY = cy - avgY;
-          for (const node of nodes) {
-            if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-            node.x += driftX;
-            node.y += driftY;
-          }
-        }
-        
-        // Center gravity force: pull each node toward center (scaled by alpha).
-        // Equivalent to d3.forceX(cx, strength) + d3.forceY(cy, strength).
-        for (const node of nodes) {
-          if (dragNodeRef.current?.id === node.id || node.pinned) continue;
-          node.vx += (cx - node.x) * CENTER_GRAVITY_STRENGTH * alpha;
-          node.vy += (cy - node.y) * CENTER_GRAVITY_STRENGTH * alpha;
-        }
-      }
-      
-      // Barnes-Hut N-body simulation
-      if (usePhysics) {
-        
-        // Reuse Maps across frames to avoid GC pressure at 4k+ nodes.
-        // Log-based normalized masses are pre-computed at topology-rebuild time
-        // (cachedLogMassesRef) to eliminate per-frame Math.log calls.
-        const normalizedMasses = normalizedMassesRef.current;
-        normalizedMasses.clear();
-        if (useMass) {
-          const cachedLogMasses = cachedLogMassesRef.current;
-          for (const node of nodes) {
-            normalizedMasses.set(node.id, cachedLogMasses.get(node.id) ?? 1);
-          }
-        }
-        // When mass mode is off, use uniform mass 1 for all nodes so the
-        // tree and per-node division are consistent.  Previously this path
-        // passed massCacheRef (raw hierarchy masses) into the tree while
-        // dividing by 1, making parents super-repulsive and inflating
-        // spacing.  Switching to mass mode then appeared to shrink links
-        // because normalized masses are much smaller than the raw ones.
-        
-        // Degree-scaled repulsion: hubs (highly-connected nodes) get higher
-        // mass in the Barnes-Hut tree so they repel neighbors more strongly.
-        // This creates natural breathing room around hubs and pushes distinct
-        // clusters apart, preventing the "hairball" collapse into a dense core.
-        // Note: nodeMass (used for force division) is NOT degree-scaled, so
-        // hubs push harder without becoming harder to push.
-        // Degree factors are pre-computed at topology-rebuild time (cachedDegreeFactorsRef)
-        // to eliminate per-frame Math.log2 calls.
-        const cachedDegreeFactors = cachedDegreeFactorsRef.current;
-        const treeMasses = treeMassesRef.current;
-        treeMasses.clear();
-        for (const node of nodes) {
-          const base = useMass ? (normalizedMasses.get(node.id) ?? 1) : 1;
-          const degreeFactor = cachedDegreeFactors.get(node.id) ?? 1;
-          treeMasses.set(node.id, base * degreeFactor);
-        }
-        const tree = buildQuadtreeRef.current(nodes, treeMasses);
-        
-        if (tree) {
-          for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i];
-            if (dragNodeRef.current?.id === node.id) continue;
-            if (node.pinned) continue;
-            
-            const nodeMass = useMass ? (normalizedMasses.get(node.id) ?? 1) : 1;
-            
-            const stack = bhStackRef.current;
-            let stackTop = 0;
-            stack[stackTop++] = tree;
-            while (stackTop > 0) {
-              const cell = stack[--stackTop]!;
-              if (cell.mass === 0) continue;
-              
-              const dx = cell.cx - node.x;
-              const dy = cell.cy - node.y;
-              const distSq = dx * dx + dy * dy;
-              
-              if (cell.nodeIdx === i) continue;
-              
-              const cellSize = cell.x1 - cell.x0;
-              
-              // Opening criterion: cellSize/dist < θ  ↔  cellSize² < θ²·distSq
-              // Defers Math.sqrt to the force-application branch only (~48k fewer sqrts/frame at 4k nodes)
-              if (cell.nodeIdx >= 0 || cellSize * cellSize < BH_THETA_SQ * distSq) {
-                if (distSq < UNLINKED_REPULSION_DIST_SQ) {
-                  const dist = Math.sqrt(distSq) || 1;
-                  const clampedDist = Math.max(dist, MIN_REPULSION_DISTANCE);
-                  const force = (REPULSION_STRENGTH * cell.mass / (clampedDist * clampedDist)) * alpha;
-                  const fx = (dx / dist) * force;
-                  const fy = (dy / dist) * force;
-                  
-                  node.vx -= fx / nodeMass;
-                  node.vy -= fy / nodeMass;
-                }
-              } else {
-                if (stackTop + 4 > stack.length) stack.length = stack.length * 2;
-                if (cell.c0) stack[stackTop++] = cell.c0;
-                if (cell.c1) stack[stackTop++] = cell.c1;
-                if (cell.c2) stack[stackTop++] = cell.c2;
-                if (cell.c3) stack[stackTop++] = cell.c3;
-              }
-            }
-          }
-        }
-        
-        // Link attraction (d3-force style)
-        for (const link of links) {
-          const nodeA = nodeMap.get(link.source);
-          const nodeB = nodeMap.get(link.target);
-          if (!nodeA || !nodeB) continue;
-          if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
-          if (nodeA.pinned && nodeB.pinned) continue;
-          
-          const key = pairKey(nodeA.id, nodeB.id);
-          if (connectedPairs.get(key) !== link.type) continue;
-          
-          const dx = nodeB.x - nodeA.x;
-          const dy = nodeB.y - nodeA.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          
-          // d3 link strength: 1 / min(degreeA, degreeB)
-          // This automatically weakens springs on hubs so all links stretch proportionally.
-          let linkStrength = 1 / Math.min(nodeA.connectionCount || 1, nodeB.connectionCount || 1);
-          
-          // In terrain mode, skip attraction for reference links entirely —
-          // they use only the minimum-separation force for valley routing
-          if (isTerrainModeNow) {
-            if (link.type === 'reference' || link.type === 'property-reference') continue;
-          } else {
-            if (link.type === 'property-reference') {
-              linkStrength *= REFERENCE_LINK_FORCE_MULTIPLIER;
-            } else if (link.type === 'reference') {
-              linkStrength *= REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
-            }
-          }
-          
-          let restDist = LINKED_ATTRACTION_DISTANCE;
-          
-          // Degree-based distance scaling: leaf→hub = short, hub→hub = long.
-          // This creates tight spoke clusters around hubs with longer bridges between clusters.
-          const minDeg = Math.min(nodeA.connectionCount, nodeB.connectionCount);
-          if (minDeg > 1) {
-            restDist += LINK_DISTANCE_DEGREE_SCALE * Math.log2(minDeg);
-          }
-          
-          // d3-force: pure Hooke's law. Force = (dist - distance) * strength * alpha
-          // No velocity-based spring damping, no jitter.
-          const bias = 0.5; // d3 default: equal split between source and target
-          const force = (dist - restDist) / dist * linkStrength * alpha;
-          const fx = dx * force;
-          const fy = dy * force;
-          
-          if (!nodeA.pinned) {
-            nodeA.vx += fx * bias;
-            nodeA.vy += fy * bias;
-          }
-          if (!nodeB.pinned) {
-            nodeB.vx -= fx * (1 - bias);
-            nodeB.vy -= fy * (1 - bias);
-          }
-        }
-      }
-      
-      // Terrain mode: cone-based collision avoidance (velocity-based)
-      // Uses velocity so the force goes through damping + integration like all other forces.
-      if (isTerrainModeNow && usePhysics) {
-        const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-        const terrainHeights = frameDataRef.current.terrainHeights;
-        
-        for (let i = 0; i < nodes.length; i++) {
-          const shortNode = nodes[i];
-          if (dragNodeRef.current?.id === shortNode.id || shortNode.pinned) continue;
-          
-          const shortHeight = terrainHeights.get(shortNode.id) ?? 0;
-          const shortPeak = terrainPeakRadii.get(shortNode.id) ?? 0;
-          
-          const shortRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * shortPeak;
-          
-          for (let j = 0; j < nodes.length; j++) {
-            if (i === j) continue;
-            const tallNode = nodes[j];
-            
-            const tallHeight = terrainHeights.get(tallNode.id) ?? 0;
-            if (tallHeight <= shortHeight) continue;
-            
-            const tallPeak = terrainPeakRadii.get(tallNode.id) ?? 0;
-            const tallRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * tallPeak;
-            const tallRs = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * tallPeak;
-            
-            const heightRatio = (tallHeight - shortHeight) / tallHeight;
-            const coneRadiusAtShortHeight = tallRp + (tallRs - tallRp) * heightRatio;
-            
-            const dx = shortNode.x - tallNode.x;
-            const dy = shortNode.y - tallNode.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            
-            const effectiveConeRadius = coneRadiusAtShortHeight - shortRp * 0.5;
-            
-            if (dist >= effectiveConeRadius) continue;
-            
-            const overlap = effectiveConeRadius - dist;
-            const force = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            
-            shortNode.vx += nx * force;
-            shortNode.vy += ny * force;
-          }
-        }
-      }
-      
-      // Terrain mode: ensure minimum separation between reference-linked nodes
-      // so that peaks have a valley between them for path routing
-      if (isTerrainModeNow && usePhysics) {
-        const refTerrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-        for (const link of links) {
-          if (link.type !== 'reference' && link.type !== 'property-reference') continue;
-          const nodeA = nodeMap.get(link.source);
-          const nodeB = nodeMap.get(link.target);
-          if (!nodeA || !nodeB) continue;
-          if (nodeA.pinned && nodeB.pinned) continue;
-          if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
-          
-          const dx = nodeB.x - nodeA.x;
-          const dy = nodeB.y - nodeA.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          
-          // Scale min separation by average peak size of the pair
-          const peakA = refTerrainPeakRadii.get(nodeA.id) ?? 0;
-          const peakB = refTerrainPeakRadii.get(nodeB.id) ?? 0;
-          const avgPeak = (peakA + peakB) * 0.5;
-          const minSep = TERRAIN_REF_LINK_MIN_SEPARATION + avgPeak * 60;
-          
-          if (dist >= minSep) continue;
-          
-          const overlap = minSep - dist;
-          const force = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * alpha;
-          const nx = dx / dist;
-          const ny = dy / dist;
-          
-          if (!nodeA.pinned) {
-            nodeA.vx -= nx * force;
-            nodeA.vy -= ny * force;
-          }
-          if (!nodeB.pinned) {
-            nodeB.vx += nx * force;
-            nodeB.vy += ny * force;
-          }
-        }
-      }
-      
       const currentNodeSizeMode = currentSettings.nodeSizeMode;
       const currentLinkDirection = currentSettings.linkDirection;
       
-      // Tangential overlap prevention (constrained modes, velocity-based)
-      // Uses velocity so the force goes through damping + integration like all other forces.
-      if (isConstrainedMode && currentSettings.constraintMode !== 'equidistant') {
-        const cx = dimensionsRef.current.width / 2;
-        const cy = dimensionsRef.current.height / 2;
+      // ==================== SemanticGraphEngine (all physics modes) ====================
+      // Uses cluster-aware hybrid layout (SGE) for normal, constrained-physics, and
+      // terrain modes. Core forces (repulsion, springs, clustering) are computed by SGE;
+      // mode-specific forces are injected via applyForce() between phases.
+      if (usePhysics) {
+        // Build/rebuild SGE when topology changes
+        if (sgeTopologyDirtyRef.current || !sgeRef.current) {
+          const sgeNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
+          const sgeEdges = links.map(l => ({ source: l.source, target: l.target }));
+          if (sgeRef.current) {
+            sgeRef.current.setNodes(sgeNodes);
+            sgeRef.current.setEdges(sgeEdges);
+          } else {
+            sgeRef.current = new SemanticGraphEngine(sgeNodes, sgeEdges, {
+              seed: 42,
+              idealDistance: LINKED_ATTRACTION_DISTANCE,
+              localRepelRadius: UNLINKED_REPULSION_DISTANCE * 0.4,
+            });
+          }
+          for (const node of nodes) {
+            if (sgeRef.current.getNode(node.id)) {
+              sgeRef.current.moveNode(node.id, node.x, node.y);
+            }
+          }
+          sgeTopologyDirtyRef.current = false;
+        }
         
-        for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          if (dragNodeRef.current?.id === a.id || a.pinned) continue;
-          const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
-          if (aRadius === undefined) continue;
-          const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
+        // Sync pinned/dragged state into engine
+        for (const node of nodes) {
+          const isDragged = dragNodeRef.current?.id === node.id;
+          if (isDragged || node.pinned) {
+            sgeRef.current!.pinNode(node.id);
+            sgeRef.current!.moveNode(node.id, node.x, node.y);
+          } else {
+            sgeRef.current!.unpinNode(node.id);
+          }
+        }
+        
+        // Phase 1: compute core forces (cluster repulsion, springs, centering)
+        sgeRef.current!.computeForces();
+        
+        // Phase 2: inject mode-specific external forces via applyForce()
+        
+        // Return-to-target (constrained physics only)
+        if (isConstrainedMode) {
+          const returnStrength = RETURN_FORCE * 0.05;
+          for (const node of nodes) {
+            if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+            const dx = node.targetX - node.x;
+            const dy = node.targetY - node.y;
+            const connCount = node.connectionCount;
+            const multiplier = connCount === 0 ? 10 : 1;
+            sgeRef.current!.applyForce(node.id, dx * returnStrength * multiplier, dy * returnStrength * multiplier);
+          }
+        }
+        
+        // Terrain: cone-based collision avoidance
+        if (isTerrainModeNow) {
+          const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
+          const terrainHeights = frameDataRef.current.terrainHeights;
+          for (let i = 0; i < nodes.length; i++) {
+            const shortNode = nodes[i];
+            if (dragNodeRef.current?.id === shortNode.id || shortNode.pinned) continue;
+            const shortHeight = terrainHeights.get(shortNode.id) ?? 0;
+            const shortPeak = terrainPeakRadii.get(shortNode.id) ?? 0;
+            const shortRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * shortPeak;
+            for (let j = 0; j < nodes.length; j++) {
+              if (i === j) continue;
+              const tallNode = nodes[j];
+              const tallHeight = terrainHeights.get(tallNode.id) ?? 0;
+              if (tallHeight <= shortHeight) continue;
+              const tallPeak = terrainPeakRadii.get(tallNode.id) ?? 0;
+              const tallRp = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * tallPeak;
+              const tallRs = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * tallPeak;
+              const heightRatio = (tallHeight - shortHeight) / tallHeight;
+              const coneRadiusAtShortHeight = tallRp + (tallRs - tallRp) * heightRatio;
+              const dx = shortNode.x - tallNode.x;
+              const dy = shortNode.y - tallNode.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              const effectiveConeRadius = coneRadiusAtShortHeight - shortRp * 0.5;
+              if (dist >= effectiveConeRadius) continue;
+              const overlap = effectiveConeRadius - dist;
+              const force = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              sgeRef.current!.applyForce(shortNode.id, nx * force, ny * force);
+            }
+          }
           
-          for (let j = i + 1; j < nodes.length; j++) {
-            const b = nodes[j];
-            if (dragNodeRef.current?.id === b.id || b.pinned) continue;
-            const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
-            if (bRadius === undefined) continue;
-            const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
-            
-            const minGlareDist = (aGlare + bGlare) * 1.05;
-            if (Math.abs(aRadius - bRadius) > minGlareDist) continue;
-            
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
+          // Terrain: minimum separation between reference-linked nodes
+          for (const link of links) {
+            if (link.type !== 'reference' && link.type !== 'property-reference') continue;
+            const nodeA = nodeMap.get(link.source);
+            const nodeB = nodeMap.get(link.target);
+            if (!nodeA || !nodeB) continue;
+            if (nodeA.pinned && nodeB.pinned) continue;
+            if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
+            const dx = nodeB.x - nodeA.x;
+            const dy = nodeB.y - nodeA.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            
-            if (dist >= minGlareDist) continue;
-            
-            const dax = a.x - cx;
-            const day = a.y - cy;
-            const daDist = Math.sqrt(dax * dax + day * day) || 1;
-            
-            const radialX = dax / daDist;
-            const radialY = day / daDist;
-            
-            const cross = dx * radialY - dy * radialX;
-            const sign = cross >= 0 ? 1 : -1;
-            const tangX = -radialY * sign;
-            const tangY = radialX * sign;
-            
-            const overlap = minGlareDist - dist;
-            const force = overlap * TANGENTIAL_OVERLAP_RESOLVE;
-            
-            const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
-            const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
-            
-            if (aMovable && bMovable) {
-              a.vx -= tangX * force * 0.5;
-              a.vy -= tangY * force * 0.5;
-              b.vx += tangX * force * 0.5;
-              b.vy += tangY * force * 0.5;
-            } else if (aMovable) {
-              a.vx -= tangX * force;
-              a.vy -= tangY * force;
-            } else if (bMovable) {
-              b.vx += tangX * force;
-              b.vy += tangY * force;
+            const peakA = terrainPeakRadii.get(nodeA.id) ?? 0;
+            const peakB = terrainPeakRadii.get(nodeB.id) ?? 0;
+            const avgPeak = (peakA + peakB) * 0.5;
+            const minSep = TERRAIN_REF_LINK_MIN_SEPARATION + avgPeak * 60;
+            if (dist >= minSep) continue;
+            const overlap = minSep - dist;
+            const force = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * alpha;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            if (!nodeA.pinned) sgeRef.current!.applyForce(nodeA.id, -nx * force, -ny * force);
+            if (!nodeB.pinned) sgeRef.current!.applyForce(nodeB.id, nx * force, ny * force);
+          }
+        }
+        
+        // Tangential overlap prevention (constrained physics only)
+        if (isConstrainedMode) {
+          const cx = dimensionsRef.current.width / 2;
+          const cy = dimensionsRef.current.height / 2;
+          for (let i = 0; i < nodes.length; i++) {
+            const a = nodes[i];
+            if (dragNodeRef.current?.id === a.id || a.pinned) continue;
+            const aRadius = (a as GraphNode & { _treeRadius?: number })._treeRadius;
+            if (aRadius === undefined) continue;
+            const aGlare = getGlareRadius(a, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
+            for (let j = i + 1; j < nodes.length; j++) {
+              const b = nodes[j];
+              if (dragNodeRef.current?.id === b.id || b.pinned) continue;
+              const bRadius = (b as GraphNode & { _treeRadius?: number })._treeRadius;
+              if (bRadius === undefined) continue;
+              const bGlare = getGlareRadius(b, currentNodeSizeMode, maxConnections, maxMass, currentLinkDirection);
+              const minGlareDist = (aGlare + bGlare) * 1.05;
+              if (Math.abs(aRadius - bRadius) > minGlareDist) continue;
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              if (dist >= minGlareDist) continue;
+              const dax = a.x - cx;
+              const day = a.y - cy;
+              const daDist = Math.sqrt(dax * dax + day * day) || 1;
+              const radialX = dax / daDist;
+              const radialY = day / daDist;
+              const cross = dx * radialY - dy * radialX;
+              const sign = cross >= 0 ? 1 : -1;
+              const tangX = -radialY * sign;
+              const tangY = radialX * sign;
+              const overlap = minGlareDist - dist;
+              const force = overlap * TANGENTIAL_OVERLAP_RESOLVE;
+              const aMovable = !a.pinned && dragNodeRef.current?.id !== a.id;
+              const bMovable = !b.pinned && dragNodeRef.current?.id !== b.id;
+              if (aMovable && bMovable) {
+                sgeRef.current!.applyForce(a.id, -tangX * force * 0.5, -tangY * force * 0.5);
+                sgeRef.current!.applyForce(b.id, tangX * force * 0.5, tangY * force * 0.5);
+              } else if (aMovable) {
+                sgeRef.current!.applyForce(a.id, -tangX * force, -tangY * force);
+              } else if (bMovable) {
+                sgeRef.current!.applyForce(b.id, tangX * force, tangY * force);
+              }
+            }
+          }
+        }
+        
+        // Dragged node pulls connected nodes (via SGE forces)
+        if (dragNodeRef.current && dragNodeRef.current.visible) {
+          const dragNode = dragNodeRef.current;
+          const connected = adjacency.get(dragNode.id);
+          if (connected) {
+            for (const connectedId of connected) {
+              const connectedNode = nodeMap.get(connectedId);
+              if (!connectedNode || connectedNode.pinned) continue;
+              const dx = dragNode.x - connectedNode.x;
+              const dy = dragNode.y - connectedNode.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              if (dist > LINKED_ATTRACTION_DISTANCE) {
+                const rawM = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
+                const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
+                const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
+                let dragMultiplier = 1;
+                if (!isTerrainModeNow) {
+                  if (linkType === 'property-reference') {
+                    dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
+                  } else if (linkType === 'reference') {
+                    dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
+                  }
+                }
+                const fx = (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
+                const fy = (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
+                sgeRef.current!.applyForce(connectedNode.id, fx, fy);
+              }
+            }
+          }
+        }
+        
+        // Phase 3: Verlet integration (all forces — core + external — integrated together)
+        sgeRef.current!.integrate();
+        
+        // Copy positions back from SGE to GraphNode objects
+        const sgeState = sgeRef.current!.getState();
+        for (const sgeNode of sgeState.nodes) {
+          const graphNode = nodeMap.get(sgeNode.id);
+          if (graphNode && !graphNode.pinned && dragNodeRef.current?.id !== graphNode.id) {
+            graphNode.x = sgeNode.x;
+            graphNode.y = sgeNode.y;
+            graphNode.vx = sgeNode.vx;
+            graphNode.vy = sgeNode.vy;
+          }
+        }
+        
+        // Ring constraint projection (constrained physics — position-based, after integration)
+        if (isConstrainedMode) {
+          for (const node of nodes) {
+            if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+            const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
+            if (treeRadius === undefined) continue;
+            const cx = dimensionsRef.current.width / 2;
+            const cy = dimensionsRef.current.height / 2;
+            const ndx = node.x - cx;
+            const ndy = node.y - cy;
+            const distToCenter = Math.sqrt(ndx * ndx + ndy * ndy) || 1;
+            const radialX = ndx / distToCenter;
+            const radialY = ndy / distToCenter;
+            const radiusError = Math.abs(distToCenter - treeRadius);
+            // Remove radial velocity component
+            const radialV = node.vx * radialX + node.vy * radialY;
+            node.vx -= radialV * radialX;
+            node.vy -= radialV * radialY;
+            // Blend position toward ring
+            const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
+            const newDist = distToCenter + (treeRadius - distToCenter) * blendRate;
+            node.x = cx + radialX * newDist;
+            node.y = cy + radialY * newDist;
+            // Sync corrected position + velocity back to SGE
+            sgeRef.current!.syncPosition(node.id, node.x, node.y, node.vx, node.vy);
+          }
+        }
+        
+        // COM recentering (normal mode only — keep graph centered on canvas)
+        if (!isConstrainedMode && !isTerrainModeNow && comCount > 0) {
+          const cx = dimensionsRef.current.width / 2;
+          const cy = dimensionsRef.current.height / 2;
+          let avgX = 0, avgY = 0, cnt = 0;
+          for (const node of nodes) {
+            if (!node.pinned && dragNodeRef.current?.id !== node.id) {
+              avgX += node.x; avgY += node.y; cnt++;
+            }
+          }
+          if (cnt > 0) {
+            const driftX = cx - avgX / cnt;
+            const driftY = cy - avgY / cnt;
+            for (const node of nodes) {
+              if (!node.pinned && dragNodeRef.current?.id !== node.id) {
+                node.x += driftX;
+                node.y += driftY;
+              }
+            }
+          }
+        }
+      } else {
+        // ==================== Equidistant mode (no physics engine) ====================
+        // Strong return-to-target + Euler integration + ring projection
+        if (isConstrainedMode) {
+          for (const node of nodes) {
+            if (dragNodeRef.current?.id === node.id || node.pinned) continue;
+            const dx = node.targetX - node.x;
+            const dy = node.targetY - node.y;
+            node.vx += dx * 0.5;
+            node.vy += dy * 0.5;
+          }
+        }
+        
+        // Dragged node pulls connected nodes (equidistant — direct velocity)
+        if (dragNodeRef.current && dragNodeRef.current.visible) {
+          const dragNode = dragNodeRef.current;
+          const connected = adjacency.get(dragNode.id);
+          if (connected) {
+            for (const connectedId of connected) {
+              const connectedNode = nodeMap.get(connectedId);
+              if (!connectedNode || connectedNode.pinned) continue;
+              const dx = dragNode.x - connectedNode.x;
+              const dy = dragNode.y - connectedNode.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              if (dist > LINKED_ATTRACTION_DISTANCE) {
+                const rawM = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
+                const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
+                connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
+                connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) / mass;
+              }
             }
           }
         }
       }
       
-      // Dragged node pulls connected nodes
+      // Drag lift animation
       if (dragNodeRef.current && dragNodeRef.current.visible) {
-        const dragNode = dragNodeRef.current;
-        const connected = adjacency.get(dragNode.id);
-        
-        if (connected) {
-          for (const connectedId of connected) {
-            const connectedNode = nodeMap.get(connectedId);
-            if (!connectedNode || connectedNode.pinned) continue;
-            
-            const dx = dragNode.x - connectedNode.x;
-            const dy = dragNode.y - connectedNode.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            
-            if (dist > LINKED_ATTRACTION_DISTANCE) {
-              const rawM = useMass ? (massCache.get(connectedNode.id) ?? 1) : 1;
-              const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
-              const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
-              let dragMultiplier = 1;
-              // In terrain mode, treat all links equally
-              if (!isTerrainModeNow) {
-                if (linkType === 'property-reference') {
-                  dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
-                } else if (linkType === 'reference') {
-                  dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
-                }
-              }
-              connectedNode.vx += (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
-              connectedNode.vy += (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
-            }
-          }
-        }
-        
         if (dragStartTimeRef.current !== null) {
           const elapsed = Date.now() - dragStartTimeRef.current;
           dragLiftProgressRef.current = Math.min(1, elapsed / 150);
@@ -1616,44 +1395,48 @@ export function useNodePhysics({
         }
       }
       
-      // Integration: d3-force order — damp FIRST, then move.
-      // d3: node.vx *= velocityDecay; node.x += node.vx;
-      // No max velocity cap, no deadzone — let alpha decay handle convergence.
-      const baseDamping = isTerrainModeNow ? TERRAIN_VELOCITY_DAMPING : VELOCITY_DAMPING;
+      // Integration: SGE handles Verlet integration for physics modes.
+      // Only equidistant mode needs Euler integration here.
       let totalKE = 0;
       let mobileCount = 0;
-      for (const node of nodes) {
-        if (dragNodeRef.current?.id !== node.id && !node.pinned) {
-          node.vx *= baseDamping;
-          node.vy *= baseDamping;
-          node.x += node.vx;
-          node.y += node.vy;
-          totalKE += node.vx * node.vx + node.vy * node.vy;
-          mobileCount++;
-          
-          // Constraint projection (position-based, NOT velocity-based).
-          // Projects nodes back onto their designated ring radius after integration.
-          // This is a geometric constraint, not a force — intentionally bypasses velocity.
-          if (isConstrainedMode) {
-            const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
-            if (treeRadius !== undefined) {
-              const cx = dimensionsRef.current.width / 2;
-              const cy = dimensionsRef.current.height / 2;
-              const nodeToCenter_dx = node.x - cx;
-              const nodeToCenter_dy = node.y - cy;
-              const distToCenter = Math.sqrt(nodeToCenter_dx * nodeToCenter_dx + nodeToCenter_dy * nodeToCenter_dy) || 1;
-              const radialX = nodeToCenter_dx / distToCenter;
-              const radialY = nodeToCenter_dy / distToCenter;
-              const radiusError = Math.abs(distToCenter - treeRadius);
-              
-              const radialV = node.vx * radialX + node.vy * radialY;
-              node.vx -= radialV * radialX;
-              node.vy -= radialV * radialY;
-              
-              const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
-              const newDist = distToCenter + (treeRadius - distToCenter) * blendRate;
-              node.x = cx + radialX * newDist;
-              node.y = cy + radialY * newDist;
+      if (usePhysics) {
+        // SGE already integrated — compute KE for sleep detection
+        for (const node of nodes) {
+          if (dragNodeRef.current?.id !== node.id && !node.pinned) {
+            totalKE += node.vx * node.vx + node.vy * node.vy;
+            mobileCount++;
+          }
+        }
+      } else {
+        const baseDamping = VELOCITY_DAMPING;
+        for (const node of nodes) {
+          if (dragNodeRef.current?.id !== node.id && !node.pinned) {
+            node.vx *= baseDamping;
+            node.vy *= baseDamping;
+            node.x += node.vx;
+            node.y += node.vy;
+            totalKE += node.vx * node.vx + node.vy * node.vy;
+            mobileCount++;
+            // Ring constraint projection (equidistant mode)
+            if (isConstrainedMode) {
+              const treeRadius = (node as GraphNode & { _treeRadius?: number })._treeRadius;
+              if (treeRadius !== undefined) {
+                const cx = dimensionsRef.current.width / 2;
+                const cy = dimensionsRef.current.height / 2;
+                const ndx = node.x - cx;
+                const ndy = node.y - cy;
+                const distToCenter = Math.sqrt(ndx * ndx + ndy * ndy) || 1;
+                const radialX = ndx / distToCenter;
+                const radialY = ndy / distToCenter;
+                const radiusError = Math.abs(distToCenter - treeRadius);
+                const radialV = node.vx * radialX + node.vy * radialY;
+                node.vx -= radialV * radialX;
+                node.vy -= radialV * radialY;
+                const blendRate = radiusError > 50 ? 0.08 : radiusError > 10 ? 0.5 : 1.0;
+                const newDist = distToCenter + (treeRadius - distToCenter) * blendRate;
+                node.x = cx + radialX * newDist;
+                node.y = cy + radialY * newDist;
+              }
             }
           }
         }
@@ -1906,10 +1689,6 @@ export function useNodePhysics({
         }
       }
       
-      // Reset quadtree pool index for next frame (allocQuadNode nulls children on reuse)
-      // BH stack entries are overwritten each frame — no need to null them.
-      quadPoolIdxRef.current = 0;
-      
       // Track kinetic energy for diagnostics (no sleep — simulation runs forever)
       {
         const avgKE = mobileCount > 0 ? totalKE / mobileCount : 0;
@@ -1920,7 +1699,6 @@ export function useNodePhysics({
     };
     
     simulate();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- buildQuadtreeRef is stable
   }, [rebuildTopologyCache, shouldLinkBeActive]);
   
   // ==================== Effects ====================
