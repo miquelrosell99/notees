@@ -1,5 +1,5 @@
 /**
- * SGEGraphCanvas
+ * GraphRenderer
  *
  * Production-ready WebGL2 canvas component backed by the SGE physics worker.
  * This is a low-level rendering primitive — it owns the <canvas>, the WebGL2
@@ -20,14 +20,14 @@
  */
 
 import { useRef, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
-import { useGraphCanvas, type GraphCanvasOptions } from './useGraphCanvas';
+import { useGraphRenderer, type GraphRendererOptions } from './useGraphRenderer';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
-import './GraphCanvas.css';
+import './GraphRenderer.css';
 
 // ─── Imperative ref API ───────────────────────────────────────────────────────
 
-export interface GraphCanvasRef {
+export interface GraphRendererRef {
   /** Restart the physics cooling schedule. */
   reheat: () => void;
   /** Pause the physics tick loop. */
@@ -42,7 +42,7 @@ export interface GraphCanvasRef {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-export interface GraphCanvasProps {
+export interface GraphRendererProps {
   /** Graph nodes. */
   nodes: GraphNode[];
   /** Graph edges. */
@@ -104,7 +104,7 @@ function StatsOverlay({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const GraphCanvas = memo(forwardRef<GraphCanvasRef, GraphCanvasProps>(function GraphCanvas({
+export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProps>(function GraphRenderer({
   nodes,
   edges,
   config,
@@ -119,7 +119,7 @@ export const GraphCanvas = memo(forwardRef<GraphCanvasRef, GraphCanvasProps>(fun
   // Check WebGL2 once (stable ref)
   const webgl2Available = useRef(hasWebGL2()).current;
 
-  const graphOpts: GraphCanvasOptions = {
+  const graphOpts: GraphRendererOptions = {
     nodes,
     edges,
     config,
@@ -139,7 +139,7 @@ export const GraphCanvas = memo(forwardRef<GraphCanvasRef, GraphCanvasProps>(fun
     _pointerMove,
     _pointerUp,
     _wheel,
-  } = useGraphCanvas(graphOpts) as ReturnType<typeof useGraphCanvas> & {
+  } = useGraphRenderer(graphOpts) as ReturnType<typeof useGraphRenderer> & {
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
@@ -237,4 +237,4 @@ export const GraphCanvas = memo(forwardRef<GraphCanvasRef, GraphCanvasProps>(fun
   );
 }));
 
-export type { GraphCanvasOptions };
+export type { GraphRendererOptions };
