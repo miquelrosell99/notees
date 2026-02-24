@@ -86,7 +86,7 @@ export interface GraphRendererHandle {
   /** Ref to attach to the <canvas> element. */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /** Runtime stats for debug overlays. */
-  stats: SGEGraphStats;
+  stats: GraphRendererStats;
   /** Restart the physics simulation cooling schedule. */
   reheat: () => void;
   /** Pause the physics simulation without destroying state. */
@@ -107,7 +107,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const { nodes, edges, config, sizeByConnections = true } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
-  const rendRef    = useRef<SGEWebGLRenderer | null>(null);
+  const rendRef    = useRef<GraphWebGLRenderer | null>(null);
   const workerRef  = useRef<Worker | null>(null);
   const rafRef     = useRef<number>(0);
   const optsRef    = useRef(opts);

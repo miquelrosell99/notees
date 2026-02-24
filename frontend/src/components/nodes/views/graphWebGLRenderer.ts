@@ -237,7 +237,7 @@ function ensureThemeObserver() {
 function getCssNodeDefaultColor(): [number, number, number, number] {
   if (!cssCache.nodeDefault) {
     const hex = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-outline').trim();
+      .getPropertyValue('--color-on-surface-variant').trim();
     cssCache.nodeDefault = hex ? hexToTuple(hex) : [0.64, 0.64, 0.64, 1.0];
   }
   return cssCache.nodeDefault;
@@ -246,7 +246,7 @@ function getCssNodeDefaultColor(): [number, number, number, number] {
 function getCssEdgeColor(): [number, number, number, number] {
   if (!cssCache.edge) {
     const hex = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-outline').trim();
+      .getPropertyValue('--color-accent').trim();
     cssCache.edge = hex ? hexToTuple(hex, 0.55) : [0.6, 0.6, 0.6, 0.55];
   }
   return cssCache.edge;
