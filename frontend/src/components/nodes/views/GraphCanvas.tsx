@@ -20,14 +20,14 @@
  */
 
 import { useRef, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
-import { useSGEGraph, type SGEGraphOptions } from './useSGEGraph';
+import { useGraphCanvas, type GraphCanvasOptions } from './useGraphCanvas';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
-import './SGEGraphCanvas.css';
+import './GraphCanvas.css';
 
 // ─── Imperative ref API ───────────────────────────────────────────────────────
 
-export interface SGEGraphCanvasRef {
+export interface GraphCanvasRef {
   /** Restart the physics cooling schedule. */
   reheat: () => void;
   /** Pause the physics tick loop. */
@@ -42,7 +42,7 @@ export interface SGEGraphCanvasRef {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-export interface SGEGraphCanvasProps {
+export interface GraphCanvasProps {
   /** Graph nodes. */
   nodes: GraphNode[];
   /** Graph edges. */
@@ -104,7 +104,7 @@ function StatsOverlay({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const SGEGraphCanvas = memo(forwardRef<SGEGraphCanvasRef, SGEGraphCanvasProps>(function SGEGraphCanvas({
+export const GraphCanvas = memo(forwardRef<GraphCanvasRef, GraphCanvasProps>(function GraphCanvas({
   nodes,
   edges,
   config,
@@ -119,7 +119,7 @@ export const SGEGraphCanvas = memo(forwardRef<SGEGraphCanvasRef, SGEGraphCanvasP
   // Check WebGL2 once (stable ref)
   const webgl2Available = useRef(hasWebGL2()).current;
 
-  const graphOpts: SGEGraphOptions = {
+  const graphOpts: GraphCanvasOptions = {
     nodes,
     edges,
     config,
@@ -139,7 +139,7 @@ export const SGEGraphCanvas = memo(forwardRef<SGEGraphCanvasRef, SGEGraphCanvasP
     _pointerMove,
     _pointerUp,
     _wheel,
-  } = useSGEGraph(graphOpts) as ReturnType<typeof useSGEGraph> & {
+  } = useGraphCanvas(graphOpts) as ReturnType<typeof useGraphCanvas> & {
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
@@ -237,4 +237,4 @@ export const SGEGraphCanvas = memo(forwardRef<SGEGraphCanvasRef, SGEGraphCanvasP
   );
 }));
 
-export type { SGEGraphOptions };
+export type { GraphCanvasOptions };
