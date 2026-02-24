@@ -136,6 +136,7 @@ export function GraphView({
   const [typeVisibilityOpen, setTypeVisibilityOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [viewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
