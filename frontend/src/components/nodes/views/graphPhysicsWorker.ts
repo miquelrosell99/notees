@@ -29,7 +29,7 @@ import type {
   MainToPhysicsMessage,
   PhysicsFrameMessage,
   PhysicsReadyMessage,
-} from './sgePhysicsWorkerProtocol';
+} from './graphPhysicsWorkerProtocol';
 
 // Typed alias for the worker's postMessage that supports the transferable overload.
 const workerPost = (
