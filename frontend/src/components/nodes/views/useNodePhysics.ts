@@ -1280,13 +1280,16 @@ export function useNodePhysics({
         
         // Copy positions back from SGE to GraphNode objects
         const sgeState = sgeRef.current!.getState();
-        for (const sgeNode of sgeState.nodes) {
-          const graphNode = nodeMap.get(sgeNode.id);
-          if (graphNode && !graphNode.pinned && dragNodeRef.current?.id !== graphNode.id) {
-            graphNode.x = sgeNode.x;
-            graphNode.y = sgeNode.y;
-            graphNode.vx = sgeNode.vx;
-            graphNode.vy = sgeNode.vy;
+        {
+          const { posX, posY, velX, velY, nodeIdArr, nodeCount } = sgeState;
+          for (let _i = 0; _i < nodeCount; _i++) {
+            const graphNode = nodeMap.get(nodeIdArr[_i]);
+            if (graphNode && !graphNode.pinned && dragNodeRef.current?.id !== graphNode.id) {
+              graphNode.x  = posX[_i];
+              graphNode.y  = posY[_i];
+              graphNode.vx = velX[_i];
+              graphNode.vy = velY[_i];
+            }
           }
         }
         
