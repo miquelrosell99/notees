@@ -323,6 +323,14 @@ export class GraphWebGLRenderer {
   private readonly _resBuf = new Float32Array(2);
   private readonly _camBuf = new Float32Array(2);
 
+  // --- Dirty tracking: defer packing to render() ---
+  /** True when positions or topology changed since last pack. */
+  private _dirty = false;
+  /** Previous camera state used for packing — re-pack if camera moved. */
+  private _packCamX = NaN;
+  private _packCamY = NaN;
+  private _packCamZoom = NaN;
+
   // --- Options ---
   private opts: Required<RendererOptions>;
 
@@ -532,8 +540,10 @@ export class GraphWebGLRenderer {
         this.nodeIndex.set(nodeIds[i], i);
       }
     }
-    this._packNodeInstances();
-    this._packEdgeInstances();
+    // Don't pack here — defer to render() so packing + upload + draw are
+    // batched in the same RAF frame.  Multiple worker messages between
+    // frames just overwrite the positions pointer (cheap).
+    this._dirty = true;
   }
 
   /** Override a single node's position (e.g., during drag on main thread). */
@@ -543,6 +553,7 @@ export class GraphWebGLRenderer {
     if (this.positions.length >= (idx + 1) * 2) {
       this.positions[idx * 2]     = x;
       this.positions[idx * 2 + 1] = y;
+      this._dirty = true;
     }
   }
 
@@ -584,6 +595,7 @@ export class GraphWebGLRenderer {
     const halfH = this.canvasH * 0.5;
 
     const pos = this.positions;
+    const defaultColor = getCssNodeDefaultColor();
     let count = 0;
 
     for (let i = 0; i < n; i++) {
@@ -591,12 +603,15 @@ export class GraphWebGLRenderer {
       const px  = pos[i * 2];
       const py  = pos[i * 2 + 1];
 
+      // Single visuals lookup per node (was previously looked up twice)
+      const vis    = this.nodeVisuals.get(id);
+      const radius = vis?.radius ?? this.opts.defaultRadius;
+
       // CPU-side culling (world → screen)
       if (cullM > 0) {
+        const r   = radius * zoom;
         const sx  = (px - cx) * zoom;
         const sy  = (py - cy) * zoom;
-        const vis = this.nodeVisuals.get(id);
-        const r   = (vis?.radius ?? this.opts.defaultRadius) * zoom;
         if (
           sx + r < -halfW - cullM ||
           sx - r >  halfW + cullM ||
@@ -605,10 +620,8 @@ export class GraphWebGLRenderer {
         ) continue;
       }
 
-      const vis    = this.nodeVisuals.get(id);
-      const radius = vis?.radius ?? this.opts.defaultRadius;
       const color  = vis?.color;
-      const def    = color ? null : getCssNodeDefaultColor();
+      const def    = color ? null : defaultColor;
 
       const base = count * NODE_STRIDE;
       this.nodeInstData[base    ] = px;
@@ -715,9 +728,19 @@ export class GraphWebGLRenderer {
     const gl = this.gl;
     if (!gl) return;
 
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
+    // Re-pack instances if positions changed OR camera moved since last pack
     const { x: cx, y: cy, zoom } = this.camera;
+    const cameraMoved = cx !== this._packCamX || cy !== this._packCamY || zoom !== this._packCamZoom;
+    if (this._dirty || cameraMoved) {
+      this._dirty = false;
+      this._packCamX    = cx;
+      this._packCamY    = cy;
+      this._packCamZoom  = zoom;
+      this._packNodeInstances();
+      this._packEdgeInstances();
+    }
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
 
     // Reuse pre-allocated typed arrays — zero per-frame allocation
     this._resBuf[0] = this.canvasW;
