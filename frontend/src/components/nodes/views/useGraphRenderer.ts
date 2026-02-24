@@ -42,19 +42,9 @@ function hexToRGBA(hex: string, alpha = 1): Float32Array {
   return new Float32Array([r / 255, g / 255, b / 255, alpha]);
 }
 
-let COLOR_DEFAULT: Float32Array | null = null;
-function getDefaultColor(): Float32Array {
-  if (!COLOR_DEFAULT) {
-    const hex = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-outline').trim();
-    COLOR_DEFAULT = hex ? hexToRGBA(hex) : new Float32Array([0.64, 0.64, 0.64, 1.0]);
-  }
-  return COLOR_DEFAULT;
-}
-
-function nodeColor(n: GraphNode): Float32Array {
+function nodeColor(n: GraphNode): Float32Array | undefined {
   if (n.color) return hexToRGBA(n.color);
-  return getDefaultColor();
+  return undefined; // renderer reads --color-outline from CSS
 }
 
 const BASE_RADIUS   = 7;
