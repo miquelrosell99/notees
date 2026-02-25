@@ -72,21 +72,65 @@
   color: var(--color-on-surface-variant);
 }
 
-/* ── Parsed data preview badges ──────────────────────────── */
+/* ── Parsed data preview (collapsible) ───────────────────── */
 
 .import-unified__preview {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+.import-unified__preview-summary {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--spacing-2);
 }
 
-.import-unified__preview-badge {
-  padding: 3px var(--spacing-3, 12px);
-  border-radius: var(--shape-full);
-  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
-  color: var(--color-primary);
-  font-size: 0.775rem;
-  font-weight: 500;
-  white-space: nowrap;
+.import-unified__preview-summary::-webkit-details-marker { display: none; }
+
+.import-unified__preview-summary::before {
+  content: '▶';
+  font-size: 0.55rem;
+  color: var(--color-on-surface-variant);
+  transition: transform 0.15s ease;
+}
+
+.import-unified__preview[open] .import-unified__preview-summary::before {
+  transform: rotate(90deg);
+}
+
+.import-unified__preview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.import-unified__preview-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: 0.85rem;
+  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.import-unified__preview-list li:last-child { border-bottom: none; }
+
+.import-unified__preview-list li span:first-child {
+  color: var(--color-on-surface-variant);
+}
+
+.import-unified__preview-list li span:last-child {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }

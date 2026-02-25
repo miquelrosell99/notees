@@ -25,7 +25,7 @@ import {
   createWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import { setPendingLogseqImport } from '@/utils/importState';
+import { setPendingLogseqImport, setWorkspaceToDelete } from '@/utils/importState';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
 import { Modal } from '../core/Modal';
@@ -201,6 +201,7 @@ export function ImportOptionsModal({
     mutationFn: (n: string) => createWorkspace(n),
     onSuccess: (workspace) => {
       const type = selectedType;
+      setWorkspaceToDelete(workspace.uuid);
       if (type === 'logseq-edn') {
         setPendingLogseqImport({
           source: 'edn',
@@ -415,25 +416,20 @@ export function ImportOptionsModal({
 
         {/* ── 5. Parsed preview (Logseq sources) ──────────── */}
         {previewCounts && (
-          <div className="import-unified__preview">
-            <span className="import-unified__preview-badge">
-              {previewCounts.pageCount} page{previewCounts.pageCount !== 1 ? 's' : ''}
-            </span>
-            {previewCounts.journalCount > 0 && (
-              <span className="import-unified__preview-badge">
-                {previewCounts.journalCount} journal{previewCounts.journalCount !== 1 ? 's' : ''}
-              </span>
-            )}
-            <span className="import-unified__preview-badge">
-              {previewCounts.blockCount} block{previewCounts.blockCount !== 1 ? 's' : ''}
-            </span>
-            <span className="import-unified__preview-badge">
-              {previewCounts.classCount} class{previewCounts.classCount !== 1 ? 'es' : ''}
-            </span>
-            <span className="import-unified__preview-badge">
-              {previewCounts.propCount} propert{previewCounts.propCount !== 1 ? 'ies' : 'y'}
-            </span>
-          </div>
+          <details className="import-unified__preview">
+            <summary className="import-unified__preview-summary">
+              Parsed content
+            </summary>
+            <ul className="import-unified__preview-list">
+              <li><span>Pages</span><span>{previewCounts.pageCount}</span></li>
+              {previewCounts.journalCount > 0 && (
+                <li><span>Journals</span><span>{previewCounts.journalCount}</span></li>
+              )}
+              <li><span>Blocks</span><span>{previewCounts.blockCount}</span></li>
+              <li><span>Classes</span><span>{previewCounts.classCount}</span></li>
+              <li><span>Properties</span><span>{previewCounts.propCount}</span></li>
+            </ul>
+          </details>
         )}
 
         {/* ── 6. Submit error ──────────────────────────────── */}

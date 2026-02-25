@@ -28,12 +28,13 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { CodeTextarea } from '../core/CodeTextarea';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
-import { consumePendingLogseqImport, consumeImportCompleteCallback } from '@/utils/importState';
+import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, consumeCancelImportCallback } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, batchGetOrCreateDaily, createNode as createNodeApi, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
+import { deleteWorkspace } from '@/api/workspaces';
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -164,6 +165,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   /** True when the modal was opened in auto-import mode (no form shown). */
   const [isAutoImportMode, setIsAutoImportMode] = useState(false);
   const shouldAutoImportRef = useRef(false);
+  /** UUID of the workspace to delete if user cancels (auto-import mode only). */
+  const workspaceToDeleteRef = useRef<string | null>(null);
 
   const handleImportModeChange = (checked: boolean) => {
     const mode: ImportMode = checked ? 'override' : 'additive';
@@ -179,7 +182,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const addClassMutation = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
-  const { openNode } = useAppStore();
 
   // Reset state and focus when opened
   useEffect(() => {
@@ -205,6 +207,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         setSqliteParsing(false);
         setParsed(pending.parsedExport);
         shouldAutoImportRef.current = true;
+        workspaceToDeleteRef.current = consumeWorkspaceToDelete();
       } else if (pending) {
         setInputSource(pending.source);
         if (pending.source === 'edn') {
@@ -1278,6 +1281,20 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     }
   }, [parsed, importing, report, handleImport]);
 
+  /** Cancel an in-progress auto-import: delete the workspace, restore previous state. */
+  const handleCancelImport = useCallback(() => {
+    const uuid = workspaceToDeleteRef.current;
+    workspaceToDeleteRef.current = null;
+    consumeImportCompleteCallback(); // discard — we're not completing
+    if (uuid) {
+      deleteWorkspace(uuid).catch(() => {/* best-effort */});
+    }
+    const onCancel = consumeCancelImportCallback();
+    onCancel?.();
+    // onCancel closes the modal via setImportLogseqModalOpen(false),
+    // so no explicit onClose() needed here.
+  }, []);
+
   /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
    *  Sibling blocks are created in a single batch request. Children are processed
    *  after the batch returns (they need the parent node ID from the result).
@@ -1461,6 +1478,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         onClose={() => {}}
         title="Importing from Logseq"
         size="lg"
+        footer={
+          <Button variant="ghost" onClick={handleCancelImport} disabled={false}>
+            Cancel
+          </Button>
+        }
       >
         <div className="import-logseq__body">
           {error && <div className="import-logseq__error">{error}</div>}

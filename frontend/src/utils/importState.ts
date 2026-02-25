@@ -67,3 +67,37 @@ export function consumeImportCompleteCallback(): (() => void) | null {
   _onImportComplete = null;
   return cb;
 }
+
+// ── Cancel-import state ───────────────────────────────────────────────────────
+//
+// When ImportOptionsModal creates a workspace for a Logseq import it stores
+// that workspace's UUID here so ImportLogseqModal can delete it on cancel.
+// A cancel callback (set by WorkspaceManagementView) handles re-showing the
+// workspace management screen.
+
+let _workspaceToDeleteUuid: string | null = null;
+let _onCancelImport: (() => void) | null = null;
+
+/** Store the UUID of the workspace that should be deleted on import cancel. */
+export function setWorkspaceToDelete(uuid: string): void {
+  _workspaceToDeleteUuid = uuid;
+}
+
+/** Read and clear the workspace UUID to delete. */
+export function consumeWorkspaceToDelete(): string | null {
+  const u = _workspaceToDeleteUuid;
+  _workspaceToDeleteUuid = null;
+  return u;
+}
+
+/** Register a one-time callback invoked when the user cancels an auto-import. */
+export function setCancelImportCallback(cb: (() => void) | null): void {
+  _onCancelImport = cb;
+}
+
+/** Read and clear the cancel-import callback. */
+export function consumeCancelImportCallback(): (() => void) | null {
+  const cb = _onCancelImport;
+  _onCancelImport = null;
+  return cb;
+}
