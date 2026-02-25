@@ -18,7 +18,7 @@ import {
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
-import { setImportCompleteCallback } from '@/utils/importState';
+import { setImportCompleteCallback, setCancelImportCallback } from '@/utils/importState';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
@@ -159,6 +159,12 @@ export function WorkspaceManagementView({
     if (type === 'logseq-edn' || type === 'logseq-sqlite') {
       // Register callback so ImportLogseqModal navigates AFTER the report is closed
       setImportCompleteCallback(onWorkspaceSelected ?? null);
+      // Register cancel callback: close modal, delete workspace, re-show manager
+      setCancelImportCallback(() => {
+        queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+        useAppStore.getState().setImportLogseqModalOpen(false);
+        useAppStore.getState().setShowWorkspaceManager(true);
+      });
       useAppStore.getState().setImportLogseqModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
       // Do NOT call onWorkspaceSelected() here — ImportLogseqModal will call it
