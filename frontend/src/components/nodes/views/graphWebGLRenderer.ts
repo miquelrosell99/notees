@@ -65,9 +65,25 @@ in vec4 v_color;
 out vec4 outColor;
 
 void main() {
-  float d     = length(v_uv);
-  // Flat filled circle — sharp AA edge, no radial highlight (bullet style)
-  float alpha = 1.0 - smoothstep(0.85, 1.0, d);
+  float d  = length(v_uv);
+
+  // Resolution-aware SDF antialiasing:
+  // fwidth(d) returns dFdx(d) + dFdy(d) — the screen-space rate of change
+  // of the signed distance.  Using it as the smoothstep half-width makes the
+  // AA transition exactly ~1 pixel wide on screen regardless of node size,
+  // zoom level, or device pixel ratio.  Without this, zooming out widens the
+  // transition band (soft/blurry nodes) and zooming in narrows it (jagged).
+  float fw    = fwidth(d);
+  float alpha = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, d);
+
+  // Gamma-correct SDF edges:
+  // smoothstep() produces linear alpha, but the default framebuffer blends
+  // in perceptual (sRGB-like) space.  Without correction the transition band
+  // is wider than intended and edges look slightly soft, especially on dark
+  // backgrounds.  Applying the inverse-gamma (~1/2.2) to the raw SDF alpha
+  // sharpens the perceptual falloff back to the intended linear width.
+  alpha = pow(alpha, 1.0 / 2.2);
+
   if (alpha <= 0.01) discard;
   outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
@@ -207,9 +223,17 @@ in vec4 v_color;
 out vec4 outColor;
 
 void main() {
-  float d     = length(v_uv);
-  // Soft border glow — fade from solid core to transparent at edge
-  float alpha = (1.0 - smoothstep(0.7, 1.0, d)) * v_color.a;
+  float d  = length(v_uv);
+
+  // fwidth gives the screen-space derivative of d so the outer boundary of
+  // this disc is always ~1 pixel wide, independent of zoom or DPR.
+  // Drawn beneath the node which covers d < ~0.85, only the outer rim of
+  // this disc is visible — producing a clean selection/hover indicator ring.
+  float fw       = fwidth(d);
+  float rawAlpha = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, d);
+
+  // Gamma correction — same rationale as NODE_FRAG_SRC.
+  float alpha = pow(rawAlpha, 1.0 / 2.2) * v_color.a;
   if (alpha <= 0.01) discard;
   outColor = vec4(v_color.rgb, alpha);
 }
