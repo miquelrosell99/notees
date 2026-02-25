@@ -155,6 +155,8 @@ const MULTI_VALUE_ATTRS = new Set([
   'block/refs',
   'block/path-refs',
   'block/tags',
+  'logseq.property.class/properties',  // properties assigned to a class (one datom per property)
+  'logseq.property/classes',           // class filters on a node-type property
 ]);
 
 interface RawEntity {
