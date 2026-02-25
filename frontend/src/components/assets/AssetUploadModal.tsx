@@ -8,7 +8,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { mdiClose } from '@mdi/js';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
 import { Button } from '../core/Button';
-import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
+import { FileDropZone } from '../core/FileDropZone';
 import './AssetUploadModal.css';
 
 interface AssetUploadModalProps {
@@ -92,13 +92,11 @@ export function AssetUploadModal({
   acceptedTypes,
   initialFile,
 }: AssetUploadModalProps) {
-  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<AssetCategory | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const validateFile = (file: File): string | null => {
@@ -170,38 +168,6 @@ export function AssetUploadModal({
     return () => document.removeEventListener('paste', handlePaste);
   }, [isOpen, handleFile]);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    try {
-      const result = await extractImageFromDragEvent(e);
-      if (result) {
-        handleFile(result.file);
-      }
-    } catch (err) {
-      setError('Failed to process dropped image');
-      console.error('Failed to process dropped image:', err);
-    }
-  }, [handleFile]);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFile(file);
-    }
-  }, [handleFile]);
-
   const handleUpload = async () => {
     if (!selectedFile) return;
 
@@ -223,13 +189,8 @@ export function AssetUploadModal({
     setPreview(null);
     setPreviewType(null);
     setError(null);
-    setIsDragging(false);
     setIsUploading(false);
     onClose();
-  };
-
-  const handleBrowseClick = () => {
-    fileInputRef.current?.click();
   };
 
   const handleClearSelection = () => {
@@ -237,9 +198,6 @@ export function AssetUploadModal({
     setPreview(null);
     setPreviewType(null);
     setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   // Determine which icon to show based on accepted types
@@ -271,20 +229,15 @@ export function AssetUploadModal({
 
         <div className="modal__content">
           {!preview ? (
-            <div
-              className={`asset-upload-modal__dropzone ${isDragging ? 'asset-upload-modal__dropzone--dragging' : ''}`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={handleBrowseClick}
-            >
-              {getDropzoneIcon()}
-              <p>Drag and drop a file here</p>
-              <p className="asset-upload-modal__hint">or click to browse, or paste from clipboard</p>
-              <p className="asset-upload-modal__formats">
-                Supported formats: {getFormatText(acceptedTypes)} (max 50MB)
-              </p>
-            </div>
+            <FileDropZone
+              file={null}
+              accept={getAcceptString(acceptedTypes)}
+              onSelect={handleFile}
+              onClear={() => {}}
+              icon={getDropzoneIcon()}
+              placeholder="Drag and drop a file here"
+              hint="or click to browse, or paste from clipboard"
+            />
           ) : (
             <div className="asset-upload-modal__preview">
               {previewType === 'image' && preview && (
@@ -321,14 +274,6 @@ export function AssetUploadModal({
               {error}
             </div>
           )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={getAcceptString(acceptedTypes)}
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
         </div>
 
         <div className="modal__footer">
