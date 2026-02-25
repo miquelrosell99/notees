@@ -1,22 +1,23 @@
-/**
+﻿/**
  * ImportOptionsModal
  *
  * Unified single-step import modal.
  *
  * Layout:
  *   1. Workspace name (with live availability check)
- *   2. RadioGroup — source selector (JSON file / Logseq EDN text /
+ *   2. RadioGroup  source selector (JSON file / Logseq EDN text /
  *                                    Logseq SQLite file / Markdown files)
- *   3. Source input — CodeTextarea for EDN, file picker for file-based sources
+ *   3. Source input  CodeTextarea for EDN, file picker for file-based sources
  *   4. Parsed-data preview (page/block/class/property counts) for Logseq sources
- *   5. Footer — Cancel | Import
+ *   5. Footer  Cancel | Import
  *
  * Progress overlay:
- *   When the import / create mutation is running the modal body is replaced by a
- *   simple spinner so the user has clear feedback that something is happening.
+ *   When preparing (workspace switch) or importing (Logseq pipeline), the modal
+ *   body is replaced by a TaskProgress so the user has clear feedback.
+ *   The report phase shows TaskReport with a working close button.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
 import {
@@ -24,22 +25,14 @@ import {
   importWorkspace as importWorkspaceApi,
   createWorkspace,
   deleteWorkspace,
+  switchWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import {
-  setPendingLogseqImport,
-  setWorkspaceToDelete,
-  setImportProgressListener,
-  setImportReportListener,
-  setImportErrorListener,
-  setAutoImportActive,
-  consumeImportCompleteCallback,
-  consumeWorkspaceToDelete,
-  consumeCancelImportCallback,
-  type ImportReportData,
-} from '@/utils/importState';
+import { useAppStore } from '@/stores/appStore';
+import { useFavoritesStore } from '@/stores';
 import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
+import { useLogseqImporter } from '@/hooks/useLogseqImporter';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
@@ -51,7 +44,7 @@ import { TaskReport } from '../core/TaskReport';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import './ImportOptionsModal.css';
 
-// ── Types ─────────────────────────────────────────────────────
+// -- Types -----------------------------------------------------------------
 
 export type ImportType = 'json' | 'logseq-edn' | 'logseq-sqlite' | 'markdown';
 
@@ -63,11 +56,13 @@ export interface ImportResult {
 interface ImportOptionsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Called once the workspace is created / imported. Caller handles switch + navigation. */
+  /** Called once the workspace is created / imported (non-logseq types). Caller handles switch + navigation. */
   onSuccess: (result: ImportResult) => void;
+  /** Called after Logseq import completes and user clicks "Open Workspace". Navigates to workspace. */
+  onFinish?: () => void;
 }
 
-// ── Source options ────────────────────────────────────────────
+// -- Source options --------------------------------------------------------
 
 const SOURCE_OPTIONS: RadioOption[] = [
   {
@@ -96,7 +91,7 @@ const SOURCE_OPTIONS: RadioOption[] = [
   },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────
+// -- Helpers ---------------------------------------------------------------
 
 function countBlocks(blocks: LogseqBlock[]): number {
   let n = blocks.length;
@@ -106,12 +101,13 @@ function countBlocks(blocks: LogseqBlock[]): number {
   return n;
 }
 
-// ── Main component ────────────────────────────────────────────
+// -- Main component --------------------------------------------------------
 
 export function ImportOptionsModal({
   isOpen,
   onClose,
   onSuccess,
+  onFinish,
 }: ImportOptionsModalProps) {
   const [name, setName] = useState('');
   const [selectedType, setSelectedType] = useState<ImportType>('json');
@@ -125,16 +121,29 @@ export function ImportOptionsModal({
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
-  // Import progress/report state (for Logseq auto-import mode)
-  type ModalPhase = 'form' | 'importing' | 'report';
+  // Modal phase  'preparing' = workspace switch in progress
+  type ModalPhase = 'form' | 'preparing' | 'importing' | 'report';
   const [phase, setPhase] = useState<ModalPhase>('form');
-  const [importProgress, setImportProgress] = useState(0);
-  const [importStatusText, setImportStatusText] = useState('');
-  const [importReport, setImportReport] = useState<ImportReportData | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const workspaceUuidRef = useRef<string | null>(null);
 
-  // Reset when opened
+  const workspaceUuidRef = useRef<string | null>(null);
+  const pendingParsedRef = useRef<LogseqExport | null>(null);
+  const pendingWorkspaceRef = useRef<WorkspaceInfo | null>(null);
+
+  const queryClient = useQueryClient();
+
+  // Logseq import pipeline  shared hook
+  const {
+    importing,
+    importStatus,
+    importProgress,
+    report: hookReport,
+    error: hookError,
+    reset: resetImport,
+    runImport,
+    pageClassId,
+  } = useLogseqImporter();
+
+  // -- Reset when modal opens ---------------------------------------------
   useEffect(() => {
     if (isOpen) {
       setName('');
@@ -145,21 +154,14 @@ export function ImportOptionsModal({
       setSubmitError(null);
       setParsedExport(null);
       setPhase('form');
-      setImportProgress(0);
-      setImportStatusText('');
-      setImportReport(null);
-      setImportError(null);
       workspaceUuidRef.current = null;
+      pendingParsedRef.current = null;
+      pendingWorkspaceRef.current = null;
       setIsParsing(false);
       setParseError(null);
+      resetImport();
     }
-    // Clean up listeners when modal closes
-    if (!isOpen) {
-      setImportProgressListener(null);
-      setImportReportListener(null);
-      setImportErrorListener(null);
-    }
-  }, [isOpen]);
+  }, [isOpen, resetImport]);
 
   // Reset parsed state when source type changes
   useEffect(() => {
@@ -167,7 +169,46 @@ export function ImportOptionsModal({
     setParseError(null);
   }, [selectedType]);
 
-  // Parse SQLite file eagerly when selected — runs in a worker so the UI stays responsive
+  // -- Workspace switch (phase === 'preparing') ----------------------------
+  useEffect(() => {
+    if (phase !== 'preparing') return;
+    const workspace = pendingWorkspaceRef.current;
+    if (!workspace) return;
+    let cancelled = false;
+    async function prepare() {
+      workspaceUuidRef.current = workspace!.uuid;
+      useAppStore.getState().setShowWorkspaceManager(true);
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      await switchWorkspace(workspace!.uuid);
+      useAppStore.setState({
+        currentNodeId: null,
+        activeNode: null,
+        activeNodeId: null,
+        sidebarNode: null,
+        localGraphNodeId: null,
+        mainViewType: 'node',
+      });
+      useFavoritesStore.getState().clear();
+      queryClient.clear();
+      window.history.replaceState(null, '', '/');
+      if (!cancelled) setPhase('importing');
+    }
+    prepare().catch(() => { if (!cancelled) setPhase('form'); });
+    return () => { cancelled = true; };
+  }, [phase, queryClient]);
+
+  // -- Start import once workspace is ready and pageClassId available ------
+  useEffect(() => {
+    if (phase !== 'importing' || !pendingParsedRef.current || !pageClassId || importing) return;
+    runImport(pendingParsedRef.current, { importMode: 'additive' });
+  }, [phase, pageClassId, importing, runImport]);
+
+  // -- Transition to report when hook finishes ----------------------------
+  useEffect(() => {
+    if (hookReport) setPhase('report');
+  }, [hookReport]);
+
+  // -- Parse SQLite file eagerly -----------------------------------------
   useEffect(() => {
     if (!sqliteFile) {
       setParsedExport(null);
@@ -191,7 +232,7 @@ export function ImportOptionsModal({
     return () => { active = false; cancelParse(); };
   }, [sqliteFile]);
 
-  // Parse EDN content as the user types — runs in a worker so the UI stays responsive
+  // -- Parse EDN content as user types -----------------------------------
   useEffect(() => {
     if (selectedType !== 'logseq-edn') return;
     if (!ednContent.trim()) {
@@ -215,7 +256,7 @@ export function ImportOptionsModal({
     return () => { active = false; cancel(); };
   }, [ednContent, selectedType]);
 
-  // Live name availability check
+  // -- Live name availability check --------------------------------------
   const { data: nameCheck, isLoading: isCheckingName } = useQuery({
     queryKey: ['workspace-name-check', name],
     queryFn: () => checkWorkspaceName(name),
@@ -225,7 +266,7 @@ export function ImportOptionsModal({
 
   const nameIsValid = name.length >= 2 && nameCheck?.available !== false;
 
-  // JSON import mutation (file → /workspaces/import)
+  // -- JSON import mutation ----------------------------------------------
   const importMutation = useMutation({
     mutationFn: ({ n, file }: { n: string; file: File }) =>
       importWorkspaceApi(n, file),
@@ -237,47 +278,21 @@ export function ImportOptionsModal({
     },
   });
 
-  // Workspace creation mutation (logseq / markdown)
+  // -- Workspace creation mutation (logseq / markdown) -------------------
   const createMutation = useMutation({
     mutationFn: (n: string) => createWorkspace(n),
     onSuccess: (workspace) => {
       const type = selectedType;
-      setWorkspaceToDelete(workspace.uuid);
       workspaceUuidRef.current = workspace.uuid;
-      if (type === 'logseq-edn') {
-        setPendingLogseqImport({
-          source: 'edn',
-          ednContent: ednContent.trim(),
-          parsedExport: parsedExport ?? undefined,
-          autoImport: true,
-        });
-      } else if (type === 'logseq-sqlite' && sqliteFile) {
-        setPendingLogseqImport({
-          source: 'sqlite',
-          sqliteFile,
-          parsedExport: parsedExport ?? undefined,
-          autoImport: true,
-        });
-      }
-      // For Logseq imports, register progress/report listeners and switch to importing phase
       if (type === 'logseq-edn' || type === 'logseq-sqlite') {
-        setImportProgressListener(({ status, progress }) => {
-          if (status) setImportStatusText(status);
-          if (progress >= 0) setImportProgress(progress);
-        });
-        setImportReportListener((report) => {
-          setImportReport(report);
-          setPhase('report');
-          // Clean up listeners
-          setImportProgressListener(null);
-          setImportReportListener(null);
-          setImportErrorListener(null);
-        });
-        setImportErrorListener((error) => {
-          setImportError(error);
-        });
-        setPhase('importing');
+        // Store parsed data for the import step
+        pendingParsedRef.current = parsedExport;
+        pendingWorkspaceRef.current = workspace;
+        // Switch workspace first, then import  ImportOptionsModal handles everything
+        setPhase('preparing');
+        return;
       }
+      // markdown / other non-logseq: let parent handle navigation
       onSuccess({ workspace, type });
     },
     onError: (err: Error) => {
@@ -300,7 +315,6 @@ export function ImportOptionsModal({
     if (!isSubmitEnabled) return;
     setSubmitError(null);
     const trimmedName = name.trim();
-
     if (selectedType === 'json' && jsonFile) {
       importMutation.mutate({ n: trimmedName, file: jsonFile });
     } else {
@@ -315,7 +329,7 @@ export function ImportOptionsModal({
     }
   };
 
-  // ── Derived preview counts ─────────────────────────────────
+  // -- Derived preview counts -------------------------------------------
   const previewCounts = parsedExport ? (() => {
     const journalCount = parsedExport.pages.filter(p => p.journal).length;
     const pageCount = parsedExport.pages.length - journalCount;
@@ -327,51 +341,55 @@ export function ImportOptionsModal({
     return { pageCount, journalCount, classCount, propCount, blockCount };
   })() : null;
 
-  // ── Cancel import handler ────────────────────────────────────
-  const handleCancelImport = useCallback(async () => {    // Clear the module-level auto-import flag FIRST
-    setAutoImportActive(false);    // Clean up listeners
-    setImportProgressListener(null);
-    setImportReportListener(null);
-    setImportErrorListener(null);
-    // Trigger ImportLogseqModal's cancel callback (stops import, deletes workspace)
-    const cancelCb = consumeCancelImportCallback();
-    cancelCb?.();
-    // Delete the workspace if cancel callback didn't
-    const wsUuid = workspaceUuidRef.current ?? consumeWorkspaceToDelete();
+  // -- Cancel import handler --------------------------------------------
+  const handleCancelImport = useCallback(async () => {
+    const wsUuid = workspaceUuidRef.current;
+    workspaceUuidRef.current = null;
+    pendingParsedRef.current = null;
+    pendingWorkspaceRef.current = null;
+    resetImport();
     if (wsUuid) {
       try { await deleteWorkspace(wsUuid); } catch { /* ignore */ }
     }
-    // Reset to form
     setPhase('form');
-    setImportProgress(0);
-    setImportStatusText('');
-    setImportReport(null);
-    setImportError(null);
-    workspaceUuidRef.current = null;
-  }, []);
+  }, [resetImport]);
 
-  // ── Open workspace handler (report phase) ──────────────────
+  // -- Open workspace handler (report phase)  fixes both bugs -----------
+  // Bug 1: X button was wired to () => {}  now wired to this handler.
+  // Bug 2: was missing onFinish() call  workspace opened but ImportLogseqModal
+  //        would reappear because isImportLogseqModalOpen stayed true.
   const handleOpenWorkspace = useCallback(() => {
-    const completeCb = consumeImportCompleteCallback();
-    completeCb?.();
+    onFinish?.();
     onClose();
-  }, [onClose]);
+  }, [onFinish, onClose]);
 
-  // ── Progress overlay (shown while mutation is running) ─────
+  // -- Progress overlay (workspace creation mutation running) ------------
   if (isPending) {
     return (
       <Modal isOpen={isOpen} onClose={() => {}} title="Import Workspace" size="md">
         <div className="import-unified__progress-overlay">
           <SyncIcon size="lg" className="import-unified__progress-spin" />
           <p className="import-unified__progress-label">
-            {selectedType === 'json' ? 'Importing workspace…' : 'Creating workspace…'}
+            {selectedType === 'json' ? 'Importing workspace' : 'Creating workspace'}
           </p>
         </div>
       </Modal>
     );
   }
 
-  // ── Importing phase (Logseq auto-import in progress) ───────
+  // -- Preparing phase (workspace switch in progress) -------------------
+  if (phase === 'preparing') {
+    return (
+      <Modal isOpen={isOpen} onClose={() => {}} title="Preparing Workspace" size="md">
+        <div className="import-unified__progress-overlay">
+          <SyncIcon size="lg" className="import-unified__progress-spin" />
+          <p className="import-unified__progress-label">Switching to new workspace</p>
+        </div>
+      </Modal>
+    );
+  }
+
+  // -- Importing phase (Logseq pipeline running) -------------------------
   if (phase === 'importing') {
     return (
       <Modal
@@ -388,20 +406,20 @@ export function ImportOptionsModal({
         <div style={{ padding: '8px 0' }}>
           <TaskProgress
             progress={importProgress}
-            statusText={importStatusText}
-            error={importError ?? undefined}
+            statusText={importStatus}
+            error={hookError ?? undefined}
           />
         </div>
       </Modal>
     );
   }
 
-  // ── Report phase (Logseq import completed) ─────────────────
-  if (phase === 'report' && importReport) {
+  // -- Report phase (Logseq import completed) ----------------------------
+  if (phase === 'report' && hookReport) {
     return (
       <Modal
         isOpen={isOpen}
-        onClose={() => {}}
+        onClose={handleOpenWorkspace}
         title="Import Report"
         size="lg"
         footer={
@@ -411,7 +429,7 @@ export function ImportOptionsModal({
         }
       >
         <TaskReport
-          report={importReport}
+          report={hookReport}
           successMessage="Import completed successfully"
           warningMessage="Import completed with errors"
         />
@@ -472,7 +490,7 @@ export function ImportOptionsModal({
     >
       <div className="import-unified__body" onKeyDown={handleKeyDown}>
 
-        {/* ── 1. Source selector ───────────────────────────── */}
+        {/* -- 1. Source selector ---------------------------------------- */}
         <div className="import-unified__field-group">
           <span className="import-unified__section-label">Source</span>
           <SelectionRadio
@@ -487,7 +505,7 @@ export function ImportOptionsModal({
           />
         </div>
 
-        {/* ── 3. Source input ──────────────────────────────── */}
+        {/* -- 3. Source input ------------------------------------------- */}
         {selectedType === 'json' && (
           <div className="import-unified__field-group">
             <span className="import-unified__section-label">Notees export file</span>
@@ -526,7 +544,7 @@ export function ImportOptionsModal({
               accept=".sqlite,.sqlite3,.db"
               onSelect={setSqliteFile}
               onClear={() => { setSqliteFile(null); setParsedExport(null); }}
-              placeholder={isParsing ? 'Parsing database…' : 'Drop the database here'}
+              placeholder={isParsing ? 'Parsing database' : 'Drop the database here'}
               disabled={isPending}
             />
           </div>
@@ -541,7 +559,7 @@ export function ImportOptionsModal({
           </div>
         )}
 
-        {/* ── 4. Parse error ───────────────────────────────── */}
+        {/* -- 4. Parse error -------------------------------------------- */}
         {parseError && (
           <div className="import-unified__error">
             <AlertIcon size="sm" />
@@ -549,7 +567,7 @@ export function ImportOptionsModal({
           </div>
         )}
 
-        {/* ── 5. Parsed preview (Logseq sources) ──────────── */}
+        {/* -- 5. Parsed preview (Logseq sources) ------------------------- */}
         {previewCounts && (
           <details className="import-unified__preview">
             <summary className="import-unified__preview-summary">
@@ -567,7 +585,7 @@ export function ImportOptionsModal({
           </details>
         )}
 
-        {/* ── 6. Submit error ──────────────────────────────── */}
+        {/* -- 6. Submit error ------------------------------------------- */}
         {submitError && (
           <div className="import-unified__error">
             <AlertIcon size="sm" />

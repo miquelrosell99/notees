@@ -30,3 +30,5 @@ export * from './useResolvedClassDetails';
 export * from './useNodeNavigation';
 export * from './useNoteesUri';
 export * from './useSettings';
+export { useLogseqImporter, countBlocks, buildAstFromLogseqText } from './useLogseqImporter';
+export type { ImportMode, LogseqImportReport } from './useLogseqImporter';
