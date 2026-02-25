@@ -15,7 +15,7 @@
  *   When the import / create mutation is running the modal body is replaced by a
  *   simple spinner so the user has clear feedback that something is happening.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
@@ -23,9 +23,20 @@ import {
   checkWorkspaceName,
   importWorkspace as importWorkspaceApi,
   createWorkspace,
+  deleteWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import { setPendingLogseqImport, setWorkspaceToDelete } from '@/utils/importState';
+import {
+  setPendingLogseqImport,
+  setWorkspaceToDelete,
+  setImportProgressListener,
+  setImportReportListener,
+  setImportErrorListener,
+  consumeImportCompleteCallback,
+  consumeWorkspaceToDelete,
+  consumeCancelImportCallback,
+  type ImportReportData,
+} from '@/utils/importState';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
 import { Modal } from '../core/Modal';
@@ -34,6 +45,8 @@ import { TextField } from '../core/TextField';
 import { SelectionRadio, type RadioOption } from '../core/SelectionRadio';
 import { CodeTextarea } from '../core/CodeTextarea';
 import { FileDropZone } from '../core/FileDropZone';
+import { TaskProgress } from '../core/TaskProgress';
+import { TaskReport } from '../core/TaskReport';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import './ImportOptionsModal.css';
 
@@ -111,6 +124,15 @@ export function ImportOptionsModal({
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  // Import progress/report state (for Logseq auto-import mode)
+  type ModalPhase = 'form' | 'importing' | 'report';
+  const [phase, setPhase] = useState<ModalPhase>('form');
+  const [importProgress, setImportProgress] = useState(0);
+  const [importStatusText, setImportStatusText] = useState('');
+  const [importReport, setImportReport] = useState<ImportReportData | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const workspaceUuidRef = useRef<string | null>(null);
+
   // Reset when opened
   useEffect(() => {
     if (isOpen) {
@@ -121,8 +143,20 @@ export function ImportOptionsModal({
       setEdnContent('');
       setSubmitError(null);
       setParsedExport(null);
+      setPhase('form');
+      setImportProgress(0);
+      setImportStatusText('');
+      setImportReport(null);
+      setImportError(null);
+      workspaceUuidRef.current = null;
       setIsParsing(false);
       setParseError(null);
+    }
+    // Clean up listeners when modal closes
+    if (!isOpen) {
+      setImportProgressListener(null);
+      setImportReportListener(null);
+      setImportErrorListener(null);
     }
   }, [isOpen]);
 
@@ -202,6 +236,7 @@ export function ImportOptionsModal({
     onSuccess: (workspace) => {
       const type = selectedType;
       setWorkspaceToDelete(workspace.uuid);
+      workspaceUuidRef.current = workspace.uuid;
       if (type === 'logseq-edn') {
         setPendingLogseqImport({
           source: 'edn',
@@ -216,6 +251,25 @@ export function ImportOptionsModal({
           parsedExport: parsedExport ?? undefined,
           autoImport: true,
         });
+      }
+      // For Logseq imports, register progress/report listeners and switch to importing phase
+      if (type === 'logseq-edn' || type === 'logseq-sqlite') {
+        setImportProgressListener(({ status, progress }) => {
+          if (status) setImportStatusText(status);
+          if (progress >= 0) setImportProgress(progress);
+        });
+        setImportReportListener((report) => {
+          setImportReport(report);
+          setPhase('report');
+          // Clean up listeners
+          setImportProgressListener(null);
+          setImportReportListener(null);
+          setImportErrorListener(null);
+        });
+        setImportErrorListener((error) => {
+          setImportError(error);
+        });
+        setPhase('importing');
       }
       onSuccess({ workspace, type });
     },
@@ -266,6 +320,36 @@ export function ImportOptionsModal({
     return { pageCount, journalCount, classCount, propCount, blockCount };
   })() : null;
 
+  // ── Cancel import handler ────────────────────────────────────
+  const handleCancelImport = useCallback(async () => {
+    // Clean up listeners
+    setImportProgressListener(null);
+    setImportReportListener(null);
+    setImportErrorListener(null);
+    // Trigger ImportLogseqModal's cancel callback (stops import, deletes workspace)
+    const cancelCb = consumeCancelImportCallback();
+    cancelCb?.();
+    // Delete the workspace if cancel callback didn't
+    const wsUuid = workspaceUuidRef.current ?? consumeWorkspaceToDelete();
+    if (wsUuid) {
+      try { await deleteWorkspace(wsUuid); } catch { /* ignore */ }
+    }
+    // Reset to form
+    setPhase('form');
+    setImportProgress(0);
+    setImportStatusText('');
+    setImportReport(null);
+    setImportError(null);
+    workspaceUuidRef.current = null;
+  }, []);
+
+  // ── Open workspace handler (report phase) ──────────────────
+  const handleOpenWorkspace = useCallback(() => {
+    const completeCb = consumeImportCompleteCallback();
+    completeCb?.();
+    onClose();
+  }, [onClose]);
+
   // ── Progress overlay (shown while mutation is running) ─────
   if (isPending) {
     return (
@@ -276,6 +360,54 @@ export function ImportOptionsModal({
             {selectedType === 'json' ? 'Importing workspace…' : 'Creating workspace…'}
           </p>
         </div>
+      </Modal>
+    );
+  }
+
+  // ── Importing phase (Logseq auto-import in progress) ───────
+  if (phase === 'importing') {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={() => {}}
+        title="Importing from Logseq"
+        size="md"
+        footer={
+          <Button variant="default" onClick={handleCancelImport}>
+            Cancel
+          </Button>
+        }
+      >
+        <div style={{ padding: '8px 0' }}>
+          <TaskProgress
+            progress={importProgress}
+            statusText={importStatusText}
+            error={importError ?? undefined}
+          />
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Report phase (Logseq import completed) ─────────────────
+  if (phase === 'report' && importReport) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={() => {}}
+        title="Import Report"
+        size="lg"
+        footer={
+          <Button variant="primary" onClick={handleOpenWorkspace}>
+            Open Workspace
+          </Button>
+        }
+      >
+        <TaskReport
+          report={importReport}
+          successMessage="Import completed successfully"
+          warningMessage="Import completed with errors"
+        />
       </Modal>
     );
   }
