@@ -46,3 +46,47 @@
   font-size: 0.875rem;
 }
 
+/* ── Progress overlay (replaces body while mutation is running) ── */
+
+.import-unified__progress-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8, 48px) var(--spacing-4);
+}
+
+@keyframes import-spin {
+  to { transform: rotate(360deg); }
+}
+
+.import-unified__progress-spin {
+  animation: import-spin 1.2s linear infinite;
+  color: var(--color-primary);
+}
+
+.import-unified__progress-label {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Parsed data preview badges ──────────────────────────── */
+
+.import-unified__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.import-unified__preview-badge {
+  padding: 3px var(--spacing-3, 12px);
+  border-radius: var(--shape-full);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  color: var(--color-primary);
+  font-size: 0.775rem;
+  font-weight: 500;
+  white-space: nowrap;
+}

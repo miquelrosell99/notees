@@ -28,7 +28,7 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { CodeTextarea } from '../core/CodeTextarea';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
-import { consumePendingLogseqImport } from '@/utils/importState';
+import { consumePendingLogseqImport, consumeImportCompleteCallback } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
@@ -161,6 +161,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [sqliteFileName, setSqliteFileName] = useState<string | null>(null);
   const [sqliteParsing, setSqliteParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** True when the modal was opened in auto-import mode (no form shown). */
+  const [isAutoImportMode, setIsAutoImportMode] = useState(false);
+  const shouldAutoImportRef = useRef(false);
 
   const handleImportModeChange = (checked: boolean) => {
     const mode: ImportMode = checked ? 'override' : 'additive';
@@ -190,8 +193,19 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setImportStatus('');
       setImportProgress(0);
       setReport(null);
+      setIsAutoImportMode(false);
+      shouldAutoImportRef.current = false;
 
-      if (pending) {
+      if (pending && pending.autoImport && pending.parsedExport) {
+        // ── Auto-import mode: skip the configuration form, start immediately ──
+        setIsAutoImportMode(true);
+        setInputSource(pending.source);
+        if (pending.source === 'edn') setSqliteFileName(null);
+        else setSqliteFileName(pending.sqliteFile?.name ?? null);
+        setSqliteParsing(false);
+        setParsed(pending.parsedExport);
+        shouldAutoImportRef.current = true;
+      } else if (pending) {
         setInputSource(pending.source);
         if (pending.source === 'edn') {
           setContent(pending.ednContent);
@@ -1256,6 +1270,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     }
   }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, addClassMutation, onClose]);
 
+  // Auto-import trigger: fires once when opened in auto-import mode
+  useEffect(() => {
+    if (shouldAutoImportRef.current && parsed && !importing && !report) {
+      shouldAutoImportRef.current = false;
+      handleImport();
+    }
+  }, [parsed, importing, report, handleImport]);
+
   /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
    *  Sibling blocks are created in a single batch request. Children are processed
    *  after the batch returns (they need the parent node ID from the result).
@@ -1396,8 +1418,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         title="Import Report"
         size="lg"
         footer={
-          <Button variant="primary" onClick={onClose}>
-            Close
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (isAutoImportMode) {
+                const cb = consumeImportCompleteCallback();
+                cb?.();
+              }
+              onClose();
+            }}
+          >
+            Open Workspace
           </Button>
         }
       >
@@ -1416,6 +1447,36 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             {report.phases.map((phase, idx) => (
               <ReportPhaseRow key={idx} phase={phase} />
             ))}
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Auto-import progress view (no form, started immediately) ──
+  if (isAutoImportMode && !report) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={() => {}}
+        title="Importing from Logseq"
+        size="lg"
+      >
+        <div className="import-logseq__body">
+          {error && <div className="import-logseq__error">{error}</div>}
+          <div className="import-logseq__progress-area">
+            <div className="import-logseq__progress-bar-track">
+              <div
+                className="import-logseq__progress-bar-fill"
+                style={{ width: `${importProgress}%` }}
+              />
+            </div>
+            <div className="import-logseq__progress-text">
+              <span>{importProgress}%</span>
+              {importStatus && (
+                <span className="import-logseq__progress-status">{importStatus}</span>
+              )}
+            </div>
           </div>
         </div>
       </Modal>

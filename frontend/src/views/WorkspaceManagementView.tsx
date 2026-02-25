@@ -18,6 +18,7 @@ import {
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
+import { setImportCompleteCallback } from '@/utils/importState';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
@@ -155,14 +156,21 @@ export function WorkspaceManagementView({
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
     queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     setIsImportOptionsOpen(false);
-    // Open the specialist modal BEFORE switching so Layout renders it after mount
     if (type === 'logseq-edn' || type === 'logseq-sqlite') {
+      // Register callback so ImportLogseqModal navigates AFTER the report is closed
+      setImportCompleteCallback(onWorkspaceSelected ?? null);
       useAppStore.getState().setImportLogseqModalOpen(true);
+      await switchMutation.mutateAsync(workspace.uuid);
+      // Do NOT call onWorkspaceSelected() here — ImportLogseqModal will call it
     } else if (type === 'markdown') {
       useAppStore.getState().setImportMarkdownModalOpen(true);
+      await switchMutation.mutateAsync(workspace.uuid);
+      onWorkspaceSelected?.();
+    } else {
+      // JSON — already fully imported by the API call; just switch and navigate
+      await switchMutation.mutateAsync(workspace.uuid);
+      onWorkspaceSelected?.();
     }
-    await switchMutation.mutateAsync(workspace.uuid);
-    onWorkspaceSelected?.();
   };
 
   // Handle rename modal open
