@@ -1,0 +1,104 @@
+/**
+ * FileDropZone
+ *
+ * Drag-and-drop + click-to-browse file picker. Matches the visual style of
+ * the asset upload dropzone. Shows a placeholder when no file is selected,
+ * and a compact "selected" row when a file has been chosen.
+ */
+
+/* ── Dropzone (no file selected) ─────────────────────────── */
+
+.file-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 24px;
+  border: 3px dashed var(--color-outline);
+  border-radius: var(--shape-extra-large);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container, var(--color-surface-variant));
+  text-align: center;
+  user-select: none;
+}
+
+.file-drop-zone:hover:not(.file-drop-zone--disabled) {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-container);
+}
+
+.file-drop-zone--dragging {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-container);
+}
+
+.file-drop-zone--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-drop-zone__icon {
+  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-drop-zone__primary {
+  font-size: 0.9rem;
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.file-drop-zone__hint {
+  font-size: 0.8rem;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Selected row (file chosen) ─────────────────────────── */
+
+.file-drop-zone__selected {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--shape-extra-large);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+
+.file-drop-zone__selected-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--color-on-surface);
+}
+
+.file-drop-zone__selected-clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  transition: background-color 0.12s;
+  padding: 0;
+}
+
+.file-drop-zone__selected-clear:hover {
+  background: color-mix(in srgb, var(--color-error) 15%, transparent);
+  color: var(--color-error);
+}

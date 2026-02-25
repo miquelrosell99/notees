@@ -10,7 +10,7 @@
  *   3. Source input — CodeTextarea for EDN, file picker for file-based sources
  *   4. Footer — Cancel | Import
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
@@ -26,6 +26,7 @@ import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
 import { SelectionRadio, type RadioOption } from '../core/SelectionRadio';
 import { CodeTextarea } from '../core/CodeTextarea';
+import { FileDropZone } from '../core/FileDropZone';
 import { AlertIcon, SyncIcon } from '../core/icons';
 import './ImportOptionsModal.css';
 
@@ -74,55 +75,6 @@ const SOURCE_OPTIONS: RadioOption[] = [
   },
 ];
 
-// ── Private file picker sub-component ────────────────────────
-
-interface FilePickerProps {
-  file: File | null;
-  accept: string;
-  onSelect: (file: File) => void;
-  onClear: () => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-}
-
-function FilePicker({ file, accept, onSelect, onClear, inputRef }: FilePickerProps) {
-  return (
-    <div className="import-unified__file-picker">
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onSelect(f);
-          e.target.value = '';
-        }}
-      />
-      {file ? (
-        <div className="import-unified__file-selected">
-          <span className="import-unified__file-name">{file.name}</span>
-          <button
-            type="button"
-            className="import-unified__file-clear"
-            onClick={onClear}
-            title="Remove file"
-          >
-            ✕
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="import-unified__file-browse"
-          onClick={() => inputRef.current?.click()}
-        >
-          Choose file…
-        </button>
-      )}
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────
 
 export function ImportOptionsModal({
@@ -136,9 +88,6 @@ export function ImportOptionsModal({
   const [sqliteFile, setSqliteFile] = useState<File | null>(null);
   const [ednContent, setEdnContent] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const sqliteInputRef = useRef<HTMLInputElement>(null);
 
   // Reset when opened
   useEffect(() => {
@@ -296,13 +245,14 @@ export function ImportOptionsModal({
         {/* ── 3. Source input ──────────────────────────────── */}
         {selectedType === 'json' && (
           <div className="import-unified__field-group">
-            <span className="import-unified__section-label">JSON export file (.json)</span>
-            <FilePicker
+            <span className="import-unified__section-label">Notees export file</span>
+            <FileDropZone
               file={jsonFile}
               accept=".json"
               onSelect={setJsonFile}
               onClear={() => setJsonFile(null)}
-              inputRef={jsonInputRef}
+              placeholder="Drop the .json export here"
+              disabled={isPending}
             />
           </div>
         )}
@@ -323,13 +273,14 @@ export function ImportOptionsModal({
 
         {selectedType === 'logseq-sqlite' && (
           <div className="import-unified__field-group">
-            <span className="import-unified__section-label">SQLite database file (.sqlite / .db)</span>
-            <FilePicker
+            <span className="import-unified__section-label">SQLite database file</span>
+            <FileDropZone
               file={sqliteFile}
               accept=".sqlite,.sqlite3,.db"
               onSelect={setSqliteFile}
               onClear={() => setSqliteFile(null)}
-              inputRef={sqliteInputRef}
+              placeholder="Drop the .sqlite database here"
+              disabled={isPending}
             />
           </div>
         )}
