@@ -20,6 +20,11 @@ export default defineConfig({
   server: {
     port: 5173,
     allowedHosts: ['atlas'],
+    // Required for SharedArrayBuffer (crossOriginIsolated = true)
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
     // Enable polling for Docker on Windows
     watch: {
       usePolling: true,
