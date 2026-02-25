@@ -287,26 +287,9 @@ export function ImportOptionsModal({
       title="Import Workspace"
       size="md"
       footer={
-        <>
-          <Button variant="default" onClick={onClose} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!isSubmitEnabled}
-          >
-            Import
-          </Button>
-        </>
-      }
-    >
-      <div className="import-unified__body" onKeyDown={handleKeyDown}>
-
-        {/* ── 1. Name ──────────────────────────────────────── */}
-        <div className="import-unified__field-group">
+        <div className="import-unified__footer">
+          <div className="import-unified__footer-name">
           <TextField
-            label="Name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -335,9 +318,25 @@ export function ImportOptionsModal({
               ) : undefined
             }
           />
+          </div>
+          <div className="import-unified__footer-actions">
+            <Button variant="default" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              disabled={!isSubmitEnabled}
+            >
+              Import
+            </Button>
+          </div>
         </div>
+      }
+    >
+      <div className="import-unified__body" onKeyDown={handleKeyDown}>
 
-        {/* ── 2. Source selector ───────────────────────────── */}
+        {/* ── 1. Source selector ───────────────────────────── */}
         <div className="import-unified__field-group">
           <span className="import-unified__section-label">Source</span>
           <SelectionRadio
