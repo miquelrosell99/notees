@@ -27,7 +27,7 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { CodeTextarea } from '../core/CodeTextarea';
 import { TaskProgress } from '../core/TaskProgress';
 import { TaskReport } from '../core/TaskReport';
-import { type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
+import { type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, notifyImportProgress, notifyImportReport, notifyImportError, isAutoImportActive, setAutoImportActive } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -709,7 +709,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }));
       }
 
-      // ── 3c: Parallel existence checks for regular pages ─────────
+      // ── 3c: Batch-create regular pages (UUID-based dedup) ────────
+      // Use uuid_conflict_mode: 'return_existing' so the backend returns the
+      // existing node when a page with the same UUID already exists, instead
+      // of failing.  This replaces the old per-page searchNodes() dedup step.
       const existingPageMap = new Map<string, Node>();
       const regularPageClasses = regularPages.map(page => {
         const cls = [pageClassId];
@@ -721,63 +724,26 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         }
         return cls;
       });
-      const pagesToCreate: Array<{ page: LogseqPage; pageClasses: number[] }> = [];
 
       if (regularPages.length > 0) {
-        setImportStatus(`Checking ${regularPages.length} existing pages…`);
-        const searchResultsAll = await Promise.allSettled(
-          regularPages.map(page => searchNodes(page.title))
-        );
-        for (let i = 0; i < regularPages.length; i++) {
-          const page = regularPages[i];
-          const result = searchResultsAll[i];
-          const existingPage = result.status === 'fulfilled'
-            ? result.value.find(n => n.is_page && nodeNameToText(n.name).toLowerCase() === page.title.toLowerCase())
-            : undefined;
-          if (existingPage) {
-            existingNodeIds.add(existingPage.id);
-            if (page.uuid) uuidMap.set(page.uuid, { id: existingPage.id, uuid: existingPage.uuid });
-            titleToNodeInfo.set(page.title, { id: existingPage.id, uuid: existingPage.uuid });
-            existingPageMap.set(page.title, existingPage);
-            p3.succeeded++;
-            tick();
-          } else {
-            pagesToCreate.push({ page, pageClasses: regularPageClasses[i] });
-          }
-        }
-      }
-
-      // ── 3d: Override mode — parallel delete of existing blocks ───
-      if (override) {
-        await Promise.all([
-          ...journalPages.map(async (page) => {
-            const nodeInfo = titleToNodeInfo.get(page.title);
-            if (!nodeInfo || page.blocks.length === 0) return;
-            try { await deleteExistingBlocks(nodeInfo.id, queryClient); } catch (e) {
-              console.error('Failed to delete journal blocks:', e);
-            }
-          }),
-          ...[...existingPageMap.values()].map(async (existingPage) => {
-            try { await deleteExistingBlocks(existingPage.id, queryClient); } catch (e) {
-              console.error('Failed to delete existing page blocks:', e);
-            }
-          }),
-        ]);
-      }
-
-      // ── 3e: Batch-create new pages — UUID skeleton only ─────────
-      if (pagesToCreate.length > 0) {
-        setImportStatus(`Creating ${pagesToCreate.length} new pages…`);
+        setImportStatus(`Creating ${regularPages.length} pages…`);
         try {
           const batchResult = await batchCreateNodes({
-            nodes: pagesToCreate.map(({ page }) => ({
+            nodes: regularPages.map(page => ({
               ...(page.uuid ? { uuid: page.uuid } : {}),
             })),
+            uuid_conflict_mode: 'return_existing',
           });
           for (let i = 0; i < batchResult.results.length; i++) {
             const result = batchResult.results[i];
-            const { page } = pagesToCreate[i];
+            const page = regularPages[i];
             if (result.success && result.node) {
+              if (result.existing) {
+                // Node already existed — track it for override block-deletion
+                // and for update logic that handles existing pages differently
+                existingNodeIds.add(result.node.id);
+                existingPageMap.set(page.title, result.node);
+              }
               if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
               titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
               p3.succeeded++;
@@ -788,11 +754,30 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             tick();
           }
         } catch (e) {
-          for (const { page } of pagesToCreate) {
+          for (const page of regularPages) {
             p3.failed++;
             p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
             tick();
           }
+        }
+      }
+
+      // ── 3d: Override mode — parallel delete of existing blocks ───
+      if (override) {
+        const existingPageIds = [...existingPageMap.values()].map(p => p.id);
+        const journalIdsToDelete = journalPages
+          .filter(p => p.blocks.length > 0)
+          .map(p => titleToNodeInfo.get(p.title)?.id)
+          .filter((id): id is number => id != null);
+        const idsToDelete = [...new Set([...journalIdsToDelete, ...existingPageIds])];
+        if (idsToDelete.length > 0) {
+          await Promise.all(
+            idsToDelete.map(async (id) => {
+              try { await deleteExistingBlocks(id, queryClient); } catch (e) {
+                console.error('Failed to delete existing blocks:', e);
+              }
+            }),
+          );
         }
       }
 

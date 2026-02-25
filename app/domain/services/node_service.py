@@ -1285,6 +1285,7 @@ class NodeService:
         self,
         items: List[NodeCreateData],
         user_id: Optional[int] = None,
+        uuid_conflict_mode: str = "block",
     ) -> List[dict]:
         """Create multiple nodes in a single batch.
         
@@ -1292,16 +1293,31 @@ class NodeService:
         prevent the others from being created.  Results are returned in the
         same order as the input list.
         
-        Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None }
+        uuid_conflict_mode controls what happens when a node with the given UUID
+        already exists:
+          - 'block' (default): treat as an error (current behaviour).
+          - 'return_existing': return the existing node instead of creating a
+            new one.  Useful for import flows where the caller will merge content
+            at a higher level.
+        
+        Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None,
+                                   "existing": bool }
         """
         results: List[dict] = []
         for item in items:
             try:
                 node = await self.create_node(item, user_id=user_id)
-                results.append({"success": True, "node": node, "error": None})
+                results.append({"success": True, "node": node, "error": None, "existing": False})
             except Exception as e:
+                # When uuid_conflict_mode is 'return_existing', look up the
+                # existing node by UUID instead of failing.
+                if uuid_conflict_mode == "return_existing" and item.uuid:
+                    existing = await self._node_repo.get_by_uuid(item.uuid)
+                    if existing:
+                        results.append({"success": True, "node": existing, "error": None, "existing": True})
+                        continue
                 logger.warning(f"[BATCH_CREATE] Failed to create node: {e}")
-                results.append({"success": False, "node": None, "error": str(e)})
+                results.append({"success": False, "node": None, "error": str(e), "existing": False})
         return results
 
     async def batch_delete_nodes(
