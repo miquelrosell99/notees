@@ -29,8 +29,7 @@
 
 .text-field:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-focus-overlay);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .text-field::placeholder {
@@ -42,8 +41,7 @@
 }
 
 .text-field--error:focus {
-  border-color: var(--color-error);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-outline-variant));
 }
 
 .text-field--disabled {
@@ -83,8 +81,7 @@
 
 .text-field__container:focus-within {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-focus-overlay);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .text-field__container--error {
@@ -92,12 +89,11 @@
 }
 
 .text-field__container--error:focus-within {
-  border-color: var(--color-error);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-outline-variant));
 }
 
 .text-field__container--valid {
-  border-color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-outline-variant));
 }
 
 .text-field__container--disabled {
