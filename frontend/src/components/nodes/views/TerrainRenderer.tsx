@@ -327,6 +327,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     simulationPausedRef,
   }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks, pauseSimulation, resumeSimulation]);
   
+  // Reusable flat segment buffer for marching-squares contour building.
+  const segsBufRef = useRef<Float32Array | null>(null);
+
   // Overlay canvas for crosshair, hover labels, selected outlines (lightweight layer)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
