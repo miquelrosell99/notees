@@ -311,6 +311,10 @@ export interface BatchNodeCreateItem {
  */
 export interface BatchNodeCreateRequest {
   nodes: BatchNodeCreateItem[];
+  /** Controls what happens when a node with the given UUID already exists.
+   *  - 'block' (default): treat as error
+   *  - 'return_existing': return the existing node instead of failing */
+  uuid_conflict_mode?: 'block' | 'return_existing';
 }
 
 /**
@@ -321,6 +325,8 @@ export interface BatchNodeCreateResultItem {
   success: boolean;
   node?: Node;
   error?: string;
+  /** True when an existing node was returned instead of creating a new one */
+  existing?: boolean;
 }
 
 /**

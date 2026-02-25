@@ -449,6 +449,17 @@ class PostgresNodeRepository(NodeRepository):
                     return None
             
             return self._row_to_node(row)
+
+    async def get_by_uuids(self, uuids: list[str]) -> list:
+        """Get multiple nodes by UUID in a single query."""
+        if not uuids:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM node WHERE uuid = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                uuids, self._workspace_id
+            )
+            return [self._row_to_node(row) for row in rows]
     
     async def update(
         self,

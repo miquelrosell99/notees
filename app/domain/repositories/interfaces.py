@@ -40,6 +40,14 @@ class NodeRepository(ABC):
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
         pass
+
+    @abstractmethod
+    async def get_by_uuids(self, uuids: List[str]) -> List[Node]:
+        """Get multiple nodes by UUID in a single query.
+
+        Returns nodes in no particular order. Missing/inaccessible UUIDs are silently skipped.
+        """
+        pass
     
     @abstractmethod
     async def update(self, node_id: int, data: NodeUpdateData, user_id: Optional[int] = None) -> Optional[Node]:
