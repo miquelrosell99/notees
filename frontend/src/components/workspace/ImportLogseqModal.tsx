@@ -167,6 +167,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [isAutoImportMode, setIsAutoImportMode] = useState(false);
   const isAutoImportModeRef = useRef(false);
   const shouldAutoImportRef = useRef(false);
+  /** Prevents a flash of the input form before the open-effect fires. */
+  const hasInitializedRef = useRef(false);
   /** UUID of the workspace to delete if user cancels (auto-import mode only). */
   const workspaceToDeleteRef = useRef<string | null>(null);
 
@@ -200,6 +202,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setIsAutoImportMode(false);
       isAutoImportModeRef.current = false;
       shouldAutoImportRef.current = false;
+      hasInitializedRef.current = true;
 
       if (pending && pending.autoImport && pending.parsedExport) {
         // ── Auto-import mode: skip the configuration form, start immediately ──
@@ -244,6 +247,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           setTimeout(() => textareaRef.current?.focus(), 0);
         }
       }
+    } else {
+      hasInitializedRef.current = false;
     }
   }, [isOpen]);
 
@@ -1429,10 +1434,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     (parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0)
     + (parsed?.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
 
-  // ── Auto-import mode: render nothing visible ──────────────────
+  // ── Auto-import mode OR not yet initialized: render nothing visible ────────
   // In auto-import mode, ImportOptionsModal acts as the visible UI.
-  // This component still runs all hooks and import logic but produces no DOM.
-  if (isAutoImportMode) {
+  // Before the open-effect fires, hasInitializedRef is false so we avoid a
+  // flash of the input form.
+  if (isAutoImportMode || (isOpen && !hasInitializedRef.current)) {
     return null;
   }
 
