@@ -28,8 +28,27 @@ export type PendingLogseqState = PendingLogseqEdn | PendingLogseqSqlite;
 
 let _pending: PendingLogseqState | null = null;
 
+/**
+ * Module-level flag: true while an auto-import is in progress.
+ * Survives component unmount/remount cycles (e.g. App.tsx view transitions)
+ * so ImportLogseqModal never flashes its input form.
+ */
+let _autoImportActive = false;
+
+export function setAutoImportActive(active: boolean): void {
+  _autoImportActive = active;
+}
+
+export function isAutoImportActive(): boolean {
+  return _autoImportActive;
+}
+
 export function setPendingLogseqImport(state: PendingLogseqState | null): void {
   _pending = state;
+  // Mark auto-import active when pending state has autoImport flag
+  if (state?.autoImport) {
+    _autoImportActive = true;
+  }
 }
 
 export function consumePendingLogseqImport(): PendingLogseqState | null {

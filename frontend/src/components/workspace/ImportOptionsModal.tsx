@@ -32,13 +32,14 @@ import {
   setImportProgressListener,
   setImportReportListener,
   setImportErrorListener,
+  setAutoImportActive,
   consumeImportCompleteCallback,
   consumeWorkspaceToDelete,
   consumeCancelImportCallback,
   type ImportReportData,
 } from '@/utils/importState';
-import { parseLogseqEdn, type LogseqExport, type LogseqBlock } from '@/utils/ednParser';
-import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
+import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
+import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { TextField } from '../core/TextField';
@@ -166,47 +167,53 @@ export function ImportOptionsModal({
     setParseError(null);
   }, [selectedType]);
 
-  // Parse SQLite file eagerly when selected
+  // Parse SQLite file eagerly when selected — runs in a worker so the UI stays responsive
   useEffect(() => {
     if (!sqliteFile) {
       setParsedExport(null);
       setParseError(null);
       return;
     }
-    let cancelled = false;
+    let cancelParse: () => void = () => {};
+    let active = true;
     setIsParsing(true);
     setParsedExport(null);
     setParseError(null);
-    sqliteFile.arrayBuffer()
-      .then(buf => parseLogseqSqlite(buf))
-      .then(result => { if (!cancelled) { setParsedExport(result); setParseError(null); } })
-      .catch(e => { if (!cancelled) { setParsedExport(null); setParseError(e instanceof Error ? e.message : 'Failed to parse SQLite file'); } })
-      .finally(() => { if (!cancelled) setIsParsing(false); });
-    return () => { cancelled = true; };
+    sqliteFile.arrayBuffer().then(buf => {
+      if (!active) return Promise.reject(new Error('cancelled'));
+      const handle = parseSqliteInWorker(buf);
+      cancelParse = handle.cancel;
+      return handle.promise;
+    })
+      .then(result => { if (!active) return; setParsedExport(result); setParseError(null); })
+      .catch(e => { if (!active) return; setParsedExport(null); setParseError(e instanceof Error ? e.message : 'Failed to parse SQLite file'); })
+      .finally(() => { if (!active) return; setIsParsing(false); });
+    return () => { active = false; cancelParse(); };
   }, [sqliteFile]);
 
-  // Parse EDN content as the user types
-  const parseEdn = useCallback((content: string) => {
-    if (!content.trim()) {
+  // Parse EDN content as the user types — runs in a worker so the UI stays responsive
+  useEffect(() => {
+    if (selectedType !== 'logseq-edn') return;
+    if (!ednContent.trim()) {
       setParsedExport(null);
       setParseError(null);
       return;
     }
-    try {
-      const result = parseLogseqEdn(content);
-      setParsedExport(result);
-      setParseError(null);
-    } catch (e) {
-      setParsedExport(null);
-      if (content.trim().length > 20) {
-        setParseError(e instanceof Error ? e.message : 'Invalid EDN format');
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedType === 'logseq-edn') parseEdn(ednContent);
-  }, [ednContent, selectedType, parseEdn]);
+    setIsParsing(true);
+    const { promise, cancel } = parseEdnInWorker(ednContent);
+    let active = true;
+    promise
+      .then(result => { if (!active) return; setParsedExport(result); setParseError(null); })
+      .catch(e => {
+        if (!active) return;
+        setParsedExport(null);
+        if (ednContent.trim().length > 20) {
+          setParseError(e instanceof Error ? e.message : 'Invalid EDN format');
+        }
+      })
+      .finally(() => { if (!active) return; setIsParsing(false); });
+    return () => { active = false; cancel(); };
+  }, [ednContent, selectedType]);
 
   // Live name availability check
   const { data: nameCheck, isLoading: isCheckingName } = useQuery({
@@ -321,8 +328,8 @@ export function ImportOptionsModal({
   })() : null;
 
   // ── Cancel import handler ────────────────────────────────────
-  const handleCancelImport = useCallback(async () => {
-    // Clean up listeners
+  const handleCancelImport = useCallback(async () => {    // Clear the module-level auto-import flag FIRST
+    setAutoImportActive(false);    // Clean up listeners
     setImportProgressListener(null);
     setImportReportListener(null);
     setImportErrorListener(null);

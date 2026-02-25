@@ -27,9 +27,9 @@ import { ToggleSwitch } from '../core/ToggleSwitch';
 import { CodeTextarea } from '../core/CodeTextarea';
 import { TaskProgress } from '../core/TaskProgress';
 import { TaskReport } from '../core/TaskReport';
-import { parseLogseqEdn, type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
-import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
-import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, notifyImportProgress, notifyImportReport, notifyImportError } from '@/utils/importState';
+import { type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
+import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
+import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, notifyImportProgress, notifyImportReport, notifyImportError, isAutoImportActive, setAutoImportActive } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
@@ -226,18 +226,28 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           setContent('');
           setSqliteFileName(pending.sqliteFile.name);
           setSqliteParsing(true);
+          let active = true;
+          let cancelParse: () => void = () => {};
           pending.sqliteFile
             .arrayBuffer()
-            .then((buf) => parseLogseqSqlite(buf))
+            .then((buf) => {
+              if (!active) return Promise.reject(new Error('cancelled'));
+              const handle = parseSqliteInWorker(buf);
+              cancelParse = handle.cancel;
+              return handle.promise;
+            })
             .then((result) => {
+              if (!active) return;
               setParsed(result);
               setError(null);
             })
             .catch((e) => {
+              if (!active) return;
               setParsed(null);
               setError(e instanceof Error ? e.message : 'Failed to parse SQLite file');
             })
-            .finally(() => setSqliteParsing(false));
+            .finally(() => { if (active) setSqliteParsing(false); });
+          return () => { active = false; cancelParse(); };
         }
       } else {
         setContent('');
@@ -259,7 +269,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     }
   }, [importStatus, importProgress]);
 
-  // Validate EDN as user types (debounced by paste)
+  // Validate EDN as user types (debounced by paste) — runs in a worker so the UI stays responsive
   useEffect(() => {
     if (inputSource !== 'edn') return;
     if (!content.trim()) {
@@ -267,36 +277,49 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setParsed(null);
       return;
     }
-    try {
-      const result = parseLogseqEdn(content);
-      setParsed(result);
-      setError(null);
-    } catch (e) {
-      setParsed(null);
-      if (content.trim().length > 20) {
-        setError(e instanceof Error ? e.message : 'Invalid EDN format');
-      }
-    }
+    const { promise, cancel } = parseEdnInWorker(content);
+    let active = true;
+    promise
+      .then((result) => {
+        if (!active) return;
+        setParsed(result);
+        setError(null);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setParsed(null);
+        if (content.trim().length > 20) {
+          setError(e instanceof Error ? e.message : 'Invalid EDN format');
+        }
+      });
+    return () => { active = false; cancel(); };
   }, [content, inputSource]);
 
-  /** Handle SQLite file selection. */
-  const handleSqliteFile = useCallback(async (file: File) => {
+  /** Handle SQLite file selection — parsing runs in a worker so the UI stays responsive. */
+  const handleSqliteFile = useCallback((file: File) => {
     setSqliteFileName(file.name);
     setSqliteParsing(true);
     setError(null);
     setParsed(null);
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const result = await parseLogseqSqlite(buffer);
-      setParsed(result);
-      setError(null);
-    } catch (e) {
-      setParsed(null);
-      setError(e instanceof Error ? e.message : 'Failed to parse SQLite file');
-    } finally {
-      setSqliteParsing(false);
-    }
+    let cancelParse: () => void = () => {};
+    file.arrayBuffer().then((buffer) => {
+      const handle = parseSqliteInWorker(buffer);
+      cancelParse = handle.cancel;
+      return handle.promise;
+    })
+      .then((result) => {
+        setParsed(result);
+        setError(null);
+      })
+      .catch((e) => {
+        setParsed(null);
+        setError(e instanceof Error ? e.message : 'Failed to parse SQLite file');
+      })
+      .finally(() => setSqliteParsing(false));
+
+    // Return cancel in case the caller needs it (e.g. file changed before parsing done)
+    return () => cancelParse();
   }, []);
 
   const handleFileInputChange = useCallback(
@@ -1286,11 +1309,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       if (isAutoImportModeRef.current) {
         notifyImportProgress({ status: '', progress: 100 });
         notifyImportReport(finalReport);
+        setAutoImportActive(false);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Import failed';
       setError(msg);
-      if (isAutoImportModeRef.current) notifyImportError(msg);
+      if (isAutoImportModeRef.current) {
+        notifyImportError(msg);
+        setAutoImportActive(false);
+      }
     } finally {
       setImporting(false);
     }
@@ -1438,7 +1465,9 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   // In auto-import mode, ImportOptionsModal acts as the visible UI.
   // Before the open-effect fires, hasInitializedRef is false so we avoid a
   // flash of the input form.
-  if (isAutoImportMode || (isOpen && !hasInitializedRef.current)) {
+  // isAutoImportActive() is a module-level flag that survives component
+  // unmount/remount caused by view transitions during the async workspace switch.
+  if (isAutoImportMode || isAutoImportActive() || (isOpen && !hasInitializedRef.current)) {
     return null;
   }
 
