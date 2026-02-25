@@ -457,7 +457,7 @@ export class GraphWebGLRenderer {
   /** When true, repack node instances to apply updated dim factors. */
   private _dimDirty = false;
   /** Alpha multiplier for dimmed (non-highlighted) nodes. */
-  private readonly DIM_ALPHA = 0.08;
+  private readonly DIM_ALPHA = 0.35;
 
   // --- Cached uniform locations (looked up once at init, not per frame) ---
   private nodeUniforms: {
@@ -779,10 +779,8 @@ export class GraphWebGLRenderer {
 
   private _recomputeHighlighted(): void {
     this._highlightedIds.clear();
-    const focusIds = [
-      this._hoveredNodeId,
-      this._selectedNodeId,
-    ].filter(id => id >= 0);
+    // Dimming is driven only by selection — hover does not dim other nodes.
+    const focusIds = [this._selectedNodeId].filter(id => id >= 0);
     if (focusIds.length === 0) {
       this._dimDirty = true;
       return;
@@ -1051,28 +1049,31 @@ export class GraphWebGLRenderer {
 
     // Helper: write one ring instance at the given node's position.
     // Ring radius = node_radius * scale so it peeks out from behind the node.
-    // Colors: selected → soft accent blue, hovered → soft white.
-    const writeRing = (nodeId: number, scale: number, r: number, g: number, b: number, a: number): void => {
+    // Color is always taken from the node's own visual color (or CSS default).
+    const writeRing = (nodeId: number, scale: number, a: number): void => {
       const idx = this.nodeIndex.get(nodeId);
       if (idx === undefined) return;
       const px  = this.positions[idx * 2];
       const py  = this.positions[idx * 2 + 1];
       const vis = this.nodeVisuals.get(nodeId);
       const baseRadius = vis?.radius ?? this.opts.defaultRadius;
+      const nodeCol: ArrayLike<number> = vis?.color ?? getCssNodeDefaultColor();
       const base = this.ringInstCount * NODE_STRIDE;
       rid[base    ] = px;
       rid[base + 1] = py;
       rid[base + 2] = baseRadius * scale;
-      rid[base + 3] = r;
-      rid[base + 4] = g;
-      rid[base + 5] = b;
+      rid[base + 3] = nodeCol[0];
+      rid[base + 4] = nodeCol[1];
+      rid[base + 5] = nodeCol[2];
       rid[base + 6] = a;
       this.ringInstCount++;
     };
 
-    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.7, 0.42, 0.72, 1.0, 0.75);
+    // Selected: larger glare ring, fully opaque node color.
+    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.85, 0.80);
+    // Hovered: slightly enlarged glare ring — no dimming of other nodes.
     if (this._hoveredNodeId >= 0 && this._hoveredNodeId !== this._selectedNodeId) {
-      writeRing(this._hoveredNodeId, 1.7, 1.0, 1.0, 1.0, 0.30);
+      writeRing(this._hoveredNodeId, 1.55, 0.45);
     }
 
     // ── Draw glow rings (UNDER nodes and edges) ────────────────────────────
