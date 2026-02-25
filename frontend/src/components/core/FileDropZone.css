@@ -13,14 +13,14 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 32px 24px;
-  border: 3px dashed var(--color-outline);
-  border-radius: var(--shape-extra-large);
+  gap: 6px;
+  padding: 24px 20px;
+  border: 1px dashed var(--color-outline-variant, var(--color-outline));
+  border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.2s ease, background-color 0.2s ease;
   color: var(--color-on-surface-variant);
-  background: var(--color-surface-container, var(--color-surface-variant));
+  background: transparent;
   text-align: center;
   user-select: none;
 }
@@ -65,9 +65,9 @@
   align-items: center;
   gap: var(--spacing-2, 8px);
   padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border: 2px solid var(--color-primary);
-  border-radius: var(--shape-extra-large);
-  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+  border: 1px solid var(--color-outline-variant, var(--color-outline));
+  border-radius: 6px;
+  background: transparent;
 }
 
 .file-drop-zone__selected-name {
@@ -80,25 +80,33 @@
   color: var(--color-on-surface);
 }
 
-.file-drop-zone__selected-clear {
+.file-drop-zone__selected-action {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: none;
-  border-radius: 50%;
-  background: var(--color-surface-variant);
+  border-radius: 4px;
+  background: transparent;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  font-size: 0.65rem;
-  line-height: 1;
-  transition: background-color 0.12s;
   padding: 0;
+  transition: background-color 0.12s, color 0.12s;
 }
 
-.file-drop-zone__selected-clear:hover {
-  background: color-mix(in srgb, var(--color-error) 15%, transparent);
+.file-drop-zone__selected-action:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.file-drop-zone__selected-action--remove:hover {
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
   color: var(--color-error);
+}
+
+.file-drop-zone__selected-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

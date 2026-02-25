@@ -8,6 +8,7 @@
  * file is chosen it shows a compact selected-file row with a clear button.
  */
 import { useRef, useCallback, type ReactNode } from 'react';
+import { CloseIcon, EditIcon } from './icons';
 import './FileDropZone.css';
 
 interface FileDropZoneProps {
@@ -45,6 +46,10 @@ export function FileDropZone({
   // We use a state-free approach for the dragging class to avoid re-renders
   const zoneRef = useRef<HTMLDivElement>(null);
 
+  const openFilePicker = () => {
+    if (!disabled) inputRef.current?.click();
+  };
+
   const setDragging = (val: boolean) => {
     isDraggingRef.current = val;
     zoneRef.current?.classList.toggle('file-drop-zone--dragging', val);
@@ -71,28 +76,44 @@ export function FileDropZone({
     [disabled, onSelect],
   );
 
-  const handleClick = () => {
-    if (!disabled) inputRef.current?.click();
-  };
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) onSelect(f);
     e.target.value = '';
   };
 
+  const hiddenInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      style={{ display: 'none' }}
+      onChange={handleChange}
+    />
+  );
+
   if (file) {
     return (
       <div className={`file-drop-zone__selected ${className}`}>
+        {hiddenInput}
         <span className="file-drop-zone__selected-name">{file.name}</span>
         <button
           type="button"
-          className="file-drop-zone__selected-clear"
+          className="file-drop-zone__selected-action"
+          onClick={openFilePicker}
+          disabled={disabled}
+          title="Change file"
+        >
+          <EditIcon size="sm" />
+        </button>
+        <button
+          type="button"
+          className="file-drop-zone__selected-action file-drop-zone__selected-action--remove"
           onClick={onClear}
           disabled={disabled}
           title="Remove file"
         >
-          ✕
+          <CloseIcon size="sm" />
         </button>
       </div>
     );
@@ -112,13 +133,13 @@ export function FileDropZone({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={handleClick}
+        onClick={openFilePicker}
         role="button"
         tabIndex={disabled ? -1 : 0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            handleClick();
+            openFilePicker();
           }
         }}
       >
@@ -126,13 +147,7 @@ export function FileDropZone({
         <span className="file-drop-zone__primary">{placeholder}</span>
         {hint && <span className="file-drop-zone__hint">{hint}</span>}
       </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        style={{ display: 'none' }}
-        onChange={handleChange}
-      />
+      {hiddenInput}
     </>
   );
 }
