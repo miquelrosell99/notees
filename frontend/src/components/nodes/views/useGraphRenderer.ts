@@ -205,6 +205,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const dpr  = window.devicePixelRatio || 1;
       canvas.width  = Math.round(rect.width  * dpr);
       canvas.height = Math.round(rect.height * dpr);
+      // Note: style.width/height are intentionally NOT set here.
+      // The CSS class already has `width: 100%; height: 100%` which controls
+      // the layout size; canvas.width/height only control the backing buffer.
     }
 
     // ── WebGL Renderer ──
@@ -338,9 +341,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             const order = rend.nodeOrder;
             const names = nodeNamesRef.current;
             const n     = order.length;
-            const dpr   = devicePixelRatio;
+            // dpr is used only for font/shadow sizing — coordinates are already
+            // physical pixels because worldToScreen uses the DPR-scaled canvasW/H.
+            const dpr   = window.devicePixelRatio || 1;
 
-            // Cache font string — only rebuild when zoom changes
+            // Cache font string — only rebuild when zoom changes.
+            // Font size is in physical pixels (no ctx.scale; canvas is DPR-scaled).
             const fontSize  = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
             if (dirty.lastFontZoom !== fontSize) {
               dirty.lastFontZoom = fontSize;
@@ -365,7 +371,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
 
-            // Pre-compute viewport bounds for culling
+            // Pre-compute viewport bounds for culling (physical pixels)
             const cw      = lc.width;
             const ch      = lc.height;
             const margin  = 100;
@@ -382,9 +388,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
               const wx = pos[i * 2];
               const wy = pos[i * 2 + 1];
+              // worldToScreen already returns physical pixels — do NOT multiply by dpr
               const sp = rend.worldToScreen(wx, wy);
-              const sx = sp.x * dpr;
-              const sy = sp.y * dpr;
+              const sx = sp.x;
+              const sy = sp.y;
 
               if (sx < -margin || sx > cw + margin || sy < -40 || sy > ch + 40) continue;
 
@@ -399,8 +406,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               if (hIdx >= 0) {
                 const hName = names.get(hoveredNodeRef.current);
                 if (hName) {
-                  const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x * dpr;
-                  const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y * dpr;
+                  // worldToScreen already returns physical pixels
+                  const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x;
+                  const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y;
                   ctx.fillStyle = 'rgba(220,235,255,0.95)';
                   const label = hName.length > 28 ? hName.slice(0, 27) + '\u2026' : hName;
                   ctx.fillText(label, sx, sy + 12 * dpr);
@@ -414,8 +422,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               if (sIdx >= 0) {
                 const sName = names.get(selectedRef.current);
                 if (sName) {
-                  const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x * dpr;
-                  const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y * dpr;
+                  // worldToScreen already returns physical pixels
+                  const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x;
+                  const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y;
                   ctx.fillStyle = 'rgba(140,190,255,0.95)';
                   const label = sName.length > 28 ? sName.slice(0, 27) + '\u2026' : sName;
                   ctx.fillText(label, sx, sy + 12 * dpr);
@@ -470,9 +479,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        // Update backing buffer size
-        canvas.width  = Math.round(width  * devicePixelRatio);
-        canvas.height = Math.round(height * devicePixelRatio);
+        const dpr = window.devicePixelRatio || 1;
+        // Set backing-buffer size at device resolution.
+        // CSS layout size is owned by the class (`width: 100%; height: 100%`);
+        // do NOT set style.width/height or it locks the canvas at a fixed CSS
+        // pixel size and breaks responsiveness.
+        canvas.width  = Math.round(width  * dpr);
+        canvas.height = Math.round(height * dpr);
         rendRef.current?.resize(canvas.width, canvas.height);
       }
     });
@@ -578,13 +591,60 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        lc.width  = Math.round(width  * devicePixelRatio);
-        lc.height = Math.round(height * devicePixelRatio);
+        const dpr = window.devicePixelRatio || 1;
+        // Backing buffer at device resolution; CSS layout handled by `inset: 0`.
+        lc.width  = Math.round(width  * dpr);
+        lc.height = Math.round(height * dpr);
       }
     });
     ro.observe(lc);
     return () => ro.disconnect();
   }, []);
+
+  // ─── DPR change listener (monitor switch) ──────────────────────────────────
+  // ResizeObserver only fires when CSS layout size changes.  Moving the window
+  // to a monitor with a different devicePixelRatio leaves CSS size identical, so
+  // ResizeObserver never fires and the backing buffers stay at the wrong DPR.
+  //
+  // Fix: watch `(resolution: Xdppx)` via matchMedia.  When the query stops
+  // matching (DPR changed), re-apply BoundingClientRect × new DPR to both
+  // canvases and re-register for the next change.
+  useEffect(() => {
+    let mql: MediaQueryList | null = null;
+    let listener: (() => void) | null = null;
+
+    const applyDpr = () => {
+      const dpr    = window.devicePixelRatio || 1;
+      const canvas = canvasRef.current;
+      const lc     = labelCanvasRef.current;
+
+      if (canvas) {
+        const rect    = canvas.getBoundingClientRect();
+        canvas.width  = Math.round(rect.width  * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        rendRef.current?.resize(canvas.width, canvas.height);
+      }
+      if (lc) {
+        const rect  = lc.getBoundingClientRect();
+        lc.width    = Math.round(rect.width  * dpr);
+        lc.height   = Math.round(rect.height * dpr);
+      }
+
+      // Re-register: the current MQL no longer matches after DPR changed,
+      // so we need a fresh query at the new DPR to catch the *next* change.
+      register(); // eslint-disable-line @typescript-eslint/no-use-before-define
+    };
+
+    const register = () => {
+      if (mql && listener) mql.removeEventListener('change', listener);
+      mql      = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      listener = applyDpr;
+      mql.addEventListener('change', listener);
+    };
+
+    register();
+    return () => { if (mql && listener) mql.removeEventListener('change', listener); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Pointer interaction ────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
