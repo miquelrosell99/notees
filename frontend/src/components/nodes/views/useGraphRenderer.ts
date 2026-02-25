@@ -735,6 +735,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         dirtyRef.current.hover = true;
         optsRef.current.onNodeClick?.(nodeId);
       }
+    } else if (d.mode === 'camera' && !d.moved && selectedRef.current >= 0) {
+      // Click on empty space — deselect
+      selectedRef.current = -1;
+      setSelectedNodeId(-1);
+      rendRef.current?.setSelectedNode(-1);
+      dirtyRef.current.hover = true;
     }
     d.mode   = 'none';
     d.nodeId = -1;
