@@ -1323,13 +1323,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     }
   }, [parsed, pageClassId, classClassId, importMode, createNodeMutation, updateNodeMutation, createPropertyMutation, addClassMutation, onClose]);
 
-  // Auto-import trigger: fires once when opened in auto-import mode
+  // Auto-import trigger: fires once when opened in auto-import mode.
+  // Waits for pageClassId so handleImport() doesn't bail on the early-return guard.
+  // queryClient.clear() in handleImportSuccess temporarily clears the classes cache;
+  // once the refetch completes pageClassId becomes non-null and the effect fires.
   useEffect(() => {
-    if (shouldAutoImportRef.current && parsed && !importing && !report) {
+    if (shouldAutoImportRef.current && parsed && pageClassId && !importing && !report) {
       shouldAutoImportRef.current = false;
       handleImport();
     }
-  }, [parsed, importing, report, handleImport]);
+  }, [parsed, importing, report, handleImport, pageClassId]);
 
   /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
    *  Sibling blocks are created in a single batch request. Children are processed
