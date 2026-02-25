@@ -51,6 +51,8 @@ export interface GraphRendererProps {
   config?: Partial<SGEConfig>;
   /** Scale node size by connection count. Default: true */
   sizeByConnections?: boolean;
+  /** Base node radius in world units (used when sizeByConnections=false or as the minimum). Default: 7 */
+  baseNodeRadius?: number;
   /** Show debug stats overlay. Default: false */
   showStats?: boolean;
   /** CSS class applied to the root element. */
@@ -109,6 +111,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
   edges,
   config,
   sizeByConnections = true,
+  baseNodeRadius,
   showStats = false,
   className = '',
   onNodeClick,
@@ -124,6 +127,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     edges,
     config,
     sizeByConnections,
+    baseNodeRadius,
     onNodeClick,
   };
 
@@ -209,24 +213,6 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
         className="sge-graph-view__label-canvas"
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
       />
-
-      {/* Toolbar */}
-      <div className="sge-graph-view__toolbar">
-        <button
-          className="sge-graph-view__btn"
-          title="Reheat simulation"
-          onClick={reheat}
-        >
-          ↺
-        </button>
-        <button
-          className="sge-graph-view__btn"
-          title="Recenter camera"
-          onClick={recenter}
-        >
-          ⊕
-        </button>
-      </div>
 
       {/* Optional stats overlay */}
       {showStats && (
