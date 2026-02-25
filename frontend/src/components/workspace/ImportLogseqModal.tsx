@@ -19,22 +19,23 @@
  * at the end.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { mdiImport, mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp } from '@mdi/js';
-import Icon from '@mdi/react';
+import { mdiImport } from '@mdi/js';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
 import { CodeTextarea } from '../core/CodeTextarea';
+import { TaskProgress } from '../core/TaskProgress';
+import { TaskReport } from '../core/TaskReport';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
-import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, consumeCancelImportCallback } from '@/utils/importState';
+import { consumePendingLogseqImport, consumeImportCompleteCallback, consumeWorkspaceToDelete, notifyImportProgress, notifyImportReport, notifyImportError } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, batchGetOrCreateDaily, createNode as createNodeApi, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
-import { deleteWorkspace } from '@/api/workspaces';
+
 import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -164,6 +165,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** True when the modal was opened in auto-import mode (no form shown). */
   const [isAutoImportMode, setIsAutoImportMode] = useState(false);
+  const isAutoImportModeRef = useRef(false);
   const shouldAutoImportRef = useRef(false);
   /** UUID of the workspace to delete if user cancels (auto-import mode only). */
   const workspaceToDeleteRef = useRef<string | null>(null);
@@ -196,11 +198,13 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setImportProgress(0);
       setReport(null);
       setIsAutoImportMode(false);
+      isAutoImportModeRef.current = false;
       shouldAutoImportRef.current = false;
 
       if (pending && pending.autoImport && pending.parsedExport) {
         // ── Auto-import mode: skip the configuration form, start immediately ──
         setIsAutoImportMode(true);
+        isAutoImportModeRef.current = true;
         setInputSource(pending.source);
         if (pending.source === 'edn') setSqliteFileName(null);
         else setSqliteFileName(pending.sqliteFile?.name ?? null);
@@ -242,6 +246,13 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       }
     }
   }, [isOpen]);
+
+  // Forward progress and status to importState so ImportOptionsModal can display them
+  useEffect(() => {
+    if (isAutoImportModeRef.current) {
+      notifyImportProgress({ status: importStatus, progress: importProgress });
+    }
+  }, [importStatus, importProgress]);
 
   // Validate EDN as user types (debounced by paste)
   useEffect(() => {
@@ -1263,11 +1274,18 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       // Invalidate "nodes with this property" queries (uses separate key prefix)
       queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
 
-      setReport({ phases, totalSucceeded, totalFailed });
+      const finalReport = { phases, totalSucceeded, totalFailed };
+      setReport(finalReport);
       setImportProgress(100);
       setImportStatus('');
+      if (isAutoImportModeRef.current) {
+        notifyImportProgress({ status: '', progress: 100 });
+        notifyImportReport(finalReport);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Import failed');
+      const msg = e instanceof Error ? e.message : 'Import failed';
+      setError(msg);
+      if (isAutoImportModeRef.current) notifyImportError(msg);
     } finally {
       setImporting(false);
     }
@@ -1280,20 +1298,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       handleImport();
     }
   }, [parsed, importing, report, handleImport]);
-
-  /** Cancel an in-progress auto-import: delete the workspace, restore previous state. */
-  const handleCancelImport = useCallback(() => {
-    const uuid = workspaceToDeleteRef.current;
-    workspaceToDeleteRef.current = null;
-    consumeImportCompleteCallback(); // discard — we're not completing
-    if (uuid) {
-      deleteWorkspace(uuid).catch(() => {/* best-effort */});
-    }
-    const onCancel = consumeCancelImportCallback();
-    onCancel?.();
-    // onCancel closes the modal via setImportLogseqModalOpen(false),
-    // so no explicit onClose() needed here.
-  }, []);
 
   /** Recursively create blocks under a parent using batch API, tracking content for phase 6.
    *  Sibling blocks are created in a single batch request. Children are processed
@@ -1425,9 +1429,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     (parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0)
     + (parsed?.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
 
-  // ── Report view (shown after import completes) ────────────────
+  // ── Auto-import mode: render nothing visible ──────────────────
+  // In auto-import mode, ImportOptionsModal acts as the visible UI.
+  // This component still runs all hooks and import logic but produces no DOM.
+  if (isAutoImportMode) {
+    return null;
+  }
+
+  // ── Report view (shown after import completes, manual mode only) ──
   if (report) {
-    const hasErrors = report.totalFailed > 0;
     return (
       <Modal
         isOpen={isOpen}
@@ -1449,58 +1459,11 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           </Button>
         }
       >
-        <div className="import-logseq__report">
-          <div className={`import-logseq__report-summary ${hasErrors ? 'import-logseq__report-summary--warning' : 'import-logseq__report-summary--success'}`}>
-            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1} />
-            <div>
-              <strong>{hasErrors ? 'Import completed with errors' : 'Import completed successfully'}</strong>
-              <span className="import-logseq__report-totals">
-                {report.totalSucceeded} succeeded{report.totalFailed > 0 ? `, ${report.totalFailed} failed` : ''}
-              </span>
-            </div>
-          </div>
-
-          <div className="import-logseq__report-phases">
-            {report.phases.map((phase, idx) => (
-              <ReportPhaseRow key={idx} phase={phase} />
-            ))}
-          </div>
-        </div>
-      </Modal>
-    );
-  }
-
-  // ── Auto-import progress view (no form, started immediately) ──
-  if (isAutoImportMode && !report) {
-    return (
-      <Modal
-        isOpen={isOpen}
-        onClose={() => {}}
-        title="Importing from Logseq"
-        size="lg"
-        footer={
-          <Button variant="ghost" onClick={handleCancelImport} disabled={false}>
-            Cancel
-          </Button>
-        }
-      >
-        <div className="import-logseq__body">
-          {error && <div className="import-logseq__error">{error}</div>}
-          <div className="import-logseq__progress-area">
-            <div className="import-logseq__progress-bar-track">
-              <div
-                className="import-logseq__progress-bar-fill"
-                style={{ width: `${importProgress}%` }}
-              />
-            </div>
-            <div className="import-logseq__progress-text">
-              <span>{importProgress}%</span>
-              {importStatus && (
-                <span className="import-logseq__progress-status">{importStatus}</span>
-              )}
-            </div>
-          </div>
-        </div>
+        <TaskReport
+          report={report}
+          successMessage="Import completed successfully"
+          warningMessage="Import completed with errors"
+        />
       </Modal>
     );
   }
@@ -1648,63 +1611,13 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         )}
 
         {importing && (
-          <div className="import-logseq__progress-area">
-            <div className="import-logseq__progress-bar-track">
-              <div
-                className="import-logseq__progress-bar-fill"
-                style={{ width: `${importProgress}%` }}
-              />
-            </div>
-            <div className="import-logseq__progress-text">
-              <span>{importProgress}%</span>
-              {importStatus && <span className="import-logseq__progress-status">{importStatus}</span>}
-            </div>
-          </div>
+          <TaskProgress
+            progress={importProgress}
+            statusText={importStatus}
+          />
         )}
       </div>
     </Modal>
-  );
-}
-
-// ── Report phase row (collapsible error details) ───────────────
-
-function ReportPhaseRow({ phase }: { phase: PhaseResult }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasErrors = phase.failed > 0;
-  const total = phase.succeeded + phase.failed;
-
-  if (total === 0) return null;
-
-  return (
-    <div className="import-logseq__phase">
-      <div
-        className={`import-logseq__phase-header ${hasErrors ? 'import-logseq__phase-header--error' : ''}`}
-        onClick={() => hasErrors && setExpanded(!expanded)}
-        role={hasErrors ? 'button' : undefined}
-        tabIndex={hasErrors ? 0 : undefined}
-        onKeyDown={(e) => { if (hasErrors && (e.key === 'Enter' || e.key === ' ')) setExpanded(!expanded); }}
-      >
-        <span className="import-logseq__phase-label">{phase.label}</span>
-        <span className="import-logseq__phase-counts">
-          <span className="import-logseq__phase-ok">{phase.succeeded} <Icon path={mdiCheckCircleOutline} size={0.6} /></span>
-          {hasErrors && (
-            <>
-              <span className="import-logseq__phase-fail">{phase.failed} failed</span>
-              <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
-            </>
-          )}
-        </span>
-      </div>
-      {expanded && phase.errors.length > 0 && (
-        <ul className="import-logseq__phase-errors">
-          {phase.errors.map((err, i) => (
-            <li key={i} className="import-logseq__phase-error">
-              <strong>{err.item}</strong>: {err.message}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 
