@@ -18,6 +18,7 @@ import {
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
+import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
 import { setImportCompleteCallback, setCancelImportCallback } from '@/utils/importState';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
@@ -67,6 +68,7 @@ export function WorkspaceManagementView({
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
+  const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useAppStore();
 
   // Fetch workspaces
   const { data, isLoading } = useQuery({
@@ -502,6 +504,12 @@ export function WorkspaceManagementView({
       <UserSettingsModal
         isOpen={isUserSettingsOpen}
         onClose={() => setIsUserSettingsOpen(false)}
+      />
+
+      {/* Logseq Import Modal – rendered here so it's available before Layout mounts */}
+      <ImportLogseqModal
+        isOpen={isImportLogseqModalOpen}
+        onClose={() => setImportLogseqModalOpen(false)}
       />
 
       {/* Deleting overlay – locks the interface during workspace deletion */}
