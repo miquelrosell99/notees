@@ -196,6 +196,17 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // ── Prime canvas backing-buffer size at device resolution ──
+    // The ResizeObserver fires asynchronously, so canvas.width/height are still
+    // the browser defaults (300×150) when renderer.init() runs.  Set them now
+    // from getBoundingClientRect() so the initial viewport is correct.
+    {
+      const rect = canvas.getBoundingClientRect();
+      const dpr  = window.devicePixelRatio || 1;
+      canvas.width  = Math.round(rect.width  * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+    }
+
     // ── WebGL Renderer ──
     const renderer = new GraphWebGLRenderer({ cullMargin: 200 });
     renderer.init(canvas);
