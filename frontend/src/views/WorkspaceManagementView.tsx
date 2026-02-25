@@ -156,13 +156,17 @@ export function WorkspaceManagementView({
 
   // Handle successful import from the unified ImportOptionsModal
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
-    queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     setIsImportOptionsOpen(false);
     if (type === 'logseq-edn' || type === 'logseq-sqlite') {
-      // Switch workspace context without navigating away — we stay in workspace
-      // management until the import completes and the user clicks "Open Workspace".
-      // Using switchWorkspace API directly bypasses switchMutation.onSuccess which
-      // would call onWorkspaceSelected() and navigate to the graph immediately.
+      // Pin the workspace manager BEFORE any async work or query invalidation.
+      // Without this, App.tsx would navigate to Layout once the workspaces query
+      // refetches and sees an active workspace (showWorkspaceManager defaults to
+      // false when the view was only shown because there was no active workspace).
+      useAppStore.getState().setShowWorkspaceManager(true);
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      // Switch workspace context silently so subsequent API calls target the new
+      // workspace.  switchWorkspace API is called directly (not via switchMutation)
+      // to avoid switchMutation.onSuccess calling onWorkspaceSelected().
       await switchWorkspace(workspace.uuid);
       // Reset stale node state from the previous workspace
       useAppStore.setState({
@@ -186,11 +190,13 @@ export function WorkspaceManagementView({
       });
       useAppStore.getState().setImportLogseqModalOpen(true);
     } else if (type === 'markdown') {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       useAppStore.getState().setImportMarkdownModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     } else {
       // JSON — already fully imported by the API call; just switch and navigate
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     }
