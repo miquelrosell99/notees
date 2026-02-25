@@ -157,17 +157,32 @@ export function WorkspaceManagementView({
     queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     setIsImportOptionsOpen(false);
     if (type === 'logseq-edn' || type === 'logseq-sqlite') {
-      // Register callback so ImportLogseqModal navigates AFTER the report is closed
+      // Switch workspace context without navigating away — we stay in workspace
+      // management until the import completes and the user clicks "Open Workspace".
+      // Using switchWorkspace API directly bypasses switchMutation.onSuccess which
+      // would call onWorkspaceSelected() and navigate to the graph immediately.
+      await switchWorkspace(workspace.uuid);
+      // Reset stale node state from the previous workspace
+      useAppStore.setState({
+        currentNodeId: null,
+        activeNode: null,
+        activeNodeId: null,
+        sidebarNode: null,
+        localGraphNodeId: null,
+        mainViewType: 'node',
+      });
+      useFavoritesStore.getState().clear();
+      queryClient.clear();
+      window.history.replaceState(null, '', '/');
+      // Register completion callback — called when user closes the report
       setImportCompleteCallback(onWorkspaceSelected ?? null);
-      // Register cancel callback: close modal, delete workspace, re-show manager
+      // Register cancel callback: delete the partially-imported workspace and re-show manager
       setCancelImportCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['workspaces'] });
         useAppStore.getState().setImportLogseqModalOpen(false);
         useAppStore.getState().setShowWorkspaceManager(true);
       });
       useAppStore.getState().setImportLogseqModalOpen(true);
-      await switchMutation.mutateAsync(workspace.uuid);
-      // Do NOT call onWorkspaceSelected() here — ImportLogseqModal will call it
     } else if (type === 'markdown') {
       useAppStore.getState().setImportMarkdownModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
