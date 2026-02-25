@@ -642,10 +642,13 @@ export function useLogseqImporter() {
     const pagesWithAliases = parsed.pages.filter(p => (p.aliases && p.aliases.length > 0) || (p.aliasOfUuids && p.aliasOfUuids.length > 0)).length;
     const totalBlocks = parsed.pages.reduce((s, p) => s + countBlocks(p.blocks), 0)
       + (parsed.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
-    let estimatedTotal = Math.max(1,
+    const regularPagesCount = parsed.pages.filter(p => !p.journal).length;
+    const estimatedTotal = Math.max(1,
       parsed.classes.length + classExtends + parsed.properties.length
       + parsed.pages.length + propBindings + pagesWithProps
       + totalBlocks + pagesWithAliases
+      // wiring pass: all blocks get parent/sequence, regular pages get name/classes
+      + totalBlocks + regularPagesCount
     );
     let completedItems = 0;
     const tick = () => {
@@ -943,8 +946,8 @@ export function useLogseqImporter() {
                 for (const page of chunk) {
                   p3.failed++;
                   p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+                  tick();
                 }
-                tickN(chunk.length);
                 journalsDone += chunk.length;
                 setImportStatus(`Creating journal pages… (${journalsDone}/${journalPages.length})`);
                 return;
@@ -961,8 +964,8 @@ export function useLogseqImporter() {
                   p3.failed++;
                   p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
                 }
+                tick();
               }
-              tickN(chunk.length);
               journalsDone += chunk.length;
               setImportStatus(`Creating journal pages… (${journalsDone}/${journalPages.length})`);
             })
@@ -1030,14 +1033,15 @@ export function useLogseqImporter() {
                     p3.failed++;
                     p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
                   }
+                  tick();
                 }
               } catch (e) {
                 for (const page of chunk) {
                   p3.failed++;
                   p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+                  tick();
                 }
               }
-              tickN(chunk.length);
               pagesDone += chunk.length;
               setImportStatus(`Creating pages… (${pagesDone}/${regularPages.length})`);
             })
@@ -1205,7 +1209,6 @@ export function useLogseqImporter() {
         for (let offset = 0; offset < combinedItems.length; offset += BATCH_CHUNK) {
           wireChunks.push(combinedItems.slice(offset, offset + BATCH_CHUNK));
         }
-        estimatedTotal += combinedItems.length;
         setImportStatus(`Wiring ${combinedItems.length} nodes… (0/${combinedItems.length})`);
         let wiresDone = 0;
         for (let ci = 0; ci < wireChunks.length; ci += CONCURRENT_WIRES) {
