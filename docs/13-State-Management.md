@@ -112,7 +112,6 @@ The primary store for navigation, layout, and view management.
 | `dateFormat` | `DateFormat` | `'YYYY/MM/DD'` |
 | `defaultView` | `string` | `'journal'` |
 | `showDailyNotes` | `boolean` | `true` |
-| `fontSize` | `'small' \| 'medium' \| 'large'` | `'medium'` |
 | `quickAddDestination` | `'inbox' \| 'today'` | `'today'` |
 | `linkedRefsCollapseLevel` | `number` | `1` |
 
