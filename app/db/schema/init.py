@@ -333,7 +333,7 @@ async def get_or_create_user_workspace(
     user_id: int,
     workspace_uuid: str | None = None,
 ) -> int:
-    """Get the user's workspace or create one if it doesn't exist.
+    """Resolve the user's workspace.
     
     If workspace_uuid is provided, resolves that specific workspace.
     Otherwise falls back to the user's first owned/shared workspace.
@@ -343,7 +343,8 @@ async def get_or_create_user_workspace(
     2. Workspaces owned by the user (create_uid)
     3. Workspaces shared with the user (workspace_share)
     
-    If none found, creates a new workspace.
+    Raises:
+        ValueError: If no workspace is found for the user.
     
     Args:
         conn: Database connection
@@ -387,5 +388,4 @@ async def get_or_create_user_workspace(
     if row:
         return row['id']
     
-    # Create new workspace
-    return await create_workspace_for_user(conn, user_id)
+    raise ValueError(f"No workspace found for user {user_id}")
