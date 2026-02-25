@@ -5,14 +5,14 @@
  * then displays a phase-based results report (same style as Logseq import).
  */
 import { useState, useCallback } from 'react';
-import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiLinkVariant } from '@mdi/js';
+import { mdiAlertCircleOutline, mdiLinkVariant } from '@mdi/js';
 import Icon from '@mdi/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
+import { TaskReport, type TaskPhaseResult } from '../core/TaskReport';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import '../workspace/ImportLogseqModal.css';
 import './RebuildLinksModal.css';
 
 interface FixRawLinksModalProps {
@@ -20,15 +20,8 @@ interface FixRawLinksModalProps {
   onClose: () => void;
 }
 
-interface PhaseResult {
-  label: string;
-  succeeded: number;
-  failed: number;
-  errors: Array<{ item: string; message: string }>;
-}
-
-function buildPhases(result: FixRawUuidLinksResponse): PhaseResult[] {
-  const phases: PhaseResult[] = [];
+function buildPhases(result: FixRawUuidLinksResponse): TaskPhaseResult[] {
+  const phases: TaskPhaseResult[] = [];
 
   // Phase 1: Scan nodes
   phases.push({
@@ -91,7 +84,6 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   if (result) {
     const phases = buildPhases(result);
     const totalSucceeded = result.nodes_fixed + result.links_converted;
-    const hasErrors = result.total_errors > 0;
 
     return (
       <Modal
@@ -105,23 +97,15 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
           </Button>
         }
       >
-        <div className="import-logseq__report">
-          <div className={`import-logseq__report-summary ${hasErrors ? 'import-logseq__report-summary--warning' : 'import-logseq__report-summary--success'}`}>
-            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1} />
-            <div>
-              <strong>{hasErrors ? 'Fix completed with errors' : 'Fix completed successfully'}</strong>
-              <span className="import-logseq__report-totals">
-                {totalSucceeded} succeeded{result.total_errors > 0 ? `, ${result.total_errors} failed` : ''}
-              </span>
-            </div>
-          </div>
-
-          <div className="import-logseq__report-phases">
-            {phases.map((phase, idx) => (
-              <ReportPhaseRow key={idx} phase={phase} />
-            ))}
-          </div>
-        </div>
+        <TaskReport
+          report={{
+            phases,
+            totalSucceeded,
+            totalFailed: result.total_errors,
+          }}
+          successMessage="Fix completed successfully"
+          warningMessage="Fix completed with errors"
+        />
       </Modal>
     );
   }
@@ -190,46 +174,6 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
         )}
       </div>
     </Modal>
-  );
-}
-
-function ReportPhaseRow({ phase }: { phase: PhaseResult }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasErrors = phase.failed > 0;
-  const total = phase.succeeded + phase.failed;
-
-  if (total === 0) return null;
-
-  return (
-    <div className="import-logseq__phase">
-      <div
-        className={`import-logseq__phase-header ${hasErrors ? 'import-logseq__phase-header--error' : ''}`}
-        onClick={() => hasErrors && setExpanded(!expanded)}
-        role={hasErrors ? 'button' : undefined}
-        tabIndex={hasErrors ? 0 : undefined}
-        onKeyDown={(e) => { if (hasErrors && (e.key === 'Enter' || e.key === ' ')) setExpanded(!expanded); }}
-      >
-        <span className="import-logseq__phase-label">{phase.label}</span>
-        <span className="import-logseq__phase-counts">
-          <span className="import-logseq__phase-ok">{phase.succeeded} <Icon path={mdiCheckCircleOutline} size={0.6} /></span>
-          {hasErrors && (
-            <>
-              <span className="import-logseq__phase-fail">{phase.failed} failed</span>
-              <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
-            </>
-          )}
-        </span>
-      </div>
-      {expanded && phase.errors.length > 0 && (
-        <ul className="import-logseq__phase-errors">
-          {phase.errors.map((err, i) => (
-            <li key={i} className="import-logseq__phase-error">
-              <strong>{err.item}</strong>: {err.message}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 

@@ -1,0 +1,117 @@
+/* ── TaskReport ──────────────────────────────────────────────── */
+
+.task-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.task-report__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--shape-medium);
+  font-size: var(--font-size-sm);
+}
+
+.task-report__summary--success {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+}
+
+.task-report__summary--warning {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+}
+
+.task-report__summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-report__totals {
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+/* ── Phases ──────────────────────────────────────────────────── */
+
+.task-report__phases {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-report__phase {
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.task-report__phase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--color-surface-container-low);
+  font-size: var(--font-size-sm);
+  user-select: none;
+}
+
+.task-report__phase-header--error {
+  cursor: pointer;
+}
+
+.task-report__phase-header--error:hover {
+  background: var(--color-surface-container);
+}
+
+.task-report__phase-label {
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.task-report__phase-counts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+}
+
+.task-report__phase-ok {
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.task-report__phase-fail {
+  color: var(--color-error);
+  font-weight: 500;
+}
+
+/* ── Error details ──────────────────────────────────────────── */
+
+.task-report__phase-errors {
+  margin: 0;
+  padding: 8px 12px 8px 24px;
+  background: color-mix(in srgb, var(--color-error) 5%, transparent);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-report__phase-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.task-report__phase-error strong {
+  color: var(--color-on-surface);
+  font-weight: 500;
+}

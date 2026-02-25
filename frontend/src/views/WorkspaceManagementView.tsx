@@ -156,8 +156,8 @@ export function WorkspaceManagementView({
 
   // Handle successful import from the unified ImportOptionsModal
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
-    setIsImportOptionsOpen(false);
     if (type === 'logseq-edn' || type === 'logseq-sqlite') {
+      // ImportOptionsModal stays open — it shows progress/report for Logseq imports.
       // Pin the workspace manager BEFORE any async work or query invalidation.
       // Without this, App.tsx would navigate to Layout once the workspaces query
       // refetches and sees an active workspace (showWorkspaceManager defaults to
@@ -190,12 +190,14 @@ export function WorkspaceManagementView({
       });
       useAppStore.getState().setImportLogseqModalOpen(true);
     } else if (type === 'markdown') {
+      setIsImportOptionsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       useAppStore.getState().setImportMarkdownModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     } else {
       // JSON — already fully imported by the API call; just switch and navigate
+      setIsImportOptionsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
