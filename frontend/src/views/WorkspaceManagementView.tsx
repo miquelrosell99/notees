@@ -19,7 +19,7 @@ import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
 import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
-import { setImportCompleteCallback, setCancelImportCallback } from '@/utils/importState';
+
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
@@ -155,41 +155,10 @@ export function WorkspaceManagementView({
   };
 
   // Handle successful import from the unified ImportOptionsModal
+  // Note: logseq-edn and logseq-sqlite are handled entirely inside ImportOptionsModal
+  // (workspace switch + import pipeline + report), so they never reach this handler.
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
-    if (type === 'logseq-edn' || type === 'logseq-sqlite') {
-      // ImportOptionsModal stays open — it shows progress/report for Logseq imports.
-      // Pin the workspace manager BEFORE any async work or query invalidation.
-      // Without this, App.tsx would navigate to Layout once the workspaces query
-      // refetches and sees an active workspace (showWorkspaceManager defaults to
-      // false when the view was only shown because there was no active workspace).
-      useAppStore.getState().setShowWorkspaceManager(true);
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      // Switch workspace context silently so subsequent API calls target the new
-      // workspace.  switchWorkspace API is called directly (not via switchMutation)
-      // to avoid switchMutation.onSuccess calling onWorkspaceSelected().
-      await switchWorkspace(workspace.uuid);
-      // Reset stale node state from the previous workspace
-      useAppStore.setState({
-        currentNodeId: null,
-        activeNode: null,
-        activeNodeId: null,
-        sidebarNode: null,
-        localGraphNodeId: null,
-        mainViewType: 'node',
-      });
-      useFavoritesStore.getState().clear();
-      queryClient.clear();
-      window.history.replaceState(null, '', '/');
-      // Register completion callback — called when user closes the report
-      setImportCompleteCallback(onWorkspaceSelected ?? null);
-      // Register cancel callback: delete the partially-imported workspace and re-show manager
-      setCancelImportCallback(() => {
-        queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-        useAppStore.getState().setImportLogseqModalOpen(false);
-        useAppStore.getState().setShowWorkspaceManager(true);
-      });
-      useAppStore.getState().setImportLogseqModalOpen(true);
-    } else if (type === 'markdown') {
+    if (type === 'markdown') {
       setIsImportOptionsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       useAppStore.getState().setImportMarkdownModalOpen(true);
@@ -495,6 +464,7 @@ export function WorkspaceManagementView({
         isOpen={isImportOptionsOpen}
         onClose={() => setIsImportOptionsOpen(false)}
         onSuccess={handleImportSuccess}
+        onFinish={onWorkspaceSelected}
       />
 
       {/* Rename Workspace Modal */}
