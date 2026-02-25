@@ -212,8 +212,11 @@ function AppContent() {
     );
   }
   
-  // Show loading while checking workspaces
-  if (isLoadingWorkspaces) {
+  // Show loading while checking workspaces — but NOT when the workspace manager
+  // is explicitly pinned (e.g. during a Logseq import).  queryClient.clear() wipes
+  // the workspaces cache temporarily; skipping the spinner keeps WMV mounted so
+  // ImportOptionsModal state (progress UI) survives the cache rebuild.
+  if (isLoadingWorkspaces && !showWorkspaceManager) {
     log.debug('Loading workspaces...');
     return (
       <div className="loading-screen">

@@ -1,14 +1,14 @@
 /**
  * UserSettingsModal Component
  * 
- * Modal for user-level settings: date format, theme, font size, account info.
+ * Modal for user-level settings: date format, theme, account info.
  * Separate from graph/workspace settings.
  */
 import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiFormatFontSizeDecrease, mdiFormatSize, mdiFormatFontSizeIncrease, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -25,7 +25,7 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, fontSize, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setFontSize, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { theme, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -44,11 +44,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     if (newFormat === dateFormat) return;
     setDateFormat(newFormat);
     setSetting('date_format', newFormat).catch(console.error);
-  };
-
-  const handleFontSizeChange = (newSize: 'small' | 'medium' | 'large') => {
-    setFontSize(newSize);
-    setSetting('font_size', newSize).catch(console.error);
   };
 
   const handleHashtagPasteModeChange = (mode: HashtagPasteMode) => {
@@ -123,25 +118,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={theme}
                   onChange={(value) => handleThemeChange(value as ThemePreference)}
-                  size="sm"
-                />
-              </div>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label className="settings-item__label">Font size</label>
-                  <p className="settings-item__description">
-                    Adjust the base font size
-                  </p>
-                </div>
-                <SelectionButton
-                  options={[
-                    { value: 'small', icon: mdiFormatFontSizeDecrease, label: 'Small font size' },
-                    { value: 'medium', icon: mdiFormatSize, label: 'Medium font size' },
-                    { value: 'large', icon: mdiFormatFontSizeIncrease, label: 'Large font size' },
-                  ]}
-                  value={fontSize}
-                  onChange={(value) => handleFontSizeChange(value as 'small' | 'medium' | 'large')}
                   size="sm"
                 />
               </div>

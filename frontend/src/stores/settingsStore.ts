@@ -52,7 +52,6 @@ interface SettingsState {
   // Other settings
   defaultView: DefaultView;
   showDailyNotes: boolean;
-  fontSize: 'small' | 'medium' | 'large';
   quickAddDestination: QuickAddDestination;
   /** Level at which to collapse nodes in linked references (0 = disabled, 1 = collapse at level 1, 2 = at level 2, etc.) */
   linkedRefsCollapseLevel: number;
@@ -64,7 +63,6 @@ interface SettingsState {
   setDateFormat: (format: DateFormat) => void;
   setDefaultView: (view: DefaultView) => void;
   setShowDailyNotes: (show: boolean) => void;
-  setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setQuickAddDestination: (destination: QuickAddDestination) => void;
   setLinkedRefsCollapseLevel: (level: number) => void;
   setHashtagPasteMode: (mode: HashtagPasteMode) => void;
@@ -179,7 +177,6 @@ export const useSettingsStore = create<SettingsState>()(
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,
-      fontSize: 'medium',
       quickAddDestination: 'today',
       linkedRefsCollapseLevel: 1,
       hashtagPasteMode: 'inline-tag',
@@ -200,10 +197,6 @@ export const useSettingsStore = create<SettingsState>()(
       
       setShowDailyNotes: (showDailyNotes) => {
         set({ showDailyNotes });
-      },
-      
-      setFontSize: (fontSize) => {
-        set({ fontSize });
       },
       
       setQuickAddDestination: (quickAddDestination) => {
