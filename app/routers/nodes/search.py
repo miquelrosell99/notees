@@ -568,7 +568,7 @@ async def list_nodes(
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+    page_size: int = Query(50, ge=1, description="Items per page"),
     user: User = Depends(get_current_user),
 ):
     """List nodes with optional filters and pagination.

@@ -26,7 +26,7 @@ function formatLocalDate(date: Date): string {
  * Hook to fetch all nodes
  * Pass undefined to disable the query (useful for conditional fetching)
  */
-export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; tag_id?: number } | null) {
+export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; tag_id?: number; page_size?: number } | null) {
   return useQuery({
     queryKey: nodeKeys.list(filters ?? {}),
     queryFn: () => nodesApi.listNodes(filters ?? undefined),
