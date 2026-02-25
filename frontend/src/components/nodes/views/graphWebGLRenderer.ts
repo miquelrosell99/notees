@@ -457,7 +457,7 @@ export class GraphWebGLRenderer {
   /** When true, repack node instances to apply updated dim factors. */
   private _dimDirty = false;
   /** Alpha multiplier for dimmed (non-highlighted) nodes. */
-  private readonly DIM_ALPHA = 0.35;
+  private readonly DIM_ALPHA = 0.55;
 
   // --- Cached uniform locations (looked up once at init, not per frame) ---
   private nodeUniforms: {
