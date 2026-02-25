@@ -36,7 +36,7 @@ import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useAppStore } from '@/stores/appStore';
 import { getOrCreateDaily, listClasses, searchNodes, addAlias, getNode, getNodeByUuid, updateNode, removeProperty, batchCreateNodes, batchUpdateNodes, batchGetOrCreateDaily, createNode as createNodeApi, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
 
-import { listProperties, updateProperty, addClassExtends } from '@/api/properties';
+import { listProperties, updateProperty, addClassExtends, addSelectionOption } from '@/api/properties';
 import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
@@ -545,7 +545,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               }
             }
 
-            // Map selection option UUIDs for existing properties (match by name, not index)
+            // Map selection option UUIDs for existing properties (match by name; create missing options)
             if (prop.selectionOptions && existingProp.options) {
               for (const opt of prop.selectionOptions) {
                 if (!opt.uuid) continue;
@@ -554,7 +554,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 if (matching) {
                   uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
                 } else {
-                  console.warn(`[IMPORT] Selection option "${opt.value}" not found in existing property "${prop.title}"`);
+                  // Auto-create missing selection option on existing property
+                  try {
+                    const newOpt = await addSelectionOption(existingProp.id, String(opt.value));
+                    uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+                    console.log(`[IMPORT] Created missing selection option "${opt.value}" on property "${prop.title}" → id=${newOpt.id}`);
+                  } catch (optErr) {
+                    console.warn(`[IMPORT] Failed to create selection option "${opt.value}" on property "${prop.title}":`, optErr);
+                  }
                 }
               }
             }
@@ -580,7 +587,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               if (found) {
                 propIdMap.set(prop.id, found.id);
                 existingPropByName.set(prop.title.toLowerCase(), found);
-                // Map selection option UUIDs for the found property
+                // Map selection option UUIDs for the found property (create missing options)
                 if (prop.selectionOptions && found.options) {
                   for (const opt of prop.selectionOptions) {
                     if (!opt.uuid) continue;
@@ -588,6 +595,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                     const matching = found.options.find(o => o.name.toLowerCase() === optValue);
                     if (matching) {
                       uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+                    } else {
+                      try {
+                        const newOpt = await addSelectionOption(found.id, String(opt.value));
+                        uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+                        console.log(`[IMPORT] Created missing selection option "${opt.value}" on property "${prop.title}" → id=${newOpt.id}`);
+                      } catch (optErr) {
+                        console.warn(`[IMPORT] Failed to create selection option "${opt.value}" on property "${prop.title}":`, optErr);
+                      }
                     }
                   }
                 }
@@ -611,7 +626,14 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               if (matching) {
                 uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
               } else {
-                console.warn(`[IMPORT] Created selection option "${opt.value}" not found in response for "${prop.title}"`);
+                // Option wasn't included in the create response — create it explicitly
+                try {
+                  const newOpt = await addSelectionOption(created.id, String(opt.value));
+                  uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+                  console.log(`[IMPORT] Created missing selection option "${opt.value}" on new property "${prop.title}" → id=${newOpt.id}`);
+                } catch (optErr) {
+                  console.warn(`[IMPORT] Failed to create selection option "${opt.value}" on new property "${prop.title}":`, optErr);
+                }
               }
             }
           }
@@ -1216,11 +1238,12 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           for (const aliasTitle of page.aliases ?? []) {
             const aliasInfo = titleToNodeInfo.get(aliasTitle);
             if (!aliasInfo) {
-              // Create the alias page if it doesn't exist yet
+              // Create the alias page if it doesn't exist yet (with page class so is_page=true)
               setImportStatus(`Creating alias page: ${aliasTitle}`);
               try {
                 const aliasNode = await createNodeMutation.mutateAsync({
                   name: aliasTitle,
+                  classes: [pageClassId],
                 });
                 titleToNodeInfo.set(aliasTitle, { id: aliasNode.id, uuid: aliasNode.uuid });
                 await addAlias(mainInfo.id, aliasNode.id);
@@ -1239,8 +1262,24 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 tick();
               } catch (e) {
                 const msg = errorMessage(e);
-                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict') || msg.includes('itself an alias')) {
                   p7.succeeded++;
+                } else if (msg.includes('page nodes') || msg.includes('is_page')) {
+                  // One or both nodes aren't pages — upgrade both to be safe, then retry
+                  try {
+                    await updateNode(mainInfo.id, { classes: [pageClassId] });
+                    await updateNode(aliasInfo.id, { classes: [pageClassId] });
+                    await addAlias(mainInfo.id, aliasInfo.id);
+                    p7.succeeded++;
+                  } catch (retryErr) {
+                    const retryMsg = errorMessage(retryErr);
+                    if (retryMsg.includes('already') || retryMsg.includes('409') || retryMsg.includes('conflict')) {
+                      p7.succeeded++;
+                    } else {
+                      p7.failed++;
+                      p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: retryMsg });
+                    }
+                  }
                 } else {
                   p7.failed++;
                   p7.errors.push({ item: `Alias: ${aliasTitle} → ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: msg });
@@ -1270,8 +1309,24 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 tick();
               } catch (e) {
                 const msg = errorMessage(e);
-                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict')) {
+                if (msg.includes('already') || msg.includes('409') || msg.includes('conflict') || msg.includes('itself an alias')) {
                   p7.succeeded++;
+                } else if (msg.includes('page nodes') || msg.includes('is_page')) {
+                  // One or both nodes aren't pages — upgrade both to be safe and retry
+                  try {
+                    await updateNode(thisPageInfo.id, { classes: [pageClassId] });
+                    await updateNode(aliasInfo.id, { classes: [pageClassId] });
+                    await addAlias(thisPageInfo.id, aliasInfo.id);
+                    p7.succeeded++;
+                  } catch (retryErr) {
+                    const retryMsg = errorMessage(retryErr);
+                    if (retryMsg.includes('already') || retryMsg.includes('409') || retryMsg.includes('conflict') || retryMsg.includes('itself an alias')) {
+                      p7.succeeded++;
+                    } else {
+                      p7.failed++;
+                      p7.errors.push({ item: `Alias: UUID ${aliasUuid} → ${page.title}`, message: retryMsg });
+                    }
+                  }
                 } else {
                   p7.failed++;
                   p7.errors.push({ item: `Alias: UUID ${aliasUuid} → ${page.title}`, message: msg });
