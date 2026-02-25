@@ -16,7 +16,7 @@ from __future__ import annotations
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional, cast
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 
 import asyncpg
 
@@ -71,7 +71,10 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
     
     async with acquire_connection(pool) as conn:
         conn = cast(asyncpg.Connection, conn)
-        workspace_id = await get_or_create_user_workspace(conn, user_id, workspace_uuid=active_uuid)
+        try:
+            workspace_id = await get_or_create_user_workspace(conn, user_id, workspace_uuid=active_uuid)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="No workspace found. Please create a workspace first.")
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE uuid = $1 AND is_class = TRUE AND workspace_id = $2 LIMIT 1",
             SYSTEM_CLASS_UUIDS["page"], workspace_id
