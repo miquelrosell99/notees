@@ -244,7 +244,7 @@ export function NodeView({
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
-  const { data: allNodes } = useNodes({ pages_only: true });  // For fallback class/tag lookup
+  const { data: allNodes } = useNodes({ pages_only: true, page_size: 10000 });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useAppStore();
