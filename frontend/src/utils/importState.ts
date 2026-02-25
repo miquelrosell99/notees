@@ -8,15 +8,24 @@
  * A module-level variable is used (rather than Zustand) because File objects are
  * not serialisable and should not be stored in the state tree.
  */
+import type { LogseqExport } from '@/utils/ednParser';
 
 export interface PendingLogseqEdn {
   source: 'edn';
   ednContent: string;
+  /** Pre-parsed export so ImportLogseqModal can skip parsing on open. */
+  parsedExport?: LogseqExport;
+  /** When true, ImportLogseqModal skips the configuration form and starts import immediately. */
+  autoImport?: boolean;
 }
 
 export interface PendingLogseqSqlite {
   source: 'sqlite';
   sqliteFile: File;
+  /** Pre-parsed export so ImportLogseqModal can skip SQLite parsing on open. */
+  parsedExport?: LogseqExport;
+  /** When true, ImportLogseqModal skips the configuration form and starts import immediately. */
+  autoImport?: boolean;
 }
 
 export type PendingLogseqState = PendingLogseqEdn | PendingLogseqSqlite;
@@ -36,4 +45,25 @@ export function consumePendingLogseqImport(): PendingLogseqState | null {
   const s = _pending;
   _pending = null;
   return s;
+}
+
+// ── Import-complete callback ──────────────────────────────────────────────────
+//
+// WorkspaceManagementView sets this before opening ImportLogseqModal in
+// auto-import mode.  ImportLogseqModal calls it when the results report is
+// closed, so workspace navigation happens AFTER the import finishes rather
+// than as soon as the workspace is created.
+
+let _onImportComplete: (() => void) | null = null;
+
+/** Register a one-time callback to be invoked when the Logseq import report is closed. */
+export function setImportCompleteCallback(cb: (() => void) | null): void {
+  _onImportComplete = cb;
+}
+
+/** Read and clear the import-complete callback. */
+export function consumeImportCompleteCallback(): (() => void) | null {
+  const cb = _onImportComplete;
+  _onImportComplete = null;
+  return cb;
 }
