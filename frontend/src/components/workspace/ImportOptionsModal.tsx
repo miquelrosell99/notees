@@ -302,11 +302,7 @@ export function ImportOptionsModal({
                 ? 'This name is already taken'
                 : undefined
             }
-            containerClassName={
-              name.length >= 2 && nameCheck?.available && !isCheckingName
-                ? 'text-field__container--valid'
-                : ''
-            }
+            containerClassName=''
             icon={
               isCheckingName ? (
                 <SyncIcon size="xs" />
@@ -314,6 +310,7 @@ export function ImportOptionsModal({
                 <Icon
                   path={nameCheck?.available ? mdiCheck : mdiClose}
                   size={0.6}
+                  color={nameCheck?.available ? 'var(--color-success)' : 'var(--color-error)'}
                 />
               ) : undefined
             }
