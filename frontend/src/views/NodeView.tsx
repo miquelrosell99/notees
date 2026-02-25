@@ -460,15 +460,21 @@ export function NodeView({
   // Fetch class extends (inheritance) data for classes
   const { data: extendsData } = useClassExtends(node?.is_class ? node.id : null);
 
-  // Resolve extends details from IDs
+  // Resolve extends details from IDs.
+  // Look up from allClasses first (unpaginated, all class nodes) and fall back
+  // to allNodes.  Using only allNodes risks missing parent classes when the
+  // workspace has more pages than the default page-size (50).
   const extendsDetails = useMemo(() => {
     if (!extendsData || extendsData.length === 0) return [];
     return extendsData
       .map(ext => {
-        return allNodes?.find(n => n.id === ext.extends_class_node_id);
+        return (
+          allClasses?.find(n => n.id === ext.extends_class_node_id) ??
+          allNodes?.find(n => n.id === ext.extends_class_node_id)
+        );
       })
       .filter((n): n is Node => n !== undefined);
-  }, [extendsData, allNodes]);
+  }, [extendsData, allClasses, allNodes]);
   
   // Check if node is used as a class — skip if queries are hidden to avoid API call
   const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.id ?? 0) : null);
