@@ -831,14 +831,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       const tempIdxToNodeInfo = new Map<number, NodeInfo>();
 
       if (flatBlocks.length > 0) {
-        setImportStatus(`Creating ${flatBlocks.length} blocks…`);
+        setImportStatus(`Creating ${flatBlocks.length} blocks… (0/${flatBlocks.length})`);
         for (let offset = 0; offset < flatBlocks.length; offset += BATCH_CHUNK) {
           const chunk = flatBlocks.slice(offset, offset + BATCH_CHUNK);
+          const endIdx = Math.min(offset + BATCH_CHUNK, flatBlocks.length);
+          setImportStatus(`Creating blocks… (${offset}/${flatBlocks.length})`);
           try {
             const batchResult = await batchCreateNodes({
               nodes: chunk.map(item => ({
                 ...(item.block.uuid ? { uuid: item.block.uuid } : {}),
               })),
+              uuid_conflict_mode: 'return_existing',
             });
             for (const result of batchResult.results) {
               const item = chunk[result.index];
@@ -848,28 +851,13 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 if (item.block.uuid) uuidMap.set(item.block.uuid, info);
                 p3.succeeded++;
               } else {
-                // UUID conflict: try to recover the existing node
-                let recovered = false;
-                if (item.block.uuid) {
-                  try {
-                    const existing = await getNodeByUuid(item.block.uuid);
-                    if (existing) {
-                      const info: NodeInfo = { id: existing.id, uuid: existing.uuid };
-                      tempIdxToNodeInfo.set(item.tempIdx, info);
-                      uuidMap.set(item.block.uuid, info);
-                      p3.succeeded++;
-                      recovered = true;
-                    }
-                  } catch { /* fall through */ }
-                }
-                if (!recovered) {
-                  p3.failed++;
-                  p3.errors.push({
-                    item: `Block: ${item.block.title?.slice(0, 60) || '(empty)'}${item.block.uuid ? ` [${item.block.uuid}]` : ''}`,
-                    message: result.error ?? 'Unknown error',
-                  });
-                }
+                p3.failed++;
+                p3.errors.push({
+                  item: `Block: ${item.block.title?.slice(0, 60) || '(empty)'}${item.block.uuid ? ` [${item.block.uuid}]` : ''}`,
+                  message: result.error ?? 'Unknown error',
+                });
               }
+              tick();
             }
           } catch (e) {
             for (const item of chunk) {
@@ -878,15 +866,17 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 item: `Block: ${item.block.title?.slice(0, 60) || '(empty)'}`,
                 message: errorMessage(e),
               });
+              tick();
             }
           }
+          setImportStatus(`Creating blocks… (${endIdx}/${flatBlocks.length})`);
         }
       }
 
       // ── 3g: Combined update — name + parent + sequence + classes ─
       // All UUIDs are now registered, so [[uuid]] links resolve fully.
       {
-        setImportStatus('Setting content and wiring nodes…');
+        setImportStatus('Preparing node content…');
         const combinedItems: BatchNodeUpdateItem[] = [];
 
         // Regular pages: new → name + classes; existing → conditional name + class union
@@ -933,12 +923,16 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
           combinedItems.push(updateItem);
         }
 
+        setImportStatus(`Wiring ${combinedItems.length} nodes… (0/${combinedItems.length})`);
         for (let offset = 0; offset < combinedItems.length; offset += BATCH_CHUNK) {
+          const endIdx = Math.min(offset + BATCH_CHUNK, combinedItems.length);
+          setImportStatus(`Wiring nodes… (${offset}/${combinedItems.length})`);
           try {
             await batchUpdateNodes({ nodes: combinedItems.slice(offset, offset + BATCH_CHUNK) });
           } catch (e) {
             console.error('Failed combined update pass:', e);
           }
+          setImportStatus(`Wiring nodes… (${endIdx}/${combinedItems.length})`);
         }
       }
 
