@@ -66,13 +66,10 @@ out vec4 outColor;
 
 void main() {
   float d     = length(v_uv);
-  // Outer ring = hard circle, inner ring = bright core
-  float alpha = 1.0 - smoothstep(0.82, 1.0, d);
+  // Flat filled circle — sharp AA edge, no radial highlight (bullet style)
+  float alpha = 1.0 - smoothstep(0.85, 1.0, d);
   if (alpha <= 0.01) discard;
-
-  // Slight radial highlight
-  float highlight = 1.0 - smoothstep(0.0, 0.6, d) * 0.3;
-  outColor = vec4(v_color.rgb * highlight, v_color.a * alpha);
+  outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
 `;
 
@@ -88,13 +85,14 @@ const EDGE_VERT_SRC = /* glsl */ `#version 300 es
 precision highp float;
 
 // Per-vertex local quad coords
-in vec2  a_local; // x = side (-0.5..0.5), y = t (0..1 along edge)
+in vec2  a_local;  // x = side (-0.5..0.5), y = t (0..1 along edge)
 
 // Per-instance — STATIC topology, no positions baked in
-in float a_i1;    // source node index → texelFetch into u_positions
-in float a_i2;    // target node index → texelFetch into u_positions
-in float a_width; // world-space half-width
-in vec4  a_color; // RGBA 0..1
+in float a_i1;     // source node index → texelFetch into u_positions
+in float a_i2;     // target node index → texelFetch into u_positions
+in float a_width;  // world-space half-width
+in vec4  a_color;  // RGBA 0..1
+in float a_dashed; // 0 = solid, 1 = dashed
 
 // Camera
 uniform vec2  u_resolution;
@@ -104,10 +102,15 @@ uniform float u_zoom;
 // RG32F position texture: texel(i, 0).rg = (x, y) for node i
 uniform highp sampler2D u_positions;
 
-out vec4 v_color;
+out vec4  v_color;
+out float v_dashed;
+out float v_t;      // parametric position along edge (0..1)
+out float v_screenLen; // edge length in screen pixels
 
 void main() {
-  v_color = a_color;
+  v_color  = a_color;
+  v_dashed = a_dashed;
+  v_t      = a_local.y;
 
   // Zero-copy GPU-side position read
   int si = int(a_i1);
@@ -120,6 +123,8 @@ void main() {
   vec2 perp = (len > 0.001)
     ? vec2(-dir.y, dir.x) / len
     : vec2(0.0, 1.0);
+
+  v_screenLen = len * u_zoom;
 
   // Ensure edge is at least 1.0 screen-pixel wide to prevent
   // sub-pixel aliasing that makes lines appear dashed when zoomed out.
@@ -139,10 +144,22 @@ void main() {
 const EDGE_FRAG_SRC = /* glsl */ `#version 300 es
 precision mediump float;
 
-in vec4 v_color;
+in vec4  v_color;
+in float v_dashed;
+in float v_t;
+in float v_screenLen;
+
 out vec4 outColor;
 
 void main() {
+  // Dashed edges: discard fragments that fall in the gaps.
+  // Dash period = 14px (8px on, 6px off) in screen space.
+  if (v_dashed > 0.5 && v_screenLen > 1.0) {
+    float pos    = v_t * v_screenLen;
+    float period = 14.0;
+    float onLen  = 8.0;
+    if (mod(pos, period) > onLen) discard;
+  }
   outColor = v_color;
 }
 `;
@@ -177,7 +194,11 @@ void main() {
 }
 `;
 
-/** Ring fragment: smooth annulus between inner ~0.65 and outer ~1.0. */
+/**
+ * Ring / glow disc fragment — drawn BEFORE nodes so it appears underneath them.
+ * Renders a soft filled disc slightly larger than the node, peeking out around
+ * the node edge as an outer circle (bullet-style hover/select indicator).
+ */
 const RING_FRAG_SRC = /* glsl */ `#version 300 es
 precision mediump float;
 
@@ -187,11 +208,10 @@ out vec4 outColor;
 
 void main() {
   float d     = length(v_uv);
-  float outer = 1.0 - smoothstep(0.90, 1.00, d);
-  float inner = smoothstep(0.60, 0.72, d);
-  float alpha = outer * inner;
+  // Soft border glow — fade from solid core to transparent at edge
+  float alpha = (1.0 - smoothstep(0.7, 1.0, d)) * v_color.a;
   if (alpha <= 0.01) discard;
-  outColor = vec4(v_color.rgb, v_color.a * alpha);
+  outColor = vec4(v_color.rgb, alpha);
 }
 `;
 
@@ -230,7 +250,7 @@ export interface CameraState {
 // Floats per node instance
 const NODE_STRIDE = 7; // x, y, radius, r, g, b, a
 // Floats per edge instance (no positions baked in — GPU samples from texture)
-const EDGE_STRIDE = 7; // i1, i2, width, r, g, b, a
+const EDGE_STRIDE = 8; // i1, i2, width, r, g, b, a, dashed
 
 // ─── WebGL Helpers ────────────────────────────────────────────────────────────
 
@@ -404,7 +424,16 @@ export class GraphWebGLRenderer {
   private positions: Float32Array = new Float32Array(0);
 
   // --- Edge topology ---
-  private edges: Array<{ source: number; target: number }> = [];
+  private edges: Array<{ source: number; target: number; dashed?: boolean }> = [];
+
+  // --- Adjacency for dimming ---
+  private _adjacency = new Map<number, Set<number>>();
+  /** Set of nodeIds that are "highlighted" (hovered/selected + their direct neighbours). */
+  private _highlightedIds = new Set<number>();
+  /** When true, repack node instances to apply updated dim factors. */
+  private _dimDirty = false;
+  /** Alpha multiplier for dimmed (non-highlighted) nodes. */
+  private readonly DIM_ALPHA = 0.08;
 
   // --- Cached uniform locations (looked up once at init, not per frame) ---
   private nodeUniforms: {
@@ -588,11 +617,12 @@ export class GraphWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstData, gl.DYNAMIC_DRAW);
 
-    const STRIDE = EDGE_STRIDE * 4; // 28 bytes
-    const aI1    = gl.getAttribLocation(this.edgeProg!, 'a_i1');
-    const aI2    = gl.getAttribLocation(this.edgeProg!, 'a_i2');
-    const aWidth = gl.getAttribLocation(this.edgeProg!, 'a_width');
-    const aColor = gl.getAttribLocation(this.edgeProg!, 'a_color');
+    const STRIDE  = EDGE_STRIDE * 4; // 32 bytes
+    const aI1     = gl.getAttribLocation(this.edgeProg!, 'a_i1');
+    const aI2     = gl.getAttribLocation(this.edgeProg!, 'a_i2');
+    const aWidth  = gl.getAttribLocation(this.edgeProg!, 'a_width');
+    const aColor  = gl.getAttribLocation(this.edgeProg!, 'a_color');
+    const aDashed = gl.getAttribLocation(this.edgeProg!, 'a_dashed');
 
     // a_i1: float at offset 0
     gl.enableVertexAttribArray(aI1);
@@ -613,6 +643,13 @@ export class GraphWebGLRenderer {
     gl.enableVertexAttribArray(aColor);
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
     gl.vertexAttribDivisor(aColor, 1);
+
+    // a_dashed: float at offset 28
+    if (aDashed >= 0) {
+      gl.enableVertexAttribArray(aDashed);
+      gl.vertexAttribPointer(aDashed, 1, gl.FLOAT, false, STRIDE, 28);
+      gl.vertexAttribDivisor(aDashed, 1);
+    }
 
     gl.bindVertexArray(null);
   }
@@ -696,10 +733,42 @@ export class GraphWebGLRenderer {
     this._posDirty  = true;
   }
 
-  /** Replace the edge list. Edges reference node IDs. */
-  setEdges(edges: Array<{ source: number; target: number }>): void {
+  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. */
+  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean }>): void {
     this.edges = edges;
     this._edgeDirty = true;
+    this._rebuildAdjacency();
+    this._recomputeHighlighted();
+  }
+
+  // ─── Adjacency + Dimming ────────────────────────────────────────────────────────
+
+  private _rebuildAdjacency(): void {
+    this._adjacency.clear();
+    for (const { source, target } of this.edges) {
+      if (!this._adjacency.has(source)) this._adjacency.set(source, new Set());
+      if (!this._adjacency.has(target)) this._adjacency.set(target, new Set());
+      this._adjacency.get(source)!.add(target);
+      this._adjacency.get(target)!.add(source);
+    }
+  }
+
+  private _recomputeHighlighted(): void {
+    this._highlightedIds.clear();
+    const focusIds = [
+      this._hoveredNodeId,
+      this._selectedNodeId,
+    ].filter(id => id >= 0);
+    if (focusIds.length === 0) {
+      this._dimDirty = true;
+      return;
+    }
+    for (const id of focusIds) {
+      this._highlightedIds.add(id);
+      const neighbours = this._adjacency.get(id);
+      if (neighbours) for (const nb of neighbours) this._highlightedIds.add(nb);
+    }
+    this._dimDirty = true;
   }
 
   /**
@@ -740,14 +809,18 @@ export class GraphWebGLRenderer {
     // Camera is only a uniform — no dirty flag needed, no CPU repack required.
   }
 
-  /** Signal the renderer which node is currently hovered (for ring highlight). */
+  /** Signal the renderer which node is currently hovered (for glow + dimming). */
   setHoveredNode(id: number): void {
+    if (this._hoveredNodeId === id) return;
     this._hoveredNodeId = id;
+    this._recomputeHighlighted();
   }
 
-  /** Signal the renderer which node is currently selected (for ring highlight). */
+  /** Signal the renderer which node is currently selected (for glow + dimming). */
   setSelectedNode(id: number): void {
+    if (this._selectedNodeId === id) return;
     this._selectedNodeId = id;
+    this._recomputeHighlighted();
   }
 
   /** Read-only access to the latest physics positions (for label rendering). */
@@ -792,6 +865,7 @@ export class GraphWebGLRenderer {
 
     const pos = this.positions;
     const defaultColor = getCssNodeDefaultColor();
+    const hasFocus = this._highlightedIds.size > 0;
 
     // No CPU culling — GPU clip space discards off-screen quads for free.
     for (let i = 0; i < n; i++) {
@@ -801,6 +875,9 @@ export class GraphWebGLRenderer {
       const color  = vis?.color;
       const def    = color ? null : defaultColor;
 
+      // Dimming: non-highlighted nodes fade when something is focused
+      const dimmed = hasFocus && !this._highlightedIds.has(id);
+
       const base = i * NODE_STRIDE;
       this.nodeInstData[base    ] = pos[i * 2];
       this.nodeInstData[base + 1] = pos[i * 2 + 1];
@@ -808,7 +885,8 @@ export class GraphWebGLRenderer {
       this.nodeInstData[base + 3] = color ? color[0] : def![0];
       this.nodeInstData[base + 4] = color ? color[1] : def![1];
       this.nodeInstData[base + 5] = color ? color[2] : def![2];
-      this.nodeInstData[base + 6] = color ? color[3] : def![3];
+      const baseAlpha             = color ? color[3] : def![3];
+      this.nodeInstData[base + 6] = dimmed ? baseAlpha * this.DIM_ALPHA : baseAlpha;
     }
 
     this.nodeInstCount = n;
@@ -878,20 +956,21 @@ export class GraphWebGLRenderer {
 
     let count = 0;
     for (let i = 0; i < ne; i++) {
-      const { source, target } = edges[i];
+      const { source, target, dashed } = edges[i];
       const si = this.nodeIndex.get(source);
       const ti = this.nodeIndex.get(target);
       if (si === undefined || ti === undefined) continue;
 
       // Store indices as floats — shader casts to int via int()
       const base = count * EDGE_STRIDE;
-      this.edgeInstData[base    ] = si;   // source node index
-      this.edgeInstData[base + 1] = ti;   // target node index
+      this.edgeInstData[base    ] = si;           // source node index
+      this.edgeInstData[base + 1] = ti;           // target node index
       this.edgeInstData[base + 2] = width;
       this.edgeInstData[base + 3] = er;
       this.edgeInstData[base + 4] = eg;
       this.edgeInstData[base + 5] = eb;
       this.edgeInstData[base + 6] = ea;
+      this.edgeInstData[base + 7] = dashed ? 1.0 : 0.0; // dashed flag
       count++;
     }
 
@@ -915,18 +994,21 @@ export class GraphWebGLRenderer {
       this._rebuildEdgeTopology();
     }
 
-    // ── Position update (O(N), every physics frame) ──
+    // ── Position / dim update ──
     // Upload positions texture + repack node instances.
     // Camera movement does NOT reach this path — camera is just a uniform.
-    if (this._posDirty) {
+    // _dimDirty triggers a repack (no texture upload needed) when hover/select
+    // changes so dimming is applied immediately without waiting for new physics.
+    if (this._posDirty || this._dimDirty) {
       const n = this.nodeIdOrder.length;
       // Only clear the dirty flag once positions are actually available.
-      // If the physics worker hasn't sent data yet we keep _posDirty=true so
-      // the upload is retried next frame instead of drawing with a blank texture.
       if (n === 0 || this.positions.length >= n * 2) {
-        this._posDirty = false;
-        this._uploadPositionTexture(); // zero-copy: positions buffer IS the texture data
-        this._packNodeInstances();     // O(N): positions + radii + colors per node
+        if (this._posDirty) {
+          this._posDirty = false;
+          this._uploadPositionTexture();
+        }
+        this._dimDirty = false;
+        this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
       }
     }
 
@@ -938,37 +1020,14 @@ export class GraphWebGLRenderer {
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
-    // ── Draw edges (GPU samples positions from texture — O(1) CPU per frame) ──
-    // posTexWidth > 0 ensures texImage2D has been called; skip if not yet ready.
-    if (this.edgeInstCount > 0 && this.posTex && this.posTexWidth > 0) {
-      gl.useProgram(this.edgeProg);
-      gl.bindVertexArray(this.edgeVAO);
-      gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
-      gl.uniform2fv(this.edgeUniforms.camera, this._camBuf);
-      gl.uniform1f( this.edgeUniforms.zoom, zoom);
-      // Bind position texture to unit 0 for the edge shader
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.posTex);
-      gl.uniform1i(this.edgeUniforms.positions, 0);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.edgeInstCount);
-    }
-
-    // ── Draw nodes ────────────────────────────────────────────
-    if (this.nodeInstCount > 0) {
-      gl.useProgram(this.nodeProg);
-      gl.bindVertexArray(this.nodeVAO);
-      gl.uniform2fv(this.nodeUniforms.resolution, this._resBuf);
-      gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
-      gl.uniform1f( this.nodeUniforms.zoom, zoom);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
-    }
-
-    // ── Draw hover / selection rings (on top of nodes) ────────
+    // ── Build hover / selection glow rings ────────────────────────────────
+    // Written first so rings are drawn BEFORE nodes (appear under the main circle).
     this.ringInstCount = 0;
     const rid = this.ringInstData;
 
-    // Helper: write one ring instance into ringInstData at offset `base`.
-    // Hover ring: faint, off-white.  Selected ring: bright accent.
+    // Helper: write one ring instance at the given node's position.
+    // Ring radius = node_radius * scale so it peeks out from behind the node.
+    // Colors: selected → soft accent blue, hovered → soft white.
     const writeRing = (nodeId: number, scale: number, r: number, g: number, b: number, a: number): void => {
       const idx = this.nodeIndex.get(nodeId);
       if (idx === undefined) return;
@@ -987,12 +1046,13 @@ export class GraphWebGLRenderer {
       this.ringInstCount++;
     };
 
-    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.85, 0.42, 0.72, 1.0, 0.85);
+    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.7, 0.42, 0.72, 1.0, 0.75);
     if (this._hoveredNodeId >= 0 && this._hoveredNodeId !== this._selectedNodeId) {
-      writeRing(this._hoveredNodeId, 1.85, 1.0, 1.0, 1.0, 0.35);
+      writeRing(this._hoveredNodeId, 1.7, 1.0, 1.0, 1.0, 0.30);
     }
 
-    if (this.ringInstCount > 0 && this.ringVAO) {
+    // ── Draw glow rings (UNDER nodes and edges) ────────────────────────────
+    if (this.ringInstCount > 0 && this.ringVAO && this.positions.length > 0) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.ringInstBuf);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, rid, 0, this.ringInstCount * NODE_STRIDE);
       gl.useProgram(this.ringProg);
@@ -1001,6 +1061,31 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.ringUniforms.camera, this._camBuf);
       gl.uniform1f( this.ringUniforms.zoom, zoom);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.ringInstCount);
+    }
+
+    // ── Draw edges (GPU samples positions from texture — O(1) CPU per frame) ──
+    // posTexWidth > 0 ensures texImage2D has been called; skip if not yet ready.
+    if (this.edgeInstCount > 0 && this.posTex && this.posTexWidth > 0) {
+      gl.useProgram(this.edgeProg);
+      gl.bindVertexArray(this.edgeVAO);
+      gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.edgeUniforms.camera, this._camBuf);
+      gl.uniform1f( this.edgeUniforms.zoom, zoom);
+      // Bind position texture to unit 0 for the edge shader
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.posTex);
+      gl.uniform1i(this.edgeUniforms.positions, 0);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.edgeInstCount);
+    }
+
+    // ── Draw nodes (on top of rings and edges) ────────────────────────────
+    if (this.nodeInstCount > 0) {
+      gl.useProgram(this.nodeProg);
+      gl.bindVertexArray(this.nodeVAO);
+      gl.uniform2fv(this.nodeUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
+      gl.uniform1f( this.nodeUniforms.zoom, zoom);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 
     gl.bindVertexArray(null);
@@ -1024,6 +1109,46 @@ export class GraphWebGLRenderer {
       x: (px - this.canvasW * 0.5) / zoom + cx,
       y: (py - this.canvasH * 0.5) / zoom + cy,
     };
+  }
+
+  /**
+   * Fit all nodes into the current canvas viewport with padding.
+   * Returns the new camera state (also applied to `this.camera`).
+   */
+  fitToCanvas(paddingPx = 60): CameraState {
+    const n = this.nodeIdOrder.length;
+    if (n === 0) return { ...this.camera };
+
+    const pos = this.positions;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const x = pos[i * 2];
+      const y = pos[i * 2 + 1];
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    // Add max node radius as world-space padding so nodes aren't clipped
+    const maxRadius = this.opts.defaultRadius * 2;
+    const worldW = (maxX - minX) + maxRadius * 2;
+    const worldH = (maxY - minY) + maxRadius * 2;
+
+    const availW = this.canvasW - paddingPx * 2;
+    const availH = this.canvasH - paddingPx * 2;
+
+    let zoom = 1;
+    if (worldW > 0 && worldH > 0) {
+      zoom = Math.min(availW / worldW, availH / worldH);
+    }
+    zoom = Math.max(0.02, Math.min(zoom, 40));
+
+    this.camera = { x: cx, y: cy, zoom };
+    return { ...this.camera };
   }
 
   /** Find the closest node to a world-space point within maxDist world units. */

@@ -32,7 +32,7 @@ import type {
   ConstraintMode,
   LinkDirection,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiHistory, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -81,7 +81,7 @@ export function GraphView({
   showViewModes = true,
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
-  const rendererRef = useRef<SGEGraphViewRef>(null);
+  const rendererRef = useRef<GraphRendererRef>(null);
   
   // Fetch links between the provided nodes
   // Stabilize nodeIds with a content-based key so useGraphLinks doesn't refetch
@@ -120,6 +120,9 @@ export function GraphView({
     linkDirection: 'all',
   });
   const settingsLoadedRef = useRef(false);
+  
+  // Node radius (world units) — separate from graphSettings because it feeds directly to the renderer
+  const [baseNodeRadius, setBaseNodeRadius] = useState(7);
   
   // Class colors
   const [classColors, setClassColors] = useState<ClassColor[]>([]);
@@ -514,6 +517,22 @@ export function GraphView({
               />
             </div>
 
+              <div className="visibility-option visibility-option--slider">
+                <span className="visibility-option__label">Node radius</span>
+                <div className="visibility-option__slider-row">
+                  <input
+                    type="range"
+                    min={3}
+                    max={20}
+                    step={1}
+                    value={baseNodeRadius}
+                    onChange={(e) => setBaseNodeRadius(Number(e.target.value))}
+                    className="graph-radius-slider"
+                  />
+                  <span className="graph-radius-value">{baseNodeRadius}</span>
+                </div>
+              </div>
+
             {graphSettings.nodeSizeMode === 'connections' && (
               <div className="visibility-option">
                 <SelectionButton
@@ -713,13 +732,6 @@ export function GraphView({
             </div>
           </div>
         </ButtonWithPanel>
-        
-        <Button
-          icon={mdiHistory}
-          size="sm"
-          onClick={() => rendererRef.current?.reheat()}
-          title="Reheat physics simulation"
-        />
       </div>
       )}
       
@@ -796,6 +808,7 @@ export function GraphView({
         nodes={nodes}
         edges={links}
         sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
+        baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
         onNodeDblClick={handleNodeDoubleClick}
         className="node-graph-view__renderer"

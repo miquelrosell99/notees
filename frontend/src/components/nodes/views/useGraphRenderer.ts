@@ -52,8 +52,8 @@ const BASE_RADIUS   = 7;
 const MAX_RADIUS    = 22;
 const MIN_RADIUS    = 4;
 
-function nodeRadius(n: GraphNode, maxConnections: number): number {
-  if (maxConnections <= 0) return BASE_RADIUS;
+function nodeRadius(n: GraphNode, maxConnections: number, base = BASE_RADIUS): number {
+  if (maxConnections <= 0) return base;
   // Scale logarithmically so hubs don't dominate visually
   const t = Math.log1p(n.connectionCount) / Math.log1p(maxConnections);
   return MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * t;
@@ -79,6 +79,8 @@ export interface GraphRendererOptions {
   config?: Partial<SGEConfig>;
   /** Scale node size by connection count. Default: true. */
   sizeByConnections?: boolean;
+  /** Base node radius in world units when not scaling by connections. Default: 7. */
+  baseNodeRadius?: number;
   /** Callback when user clicks a node (no drag involved). */
   onNodeClick?: (nodeId: number) => void;
 }
@@ -109,7 +111,7 @@ export interface GraphRendererHandle {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandle {
-  const { nodes, edges, config, sizeByConnections = true } = opts;
+  const { nodes, edges, config, sizeByConnections = true, baseNodeRadius = BASE_RADIUS } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -501,14 +503,19 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       // Build physics nodes (compact)
       const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
 
-      // Build edges (only unique source/target pairs)
-      const physEdges = edges.map(e => ({ source: e.source, target: e.target }));
+      // Build edges (only unique source/target pairs), with dashed flag
+      // Parent/class/extends links are solid; reference links are dashed
+      const physEdges = edges.map(e => ({
+        source: e.source,
+        target: e.target,
+        dashed: e.type === 'reference' || e.type === 'property-reference',
+      }));
 
       // Build visual metadata map
       const visuals = new Map<number, NodeVisual>();
       for (const n of nodes) {
         visuals.set(n.id, {
-          radius: sizeByConnections ? nodeRadius(n, maxConn) : BASE_RADIUS,
+          radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
           color:  nodeColor(n),
         });
       }
@@ -551,7 +558,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, sizeByConnections]);
+  }, [nodes, edges, sizeByConnections, baseNodeRadius]);
 
   // ─── Label canvas resize observer ─────────────────────────────────────────
   useEffect(() => {
@@ -701,15 +708,43 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, [post]);
 
   const recenter = useCallback(() => {
-    const n = nodes.length;
+    const rend = rendRef.current;
+    const canvas = canvasRef.current;
+    if (!rend || !canvas) return;
+    const n = rend.nodeOrder.length;
     if (n === 0) return;
-    let sumX = 0, sumY = 0;
-    for (const nd of nodes) { sumX += nd.x; sumY += nd.y; }
-    camRef.current.x    = sumX / n;
-    camRef.current.y    = sumY / n;
-    camRef.current.zoom = 1;
+
+    // Compute AABB from live physics positions
+    const pos = rend.nodePositions;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const x = pos[i * 2];
+      const y = pos[i * 2 + 1];
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+
+    const cx  = (minX + maxX) / 2;
+    const cy  = (minY + maxY) / 2;
+    const pad = 60 * devicePixelRatio; // pixels
+    const worldW = (maxX - minX) + 32; // add rough node radius margin
+    const worldH = (maxY - minY) + 32;
+
+    let zoom = 1;
+    if (worldW > 0 && worldH > 0) {
+      zoom = Math.min(
+        (canvas.width  - pad * 2) / worldW,
+        (canvas.height - pad * 2) / worldH,
+      );
+    }
+    camRef.current.x    = cx;
+    camRef.current.y    = cy;
+    camRef.current.zoom = Math.max(0.02, Math.min(zoom, 40));
+    dirtyRef.current.camera = true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes]);
+  }, []);
 
   const screenToWorld = useCallback((sx: number, sy: number) => {
     return rendRef.current?.screenToWorld(sx, sy) ?? { x: 0, y: 0 };
