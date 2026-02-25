@@ -265,6 +265,7 @@ class BatchNodeCreateItem(BaseModel):
 class BatchNodeCreateRequest(BaseModel):
     """Request to create multiple nodes in a single batch."""
     nodes: List[BatchNodeCreateItem]
+    uuid_conflict_mode: str = "block"  # 'block' | 'return_existing'
 
 
 class BatchNodeCreateResultItem(BaseModel):
@@ -273,6 +274,7 @@ class BatchNodeCreateResultItem(BaseModel):
     success: bool
     node: Optional[NodeResponse] = None
     error: Optional[str] = None
+    existing: bool = False  # True when an existing node was returned (uuid_conflict_mode)
 
 
 class BatchNodeCreateResponse(BaseModel):

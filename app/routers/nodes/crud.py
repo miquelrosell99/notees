@@ -114,19 +114,28 @@ async def batch_create_nodes(
             uuid=item.uuid,
         ))
     
-    raw_results = await service.batch_create_nodes(create_items, user_id=int(user.id))
+    raw_results = await service.batch_create_nodes(
+        create_items,
+        user_id=int(user.id),
+        uuid_conflict_mode=request.uuid_conflict_mode,
+    )
     
     results = []
     created = 0
     failed = 0
+    existing = 0
     for i, r in enumerate(raw_results):
         if r["success"]:
-            created += 1
+            if r.get("existing"):
+                existing += 1
+            else:
+                created += 1
             classes = list(request.nodes[i].classes)
             results.append(BatchNodeCreateResultItem(
                 index=i,
                 success=True,
                 node=_node_to_response(r["node"], classes=classes),
+                existing=r.get("existing", False),
             ))
         else:
             failed += 1
@@ -136,7 +145,7 @@ async def batch_create_nodes(
                 error=r["error"],
             ))
     
-    logger.info(f"[BATCH_CREATE] {created} created, {failed} failed out of {len(request.nodes)}")
+    logger.info(f"[BATCH_CREATE] {created} created, {existing} existing, {failed} failed out of {len(request.nodes)}")
     return BatchNodeCreateResponse(results=results, created=created, failed=failed)
 
 
