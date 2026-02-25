@@ -200,7 +200,12 @@ export function ImportOptionsModal({
   // -- Start import once workspace is ready and pageClassId available ------
   useEffect(() => {
     if (phase !== 'importing' || !pendingParsedRef.current || !pageClassId || importing) return;
-    runImport(pendingParsedRef.current, { importMode: 'additive' });
+    // Clear ref BEFORE calling runImport to prevent double-invocation:
+    // when the import finishes, `importing` flips false → the effect re-fires,
+    // but pendingParsedRef is already null so the guard exits early.
+    const parsed = pendingParsedRef.current;
+    pendingParsedRef.current = null;
+    runImport(parsed, { importMode: 'additive' });
   }, [phase, pageClassId, importing, runImport]);
 
   // -- Transition to report when hook finishes ----------------------------
