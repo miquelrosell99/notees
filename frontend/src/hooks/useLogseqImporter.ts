@@ -642,7 +642,7 @@ export function useLogseqImporter() {
     const pagesWithAliases = parsed.pages.filter(p => (p.aliases && p.aliases.length > 0) || (p.aliasOfUuids && p.aliasOfUuids.length > 0)).length;
     const totalBlocks = parsed.pages.reduce((s, p) => s + countBlocks(p.blocks), 0)
       + (parsed.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
-    const estimatedTotal = Math.max(1,
+    let estimatedTotal = Math.max(1,
       parsed.classes.length + classExtends + parsed.properties.length
       + parsed.pages.length + propBindings + pagesWithProps
       + totalBlocks + pagesWithAliases
@@ -650,6 +650,10 @@ export function useLogseqImporter() {
     let completedItems = 0;
     const tick = () => {
       completedItems++;
+      setImportProgress(Math.min(99, Math.round((completedItems / estimatedTotal) * 100)));
+    };
+    const tickN = (n: number) => {
+      completedItems += n;
       setImportProgress(Math.min(99, Math.round((completedItems / estimatedTotal) * 100)));
     };
 
@@ -919,22 +923,50 @@ export function useLogseqImporter() {
       const regularPages = parsed.pages.filter(p => !p.journal);
 
       // 3a: Journal pages — batch getOrCreateDaily
+      const PAGE_CHUNK = 500;
+      const CONCURRENT_PAGES = 4;
       if (journalPages.length > 0) {
-        setImportStatus(`Creating ${journalPages.length} journal pages…`);
-        const batchDailyResult = await batchGetOrCreateDaily(journalPages.map(p => p.journal!));
-        for (let i = 0; i < batchDailyResult.results.length; i++) {
-          const result = batchDailyResult.results[i];
-          const page = journalPages[i];
-          if (result.success && result.node) {
-            existingNodeIds.add(result.node.id);
-            if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
-            titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
-            p3.succeeded++;
-          } else {
-            p3.failed++;
-            p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
-          }
-          tick();
+        let journalsDone = 0;
+        setImportStatus(`Creating journal pages… (0/${journalPages.length})`);
+        const journalChunks: typeof journalPages[] = [];
+        for (let offset = 0; offset < journalPages.length; offset += PAGE_CHUNK) {
+          journalChunks.push(journalPages.slice(offset, offset + PAGE_CHUNK));
+        }
+        for (let ci = 0; ci < journalChunks.length; ci += CONCURRENT_PAGES) {
+          const group = journalChunks.slice(ci, ci + CONCURRENT_PAGES);
+          await Promise.allSettled(
+            group.map(async (chunk) => {
+              let batchDailyResult: Awaited<ReturnType<typeof batchGetOrCreateDaily>>;
+              try {
+                batchDailyResult = await batchGetOrCreateDaily(chunk.map(p => p.journal!));
+              } catch (e) {
+                for (const page of chunk) {
+                  p3.failed++;
+                  p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+                }
+                tickN(chunk.length);
+                journalsDone += chunk.length;
+                setImportStatus(`Creating journal pages… (${journalsDone}/${journalPages.length})`);
+                return;
+              }
+              for (let i = 0; i < batchDailyResult.results.length; i++) {
+                const result = batchDailyResult.results[i];
+                const page = chunk[i];
+                if (result.success && result.node) {
+                  existingNodeIds.add(result.node.id);
+                  if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
+                  titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+                  p3.succeeded++;
+                } else {
+                  p3.failed++;
+                  p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
+                }
+              }
+              tickN(chunk.length);
+              journalsDone += chunk.length;
+              setImportStatus(`Creating journal pages… (${journalsDone}/${journalPages.length})`);
+            })
+          );
         }
       }
 
@@ -966,37 +998,50 @@ export function useLogseqImporter() {
       });
 
       if (regularPages.length > 0) {
-        setImportStatus(`Creating ${regularPages.length} pages…`);
-        try {
-          const batchResult = await batchCreateNodes({
-            nodes: regularPages.map(page => ({
-              ...(page.uuid ? { uuid: page.uuid } : {}),
-            })),
-            uuid_conflict_mode: 'return_existing',
-          });
-          for (let i = 0; i < batchResult.results.length; i++) {
-            const result = batchResult.results[i];
-            const page = regularPages[i];
-            if (result.success && result.node) {
-              if (result.existing) {
-                existingNodeIds.add(result.node.id);
-                existingPageMap.set(page.title, result.node);
+        let pagesDone = 0;
+        setImportStatus(`Creating pages… (0/${regularPages.length})`);
+        const pageChunks: typeof regularPages[] = [];
+        for (let offset = 0; offset < regularPages.length; offset += PAGE_CHUNK) {
+          pageChunks.push(regularPages.slice(offset, offset + PAGE_CHUNK));
+        }
+        for (let ci = 0; ci < pageChunks.length; ci += CONCURRENT_PAGES) {
+          const group = pageChunks.slice(ci, ci + CONCURRENT_PAGES);
+          await Promise.allSettled(
+            group.map(async (chunk) => {
+              try {
+                const batchResult = await batchCreateNodes({
+                  nodes: chunk.map(page => ({
+                    ...(page.uuid ? { uuid: page.uuid } : {}),
+                  })),
+                  uuid_conflict_mode: 'return_existing',
+                });
+                for (let i = 0; i < batchResult.results.length; i++) {
+                  const result = batchResult.results[i];
+                  const page = chunk[i];
+                  if (result.success && result.node) {
+                    if (result.existing) {
+                      existingNodeIds.add(result.node.id);
+                      existingPageMap.set(page.title, result.node);
+                    }
+                    if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
+                    titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+                    p3.succeeded++;
+                  } else {
+                    p3.failed++;
+                    p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
+                  }
+                }
+              } catch (e) {
+                for (const page of chunk) {
+                  p3.failed++;
+                  p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
+                }
               }
-              if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
-              titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
-              p3.succeeded++;
-            } else {
-              p3.failed++;
-              p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: result.error ?? 'Unknown error' });
-            }
-            tick();
-          }
-        } catch (e) {
-          for (const page of regularPages) {
-            p3.failed++;
-            p3.errors.push({ item: `Page: ${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
-            tick();
-          }
+              tickN(chunk.length);
+              pagesDone += chunk.length;
+              setImportStatus(`Creating pages… (${pagesDone}/${regularPages.length})`);
+            })
+          );
         }
       }
 
@@ -1155,16 +1200,28 @@ export function useLogseqImporter() {
           combinedItems.push(updateItem);
         }
 
-        setImportStatus(`Wiring ${combinedItems.length} nodes… (0/${combinedItems.length})`);
+        const CONCURRENT_WIRES = 4;
+        const wireChunks: BatchNodeUpdateItem[][] = [];
         for (let offset = 0; offset < combinedItems.length; offset += BATCH_CHUNK) {
-          const endIdx = Math.min(offset + BATCH_CHUNK, combinedItems.length);
-          setImportStatus(`Wiring nodes… (${offset}/${combinedItems.length})`);
-          try {
-            await batchUpdateNodes({ nodes: combinedItems.slice(offset, offset + BATCH_CHUNK) });
-          } catch (e) {
-            console.error('Failed combined update pass:', e);
-          }
-          setImportStatus(`Wiring nodes… (${endIdx}/${combinedItems.length})`);
+          wireChunks.push(combinedItems.slice(offset, offset + BATCH_CHUNK));
+        }
+        estimatedTotal += combinedItems.length;
+        setImportStatus(`Wiring ${combinedItems.length} nodes… (0/${combinedItems.length})`);
+        let wiresDone = 0;
+        for (let ci = 0; ci < wireChunks.length; ci += CONCURRENT_WIRES) {
+          const group = wireChunks.slice(ci, ci + CONCURRENT_WIRES);
+          await Promise.allSettled(
+            group.map(async (chunk) => {
+              try {
+                await batchUpdateNodes({ nodes: chunk });
+              } catch (e) {
+                console.error('Failed combined update pass:', e);
+              }
+              wiresDone += chunk.length;
+              tickN(chunk.length);
+              setImportStatus(`Wiring nodes… (${wiresDone}/${combinedItems.length})`);
+            })
+          );
         }
       }
 
