@@ -12,14 +12,12 @@ import {
   deleteWorkspace,
   renameWorkspace,
   getWorkspaceExportUrl,
-  importWorkspace,
-  createWorkspace,
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
 import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
-import { ImportOptionsModal, type ImportType } from '../components/workspace/ImportOptionsModal';
+import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { UserSettingsModal } from '../components/layout/UserSettingsModal';
 import { 
@@ -52,12 +50,6 @@ export function WorkspaceManagementView({
 }: WorkspaceManagementViewProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
-  const [importNameModalState, setImportNameModalState] = useState<{
-    isOpen: boolean;
-    file: File | null;
-    type: ImportType | null;
-  }>({ isOpen: false, file: null, type: null });
-  const [importError, setImportError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // stores uuid
   const [renameModalState, setRenameModalState] = useState<{
     isOpen: boolean;
@@ -136,22 +128,6 @@ export function WorkspaceManagementView({
     },
   });
 
-  // Import mutation
-  const importMutation = useMutation({
-    mutationFn: ({ name, file }: { name: string; file: File }) => importWorkspace(name, file),
-    onSuccess: async (newWorkspace) => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      setImportNameModalState({ isOpen: false, file: null, type: null });
-      setImportError(null);
-      // Auto-switch to the new workspace
-      await switchMutation.mutateAsync(newWorkspace.uuid);
-      onWorkspaceSelected?.();
-    },
-    onError: (err: Error) => {
-      setImportError(err.message || 'Failed to import workspace');
-    },
-  });
-
   // Restore mutation
   const restoreMutation = useMutation({
     mutationFn: ({ uuid, file }: { uuid: string; file: File }) => restoreWorkspace(uuid, file),
@@ -175,46 +151,18 @@ export function WorkspaceManagementView({
     onWorkspaceSelected?.();
   };
 
-  // Handle import option selection
-  const handleImportOptionSelected = (type: ImportType, file?: File) => {
+  // Handle successful import from the unified ImportOptionsModal
+  const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
+    queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     setIsImportOptionsOpen(false);
-    setImportError(null);
-    setImportNameModalState({ isOpen: true, file: file ?? null, type });
-  };
-
-  // Handle import name submission
-  const handleImportNameSubmit = async (name: string) => {
-    const { type, file } = importNameModalState;
-
-    if (type === 'json' && file) {
-      // JSON dump: upload file to backend
-      importMutation.mutate({ name, file });
-    } else if (type === 'logseq' || type === 'markdown') {
-      // Create a fresh workspace, switch to it, then open the import modal
-      try {
-        const newWorkspace = await createWorkspace(name);
-
-        // Set the import modal flag before switching so Layout picks it up
-        if (type === 'logseq') {
-          useAppStore.getState().setImportLogseqModalOpen(true);
-        } else {
-          useAppStore.getState().setImportMarkdownModalOpen(true);
-        }
-
-        setImportNameModalState({ isOpen: false, file: null, type: null });
-        setImportError(null);
-        await switchMutation.mutateAsync(newWorkspace.uuid);
-        onWorkspaceSelected?.();
-      } catch (err) {
-        setImportError((err as Error).message || 'Failed to create workspace');
-      }
+    // Open the specialist modal BEFORE switching so Layout renders it after mount
+    if (type === 'logseq-edn' || type === 'logseq-sqlite') {
+      useAppStore.getState().setImportLogseqModalOpen(true);
+    } else if (type === 'markdown') {
+      useAppStore.getState().setImportMarkdownModalOpen(true);
     }
-  };
-
-  // Handle import name modal close
-  const handleImportNameModalClose = () => {
-    setImportNameModalState({ isOpen: false, file: null, type: null });
-    setImportError(null);
+    await switchMutation.mutateAsync(workspace.uuid);
+    onWorkspaceSelected?.();
   };
 
   // Handle rename modal open
@@ -503,22 +451,11 @@ export function WorkspaceManagementView({
         onSuccess={handleWorkspaceCreated}
       />
 
-      {/* Import Options Modal */}
+      {/* Import Workspace Modal (unified) */}
       <ImportOptionsModal
         isOpen={isImportOptionsOpen}
         onClose={() => setIsImportOptionsOpen(false)}
-        onSelectOption={handleImportOptionSelected}
-      />
-
-      {/* Import Name Modal */}
-      <WorkspaceNameModal
-        isOpen={importNameModalState.isOpen}
-        onClose={handleImportNameModalClose}
-        onSubmit={handleImportNameSubmit}
-        title="Name Your Imported Workspace"
-        submitLabel="Import Workspace"
-        isLoading={importMutation.isPending}
-        error={importError}
+        onSuccess={handleImportSuccess}
       />
 
       {/* Rename Workspace Modal */}

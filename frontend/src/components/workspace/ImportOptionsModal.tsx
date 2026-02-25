@@ -1,37 +1,223 @@
 /**
- * ImportOptionsModal Component
+ * ImportOptionsModal
  *
- * Modal for selecting how to import a workspace.
- * Supports JSON dump, Logseq (EDN/SQLite), and Markdown import.
+ * Unified single-step import modal.
+ *
+ * Layout:
+ *   1. Workspace name (with live availability check)
+ *   2. RadioGroup — source selector (JSON file / Logseq EDN text /
+ *                                    Logseq SQLite file / Markdown files)
+ *   3. Source input — CodeTextarea for EDN, file picker for file-based sources
+ *   4. Footer — Cancel | Import
  */
-import { useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import Icon from '@mdi/react';
-import { mdiDatabaseImport, mdiGraphOutline, mdiLanguageMarkdownOutline } from '@mdi/js';
+import { mdiCheck, mdiClose } from '@mdi/js';
+import {
+  checkWorkspaceName,
+  importWorkspace as importWorkspaceApi,
+  createWorkspace,
+  type WorkspaceInfo,
+} from '@/api/workspaces';
+import { setPendingLogseqImport } from '@/utils/importState';
 import { Modal } from '../core/Modal';
-import { Card } from '../core/Card';
+import { Button } from '../core/Button';
+import { TextField } from '../core/TextField';
+import { SelectionRadio, type RadioOption } from '../core/SelectionRadio';
+import { CodeTextarea } from '../core/CodeTextarea';
+import { AlertIcon, SyncIcon } from '../core/icons';
 import './ImportOptionsModal.css';
 
-export type ImportType = 'json' | 'logseq' | 'markdown';
+// ── Types ─────────────────────────────────────────────────────
+
+export type ImportType = 'json' | 'logseq-edn' | 'logseq-sqlite' | 'markdown';
+
+export interface ImportResult {
+  workspace: WorkspaceInfo;
+  type: ImportType;
+}
 
 interface ImportOptionsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Called when an import option is selected. File is provided only for 'json'. */
-  onSelectOption: (type: ImportType, file?: File) => void;
+  /** Called once the workspace is created / imported. Caller handles switch + navigation. */
+  onSuccess: (result: ImportResult) => void;
 }
 
-export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOptionsModalProps) {
-  const jsonInputRef = useRef<HTMLInputElement>(null);
+// ── Source options ────────────────────────────────────────────
 
-  const handleJsonClick = () => {
-    jsonInputRef.current?.click();
+const SOURCE_OPTIONS: RadioOption[] = [
+  {
+    value: 'json',
+    label: 'Notees Dump',
+    description: 'Restore from a workspace export file',
+    badge: 'file',
+  },
+  {
+    value: 'logseq-edn',
+    label: 'Logseq EDN',
+    description: 'Paste EDN content from a Logseq database export',
+    badge: 'text',
+  },
+  {
+    value: 'logseq-sqlite',
+    label: 'Logseq SQLite',
+    description: 'Upload a Logseq SQLite database file',
+    badge: 'file',
+  },
+  {
+    value: 'markdown',
+    label: 'Markdown',
+    description: 'Import .md files from Logseq or Obsidian',
+    badge: 'file',
+  },
+];
+
+// ── Private file picker sub-component ────────────────────────
+
+interface FilePickerProps {
+  file: File | null;
+  accept: string;
+  onSelect: (file: File) => void;
+  onClear: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}
+
+function FilePicker({ file, accept, onSelect, onClear, inputRef }: FilePickerProps) {
+  return (
+    <div className="import-unified__file-picker">
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onSelect(f);
+          e.target.value = '';
+        }}
+      />
+      {file ? (
+        <div className="import-unified__file-selected">
+          <span className="import-unified__file-name">{file.name}</span>
+          <button
+            type="button"
+            className="import-unified__file-clear"
+            onClick={onClear}
+            title="Remove file"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="import-unified__file-browse"
+          onClick={() => inputRef.current?.click()}
+        >
+          Choose file…
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────
+
+export function ImportOptionsModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: ImportOptionsModalProps) {
+  const [name, setName] = useState('');
+  const [selectedType, setSelectedType] = useState<ImportType>('json');
+  const [jsonFile, setJsonFile] = useState<File | null>(null);
+  const [sqliteFile, setSqliteFile] = useState<File | null>(null);
+  const [ednContent, setEdnContent] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const jsonInputRef = useRef<HTMLInputElement>(null);
+  const sqliteInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset when opened
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setSelectedType('json');
+      setJsonFile(null);
+      setSqliteFile(null);
+      setEdnContent('');
+      setSubmitError(null);
+    }
+  }, [isOpen]);
+
+  // Live name availability check
+  const { data: nameCheck, isLoading: isCheckingName } = useQuery({
+    queryKey: ['workspace-name-check', name],
+    queryFn: () => checkWorkspaceName(name),
+    enabled: name.length >= 2,
+    staleTime: 5000,
+  });
+
+  const nameIsValid = name.length >= 2 && nameCheck?.available !== false;
+
+  // JSON import mutation (file → /workspaces/import)
+  const importMutation = useMutation({
+    mutationFn: ({ n, file }: { n: string; file: File }) =>
+      importWorkspaceApi(n, file),
+    onSuccess: (workspace) => {
+      onSuccess({ workspace, type: 'json' });
+    },
+    onError: (err: Error) => {
+      setSubmitError(err.message || 'Failed to import workspace');
+    },
+  });
+
+  // Workspace creation mutation (logseq / markdown)
+  const createMutation = useMutation({
+    mutationFn: (n: string) => createWorkspace(n),
+    onSuccess: (workspace) => {
+      const type = selectedType;
+      if (type === 'logseq-edn') {
+        setPendingLogseqImport({ source: 'edn', ednContent: ednContent.trim() });
+      } else if (type === 'logseq-sqlite' && sqliteFile) {
+        setPendingLogseqImport({ source: 'sqlite', sqliteFile });
+      }
+      onSuccess({ workspace, type });
+    },
+    onError: (err: Error) => {
+      setSubmitError(err.message || 'Failed to create workspace');
+    },
+  });
+
+  const isPending = importMutation.isPending || createMutation.isPending;
+
+  const isSubmitEnabled = (() => {
+    if (!nameIsValid || isCheckingName || isPending) return false;
+    if (selectedType === 'json') return jsonFile !== null;
+    if (selectedType === 'logseq-edn') return ednContent.trim().length > 0;
+    if (selectedType === 'logseq-sqlite') return sqliteFile !== null;
+    if (selectedType === 'markdown') return true;
+    return false;
+  })();
+
+  const handleSubmit = () => {
+    if (!isSubmitEnabled) return;
+    setSubmitError(null);
+    const trimmedName = name.trim();
+
+    if (selectedType === 'json' && jsonFile) {
+      importMutation.mutate({ n: trimmedName, file: jsonFile });
+    } else {
+      createMutation.mutate(trimmedName);
+    }
   };
 
-  const handleJsonChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onSelectOption('json', file);
-      e.target.value = '';
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag !== 'TEXTAREA') handleSubmit();
     }
   };
 
@@ -40,87 +226,131 @@ export function ImportOptionsModal({ isOpen, onClose, onSelectOption }: ImportOp
       isOpen={isOpen}
       onClose={onClose}
       title="Import Workspace"
-      size="sm"
+      size="md"
+      footer={
+        <>
+          <Button variant="default" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={!isSubmitEnabled}
+          >
+            {isPending ? 'Importing…' : 'Import'}
+          </Button>
+        </>
+      }
     >
-      <p className="import-options__description">
-        Choose an import source. A new workspace will be created for the imported data.
-      </p>
+      <div className="import-unified__body" onKeyDown={handleKeyDown}>
 
-      <div className="import-options__grid">
-        {/* JSON Dump */}
-        <Card
-          variant="outlined"
-          elevation="none"
-          interactive
-          padding
-          paddingSize="md"
-          radius="md"
-          className="import-options__card"
-          onClick={handleJsonClick}
-        >
-          <div className="import-options__card-icon import-options__card-icon--json">
-            <Icon path={mdiDatabaseImport} size={1.1} />
-          </div>
-          <div className="import-options__card-body">
-            <span className="import-options__card-title">JSON Dump</span>
-            <span className="import-options__card-desc">
-              Restore from a workspace export file (.json)
-            </span>
-          </div>
-        </Card>
+        {/* ── 1. Name ──────────────────────────────────────── */}
+        <div className="import-unified__field-group">
+          <TextField
+            label="Name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-notes"
+            autoFocus
+            disabled={isPending}
+            error={name.length >= 2 && nameCheck?.available === false}
+            errorMessage={
+              name.length >= 2 && nameCheck?.available === false
+                ? 'This name is already taken'
+                : undefined
+            }
+            containerClassName={
+              name.length >= 2 && nameCheck?.available && !isCheckingName
+                ? 'text-field__container--valid'
+                : ''
+            }
+            icon={
+              isCheckingName ? (
+                <SyncIcon size="xs" />
+              ) : name.length >= 2 ? (
+                <Icon
+                  path={nameCheck?.available ? mdiCheck : mdiClose}
+                  size={0.6}
+                />
+              ) : undefined
+            }
+          />
+        </div>
 
-        {/* Logseq */}
-        <Card
-          variant="outlined"
-          elevation="none"
-          interactive
-          padding
-          paddingSize="md"
-          radius="md"
-          className="import-options__card"
-          onClick={() => onSelectOption('logseq')}
-        >
-          <div className="import-options__card-icon import-options__card-icon--logseq">
-            <Icon path={mdiGraphOutline} size={1.1} />
-          </div>
-          <div className="import-options__card-body">
-            <span className="import-options__card-title">Logseq Graph</span>
-            <span className="import-options__card-desc">
-              Import from Logseq via EDN export or SQLite database
-            </span>
-          </div>
-        </Card>
+        {/* ── 2. Source selector ───────────────────────────── */}
+        <div className="import-unified__field-group">
+          <span className="import-unified__section-label">Source</span>
+          <SelectionRadio
+            options={SOURCE_OPTIONS}
+            value={selectedType}
+            onChange={(v) => {
+              setSelectedType(v as ImportType);
+              setSubmitError(null);
+            }}
+            layout="vertical"
+            disabled={isPending}
+          />
+        </div>
 
-        {/* Markdown */}
-        <Card
-          variant="outlined"
-          elevation="none"
-          interactive
-          padding
-          paddingSize="md"
-          radius="md"
-          className="import-options__card"
-          onClick={() => onSelectOption('markdown')}
-        >
-          <div className="import-options__card-icon import-options__card-icon--markdown">
-            <Icon path={mdiLanguageMarkdownOutline} size={1.1} />
+        {/* ── 3. Source input ──────────────────────────────── */}
+        {selectedType === 'json' && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">JSON export file (.json)</span>
+            <FilePicker
+              file={jsonFile}
+              accept=".json"
+              onSelect={setJsonFile}
+              onClear={() => setJsonFile(null)}
+              inputRef={jsonInputRef}
+            />
           </div>
-          <div className="import-options__card-body">
-            <span className="import-options__card-title">Markdown Files</span>
-            <span className="import-options__card-desc">
-              Import .md files from Logseq or Obsidian
-            </span>
+        )}
+
+        {selectedType === 'logseq-edn' && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">EDN content</span>
+            <CodeTextarea
+              value={ednContent}
+              onChange={setEdnContent}
+              placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
+              disabled={isPending}
+              autoFocus
+              minHeight={200}
+            />
           </div>
-        </Card>
+        )}
+
+        {selectedType === 'logseq-sqlite' && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">SQLite database file (.sqlite / .db)</span>
+            <FilePicker
+              file={sqliteFile}
+              accept=".sqlite,.sqlite3,.db"
+              onSelect={setSqliteFile}
+              onClear={() => setSqliteFile(null)}
+              inputRef={sqliteInputRef}
+            />
+          </div>
+        )}
+
+        {selectedType === 'markdown' && (
+          <div className="import-unified__field-group">
+            <p className="import-unified__hint">
+              A workspace will be created and an import panel will open where you
+              can select your Markdown files.
+            </p>
+          </div>
+        )}
+
+        {/* ── 4. Error ────────────────────────────────────── */}
+        {submitError && (
+          <div className="import-unified__error">
+            <AlertIcon size="sm" />
+            {submitError}
+          </div>
+        )}
       </div>
-
-      <input
-        ref={jsonInputRef}
-        type="file"
-        accept=".json"
-        style={{ display: 'none' }}
-        onChange={handleJsonChange}
-      />
     </Modal>
   );
 }

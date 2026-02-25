@@ -25,8 +25,10 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { ToggleSwitch } from '../core/ToggleSwitch';
+import { CodeTextarea } from '../core/CodeTextarea';
 import { parseLogseqEdn, type LogseqExport, type LogseqBlock, type LogseqPage } from '@/utils/ednParser';
 import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
+import { consumePendingLogseqImport } from '@/utils/importState';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useAddClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
@@ -179,17 +181,47 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   // Reset state and focus when opened
   useEffect(() => {
     if (isOpen) {
-      setContent('');
+      // Check for pre-collected state from the unified ImportOptionsModal
+      const pending = consumePendingLogseqImport();
+
       setError(null);
       setParsed(null);
       setImporting(false);
       setImportStatus('');
       setImportProgress(0);
       setReport(null);
-      setSqliteFileName(null);
-      setSqliteParsing(false);
-      if (inputSource === 'edn') {
-        setTimeout(() => textareaRef.current?.focus(), 0);
+
+      if (pending) {
+        setInputSource(pending.source);
+        if (pending.source === 'edn') {
+          setContent(pending.ednContent);
+          setSqliteFileName(null);
+          setSqliteParsing(false);
+          setTimeout(() => textareaRef.current?.focus(), 0);
+        } else {
+          setContent('');
+          setSqliteFileName(pending.sqliteFile.name);
+          setSqliteParsing(true);
+          pending.sqliteFile
+            .arrayBuffer()
+            .then((buf) => parseLogseqSqlite(buf))
+            .then((result) => {
+              setParsed(result);
+              setError(null);
+            })
+            .catch((e) => {
+              setParsed(null);
+              setError(e instanceof Error ? e.message : 'Failed to parse SQLite file');
+            })
+            .finally(() => setSqliteParsing(false));
+        }
+      } else {
+        setContent('');
+        setSqliteFileName(null);
+        setSqliteParsing(false);
+        if (inputSource === 'edn') {
+          setTimeout(() => textareaRef.current?.focus(), 0);
+        }
       }
     }
   }, [isOpen]);
@@ -1437,15 +1469,15 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             <p className="import-logseq__description">
               Paste the raw EDN content from a Logseq database graph export.
             </p>
-            <textarea
+            <CodeTextarea
               ref={textareaRef}
-              className={`import-logseq__textarea${
-                error ? ' import-logseq__textarea--error' : ''
-              }${parsed ? ' import-logseq__textarea--valid' : ''}`}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={setContent}
               placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
-              spellCheck={false}
+              error={!!error}
+              valid={!!parsed}
+              disabled={importing}
+              minHeight={260}
             />
           </>
         ) : (

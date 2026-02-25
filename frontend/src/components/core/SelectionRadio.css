@@ -1,0 +1,117 @@
+/**
+ * RadioGroup - Card-style radio button group.
+ */
+
+.radio-group {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.radio-group--vertical {
+  flex-direction: column;
+}
+
+.radio-group--horizontal {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* ── Option card ─────────────────────────────────────────────── */
+
+.radio-group__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: var(--color-surface);
+  transition: border-color 0.12s, background-color 0.12s;
+  user-select: none;
+}
+
+.radio-group--horizontal .radio-group__option {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.radio-group__option:hover:not(.radio-group__option--disabled) {
+  border-color: var(--color-primary);
+  background-color: var(--color-surface-hover);
+}
+
+.radio-group__option--selected {
+  border-color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+}
+
+.radio-group__option--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Radio indicator ──────────────────────────────────────────── */
+
+.radio-group__indicator {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-outline);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s;
+}
+
+.radio-group__option--selected .radio-group__indicator {
+  border-color: var(--color-primary);
+}
+
+.radio-group__indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+/* ── Content ─────────────────────────────────────────────────── */
+
+.radio-group__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.radio-group__label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.radio-group__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  line-height: 1.3;
+}
+
+.radio-group__badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 100px;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.radio-group__description {
+  font-size: 0.775rem;
+  color: var(--color-on-surface-variant);
+  margin-top: 2px;
+  line-height: 1.35;
+}
