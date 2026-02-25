@@ -10,8 +10,8 @@
  * 2. Create properties (with correct backend field names)
  * 3. Create all nodes (pages + blocks) with UUID-only skeletons
  * 4. Bind properties to classes
- * 5. Assign property values to nodes
- * 6. Combined update pass: name (with [[uuid]] links resolved) + parent + sequence + classes
+ * 5. Resolve property values per node (collected into a map, merged into phase 6)
+ * 6. Combined update pass: name (with [[uuid]] links resolved) + parent + sequence + classes + properties
  * 7. Assign aliases between pages
  *
  * Usage:
@@ -40,7 +40,7 @@ import {
   batchPermanentlyDeleteNodes,
 } from '@/api/nodes';
 import { listProperties, updateProperty, addClassExtends, addSelectionOption } from '@/api/properties';
-import { batchSetPropertyValues, batchAddClassProperties } from '@/api/properties';
+import { batchAddClassProperties } from '@/api/properties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { text as astText, nodeLink, externalLink, paragraph, buildLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/lib/astBuilder';
@@ -1157,7 +1157,39 @@ export function useLogseqImporter() {
         }
       }
 
-      // 3g: Combined update — name + parent + sequence + classes
+      // Collect property values per node so they can be merged into the combined update pass below.
+      // This avoids a separate batchSetPropertyValues round-trip — properties travel together with
+      // name, parent_id, sequence, and classes in the same batchUpdateNodes request.
+      const nodeIdToProperties = new Map<number, Record<number, unknown>>();
+      const p5 = createPhase('Assign property values');
+      phases.push(p5);
+      {
+        const propertyCollector = {
+          mutateAsync: async (args: { nodeId: number; propertyId: number; value: unknown }) => {
+            let props = nodeIdToProperties.get(args.nodeId);
+            if (!props) { props = {}; nodeIdToProperties.set(args.nodeId, props); }
+            props[args.propertyId] = args.value;
+            return {} as unknown;
+          },
+        };
+        for (const page of parsed.pages) {
+          if (!page.properties) continue;
+          const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
+          if (!nodeInfo) continue;
+          const isExisting = existingNodeIds.has(nodeInfo.id);
+          const pageLabel = `${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`;
+          await assignProperties(page.properties, nodeInfo.id, pageLabel, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertyCollector, p5, override, isExisting, textPropIds);
+          tick();
+        }
+        for (const page of parsed.pages) {
+          await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertyCollector, p5, override, existingNodeIds, textPropIds);
+        }
+        if (parsed.standaloneBlocks) {
+          await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertyCollector, p5, override, existingNodeIds, textPropIds);
+        }
+      }
+
+      // 3g: Combined update — name + parent + sequence + classes + properties
       {
         setImportStatus('Preparing node content…');
         const combinedItems: BatchNodeUpdateItem[] = [];
@@ -1177,7 +1209,9 @@ export function useLogseqImporter() {
             const toAdd = regularPageClasses[i].filter(c => !existing.has(c));
             if (toAdd.length > 0) item.classes = [...(existingPage.classes ?? []), ...toAdd];
           }
-          if (item.name !== undefined || item.classes !== undefined) combinedItems.push(item);
+          const pageNodeProps = nodeIdToProperties.get(nodeInfo.id);
+          if (pageNodeProps && Object.keys(pageNodeProps).length > 0) item.properties = pageNodeProps;
+          if (item.name !== undefined || item.classes !== undefined || item.properties !== undefined) combinedItems.push(item);
         }
 
         for (const item of flatBlocks) {
@@ -1201,6 +1235,8 @@ export function useLogseqImporter() {
           }
           const updateItem: BatchNodeUpdateItem = { id: nodeInfo.id, name, parent_id: parentId, sequence: item.sequence };
           if (item.classes.length > 0) updateItem.classes = item.classes;
+          const blockNodeProps = nodeIdToProperties.get(nodeInfo.id);
+          if (blockNodeProps && Object.keys(blockNodeProps).length > 0) updateItem.properties = blockNodeProps;
           combinedItems.push(updateItem);
         }
 
@@ -1355,49 +1391,6 @@ export function useLogseqImporter() {
               p4.errors.push({ item: item.label, message: errorMessage(e) });
               tick();
             }
-          }
-        }
-      }
-
-      // ──────────────────────────────────────────────────────────
-      // PHASE 5: Assign property values
-      // ──────────────────────────────────────────────────────────
-      const p5 = createPhase('Assign property values');
-      phases.push(p5);
-
-      const pendingPropertySets: Array<{ node_id: number; property_id: number; value: unknown }> = [];
-      const propertySetCollector = {
-        mutateAsync: async (args: { nodeId: number; propertyId: number; value: unknown }) => {
-          pendingPropertySets.push({ node_id: args.nodeId, property_id: args.propertyId, value: args.value });
-          return {} as unknown;
-        },
-      };
-
-      for (const page of parsed.pages) {
-        if (!page.properties) continue;
-        const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
-        if (!nodeInfo) continue;
-        const isExisting = existingNodeIds.has(nodeInfo.id);
-        const pageLabel = `${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`;
-        await assignProperties(page.properties, nodeInfo.id, pageLabel, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, isExisting, textPropIds);
-        tick();
-      }
-      for (const page of parsed.pages) {
-        await assignBlockProperties(page.blocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, existingNodeIds, textPropIds);
-      }
-      if (parsed.standaloneBlocks) {
-        await assignBlockProperties(parsed.standaloneBlocks, propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassId, setImportStatus, propertySetCollector, p5, override, existingNodeIds, textPropIds);
-      }
-
-      if (pendingPropertySets.length > 0) {
-        setImportStatus(`Sending ${pendingPropertySets.length} property values in batch…`);
-        const PROP_BATCH_SIZE = 100;
-        for (let i = 0; i < pendingPropertySets.length; i += PROP_BATCH_SIZE) {
-          const chunk = pendingPropertySets.slice(i, i + PROP_BATCH_SIZE);
-          try {
-            await batchSetPropertyValues(chunk);
-          } catch (e) {
-            console.error('[IMPORT] Batch property set request failed:', e);
           }
         }
       }
