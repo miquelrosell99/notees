@@ -399,6 +399,16 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
 
   // ── Build properties ───────────────────────────────────────
 
+  // Pre-build reverse index: property eid → closed-value entities (O(n) instead of O(n²))
+  const closedValuesByProp = new Map<number, Array<{ eid: number; attrs: RawEntity }>>();
+  for (const [cvEid, cvAttrs] of entities) {
+    const propEid = cvAttrs['block/closed-value-property'];
+    if (typeof propEid === 'number') {
+      if (!closedValuesByProp.has(propEid)) closedValuesByProp.set(propEid, []);
+      closedValuesByProp.get(propEid)!.push({ eid: cvEid, attrs: cvAttrs });
+    }
+  }
+
   // Collect user property idents for later use when extracting property values
   const userPropertyIdents = new Map<string, number>(); // ident → eid
 
@@ -414,11 +424,11 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
       userPropertyIdents.set(ident, eid);
     }
 
-    // Collect selection options (closed values)
+    // Collect selection options (closed values) using pre-built reverse index
     const selectionOptions: LogseqSelectionOption[] = [];
-    // Closed values are child entities with block/closed-value-property pointing to this eid
-    for (const [cvEid, cvAttrs] of entities) {
-      if (cvAttrs['block/closed-value-property'] === eid) {
+    const closedValues = closedValuesByProp.get(eid);
+    if (closedValues) {
+      for (const { eid: cvEid, attrs: cvAttrs } of closedValues) {
         const cvTitle = cvAttrs['block/title'] ?? cvAttrs['block/name'];
         const cvUuid = eidToUuid.get(cvEid);
         if (cvTitle != null) {
