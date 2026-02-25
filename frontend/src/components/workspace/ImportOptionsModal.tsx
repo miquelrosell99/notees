@@ -251,7 +251,7 @@ export function ImportOptionsModal({
               accept=".json"
               onSelect={setJsonFile}
               onClear={() => setJsonFile(null)}
-              placeholder="Drop the .json export here"
+              placeholder="Drop the export here"
               disabled={isPending}
             />
           </div>
@@ -279,7 +279,7 @@ export function ImportOptionsModal({
               accept=".sqlite,.sqlite3,.db"
               onSelect={setSqliteFile}
               onClear={() => setSqliteFile(null)}
-              placeholder="Drop the .sqlite database here"
+              placeholder="Drop the database here"
               disabled={isPending}
             />
           </div>
