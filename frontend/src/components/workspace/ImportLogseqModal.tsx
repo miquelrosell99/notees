@@ -71,8 +71,20 @@ function createPhase(label: string): PhaseResult {
 function errorMessage(e: unknown): string {
   // Check for Axios-style response detail FIRST (before generic Error.message)
   if (typeof e === 'object' && e !== null && 'response' in e) {
-    const resp = (e as { response?: { data?: { detail?: string } } }).response;
-    if (resp?.data?.detail) return resp.data.detail;
+    const resp = (e as { response?: { data?: { detail?: unknown } } }).response;
+    const detail = resp?.data?.detail;
+    if (detail) {
+      if (typeof detail === 'string') return detail;
+      // Pydantic v2 returns detail as an array of {type, loc, msg, input, url}
+      if (Array.isArray(detail)) {
+        return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ');
+      }
+      // Object with a message field (e.g. {message: "...", code: "..."})
+      if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+        return String((detail as { message: unknown }).message);
+      }
+      return JSON.stringify(detail);
+    }
   }
   if (e instanceof Error) return e.message;
   return String(e);
