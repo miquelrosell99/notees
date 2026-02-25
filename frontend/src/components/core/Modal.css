@@ -41,6 +41,12 @@
   }
 }
 
+/* Modal needs visible overflow so the Card's overflow:hidden doesn't clip
+   child elements (e.g. inputs) near the rounded corners */
+.modal {
+  overflow: visible;
+}
+
 /* Modal sizes */
 .modal--sm {
   width: 100%;
