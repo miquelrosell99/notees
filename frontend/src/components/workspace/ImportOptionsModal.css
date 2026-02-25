@@ -134,3 +134,25 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Footer with inline name field ───────────────────────── */
+
+.import-unified__footer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.import-unified__footer > .text-field-wrapper,
+.import-unified__footer-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.import-unified__footer-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+  flex-shrink: 0;
+}
