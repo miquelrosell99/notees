@@ -7,7 +7,6 @@
 
 .card {
   background: var(--color-surface);
-  overflow: hidden;
 }
 
 /* Variants */
@@ -43,14 +42,17 @@
 
 .card--radius-sm {
   border-radius: var(--shape-small);
+  overflow: hidden;
 }
 
 .card--radius-md {
   border-radius: var(--container-radius);
+  overflow: hidden;
 }
 
 .card--radius-lg {
   border-radius: var(--shape-extra-large);
+  overflow: hidden;
 }
 
 /* Elevation levels */

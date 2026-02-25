@@ -41,10 +41,19 @@
   }
 }
 
-/* Modal needs visible overflow so the Card's overflow:hidden doesn't clip
-   child elements (e.g. inputs) near the rounded corners */
-.modal {
+/* Modal must not clip its children — override the overflow:hidden that
+   Card's radius variants set for rounded-corner clipping.
+   .card.modal has specificity 0,2,0; .card--radius-lg is 0,1,0;
+   and Modal.css loads after Card.css so both specificity and source
+   order guarantee this wins. */
+.card.modal,
+.card.modal .modal__header,
+.card.modal .modal__footer {
   overflow: visible;
+}
+
+.card.modal .modal__content {
+  overflow-y: auto;
 }
 
 /* Modal sizes */
@@ -106,7 +115,6 @@
   flex: 1;
   padding: var(--spacing-4);
   overflow-y: auto;
-  overflow-x: visible;
 }
 
 /* Allow dropdowns inside modal to overflow */
