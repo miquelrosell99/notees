@@ -63,9 +63,10 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     try {
       const response = await fixRawUuidLinks();
       setResult(response);
-      // Invalidate queries so the UI reflects updated node content and links
+      // Refetch all cached queries so the UI reflects updated node content and links
+      // without requiring a page reload
       if (response.nodes_fixed > 0) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fix raw UUID links');
