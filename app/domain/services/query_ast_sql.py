@@ -360,15 +360,13 @@ class QueryASTToSQL:
             elif condition.operator == 'less_than':
                 return f"n.{column_name}::numeric < %({value_param})s::numeric"
         
-        # Custom property - query property_value_scalar table
+        # Custom property - query by UUID only
         else:
-            # Prefer UUID lookup when available, fall back to name
-            if condition.property_uuid:
-                prop_param = self._add_param(condition.property_uuid)
-                prop_join_clause = f"JOIN property p ON p.uuid = %({prop_param})s::uuid"
-            else:
-                prop_param = self._add_param(condition.property_name)
-                prop_join_clause = f"JOIN property p ON p.id = np.property_id AND p.name = %({prop_param})s"
+            if not condition.property_uuid:
+                logger.warning(f"Property condition missing UUID, skipping (name={condition.property_name!r})")
+                return None
+            prop_param = self._add_param(condition.property_uuid)
+            prop_join_clause = f"JOIN property p ON p.uuid = %({prop_param})s::uuid"
             
             if condition.operator == 'is_empty':
                 return f"""NOT EXISTS (
