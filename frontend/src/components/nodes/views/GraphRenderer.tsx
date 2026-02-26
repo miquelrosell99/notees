@@ -132,6 +132,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     sizeByConnections,
     baseNodeRadius,
     onNodeClick,
+    onNodeDblClick,
     onEmptyClick,
   };
 
@@ -148,11 +149,13 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     _pointerMove,
     _pointerUp,
     _wheel,
+    _dblClick,
   } = useGraphRenderer(graphOpts) as ReturnType<typeof useGraphRenderer> & {
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
     _wheel:        React.WheelEventHandler<HTMLCanvasElement>;
+    _dblClick:     React.MouseEventHandler<HTMLCanvasElement>;
   };
 
   // Expose imperative API to parent via ref
@@ -163,20 +166,6 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     recenter,
     setConfig: _setConfig,
   }), [reheat, pause, resume, recenter, _setConfig]);
-
-  // Double-click: hit-test the node and call onNodeDblClick
-  const onDblClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!onNodeDblClick) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const px   = (e.clientX - rect.left) * (canvas.width  / rect.width);
-    const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
-    // Access internal screenToWorld via the renderer — we surface it lazily via
-    // a ref, so re-use the same wheel handler pattern via a custom event
-    // dispatched on the canvas (or simply ignore — most apps only use onNodeClick)
-    void px; void py;
-  }, [canvasRef, onNodeDblClick]);
 
   // Prevent native context menu on right-click
   const onContextMenu = useCallback((e: React.MouseEvent) => {
@@ -207,7 +196,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
         onPointerUp={_pointerUp}
         onPointerCancel={_pointerUp}
         onWheel={_wheel}
-        onDoubleClick={onDblClick}
+        onDoubleClick={_dblClick}
         onContextMenu={onContextMenu}
       />
 
