@@ -259,6 +259,7 @@ export interface LogseqPage {
   title: string;
   uuid?: string;
   journal?: string;     // YYYY-MM-DD date string for journal/daily pages
+  icon?: string;        // Page icon (from logseq.property/icon), camelCase MDI name
   tags?: string[];      // class ids
   aliases?: string[];   // alias page titles (from logseq.property/alias)
   aliasOfUuids?: string[]; // UUIDs from :block/alias (those pages are aliases OF this page)
@@ -433,6 +434,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
       const pageProperties: Record<string, unknown> = {};
       const pageAliases: string[] = [];
       let pageParent: string | undefined;
+      let pageIcon: string | undefined;
       if (propsOnPage instanceof Map) {
         for (const [pk, pv] of propsOnPage.entries()) {
           if (!(pk instanceof EdnKeyword)) continue;
@@ -453,6 +455,19 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
                 pageAliases.push((item as Record<string, string>).title);
               } else if (typeof item === 'string') {
                 pageAliases.push(item);
+              }
+            }
+            continue;
+          }
+          // Extract icon — store in node's icon field (strip mdi: prefix and convert to camelCase)
+          if (pk.value === 'logseq.property/icon') {
+            const raw = resolvePropertyValue(pv);
+            if (typeof raw === 'string' && raw) {
+              if (raw.startsWith('mdi:')) {
+                const name = raw.slice(4);
+                pageIcon = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+              } else {
+                pageIcon = raw;
               }
             }
             continue;
@@ -491,6 +506,7 @@ export function ednToLogseqExport(edn: EdnValue): LogseqExport {
         title,
         uuid,
         journal: journalDate,
+        icon: pageIcon,
         tags: tags.length > 0 ? tags : undefined,
         aliases: pageAliases.length > 0 ? pageAliases : undefined,
         aliasOfUuids: aliasOfUuids.length > 0 ? aliasOfUuids : undefined,
