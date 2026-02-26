@@ -138,6 +138,9 @@ CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_workspace_is_day ON node(workspace_id, is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_deleted = TRUE;
+-- Partial index covering all live (active, non-deleted) nodes - matches the most common query predicate.
+-- Enables fast index-only scans when filtering out soft-deleted rows without a full table scan.
+CREATE INDEX IF NOT EXISTS idx_node_live ON node(workspace_id, id) WHERE active = TRUE AND is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_node_class_ids ON node USING GIN (class_ids);
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
@@ -145,6 +148,8 @@ CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
 -- Index for ordering children by sequence within a parent
 CREATE INDEX IF NOT EXISTS idx_node_parent_sequence ON node(parent_id, sequence);
+-- Workspace-scoped child listing with order: covers WHERE workspace_id = ? AND parent_id = ? ORDER BY sequence
+CREATE INDEX IF NOT EXISTS idx_node_ws_parent_sequence ON node(workspace_id, parent_id, sequence) WHERE active = TRUE AND is_deleted = FALSE;
 -- Note: idx_node_aliased_id is created by migration block below (aliased_id may not exist on older DBs)
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
@@ -261,6 +266,11 @@ CREATE TABLE IF NOT EXISTS property_value_scalar (
 CREATE INDEX IF NOT EXISTS idx_pvs_node_property_id ON property_value_scalar(node_property_id);
 CREATE INDEX IF NOT EXISTS idx_pvs_property_id ON property_value_scalar(property_id);
 CREATE INDEX IF NOT EXISTS idx_pvs_node_id ON property_value_scalar(node_id);
+-- Covering indexes for common EAV filter: WHERE property_id = ? AND value = ? -> node_id covered
+CREATE INDEX IF NOT EXISTS idx_pvs_property_value_text ON property_value_scalar(property_id, value_text, node_id) WHERE value_text IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pvs_property_value_int ON property_value_scalar(property_id, value_integer, node_id) WHERE value_integer IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pvs_property_value_float ON property_value_scalar(property_id, value_float, node_id) WHERE value_float IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pvs_property_value_bool ON property_value_scalar(property_id, value_boolean, node_id) WHERE value_boolean IS NOT NULL;
 
 -- Property value relation - for node, text, image relation types
 CREATE TABLE IF NOT EXISTS property_value_relation (
@@ -281,6 +291,9 @@ CREATE INDEX IF NOT EXISTS idx_pvr_node_property_id ON property_value_relation(n
 CREATE INDEX IF NOT EXISTS idx_pvr_property_id ON property_value_relation(property_id);
 CREATE INDEX IF NOT EXISTS idx_pvr_node_id ON property_value_relation(node_id);
 CREATE INDEX IF NOT EXISTS idx_pvr_target_id ON property_value_relation(target_id);
+-- Covering indexes: filter by property+target, get node_id without heap fetch (forward + reverse)
+CREATE INDEX IF NOT EXISTS idx_pvr_property_target_node ON property_value_relation(property_id, target_id, node_id);
+CREATE INDEX IF NOT EXISTS idx_pvr_property_node_target ON property_value_relation(property_id, node_id, target_id);
 
 -- Property selection line - options for selection-type properties
 CREATE TABLE IF NOT EXISTS property_selection_line (
@@ -316,6 +329,8 @@ CREATE INDEX IF NOT EXISTS idx_pvsel_node_property_id ON property_value_selectio
 CREATE INDEX IF NOT EXISTS idx_pvsel_property_id ON property_value_selection(property_id);
 CREATE INDEX IF NOT EXISTS idx_pvsel_node_id ON property_value_selection(node_id);
 CREATE INDEX IF NOT EXISTS idx_pvsel_selection_line_id ON property_value_selection(selection_line_id);
+-- Covering index: filter nodes by property + selected option, node_id covered (no heap fetch)
+CREATE INDEX IF NOT EXISTS idx_pvsel_property_line_node ON property_value_selection(property_id, selection_line_id, node_id);
 
 -- ============================================================
 -- CLASS SYSTEM
@@ -379,6 +394,10 @@ CREATE INDEX IF NOT EXISTS idx_node_link_property_id ON node_link(property_id) W
 CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link(source_id, target_id);
 -- Composite: fast workspace-scoped backlink queries ("who links to X in this workspace?")
 CREATE INDEX IF NOT EXISTS idx_node_link_workspace_target ON node_link(workspace_id, target_id);
+-- Covering traversal index: (ws, source) filters, target_id is index-covered (no heap fetch).
+-- Highest-ROI index for graph-heavy (Obsidian-style) forward-traversal queries:
+--   SELECT target_id FROM node_link WHERE workspace_id = ? AND source_id = ?;
+CREATE INDEX IF NOT EXISTS idx_node_link_ws_source_target ON node_link(workspace_id, source_id, target_id);
 -- idx_node_link_inline_class is created in the migration block below (safe for existing DBs)
 
 -- Inline class references are now stored in node_link with is_inline_class = TRUE
