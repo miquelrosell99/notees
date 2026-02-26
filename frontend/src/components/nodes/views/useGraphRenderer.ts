@@ -148,6 +148,8 @@ export interface GraphRendererOptions {
   baseNodeRadius?: number;
   /** Callback when user clicks a node (no drag involved). */
   onNodeClick?: (nodeId: number) => void;
+  /** Callback when user double-clicks a node. */
+  onNodeDblClick?: (nodeId: number) => void;
   /** Callback when user clicks on empty space (no node hit). */
   onEmptyClick?: () => void;
 }
@@ -819,6 +821,20 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, [post]);
 
   // Zoom with wheel
+  const onDblClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const rend   = rendRef.current;
+    if (!canvas || !rend) return;
+    const rect = canvas.getBoundingClientRect();
+    const px   = (e.clientX - rect.left) * (canvas.width  / rect.width);
+    const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
+    const world = rend.screenToWorld(px, py);
+    const hit   = rend.pickNode(world.x, world.y, 20 / camRef.current.zoom);
+    if (hit !== null && hit !== undefined && hit >= 0) {
+      optsRef.current.onNodeDblClick?.(hit);
+    }
+  }, [canvasRef]);
+
   const onWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas  = canvasRef.current!;
@@ -914,10 +930,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     _pointerMove:  onPointerMove,
     _pointerUp:    onPointerUp,
     _wheel:        onWheel,
+    _dblClick:     onDblClick,
   } as GraphRendererHandle & {
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
     _wheel:        React.WheelEventHandler<HTMLCanvasElement>;
+    _dblClick:     React.MouseEventHandler<HTMLCanvasElement>;
   };
 }
