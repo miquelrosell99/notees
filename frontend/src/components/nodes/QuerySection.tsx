@@ -9,6 +9,7 @@ import { QueryNodeCollection } from './QueryNodeCollection';
 import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import type { NodeViewType } from '@/types/nodeView';
+import type { QueryAST } from '@/types/queryAST';
 import './NodeViewSection.css';
 
 export interface QuerySectionProps {
@@ -40,6 +41,13 @@ export interface QuerySectionProps {
   can_create?: boolean;
   /** Whether to show class pills in list view (default: true) */
   showClasses?: boolean;
+  /**
+   * Inline query AST for ad-hoc queries (bypasses saved views).
+   * Must be paired with onQueryASTChange to enable inline mode.
+   */
+  queryAST?: QueryAST;
+  /** Called when the user modifies the inline query AST */
+  onQueryASTChange?: (ast: QueryAST) => void;
 }
 
 export function QuerySection({
@@ -57,6 +65,8 @@ export function QuerySection({
   hideViewManagement = false,
   can_create = true,
   showClasses = true,
+  queryAST,
+  onQueryASTChange,
 }: QuerySectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   
@@ -78,6 +88,8 @@ export function QuerySection({
       hideViewManagement={hideViewManagement}
       can_create={can_create}
       showClasses={showClasses}
+      queryAST={queryAST}
+      onQueryASTChange={onQueryASTChange}
       leftElement={(count) => (
         <div className="node-view-section__header-content" onClick={handleToggle}>
           <Button 

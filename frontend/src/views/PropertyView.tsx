@@ -11,20 +11,17 @@
  * - Navigation to nodes on click
  * - Delete property action in context menu
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
-import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import type { QueryAST } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
-import { useQuery_ } from '@/hooks/useNodeViews';
 import { useAppStore } from '@/stores';
 import { createEmptyQueryAST, createPropertyCondition } from '@/types/queryAST';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
-import { NodeCollection } from '../components/nodes/NodeCollection';
-import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
+import { QuerySection } from '../components/nodes/QuerySection';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
 import { PageHeader } from '../components/nodes/PageHeader';
-import { NodeViewSection } from '../components/nodes/NodeViewSection';
 import { ContextMenu, type ContextMenuItem } from '../components/core/ContextMenu';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import { ToggleSwitch } from '../components/core/ToggleSwitch';
@@ -59,12 +56,11 @@ export interface PropertyViewResult {
 export function PropertyView({
   propertyId,
   onNavigateToNode,
-  onOpenInSidebar,
 }: PropertyViewProps): PropertyViewResult {
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [propertyQueryAST, setPropertyQueryAST] = useState<QueryAST | undefined>(undefined);
   
   // Fetch property details
   const { data: fetchedProperty, isLoading: propertyLoading } = useProperty(propertyId);
@@ -88,6 +84,18 @@ export function PropertyView({
   const { openNode } = useAppStore();
   const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
+  
+  // Build/reset query AST whenever the property UUID changes
+  useEffect(() => {
+    if (!property) return;
+    const ast = createEmptyQueryAST();
+    ast.scope.scope_type = 'entire_workspace';
+    ast.root_group.children.push(
+      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid)
+    );
+    setPropertyQueryAST(ast);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property?.uuid]);
   
   // Handle property name change
   const handlePropertyNameChange = useCallback(async (name: string) => {
@@ -172,65 +180,12 @@ export function PropertyView({
     setShowDeleteModal(false);
   }, []);
   
-  // Build a query AST: scope=entire_workspace, condition=property is_not_empty
-  const propertyQueryAST = useMemo(() => {
-    if (!property) return undefined;
-    const ast = createEmptyQueryAST();
-    ast.scope.scope_type = 'entire_workspace';
-    ast.root_group.children.push(
-      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid)
-    );
-    return ast;
-  }, [property]);
-
-  const { data: nodesWithProperty, isLoading: nodesLoading } = useQuery_(
-    {
-      query_ast: propertyQueryAST,
-      include_properties: true,
-    },
-    {
-      enabled: !!propertyQueryAST,
-      queryKey: ['property-nodes', propertyId],
-    }
-  );
-  
-  // Property column UUIDs for the table view
-  // Default: show only the current property column
-  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>(
-    property ? [property.uuid] : []
-  );
-  
-  // Update property UUIDs when property changes
-  useMemo(() => {
-    if (property) {
-      setSelectedPropertyUuids(prev => {
-        // Ensure current property UUID is always included
-        if (!prev.includes(property.uuid)) {
-          return [property.uuid, ...prev];
-        }
-        return prev;
-      });
-    }
-  }, [property]);
-  
-  const handlePropertyColumnsChange = useCallback((uuids: string[]) => {
-    setSelectedPropertyUuids(uuids);
-  }, []);
-  
-  // Handle node click
-  const handleNodeClick = (node: Node) => {
-    onNavigateToNode?.(node.id);
-  };
-  
-  // Handle shift+click (open in sidebar)
-  const handleNodeShiftClick = (node: Node) => {
-    onOpenInSidebar?.(node.id);
-  };
+  const typeInfo = property ? PROPERTY_TYPES[property.type] : null;
+  const isLoading = propertyLoading;
   
   // Build context menu items
   const contextMenuItems = useMemo<ContextMenuItem[]>(() => {
     if (!property) return [];
-    
     return [
       {
         id: 'delete-property',
@@ -241,11 +196,7 @@ export function PropertyView({
       }
     ];
   }, [property, handleDeleteClick]);
-  
-  const isLoading = propertyLoading || nodesLoading;
-  const typeInfo = property ? PROPERTY_TYPES[property.type] : null;
-  const nodes = nodesWithProperty ?? [];
-  
+
   if (isLoading && !property) {
     return {
       header: <MainContentTopbar />,
@@ -321,43 +272,18 @@ export function PropertyView({
       />
       
       {/* Nodes with this property */}
-      <NodeViewSection
+      <QuerySection
+        nodeId={0}
+        nodeUuid="00000000-0000-0000-0000-000000000000"
+        viewType="inline"
         title={`Nodes with "${property.name}"`}
-        count={nodes.length}
+        hideWhenEmpty={false}
         defaultExpanded={true}
-        headerActions={
-          nodes.length > 0 && !nodesLoading ? (
-            <NodeCollectionToolbar
-              viewMode={viewMode}
-              availableViewModes={['table', 'list', 'card']}
-              onViewModeChange={setViewMode}
-              selectedPropertyUuids={selectedPropertyUuids}
-              onPropertyColumnsChange={handlePropertyColumnsChange}
-            />
-          ) : undefined
-        }
-      >
-        {nodesLoading ? (
-          <div className="property-view-loading">Loading nodes...</div>
-        ) : nodes.length === 0 ? (
-          <div className="property-view-empty">
-            No nodes have the "{property.name}" property set.
-          </div>
-        ) : (
-          <NodeCollection
-            nodes={nodes}
-            viewMode={viewMode}
-            availableViewModes={['table', 'list', 'card']}
-            onViewModeChange={setViewMode}
-            editable={true}
-            showClasses={true}
-            onNodeShiftClick={handleNodeShiftClick}
-            selectedPropertyUuids={selectedPropertyUuids}
-            onPropertyColumnsChange={handlePropertyColumnsChange}
-            hideToolbar={true}
-          />
-        )}
-      </NodeViewSection>
+        queryAST={propertyQueryAST}
+        onQueryASTChange={setPropertyQueryAST}
+        onNodeClick={(nodeId) => onNavigateToNode?.(nodeId)}
+        can_create={false}
+      />
       
       {/* Context Menu */}
       {showContextMenu && (
