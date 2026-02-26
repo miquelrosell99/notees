@@ -704,6 +704,18 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     const properties = extractProperties(attrs);
     const blocks = buildBlockTree(eid);
 
+    // Extract page icon from logseq.property/icon and convert mdi:kebab-name → mdiCamelName
+    let pageIcon: string | undefined;
+    const rawIcon = attrs['logseq.property/icon'];
+    if (typeof rawIcon === 'string' && rawIcon) {
+      if (rawIcon.startsWith('mdi:')) {
+        const name = rawIcon.slice(4);
+        pageIcon = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+      } else {
+        pageIcon = rawIcon;
+      }
+    }
+
     const page: LogseqPage = {
       title: title || name,
       blocks,
@@ -711,6 +723,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     if (uuid) page.uuid = uuid;
     const journalDateStr = journalDay ? journalDayToDate(journalDay) : undefined;
     if (journalDateStr) page.journal = journalDateStr;
+    if (pageIcon) page.icon = pageIcon;
     if (tags.length > 0) page.tags = tags;
     if (aliasOfUuids?.length) page.aliasOfUuids = aliasOfUuids;
     if (parent) page.parent = parent;

@@ -460,11 +460,19 @@ export function NodeIcon({
 }
 
 /**
- * Convert a camelCase MDI key (as exported by @mdi/js) to its SVG path.
- * e.g. "mdiCalendarToday" → path string, or null if not found.
+ * Convert an MDI icon name to its SVG path.
+ * Accepts camelCase keys (e.g. "mdiCalendarToday") and
+ * Logseq/Python kebab format (e.g. "mdi:calendar-today").
  */
 function getMdiPath(iconName: string): string | null {
   if (!iconName) return null;
+  // Handle Logseq/Python mdi:kebab-name format → @mdi/js mdiCamelName
+  if (iconName.startsWith('mdi:')) {
+    const name = iconName.slice(4);
+    const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const path = (mdiIcons as Record<string, string>)[camelName];
+    return path || null;
+  }
   const path = (mdiIcons as Record<string, string>)[iconName];
   return path || null;
 }
