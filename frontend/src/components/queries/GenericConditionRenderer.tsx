@@ -498,7 +498,14 @@ export function GenericConditionRenderer({
           return (
             <Dropdown
               value={propertyName}
-              onChange={(value) => onUpdate({ ...condition, property_name: value || '' } as any)}
+              onChange={(value) => {
+                const matched = allProperties.find(p => p.name === value);
+                onUpdate({
+                  ...condition,
+                  property_name: value || '',
+                  property_uuid: matched?.uuid ?? undefined,
+                } as any);
+              }}
               options={allProps}
               placeholder="Select property"
               disabled={readOnly}

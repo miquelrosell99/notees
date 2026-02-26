@@ -362,14 +362,27 @@ class QueryASTToSQL:
         
         # Custom property - query property_value_scalar table
         else:
-            # Add property name as parameter for custom properties
-            prop_param = self._add_param(condition.property_name)
+            # Prefer UUID lookup when available, fall back to name
+            if condition.property_uuid:
+                prop_param = self._add_param(condition.property_uuid)
+                prop_join_clause = f"JOIN property p ON p.uuid = %({prop_param})s::uuid"
+            else:
+                prop_param = self._add_param(condition.property_name)
+                prop_join_clause = f"JOIN property p ON p.id = np.property_id AND p.name = %({prop_param})s"
             
             if condition.operator == 'is_empty':
-                return f"NOT EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+                return f"""NOT EXISTS (
+                    SELECT 1 FROM node_property np
+                    {prop_join_clause}
+                    WHERE np.node_id = n.id
+                )"""
             
             elif condition.operator == 'is_not_empty':
-                return f"EXISTS (SELECT 1 FROM node_property WHERE node_id = n.id AND name = %({prop_param})s)"
+                return f"""EXISTS (
+                    SELECT 1 FROM node_property np
+                    {prop_join_clause}
+                    WHERE np.node_id = n.id
+                )"""
             
             # For value-based operators
             if condition.value is None:
@@ -382,30 +395,30 @@ class QueryASTToSQL:
                 if condition.operator == 'equals':
                     return f"""EXISTS (
                         SELECT 1 FROM node_property np
+                        {prop_join_clause}
                         JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
                         JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
                         WHERE np.node_id = n.id
-                        AND np.name = %({prop_param})s
                         AND psl.name = %({value_param})s
                     )"""
                 
                 elif condition.operator == 'not_equals':
                     return f"""NOT EXISTS (
                         SELECT 1 FROM node_property np
+                        {prop_join_clause}
                         JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
                         JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
                         WHERE np.node_id = n.id
-                        AND np.name = %({prop_param})s
                         AND psl.name = %({value_param})s
                     )"""
                 
                 elif condition.operator == 'contains':
                     return f"""EXISTS (
                         SELECT 1 FROM node_property np
+                        {prop_join_clause}
                         JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
                         JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
                         WHERE np.node_id = n.id
-                        AND np.name = %({prop_param})s
                         AND psl.name ILIKE '%%' || %({value_param})s || '%%'
                     )"""
                 
@@ -415,22 +428,25 @@ class QueryASTToSQL:
                 # Check in property_value_scalar table
                 return f"""EXISTS (
                     SELECT 1 FROM node_property np
+                    {prop_join_clause}
                     JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
                     WHERE np.node_id = n.id 
                     AND pvs.value_text = %({value_param})s
                 )"""
             
             elif condition.operator == 'not_equals':
-                return f"""EXISTS (
+                return f"""NOT EXISTS (
                     SELECT 1 FROM node_property np
+                    {prop_join_clause}
                     JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
                     WHERE np.node_id = n.id 
-                    AND pvs.value_text != %({value_param})s
+                    AND pvs.value_text = %({value_param})s
                 )"""
             
             elif condition.operator == 'contains':
                 return f"""EXISTS (
                     SELECT 1 FROM node_property np
+                    {prop_join_clause}
                     JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
                     WHERE np.node_id = n.id 
                     AND pvs.value_text ILIKE '%%' || %({value_param})s || '%%'
@@ -439,6 +455,7 @@ class QueryASTToSQL:
             elif condition.operator == 'greater_than':
                 return f"""EXISTS (
                     SELECT 1 FROM node_property np
+                    {prop_join_clause}
                     JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
                     WHERE np.node_id = n.id 
                     AND pvs.value_float > %({value_param})s::numeric
@@ -447,6 +464,7 @@ class QueryASTToSQL:
             elif condition.operator == 'less_than':
                 return f"""EXISTS (
                     SELECT 1 FROM node_property np
+                    {prop_join_clause}
                     JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
                     WHERE np.node_id = n.id 
                     AND pvs.value_float < %({value_param})s::numeric

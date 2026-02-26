@@ -178,7 +178,7 @@ export function PropertyView({
     const ast = createEmptyQueryAST();
     ast.scope.scope_type = 'entire_workspace';
     ast.root_group.children.push(
-      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any)
+      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid)
     );
     return ast;
   }, [property]);

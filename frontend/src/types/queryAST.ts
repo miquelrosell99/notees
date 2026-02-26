@@ -204,6 +204,7 @@ export interface ExtendsCondition extends BaseConditionNode {
 export interface PropertyCondition extends BaseConditionNode {
   condition_type: 'property';
   property_name: string;
+  property_uuid?: string;
   property_id?: number;
   property_type: PropertyType;
   operator: PropertyOperator;
@@ -485,11 +486,13 @@ export function createPropertyCondition(
   operator: PropertyOperator,
   value: unknown,
   propertyType: PropertyType = 'text',
+  propertyUuid?: string,
 ): PropertyCondition {
   return {
     type: 'condition',
     condition_type: 'property',
     property_name: propertyName,
+    ...(propertyUuid ? { property_uuid: propertyUuid } : {}),
     property_type: propertyType,
     operator,
     value,
