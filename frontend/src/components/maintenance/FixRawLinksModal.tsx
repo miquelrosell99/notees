@@ -5,7 +5,7 @@
  * then displays a phase-based results report (same style as Logseq import).
  */
 import { useState, useCallback } from 'react';
-import { mdiAlertCircleOutline, mdiLinkVariant } from '@mdi/js';
+import { mdiAlertCircleOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
@@ -126,9 +126,8 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
             variant="primary"
             onClick={handleConfirm}
             disabled={isFixing}
-            icon={mdiLinkVariant}
           >
-            {isFixing ? 'Fixing…' : 'Fix Raw Links'}
+            {isFixing ? 'Fixing…' : 'Proceed'}
           </Button>
         </>
       }
