@@ -633,12 +633,37 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     'contents', '$$$views', '$$$favorites',
   ]);
 
+  /**
+   * Walk the logseq.property/parent chain to reconstruct the full namespace
+   * path for a page entity (e.g. "https:/forums/developer.legrand.com").
+   */
+  function getFullNamespacePath(eid: number, visited = new Set<number>()): string {
+    if (visited.has(eid)) return ''; // cycle guard
+    visited.add(eid);
+    const a = entities.get(eid);
+    if (!a) return '';
+    const t = String(a['block/title'] ?? a['block/name'] ?? '');
+    const parentEid = a['logseq.property/parent'];
+    if (typeof parentEid === 'number') {
+      const parentPath = getFullNamespacePath(parentEid, visited);
+      return parentPath ? `${parentPath}/${t}` : t;
+    }
+    return t;
+  }
+
   for (const [eid, attrs] of pageEntities) {
     const name = String(attrs['block/name'] ?? '');
     const title = String(attrs['block/title'] ?? attrs['block/name'] ?? '');
 
     // Skip system pages
     if (SKIP_PAGE_NAMES.has(name)) continue;
+
+    // Skip URL namespace pages: Logseq splits URLs like https://example.com/path
+    // into separate namespace pages ("https:", "example.com", "path") connected
+    // via logseq.property/parent. Detect by reconstructing the full path and
+    // checking if it starts with a URL scheme.
+    const fullNamespacePath = getFullNamespacePath(eid);
+    if (/^https?:/i.test(fullNamespacePath)) continue;
 
     // Skip asset entities
     if ('logseq.property.asset/type' in attrs) continue;
