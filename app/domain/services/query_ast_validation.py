@@ -169,12 +169,22 @@ def validate_condition(condition: ConditionNode, path: str) -> List[ValidationIs
             ))
     
     elif isinstance(condition, PropertyCondition):
-        if not condition.property_name:
+        # Built-in columns are identified by name only (they have no UUID)
+        BUILTIN_COLUMNS = {'uuid', 'name', 'id', 'parent_id', 'is_page', 'is_favorite'}
+        is_builtin = condition.property_name in BUILTIN_COLUMNS
+        if not is_builtin and not condition.property_uuid:
+            issues.append(ValidationIssue(
+                severity='error',
+                message='Property condition missing property UUID',
+                path=f'{path}.property_uuid',
+                suggestion='Select a property'
+            ))
+        elif not condition.property_name:
             issues.append(ValidationIssue(
                 severity='error',
                 message='Property condition missing property name',
                 path=f'{path}.property_name',
-                suggestion='Enter a property name'
+                suggestion='Select a property'
             ))
         
         # Check for value when operator requires it
