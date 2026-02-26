@@ -83,6 +83,8 @@ export interface GraphRendererOptions {
   baseNodeRadius?: number;
   /** Callback when user clicks a node (no drag involved). */
   onNodeClick?: (nodeId: number) => void;
+  /** Callback when user clicks on empty space (no node hit). */
+  onEmptyClick?: () => void;
 }
 
 export interface GraphRendererHandle {
@@ -735,12 +737,15 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         dirtyRef.current.hover = true;
         optsRef.current.onNodeClick?.(nodeId);
       }
-    } else if (d.mode === 'camera' && !d.moved && selectedRef.current >= 0) {
-      // Click on empty space — deselect
-      selectedRef.current = -1;
-      setSelectedNodeId(-1);
-      rendRef.current?.setSelectedNode(-1);
-      dirtyRef.current.hover = true;
+    } else if (d.mode === 'camera' && !d.moved) {
+      // Click on empty space — deselect and notify parent
+      if (selectedRef.current >= 0) {
+        selectedRef.current = -1;
+        setSelectedNodeId(-1);
+        rendRef.current?.setSelectedNode(-1);
+        dirtyRef.current.hover = true;
+      }
+      optsRef.current.onEmptyClick?.();
     }
     d.mode   = 'none';
     d.nodeId = -1;

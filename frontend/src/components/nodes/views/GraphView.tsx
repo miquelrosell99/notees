@@ -811,6 +811,7 @@ export function GraphView({
         baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
         onNodeDblClick={handleNodeDoubleClick}
+        onEmptyClick={() => setSelectedNodes([])}
         className="node-graph-view__renderer"
       />
       
