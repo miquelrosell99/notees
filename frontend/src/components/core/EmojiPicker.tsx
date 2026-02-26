@@ -335,6 +335,10 @@ function getIconPath(name: string): string | null {
   return (mdiIcons as Record<string, string>)[name] ?? null;
 }
 
+function iconCamelToKebab(name: string): string {
+  return name.replace(/([A-Z])/g, (m) => `-${m.toLowerCase()}`).replace(/^-/, '');
+}
+
 // ─────────────────────────────────────────────
 // LazyCategory – renders a section only when scrolled into view
 // ─────────────────────────────────────────────
