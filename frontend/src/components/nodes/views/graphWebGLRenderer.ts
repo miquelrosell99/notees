@@ -252,10 +252,6 @@ export interface RendererOptions {
   defaultRadius?: number;
   /** Default edge half-width in world units. Default: 0.8 */
   edgeWidth?: number;
-  /** Default edge RGBA. Default: [0.4, 0.4, 0.5, 0.35] */
-  edgeColor?: [number, number, number, number];
-  /** Default node RGBA when no visual provided. Default: [0.42, 0.65, 1.0, 1.0] */
-  defaultNodeColor?: [number, number, number, number];
   /** Cull nodes/edges outside this many world units beyond the viewport. 0 = no culling. */
   cullMargin?: number;
   /** Pre-allocate instance capacity (resize automatically if exceeded). Default: 512 */
@@ -490,8 +486,6 @@ export class GraphWebGLRenderer {
     this.opts = {
       defaultRadius: opts.defaultRadius ?? 8,
       edgeWidth: opts.edgeWidth ?? 0.8,
-      edgeColor: opts.edgeColor ?? [0.4, 0.4, 0.52, 0.35],
-      defaultNodeColor: opts.defaultNodeColor ?? [0.42, 0.65, 1.0, 1.0],
       cullMargin: opts.cullMargin ?? 150,
       initialCapacity: opts.initialCapacity ?? 512,
     };
