@@ -130,8 +130,12 @@ CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 -- HASH supports equality lookups; use idx_node_search (GIN/FTS) for text search.
 CREATE INDEX IF NOT EXISTS idx_node_name ON node USING HASH (name);
 CREATE INDEX IF NOT EXISTS idx_node_is_page ON node(is_page) WHERE is_page = TRUE;
+-- Composite: fast "list all pages in workspace" queries filtered to active, non-deleted nodes
+CREATE INDEX IF NOT EXISTS idx_node_workspace_is_page ON node(workspace_id, is_page) WHERE active = TRUE AND is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_node_is_class ON node(is_class) WHERE is_class = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
+-- Composite: fast daily-journal lookups scoped to a specific workspace
+CREATE INDEX IF NOT EXISTS idx_node_workspace_is_day ON node(workspace_id, is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_deleted = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_class_ids ON node USING GIN (class_ids);
@@ -139,6 +143,8 @@ CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
+-- Index for ordering children by sequence within a parent
+CREATE INDEX IF NOT EXISTS idx_node_parent_sequence ON node(parent_id, sequence);
 -- Note: idx_node_aliased_id is created by migration block below (aliased_id may not exist on older DBs)
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
@@ -371,6 +377,8 @@ CREATE INDEX IF NOT EXISTS idx_node_link_target_id ON node_link(target_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_workspace_id ON node_link(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_node_link_property_id ON node_link(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link(source_id, target_id);
+-- Composite: fast workspace-scoped backlink queries ("who links to X in this workspace?")
+CREATE INDEX IF NOT EXISTS idx_node_link_workspace_target ON node_link(workspace_id, target_id);
 -- idx_node_link_inline_class is created in the migration block below (safe for existing DBs)
 
 -- Inline class references are now stored in node_link with is_inline_class = TRUE
