@@ -418,7 +418,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               }
             }
 
-            // Phase 3: selected label (on top, accent)
+            // Phase 3: selected label (on top, bright white)
             if (selectedRef.current >= 0) {
               const sIdx = rend.nodeOrder.indexOf(selectedRef.current);
               if (sIdx >= 0) {
@@ -427,7 +427,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
                   // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y;
-                  ctx.fillStyle = 'rgba(140,190,255,0.95)';
+                  ctx.fillStyle = 'rgba(220,235,255,0.95)';
                   const label = sName.length > 28 ? sName.slice(0, 27) + '\u2026' : sName;
                   ctx.fillText(label, sx, sy + 12 * dpr);
                 }
