@@ -188,6 +188,7 @@ class PropertyCondition(BaseConditionNode):
     """Property condition - filter by property value."""
     condition_type: Literal[ConditionType.PROPERTY] = ConditionType.PROPERTY
     property_name: str = ""
+    property_uuid: Optional[str] = None
     property_id: Optional[int] = None
     property_type: PropertyType = PropertyType.TEXT
     operator: PropertyOperator = PropertyOperator.EQUALS
@@ -466,6 +467,7 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
     elif condition_type == ConditionType.PROPERTY:
         return PropertyCondition(
             property_name=data.get("property_name", ""),
+            property_uuid=data.get("property_uuid"),
             property_id=data.get("property_id"),
             property_type=PropertyType(data.get("property_type", "text")),
             operator=PropertyOperator(data.get("operator", "equals")),
