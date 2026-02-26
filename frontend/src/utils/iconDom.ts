@@ -46,8 +46,10 @@ export function formatIconField(icon: string, color?: string | null): string {
 
 /**
  * Convert an icon name to its MDI SVG path string.
- * Expects the canonical camelCase format as exported by \`@mdi/js\` (e.g. "mdiHeartOutline").
- * Also accepts JSON-encoded icon fields like \`{"icon":"mdiHeartOutline","color":"..."}\`.
+ * Accepts:
+ * - camelCase format as exported by `@mdi/js` (e.g. "mdiHeartOutline")
+ * - Logseq/Python kebab format with prefix (e.g. "mdi:heart-outline")
+ * - JSON-encoded icon fields like `{"icon":"mdiHeartOutline","color":"..."}`
  * Returns null for anything that is not a recognised MDI key (treated as emoji).
  */
 export function getMdiPath(iconName: string): string | null {
@@ -55,8 +57,26 @@ export function getMdiPath(iconName: string): string | null {
   const { icon } = parseIconField(iconName);
   if (icon !== iconName) return getMdiPath(icon);
   if (!iconName) return null;
+  // Handle Logseq/Python mdi:kebab-name format → @mdi/js mdiCamelName
+  if (iconName.startsWith('mdi:')) {
+    const name = iconName.slice(4);
+    const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const path = (mdiIcons as Record<string, string>)[camelName];
+    return path || null;
+  }
   const path = (mdiIcons as Record<string, string>)[iconName];
   return path || null;
+}
+
+/**
+ * Convert a Logseq/Python mdi:kebab-name icon to the @mdi/js camelCase key.
+ * e.g. "mdi:heart-outline" → "mdiHeartOutline"
+ * Returns the input unchanged if it doesn't start with "mdi:".
+ */
+export function normalizeMdiIcon(icon: string): string {
+  if (!icon.startsWith('mdi:')) return icon;
+  const name = icon.slice(4);
+  return 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
 /**

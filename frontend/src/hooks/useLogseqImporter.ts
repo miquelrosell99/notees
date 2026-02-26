@@ -1209,9 +1209,11 @@ export function useLogseqImporter() {
             const toAdd = regularPageClasses[i].filter(c => !existing.has(c));
             if (toAdd.length > 0) item.classes = [...(existingPage.classes ?? []), ...toAdd];
           }
+          // Set icon from logseq.property/icon (already converted to camelCase MDI name)
+          if (page.icon && (!existingPage || override || !existingPage.icon)) item.icon = page.icon;
           const pageNodeProps = nodeIdToProperties.get(nodeInfo.id);
           if (pageNodeProps && Object.keys(pageNodeProps).length > 0) item.properties = pageNodeProps;
-          if (item.name !== undefined || item.classes !== undefined || item.properties !== undefined) combinedItems.push(item);
+          if (item.name !== undefined || item.icon !== undefined || item.classes !== undefined || item.properties !== undefined) combinedItems.push(item);
         }
 
         for (const item of flatBlocks) {
