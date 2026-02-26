@@ -132,6 +132,7 @@ class PropertyType(str, Enum):
     SELECT = "select"
     MULTI_SELECT = "multi_select"
     NODE = "node"
+    SELECTION = "selection"
 
 
 @dataclass
