@@ -48,6 +48,71 @@ function nodeColor(n: GraphNode): Float32Array | undefined {
   return undefined; // renderer reads --color-outline from CSS
 }
 
+// ─── CSS label colour cache (theme-reactive) ──────────────────────────────────
+// 2D canvas contexts don't support CSS variables natively, so we read them
+// via getComputedStyle and cache the results until the theme changes.
+
+const labelColorCache: {
+  regular:  string | null;
+  emphasis: string | null;
+  shadow:   string | null;
+} = { regular: null, emphasis: null, shadow: null };
+
+function _invalidateLabelColors() {
+  labelColorCache.regular  = null;
+  labelColorCache.emphasis = null;
+  labelColorCache.shadow   = null;
+}
+
+let _labelThemeObserverReady = false;
+function _ensureLabelThemeObserver() {
+  if (_labelThemeObserverReady || typeof MutationObserver === 'undefined') return;
+  _labelThemeObserverReady = true;
+  new MutationObserver(_invalidateLabelColors).observe(
+    document.documentElement,
+    { attributes: true, attributeFilter: ['data-theme', 'class'] },
+  );
+}
+
+/** Hex CSS variable → `rgba(r,g,b,a)` string. Returns fallback if variable missing. */
+function _hexVarToRgba(varName: string, alpha: number, fallback: string): string {
+  const hex = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  if (!hex || hex[0] !== '#') return fallback;
+  const c = hex.replace('#', '');
+  const r = parseInt(c.slice(0, 2), 16);
+  const g = parseInt(c.slice(2, 4), 16);
+  const b = parseInt(c.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/** Dimmed label color for non-focused nodes (--color-on-surface-variant @ 80%). */
+function getLabelRegularColor(): string {
+  if (!labelColorCache.regular) {
+    _ensureLabelThemeObserver();
+    labelColorCache.regular = _hexVarToRgba('--color-on-surface-variant', 0.80, 'rgba(160,160,165,0.80)');
+  }
+  return labelColorCache.regular;
+}
+
+/** Bright label color for hovered/selected nodes (--color-on-surface @ 95%). */
+function getLabelEmphasisColor(): string {
+  if (!labelColorCache.emphasis) {
+    _ensureLabelThemeObserver();
+    labelColorCache.emphasis = _hexVarToRgba('--color-on-surface', 0.95, 'rgba(228,228,228,0.95)');
+  }
+  return labelColorCache.emphasis;
+}
+
+/** Text shadow color for label halos (--color-scrim, already an rgba value). */
+function getLabelShadowColor(): string {
+  if (!labelColorCache.shadow) {
+    _ensureLabelThemeObserver();
+    const val = getComputedStyle(document.documentElement).getPropertyValue('--color-scrim').trim();
+    labelColorCache.shadow = val || 'rgba(0,0,0,0.5)';
+  }
+  return labelColorCache.shadow;
+}
+
 const BASE_RADIUS   = 7;
 const MAX_RADIUS    = 22;
 const MIN_RADIUS    = 4;
@@ -368,7 +433,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
             // Use shadow for text halo instead of expensive strokeText.
             // One fillText call per label instead of strokeText + fillText.
-            ctx.shadowColor   = 'rgba(0,0,0,0.7)';
+            ctx.shadowColor   = getLabelShadowColor();
             ctx.shadowBlur    = 4 * dpr;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
@@ -381,7 +446,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
             // Batch by fill color to minimise state changes.
             // Phase 1: default color labels
-            ctx.fillStyle = 'rgba(200,210,225,0.80)';
+            ctx.fillStyle = getLabelRegularColor();
             for (let i = 0; i < n && rendered < maxLabels; i++) {
               const id = order[i];
               if (id === selectedRef.current || id === hoveredNodeRef.current) continue;
@@ -411,7 +476,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
                   // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y;
-                  ctx.fillStyle = 'rgba(220,235,255,0.95)';
+                  ctx.fillStyle = getLabelEmphasisColor();
                   const label = hName.length > 28 ? hName.slice(0, 27) + '\u2026' : hName;
                   ctx.fillText(label, sx, sy + 12 * dpr);
                 }
@@ -427,7 +492,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
                   // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y;
-                  ctx.fillStyle = 'rgba(220,235,255,0.95)';
+                  ctx.fillStyle = getLabelEmphasisColor();
                   const label = sName.length > 28 ? sName.slice(0, 27) + '\u2026' : sName;
                   ctx.fillText(label, sx, sy + 12 * dpr);
                 }
