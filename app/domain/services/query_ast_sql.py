@@ -26,6 +26,7 @@ from app.domain.entities.query_ast import (
     FlagCondition,
     LogicType,
     ScopeType,
+    PropertyType,
 )
 
 
@@ -375,6 +376,40 @@ class QueryASTToSQL:
                 return None
             
             value_param = self._add_param(condition.value)
+            
+            # Selection type queries property_value_selection + property_selection_line
+            if condition.property_type == PropertyType.SELECTION:
+                if condition.operator == 'equals':
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
+                        JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
+                        WHERE np.node_id = n.id
+                        AND np.name = %({prop_param})s
+                        AND psl.name = %({value_param})s
+                    )"""
+                
+                elif condition.operator == 'not_equals':
+                    return f"""NOT EXISTS (
+                        SELECT 1 FROM node_property np
+                        JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
+                        JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
+                        WHERE np.node_id = n.id
+                        AND np.name = %({prop_param})s
+                        AND psl.name = %({value_param})s
+                    )"""
+                
+                elif condition.operator == 'contains':
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
+                        JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
+                        WHERE np.node_id = n.id
+                        AND np.name = %({prop_param})s
+                        AND psl.name ILIKE '%%' || %({value_param})s || '%%'
+                    )"""
+                
+                return None
             
             if condition.operator == 'equals':
                 # Check in property_value_scalar table
