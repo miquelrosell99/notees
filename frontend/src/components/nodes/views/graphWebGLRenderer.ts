@@ -168,12 +168,12 @@ in float v_screenLen;
 out vec4 outColor;
 
 void main() {
-  // Dashed edges: discard fragments that fall in the gaps.
-  // Dash period = 14px (8px on, 6px off) in screen space.
+  // Dotted edges: discard fragments that fall in the gaps.
+  // Dot period = 6px (2px on, 4px off) in screen space — tight dots.
   if (v_dashed > 0.5 && v_screenLen > 1.0) {
     float pos    = v_t * v_screenLen;
-    float period = 14.0;
-    float onLen  = 8.0;
+    float period = 6.0;
+    float onLen  = 2.0;
     if (mod(pos, period) > onLen) discard;
   }
   outColor = v_color;
