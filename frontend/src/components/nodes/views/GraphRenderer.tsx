@@ -61,6 +61,8 @@ export interface GraphRendererProps {
   onNodeClick?: (nodeId: number) => void;
   /** Called when user double-clicks a node. */
   onNodeDblClick?: (nodeId: number) => void;
+  /** Called when user clicks on empty canvas space (no node hit). */
+  onEmptyClick?: () => void;
 }
 
 // ─── WebGL2 availability check ────────────────────────────────────────────────
@@ -116,6 +118,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
   className = '',
   onNodeClick,
   onNodeDblClick,
+  onEmptyClick,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +132,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     sizeByConnections,
     baseNodeRadius,
     onNodeClick,
+    onEmptyClick,
   };
 
   const {
