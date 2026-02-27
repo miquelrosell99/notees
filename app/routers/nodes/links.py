@@ -327,9 +327,9 @@ async def get_linked_references(
     # Batch fetch properties for all source nodes
     node_properties_map = {}
     if source_node_ids:
-        for nid in source_node_ids:
-            all_prop_values = await service._property_repo.get_all_property_values(nid)
-            node_properties_map[nid] = extract_properties_dict(all_prop_values)
+        batch_result = await service._property_repo.get_all_property_values_batch(source_node_ids)
+        for nid, prop_data in batch_result.items():
+            node_properties_map[nid] = extract_properties_dict(prop_data)
     
     result = []
     for source, children, source_page, link in sources_data:
@@ -483,9 +483,9 @@ async def get_property_backlinks(
     # Batch fetch properties for all pages
     node_properties_map = {}
     if page_ids:
-        for page_id in page_ids:
-            all_prop_values = await service._property_repo.get_all_property_values(page_id)
-            node_properties_map[page_id] = extract_properties_dict(all_prop_values)
+        batch_result = await service._property_repo.get_all_property_values_batch(page_ids)
+        for page_id, prop_data in batch_result.items():
+            node_properties_map[page_id] = extract_properties_dict(prop_data)
     
     # Build result with properties attached
     for page, property_id, property_name in pages_data:

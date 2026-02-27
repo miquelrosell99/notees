@@ -260,9 +260,9 @@ async def _include_properties_for_results(user: User, results: List[Dict[str, An
     
     # Batch fetch: get all property values for all node IDs at once
     props_map: Dict[int, Dict] = {}
-    for node_id in all_ids:
-        all_prop_values = await property_repo.get_all_property_values(node_id)
-        props_dict = extract_properties_dict(all_prop_values)
+    batch_result = await property_repo.get_all_property_values_batch(all_ids)
+    for node_id, prop_data in batch_result.items():
+        props_dict = extract_properties_dict(prop_data)
         if props_dict:
             props_map[node_id] = props_dict
     
