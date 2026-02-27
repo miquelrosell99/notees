@@ -44,6 +44,7 @@ import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
+import { VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
 import { useAppStore, useSettingsStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
 import './QueryNodeCollection.css';
@@ -886,6 +887,14 @@ export function QueryNodeCollection({
     ? leftElement(resultCount) 
     : leftElement;
 
+  // View mode options for inline query block toolbar
+  const inlineAvailableViewModes: NodeCollectionViewMode[] = ['list', 'table', 'card', 'graph', 'terrain'];
+  const viewModeOptions = inlineAvailableViewModes.map(mode => ({
+    value: mode,
+    icon: VIEW_MODE_ICONS[mode],
+    label: VIEW_MODE_LABELS[mode],
+  }));
+
   // Toolbar prefix - view selector, filter button, add view button
   const toolbarPrefix = (
     <>
@@ -897,6 +906,17 @@ export function QueryNodeCollection({
               options={viewOptions}
               value={String(activeView?.id ?? '')}
               onChange={(value) => setActiveViewId(Number(value))}
+              size="sm"
+            />
+          )}
+
+          {/* View mode switcher — shown inline in query block toolbar (when NodeCollection's
+              own toolbar is hidden via hideToolbar=true) */}
+          {hideToolbar && (
+            <SelectionButton
+              options={viewModeOptions}
+              value={collectionViewMode}
+              onChange={(value) => handleViewModeChange(value as NodeCollectionViewMode)}
               size="sm"
             />
           )}
