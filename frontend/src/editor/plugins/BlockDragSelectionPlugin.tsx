@@ -35,6 +35,7 @@ export function BlockDragSelectionPlugin({
   const selectedBlocks = useRef<Set<string>>(new Set());
   const lastHoveredBlock = useRef<string | null>(null);
   const justCompletedDrag = useRef(false);
+  const dragRafId = useRef<number | null>(null);
 
   // Expose clear function for other plugins via a stable callback
   const clearSelection = useCallback(() => {
@@ -90,57 +91,66 @@ export function BlockDragSelectionPlugin({
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging.current || !dragStartPoint.current || !dragStartBlock.current) return;
 
-      const deltaY = Math.abs(e.clientY - dragStartPoint.current.y);
+      // Batch drag-selection updates with requestAnimationFrame to avoid
+      // expensive DOM queries (selectBlockWithChildren) on every pixel
+      if (dragRafId.current !== null) cancelAnimationFrame(dragRafId.current);
+      
+      dragRafId.current = requestAnimationFrame(() => {
+        dragRafId.current = null;
+        if (!isDragging.current || !dragStartPoint.current || !dragStartBlock.current) return;
 
-      // Outside edit mode: suppress any browser text selection while dragging
-      if (!startedInEditMode.current && !isBlockSelectionMode.current) {
-        window.getSelection()?.removeAllRanges();
-      }
+        const deltaY = Math.abs(e.clientY - dragStartPoint.current.y);
 
-      // Block selection triggers when the cursor exits the starting block's
-      // vertical bounds, regardless of edit mode.
-      if (!isBlockSelectionMode.current) {
-        const blockRect = dragStartBlock.current.getBoundingClientRect();
-        const hasExitedBlock = e.clientY < blockRect.top || e.clientY > blockRect.bottom;
-
-        if (hasExitedBlock && deltaY > 5) {
-          isBlockSelectionMode.current = true;
-
-          // Clear text selection and Lexical selection
+        // Outside edit mode: suppress any browser text selection while dragging
+        if (!startedInEditMode.current && !isBlockSelectionMode.current) {
           window.getSelection()?.removeAllRanges();
-          editor.update(() => {
-            $setSelection(null);
-          });
-
-          // Select the starting block with its children
-          const startBlockId = dragStartBlock.current.getAttribute('data-block-id');
-          if (startBlockId) {
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            selectBlockWithChildren(rootEl, startBlockId, selectedBlocks.current);
-            onSelectionChange?.([...selectedBlocks.current]);
-          }
         }
-      }
 
-      // If in block selection mode, handle block hovering
-      if (isBlockSelectionMode.current) {
-        const target = e.target as HTMLElement;
-        const hoveredBlock = target.closest('[data-block-id]') as HTMLElement | null;
-        
-        if (hoveredBlock) {
-          const hoveredBlockId = hoveredBlock.getAttribute('data-block-id');
-          
-          if (hoveredBlockId && hoveredBlockId !== lastHoveredBlock.current) {
-            lastHoveredBlock.current = hoveredBlockId;
-            
-            if (!selectedBlocks.current.has(hoveredBlockId)) {
-              selectBlockWithChildren(rootEl, hoveredBlockId, selectedBlocks.current);
+        // Block selection triggers when the cursor exits the starting block's
+        // vertical bounds, regardless of edit mode.
+        if (!isBlockSelectionMode.current) {
+          const blockRect = dragStartBlock.current!.getBoundingClientRect();
+          const hasExitedBlock = e.clientY < blockRect.top || e.clientY > blockRect.bottom;
+
+          if (hasExitedBlock && deltaY > 5) {
+            isBlockSelectionMode.current = true;
+
+            // Clear text selection and Lexical selection
+            window.getSelection()?.removeAllRanges();
+            editor.update(() => {
+              $setSelection(null);
+            });
+
+            // Select the starting block with its children
+            const startBlockId = dragStartBlock.current!.getAttribute('data-block-id');
+            if (startBlockId) {
+              clearBlockSelection(rootEl);
+              selectedBlocks.current.clear();
+              selectBlockWithChildren(rootEl, startBlockId, selectedBlocks.current);
               onSelectionChange?.([...selectedBlocks.current]);
             }
           }
         }
-      }
+
+        // If in block selection mode, handle block hovering
+        if (isBlockSelectionMode.current) {
+          const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+          const hoveredBlock = target?.closest('[data-block-id]') as HTMLElement | null;
+          
+          if (hoveredBlock) {
+            const hoveredBlockId = hoveredBlock.getAttribute('data-block-id');
+            
+            if (hoveredBlockId && hoveredBlockId !== lastHoveredBlock.current) {
+              lastHoveredBlock.current = hoveredBlockId;
+              
+              if (!selectedBlocks.current.has(hoveredBlockId)) {
+                selectBlockWithChildren(rootEl, hoveredBlockId, selectedBlocks.current);
+                onSelectionChange?.([...selectedBlocks.current]);
+              }
+            }
+          }
+        }
+      });
     };
 
     const handleMouseUp = () => {
@@ -201,6 +211,10 @@ export function BlockDragSelectionPlugin({
       rootEl.removeEventListener('mouseup', handleMouseUp);
       rootEl.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('mousedown', handleDocumentMouseDown);
+      if (dragRafId.current !== null) {
+        cancelAnimationFrame(dragRafId.current);
+        dragRafId.current = null;
+      }
     };
   }, [editor, readOnly, onSelectionChange]);
 
