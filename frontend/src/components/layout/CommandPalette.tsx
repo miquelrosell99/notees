@@ -657,15 +657,6 @@ export function CommandPalette({
     listKeyDown(e);
   }, [isTypingClass, listKeyDown, onClose]);
   
-  // Close on backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
-  
-  if (!isOpen) return null;
-  
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
   const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap } = useMemo(() => {
     const dateItems: typeof allItems = [];
@@ -690,6 +681,15 @@ export function CommandPalette({
     }
     return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap };
   }, [allItems]);
+
+  // Close on backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  }, [onClose]);
+  
+  if (!isOpen) return null;
   
   return (
     <div className="command-palette__backdrop" onClick={handleBackdropClick}>
