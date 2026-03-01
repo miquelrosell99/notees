@@ -14,7 +14,7 @@
  * 
  * Uses TerrainRenderer for visualization.
  */
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useAppStore } from '@/stores';
@@ -389,15 +389,28 @@ export function TerrainView({
     });
   }, []);
   
+  // Pre-compute display names once per sourceNodes change —
+  // searchResults can then read O(1) from this map instead of calling
+  // nodeNameToText (parseAST + stringifyAST) on every keystroke.
+  const nodeNamesMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const n of sourceNodes ?? []) {
+      map.set(n.id, nodeNameToText(n.name) || 'Untitled');
+    }
+    return map;
+  }, [sourceNodes]);
+
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   // Search
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim() || !sourceNodes) return [];
-    const query = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim() || !sourceNodes) return [];
+    const q = deferredSearchQuery.toLowerCase();
     return sourceNodes
-      .map(p => ({ id: p.id, uuid: p.uuid, name: nodeNameToText(p.name) || 'Untitled', icon: p.icon }))
-      .filter(p => p.name.toLowerCase().includes(query))
-      .slice(0, 10);
-  }, [searchQuery, sourceNodes]);
+      .filter(p => (nodeNamesMap.get(p.id) ?? '').toLowerCase().includes(q))
+      .slice(0, 10)
+      .map(p => ({ id: p.id, uuid: p.uuid, name: nodeNamesMap.get(p.id) ?? 'Untitled', icon: p.icon }));
+  }, [deferredSearchQuery, sourceNodes, nodeNamesMap]);
   
   const addToSelection = useCallback((node: { id: number; name?: string }) => {
     setSelectedNodes(prev => {
