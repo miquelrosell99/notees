@@ -21,11 +21,12 @@ import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, 
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodeRef } from '../nodes/NodeRef';
 import { DuplicatePageModal } from './DuplicatePageModal';
+import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -203,6 +204,7 @@ export function CommandPalette({
     originalClasses: number[];
     parentId: number | null;
   }>({ isOpen: false, pageName: '', conflictingClasses: [], originalClasses: [], parentId: null });
+  const [createWithUuidModalOpen, setCreateWithUuidModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -286,19 +288,20 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus'; requiresPage?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid'; requiresPage?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
       { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance' },
       { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
+      { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid' },
     ];
     return cmds;
   }, []);
 
   const allItems = useMemo(() => {
-    type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' };
     const items: ItemEntry[] = [];
     
     // Commands section — show first when user is searching
@@ -580,6 +583,11 @@ export function CommandPalette({
           useAppStore.getState().setFixRawLinksModalOpen(true);
         } else if (item.commandId === 'toggle-focus-mode') {
           useAppStore.getState().toggleFocusMode();
+        } else if (item.commandId === 'create-page-with-uuid') {
+          setCreateWithUuidModalOpen(true);
+          // Keep palette open — modal takes over; close palette so it doesn't layer underneath
+          onClose();
+          return;
         }
         onClose();
         break;
@@ -748,6 +756,8 @@ export function CommandPalette({
                         <Icon path={mdiDatabaseRefresh} size={0.7} />
                       ) : item.commandIcon === 'focus' ? (
                         <Icon path={mdiBrain} size={0.7} />
+                      ) : item.commandIcon === 'uuid' ? (
+                        <Icon path={mdiFingerprint} size={0.7} />
                       ) : (
                         <Icon path={mdiExport} size={0.7} />
                       )}
@@ -915,6 +925,15 @@ export function CommandPalette({
         parentId={duplicateModal.parentId}
         onSuccess={(node) => {
           onClose();
+          openNode(node.id);
+        }}
+      />
+
+      <CreatePageWithUuidModal
+        isOpen={createWithUuidModalOpen}
+        onClose={() => setCreateWithUuidModalOpen(false)}
+        onSuccess={(node) => {
+          setCreateWithUuidModalOpen(false);
           openNode(node.id);
         }}
       />
