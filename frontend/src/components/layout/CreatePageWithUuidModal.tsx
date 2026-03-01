@@ -49,7 +49,7 @@ export function CreatePageWithUuidModal({
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
   }, []);
 
-  const handleCreate = useCallback(async () => {
+  const doCreate = useCallback(async (andOpen: boolean) => {
     const trimmedName = pageName.trim();
     const trimmedUuid = uuid.trim();
 
@@ -91,7 +91,9 @@ export function CreatePageWithUuidModal({
         classes: [pageClassId],
       });
 
-      onSuccess(newNode);
+      if (andOpen) {
+        onSuccess(newNode);
+      }
       onClose();
     } catch {
       setError('Failed to create page. Please try again.');
@@ -100,14 +102,17 @@ export function CreatePageWithUuidModal({
     }
   }, [pageName, uuid, pageClassId, isValidUuid, createNodeMutation, onSuccess, onClose]);
 
+  const handleCreate = useCallback(() => doCreate(false), [doCreate]);
+  const handleCreateAndOpen = useCallback(() => doCreate(true), [doCreate]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        handleCreate();
+        handleCreateAndOpen();
       }
     },
-    [handleCreate],
+    [handleCreateAndOpen],
   );
 
   return (
@@ -122,12 +127,20 @@ export function CreatePageWithUuidModal({
             Cancel
           </Button>
           <Button
-            variant="primary"
+            variant="default"
             onClick={handleCreate}
             size="sm"
             disabled={isCreating || !pageName.trim()}
           >
-            {isCreating ? 'Creating…' : 'Create'}
+            Create
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCreateAndOpen}
+            size="sm"
+            disabled={isCreating || !pageName.trim()}
+          >
+            {isCreating ? 'Creating…' : 'Open'}
           </Button>
         </div>
       }
