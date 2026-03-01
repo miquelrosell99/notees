@@ -126,34 +126,43 @@ export function SelectionPlugin({
     const handleMouseMove = (e: MouseEvent) => {
       if (!isBoxSelecting.current || !boxStartPoint.current || !boxElement.current) return;
 
-      const { x: sx, y: sy } = boxStartPoint.current;
-      const ex = e.clientX;
-      const ey = e.clientY;
+      // Batch box-select updates with requestAnimationFrame to avoid
+      // expensive getBoundingClientRect calls on every pixel of mouse movement
+      if (boxSelectRafId.current !== null) return;
+      
+      boxSelectRafId.current = requestAnimationFrame(() => {
+        boxSelectRafId.current = null;
+        if (!isBoxSelecting.current || !boxStartPoint.current || !boxElement.current) return;
 
-      const left = Math.min(sx, ex);
-      const top = Math.min(sy, ey);
-      const width = Math.abs(ex - sx);
-      const height = Math.abs(ey - sy);
+        const { x: sx, y: sy } = boxStartPoint.current;
+        const ex = e.clientX;
+        const ey = e.clientY;
 
-      boxElement.current.style.left = `${left}px`;
-      boxElement.current.style.top = `${top}px`;
-      boxElement.current.style.width = `${width}px`;
-      boxElement.current.style.height = `${height}px`;
+        const left = Math.min(sx, ex);
+        const top = Math.min(sy, ey);
+        const width = Math.abs(ex - sx);
+        const height = Math.abs(ey - sy);
 
-      // Find intersecting blocks
-      const boxRect = { left, top, right: left + width, bottom: top + height };
-      const intersecting = new Set<string>();
+        boxElement.current.style.left = `${left}px`;
+        boxElement.current.style.top = `${top}px`;
+        boxElement.current.style.width = `${width}px`;
+        boxElement.current.style.height = `${height}px`;
 
-      rootEl.querySelectorAll('[data-block-id]').forEach(el => {
-        const rect = el.getBoundingClientRect();
-        if (rectsIntersect(boxRect, rect)) {
-          const blockId = el.getAttribute('data-block-id');
-          if (blockId) intersecting.add(blockId);
-        }
+        // Find intersecting blocks
+        const boxRect = { left, top, right: left + width, bottom: top + height };
+        const intersecting = new Set<string>();
+
+        rootEl.querySelectorAll('[data-block-id]').forEach(el => {
+          const rect = el.getBoundingClientRect();
+          if (rectsIntersect(boxRect, rect)) {
+            const blockId = el.getAttribute('data-block-id');
+            if (blockId) intersecting.add(blockId);
+          }
+        });
+
+        selectedBlockIds.current = intersecting;
+        onSelectionChange?.([...intersecting]);
       });
-
-      selectedBlockIds.current = intersecting;
-      onSelectionChange?.([...intersecting]);
     };
 
     const handleMouseUp = () => {
@@ -177,6 +186,10 @@ export function SelectionPlugin({
       window.removeEventListener('mouseup', handleMouseUp);
       if (boxElement.current) {
         boxElement.current.remove();
+      }
+      if (boxSelectRafId.current !== null) {
+        cancelAnimationFrame(boxSelectRafId.current);
+        boxSelectRafId.current = null;
       }
     };
   }, [editor, enableBoxSelect, onSelectionChange]);
