@@ -650,10 +650,9 @@ export function CommandPalette({
     }
   }, [onClose]);
   
-  if (!isOpen) return null;
-  
   return (
-    <div className="command-palette__backdrop" onClick={handleBackdropClick}>
+    <>
+    {isOpen && <div className="command-palette__backdrop" onClick={handleBackdropClick}>
       <div ref={containerRef} className="command-palette">
         <div className="command-palette__input-container">
           <input
@@ -929,15 +928,16 @@ export function CommandPalette({
         }}
       />
 
-      <CreatePageWithUuidModal
-        isOpen={createWithUuidModalOpen}
-        onClose={() => setCreateWithUuidModalOpen(false)}
-        onSuccess={(node) => {
-          setCreateWithUuidModalOpen(false);
-          openNode(node.id);
-        }}
-      />
-    </div>
+    </div>}
+    <CreatePageWithUuidModal
+      isOpen={createWithUuidModalOpen}
+      onClose={() => setCreateWithUuidModalOpen(false)}
+      onSuccess={(node) => {
+        setCreateWithUuidModalOpen(false);
+        openNode(node.id);
+      }}
+    />
+    </>
   );
 }
 
