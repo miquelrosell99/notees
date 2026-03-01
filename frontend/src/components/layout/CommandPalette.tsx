@@ -14,6 +14,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } f
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
@@ -45,37 +46,7 @@ interface SearchResult {
   breadcrumb?: string;
 }
 
-/**
- * Build breadcrumb from node hierarchy
- */
-function buildBreadcrumb(node: Node, allNodes: Node[]): string {
-  const parts: string[] = [];
-  let current: Node | undefined = node;
-  
-  // Walk up the parent chain
-  while (current?.parent_id) {
-    const parent = allNodes.find(n => n.id === current?.parent_id);
-    if (parent) {
-      parts.unshift(nodeNameToText(parent.name) || 'Untitled');
-      current = parent;
-    } else {
-      break;
-    }
-  }
-  
-  // If node has a page_id different from parent, add page name
-  if (node.page_id && node.page_id !== node.parent_id) {
-    const page = allNodes.find(n => n.id === node.page_id);
-    if (page) {
-      const pageName = nodeNameToText(page.name) || 'Untitled';
-      if (!parts.includes(pageName)) {
-        parts.unshift(pageName);
-      }
-    }
-  }
-  
-  return parts.join(' > ');
-}
+
 
 /**
  * Parse query for @classname syntax
@@ -116,43 +87,10 @@ function parseQueryWithClass(query: string): {
   return { searchTerm: query, className: null, isTypingClass: false, classQuery: '' };
 }
 
-/**
- * Categorize search results into pages, blocks, and properties
- */
-function categorizeResults(
-  nodes: Node[], 
-  properties: Property[], 
-  query: string
-): { pages: SearchResult[]; blocks: SearchResult[]; properties: SearchResult[] } {
-  const pages: SearchResult[] = [];
-  const blocks: SearchResult[] = [];
-  const propertiesResults: SearchResult[] = [];
-  
-  for (const node of nodes) {
-    const isPage = node.parent_id === null;
-    const breadcrumb = isPage ? undefined : buildBreadcrumb(node, nodes);
-    
-    const result: SearchResult = { node, type: isPage ? 'page' : 'block', breadcrumb };
-    
-    if (isPage) {
-      pages.push(result);
-    } else {
-      blocks.push(result);
-    }
-  }
-  
-  // Filter properties by query
-  if (query.trim()) {
-    const lowerQuery = query.toLowerCase();
-    for (const property of properties) {
-      if (property.name.toLowerCase().includes(lowerQuery)) {
-        propertiesResults.push({ property, type: 'property' });
-      }
-    }
-  }
-  
-  return { pages, blocks, properties: propertiesResults };
-}
+// Max items shown per section — keeps render cost bounded
+const MAX_PAGES = 8;
+const MAX_BLOCKS = 8;
+const MAX_PROPERTIES = 5;
 
 /**
  * Result item component
@@ -295,20 +233,21 @@ export function CommandPalette({
     classFilter
   );
   
-  // Show loading when user is typing but debounced value hasn't caught up
-  const isLoading = isSearchLoading || (searchTerm !== debouncedSearchTerm && searchTerm.length > 0);
+  // Categorize results off the main thread via Web Worker
+  const { results: { pages: rawPages, blocks: rawBlocks, properties: rawProperties }, isPending: isCategorizingPending } = useCommandPaletteSearch(
+    searchResults,
+    allProperties,
+    debouncedSearchTerm,
+  );
+
+  // Show loading when typing, waiting for API, or worker is categorizing
+  const isLoading = isSearchLoading || isCategorizingPending || (searchTerm !== debouncedSearchTerm && searchTerm.length > 0);
   
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
   const { data: allPages } = usePages({ includeChildren: true });
   const inboxPage = allPages?.find(p => nodeNameToText(p.name) === 'Inbox');
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
-  
-  // Categorize results
-  const { pages, blocks, properties } = useMemo(() => {
-    if (!searchResults) return { pages: [], blocks: [], properties: [] };
-    return categorizeResults(searchResults, allProperties, searchTerm);
-  }, [searchResults, allProperties, searchTerm]);
   
   // Analyze hierarchical path structure (use searchTerm without the @class part)
   const pathInfo = useHierarchicalPath(searchTerm, true);
@@ -359,7 +298,8 @@ export function CommandPalette({
   }, []);
 
   const allItems = useMemo(() => {
-    const items: Array<{ type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' }> = [];
+    type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' };
+    const items: ItemEntry[] = [];
     
     // Commands section — show first when user is searching
     if (searchTerm.trim()) {
@@ -382,14 +322,17 @@ export function CommandPalette({
       }
     }
     
-    // Pages section
-    pages.forEach(result => items.push({ type: 'page', result }));
+    // Pages section — capped to MAX_PAGES
+    const displayedPages = rawPages.slice(0, MAX_PAGES);
+    displayedPages.forEach(({ node }) =>
+      items.push({ type: 'page', result: { node, type: 'page' } }),
+    );
     
     // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0 
       ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToText(selectedClasses[0].name)}"` : `${selectedClasses.length} classes`}`
       : '';
-    const hasExactMatch = pages.some(p => nodeNameToText(p.node?.name)?.toLowerCase() === pageNameForCreation.toLowerCase());
+    const hasExactMatch = displayedPages.some(({ node }) => nodeNameToText(node.name)?.toLowerCase() === pageNameForCreation.toLowerCase());
     if (pageNameForCreation) {
       const label = hasExactMatch
         ? `Create another "${pageNameForCreation}"${classLabels || ' (pick a class to differentiate)'}`
@@ -397,11 +340,17 @@ export function CommandPalette({
       items.push({ type: 'add-page', label });
     }
     
-    // Blocks section
-    blocks.forEach(result => items.push({ type: 'block', result }));
+    // Blocks section — capped to MAX_BLOCKS
+    const displayedBlocks = rawBlocks.slice(0, MAX_BLOCKS);
+    displayedBlocks.forEach(({ node, breadcrumb }) =>
+      items.push({ type: 'block', result: { node, type: 'block', breadcrumb } }),
+    );
     
-    // Properties section
-    properties.forEach(result => items.push({ type: 'property', result }));
+    // Properties section — capped to MAX_PROPERTIES
+    const displayedProperties = rawProperties.slice(0, MAX_PROPERTIES);
+    displayedProperties.forEach(prop =>
+      items.push({ type: 'property', result: { property: prop, type: 'property' } }),
+    );
     
     // Quick add option
     if (searchTerm.trim()) {
@@ -409,7 +358,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [pages, blocks, properties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel]);
+  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel]);
   
   // Focus input when opened
   useEffect(() => {
@@ -658,7 +607,7 @@ export function CommandPalette({
   }, [isTypingClass, listKeyDown, onClose]);
   
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
-  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap } = useMemo(() => {
+  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap, extraPages, extraBlocks, extraProperties } = useMemo(() => {
     const dateItems: typeof allItems = [];
     const pageItems: typeof allItems = [];
     const blockItems: typeof allItems = [];
@@ -679,8 +628,12 @@ export function CommandPalette({
         case 'command': commandItems.push(item); break;
       }
     }
-    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap };
-  }, [allItems]);
+    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap,
+      extraPages: Math.max(0, rawPages.length - MAX_PAGES),
+      extraBlocks: Math.max(0, rawBlocks.length - MAX_BLOCKS),
+      extraProperties: Math.max(0, rawProperties.length - MAX_PROPERTIES),
+    };
+  }, [allItems, rawPages.length, rawBlocks.length, rawProperties.length]);
 
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -835,7 +788,9 @@ export function CommandPalette({
               {/* Pages section — hidden when date is detected */}
               {pageItems.length > 0 && !parsedDate && (
             <div className="command-palette__section">
-              <div className="command-palette__section-header">Pages</div>
+              <div className="command-palette__section-header">
+                Pages{extraPages > 0 && <span className="command-palette__section-more"> +{extraPages} more</span>}
+              </div>
               {pageItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
                 if (item.type === 'add-page') {
@@ -870,7 +825,9 @@ export function CommandPalette({
           {/* Blocks section */}
           {blockItems.length > 0 && (
             <div className="command-palette__section">
-              <div className="command-palette__section-header">Blocks</div>
+              <div className="command-palette__section-header">
+                Blocks{extraBlocks > 0 && <span className="command-palette__section-more"> +{extraBlocks} more</span>}
+              </div>
               {blockItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
                 return (
@@ -889,7 +846,9 @@ export function CommandPalette({
           {/* Properties section */}
           {propertyItems.length > 0 && (
             <div className="command-palette__section">
-              <div className="command-palette__section-header">Properties</div>
+              <div className="command-palette__section-header">
+                Properties{extraProperties > 0 && <span className="command-palette__section-more"> +{extraProperties} more</span>}
+              </div>
               {propertyItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
                 return (
