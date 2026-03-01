@@ -10,7 +10,7 @@
  * - @classname syntax for filtering and creating pages with specific class
  * - @ triggers class suggestion popup for easy class selection
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import './CommandPalette.css';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -281,16 +281,22 @@ export function CommandPalette({
   // Parse query for @classname syntax
   const { searchTerm, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
   
+  // Debounce the search term to avoid firing API calls on every keystroke
+  const debouncedSearchTerm = useDeferredValue(isTypingClass ? '' : searchTerm);
+  
   // Build class filter for search from selected classes
   const classFilter = selectedClasses.length > 0 
     ? selectedClasses.map(c => c.id).join(',')
     : undefined;
   
-  // Search with optional class filter (only search when not typing class)
-  const { data: searchResults, isLoading } = useSearch(
-    isTypingClass ? '' : searchTerm, 
+  // Search with optional class filter (debounced to avoid per-keystroke API calls)
+  const { data: searchResults, isLoading: isSearchLoading } = useSearch(
+    debouncedSearchTerm, 
     classFilter
   );
+  
+  // Show loading when user is typing but debounced value hasn't caught up
+  const isLoading = isSearchLoading || (searchTerm !== debouncedSearchTerm && searchTerm.length > 0);
   
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
@@ -660,13 +666,30 @@ export function CommandPalette({
   
   if (!isOpen) return null;
   
-  // Group items for rendering
-  const dateItems = allItems.filter(i => i.type === 'date');
-  const pageItems = allItems.filter(i => i.type === 'page' || i.type === 'add-page');
-  const blockItems = allItems.filter(i => i.type === 'block');
-  const propertyItems = allItems.filter(i => i.type === 'property');
-  const quickAddItems = allItems.filter(i => i.type === 'quick-add');
-  const commandItems = allItems.filter(i => i.type === 'command');
+  // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
+  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap } = useMemo(() => {
+    const dateItems: typeof allItems = [];
+    const pageItems: typeof allItems = [];
+    const blockItems: typeof allItems = [];
+    const propertyItems: typeof allItems = [];
+    const quickAddItems: typeof allItems = [];
+    const commandItems: typeof allItems = [];
+    const indexMap = new Map<typeof allItems[number], number>();
+    
+    for (let i = 0; i < allItems.length; i++) {
+      const item = allItems[i];
+      indexMap.set(item, i);
+      switch (item.type) {
+        case 'date': dateItems.push(item); break;
+        case 'page': case 'add-page': pageItems.push(item); break;
+        case 'block': blockItems.push(item); break;
+        case 'property': propertyItems.push(item); break;
+        case 'quick-add': quickAddItems.push(item); break;
+        case 'command': commandItems.push(item); break;
+      }
+    }
+    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap };
+  }, [allItems]);
   
   return (
     <div className="command-palette__backdrop" onClick={handleBackdropClick}>
@@ -758,7 +781,7 @@ export function CommandPalette({
             <div className="command-palette__section">
               <div className="command-palette__section-header">Commands</div>
               {commandItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
+                const globalIndex = indexMap.get(item)!;
                 return (
                   <button
                     key={item.commandId}
@@ -790,7 +813,7 @@ export function CommandPalette({
                 <div className="command-palette__section">
                   <div className="command-palette__section-header">Date Pages</div>
                   {dateItems.map((item) => {
-                    const globalIndex = allItems.indexOf(item);
+                    const globalIndex = indexMap.get(item)!;
                     return (
                       <button
                         key="date-page"
@@ -814,7 +837,7 @@ export function CommandPalette({
             <div className="command-palette__section">
               <div className="command-palette__section-header">Pages</div>
               {pageItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
+                const globalIndex = indexMap.get(item)!;
                 if (item.type === 'add-page') {
                   return (
                     <button
@@ -849,7 +872,7 @@ export function CommandPalette({
             <div className="command-palette__section">
               <div className="command-palette__section-header">Blocks</div>
               {blockItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
+                const globalIndex = indexMap.get(item)!;
                 return (
                   <ResultItem
                     key={item.result?.node?.id}
@@ -868,7 +891,7 @@ export function CommandPalette({
             <div className="command-palette__section">
               <div className="command-palette__section-header">Properties</div>
               {propertyItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
+                const globalIndex = indexMap.get(item)!;
                 return (
                   <ResultItem
                     key={item.result?.property?.id}
@@ -886,7 +909,7 @@ export function CommandPalette({
             <div className="command-palette__section">
               <div className="command-palette__section-header">Quick Add</div>
               {quickAddItems.map((item) => {
-                const globalIndex = allItems.indexOf(item);
+                const globalIndex = indexMap.get(item)!;
                 return (
                   <button
                     key="quick-add"
