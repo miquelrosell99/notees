@@ -14,6 +14,8 @@ import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  COMMAND_PRIORITY_LOW,
+  SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { findParentNodeBlock } from '../utils/selectionUtils';
@@ -36,17 +38,18 @@ export function SelectionPlugin({
   const isBoxSelecting = useRef(false);
   const boxStartPoint = useRef<{ x: number; y: number } | null>(null);
   const boxElement = useRef<HTMLDivElement | null>(null);
+  const boxSelectRafId = useRef<number | null>(null);
 
-  // ─── Track selection changes ───────────────────────────────
+  // ─── Track selection changes (only fires on actual selection changes) ───
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
+    return editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
         const selection = $getSelection();
         const newSelectedIds = new Set<string>();
 
         if ($isRangeSelection(selection)) {
-          // Find which blocks the selection spans
           const anchorNode = selection.anchor.getNode();
           const focusNode = selection.focus.getNode();
 
@@ -80,8 +83,11 @@ export function SelectionPlugin({
           selectedBlockIds.current = newSelectedIds;
           onSelectionChange?.([...newSelectedIds]);
         }
-      });
-    });
+
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
   }, [editor, onSelectionChange]);
 
   // ─── Box select ────────────────────────────────────────────

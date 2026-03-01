@@ -13,7 +13,7 @@
  * - BlockDragSelectionPlugin (takes over when drag exits block bounds)
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,
@@ -22,6 +22,7 @@ import {
   COPY_COMMAND,
   CUT_COMMAND,
   $getRoot,
+  SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
 import { findParentNodeBlock } from '../utils/selectionUtils';
@@ -30,24 +31,22 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
   const [editor] = useLexicalComposerContext();
 
   // ─── Clamp selection to anchor block ──────────────────────────
-  // Use registerUpdateListener since SELECTION_CHANGE_COMMAND runs in
-  // a read context — we need a write context to modify the selection.
+  // Use SELECTION_CHANGE_COMMAND to only fire on selection changes,
+  // not on every Lexical update (typing, formatting, etc.).
 
   useEffect(() => {
     if (readOnly) return;
 
-    return editor.registerUpdateListener(({ tags }) => {
-      // Skip updates we triggered ourselves (avoid infinite loop)
-      if (tags.has('selection-constraint')) return;
-
-      editor.getEditorState().read(() => {
+    return editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection) || selection.isCollapsed()) return;
+        if (!$isRangeSelection(selection) || selection.isCollapsed()) return false;
 
         const anchorBlock = findParentNodeBlock(selection.anchor.getNode());
         const focusBlock = findParentNodeBlock(selection.focus.getNode());
 
-        if (!anchorBlock || !focusBlock || anchorBlock === focusBlock) return;
+        if (!anchorBlock || !focusBlock || anchorBlock === focusBlock) return false;
 
         // Schedule clamping in a write context
         editor.update(() => {
@@ -60,8 +59,11 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
 
           clampSelectionToBlock(sel, anchor);
         }, { tag: 'selection-constraint' });
-      });
-    });
+
+        return false;
+      },
+      COMMAND_PRIORITY_CRITICAL,
+    );
   }, [editor, readOnly]);
 
   // ─── Custom copy: plain text from Lexical selection ───────────
