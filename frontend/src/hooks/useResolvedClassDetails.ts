@@ -33,15 +33,18 @@ export function useResolvedClassDetails(
   return useMemo(() => {
     if (!classIds || classIds.length === 0) return [];
 
+    // Build O(1) lookup maps once instead of O(n) .find() per classId
+    const classMap = new Map<number, Node>();
+    for (const c of allClasses ?? []) classMap.set(c.id, c);
+
+    const nodeMap = options?.skipNodesFallback ? null : (() => {
+      const m = new Map<number, Node>();
+      for (const n of allNodes ?? []) m.set(n.id, n);
+      return m;
+    })();
+
     return classIds
-      .map((classId: number) => {
-        const fromClasses = allClasses?.find(c => c.id === classId);
-        if (fromClasses) return fromClasses;
-        if (!options?.skipNodesFallback) {
-          return allNodes?.find(n => n.id === classId);
-        }
-        return undefined;
-      })
+      .map((classId: number) => classMap.get(classId) ?? nodeMap?.get(classId))
       .filter((c): c is Node =>
         c !== undefined &&
         (options?.includePageClass || c.uuid !== SYSTEM_CLASS_UUIDS.page)

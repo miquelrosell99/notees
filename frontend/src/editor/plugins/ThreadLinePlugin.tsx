@@ -24,6 +24,8 @@ export function ThreadLinePlugin({ mode = 'list' }: ThreadLinePluginProps): null
   const [editor] = useLexicalComposerContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  // Structural fingerprint — skip getBoundingClientRect when nothing changed
+  const lastStructureKey = useRef<string>('');
 
   // ─── Core drawing logic ──────────────────────────────────────────
 
@@ -58,6 +60,17 @@ export function ThreadLinePlugin({ mode = 'list' }: ThreadLinePluginProps): null
     const allBlocks = Array.from(
       editorContent.querySelectorAll<HTMLElement>('.node-block'),
     );
+
+    // Skip redraw when block structure (IDs, depths, expand/collapse state) is unchanged
+    const structureKey = allBlocks
+      .map(b =>
+        `${b.dataset.blockId}:${b.dataset.depth}:` +
+        `${b.classList.contains('node-block--has-children') ? 'h' : ''}` +
+        `${b.classList.contains('node-block--collapsed') ? 'c' : ''}`,
+      )
+      .join('|');
+    if (structureKey === lastStructureKey.current) return;
+    lastStructureKey.current = structureKey;
 
     // Build lines
     // We reuse a DocumentFragment to minimise reflow

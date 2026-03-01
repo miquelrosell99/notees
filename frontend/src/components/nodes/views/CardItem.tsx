@@ -315,15 +315,15 @@ export const NodeCard = memo(function NodeCard({
   // Resolve class details (excluding implicit "page" class)
   const classDetails = useResolvedClassDetails(node?.classes);
 
-  // Resolve tag details
+  // Resolve tag details — O(1) Map lookups instead of .find() per tag
   const tagDetails = useMemo(() => {
     if (!node?.tags || node.tags.length === 0) return [];
+    const tagMap = new Map<number, Node>();
+    for (const t of allTags ?? []) tagMap.set(t.id, t);
+    const nodeMap = new Map<number, Node>();
+    for (const n of allNodes ?? []) nodeMap.set(n.id, n);
     return node.tags
-      .map(tagId => {
-        const fromTags = allTags?.find(t => t.id === tagId);
-        if (fromTags) return fromTags;
-        return allNodes?.find((n: Node) => n.id === tagId);
-      })
+      .map(tagId => tagMap.get(tagId) ?? nodeMap.get(tagId))
       .filter((t): t is Node => {
         if (t === undefined) return false;
         if (t.is_class) return false;

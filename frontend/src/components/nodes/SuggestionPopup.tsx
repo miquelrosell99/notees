@@ -112,9 +112,22 @@ export function SuggestionPopup({
   // Date parsing for link mode
   const parsedDate = useMemo(() => type === 'link' ? parseDate(query) : null, [query, type]);
   const { data: allPagesForDate } = usePages({ includeChildren: true });
-  
+
+  // O(1) lookup maps — avoids .find() inside buildParentPath (called per result row)
+  const pageById = useMemo(() => {
+    const m = new Map<number, Node>();
+    for (const p of allPagesForDate ?? []) m.set(p.id, p);
+    return m;
+  }, [allPagesForDate]);
+
   // Fetch all classes to show class names for pages
   const { data: allClasses = [] } = useClasses();
+
+  const classById = useMemo(() => {
+    const m = new Map<number, Node>();
+    for (const c of allClasses) m.set(c.id, c as unknown as Node);
+    return m;
+  }, [allClasses]);
   
   // Check if the date page already exists by looking up its deterministic UUID
   const existingDateNode = useMemo(() => {
@@ -150,8 +163,8 @@ export function SuggestionPopup({
     const segments: string[] = [];
     let currentId: number | null = node.parent_id;
     while (currentId !== null) {
-      const parent = allPagesForDate.find(p => p.id === currentId && p.is_page);
-      if (!parent) break;
+      const parent = pageById.get(currentId);
+      if (!parent || !parent.is_page) break;
       segments.unshift(nodeNameToText(parent.name) || 'Untitled');
       currentId = parent.parent_id ?? null;
     }
@@ -167,21 +180,21 @@ export function SuggestionPopup({
     }
     const last = parts[0];
     return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
-  }, [allPagesForDate]);
+  }, [allPagesForDate, pageById]);
 
   // Helper to get display classes for a node, excluding the system "page" class
   const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
     if (!node.classes || node.classes.length === 0) return [];
     return node.classes
       .map(classId => {
-        const classNode = allClasses.find(c => c.id === classId);
-        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        const classNode = classById.get(classId);
+        if (!classNode || (classNode as any).uuid === SYSTEM_CLASS_UUIDS.page) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
         return { id: classId, name };
       })
       .filter((c): c is { id: number; name: string } => c !== null);
-  }, [allClasses]);
+  }, [classById]);
   
   // Combined list for navigation (in multi-select mode, exclude already selected)
   const allItems = useMemo(() => {
