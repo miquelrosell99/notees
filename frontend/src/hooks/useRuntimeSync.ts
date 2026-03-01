@@ -10,7 +10,7 @@ import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import type { GraphNode, GraphNodeType, ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 import { parseAST } from '@/lib/astBuilder';
-import { nodeNameToText } from './useStringifyAST';
+import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys } from './queryKeys';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
@@ -34,17 +34,19 @@ export function apiNodeToGraphNode(
     // (node won't be linked to parent but at least won't crash)
   }
   
+  // Parse AST once — reuse for both contentAST and the plain-text name
+  const ast = parseAST(node.name);
   return {
     blockId: node.uuid,
     serverId: node.id,
     parentId: parentUuid,
     orderIndex: node.sequence ?? 0,
     nodeType: inferNodeType(node, classIdToUuidMap),
-    contentAST: parseAST(node.name) as ContentAST,
+    contentAST: ast as ContentAST,
     collapsed: node.collapsed ?? false,
     isDeleted: node.is_deleted ?? false,
     isPage: node.is_page ?? false,
-    name: nodeNameToText(node.name),
+    name: stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY }),
     icon: node.icon || null,
     color: node.color || null,
     classIds: (node.classes || []).map(String),
