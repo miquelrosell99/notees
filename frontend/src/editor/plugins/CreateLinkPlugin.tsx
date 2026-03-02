@@ -1,13 +1,13 @@
 /**
- * CreateLinkPlugin — handles Ctrl+L to open the link-creation modal from a text selection.
+ * CreateLinkPlugin — handles Ctrl+L keyboard shortcuts to open link-creation modals.
  *
- * When the user presses Ctrl+L with text selected:
- *  - The selected text is captured.
- *  - The selection coordinates are saved so they can be restored after the modal closes.
- *  - A callback fires to open BlockEditor's link-creation modal.
+ * Shortcuts:
+ *  - Ctrl+L          → page link modal, selected text pre-fills the search field
+ *  - Ctrl+Shift+L    → page link modal, selected text becomes the custom label
+ *  - Ctrl+Alt+L      → URL link modal, selected text detected as URL or label
  *
- * When a `pendingNewLink` prop arrives (modal saved), the plugin restores the selection
- * and replaces the selected text with a new InlineLinkNode.
+ * When a `pendingNewLink` prop arrives (modal saved), the plugin restores the
+ * selection and replaces the selected text with a new InlineLinkNode.
  */
 
 import { useEffect, useRef } from 'react';
@@ -43,10 +43,12 @@ interface SavedSelection {
 
 export interface CreateLinkPluginProps {
   readOnly?: boolean;
-  /** Called when Ctrl+L is pressed (URL mode). */
-  onOpenCreateLink: (selectedText: string) => void;
-  /** Called when Ctrl+Shift+L is pressed (node mode). */
-  onOpenCreateNodeLink: (selectedText: string) => void;
+  /** Ctrl+L — page link, selected text as search query. */
+  onOpenPageSearch: (selectedText: string) => void;
+  /** Ctrl+Shift+L — page link, selected text as custom label. */
+  onOpenPageLabel: (selectedText: string) => void;
+  /** Ctrl+Alt+L — URL link. */
+  onOpenUrlLink: (selectedText: string) => void;
   /** Pending link to insert (from modal save). Cleared by calling onNewLinkApplied. */
   pendingNewLink: PendingNewLink | null;
   /** Called after pendingNewLink is consumed. */
@@ -64,8 +66,9 @@ export function isLikelyUrl(text: string): boolean {
 
 export function CreateLinkPlugin({
   readOnly = false,
-  onOpenCreateLink,
-  onOpenCreateNodeLink,
+  onOpenPageSearch,
+  onOpenPageLabel,
+  onOpenUrlLink,
   pendingNewLink,
   onNewLinkApplied,
 }: CreateLinkPluginProps): null {
@@ -75,10 +78,12 @@ export function CreateLinkPlugin({
   const savedSelectionRef = useRef<SavedSelection | null>(null);
 
   // Keep callbacks in refs so they don't cause the effect to re-register.
-  const onOpenRef = useRef(onOpenCreateLink);
-  onOpenRef.current = onOpenCreateLink;
-  const onOpenNodeRef = useRef(onOpenCreateNodeLink);
-  onOpenNodeRef.current = onOpenCreateNodeLink;
+  const onPageSearchRef = useRef(onOpenPageSearch);
+  onPageSearchRef.current = onOpenPageSearch;
+  const onPageLabelRef = useRef(onOpenPageLabel);
+  onPageLabelRef.current = onOpenPageLabel;
+  const onUrlLinkRef = useRef(onOpenUrlLink);
+  onUrlLinkRef.current = onOpenUrlLink;
 
   // ─── Ctrl+L keyboard handler ──────────────────────────────────
   // Use a window-level capture listener to intercept Ctrl+L before the
@@ -119,11 +124,14 @@ export function CreateLinkPlugin({
         }
 
         if (event.shiftKey) {
-          // Ctrl+Shift+L → node link, selected text becomes the label
-          onOpenNodeRef.current(selectedText);
+          // Ctrl+Shift+L → page link, selected text becomes the label
+          onPageLabelRef.current(selectedText);
+        } else if (event.altKey) {
+          // Ctrl+Alt+L → URL link
+          onUrlLinkRef.current(selectedText);
         } else {
-          // Ctrl+L → URL link, detected as URL or label
-          onOpenRef.current(selectedText);
+          // Ctrl+L → page link, selected text as search query
+          onPageSearchRef.current(selectedText);
         }
       });
     };
