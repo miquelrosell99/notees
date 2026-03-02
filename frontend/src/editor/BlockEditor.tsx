@@ -42,6 +42,7 @@ import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { SelectionConstraintPlugin } from './plugins/SelectionConstraintPlugin';
 import { BlockClassPillsPlugin } from './plugins/BlockClassPillsPlugin';
 import { BlockPropertyIconsPlugin } from './plugins/BlockPropertyIconsPlugin';
+import { BlockPropertiesPlugin } from './plugins/BlockPropertiesPlugin';
 import { AssetBlockPlugin } from './plugins/AssetBlockPlugin';
 import { AssetLinkImagePlugin } from './plugins/AssetLinkImagePlugin';
 import { TableBlockPlugin } from './plugins/TableBlockPlugin';
@@ -628,6 +629,9 @@ export function BlockEditor({
 
           {/* Property icons on blocks (page-level index, zero per-block queries) */}
           <BlockPropertyIconsPlugin />
+
+          {/* Inline property rows below blocks that have properties */}
+          <BlockPropertiesPlugin />
 
           {/* Asset previews — renders image/audio/file previews on asset blocks */}
           <AssetBlockPlugin />
