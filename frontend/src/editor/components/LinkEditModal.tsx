@@ -40,6 +40,8 @@ export interface LinkEditModalProps {
   hideUrlMode?: boolean;
   /** Override the initial link mode (default: derived from refType) */
   initialMode?: LinkMode;
+  /** Pre-fill the NodeSelector search field with this text */
+  initialSearchQuery?: string;
   /** Called when saving changes */
   onSave: (result: LinkEditResult) => void;
   /** Called when closing without saving */
@@ -76,6 +78,7 @@ export function LinkEditModal({
   title = 'Edit Link',
   hideUrlMode = false,
   initialMode,
+  initialSearchQuery,
   onSave,
   onClose,
 }: LinkEditModalProps) {
@@ -214,6 +217,7 @@ export function LinkEditModal({
                 searchMode="pages"
                 placeholder="Select a page..."
                 searchPlaceholder="Search pages..."
+                initialSearchQuery={initialSearchQuery}
                 onAdd={handleNodeAdd}
                 onClearAll={handleNodeClear}
               />
@@ -230,6 +234,7 @@ export function LinkEditModal({
               searchMode="blocks"
               placeholder="Select a block..."
               searchPlaceholder="Search blocks..."
+              initialSearchQuery={initialSearchQuery}
               onAdd={handleNodeAdd}
               onClearAll={handleNodeClear}
             />

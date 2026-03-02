@@ -352,41 +352,58 @@ export function BlockEditor({
     label?: string;
   } | null>(null);
 
-  // ─── Create link from selection (Ctrl+L) ─────────────────────
+  // ─── Create link from selection (Ctrl+L / Ctrl+Shift+L / Ctrl+Alt+L) ───
 
-  const [createLinkState, setCreateLinkState] = useState<{
+  const [createLinkModalState, setCreateLinkModalState] = useState<{
+    initialMode?: 'node' | 'block' | 'url';
+    initialLabel?: string;
     initialUrl?: string;
-    initialLabel?: string;
-  } | null>(null);
-
-  const [createNodeLinkState, setCreateNodeLinkState] = useState<{
-    initialLabel?: string;
-    initialMode?: 'node' | 'block';
+    initialSearchQuery?: string;
+    title?: string;
   } | null>(null);
 
   const [pendingNewLink, setPendingNewLink] = useState<PendingNewLink | null>(null);
 
-  const handleOpenCreateLink = useCallback((selectedText: string) => {
+  // Ctrl+L — page link, selected text as search query
+  const handleOpenPageSearch = useCallback((selectedText: string) => {
+    setCreateLinkModalState({
+      initialMode: 'node',
+      initialSearchQuery: selectedText || undefined,
+      title: 'Insert Page Link',
+    });
+  }, []);
+
+  // Ctrl+Shift+L — page link, selected text as custom label
+  const handleOpenPageLabel = useCallback((selectedText: string) => {
+    setCreateLinkModalState({
+      initialMode: 'node',
+      initialLabel: selectedText || undefined,
+      title: 'Insert Page Link',
+    });
+  }, []);
+
+  // Ctrl+Alt+L — URL link
+  const handleOpenUrlLink = useCallback((selectedText: string) => {
     if (isLikelyUrl(selectedText)) {
-      setCreateLinkState({ initialUrl: selectedText });
+      setCreateLinkModalState({
+        initialMode: 'url',
+        initialUrl: selectedText,
+        title: 'Insert URL Link',
+      });
     } else {
-      setCreateLinkState({ initialLabel: selectedText });
+      setCreateLinkModalState({
+        initialMode: 'url',
+        initialLabel: selectedText || undefined,
+        title: 'Insert URL Link',
+      });
     }
   }, []);
 
-  const handleOpenCreateNodeLink = useCallback((selectedText: string) => {
-    setCreateNodeLinkState({ initialLabel: selectedText, initialMode: 'node' });
+  const handleCreateLinkModalClose = useCallback(() => {
+    setCreateLinkModalState(null);
   }, []);
 
-  const handleCreateLinkClose = useCallback(() => {
-    setCreateLinkState(null);
-  }, []);
-
-  const handleCreateNodeLinkClose = useCallback(() => {
-    setCreateNodeLinkState(null);
-  }, []);
-
-  const handleCreateLinkSave = useCallback((result: LinkEditResult) => {
+  const handleCreateLinkModalSave = useCallback((result: LinkEditResult) => {
     if (result.mode === 'url') {
       setPendingNewLink({
         refType: 'url',
@@ -394,7 +411,6 @@ export function BlockEditor({
         label: result.label,
       });
     } else {
-      // Node mode — the linkId for a node pill is the node's UUID
       if (result.targetNode) {
         setPendingNewLink({
           refType: 'node',
@@ -403,18 +419,7 @@ export function BlockEditor({
         });
       }
     }
-    setCreateLinkState(null);
-  }, []);
-
-  const handleCreateNodeLinkSave = useCallback((result: LinkEditResult) => {
-    if (result.targetNode) {
-      setPendingNewLink({
-        refType: 'node',
-        nodeUuid: result.targetNode.uuid,
-        label: result.label,
-      });
-    }
-    setCreateNodeLinkState(null);
+    setCreateLinkModalState(null);
   }, []);
 
   const handleNewLinkApplied = useCallback(() => {
@@ -423,9 +428,9 @@ export function BlockEditor({
 
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
     if (commandId === 'link') {
-      setCreateNodeLinkState({ initialMode: 'node' });
+      setCreateLinkModalState({ initialMode: 'node', title: 'Insert Page Link' });
     } else if (commandId === 'blocklink') {
-      setCreateNodeLinkState({ initialMode: 'block' });
+      setCreateLinkModalState({ initialMode: 'block', title: 'Insert Block Link' });
     } else {
       onSlashCommand?.(commandId, blockServerId);
     }
@@ -646,11 +651,12 @@ export function BlockEditor({
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />
 
-        {/* Ctrl+L on text selection opens the link-creation modal */}
+        {/* Ctrl+L / Ctrl+Shift+L / Ctrl+Alt+L open the link-creation modal */}
         <CreateLinkPlugin
           readOnly={readOnly}
-          onOpenCreateLink={handleOpenCreateLink}
-          onOpenCreateNodeLink={handleOpenCreateNodeLink}
+          onOpenPageSearch={handleOpenPageSearch}
+          onOpenPageLabel={handleOpenPageLabel}
+          onOpenUrlLink={handleOpenUrlLink}
           pendingNewLink={pendingNewLink}
           onNewLinkApplied={handleNewLinkApplied}
         />
@@ -675,31 +681,19 @@ export function BlockEditor({
         />
       )}
 
-      {/* Create link modal (Ctrl+L on selected text) */}
-      {createLinkState && (
+      {/* Create link modal (Ctrl+L / Ctrl+Shift+L / Ctrl+Alt+L, or /link, /blocklink) */}
+      {createLinkModalState && (
         <LinkEditModal
           isOpen={true}
           linkId=""
-          refType="url"
-          currentUrl={createLinkState.initialUrl}
-          currentLabel={createLinkState.initialLabel}
-          title="Insert Link"
-          onSave={handleCreateLinkSave}
-          onClose={handleCreateLinkClose}
-        />
-      )}
-
-      {/* Create node link modal (Ctrl+Shift+L on selected text, or /link, /blocklink) */}
-      {createNodeLinkState && (
-        <LinkEditModal
-          isOpen={true}
-          linkId=""
-          refType="node"
-          currentLabel={createNodeLinkState.initialLabel}
-          initialMode={createNodeLinkState.initialMode}
-          title={createNodeLinkState.initialMode === 'block' ? 'Insert Block Link' : 'Insert Node Link'}
-          onSave={handleCreateNodeLinkSave}
-          onClose={handleCreateNodeLinkClose}
+          refType={createLinkModalState.initialMode === 'url' ? 'url' : 'node'}
+          currentUrl={createLinkModalState.initialUrl}
+          currentLabel={createLinkModalState.initialLabel}
+          initialMode={createLinkModalState.initialMode}
+          initialSearchQuery={createLinkModalState.initialSearchQuery}
+          title={createLinkModalState.title ?? 'Insert Link'}
+          onSave={handleCreateLinkModalSave}
+          onClose={handleCreateLinkModalClose}
         />
       )}
     </div>

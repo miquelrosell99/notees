@@ -77,6 +77,8 @@ interface NodeSelectorProps {
   excludeNodeId?: number;
   /** Whether pills are read-only (hides remove button) */
   readOnly?: boolean;
+  /** Initial search query to pre-fill when the picker opens */
+  initialSearchQuery?: string;
   /** Additional CSS class */
   className?: string;
 }
@@ -102,10 +104,11 @@ export function NodeSelector({
   canAdd,
   excludeNodeId,
   readOnly = false,
+  initialSearchQuery = '',
   className = '',
 }: NodeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
