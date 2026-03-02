@@ -420,6 +420,14 @@ export function BlockEditor({
     setPendingNewLink(null);
   }, []);
 
+  const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
+    if (commandId === 'link') {
+      setCreateNodeLinkState({});
+    } else {
+      onSlashCommand?.(commandId, blockServerId);
+    }
+  }, [onSlashCommand]);
+
   const handlePillEdit = useCallback((linkId: string, refType: InlineLinkRefType, url?: string, label?: string) => {
     setLinkEditState({ linkId, refType, url, label });
   }, []);
@@ -581,7 +589,7 @@ export function BlockEditor({
         <TriggerPlugin
           onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
-          onSlashCommand={onSlashCommand}
+          onSlashCommand={handleSlashCommand}
         />
 
         {/* Paste image handler */}
