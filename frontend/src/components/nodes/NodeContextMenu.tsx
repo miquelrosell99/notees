@@ -12,7 +12,7 @@ import { useMemo, useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useAppStore, useFavoritesStore } from '@/stores';
+import { useAppStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ASTViewerModal } from './ASTViewerModal';
@@ -239,6 +239,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
+  const { showDevOptions } = useSettingsStore();
   
   const handleDeleteClick = useCallback(() => {
     // Only show confirmation for pages, not for blocks
@@ -268,7 +269,7 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
     setShowExportModal(true);
   }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, showDevOptions ? handleViewAST : undefined, handleExportClick);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
@@ -373,6 +374,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
+  const { showDevOptions } = useSettingsStore();
   
   const handleDeleteClick = useCallback(() => {
     setShowDeleteModal(true);
@@ -396,7 +398,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     setShowExportModal(true);
   }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, showDevOptions ? handleViewAST : undefined, handleExportClick);
   const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -582,6 +584,7 @@ export function BlockContextMenu({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
+  const { showDevOptions } = useSettingsStore();
   
   const handleDeleteClick = useCallback(() => {
     // Blur active element so Lexical doesn't auto-focus the previous block
@@ -605,7 +608,7 @@ export function BlockContextMenu({
     setShowExportModal(true);
   }, []);
   
-  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, handleViewAST, handleExportClick);
+  const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, showDevOptions ? handleViewAST : undefined, handleExportClick);
   const updateNode = useUpdateNode();
   
   const isHeader = useMemo(() => {
