@@ -52,6 +52,7 @@ import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
+import { CreateLinkPlugin, isLikelyUrl, type PendingNewLink } from './plugins/CreateLinkPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
@@ -351,6 +352,74 @@ export function BlockEditor({
     label?: string;
   } | null>(null);
 
+  // ─── Create link from selection (Ctrl+L) ─────────────────────
+
+  const [createLinkState, setCreateLinkState] = useState<{
+    initialUrl?: string;
+    initialLabel?: string;
+  } | null>(null);
+
+  const [createNodeLinkState, setCreateNodeLinkState] = useState<{
+    initialLabel?: string;
+  } | null>(null);
+
+  const [pendingNewLink, setPendingNewLink] = useState<PendingNewLink | null>(null);
+
+  const handleOpenCreateLink = useCallback((selectedText: string) => {
+    if (isLikelyUrl(selectedText)) {
+      setCreateLinkState({ initialUrl: selectedText });
+    } else {
+      setCreateLinkState({ initialLabel: selectedText });
+    }
+  }, []);
+
+  const handleOpenCreateNodeLink = useCallback((selectedText: string) => {
+    setCreateNodeLinkState({ initialLabel: selectedText });
+  }, []);
+
+  const handleCreateLinkClose = useCallback(() => {
+    setCreateLinkState(null);
+  }, []);
+
+  const handleCreateNodeLinkClose = useCallback(() => {
+    setCreateNodeLinkState(null);
+  }, []);
+
+  const handleCreateLinkSave = useCallback((result: LinkEditResult) => {
+    if (result.mode === 'url') {
+      setPendingNewLink({
+        refType: 'url',
+        url: result.url,
+        label: result.label,
+      });
+    } else {
+      // Node mode — the linkId for a node pill is the node's UUID
+      if (result.targetNode) {
+        setPendingNewLink({
+          refType: 'node',
+          nodeUuid: result.targetNode.uuid,
+          label: result.label,
+        });
+      }
+    }
+    setCreateLinkState(null);
+  }, []);
+
+  const handleCreateNodeLinkSave = useCallback((result: LinkEditResult) => {
+    if (result.targetNode) {
+      setPendingNewLink({
+        refType: 'node',
+        nodeUuid: result.targetNode.uuid,
+        label: result.label,
+      });
+    }
+    setCreateNodeLinkState(null);
+  }, []);
+
+  const handleNewLinkApplied = useCallback(() => {
+    setPendingNewLink(null);
+  }, []);
+
   const handlePillEdit = useCallback((linkId: string, refType: InlineLinkRefType, url?: string, label?: string) => {
     setLinkEditState({ linkId, refType, url, label });
   }, []);
@@ -566,6 +635,15 @@ export function BlockEditor({
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />
 
+        {/* Ctrl+L on text selection opens the link-creation modal */}
+        <CreateLinkPlugin
+          readOnly={readOnly}
+          onOpenCreateLink={handleOpenCreateLink}
+          onOpenCreateNodeLink={handleOpenCreateNodeLink}
+          pendingNewLink={pendingNewLink}
+          onNewLinkApplied={handleNewLinkApplied}
+        />
+
         {/* Constrain text selection to active block + custom copy/cut */}
         <SelectionConstraintPlugin readOnly={readOnly} />
 
@@ -583,6 +661,34 @@ export function BlockEditor({
           currentLabel={linkEditState.label}
           onSave={handleLinkEditSave}
           onClose={handleLinkEditClose}
+        />
+      )}
+
+      {/* Create link modal (Ctrl+L on selected text) */}
+      {createLinkState && (
+        <LinkEditModal
+          isOpen={true}
+          linkId=""
+          refType="url"
+          currentUrl={createLinkState.initialUrl}
+          currentLabel={createLinkState.initialLabel}
+          title="Insert Link"
+          onSave={handleCreateLinkSave}
+          onClose={handleCreateLinkClose}
+        />
+      )}
+
+      {/* Create node link modal (Ctrl+Shift+L on selected text) */}
+      {createNodeLinkState && (
+        <LinkEditModal
+          isOpen={true}
+          linkId=""
+          refType="node"
+          currentLabel={createNodeLinkState.initialLabel}
+          title="Insert Node Link"
+          hideUrlMode={true}
+          onSave={handleCreateNodeLinkSave}
+          onClose={handleCreateNodeLinkClose}
         />
       )}
     </div>
