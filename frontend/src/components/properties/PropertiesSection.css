@@ -156,7 +156,6 @@
 
 .property-value-input:focus {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-primary-container);
 }
 
 .property-value-number {
@@ -186,8 +185,7 @@
 
 .property-value-select:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-container);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 /* Unknown property type */

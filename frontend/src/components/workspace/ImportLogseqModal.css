@@ -123,8 +123,7 @@
 
 .import-logseq__textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .import-logseq__textarea--error {
@@ -141,7 +140,7 @@
 }
 
 .import-logseq__textarea--valid:focus {
-  box-shadow: 0 0 0 1px var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .import-logseq__textarea::placeholder {

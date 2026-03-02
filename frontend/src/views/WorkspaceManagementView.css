@@ -465,8 +465,7 @@
 }
 
 .workspace-management__input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-hover-overlay);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .workspace-management__input--valid {

@@ -65,7 +65,7 @@
 }
 
 .property-column-selector__search-box:focus-within {
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .property-column-selector__search-input {
