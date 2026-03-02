@@ -731,19 +731,31 @@ async def fix_raw_uuid_links(
     links_converted = 0
     errors = []
     
-    # Pattern to find [[uuid]] in text - UUID v4 format
+    # UUID v4 pattern fragment (reused in both regex alternatives)
+    _UUID_RE = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+
+    # Matches both:
+    #   [Custom Label]([[uuid]])  — labeled markdown link format
+    #   [[uuid]]                  — bare UUID reference
+    # Named groups: label (optional), uuid_labeled / uuid_bare (exactly one set)
     uuid_pattern = re.compile(
-        r'\[\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]',
+        rf'(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{_UUID_RE})\]\]\)|\[\[(?P<uuid_bare>{_UUID_RE})\]\])',
         re.IGNORECASE
     )
     
+    def _extract_uuid_and_label(match) -> tuple:
+        """Return (target_uuid_lower, label_or_None) from a combined-pattern match."""
+        if match.group('uuid_labeled'):
+            return match.group('uuid_labeled').lower(), match.group('label') or None
+        return match.group('uuid_bare').lower(), None
+
     def transform_text_node(text_value: str, uuid_to_node: dict) -> list:
-        """Split a text node containing [[uuid]] into text + node_link nodes."""
+        """Split a text node containing [[uuid]] or [label]([[uuid]]) into text + node_link nodes."""
         parts = []
         last_end = 0
         
         for match in uuid_pattern.finditer(text_value):
-            target_uuid = match.group(1).lower()
+            target_uuid, label = _extract_uuid_and_label(match)
             if target_uuid not in uuid_to_node:
                 continue
             
@@ -755,11 +767,14 @@ async def fix_raw_uuid_links(
             # Create proper node_link
             link_uuid = str(uuid_module.uuid4())
             link_id = f"{target_uuid}:{link_uuid}"
-            parts.append({
+            node_link: dict = {
                 "type": "node_link",
                 "link_id": link_id,
                 "ref_type": "node",
-            })
+            }
+            if label:
+                node_link["label"] = label
+            parts.append(node_link)
             
             last_end = match.end()
         
@@ -786,7 +801,7 @@ async def fix_raw_uuid_links(
             
             if node.get('type') == 'text':
                 text_val = node.get('text', '')
-                if uuid_pattern.search(text_val):
+                if '[[' in text_val and uuid_pattern.search(text_val):
                     replacement = transform_text_node(text_val, uuid_to_node)
                     if replacement and replacement != [node]:
                         # Count how many node_links were created
@@ -834,14 +849,17 @@ async def fix_raw_uuid_links(
             except (json.JSONDecodeError, TypeError):
                 continue
             
-            # Walk the AST to find text nodes with [[uuid]]
+            # Walk the AST to find text nodes with [[uuid]] or [label]([[uuid]])
             def collect_uuids(nodes):
                 for n in nodes:
                     if not isinstance(n, dict):
                         continue
                     if n.get('type') == 'text':
-                        for m in uuid_pattern.finditer(n.get('text', '')):
-                            all_referenced_uuids.add(m.group(1).lower())
+                        text = n.get('text', '')
+                        if '[[' in text:
+                            for m in uuid_pattern.finditer(text):
+                                uuid = (m.group('uuid_labeled') or m.group('uuid_bare')).lower()
+                                all_referenced_uuids.add(uuid)
                     if 'children' in n:
                         collect_uuids(n['children'])
             
