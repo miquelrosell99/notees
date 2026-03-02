@@ -88,7 +88,7 @@ export function CreateLinkPlugin({
     if (readOnly) return;
 
     const handler = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key !== 'l') return;
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'l') return;
 
       // Only intercept when the editor is focused
       const rootEl = editor.getRootElement();
