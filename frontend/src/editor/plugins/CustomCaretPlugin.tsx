@@ -343,7 +343,18 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         return;
       }
 
-      const overallRect = range.getBoundingClientRect();
+      // Compute overall bounding rect from the merged line rects instead of
+      // calling getBoundingClientRect() again (saves one forced layout/reflow).
+      const overallLeft = Math.min(...lineRects.map(r => r.left));
+      const overallTop = Math.min(...lineRects.map(r => r.top));
+      const overallRight = Math.max(...lineRects.map(r => r.left + r.width));
+      const overallBottom = Math.max(...lineRects.map(r => r.top + r.height));
+      const overallRect = {
+        top: overallTop,
+        left: overallLeft,
+        width: overallRight - overallLeft,
+        height: overallBottom - overallTop,
+      };
 
       if (!hasPositionedRef.current) {
         caret.style.transition = 'none';
@@ -599,9 +610,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       COMMAND_PRIORITY_HIGH,
     );
 
-    const unregisterUpdate = editor.registerUpdateListener(() => {
-      scheduleCaretMicrotask();
-    });
+    // Note: registerUpdateListener is intentionally omitted here.
+    // SELECTION_CHANGE_COMMAND covers all cases where the caret must move
+    // (typing, formatting, arrow keys) because Lexical always dispatches it
+    // alongside content/selection mutations. Adding an update listener would
+    // double-schedule caret updates and cause extra forced layouts.
 
     // Initial position
     requestAnimationFrame(() => {
@@ -611,7 +624,6 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     return () => {
       unregisterSelection();
-      unregisterUpdate();
       cancelAnimationFrame(rafRef.current);
     };
   }, [editor, scheduleCaretMicrotask, updateCaretPosition, updateActiveBlock]);
@@ -680,7 +692,12 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     observer.observe(rootElement, {
       attributes: true,
-      attributeFilter: ['style', 'class', 'data-depth'],
+      // Only watch style (indent transition) and data-depth — NOT class.
+      // Watching class would create a feedback loop: updateCaretPosition/
+      // updateActiveBlock mutate classes inside the editor root (node-block--editing,
+      // notees-text--cursor-inside) which would re-trigger the observer and
+      // force an extra getClientRects() layout per selection event.
+      attributeFilter: ['style', 'data-depth'],
       subtree: true,
     });
 
