@@ -693,6 +693,7 @@ export function CommandPalette({
               ))}
             </div>
           )}
+          {isLoading && <span className="command-palette__spinner" aria-label="Searching" />}
           <kbd className="command-palette__shortcut">Esc</kbd>
         </div>
         
@@ -738,15 +739,11 @@ export function CommandPalette({
             </div>
           ) : (
             <>
-              {isLoading && (
-                <div className="command-palette__loading">Searching...</div>
-              )}
-              
-              {!isLoading && query && allItems.length === 0 && (
+              {query && allItems.length === 0 && !isLoading && (
                 <div className="command-palette__empty">No results found</div>
               )}
               
-              {!isLoading && !query && (
+              {!query && (
                 <div className="command-palette__hint">
                   Start typing to search pages, blocks, and properties
                 </div>
