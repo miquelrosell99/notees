@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox, mdiCheckCircleOutline } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -25,7 +25,7 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, setTheme, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel } = useSettingsStore();
+  const { theme, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, setTheme, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -59,6 +59,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleQuickAddDestinationChange = (destination: QuickAddDestination) => {
     setQuickAddDestination(destination);
     setSetting('quick_add_destination', destination).catch(console.error);
+  };
+
+  const handleShowDevOptionsChange = (show: boolean) => {
+    setShowDevOptions(show);
   };
 
   const handleLinkedRefsCollapseLevelChange = (level: number) => {
@@ -221,6 +225,24 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={quickAddDestination}
                   onChange={(value) => handleQuickAddDestinationChange(value as QuickAddDestination)}
+                  size="sm"
+                />
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Developer options</label>
+                  <p className="settings-item__description">
+                    Show dev tools: AST viewer in node context menu, fix UUID links and create page with manual UUID in command palette
+                  </p>
+                </div>
+                <SelectionButton
+                  options={[
+                    { value: 'off', icon: mdiCloseCircleOutline, label: 'Hidden' },
+                    { value: 'on', icon: mdiCheckCircleOutline, label: 'Visible' },
+                  ]}
+                  value={showDevOptions ? 'on' : 'off'}
+                  onChange={(value) => handleShowDevOptionsChange(value === 'on')}
                   size="sm"
                 />
               </div>
