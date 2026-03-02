@@ -13,8 +13,6 @@
 import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  COMMAND_PRIORITY_NORMAL,
-  KEY_DOWN_COMMAND,
   $getSelection,
   $isRangeSelection,
   $createRangeSelection,
@@ -37,15 +35,17 @@ export interface PendingNewLink {
 interface SavedSelection {
   anchorKey: string;
   anchorOffset: number;
+  anchorType: 'text' | 'element';
   focusKey: string;
   focusOffset: number;
+  focusType: 'text' | 'element';
 }
 
 export interface CreateLinkPluginProps {
   readOnly?: boolean;
-  /** Called when Ctrl+L is pressed with text selected (URL mode). */
+  /** Called when Ctrl+L is pressed (URL mode). */
   onOpenCreateLink: (selectedText: string) => void;
-  /** Called when Ctrl+Shift+L is pressed with text selected (node mode). */
+  /** Called when Ctrl+Shift+L is pressed (node mode). */
   onOpenCreateNodeLink: (selectedText: string) => void;
   /** Pending link to insert (from modal save). Cleared by calling onNewLinkApplied. */
   pendingNewLink: PendingNewLink | null;
@@ -81,30 +81,42 @@ export function CreateLinkPlugin({
   onOpenNodeRef.current = onOpenCreateNodeLink;
 
   // ─── Ctrl+L keyboard handler ──────────────────────────────────
+  // Use a window-level capture listener to intercept Ctrl+L before the
+  // browser steals it (Chrome uses Ctrl+L for the address bar).
 
   useEffect(() => {
     if (readOnly) return;
 
-    return editor.registerCommand(
-      KEY_DOWN_COMMAND,
-      (event: KeyboardEvent) => {
-        if (!(event.ctrlKey || event.metaKey) || event.key !== 'l') return false;
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== 'l') return;
 
+      // Only intercept when the editor is focused
+      const rootEl = editor.getRootElement();
+      if (!rootEl || !rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      editor.update(() => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection) || selection.isCollapsed()) return false;
+        const isRange = $isRangeSelection(selection);
+        const selectedText = (isRange && !selection.isCollapsed())
+          ? selection.getTextContent().trim()
+          : '';
 
-        const selectedText = selection.getTextContent();
-        if (!selectedText.trim()) return false;
-
-        event.preventDefault();
-
-        // Save selection coordinates for restoration after modal closes.
-        savedSelectionRef.current = {
-          anchorKey: selection.anchor.key,
-          anchorOffset: selection.anchor.offset,
-          focusKey: selection.focus.key,
-          focusOffset: selection.focus.offset,
-        };
+        // Always save selection so we can restore caret after modal closes.
+        if (isRange) {
+          savedSelectionRef.current = {
+            anchorKey: selection.anchor.key,
+            anchorOffset: selection.anchor.offset,
+            anchorType: selection.anchor.type,
+            focusKey: selection.focus.key,
+            focusOffset: selection.focus.offset,
+            focusType: selection.focus.type,
+          };
+        } else {
+          savedSelectionRef.current = null;
+        }
 
         if (event.shiftKey) {
           // Ctrl+Shift+L → node link, selected text becomes the label
@@ -113,32 +125,35 @@ export function CreateLinkPlugin({
           // Ctrl+L → URL link, detected as URL or label
           onOpenRef.current(selectedText);
         }
-        return true;
-      },
-      COMMAND_PRIORITY_NORMAL,
-    );
+      });
+    };
+
+    window.addEventListener('keydown', handler, { capture: true });
+    return () => window.removeEventListener('keydown', handler, { capture: true });
   }, [editor, readOnly]);
 
   // ─── Apply pending new link ───────────────────────────────────
 
   useEffect(() => {
-    if (!pendingNewLink || !savedSelectionRef.current) return;
+    if (!pendingNewLink) return;
 
     const saved = savedSelectionRef.current;
     const link = pendingNewLink;
 
     editor.update(() => {
-      // Restore the saved selection so insertNodes replaces the original text.
-      const sel = $createRangeSelection();
-      sel.anchor.set(saved.anchorKey, saved.anchorOffset, 'text');
-      sel.focus.set(saved.focusKey, saved.focusOffset, 'text');
-      $setSelection(sel);
+      if (saved) {
+        // Restore the saved selection so insertNodes replaces the original text.
+        const sel = $createRangeSelection();
+        sel.anchor.set(saved.anchorKey, saved.anchorOffset, saved.anchorType);
+        sel.focus.set(saved.focusKey, saved.focusOffset, saved.focusType);
+        $setSelection(sel);
+      }
 
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
 
-      // For URL pills the linkId convention is: label if present, else the URL.
-      // For node pills the linkId is the node UUID (optionally compound with a link UUID).
+      // For URL pills the linkId is the label (if set) or the URL.
+      // For node pills the linkId is the node UUID.
       const linkId =
         link.refType === 'url'
           ? (link.label?.trim() || link.url || `link-${Date.now()}`)
@@ -151,7 +166,7 @@ export function CreateLinkPlugin({
         link.label ?? undefined,
       );
 
-      // Replace selected text with the new inline link pill.
+      // Replace selected text (or insert at caret) with the new inline link pill.
       selection.insertNodes([newNode]);
     });
 
