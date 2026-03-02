@@ -261,6 +261,8 @@ export function NodeView({
   
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
+  // When set, the property popup targets a specific block; otherwise the current node
+  const [propertyTargetNodeId, setPropertyTargetNodeId] = useState<number | null>(null);
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
@@ -370,8 +372,7 @@ export function NodeView({
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
     if (!node) return;
-    // Always add to the page node
-    const targetNodeId = node.id;
+    const targetNodeId = propertyTargetNodeId ?? node.id;
     
     // Set a default value based on property type
     let defaultValue: unknown;
@@ -395,13 +396,15 @@ export function NodeView({
     }
     setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: property.id, value: defaultValue });
     setShowPropertyPopup(false);
-  }, [node, setPropertyMutation]);
+    setPropertyTargetNodeId(null);
+  }, [node, propertyTargetNodeId, setPropertyMutation]);
 
   // Handler for creating a new property
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     if (!node) return;
     setShowPropertyPopup(false);
-    const targetNodeId = node.id;
+    const targetNodeId = propertyTargetNodeId ?? node.id;
+    setPropertyTargetNodeId(null);
     
     createPropertyMutation.mutate(data, {
       onSuccess: async (newProperty) => {
@@ -410,14 +413,32 @@ export function NodeView({
         setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: newProperty.id, value: defaultValue });
       },
     });
-  }, [node, createPropertyMutation, setPropertyMutation]);
+  }, [node, propertyTargetNodeId, createPropertyMutation, setPropertyMutation]);
 
   // Handle keyboard shortcut Ctrl+Alt+P to add property
   useKeyboardShortcut(SHORTCUT_IDS.ADD_PROPERTY, () => {
-    // Only open if on a node view (page or block)
-    if (node) {
-      setShowPropertyPopup(true);
+    if (!node) return;
+    
+    // Try to detect the focused block from the DOM
+    let targetId: number | null = null;
+    const active = document.activeElement;
+    if (active) {
+      const blockEl = active.closest('[data-block-id]') as HTMLElement | null;
+      if (blockEl) {
+        const blockId = blockEl.dataset.blockId;
+        if (blockId) {
+          const runtime = getNodeGraphRuntime();
+          const graphNode = runtime.getNode(blockId);
+          if (graphNode?.serverId) {
+            targetId = graphNode.serverId;
+          }
+        }
+      }
     }
+    
+    // Use detected block, or fall back to current node
+    setPropertyTargetNodeId(targetId ?? node.id);
+    setShowPropertyPopup(true);
   });
   
   // Handle color change for class/tag nodes via NodeSelector
@@ -1258,13 +1279,13 @@ export function NodeView({
       {showPropertyPopup && (
         <Modal
           isOpen={showPropertyPopup}
-          onClose={() => setShowPropertyPopup(false)}
+          onClose={() => { setShowPropertyPopup(false); setPropertyTargetNodeId(null); }}
           title="Add Property"
           size="sm"
         >
           <PropertySuggestionPopup
             isOpen={showPropertyPopup}
-            onClose={() => setShowPropertyPopup(false)}
+            onClose={() => { setShowPropertyPopup(false); setPropertyTargetNodeId(null); }}
             onSelect={handleSelectProperty}
             onCreate={handleCreateNewProperty}
             excludeIds={[]}
