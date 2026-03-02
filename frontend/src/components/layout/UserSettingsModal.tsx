@@ -8,10 +8,11 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox, mdiCheckCircleOutline } from '@mdi/js';
+import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
+import { BooleanToggle } from '../core/BooleanToggle';
 import { Separator } from '../core/Separator';
 import './UserSettingsModal.css';
 
@@ -233,16 +234,12 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <div className="settings-item__info">
                   <label className="settings-item__label">Developer options</label>
                   <p className="settings-item__description">
-                    Show dev tools: AST viewer in node context menu, fix UUID links and create page with manual UUID in command palette
+                    Show dev tools in command palette and other places.
                   </p>
                 </div>
-                <SelectionButton
-                  options={[
-                    { value: 'off', icon: mdiCloseCircleOutline, label: 'Hidden' },
-                    { value: 'on', icon: mdiCheckCircleOutline, label: 'Visible' },
-                  ]}
-                  value={showDevOptions ? 'on' : 'off'}
-                  onChange={(value) => handleShowDevOptionsChange(value === 'on')}
+                <BooleanToggle
+                  checked={showDevOptions}
+                  onChange={(e) => handleShowDevOptionsChange(e.target.checked)}
                   size="sm"
                 />
               </div>
