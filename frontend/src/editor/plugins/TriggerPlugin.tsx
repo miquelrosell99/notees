@@ -199,13 +199,8 @@ export function TriggerPlugin({
         // not for inserting new ones. Calling it would trigger navigation.
         // onLinkSelect?.(value);
       } else if (trigger.type === 'slash') {
-        // For link/type/tag slash commands, re-trigger those popups
-        if (value === 'link') {
-          const newText = beforeTrigger + '[[' + afterCursor;
-          (anchorNode as any).setTextContent(newText || '\u200B');
-          const newOffset = beforeTrigger.length + 2;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');        } else if (value === 'embed') {
+        // For type/tag slash commands, re-trigger those popups
+        if (value === 'embed') {
           // Remove trigger text and open the [[ popup in embed mode
           const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
           (anchorNode as any).setTextContent(newText);
@@ -420,16 +415,6 @@ interface TriggerMatch {
 }
 
 function detectTriggerPattern(text: string): TriggerMatch | null {
-  // [[ link trigger
-  const linkMatch = text.match(/\[\[([^\]]*?)$/);
-  if (linkMatch) {
-    return {
-      type: 'link',
-      query: linkMatch[1],
-      triggerStart: text.length - linkMatch[0].length,
-    };
-  }
-
   // @ type trigger (not preceded by word char)
   const typeMatch = text.match(/(?:^|[^a-zA-Z0-9])@([^@\s]*)$/);
   if (typeMatch) {

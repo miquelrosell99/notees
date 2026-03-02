@@ -22,7 +22,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'link',
     label: 'Insert Link',
-    description: 'Link to a page or block [[]]',
+    description: 'Link to a page or block',
     icon: <LinkIcon size="sm" />,
   },
   {
