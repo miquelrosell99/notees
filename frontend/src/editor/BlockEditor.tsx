@@ -361,6 +361,7 @@ export function BlockEditor({
 
   const [createNodeLinkState, setCreateNodeLinkState] = useState<{
     initialLabel?: string;
+    initialMode?: 'node' | 'block';
   } | null>(null);
 
   const [pendingNewLink, setPendingNewLink] = useState<PendingNewLink | null>(null);
@@ -374,7 +375,7 @@ export function BlockEditor({
   }, []);
 
   const handleOpenCreateNodeLink = useCallback((selectedText: string) => {
-    setCreateNodeLinkState({ initialLabel: selectedText });
+    setCreateNodeLinkState({ initialLabel: selectedText, initialMode: 'node' });
   }, []);
 
   const handleCreateLinkClose = useCallback(() => {
@@ -422,7 +423,9 @@ export function BlockEditor({
 
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
     if (commandId === 'link') {
-      setCreateNodeLinkState({});
+      setCreateNodeLinkState({ initialMode: 'node' });
+    } else if (commandId === 'blocklink') {
+      setCreateNodeLinkState({ initialMode: 'block' });
     } else {
       onSlashCommand?.(commandId, blockServerId);
     }
@@ -686,15 +689,15 @@ export function BlockEditor({
         />
       )}
 
-      {/* Create node link modal (Ctrl+Shift+L on selected text) */}
+      {/* Create node link modal (Ctrl+Shift+L on selected text, or /link, /blocklink) */}
       {createNodeLinkState && (
         <LinkEditModal
           isOpen={true}
           linkId=""
           refType="node"
           currentLabel={createNodeLinkState.initialLabel}
-          title="Insert Node Link"
-          hideUrlMode={true}
+          initialMode={createNodeLinkState.initialMode}
+          title={createNodeLinkState.initialMode === 'block' ? 'Insert Block Link' : 'Insert Node Link'}
           onSave={handleCreateNodeLinkSave}
           onClose={handleCreateNodeLinkClose}
         />

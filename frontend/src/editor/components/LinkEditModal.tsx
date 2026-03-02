@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiLinkVariant, mdiWeb } from '@mdi/js';
+import { mdiLinkVariant, mdiWeb, mdiTextBox } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -38,13 +38,15 @@ export interface LinkEditModalProps {
   title?: string;
   /** When true, hides the URL mode option (node-only picker) */
   hideUrlMode?: boolean;
+  /** Override the initial link mode (default: derived from refType) */
+  initialMode?: LinkMode;
   /** Called when saving changes */
   onSave: (result: LinkEditResult) => void;
   /** Called when closing without saving */
   onClose: () => void;
 }
 
-export type LinkMode = 'node' | 'url';
+export type LinkMode = 'node' | 'block' | 'url';
 
 export interface LinkEditResult {
   /** Link mode — node or URL */
@@ -60,8 +62,9 @@ export interface LinkEditResult {
 }
 
 const LINK_MODE_OPTIONS = [
-  { value: 'node' as const, icon: mdiLinkVariant, label: 'Node link' },
-  { value: 'url' as const, icon: mdiWeb, label: 'URL link' },
+  { value: 'node' as const, icon: mdiLinkVariant, label: 'Page' },
+  { value: 'block' as const, icon: mdiTextBox, label: 'Block' },
+  { value: 'url' as const, icon: mdiWeb, label: 'URL' },
 ];
 
 export function LinkEditModal({
@@ -72,6 +75,7 @@ export function LinkEditModal({
   currentLabel,
   title = 'Edit Link',
   hideUrlMode = false,
+  initialMode,
   onSave,
   onClose,
 }: LinkEditModalProps) {
@@ -87,7 +91,9 @@ export function LinkEditModal({
   
   // ─── State ─────────────────────────────────────────────────
 
-  const [linkMode, setLinkMode] = useState<LinkMode>(refType === 'url' ? 'url' : 'node');
+  const [linkMode, setLinkMode] = useState<LinkMode>(
+    initialMode ?? (refType === 'url' ? 'url' : 'node')
+  );
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [url, setUrl] = useState(currentUrl ?? '');
   const [label, setLabel] = useState(currentLabel ?? '');
@@ -102,12 +108,12 @@ export function LinkEditModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setLinkMode(refType === 'url' ? 'url' : 'node');
+      setLinkMode(initialMode ?? (refType === 'url' ? 'url' : 'node'));
       setSelectedNode(null);
       setUrl(currentUrl ?? '');
       setLabel(currentLabel ?? '');
     }
-  }, [isOpen, currentLabel, refType, currentUrl]);
+  }, [isOpen, currentLabel, refType, currentUrl, initialMode]);
 
   // The effective node value (for NodeSelector) is the selected node or the current node
   const effectiveNodeId = selectedNode?.id ?? currentNode?.id ?? null;
@@ -134,6 +140,7 @@ export function LinkEditModal({
         originalLinkId: linkId,
       });
     } else {
+      // Both 'node' (page) and 'block' modes produce a node-type link
       onSave({
         mode: 'node',
         targetNode: selectedNode,
@@ -197,7 +204,7 @@ export function LinkEditModal({
         {/* Link target section */}
         <div className="link-edit-modal__section">
           <label className="link-edit-modal__label">
-            {linkMode === 'node' ? 'Link Target' : 'URL'}
+            {linkMode === 'node' ? 'Page' : linkMode === 'block' ? 'Block' : 'URL'}
           </label>
           {linkMode === 'node' ? (
             <>
@@ -205,7 +212,7 @@ export function LinkEditModal({
                 trigger="select"
                 value={effectiveNodeId}
                 searchMode="pages"
-                placeholder="Select a node..."
+                placeholder="Select a page..."
                 searchPlaceholder="Search pages..."
                 onAdd={handleNodeAdd}
                 onClearAll={handleNodeClear}
@@ -216,6 +223,16 @@ export function LinkEditModal({
                 </span>
               )}
             </>
+          ) : linkMode === 'block' ? (
+            <NodeSelector
+              trigger="select"
+              value={effectiveNodeId}
+              searchMode="blocks"
+              placeholder="Select a block..."
+              searchPlaceholder="Search blocks..."
+              onAdd={handleNodeAdd}
+              onClearAll={handleNodeClear}
+            />
           ) : (
             <input
               type="text"
@@ -241,9 +258,9 @@ export function LinkEditModal({
             autoComplete="off"
           />
           <span className="link-edit-modal__hint">
-            {linkMode === 'node'
-              ? 'Leave empty to use the node name'
-              : 'Leave empty to use the URL'}
+            {linkMode === 'url'
+              ? 'Leave empty to use the URL'
+              : 'Leave empty to use the node name'}
           </span>
         </div>
       </div>
