@@ -144,15 +144,21 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     await runImport(parsed, { importMode });
   }, [parsed, importMode, runImport]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && parsed && !importing) {
-        e.preventDefault();
-        handleImport();
-      }
-    },
-    [parsed, importing, handleImport],
-  );
+  // Ctrl+Enter anywhere inside the modal = import (capture phase)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+      if (!parsed || importing) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('.import-logseq')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleImport();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isOpen, parsed, importing, handleImport]);
 
   //  Preview counts 
   const journalCount = parsed?.pages.filter(p => p.journal).length ?? 0;
@@ -193,6 +199,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       onClose={onClose}
       title="Import from Logseq"
       size="lg"
+      className="import-logseq"
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={importing}>
@@ -209,7 +216,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
         </>
       }
     >
-      <div className="import-logseq__body" onKeyDown={handleKeyDown}>
+      <div className="import-logseq__body">
         {/*  Input source tabs  */}
         <div className="import-logseq__source-tabs">
           <button

@@ -11,7 +11,7 @@
  * - Selection options editor (for selection type)
  * - Allowed classes selector (for node type)
  */
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { PropertyType, PropertyCreate, Node } from '@/types/api';
 import { useProperties, useNodes } from '@/hooks';
 import { Modal } from '../core/Modal';
@@ -198,6 +198,29 @@ export function PropertyCreateModal({
     allNodes?.filter(n => n.is_class && n.uuid !== SYSTEM_CLASS_UUIDS.page) || [],
     [allNodes]
   );
+
+  // Enter anywhere inside the modal = create (capture phase)
+  // Use ref so the listener always sees the latest handleCreate without re-registering
+  const handleCreateRef = useRef(handleCreate);
+  handleCreateRef.current = handleCreate;
+  const canCreateRef = useRef(canCreate);
+  canCreateRef.current = canCreate;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('.property-create-modal')) return;
+      // Don't intercept Enter inside NodeSelector dropdowns (portaled outside modal)
+      if (target.closest('.node-selector__dropdown')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (canCreateRef.current) handleCreateRef.current();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isOpen]);
   
   return (
     <Modal
@@ -205,6 +228,7 @@ export function PropertyCreateModal({
       onClose={onClose}
       title="Create Property"
       size="md"
+      className="property-create-modal"
       showCloseButton
       footer={
         <div className="property-create-modal__footer">
