@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import './CommandPalette.css';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation } from '@/hooks';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation, useClasses } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
@@ -21,6 +21,7 @@ import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, 
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
@@ -101,11 +102,15 @@ function ResultItem({
   isSelected,
   onClick,
   allNodes,
+  allClasses,
+  pageClassId,
 }: {
   result: SearchResult;
   isSelected: boolean;
   onClick: () => void;
   allNodes?: Node[];
+  allClasses?: Node[];
+  pageClassId?: number | null;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   
@@ -150,7 +155,15 @@ function ResultItem({
   
   // Handle node results
   if (!result.node) return null;
-  
+
+  const classLabel = (result.node.classes ?? [])
+    .filter(cid => cid !== pageClassId)
+    .map(cid => allClasses?.find(c => c.id === cid))
+    .filter((c): c is Node => c !== undefined)
+    .map(c => nodeNameToText(c.name))
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <button
       ref={ref}
@@ -159,7 +172,7 @@ function ResultItem({
     >
       <span className="command-palette__result-icon">
         {result.type === 'page' ? (
-          <NodeIcon icon={result.node.icon} isPage={true} size="sm" />
+          <NodeIcon icon={getEffectiveIcon(result.node, allClasses)} isPage={true} size="sm" />
         ) : (
           <BulletIcon size="xs" />
         )}
@@ -179,9 +192,11 @@ function ResultItem({
           alias of: {aliasedNodeName}
         </span>
       )}
-      <span className="command-palette__result-type">
-        {result.type}
-      </span>
+      {classLabel && (
+        <span className="command-palette__result-type">
+          {classLabel}
+        </span>
+      )}
     </button>
   );
 }
@@ -214,6 +229,7 @@ export function CommandPalette({
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
+  const { data: allClasses } = useClasses();
   
   // Fetch all properties for search
   const { data: allProperties = [] } = useProperties();
@@ -825,6 +841,8 @@ export function CommandPalette({
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
+                    allClasses={allClasses}
+                    pageClassId={pageClassId}
                   />
                 );
               })}
@@ -846,6 +864,8 @@ export function CommandPalette({
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
+                    allClasses={allClasses}
+                    pageClassId={pageClassId}
                   />
                 );
               })}
