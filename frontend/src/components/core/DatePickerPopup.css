@@ -30,7 +30,6 @@
   color: var(--color-on-surface);
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
   outline: none;
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
