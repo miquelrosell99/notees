@@ -21,9 +21,15 @@ interface SlashCommand {
 const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'link',
-    label: 'Insert Link',
-    description: 'Link to a page or block',
+    label: 'Insert Page Link',
+    description: 'Link to a page',
     icon: <LinkIcon size="sm" />,
+  },
+  {
+    id: 'blocklink',
+    label: 'Insert Block Link',
+    description: 'Link to a specific block',
+    icon: <BulletIcon size="sm" />,
   },
   {
     id: 'embed',
