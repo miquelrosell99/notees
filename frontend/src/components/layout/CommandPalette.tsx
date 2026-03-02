@@ -385,7 +385,7 @@ export function CommandPalette({
       setQuery('');
       setSelectedClasses([]);
       setClassPopupPosition(null);
-      setTimeout(() => inputRef.current?.focus(), 0);
+      inputRef.current?.focus();
     }
   }, [isOpen]);
   
@@ -668,7 +668,7 @@ export function CommandPalette({
   
   return (
     <>
-    {isOpen && <div className="command-palette__backdrop" onClick={handleBackdropClick}>
+    <div className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`} onClick={handleBackdropClick}>
       <div ref={containerRef} className="command-palette">
         <div className="command-palette__input-container">
           <input
@@ -948,7 +948,7 @@ export function CommandPalette({
         }}
       />
 
-    </div>}
+    </div>
     <CreatePageWithUuidModal
       isOpen={createWithUuidModalOpen}
       onClose={() => setCreateWithUuidModalOpen(false)}
