@@ -1133,24 +1133,11 @@ export function NodeView({
         />
       ) : (
         /* Focused Block View - renders the block itself as a top-level list item */
-        <>
-          {/* Properties Section for focused block */}
-          {showProperties && (
-          <PropertiesSection 
-            nodeId={node.id}
-            variant="block"
-            showHiddenSection={true}
-            showAddProperty={true}
-            onNavigateToNode={handleNavigateToNode}
-            onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-            defaultCollapsed={propertiesCollapsed}
-          />
-          )}
-          <FocusedBlockContent
-            node={node}
-            onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
-          />
-        </>
+        /* Properties for the focused block are rendered inline by BlockPropertiesPlugin */
+        <FocusedBlockContent
+          node={node}
+          onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
+        />
       )}
       
       {/* Query sections */}

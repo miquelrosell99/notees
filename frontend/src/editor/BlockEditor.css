@@ -633,6 +633,33 @@
   margin-top: 4px;
 }
 
+/* ─── Inline properties preview ─────────────────────────────────
+   Rendered by BlockPropertiesPlugin below the block's text content,
+   before visually-indented child blocks appear.
+   Uses CSS :has() to conditionally apply flex-wrap only when needed.
+   ──────────────────────────────────────────────────────────────── */
+
+/* Empty preview containers take no space */
+.node-block-properties-preview {
+  display: none;
+}
+
+/* When the plugin populates the container with actual property rows,
+   show it and wrap the parent block to a new line.
+   Matches both .property-list (inline mode) and .properties-view (section mode). */
+.node-block:has(.node-block-properties-preview .property-row) {
+  flex-wrap: wrap;
+}
+
+.node-block:has(.node-block-properties-preview .property-row) .node-block-properties-preview {
+  display: block;
+  width: 100%;
+  /* Indent to align with block text content (past the bullet) */
+  padding-left: calc(var(--spacing-6) + 2px);
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
 /* ─── Node block heading ───────────────────────────────────────── */
 
 .node-block-heading {

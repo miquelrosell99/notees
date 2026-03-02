@@ -413,6 +413,16 @@ export class BlockNode extends ElementNode {
       setDOMUnmanaged(codeGutter);
       dom.appendChild(codeGutter);
     }
+
+    // ── Properties preview container ───────────────────────────
+    // Non-editable portal target for BlockPropertiesPlugin to render
+    // inline property rows below the block content (before child blocks).
+    const propertiesPreview = document.createElement('div');
+    propertiesPreview.className = 'node-block-properties-preview';
+    propertiesPreview.contentEditable = 'false';
+    setDOMUnmanaged(propertiesPreview);
+    dom.appendChild(propertiesPreview);
+
     return dom;
   }
 
