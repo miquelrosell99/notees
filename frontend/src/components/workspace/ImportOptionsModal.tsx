@@ -327,12 +327,22 @@ export function ImportOptionsModal({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  // Enter anywhere inside the modal = submit (capture phase)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
       const tag = (e.target as HTMLElement).tagName;
-      if (tag !== 'TEXTAREA') handleSubmit();
-    }
-  };
+      if (tag === 'TEXTAREA') return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('.import-unified')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleSubmit();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isOpen, handleSubmit]);
 
   // -- Derived preview counts -------------------------------------------
   const previewCounts = parsedExport ? (() => {
@@ -448,6 +458,7 @@ export function ImportOptionsModal({
       onClose={onClose}
       title="Import Workspace"
       size="md"
+      className="import-unified"
       footer={
         <div className="import-unified__footer">
           <div className="import-unified__footer-name">
@@ -493,7 +504,7 @@ export function ImportOptionsModal({
         </div>
       }
     >
-      <div className="import-unified__body" onKeyDown={handleKeyDown}>
+      <div className="import-unified__body">
 
         {/* -- 1. Source selector ---------------------------------------- */}
         <div className="import-unified__field-group">

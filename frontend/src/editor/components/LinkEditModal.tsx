@@ -153,12 +153,26 @@ export function LinkEditModal({
     }
   }, [linkMode, selectedNode, url, label, linkId, onSave]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+  // Enter anywhere inside the modal = save (capture phase to beat button activation).
+  // NodeSelector dropdown is portaled outside .link-edit-modal, so it's naturally excluded.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const target = e.target as HTMLElement;
+      if (!target.closest('.link-edit-modal')) return;
+
       e.preventDefault();
+      e.stopPropagation();
       handleSave();
-    }
-  }, [handleSave]);
+    };
+
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isOpen, handleSave]);
 
   // ─── Render ────────────────────────────────────────────────
 
@@ -182,7 +196,7 @@ export function LinkEditModal({
       footer={footer}
       className="link-edit-modal"
     >
-      <div className="link-edit-modal__body" onKeyDown={handleKeyDown}>
+      <div className="link-edit-modal__body">
         
         {/* Mode toggle */}
         <div className="link-edit-modal__section link-edit-modal__mode-section">
