@@ -114,7 +114,7 @@
 }
 
 .property-cell__input:focus {
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 textarea.property-cell__input {
