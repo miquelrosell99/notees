@@ -30,12 +30,13 @@ interface BlockDOMInfo {
   blockId: string;
   serverId: number;
   classIds: string[];
+  isProjectionRoot: boolean;
   previewContainer: HTMLElement;
 }
 
 // ─── Inline properties component (rendered per block via portal) ──
 
-function BlockInlineProperties({ nodeId }: { nodeId: number }) {
+function BlockInlineProperties({ nodeId, showAddProperty }: { nodeId: number; showAddProperty: boolean }) {
   const openNode = useAppStore(state => state.openNode);
   const addSidebarCard = useAppStore(state => state.addSidebarCard);
 
@@ -43,10 +44,10 @@ function BlockInlineProperties({ nodeId }: { nodeId: number }) {
     <PropertiesSection
       nodeId={nodeId}
       variant="block"
-      inline={true}
+      inline={!showAddProperty}
       readOnly={false}
-      showHiddenSection={false}
-      showAddProperty={false}
+      showHiddenSection={showAddProperty}
+      showAddProperty={showAddProperty}
       onNavigateToNode={openNode}
       onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
     />
@@ -92,6 +93,7 @@ export function BlockPropertiesPlugin(): JSX.Element | null {
           blockId,
           serverId: graphNode.serverId,
           classIds: child.getClassIds(),
+          isProjectionRoot: child.getIsProjectionRoot(),
           previewContainer,
         });
       }
@@ -119,12 +121,19 @@ export function BlockPropertiesPlugin(): JSX.Element | null {
 
   // ── Step 4: Determine which blocks should show properties ─────
   // A block should show properties if:
-  //   a) it has at least one explicitly-set property value, OR
-  //   b) it has at least one class (classes can define properties)
+  //   a) it is the projection root (focused block — always show "Add property")
+  //   b) it has at least one explicitly-set property value, OR
+  //   c) it has at least one class (classes can define properties)
   const blocksWithProperties = useMemo(() => {
     const set = new Set<string>();
 
     for (const info of blockDOMs) {
+      // Projection root always shows (has "Add property" button)
+      if (info.isProjectionRoot) {
+        set.add(info.blockId);
+        continue;
+      }
+
       // Has classes → may have class-defined properties
       if (info.classIds.length > 0) {
         set.add(info.blockId);
@@ -154,7 +163,7 @@ export function BlockPropertiesPlugin(): JSX.Element | null {
         return (
           <span key={info.blockId}>
             {createPortal(
-              <BlockInlineProperties nodeId={info.serverId} />,
+              <BlockInlineProperties nodeId={info.serverId} showAddProperty={info.isProjectionRoot} />,
               info.previewContainer,
             )}
           </span>
