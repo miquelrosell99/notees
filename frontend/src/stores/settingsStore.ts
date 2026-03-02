@@ -57,6 +57,8 @@ interface SettingsState {
   linkedRefsCollapseLevel: number;
   /** How #hashtag patterns in pasted text should be interpreted */
   hashtagPasteMode: HashtagPasteMode;
+  /** Show developer options (AST viewer, fix UUID links, create page with manual UUID) */
+  showDevOptions: boolean;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -66,6 +68,7 @@ interface SettingsState {
   setQuickAddDestination: (destination: QuickAddDestination) => void;
   setLinkedRefsCollapseLevel: (level: number) => void;
   setHashtagPasteMode: (mode: HashtagPasteMode) => void;
+  setShowDevOptions: (show: boolean) => void;
 }
 
 /**
@@ -180,6 +183,7 @@ export const useSettingsStore = create<SettingsState>()(
       quickAddDestination: 'today',
       linkedRefsCollapseLevel: 1,
       hashtagPasteMode: 'inline-tag',
+      showDevOptions: false,
       
       // Actions
       setTheme: (theme) => {
@@ -208,7 +212,11 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setHashtagPasteMode: (hashtagPasteMode) => {
         set({ hashtagPasteMode });
-      },    }),
+      },
+      setShowDevOptions: (showDevOptions) => {
+        set({ showDevOptions });
+      },
+    }),
     {
       name: 'notees-settings',
       // Initialize theme on rehydration

@@ -209,7 +209,7 @@ export function CommandPalette({
   const containerRef = useRef<HTMLDivElement>(null);
   
   const { openNode, openPropertyView } = useAppStore();
-  const { quickAddDestination, dateFormat } = useSettingsStore();
+  const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
   const { navigateToNode } = useNodeNavigation();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -288,17 +288,17 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid'; requiresPage?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid'; requiresPage?: boolean; devOnly?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
-      { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance' },
+      { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance', devOnly: true },
       { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
-      { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid' },
+      { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
     ];
-    return cmds;
-  }, []);
+    return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
+  }, [showDevOptions]);
 
   const allItems = useMemo(() => {
       type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' };
