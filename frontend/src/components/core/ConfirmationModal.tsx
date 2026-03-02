@@ -4,6 +4,7 @@
  * A reusable confirmation dialog for important actions.
  * Uses the base Modal component for consistent styling.
  */
+import { useEffect, useCallback } from 'react';
 import { Modal } from './Modal';
 import { AlertIcon } from './icons';
 import { Button } from './Button';
@@ -32,6 +33,23 @@ export function ConfirmationModal({
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
+  // Enter anywhere inside the modal = confirm (capture phase to beat button activation)
+  const stableConfirm = useCallback(() => onConfirm(), [onConfirm]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('.confirmation-modal')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      stableConfirm();
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [isOpen, stableConfirm]);
+
   return (
     <Modal
       isOpen={isOpen}
