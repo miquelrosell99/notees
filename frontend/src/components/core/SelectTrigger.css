@@ -38,7 +38,7 @@
 
 .select-trigger:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .select-trigger--open {

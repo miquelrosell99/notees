@@ -32,8 +32,7 @@
 }
 
 .create-uuid-modal__input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .create-uuid-modal__input--mono {

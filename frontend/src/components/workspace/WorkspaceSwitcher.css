@@ -73,7 +73,7 @@
 }
 
 .workspace-switcher__search-input:focus {
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .workspace-switcher__search-input::placeholder {

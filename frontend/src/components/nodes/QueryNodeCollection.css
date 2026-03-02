@@ -219,7 +219,7 @@
 
 .query-section__sql-textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
 .query-section__sql-hint {
