@@ -99,7 +99,7 @@ export function GraphView({
     prevNodeIdsRef.current = nodeIds;
     return nodeIds;
   }, [nodeIds]);
-  const { data: apiLinks = [] } = useGraphLinks(stableNodeIds);
+  const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(stableNodeIds);
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
@@ -461,6 +461,14 @@ export function GraphView({
           <h3>No nodes to display</h3>
           <p>Create some pages to see them in the graph view.</p>
         </div>
+      </div>
+    );
+  }
+  
+  if (linksLoading) {
+    return (
+      <div className={`node-graph-view loading ${className}`}>
+        <div className="node-graph-view__loading">Loading graph...</div>
       </div>
     );
   }
