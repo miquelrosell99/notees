@@ -24,7 +24,6 @@
  */
 import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
 import { useAppStore } from '@/stores';
-import type { CardSizeMode } from '@/stores/appStore';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
 import { 
@@ -41,11 +40,6 @@ import {
   mdiDockLeft,
   mdiDockRight,
   mdiDockTop,
-  mdiNumeric1,
-  mdiNumeric2,
-  mdiNumeric3,
-  mdiNumeric4,
-  mdiNumeric5,
   mdiTableColumn,
   mdiRestore,
 } from '@mdi/js';
