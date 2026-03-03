@@ -43,6 +43,11 @@ import type { ClassColor } from '@/components/shared/ClassColorsPanel';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css';
 
+// Stable empty-array references so the renderer receives a consistent identity
+// while links are still loading (avoids re-triggering topology sync).
+const EMPTY_NODES: GraphNode[] = [];
+const EMPTY_EDGES: GraphLink[] = [];
+
 export interface GraphViewProps {
   /** Unique ID for this view to persist settings separately */
   viewId?: string;
@@ -815,26 +820,26 @@ export function GraphView({
       </div>
       )}
       
-      {/* Show spinner overlay while links are loading; don't mount the renderer
-         until links have arrived so the physics engine initializes only once with
-         the correct topology (prevents two-phase init and progressive edge appearance). */}
-      {linksLoading ? (
+      {/* Show spinner overlay while links are loading; the renderer stays
+         mounted (WebGL + worker ready) but receives empty data so the physics
+         engine doesn't do a wasted initialisation with 0 edges.  Once links
+         arrive both nodes AND edges are passed together → single init. */}
+      {linksLoading && (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__spinner" />
         </div>
-      ) : (
-        <GraphRenderer
-          ref={rendererRef}
-          nodes={nodes}
-          edges={links}
-          sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
-          baseNodeRadius={baseNodeRadius}
-          onNodeClick={handleNodeClick}
-          onNodeDblClick={handleNodeDoubleClick}
-          onEmptyClick={() => setSelectedNodes([])}
-          className="node-graph-view__renderer"
-        />
       )}
+      <GraphRenderer
+        ref={rendererRef}
+        nodes={linksLoading ? EMPTY_NODES : nodes}
+        edges={linksLoading ? EMPTY_EDGES : links}
+        sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
+        baseNodeRadius={baseNodeRadius}
+        onNodeClick={handleNodeClick}
+        onNodeDblClick={handleNodeDoubleClick}
+        onEmptyClick={() => setSelectedNodes([])}
+        className="node-graph-view__renderer"
+      />
       
       {/* Bottom Center: View mode switcher (normal / circle / tree) */}
       {showViewModes && (
