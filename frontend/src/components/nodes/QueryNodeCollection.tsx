@@ -951,7 +951,7 @@ export function QueryNodeCollection({
             viewId={activeView?.id}
             view={activeView}
             viewMode={collectionViewMode}
-            availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
+            availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             onContentChange={saveContent}
@@ -1018,7 +1018,7 @@ export function QueryNodeCollection({
                 viewId={activeView?.id}
                 view={activeView}
                 viewMode={collectionViewMode}
-                availableViewModes={['list', 'table', 'card', 'graph', 'terrain']}
+                availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
                 onContentChange={saveContent}
