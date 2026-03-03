@@ -197,26 +197,40 @@ export function NodeCollection({
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
 
   // Gantt date property state (controlled or uncontrolled)
-  const [internalGanttStartDateProperty, setInternalGanttStartDateProperty] = useState<Property | undefined>(undefined);
-  const [internalGanttEndDateProperty, setInternalGanttEndDateProperty] = useState<Property | undefined>(undefined);
+  // In uncontrolled mode: drive from the persisted store UUIDs
+  const storeGanttStartUuid = useAppStore(state => state.ganttStartDatePropertyUuid);
+  const storeGanttEndUuid = useAppStore(state => state.ganttEndDatePropertyUuid);
+  const setStoreGanttStartUuid = useAppStore(state => state.setGanttStartDatePropertyUuid);
+  const setStoreGanttEndUuid = useAppStore(state => state.setGanttEndDatePropertyUuid);
+
+  // Resolve UUIDs → Property objects (works once allProperties is loaded)
+  const storeGanttStartProperty = useMemo(
+    () => allProperties.find(p => p.uuid === storeGanttStartUuid),
+    [allProperties, storeGanttStartUuid]
+  );
+  const storeGanttEndProperty = useMemo(
+    () => allProperties.find(p => p.uuid === storeGanttEndUuid),
+    [allProperties, storeGanttEndUuid]
+  );
+
   const ganttStartDateProperty = onGanttStartDatePropertyChange
     ? ganttStartDatePropertyProp
-    : (ganttStartDatePropertyProp ?? internalGanttStartDateProperty);
+    : (ganttStartDatePropertyProp ?? storeGanttStartProperty);
   const ganttEndDateProperty = onGanttEndDatePropertyChange
     ? ganttEndDatePropertyProp
-    : (ganttEndDatePropertyProp ?? internalGanttEndDateProperty);
+    : (ganttEndDatePropertyProp ?? storeGanttEndProperty);
   const handleGanttStartDatePropertyChange = (property: Property | undefined) => {
     if (onGanttStartDatePropertyChange) {
       onGanttStartDatePropertyChange(property);
     } else {
-      setInternalGanttStartDateProperty(property);
+      setStoreGanttStartUuid(property?.uuid ?? '');
     }
   };
   const handleGanttEndDatePropertyChange = (property: Property | undefined) => {
     if (onGanttEndDatePropertyChange) {
       onGanttEndDatePropertyChange(property);
     } else {
-      setInternalGanttEndDateProperty(property);
+      setStoreGanttEndUuid(property?.uuid ?? '');
     }
   };
   const updateNodeView = useUpdateNodeView();
