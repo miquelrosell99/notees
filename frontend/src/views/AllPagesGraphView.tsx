@@ -18,7 +18,9 @@ export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
   if (isLoading) {
     return (
       <div className={`all-pages-graph-view all-pages-graph-view--loading ${className}`}>
-        <div className="all-pages-graph-view__loading">Loading graph...</div>
+        <div className="node-graph-view__loading-overlay">
+          <div className="node-graph-view__spinner" />
+        </div>
       </div>
     );
   }
