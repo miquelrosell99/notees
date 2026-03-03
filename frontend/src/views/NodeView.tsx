@@ -1111,6 +1111,7 @@ export function NodeView({
                 variant={resolvedType}
                 showHiddenSection={true}
                 showAddProperty={true}
+                isMainNode={true}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
                 defaultCollapsed={propertiesCollapsed}

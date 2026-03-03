@@ -36,7 +36,7 @@ interface BlockDOMInfo {
 
 // ─── Inline properties component (rendered per block via portal) ──
 
-function BlockInlineProperties({ nodeId, showAddProperty }: { nodeId: number; showAddProperty: boolean }) {
+function BlockInlineProperties({ nodeId, showAddProperty, isMainNode }: { nodeId: number; showAddProperty: boolean; isMainNode: boolean }) {
   const openNode = useAppStore(state => state.openNode);
   const addSidebarCard = useAppStore(state => state.addSidebarCard);
 
@@ -48,6 +48,7 @@ function BlockInlineProperties({ nodeId, showAddProperty }: { nodeId: number; sh
       readOnly={false}
       showHiddenSection={showAddProperty}
       showAddProperty={showAddProperty}
+      isMainNode={isMainNode}
       onNavigateToNode={openNode}
       onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
     />
@@ -163,7 +164,7 @@ export function BlockPropertiesPlugin(): JSX.Element | null {
         return (
           <span key={info.blockId}>
             {createPortal(
-              <BlockInlineProperties nodeId={info.serverId} showAddProperty={info.isProjectionRoot} />,
+              <BlockInlineProperties nodeId={info.serverId} showAddProperty={info.isProjectionRoot} isMainNode={info.isProjectionRoot} />,
               info.previewContainer,
             )}
           </span>

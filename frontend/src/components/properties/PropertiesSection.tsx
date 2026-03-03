@@ -74,6 +74,13 @@ interface PropertiesSectionProps {
   filterPropertyIds?: number[];
   /** Render inline without section header (for use in blocks) */
   inline?: boolean;
+  /**
+   * Whether this node is the "main" node being viewed (page in page view,
+   * or the focused/zoom-root block in focused block view).
+   * When false, properties whose icon_visibility is not 'hidden' are moved
+   * to the hidden section — their value is already shown via block icons.
+   */
+  isMainNode?: boolean;
 }
 
 interface PropertyValueProps {
@@ -412,6 +419,7 @@ export function PropertiesSection({
   defaultCollapsed = false,
   filterPropertyIds,
   inline = false,
+  isMainNode = false,
 }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, setShowHidden] = useState(false);
@@ -616,13 +624,22 @@ export function PropertiesSection({
       // NOT based on whether they have a value
       if (entry.hidden) {
         hidden.push(entry);
+      } else if (
+        !isMainNode &&
+        entry.property.icon_visibility != null &&
+        entry.property.icon_visibility !== 'hidden'
+      ) {
+        // When not the main node, properties whose value icon is displayed
+        // inline in the block (before_content / after_bullet) are moved to
+        // the hidden section — the icon already surfaces the value in context.
+        hidden.push(entry);
       } else {
         visible.push(entry);
       }
     }
     
     return { visibleProperties: visible, hiddenProperties: hidden };
-  }, [nodeProperties, filterPropertyIds]);
+  }, [nodeProperties, filterPropertyIds, isMainNode]);
 
   const variantClass = variant === 'block' ? 'block-variant' : '';
   
