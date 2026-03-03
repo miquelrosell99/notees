@@ -9,6 +9,7 @@
  * selected ISO date (YYYY-MM-DD) back to the caller via `onSelect`.
  */
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useExistingDailyPages } from '@/hooks';
 import { parseDate } from '@/utils/dateParser';
 import { Button } from './Button';
@@ -235,11 +236,15 @@ export function DatePickerPopup({
 
   // ── render ─────────────────────────────────────────────
 
-  return (
+  const popup = (
     <div
       className="date-picker-popup"
       ref={popupRef}
-      style={position ? { position: 'fixed', top: position.top, left: position.left } : undefined}
+      style={
+        position
+          ? { top: position.top, left: position.left }
+          : { visibility: 'hidden' }
+      }
     >
       {/* Text input */}
       <div className="date-picker-input-row">
@@ -315,6 +320,8 @@ export function DatePickerPopup({
       </div>
     </div>
   );
+
+  return createPortal(popup, document.body);
 }
 
 export default DatePickerPopup;
