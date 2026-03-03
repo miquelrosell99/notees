@@ -74,19 +74,17 @@
 .gantt-row__label {
   width: 200px;
   flex-shrink: 0;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 0.5rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
   border-right: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
+  overflow: hidden;
 }
 
-.gantt-row__name {
+.gantt-row__node-inline {
+  width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.875rem;
 }
 
 .gantt-row__timeline {

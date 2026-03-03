@@ -11,14 +11,16 @@
  * - Nodes without a start date are hidden
  * - Nodes with only a start date shown as a milestone (thin bar)
  */
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 import { dateFromUuid } from '@/types/api';
 import { getNode } from '@/api/nodes';
+import { NodeInline } from '../../blocks/NodeInline';
 import { NodeIcon } from '../../core/icons';
+import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
 import './GanttView.css';
 
 // ==================== Internal types ====================
@@ -158,6 +160,8 @@ interface GanttBarProps {
 }
 
 function GanttBar({ item, dateRange, onNodeClick, onNodeShiftClick }: GanttBarProps) {
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+
   const startPct = pct(item.startDate, dateRange.start, dateRange.end);
   const endDate = item.endDate ?? item.startDate;
   const endPct = pct(endDate, dateRange.start, dateRange.end);
@@ -174,6 +178,11 @@ function GanttBar({ item, dateRange, onNodeClick, onNodeShiftClick }: GanttBarPr
     [item.node, onNodeClick, onNodeShiftClick]
   );
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
   const barStyle = useMemo(
     () => ({
       left: `${startPct}%`,
@@ -184,22 +193,40 @@ function GanttBar({ item, dateRange, onNodeClick, onNodeShiftClick }: GanttBarPr
   );
 
   const isMilestone = !item.endDate;
+  const ContextMenuComponent = item.node.is_page ? PageContextMenu : BlockContextMenu;
 
   return (
-    <div className="gantt-row">
-      <div className="gantt-row__label" title={item.node.name || 'Untitled'}>
-        <NodeIcon icon={item.node.icon} isPage={item.node.is_page} size="sm" />
-        <span className="gantt-row__name">{item.node.name || 'Untitled'}</span>
+    <>
+      <div className="gantt-row">
+        <div className="gantt-row__label" onContextMenu={handleContextMenu}>
+          <NodeInline
+            name={item.node.name}
+            icon={item.node.icon}
+            isPage={item.node.is_page}
+            nodeId={item.node.id}
+            showBullet={true}
+            onClick={() => onNodeClick?.(item.node)}
+            onShiftClick={() => onNodeShiftClick?.(item.node)}
+            className="gantt-row__node-inline"
+          />
+        </div>
+        <div className="gantt-row__timeline">
+          <div
+            className={`gantt-row__bar ${isMilestone ? 'gantt-row__bar--milestone' : ''}`}
+            style={barStyle}
+            onClick={handleClick}
+            title={`${item.node.name || 'Untitled'}: ${item.startDate.toLocaleDateString()}${item.endDate ? ' → ' + item.endDate.toLocaleDateString() : ''}`}
+          />
+        </div>
       </div>
-      <div className="gantt-row__timeline">
-        <div
-          className={`gantt-row__bar ${isMilestone ? 'gantt-row__bar--milestone' : ''}`}
-          style={barStyle}
-          onClick={handleClick}
-          title={`${item.node.name || 'Untitled'}: ${item.startDate.toLocaleDateString()}${item.endDate ? ' → ' + item.endDate.toLocaleDateString() : ''}`}
+      {contextMenuPos && (
+        <ContextMenuComponent
+          node={item.node}
+          position={contextMenuPos}
+          onClose={() => setContextMenuPos(null)}
         />
-      </div>
-    </div>
+      )}
+    </>
   );
 }
 
