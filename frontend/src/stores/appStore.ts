@@ -97,9 +97,10 @@ interface NodesState {
   lateNightThoughtsFilter: boolean;
   
   // Per-node view mode storage (persisted)
-  nodeViewModes: Record<number, NodeCollectionViewMode>;
+  nodeViewModes: Record<string, NodeCollectionViewMode>;
 
-  // Gantt date property UUIDs (persisted, global defaults)
+  // Per-section groupBy storage (persisted)
+  nodeGroupBy: Record<string, string>;
   ganttStartDatePropertyUuid: string;
   ganttEndDatePropertyUuid: string;
   
@@ -159,6 +160,10 @@ interface NodesState {
   setNodeViewMode: (nodeId: number, viewType: string, mode: NodeCollectionViewMode) => void;
   getNodeViewMode: (nodeId: number, viewType: string) => NodeCollectionViewMode | undefined;
 
+  // Per-section groupBy actions
+  setNodeGroupBy: (nodeId: number, viewType: string, groupBy: string) => void;
+  getNodeGroupBy: (nodeId: number, viewType: string) => string | undefined;
+
   // Gantt property actions
   setGanttStartDatePropertyUuid: (uuid: string) => void;
   setGanttEndDatePropertyUuid: (uuid: string) => void;
@@ -199,6 +204,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
   nodeViewModes: {},
+  nodeGroupBy: {},
   preFocusModeSidebarCollapsed: null,
   ganttStartDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_scheduled,
   ganttEndDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_deadline,
@@ -411,6 +417,12 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   })),
   getNodeViewMode: (nodeId, viewType) => get().nodeViewModes[`${nodeId}-${viewType}`],
 
+  // Per-section groupBy actions
+  setNodeGroupBy: (nodeId, viewType, groupBy) => set((state) => ({
+    nodeGroupBy: { ...state.nodeGroupBy, [`${nodeId}-${viewType}`]: groupBy }
+  })),
+  getNodeGroupBy: (nodeId, viewType) => get().nodeGroupBy[`${nodeId}-${viewType}`],
+
   // Gantt property actions
   setGanttStartDatePropertyUuid: (uuid) => set({ ganttStartDatePropertyUuid: uuid }),
   setGanttEndDatePropertyUuid: (uuid) => set({ ganttEndDatePropertyUuid: uuid }),
@@ -418,6 +430,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   name: 'notees-node-view-modes',
   partialize: (state) => ({ 
     nodeViewModes: state.nodeViewModes,
+    nodeGroupBy: state.nodeGroupBy,
     cardLayout: state.cardLayout,
     contentDisplayMode: state.contentDisplayMode,
     ganttStartDatePropertyUuid: state.ganttStartDatePropertyUuid,
