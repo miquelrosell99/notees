@@ -202,6 +202,8 @@ export function NodeCollection({
   const storeGanttEndUuid = useAppStore(state => state.ganttEndDatePropertyUuid);
   const setStoreGanttStartUuid = useAppStore(state => state.setGanttStartDatePropertyUuid);
   const setStoreGanttEndUuid = useAppStore(state => state.setGanttEndDatePropertyUuid);
+  const ganttTimeScale = useAppStore(state => state.ganttTimeScale);
+  const setGanttTimeScale = useAppStore(state => state.setGanttTimeScale);
 
   // Resolve UUIDs → Property objects (works once allProperties is loaded)
   const storeGanttStartProperty = useMemo(
@@ -423,6 +425,7 @@ export function NodeCollection({
             nodes={ganttNodes}
             startDateProperty={ganttStartDateProperty}
             endDateProperty={ganttEndDateProperty}
+            timeScale={ganttTimeScale}
             groupBy={groupBy}
             groupByProperty={groupByProperty}
           />
@@ -532,6 +535,8 @@ export function NodeCollection({
                 ganttEndDateProperty={ganttEndDateProperty}
                 onGanttStartDatePropertyChange={handleGanttStartDatePropertyChange}
                 onGanttEndDatePropertyChange={handleGanttEndDatePropertyChange}
+                ganttTimeScale={ganttTimeScale}
+                onGanttTimeScaleChange={setGanttTimeScale}
                 toolbarPrefix={toolbarPrefix}
                 leftElement={typeof leftElement === 'function' ? leftElement(nodes.length) : leftElement}
                 hideToolbarControls={hideToolbarControls}

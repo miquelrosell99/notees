@@ -73,3 +73,34 @@
   background: var(--color-outline-variant);
   margin: 6px 0;
 }
+
+/* Time scale selector */
+.gantt-property-selector__scale-row {
+  display: flex;
+  gap: 4px;
+  padding: 2px 8px 4px;
+}
+
+.gantt-property-selector__scale-btn {
+  flex: 1;
+  padding: 4px 6px;
+  background: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-on-surface);
+  transition: background-color 0.12s, border-color 0.12s;
+  text-align: center;
+}
+
+.gantt-property-selector__scale-btn:hover {
+  background: var(--color-surface-variant);
+}
+
+.gantt-property-selector__scale-btn--active {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+  font-weight: 600;
+}

@@ -1,15 +1,24 @@
 /**
  * GanttPropertySelector Component
  *
- * A panel for selecting start and end date properties for Gantt view.
- * Only shows properties of type 'date'.
+ * Configuration panel for Gantt view:
+ * - Select start and end date properties (only date-type shown)
+ * - Select time scale (day / week / month)
  */
 import { useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types';
-import { mdiCalendarStart, mdiCalendarEnd } from '@mdi/js';
+import { mdiCalendarStart, mdiCalendarEnd, mdiCalendarRange } from '@mdi/js';
 import Icon from '@mdi/react';
 import './GanttPropertySelector.css';
+
+export type GanttTimeScale = 'day' | 'week' | 'month';
+
+const TIME_SCALE_OPTIONS: { value: GanttTimeScale; label: string }[] = [
+  { value: 'day',   label: 'Day'   },
+  { value: 'week',  label: 'Week'  },
+  { value: 'month', label: 'Month' },
+];
 
 export interface GanttPropertySelectorProps {
   /** Currently selected start date property */
@@ -20,16 +29,22 @@ export interface GanttPropertySelectorProps {
   onStartDatePropertyChange: (property: Property | undefined) => void;
   /** Callback when end date property changes */
   onEndDatePropertyChange: (property: Property | undefined) => void;
+  /** Currently active time scale */
+  timeScale?: GanttTimeScale;
+  /** Callback when time scale changes */
+  onTimeScaleChange?: (scale: GanttTimeScale) => void;
 }
 
 /**
- * GanttPropertySelector - Select start and end date properties for Gantt view
+ * GanttPropertySelector - Select start/end date properties and time scale for Gantt view
  */
 export function GanttPropertySelector({
   startDateProperty,
   endDateProperty,
   onStartDatePropertyChange,
   onEndDatePropertyChange,
+  timeScale = 'week',
+  onTimeScaleChange,
 }: GanttPropertySelectorProps) {
   const { data: allProperties = [], isLoading } = useProperties();
 
@@ -92,6 +107,30 @@ export function GanttPropertySelector({
 
   return (
     <div className="gantt-property-selector">
+      {/* Time scale */}
+      {onTimeScaleChange && (
+        <>
+          <div className="gantt-property-selector__section">
+            <div className="gantt-property-selector__section-header">
+              <Icon path={mdiCalendarRange} size={0.7} />
+              <span>Time scale</span>
+            </div>
+            <div className="gantt-property-selector__scale-row">
+              {TIME_SCALE_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`gantt-property-selector__scale-btn ${timeScale === value ? 'gantt-property-selector__scale-btn--active' : ''}`}
+                  onClick={() => onTimeScaleChange(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="gantt-property-selector__divider" />
+        </>
+      )}
+
       {renderPropertyList('Start date', mdiCalendarStart, startDateProperty, onStartDatePropertyChange)}
       <div className="gantt-property-selector__divider" />
       {renderPropertyList('End date', mdiCalendarEnd, endDateProperty, onEndDatePropertyChange)}
