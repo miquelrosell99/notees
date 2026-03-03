@@ -27,6 +27,7 @@ import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
+import type { Property } from '@/types/api';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
 import { useAppStore } from '@/stores';
@@ -37,6 +38,43 @@ import { sortBySequence } from '@/utils/nodeSort';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 import './CardView.css';
+
+// ── Group type ───────────────────────────────────────────────────────────────
+
+interface CardGroup {
+  page?: Node | null;
+  label?: string;
+  nodes: Node[];
+}
+
+// ── Property grouping helper ───────────────────────────────────────────────
+
+function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
+  if (rawValue === null || rawValue === undefined) return '(No value)';
+  switch (property.type) {
+    case 'boolean': return rawValue ? 'Yes' : 'No';
+    case 'integer':
+    case 'float': return String(rawValue);
+    case 'selection': {
+      const resolveId = (v: unknown): number | null => {
+        if (typeof v === 'number') return v;
+        if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
+        return null;
+      };
+      if (Array.isArray(rawValue)) {
+        const names = rawValue
+          .map(resolveId)
+          .filter((id): id is number => id !== null)
+          .map(id => property.options?.find(o => o.id === id)?.name ?? String(id));
+        return names.length > 0 ? names.join(', ') : '(No value)';
+      }
+      const optId = resolveId(rawValue);
+      if (optId === null) return String(rawValue);
+      return property.options?.find(o => o.id === optId)?.name ?? String(optId);
+    }
+    default: return String(rawValue);
+  }
+}
 
 // ─── Component ────────────────────────────────────────────────────
 
@@ -57,6 +95,7 @@ export function CardView({
   customContextMenu,
   className = '',
   groupBy = 'none',
+  groupByProperty,
 }: NodeCardViewProps): JSX.Element {
   const viewId = useId();
 
@@ -89,42 +128,64 @@ export function CardView({
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 
-  // Group nodes by page when groupBy='page'
-  const groupedNodes = useMemo(() => {
-    if (groupBy !== 'page') {
+  // Group nodes by page or property value
+  const groupedNodes = useMemo((): CardGroup[] | null => {
+    if (groupBy === 'none') {
       return null; // No grouping
     }
 
-    const groups = new Map<string, { page: Node | null; nodes: Node[] }>();
-    
-    for (const node of sortedNodes) {
-      const pageKey = (node as any).page_id 
-        ? `page-${(node as any).page_id}` 
-        : node.is_page 
-          ? `self-${node.id}` 
-          : 'no-page';
+    if (groupBy === 'page') {
+      const groups = new Map<string, CardGroup>();
       
-      if (!groups.has(pageKey)) {
-        let pageNode: Node | null = null;
-        if ((node as any).page_id) {
-          pageNode = {
-            id: (node as any).page_id,
-            name: (node as any).page_name || 'Untitled',
-            uuid: (node as any).page_uuid || '',
-            is_page: true,
-          } as Node;
-        } else if (node.is_page) {
-          pageNode = node;
+      for (const node of sortedNodes) {
+        const pageKey = (node as any).page_id 
+          ? `page-${(node as any).page_id}` 
+          : node.is_page 
+            ? `self-${node.id}` 
+            : 'no-page';
+        
+        if (!groups.has(pageKey)) {
+          let pageNode: Node | null = null;
+          if ((node as any).page_id) {
+            pageNode = {
+              id: (node as any).page_id,
+              name: (node as any).page_name || 'Untitled',
+              uuid: (node as any).page_uuid || '',
+              is_page: true,
+            } as Node;
+          } else if (node.is_page) {
+            pageNode = node;
+          }
+          
+          groups.set(pageKey, { page: pageNode, nodes: [] });
         }
         
-        groups.set(pageKey, { page: pageNode, nodes: [] });
+        groups.get(pageKey)!.nodes.push(node);
       }
       
-      groups.get(pageKey)!.nodes.push(node);
+      return Array.from(groups.values());
     }
-    
-    return Array.from(groups.values());
-  }, [sortedNodes, groupBy]);
+
+    // Property-based grouping
+    if (groupByProperty) {
+      const propId = String(groupByProperty.id);
+      const groups = new Map<string, CardGroup>();
+      
+      for (const node of sortedNodes) {
+        const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+        const label = getPropertyGroupLabel(groupByProperty, rawValue);
+        
+        if (!groups.has(label)) {
+          groups.set(label, { label, nodes: [] });
+        }
+        groups.get(label)!.nodes.push(node);
+      }
+      
+      return Array.from(groups.values());
+    }
+
+    return null;
+  }, [sortedNodes, groupBy, groupByProperty]);
 
   const gridStyle = columns
     ? { gridTemplateColumns: `repeat(${columns}, 1fr)` }
@@ -212,14 +273,16 @@ export function CardView({
     className,
   ].filter(Boolean).join(' ');
 
-  // Kanban view (grouped by page)
+  // Kanban view (grouped)
   if (groupedNodes) {
     return (
       <div className={gridClassName} ref={containerRef}>
         {groupedNodes.map((group, groupIndex) => {
           const groupKey = group.page?.id 
             ? `page-${group.page.id}` 
-            : `group-${groupIndex}`;
+            : group.label !== undefined
+              ? `prop-${group.label}`
+              : `group-${groupIndex}`;
           
           return (
             <div key={groupKey} className="node-card-view__kanban-column">
@@ -228,6 +291,11 @@ export function CardView({
                   <>
                     {group.page.icon && <span className="node-card-view__kanban-icon">{group.page.icon}</span>}
                     <span className="node-card-view__kanban-title">{nodeNameToText(group.page.name) || 'Untitled'}</span>
+                    <span className="node-card-view__kanban-count">{group.nodes.length}</span>
+                  </>
+                ) : group.label !== undefined ? (
+                  <>
+                    <span className="node-card-view__kanban-title">{group.label}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
                 ) : (

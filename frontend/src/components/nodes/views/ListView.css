@@ -108,6 +108,14 @@
   color: var(--color-primary);
 }
 
+/* Property-value group label (used when groupBy is a property UUID) */
+.node-list-view__group-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  padding: 0 var(--spacing-1);
+}
+
 .node-list-view__group-content {
   padding-left: var(--spacing-2);
 }

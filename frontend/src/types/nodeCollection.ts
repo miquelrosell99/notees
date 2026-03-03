@@ -4,7 +4,7 @@
  * Type definitions for the unified NodeCollection system.
  * NodeCollection is the universal interface for displaying collections of nodes.
  */
-import type { Node } from './api';
+import type { Node, Property } from './api';
 import type { NodeView } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '../components/core/ContextMenu';
@@ -12,25 +12,11 @@ import type { ContextMenuItem } from '../components/core/ContextMenu';
 // ==================== GroupBy Options ====================
 
 /**
- * Available groupBy options for NodeCollection
+ * Available groupBy options for NodeCollection.
+ * Special values: 'none' (no grouping), 'page' (group by source page).
+ * Any other string is treated as a property UUID to group by.
  */
-export type NodeCollectionGroupBy = 'none' | 'page';
-
-/**
- * GroupBy option with label for UI display
- */
-export interface GroupByOption {
-  value: NodeCollectionGroupBy;
-  label: string;
-}
-
-/**
- * Default groupBy options
- */
-export const GROUP_BY_OPTIONS: GroupByOption[] = [
-  { value: 'none', label: 'None' },
-  { value: 'page', label: 'Page' },
-];
+export type NodeCollectionGroupBy = string;
 
 // ==================== View Modes ====================
 
@@ -333,6 +319,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   
   /** Group by option (default: 'none' when showGroupBy is false) */
   groupBy?: NodeCollectionGroupBy;
+
+  /** Property object when groupBy is a property UUID */
+  groupByProperty?: Property;
   
   /** Whether grouping is enabled (default: false) */
   enableGrouping?: boolean;
@@ -375,8 +364,11 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
   
-  /** Group by option - when 'page', displays as kanban columns */
+  /** Group by option - when 'page', displays as kanban columns; property UUID for property-based kanban */
   groupBy?: NodeCollectionGroupBy;
+
+  /** Property object when groupBy is a property UUID */
+  groupByProperty?: Property;
 }
 
 /**
