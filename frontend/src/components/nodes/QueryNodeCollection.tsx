@@ -268,6 +268,8 @@ export function QueryNodeCollection({
   // Get persisted view mode from store
   const getNodeViewMode = useAppStore(state => state.getNodeViewMode);
   const setNodeViewMode = useAppStore(state => state.setNodeViewMode);
+  const getNodeGroupBy = useAppStore(state => state.getNodeGroupBy);
+  const setNodeGroupBy = useAppStore(state => state.setNodeGroupBy);
   const openNode = useAppStore(state => state.openNode);
   const persistedViewMode = getNodeViewMode(nodeId, viewType);
   
@@ -283,10 +285,16 @@ export function QueryNodeCollection({
     setNodeViewMode(nodeId, viewType, mode);
   };
   
-  // For all_pages/child_pages, items ARE pages so grouping by page is meaningless; default 'none'
-  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>(
-    (viewType === 'all_pages' || viewType === 'child_pages') ? 'none' : 'page'
+  // For all_pages/child_pages, grouping by page is meaningless; default 'none'
+  const defaultGroupBy: NodeCollectionGroupBy =
+    (viewType === 'all_pages' || viewType === 'child_pages') ? 'none' : 'page';
+  const [groupBy, setGroupByState] = useState<NodeCollectionGroupBy>(
+    getNodeGroupBy(nodeId, viewType) ?? defaultGroupBy
   );
+  const setGroupBy = (value: NodeCollectionGroupBy) => {
+    setGroupByState(value);
+    setNodeGroupBy(nodeId, viewType, value);
+  };
   // Property column selection state (for table view)
   // Default to Created and Modified columns (matches default table columns)
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
