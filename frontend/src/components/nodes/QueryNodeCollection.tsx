@@ -631,13 +631,14 @@ export function QueryNodeCollection({
     }
   }, [resultNodes.length]);
   
-  // Windowed result set
+  // Windowed result set — bypass windowing in gantt mode so all items are available for date-range computation and filtering
   const windowedResultNodes = useMemo(() => {
+    if (collectionViewMode === 'gantt') return resultNodes;
     if (resultNodes.length <= WINDOW_SIZE) return resultNodes;
     return resultNodes.slice(0, renderWindow);
-  }, [resultNodes, renderWindow]);
+  }, [resultNodes, renderWindow, collectionViewMode]);
   
-  const hasMoreResults = renderWindow < resultNodes.length;
+  const hasMoreResults = collectionViewMode !== 'gantt' && renderWindow < resultNodes.length;
   
   const handleLoadMore = useCallback(() => {
     setRenderWindow(prev => Math.min(prev + WINDOW_SIZE, resultNodes.length));
@@ -983,7 +984,7 @@ export function QueryNodeCollection({
             onAddClass={handleAddClass}
           />
 
-          {/* Load more button for windowed results */}
+          {/* Load more button for windowed results (hidden in gantt mode — filtering happens inside GanttView) */}
           {hasMoreResults && (
             <div className="query-section__load-more">
               <Button

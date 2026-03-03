@@ -394,16 +394,26 @@ export function NodeCollection({
           />
         );
       
-      case 'gantt':
+      case 'gantt': {
+        // Pre-filter to only nodes that have the start date property set,
+        // so the view shows no "load more" noise and GanttView fetches fewer day-nodes.
+        const ganttNodes = ganttStartDateProperty
+          ? nodes.filter(n => {
+              const val = (n.properties as Record<number, unknown> | undefined)?.[ganttStartDateProperty.id];
+              return val != null;
+            })
+          : nodes;
         return (
           <GanttView
             {...viewProps}
+            nodes={ganttNodes}
             startDateProperty={ganttStartDateProperty}
             endDateProperty={ganttEndDateProperty}
             groupBy={groupBy}
             groupByProperty={groupByProperty}
           />
         );
+      }
       
       case 'timeline':
         return <TimelineView nodes={nodes} />;
