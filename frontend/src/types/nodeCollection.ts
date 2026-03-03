@@ -135,6 +135,18 @@ export interface NodeCollectionProps {
     width?: string;
     render?: (node: Node) => ReactNode;
   }[];
+
+  /** Start date property for gantt view */
+  ganttStartDateProperty?: Property;
+
+  /** End date property for gantt view */
+  ganttEndDateProperty?: Property;
+
+  /** Called when gantt start date property changes */
+  onGanttStartDatePropertyChange?: (property: Property | undefined) => void;
+
+  /** Called when gantt end date property changes */
+  onGanttEndDatePropertyChange?: (property: Property | undefined) => void;
   
   /** Whether to auto-collapse nodes at configured depth (default: false, enabled for linked refs and queries) */
   autoCollapse?: boolean;
@@ -409,9 +421,12 @@ export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
  * Props for NodeGanttView (gantt mode)
  */
 export interface NodeGanttViewProps extends NodeCollectionViewBaseProps {
-  /** Date property to use for positioning */
-  dateProperty?: string;
-  
+  /** Property to use for the start date of each bar */
+  startDateProperty?: Property;
+
+  /** Property to use for the end date of each bar */
+  endDateProperty?: Property;
+
   /** Time scale (day, week, month) */
   timeScale?: 'day' | 'week' | 'month';
 }

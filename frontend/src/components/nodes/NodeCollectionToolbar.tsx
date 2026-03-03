@@ -25,6 +25,7 @@ import {
   mdiNumeric5,
   mdiTableColumn,
   mdiRestore,
+  mdiChartGantt,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
@@ -33,6 +34,8 @@ import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
 import { PropertyColumnSelector } from '../properties/PropertyColumnSelector';
 import { GroupBySelector } from '../properties/GroupBySelector';
+import { GanttPropertySelector } from '../properties/GanttPropertySelector';
+import type { Property } from '@/types';
 import './NodeCollectionToolbar.css';
 
 // Card layout mode icon mappings
@@ -78,6 +81,14 @@ export interface NodeCollectionToolbarProps {
   onPropertyColumnsChange?: (propertyUuids: string[]) => void;
   /** Callback when reset views button is clicked */
   onResetViews?: () => void;
+  /** Start date property for gantt view */
+  ganttStartDateProperty?: Property;
+  /** End date property for gantt view */
+  ganttEndDateProperty?: Property;
+  /** Called when gantt start date property changes */
+  onGanttStartDatePropertyChange?: (property: Property | undefined) => void;
+  /** Called when gantt end date property changes */
+  onGanttEndDatePropertyChange?: (property: Property | undefined) => void;
   /** Custom content to render at the start of the toolbar (after leftElement) */
   toolbarPrefix?: React.ReactNode;
   /** Element to render at the very left of the toolbar (e.g., block element, collapsible header) */
@@ -107,6 +118,10 @@ export function NodeCollectionToolbar({
   selectedPropertyUuids = [],
   onPropertyColumnsChange,
   onResetViews,
+  ganttStartDateProperty,
+  ganttEndDateProperty,
+  onGanttStartDatePropertyChange,
+  onGanttEndDatePropertyChange,
   toolbarPrefix,
   leftElement,
   hideToolbarControls = false,
@@ -130,6 +145,8 @@ export function NodeCollectionToolbar({
   const showCardSizeSelector = viewMode === 'card';
   // Show property column selector in table view when callback is provided
   const showPropertyColumnSelector = viewMode === 'table' && onPropertyColumnsChange;
+  // Show gantt property selector in gantt view when callbacks are provided
+  const showGanttPropertySelector = viewMode === 'gantt' && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
   
   // Determine if using horizontal layout
   const isHorizontalLayout = effectiveCardLayout === 'cover-left' || effectiveCardLayout === 'cover-right';
@@ -171,7 +188,7 @@ export function NodeCollectionToolbar({
   );
 
   // Check if we have any toolbar content (excluding leftElement)
-  const hasToolbarContent = !hideToolbarControls && (showViewSwitcher || showGroupByButton || showAdd || showPropertyColumnSelector || toolbarPrefix);
+  const hasToolbarContent = !hideToolbarControls && (showViewSwitcher || showGroupByButton || showAdd || showPropertyColumnSelector || showGanttPropertySelector || toolbarPrefix);
 
   // Don't render if nothing to show
   if (!leftElement && !hasToolbarContent) {
@@ -223,6 +240,30 @@ export function NodeCollectionToolbar({
               selectedPropertyUuids={selectedPropertyUuids}
               onSelectionChange={onPropertyColumnsChange!}
               onClose={closePanel}
+            />
+          )}
+        </ButtonWithPanel>
+      )}
+
+      {/* Gantt Property Selector - only shown in gantt view */}
+      {showGanttPropertySelector && (
+        <ButtonWithPanel
+          icon={mdiChartGantt}
+          variant="ghost"
+          size="sm"
+          panelPosition="bottom"
+          panelAlignment="start"
+          panelWidth={240}
+          usePortal={true}
+          className="node-collection-toolbar__gantt-config"
+          tooltip="Configure Gantt"
+        >
+          {() => (
+            <GanttPropertySelector
+              startDateProperty={ganttStartDateProperty}
+              endDateProperty={ganttEndDateProperty}
+              onStartDatePropertyChange={onGanttStartDatePropertyChange ?? (() => {})}
+              onEndDatePropertyChange={onGanttEndDatePropertyChange ?? (() => {})}
             />
           )}
         </ButtonWithPanel>
