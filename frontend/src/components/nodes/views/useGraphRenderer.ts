@@ -236,6 +236,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const statsAccRef = useRef({ alpha: 1, energy: 0, ticks: 0 });
   const fpsRef      = useRef({ frames: 0, last: performance.now() });
 
+  // When a real topology init fires, auto-fit the camera to the physics
+  // layout on the first position frame so all nodes/edges are visible.
+  const needsAutoFitRef = useRef(false);
+
   // ── Dirty tracking for skip-frame optimisation ──
   // We only re-render when something actually changed:
   //   • Physics delivered new positions
@@ -321,6 +325,35 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         statsAccRef.current.ticks  = msg.ticks;
         // Mark frame dirty so the RAF loop knows to re-render
         dirtyRef.current.positions = true;
+
+        // Auto-fit the camera on the first position frame after a topology init
+        if (needsAutoFitRef.current && msg.nodeCount > 0) {
+          needsAutoFitRef.current = false;
+          const c = canvasRef.current;
+          if (c) {
+            const pos = msg.positions;
+            const nn  = msg.nodeCount;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (let i = 0; i < nn; i++) {
+              const x = pos[i * 2], y = pos[i * 2 + 1];
+              if (x < minX) minX = x; if (y < minY) minY = y;
+              if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+            }
+            const pad = 60 * (window.devicePixelRatio || 1);
+            const worldW = (maxX - minX) + 32;
+            const worldH = (maxY - minY) + 32;
+            const cam = camRef.current;
+            cam.x = (minX + maxX) / 2;
+            cam.y = (minY + maxY) / 2;
+            cam.zoom = (worldW > 0 && worldH > 0)
+              ? Math.max(0.02, Math.min(
+                  (c.width  - pad * 2) / worldW,
+                  (c.height - pad * 2) / worldH,
+                  40,
+                ))
+              : 1;
+          }
+        }
       }
     };
 
@@ -349,6 +382,34 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           statsAccRef.current.energy = metaF32[META_ENERGY];
           statsAccRef.current.ticks  = Atomics.load(metaI32, META_TICKS);
           dirtyRef.current.positions = true;
+
+          // Auto-fit the camera on the first position frame after a topology init
+          // so all nodes (and their edges) are in view from the start.
+          if (needsAutoFitRef.current && n > 0) {
+            needsAutoFitRef.current = false;
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const pos = sabPos;
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              for (let i = 0; i < n; i++) {
+                const x = pos[i * 2], y = pos[i * 2 + 1];
+                if (x < minX) minX = x; if (y < minY) minY = y;
+                if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+              }
+              const pad = 60 * (window.devicePixelRatio || 1);
+              const worldW = (maxX - minX) + 32;
+              const worldH = (maxY - minY) + 32;
+              cam.x = (minX + maxX) / 2;
+              cam.y = (minY + maxY) / 2;
+              cam.zoom = (worldW > 0 && worldH > 0)
+                ? Math.max(0.02, Math.min(
+                    (canvas.width  - pad * 2) / worldW,
+                    (canvas.height - pad * 2) / worldH,
+                    40,
+                  ))
+                : 1;
+            }
+          }
         }
       }
       const cam   = camRef.current;
@@ -633,12 +694,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         config,
       } satisfies MainToPhysicsMessage);
 
-      // Compute a sensible initial camera centre (centroid of all nodes)
+      // Request auto-fit once the first physics frame arrives so the camera
+      // zoom encompasses all nodes (physics positions differ from input positions).
       if (nodes.length > 0) {
-        let sumX = 0, sumY = 0;
-        for (const n of nodes) { sumX += n.x; sumY += n.y; }
-        camRef.current.x = sumX / nodes.length;
-        camRef.current.y = sumY / nodes.length;
+        needsAutoFitRef.current = true;
       }
 
       setStats(prev => ({ ...prev, nodeCount: nodes.length, edgeCount: edges.length }));
