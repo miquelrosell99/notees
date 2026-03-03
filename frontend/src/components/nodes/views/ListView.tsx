@@ -13,7 +13,7 @@ import type { Property } from '@/types/api';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
-import { ChevronRightIcon, ChevronDownIcon } from '../../core/icons';
+import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '../../core/icons';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -30,53 +30,58 @@ interface NodeGroup {
   page?: Node | null;
   /** Label to display when there is no page (property grouping or unknown) */
   label?: string;
+  /** Icon for the group header (selection/node property option icon) */
+  headerIcon?: string | null;
   nodes: Node[];
 }
 
 // ── Property grouping helpers ─────────────────────────────────────────────────
 
 /**
- * Get a stable group key and display label for a raw property value.
+ * Get a stable group key, display label, and optional icon for a raw property value.
  */
-function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
-  if (rawValue === null || rawValue === undefined) return '(No value)';
+function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
+  if (rawValue === null || rawValue === undefined) return { label: '(No value)', icon: null };
 
   switch (property.type) {
     case 'boolean':
-      return rawValue ? 'Yes' : 'No';
+      return { label: rawValue ? 'Yes' : 'No', icon: null };
 
     case 'integer':
     case 'float':
-      return String(rawValue);
+      return { label: String(rawValue), icon: null };
 
     case 'selection': {
-      // Value may be a number ID, an { id } object, or an array of those
       const resolveId = (v: unknown): number | null => {
         if (typeof v === 'number') return v;
         if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
         return null;
       };
       if (Array.isArray(rawValue)) {
-        const names = rawValue
+        const opts = rawValue
           .map(resolveId)
           .filter((id): id is number => id !== null)
-          .map(id => property.options?.find(o => o.id === id)?.name ?? String(id));
-        return names.length > 0 ? names.join(', ') : '(No value)';
+          .map(id => property.options?.find(o => o.id === id));
+        const names = opts.map(o => o?.name ?? '?').join(', ');
+        // Show icon only for single-value groups
+        const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
+        return { label: names || '(No value)', icon };
       }
       const optId = resolveId(rawValue);
-      if (optId === null) return String(rawValue);
-      return property.options?.find(o => o.id === optId)?.name ?? String(optId);
+      if (optId === null) return { label: String(rawValue), icon: null };
+      const opt = property.options?.find(o => o.id === optId);
+      return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
     }
 
     case 'node':
     case 'date':
-      // Values are node IDs; show numeric representation for now
-      return Array.isArray(rawValue)
-        ? rawValue.map(String).join(', ')
-        : String(rawValue);
+      return {
+        label: Array.isArray(rawValue) ? rawValue.map(String).join(', ') : String(rawValue),
+        icon: null,
+      };
 
     default:
-      return String(rawValue);
+      return { label: String(rawValue), icon: null };
   }
 }
 
@@ -232,10 +237,10 @@ export function ListView({
       
       for (const node of nodes) {
         const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
-        const label = getPropertyGroupLabel(groupByProperty, rawValue);
+        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
         
         if (!groups.has(label)) {
-          groups.set(label, { label, nodes: [] });
+          groups.set(label, { label, headerIcon: icon, nodes: [] });
         }
         groups.get(label)!.nodes.push(node);
       }
@@ -432,7 +437,10 @@ function ListViewGroup({
               className="node-list-view__group-link"
             />
           ) : (
-            <span className="node-list-view__group-label">{group.label}</span>
+            <span className="node-list-view__group-label">
+              {group.headerIcon && <NodeIcon icon={group.headerIcon} size="xs" />}
+              {group.label}
+            </span>
           )}
         </div>
       )}
