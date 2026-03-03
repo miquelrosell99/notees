@@ -52,6 +52,17 @@ const TICK_MS = 16;
 const MAX_TICK_BUDGET_MS = 50;
 
 /**
+ * Warm-up convergence target.  Run physics steps synchronously until alpha
+ * drops below this value so the layout is visually stable on the first frame.
+ * alpha 0.1 ≈ 1150 steps at default decay (0.002) — well past the major
+ * re-arrangement phase.  A hard time-budget cap prevents blocking the worker
+ * for too long on very large graphs.
+ */
+const WARMUP_ALPHA_TARGET = 0.1;
+/** Maximum wall-clock milliseconds to spend on warm-up. */
+const WARMUP_TIME_BUDGET_MS = 2000;
+
+/**
  * If alpha has cooled below this threshold AND kinetic energy is tiny,
  * the worker pauses the interval and waits for a reheat signal.
  */
@@ -438,6 +449,19 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       stopLoop();
 
       engine = new SemanticGraphEngine(msg.nodes, msg.edges, msg.config);
+
+      // ── Warm-up: run physics synchronously until the layout stabilises so
+      //    nodes are well-separated before the first frame.  This ensures all
+      //    edges are long enough to be visible immediately.
+      {
+        const t0 = performance.now();
+        while (engine.getState().alpha > WARMUP_ALPHA_TARGET) {
+          engine.step();
+          // Bail out if we've spent too long (large graphs)
+          if (performance.now() - t0 > WARMUP_TIME_BUDGET_MS) break;
+        }
+      }
+
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
       if (SAB_ENABLED) postSharedBufferRefs();
