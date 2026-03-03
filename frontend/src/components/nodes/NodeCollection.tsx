@@ -55,6 +55,7 @@ import type {
   NodeCollectionContextValue,
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
+import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
 import { 
   ListView, 
@@ -161,6 +162,10 @@ export function NodeCollection({
   onSlashCommand,
   onPasteImage,
   onEnterAtRoot,
+  ganttStartDateProperty: ganttStartDatePropertyProp,
+  ganttEndDateProperty: ganttEndDatePropertyProp,
+  onGanttStartDatePropertyChange,
+  onGanttEndDatePropertyChange,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -196,6 +201,30 @@ export function NodeCollection({
   // Default to Created and Modified columns (matches default table columns)
   const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>([]);
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
+
+  // Gantt date property state (controlled or uncontrolled)
+  const [internalGanttStartDateProperty, setInternalGanttStartDateProperty] = useState<Property | undefined>(undefined);
+  const [internalGanttEndDateProperty, setInternalGanttEndDateProperty] = useState<Property | undefined>(undefined);
+  const ganttStartDateProperty = onGanttStartDatePropertyChange
+    ? ganttStartDatePropertyProp
+    : (ganttStartDatePropertyProp ?? internalGanttStartDateProperty);
+  const ganttEndDateProperty = onGanttEndDatePropertyChange
+    ? ganttEndDatePropertyProp
+    : (ganttEndDatePropertyProp ?? internalGanttEndDateProperty);
+  const handleGanttStartDatePropertyChange = (property: Property | undefined) => {
+    if (onGanttStartDatePropertyChange) {
+      onGanttStartDatePropertyChange(property);
+    } else {
+      setInternalGanttStartDateProperty(property);
+    }
+  };
+  const handleGanttEndDatePropertyChange = (property: Property | undefined) => {
+    if (onGanttEndDatePropertyChange) {
+      onGanttEndDatePropertyChange(property);
+    } else {
+      setInternalGanttEndDateProperty(property);
+    }
+  };
   const updateNodeView = useUpdateNodeView();
   
   // Load property columns from view configuration (only for uncontrolled mode)
@@ -241,7 +270,7 @@ export function NodeCollection({
   const effectiveShowAdd = showAddButton && onAdd && can_create;
   
   // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
-  const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd);
+  const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd || viewMode === 'gantt');
   
   // Enable grouping for list view when groupBy is not 'none'
   const enableGrouping = showGroupByProp && viewMode === 'list' && groupBy !== 'none';
@@ -372,7 +401,13 @@ export function NodeCollection({
         );
       
       case 'gantt':
-        return <GanttView {...viewProps} />;
+        return (
+          <GanttView
+            {...viewProps}
+            startDateProperty={ganttStartDateProperty}
+            endDateProperty={ganttEndDateProperty}
+          />
+        );
       
       case 'timeline':
         return <TimelineView nodes={nodes} />;
@@ -473,6 +508,10 @@ export function NodeCollection({
                 onCardLayoutChange={onCardLayoutChange}
                 selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
+                ganttStartDateProperty={ganttStartDateProperty}
+                ganttEndDateProperty={ganttEndDateProperty}
+                onGanttStartDatePropertyChange={handleGanttStartDatePropertyChange}
+                onGanttEndDatePropertyChange={handleGanttEndDatePropertyChange}
                 toolbarPrefix={toolbarPrefix}
                 leftElement={typeof leftElement === 'function' ? leftElement(nodes.length) : leftElement}
                 hideToolbarControls={hideToolbarControls}

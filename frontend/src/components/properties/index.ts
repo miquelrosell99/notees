@@ -12,3 +12,5 @@ export { PropertySuggestionPopup } from './PropertySuggestionPopup';
 export { PropertyColumnSelector } from './PropertyColumnSelector';
 
 export { PropertyCell } from './PropertyCell';
+export { GanttPropertySelector } from './GanttPropertySelector';
+export type { GanttPropertySelectorProps } from './GanttPropertySelector';
