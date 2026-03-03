@@ -5,9 +5,11 @@
  * Passes nodes directly - BlockEditor handles runtime sync internally.
  * 
  * Supports groupBy='page' to organize nodes under page headers.
+ * Supports groupBy=<property-uuid> to group by a node property value.
  */
 import { useState, useCallback, useMemo, useId } from 'react';
 import type { Node } from '@/types';
+import type { Property } from '@/types/api';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
@@ -19,6 +21,64 @@ import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
 import './ListView.css';
+
+// ── Group type ───────────────────────────────────────────────────────────────
+
+/** A group of nodes with either a page header or a property-value header */
+interface NodeGroup {
+  /** For page grouping: the page node */
+  page?: Node | null;
+  /** Label to display when there is no page (property grouping or unknown) */
+  label?: string;
+  nodes: Node[];
+}
+
+// ── Property grouping helpers ─────────────────────────────────────────────────
+
+/**
+ * Get a stable group key and display label for a raw property value.
+ */
+function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
+  if (rawValue === null || rawValue === undefined) return '(No value)';
+
+  switch (property.type) {
+    case 'boolean':
+      return rawValue ? 'Yes' : 'No';
+
+    case 'integer':
+    case 'float':
+      return String(rawValue);
+
+    case 'selection': {
+      // Value may be a number ID, an { id } object, or an array of those
+      const resolveId = (v: unknown): number | null => {
+        if (typeof v === 'number') return v;
+        if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
+        return null;
+      };
+      if (Array.isArray(rawValue)) {
+        const names = rawValue
+          .map(resolveId)
+          .filter((id): id is number => id !== null)
+          .map(id => property.options?.find(o => o.id === id)?.name ?? String(id));
+        return names.length > 0 ? names.join(', ') : '(No value)';
+      }
+      const optId = resolveId(rawValue);
+      if (optId === null) return String(rawValue);
+      return property.options?.find(o => o.id === optId)?.name ?? String(optId);
+    }
+
+    case 'node':
+    case 'date':
+      // Values are node IDs; show numeric representation for now
+      return Array.isArray(rawValue)
+        ? rawValue.map(String).join(', ')
+        : String(rawValue);
+
+    default:
+      return String(rawValue);
+  }
+}
 
 /**
  * ListView - List/outline view using Lexical editor
@@ -44,6 +104,7 @@ export function ListView({
   pageUuid,
   className = '',
   groupBy = 'none',
+  groupByProperty,
   enableGrouping = false,
 }: NodeListViewProps) {
   const viewId = useId();
@@ -125,47 +186,67 @@ export function ListView({
     }
   }, [onContentChange]);
 
-  // Group nodes by page when groupBy='page' and enableGrouping=true
-  const groupedNodes = useMemo(() => {
-    if (!enableGrouping || groupBy !== 'page') {
+  // Group nodes by page or property value when enableGrouping is true
+  const groupedNodes = useMemo((): NodeGroup[] | null => {
+    if (!enableGrouping || groupBy === 'none') {
       return null; // No grouping
     }
 
-    // Group top-level nodes by their page
-    const groups = new Map<string, { page: Node | null; nodes: Node[] }>();
-    
-    for (const node of nodes) {
-      // Use page info from metadata (for linked refs) or from the node itself
-      const pageKey = (node as any).page_id 
-        ? `page-${(node as any).page_id}` 
-        : node.is_page 
-          ? `self-${node.id}` 
-          : 'no-page';
+    if (groupBy === 'page') {
+      // Group top-level nodes by their page
+      const groups = new Map<string, NodeGroup>();
       
-      if (!groups.has(pageKey)) {
-        // Extract page node if available
-        let pageNode: Node | null = null;
-        if ((node as any).page_id) {
-          pageNode = {
-            id: (node as any).page_id,
-            name: (node as any).page_name || 'Untitled',
-            uuid: (node as any).page_uuid || '',
-            is_page: true,
-          } as Node;
-        } else if (node.is_page) {
-          pageNode = node;
+      for (const node of nodes) {
+        const pageKey = (node as any).page_id 
+          ? `page-${(node as any).page_id}` 
+          : node.is_page 
+            ? `self-${node.id}` 
+            : 'no-page';
+        
+        if (!groups.has(pageKey)) {
+          let pageNode: Node | null = null;
+          if ((node as any).page_id) {
+            pageNode = {
+              id: (node as any).page_id,
+              name: (node as any).page_name || 'Untitled',
+              uuid: (node as any).page_uuid || '',
+              is_page: true,
+            } as Node;
+          } else if (node.is_page) {
+            pageNode = node;
+          }
+          
+          groups.set(pageKey, { page: pageNode, nodes: [] });
         }
         
-        groups.set(pageKey, { page: pageNode, nodes: [] });
+        groups.get(pageKey)!.nodes.push(node);
       }
       
-      groups.get(pageKey)!.nodes.push(node);
+      return Array.from(groups.values());
     }
-    
-    return Array.from(groups.values());
-  }, [nodes, groupBy, enableGrouping]);
 
-  // Grouped view (by page)
+    // Property-based grouping
+    if (groupByProperty) {
+      const propId = String(groupByProperty.id);
+      const groups = new Map<string, NodeGroup>();
+      
+      for (const node of nodes) {
+        const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+        const label = getPropertyGroupLabel(groupByProperty, rawValue);
+        
+        if (!groups.has(label)) {
+          groups.set(label, { label, nodes: [] });
+        }
+        groups.get(label)!.nodes.push(node);
+      }
+      
+      return Array.from(groups.values());
+    }
+
+    return null;
+  }, [nodes, groupBy, groupByProperty, enableGrouping]);
+
+  // Grouped view (by page or property)
   if (groupedNodes) {
     return (
       <div className={`node-list-view node-list-view--grouped ${className}`}>
@@ -192,7 +273,9 @@ export function ListView({
           
           const groupKey = group.page?.id 
             ? `page-${group.page.id}` 
-            : `group-${groupIndex}`;
+            : group.label
+              ? `prop-${group.label}`
+              : `group-${groupIndex}`;
           
           return (
             <ListViewGroup
@@ -306,7 +389,7 @@ function ListViewGroup({
   pageId,
   pageUuid,
 }: {
-  group: { page: Node | null; nodes: Node[] };
+  group: NodeGroup;
   groupKey: string;
   sortedGroupNodes: Node[];
   viewId: string;
@@ -326,7 +409,7 @@ function ListViewGroup({
   
   return (
     <div className={`node-list-view__group ${isCollapsed ? 'node-list-view__group--collapsed' : ''}`}>
-      {group.page && (
+      {(group.page || group.label !== undefined) && (
         <div className="node-list-view__group-header">
           <button
             type="button"
@@ -337,16 +420,20 @@ function ListViewGroup({
           >
             {isCollapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
           </button>
-          <NodeInline
-            name={group.page.name}
-            icon={group.page.icon}
-            isPage={group.page.is_page}
-            nodeId={group.page.id}
-            showBullet={false}
-            onClick={() => onNodeClick?.(group.page!)}
-            onShiftClick={() => onNodeShiftClick?.(group.page!)}
-            className="node-list-view__group-link"
-          />
+          {group.page ? (
+            <NodeInline
+              name={group.page.name}
+              icon={group.page.icon}
+              isPage={group.page.is_page}
+              nodeId={group.page.id}
+              showBullet={false}
+              onClick={() => onNodeClick?.(group.page!)}
+              onShiftClick={() => onNodeShiftClick?.(group.page!)}
+              className="node-list-view__group-link"
+            />
+          ) : (
+            <span className="node-list-view__group-label">{group.label}</span>
+          )}
         </div>
       )}
       {!isCollapsed && (
