@@ -197,6 +197,12 @@ export function NodeLinkPlugin({
           if (isAtStart) {
             const prevSibling = anchorNode.getPreviousSibling();
             if ($isInlineLinkNode(prevSibling)) {
+              // If this ZWS node sits between two pills, don't skip over it
+              // so the user can position the cursor here and type a space
+              const nextSibling = anchorNode.getNextSibling();
+              if (text === '\u200B' && $isInlineLinkNode(nextSibling)) {
+                return false;
+              }
               // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
@@ -241,6 +247,12 @@ export function NodeLinkPlugin({
           if (isAtEnd) {
             const nextSibling = anchorNode.getNextSibling();
             if ($isInlineLinkNode(nextSibling)) {
+              // If this ZWS node sits between two pills, don't skip over it
+              // so the user can position the cursor here and type a space
+              const prevSibling = anchorNode.getPreviousSibling();
+              if (text === '\u200B' && $isInlineLinkNode(prevSibling)) {
+                return false;
+              }
               // Select the pill instead of letting Lexical try to navigate
               event.preventDefault();
               const nodeSelection = $createNodeSelection();
