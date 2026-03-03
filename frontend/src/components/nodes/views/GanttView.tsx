@@ -14,6 +14,7 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types';
+import type { Property } from '@/types/api';
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 import { dateFromUuid } from '@/types/api';
 import { getNode } from '@/api/nodes';
@@ -26,6 +27,44 @@ interface GanttItem {
   node: Node;
   startDate: Date;
   endDate: Date | null;
+}
+
+interface GanttGroup {
+  label: string;
+  headerIcon?: string | null;
+  items: GanttItem[];
+}
+
+// ==================== Grouping helpers ====================
+
+function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
+  if (rawValue === null || rawValue === undefined) return { label: '(No value)', icon: null };
+  switch (property.type) {
+    case 'boolean': return { label: rawValue ? 'Yes' : 'No', icon: null };
+    case 'integer':
+    case 'float': return { label: String(rawValue), icon: null };
+    case 'selection': {
+      const resolveId = (v: unknown): number | null => {
+        if (typeof v === 'number') return v;
+        if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
+        return null;
+      };
+      if (Array.isArray(rawValue)) {
+        const opts = rawValue
+          .map(resolveId)
+          .filter((id): id is number => id !== null)
+          .map(id => property.options?.find(o => o.id === id));
+        const names = opts.map(o => o?.name ?? '?').join(', ');
+        const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
+        return { label: names || '(No value)', icon };
+      }
+      const optId = resolveId(rawValue);
+      if (optId === null) return { label: String(rawValue), icon: null };
+      const opt = property.options?.find(o => o.id === optId);
+      return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
+    }
+    default: return { label: String(rawValue), icon: null };
+  }
 }
 
 // ==================== Date helpers ====================
@@ -174,6 +213,8 @@ export function GanttView({
   startDateProperty,
   endDateProperty,
   timeScale = 'week',
+  groupBy,
+  groupByProperty,
   onNodeClick,
   onNodeShiftClick,
   className = '',
@@ -228,6 +269,47 @@ export function GanttView({
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   }, [nodes, startDateProperty, endDateProperty, dayNodeMap]);
 
+  // Compute groups when groupBy is active
+  const groups = useMemo<GanttGroup[] | null>(() => {
+    if (!groupBy || groupBy === 'none') return null;
+
+    if (groupBy === 'page') {
+      // Group items by their page_id; try to find page name from nodes array
+      const pageMap = new Map<number, Node>(
+        nodes.filter(n => n.is_page).map(n => [n.id, n])
+      );
+      const groupMap = new Map<string, GanttGroup>();
+      for (const item of ganttItems) {
+        const pageId = (item.node as any).page_id as number | undefined;
+        const key = pageId != null ? String(pageId) : 'no-page';
+        if (!groupMap.has(key)) {
+          const pageName = pageId != null
+            ? (pageMap.get(pageId)?.name ?? `Page ${pageId}`)
+            : '(No page)';
+          groupMap.set(key, { label: pageName, items: [] });
+        }
+        groupMap.get(key)!.items.push(item);
+      }
+      return Array.from(groupMap.values());
+    }
+
+    if (groupByProperty) {
+      const propId = String(groupByProperty.id);
+      const groupMap = new Map<string, GanttGroup>();
+      for (const item of ganttItems) {
+        const rawValue = (item.node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
+        if (!groupMap.has(label)) {
+          groupMap.set(label, { label, headerIcon: icon, items: [] });
+        }
+        groupMap.get(label)!.items.push(item);
+      }
+      return Array.from(groupMap.values());
+    }
+
+    return null;
+  }, [ganttItems, groupBy, groupByProperty, nodes]);
+
   const dateRange = useMemo(() => getDateRange(ganttItems), [ganttItems]);
   const headers = useMemo(
     () => generateHeaders(dateRange.start, dateRange.end, timeScale),
@@ -277,15 +359,38 @@ export function GanttView({
 
       {/* Rows */}
       <div className="gantt-body">
-        {ganttItems.map((item) => (
-          <GanttBar
-            key={item.node.id}
-            item={item}
-            dateRange={dateRange}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-          />
-        ))}
+        {groups ? (
+          groups.map((group, gi) => (
+            <div key={gi} className="gantt-group">
+              <div className="gantt-group__header">
+                {group.headerIcon && (
+                  <NodeIcon icon={group.headerIcon} isPage={false} size="sm" />
+                )}
+                <span className="gantt-group__label">{group.label}</span>
+                <span className="gantt-group__count">{group.items.length}</span>
+              </div>
+              {group.items.map((item) => (
+                <GanttBar
+                  key={item.node.id}
+                  item={item}
+                  dateRange={dateRange}
+                  onNodeClick={onNodeClick}
+                  onNodeShiftClick={onNodeShiftClick}
+                />
+              ))}
+            </div>
+          ))
+        ) : (
+          ganttItems.map((item) => (
+            <GanttBar
+              key={item.node.id}
+              item={item}
+              dateRange={dateRange}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+            />
+          ))
+        )}
       </div>
     </div>
   );

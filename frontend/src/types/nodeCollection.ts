@@ -429,6 +429,12 @@ export interface NodeGanttViewProps extends NodeCollectionViewBaseProps {
 
   /** Time scale (day, week, month) */
   timeScale?: 'day' | 'week' | 'month';
+
+  /** Group by option (same as NodeCollectionGroupBy) */
+  groupBy?: string;
+
+  /** Property to group by when groupBy is a property UUID */
+  groupByProperty?: Property;
 }
 
 // ==================== Context ====================

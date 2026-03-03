@@ -131,7 +131,7 @@ export function NodeCollectionToolbar({
   });
   
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
-  const showGroupByButton = showGroupBy && (viewMode === 'list' || viewMode === 'card');
+  const showGroupByButton = showGroupBy && (viewMode === 'list' || viewMode === 'card' || viewMode === 'gantt');
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
   // Show property column selector in table view when callback is provided
