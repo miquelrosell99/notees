@@ -260,7 +260,7 @@ export function NodeCollection({
   // Determine which view modes are available
   const effectiveViewModes = availableViewModes ?? DEFAULT_VIEW_MODES_ORDER;
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
-  const showGroupByInToolbar = showGroupByProp && (viewMode === 'list' || viewMode === 'card');
+  const showGroupByInToolbar = showGroupByProp && (viewMode === 'list' || viewMode === 'card' || viewMode === 'gantt');
   const effectiveShowAdd = showAddButton && onAdd && can_create;
   
   // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
@@ -400,6 +400,8 @@ export function NodeCollection({
             {...viewProps}
             startDateProperty={ganttStartDateProperty}
             endDateProperty={ganttEndDateProperty}
+            groupBy={groupBy}
+            groupByProperty={groupByProperty}
           />
         );
       
