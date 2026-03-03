@@ -88,7 +88,7 @@
 .node-card-view__kanban-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-bg-surface);
   border-radius: var(--radius-md);
