@@ -58,9 +58,9 @@ const MAX_TICK_BUDGET_MS = 50;
  * re-arrangement phase.  A hard time-budget cap prevents blocking the worker
  * for too long on very large graphs.
  */
-const WARMUP_ALPHA_TARGET = 0.1;
+const WARMUP_ALPHA_TARGET = 0.005;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
-const WARMUP_TIME_BUDGET_MS = 2000;
+const WARMUP_TIME_BUDGET_MS = 3000;
 
 /**
  * If alpha has cooled below this threshold AND kinetic energy is tiny,
