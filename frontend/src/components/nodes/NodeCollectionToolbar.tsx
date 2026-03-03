@@ -28,11 +28,11 @@ import {
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
-import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { Button } from '../core/Button';
 import { PropertyColumnSelector } from '../properties/PropertyColumnSelector';
+import { GroupBySelector } from '../properties/GroupBySelector';
 import './NodeCollectionToolbar.css';
 
 // Card layout mode icon mappings
@@ -228,7 +228,7 @@ export function NodeCollectionToolbar({
         </ButtonWithPanel>
       )}
       
-      {/* GroupBy selector - only shown in list view */}
+      {/* GroupBy selector - only shown in list/card view */}
       {showGroupByButton && onGroupByChange && (
         <ButtonWithPanel
           icon={mdiGroup}
@@ -236,27 +236,17 @@ export function NodeCollectionToolbar({
           size="sm"
           panelPosition="bottom"
           panelAlignment="start"
-          panelWidth={160}
+          panelWidth={280}
+          usePortal={true}
           className="node-collection-toolbar__group-by"
           tooltip="Group by"
         >
           {(closePanel) => (
-            <div className="node-collection-toolbar__group-by-options">
-              {GROUP_BY_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  className={`node-collection-toolbar__group-by-option ${
-                    groupBy === option.value ? 'node-collection-toolbar__group-by-option--active' : ''
-                  }`}
-                  onClick={() => {
-                    onGroupByChange(option.value);
-                    closePanel();
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <GroupBySelector
+              value={groupBy ?? 'page'}
+              onChange={onGroupByChange}
+              onClose={closePanel}
+            />
           )}
         </ButtonWithPanel>
       )}

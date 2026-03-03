@@ -26,6 +26,7 @@ import { createContext, useContext, useMemo, useState, useEffect, type ReactNode
 import { useAppStore } from '@/stores';
 import type { CardSizeMode } from '@/stores/appStore';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
+import { useProperties } from '@/hooks';
 import { 
   mdiFormatListBulleted, 
   mdiFileDocumentOutline, 
@@ -55,7 +56,6 @@ import type {
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
-import { GROUP_BY_OPTIONS } from '@/types/nodeCollection';
 import { 
   ListView, 
   DocumentView, 
@@ -183,6 +183,13 @@ export function NodeCollection({
       setInternalGroupBy(value);
     }
   };
+
+  // Resolve groupByProperty when groupBy is a property UUID
+  const { data: allProperties = [] } = useProperties();
+  const groupByProperty = useMemo(() => {
+    if (!groupBy || groupBy === 'none' || groupBy === 'page') return undefined;
+    return allProperties.find(p => p.uuid === groupBy);
+  }, [groupBy, allProperties]);
   
   // Property column selection state (for table view)
   // Use controlled props if provided, otherwise manage internally
@@ -230,14 +237,14 @@ export function NodeCollection({
   // Determine which view modes are available
   const effectiveViewModes = availableViewModes ?? DEFAULT_VIEW_MODES_ORDER;
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
-  const showGroupByInToolbar = showGroupByProp && viewMode === 'list';
+  const showGroupByInToolbar = showGroupByProp && (viewMode === 'list' || viewMode === 'card');
   const effectiveShowAdd = showAddButton && onAdd && can_create;
   
   // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
   const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd);
   
-  // Enable grouping when groupBy is set (regardless of toolbar visibility)
-  const enableGrouping = showGroupByProp && viewMode === 'list';
+  // Enable grouping for list view when groupBy is not 'none'
+  const enableGrouping = showGroupByProp && viewMode === 'list' && groupBy !== 'none';
 
   // Create context value
   const contextValue = useMemo<NodeCollectionContextValue>(() => ({
@@ -295,6 +302,7 @@ export function NodeCollection({
             pageUuid={pageUuid}
             className={viewProps.className}
             groupBy={groupBy}
+            groupByProperty={groupByProperty}
             enableGrouping={enableGrouping}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
@@ -336,6 +344,7 @@ export function NodeCollection({
             customContextMenu={customContextMenu}
             className={viewProps.className}
             groupBy={groupBy}
+            groupByProperty={groupByProperty}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
