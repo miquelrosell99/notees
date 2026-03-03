@@ -33,6 +33,7 @@ import { useClasses } from '@/hooks';
 import { useAppStore } from '@/stores';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
+import { NodeIcon } from '@/components/core/icons';
 import { mdiPlus } from '@mdi/js';
 import { sortBySequence } from '@/utils/nodeSort';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -44,17 +45,19 @@ import './CardView.css';
 interface CardGroup {
   page?: Node | null;
   label?: string;
+  /** Icon for the group header (selection option icon) */
+  headerIcon?: string | null;
   nodes: Node[];
 }
 
 // ── Property grouping helper ───────────────────────────────────────────────
 
-function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
-  if (rawValue === null || rawValue === undefined) return '(No value)';
+function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
+  if (rawValue === null || rawValue === undefined) return { label: '(No value)', icon: null };
   switch (property.type) {
-    case 'boolean': return rawValue ? 'Yes' : 'No';
+    case 'boolean': return { label: rawValue ? 'Yes' : 'No', icon: null };
     case 'integer':
-    case 'float': return String(rawValue);
+    case 'float': return { label: String(rawValue), icon: null };
     case 'selection': {
       const resolveId = (v: unknown): number | null => {
         if (typeof v === 'number') return v;
@@ -62,17 +65,20 @@ function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
         return null;
       };
       if (Array.isArray(rawValue)) {
-        const names = rawValue
+        const opts = rawValue
           .map(resolveId)
           .filter((id): id is number => id !== null)
-          .map(id => property.options?.find(o => o.id === id)?.name ?? String(id));
-        return names.length > 0 ? names.join(', ') : '(No value)';
+          .map(id => property.options?.find(o => o.id === id));
+        const names = opts.map(o => o?.name ?? '?').join(', ');
+        const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
+        return { label: names || '(No value)', icon };
       }
       const optId = resolveId(rawValue);
-      if (optId === null) return String(rawValue);
-      return property.options?.find(o => o.id === optId)?.name ?? String(optId);
+      if (optId === null) return { label: String(rawValue), icon: null };
+      const opt = property.options?.find(o => o.id === optId);
+      return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
     }
-    default: return String(rawValue);
+    default: return { label: String(rawValue), icon: null };
   }
 }
 
@@ -173,10 +179,10 @@ export function CardView({
       
       for (const node of sortedNodes) {
         const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
-        const label = getPropertyGroupLabel(groupByProperty, rawValue);
+        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
         
         if (!groups.has(label)) {
-          groups.set(label, { label, nodes: [] });
+          groups.set(label, { label, headerIcon: icon, nodes: [] });
         }
         groups.get(label)!.nodes.push(node);
       }
@@ -295,6 +301,7 @@ export function CardView({
                   </>
                 ) : group.label !== undefined ? (
                   <>
+                    {group.headerIcon && <NodeIcon icon={group.headerIcon} size="xs" className="node-card-view__kanban-icon" />}
                     <span className="node-card-view__kanban-title">{group.label}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
