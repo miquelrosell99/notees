@@ -103,6 +103,7 @@ interface NodesState {
   nodeGroupBy: Record<string, string>;
   ganttStartDatePropertyUuid: string;
   ganttEndDatePropertyUuid: string;
+  ganttTimeScale: 'day' | 'week' | 'month';
   
   // Actions
   setActiveNode: (node: Node | null) => void;
@@ -164,9 +165,10 @@ interface NodesState {
   setNodeGroupBy: (nodeId: number, viewType: string, groupBy: string) => void;
   getNodeGroupBy: (nodeId: number, viewType: string) => string | undefined;
 
-  // Gantt property actions
+  // Gantt property + scale actions
   setGanttStartDatePropertyUuid: (uuid: string) => void;
   setGanttEndDatePropertyUuid: (uuid: string) => void;
+  setGanttTimeScale: (scale: 'day' | 'week' | 'month') => void;
 }
 
 export const useAppStore = create<NodesState>()(persist((set, get) => ({
@@ -208,6 +210,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   preFocusModeSidebarCollapsed: null,
   ganttStartDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_scheduled,
   ganttEndDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_deadline,
+  ganttTimeScale: 'week' as 'day' | 'week' | 'month',
   
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
@@ -423,9 +426,10 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   })),
   getNodeGroupBy: (nodeId, viewType) => get().nodeGroupBy[`${nodeId}-${viewType}`],
 
-  // Gantt property actions
+  // Gantt property + scale actions
   setGanttStartDatePropertyUuid: (uuid) => set({ ganttStartDatePropertyUuid: uuid }),
   setGanttEndDatePropertyUuid: (uuid) => set({ ganttEndDatePropertyUuid: uuid }),
+  setGanttTimeScale: (scale) => set({ ganttTimeScale: scale }),
 }), {
   name: 'notees-node-view-modes',
   partialize: (state) => ({ 
@@ -435,5 +439,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
     contentDisplayMode: state.contentDisplayMode,
     ganttStartDatePropertyUuid: state.ganttStartDatePropertyUuid,
     ganttEndDatePropertyUuid: state.ganttEndDatePropertyUuid,
+    ganttTimeScale: state.ganttTimeScale,
   }),
 }));

@@ -29,6 +29,7 @@ import { Button } from '../core/Button';
 import { PropertyColumnSelector } from '../properties/PropertyColumnSelector';
 import { GroupBySelector } from '../properties/GroupBySelector';
 import { GanttPropertySelector } from '../properties/GanttPropertySelector';
+import type { GanttTimeScale } from '../properties/GanttPropertySelector';
 import type { Property } from '@/types';
 import './NodeCollectionToolbar.css';
 
@@ -83,6 +84,10 @@ export interface NodeCollectionToolbarProps {
   onGanttStartDatePropertyChange?: (property: Property | undefined) => void;
   /** Called when gantt end date property changes */
   onGanttEndDatePropertyChange?: (property: Property | undefined) => void;
+  /** Active time scale for gantt view */
+  ganttTimeScale?: GanttTimeScale;
+  /** Called when gantt time scale changes */
+  onGanttTimeScaleChange?: (scale: GanttTimeScale) => void;
   /** Custom content to render at the start of the toolbar (after leftElement) */
   toolbarPrefix?: React.ReactNode;
   /** Element to render at the very left of the toolbar (e.g., block element, collapsible header) */
@@ -116,6 +121,8 @@ export function NodeCollectionToolbar({
   ganttEndDateProperty,
   onGanttStartDatePropertyChange,
   onGanttEndDatePropertyChange,
+  ganttTimeScale,
+  onGanttTimeScaleChange,
   toolbarPrefix,
   leftElement,
   hideToolbarControls = false,
@@ -236,6 +243,8 @@ export function NodeCollectionToolbar({
               endDateProperty={ganttEndDateProperty}
               onStartDatePropertyChange={onGanttStartDatePropertyChange ?? (() => {})}
               onEndDatePropertyChange={onGanttEndDatePropertyChange ?? (() => {})}
+              timeScale={ganttTimeScale}
+              onTimeScaleChange={onGanttTimeScaleChange}
             />
           )}
         </ButtonWithPanel>
