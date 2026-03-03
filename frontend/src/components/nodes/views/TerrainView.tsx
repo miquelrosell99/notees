@@ -34,6 +34,9 @@ import type { ClassColor } from '@/components/shared/ClassColorsPanel';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css'; // Reuse GraphView styles
 
+const EMPTY_NODES: GraphNode[] = [];
+const EMPTY_EDGES: GraphLink[] = [];
+
 export interface TerrainViewProps {
   /** Unique ID for this view to persist settings separately */
   viewId?: string;
@@ -716,30 +719,28 @@ export function TerrainView({
       </div>
       )}
       
-      {/* Show spinner overlay while links are loading; don't mount the renderer
-         until links have arrived so the physics engine initializes only once with
-         the correct topology (prevents two-phase init and progressive edge appearance). */}
-      {linksLoading ? (
+      {/* Spinner overlay while links load; renderer stays mounted with empty
+         data so WebGL + worker are warm when the real topology arrives. */}
+      {linksLoading && (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__spinner" />
         </div>
-      ) : (
-        <TerrainRenderer
-          ref={rendererRef}
-          nodes={nodes}
-          links={links}
-          settings={graphSettings}
-          classColors={classColors}
-          visibilityFilters={visibilityFilters}
-          currentNodeId={currentNodeId}
-          selectedNodeIds={selectedNodeIds}
-          className="node-graph-view__renderer"
-          onNodeClick={handleNodeClick}
-          onNodeDoubleClick={handleNodeDoubleClick}
-          onNodeRightClick={handleNodeRightClick}
-          onSelectionChange={handleSelectionChange}
-        />
       )}
+      <TerrainRenderer
+        ref={rendererRef}
+        nodes={linksLoading ? EMPTY_NODES : nodes}
+        links={linksLoading ? EMPTY_EDGES : links}
+        settings={graphSettings}
+        classColors={classColors}
+        visibilityFilters={visibilityFilters}
+        currentNodeId={currentNodeId}
+        selectedNodeIds={selectedNodeIds}
+        className="node-graph-view__renderer"
+        onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
+        onNodeRightClick={handleNodeRightClick}
+        onSelectionChange={handleSelectionChange}
+      />
     </div>
   );
 }
