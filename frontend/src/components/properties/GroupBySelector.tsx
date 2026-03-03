@@ -11,7 +11,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useProperties } from '@/hooks';
-import { SearchIcon } from '../core/icons';
+import { SearchIcon, NodeIcon } from '../core/icons';
 import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './GroupBySelector.css';
@@ -33,7 +33,7 @@ const NONE_OPTION: PseudoOption = {
 const PAGE_OPTION: PseudoOption = {
   uuid: 'page',
   name: 'Page',
-  type: 'PAGE',
+  type: 'NODE',
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
               <span className="group-by-selector__check">{isActive ? '✓' : ''}</span>
               <span className="group-by-selector__item-content">
                 <span className="group-by-selector__item-name">
-                  {prop.icon && <span className="group-by-selector__item-icon">{prop.icon}</span>}
+                  {prop.icon && <NodeIcon icon={prop.icon} size="xs" />}
                   {prop.name}
                 </span>
                 <span className="group-by-selector__item-type">{prop.type.toUpperCase()}</span>
