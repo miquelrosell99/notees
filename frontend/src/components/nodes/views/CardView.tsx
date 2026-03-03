@@ -193,10 +193,6 @@ export function CardView({
     return null;
   }, [sortedNodes, groupBy, groupByProperty]);
 
-  const gridStyle = columns
-    ? { gridTemplateColumns: `repeat(${columns}, 1fr)` }
-    : undefined;
-
   // Fetch all classes for icon inheritance
   const { data: allClasses } = useClasses();
 
@@ -340,7 +336,7 @@ export function CardView({
 
   // Normal grid view
   return (
-    <div className={gridClassName} style={gridStyle} ref={containerRef}>
+    <div className={gridClassName} ref={containerRef}>
       {sortedNodes.map((node, index) => (
         <NodeCard
           key={node.id}
