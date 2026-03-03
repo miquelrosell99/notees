@@ -26,6 +26,31 @@
   font-size: 14px;
 }
 
+.node-graph-view__loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  pointer-events: none;
+}
+
+.node-graph-view__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-outline-variant);
+  border-top-color: var(--color-on-surface);
+  border-radius: 50%;
+  animation: node-graph-spin 0.8s linear infinite;
+}
+
+@keyframes node-graph-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .node-graph-view__empty {
   text-align: center;
   color: var(--color-on-surface-variant);

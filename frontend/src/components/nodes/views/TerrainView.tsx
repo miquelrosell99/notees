@@ -437,14 +437,6 @@ export function TerrainView({
     );
   }
   
-  if (linksLoading) {
-    return (
-      <div className={`node-graph-view loading ${className}`}>
-        <div className="node-graph-view__loading">Loading terrain...</div>
-      </div>
-    );
-  }
-  
   return (
     <div className={`node-graph-view ${className}`}>
       <div className="node-graph-view__top-left">
@@ -724,6 +716,13 @@ export function TerrainView({
       </div>
       )}
       
+      {/* Loading overlay while links are being fetched */}
+      {linksLoading && (
+        <div className="node-graph-view__loading-overlay">
+          <div className="node-graph-view__spinner" />
+        </div>
+      )}
+
       {/* Terrain renderer */}
       <TerrainRenderer
         ref={rendererRef}

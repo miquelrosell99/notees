@@ -465,14 +465,6 @@ export function GraphView({
     );
   }
   
-  if (linksLoading) {
-    return (
-      <div className={`node-graph-view loading ${className}`}>
-        <div className="node-graph-view__loading">Loading graph...</div>
-      </div>
-    );
-  }
-  
   return (
     <div className={`node-graph-view ${className}`}>
       {/* Top Left: Settings panels */}
@@ -823,6 +815,13 @@ export function GraphView({
       </div>
       )}
       
+      {/* Loading overlay while links are being fetched */}
+      {linksLoading && (
+        <div className="node-graph-view__loading-overlay">
+          <div className="node-graph-view__spinner" />
+        </div>
+      )}
+
       {/* Canvas — SGE WebGL2 renderer */}
       <GraphRenderer
         ref={rendererRef}
