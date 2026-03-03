@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 
 export type ViewMode = 'default' | 'focus' | 'zen';
 export type MainViewType = 'node' | 'all-pages' | 'journals' | 'graph' | 'terrain' | 'timeline' | 'archived' | 'trash' | 'assets' | 'property';
@@ -97,6 +98,10 @@ interface NodesState {
   
   // Per-node view mode storage (persisted)
   nodeViewModes: Record<number, NodeCollectionViewMode>;
+
+  // Gantt date property UUIDs (persisted, global defaults)
+  ganttStartDatePropertyUuid: string;
+  ganttEndDatePropertyUuid: string;
   
   // Actions
   setActiveNode: (node: Node | null) => void;
@@ -153,6 +158,10 @@ interface NodesState {
   // Per-node view mode actions
   setNodeViewMode: (nodeId: number, viewType: string, mode: NodeCollectionViewMode) => void;
   getNodeViewMode: (nodeId: number, viewType: string) => NodeCollectionViewMode | undefined;
+
+  // Gantt property actions
+  setGanttStartDatePropertyUuid: (uuid: string) => void;
+  setGanttEndDatePropertyUuid: (uuid: string) => void;
 }
 
 export const useAppStore = create<NodesState>()(persist((set, get) => ({
@@ -191,6 +200,8 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   lateNightThoughtsFilter: false,
   nodeViewModes: {},
   preFocusModeSidebarCollapsed: null,
+  ganttStartDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_scheduled,
+  ganttEndDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_deadline,
   
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
@@ -399,11 +410,17 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
     nodeViewModes: { ...state.nodeViewModes, [`${nodeId}-${viewType}`]: mode }
   })),
   getNodeViewMode: (nodeId, viewType) => get().nodeViewModes[`${nodeId}-${viewType}`],
+
+  // Gantt property actions
+  setGanttStartDatePropertyUuid: (uuid) => set({ ganttStartDatePropertyUuid: uuid }),
+  setGanttEndDatePropertyUuid: (uuid) => set({ ganttEndDatePropertyUuid: uuid }),
 }), {
   name: 'notees-node-view-modes',
   partialize: (state) => ({ 
     nodeViewModes: state.nodeViewModes,
     cardLayout: state.cardLayout,
     contentDisplayMode: state.contentDisplayMode,
+    ganttStartDatePropertyUuid: state.ganttStartDatePropertyUuid,
+    ganttEndDatePropertyUuid: state.ganttEndDatePropertyUuid,
   }),
 }));
