@@ -118,3 +118,11 @@
 .gantt-row__bar:hover {
   opacity: 0.8;
 }
+
+/* Milestone: no end date – shown as a narrow diamond-ish marker */
+.gantt-row__bar--milestone {
+  width: 12px !important;
+  height: 12px;
+  border-radius: 2px;
+  transform: translateY(-50%) rotate(45deg);
+}
