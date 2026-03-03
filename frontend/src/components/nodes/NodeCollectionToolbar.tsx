@@ -148,25 +148,15 @@ export function NodeCollectionToolbar({
   // Show gantt property selector in gantt view when callbacks are provided
   const showGanttPropertySelector = viewMode === 'gantt' && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
   
-  // Determine if using horizontal layout
-  const isHorizontalLayout = effectiveCardLayout === 'cover-left' || effectiveCardLayout === 'cover-right';
-  
-  // SelectionButton options based on layout type
-  const cardSizeOptions = useMemo<SelectionButtonOption[]>(() => {
-    const allOptions = [
-      { value: '1', icon: mdiNumeric1, label: '1 column' },
-      { value: '2', icon: mdiNumeric2, label: '2 columns' },
-      { value: '3', icon: mdiNumeric3, label: '3 columns' },
-      { value: '4', icon: mdiNumeric4, label: '4 columns' },
-      { value: '5', icon: mdiNumeric5, label: '5 columns' },
-    ];
-    
-    return isHorizontalLayout ? allOptions.slice(0, 2) : allOptions;
-  }, [isHorizontalLayout]);
-  
-  // Clamp card size for horizontal layouts
-  const effectiveCardSize = isHorizontalLayout && storeCardSize > 2 ? 2 : storeCardSize;
-  
+  // Card size options — levels 1 (widest) to 5 (narrowest); column count is adaptive
+  const cardSizeOptions = useMemo<SelectionButtonOption[]>(() => [
+    { value: '1', icon: mdiNumeric1, label: 'Widest cards' },
+    { value: '2', icon: mdiNumeric2, label: 'Wide cards' },
+    { value: '3', icon: mdiNumeric3, label: 'Medium cards' },
+    { value: '4', icon: mdiNumeric4, label: 'Narrow cards' },
+    { value: '5', icon: mdiNumeric5, label: 'Narrowest cards' },
+  ], []);
+
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
     availableViewModes.map(mode => ({
@@ -307,7 +297,7 @@ export function NodeCollectionToolbar({
       {showCardSizeSelector && (
         <SelectionButton
           options={cardSizeOptions}
-          value={effectiveCardSize.toString()}
+          value={storeCardSize.toString()}
           onChange={(val) => storeSetCardSize(parseInt(val) as CardSizeMode)}
           size="sm"
           className="node-collection-toolbar__card-size-selector"

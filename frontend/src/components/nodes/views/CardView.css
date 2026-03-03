@@ -1,7 +1,9 @@
 /**
  * CardView CSS
  *
- * Grid container layout for the card view — CSS column-based masonry.
+ * Grid container layout for the card view — adaptive CSS multi-column masonry.
+ * Column count is determined automatically by available space and the
+ * per-size column-width (minimum card width). No fixed column counts.
  */
 
 .node-card-view {
@@ -9,37 +11,41 @@
   width: 100%;
 }
 
-/* Card size variants — column-based masonry layout */
+/*
+ * Card size variants — adaptive masonry via column-width.
+ * The browser fills the container with as many columns as fit at the given
+ * minimum width, then distributes remaining space evenly across all columns.
+ */
 .node-card-view--size-1 {
-  column-count: 1;
+  column-width: 480px;
 }
 
 .node-card-view--size-2 {
-  column-count: 2;
+  column-width: 320px;
 }
 
 .node-card-view--size-3 {
-  column-count: 3;
+  column-width: 220px;
 }
 
 .node-card-view--size-4 {
-  column-count: 4;
+  column-width: 170px;
 }
 
 .node-card-view--size-5 {
-  column-count: 5;
+  column-width: 130px;
 }
 
-/* Horizontal layout overrides: max 2 columns */
-.node-card-view--size-1.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  column-count: 1;
+/* Horizontal layouts (cover-left/right) need more space per card. */
+.node-card-view--size-1:has(.node-card--cover-left, .node-card--cover-right) {
+  column-width: 600px;
 }
 
-.node-card-view--size-2.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-3.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-4.node-card-view:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-5.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
-  column-count: 2;
+.node-card-view--size-2:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-3:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-4:has(.node-card--cover-left, .node-card--cover-right),
+.node-card-view--size-5:has(.node-card--cover-left, .node-card--cover-right) {
+  column-width: 420px;
 }
 
 /* Individual cards in masonry layout */
@@ -71,7 +77,9 @@
   gap: var(--spacing-4);
   overflow-x: auto;
   padding: var(--spacing-2) 0;
-  column-count: unset; /* Override masonry */
+  /* Override masonry — each kanban column is a single-column flex stack */
+  column-count: unset;
+  column-width: unset;
 }
 
 .node-card-view__kanban-column {
