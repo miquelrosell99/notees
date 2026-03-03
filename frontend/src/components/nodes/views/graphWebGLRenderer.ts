@@ -749,6 +749,7 @@ export class GraphWebGLRenderer {
     // Node indices changed — edge topology needs re-resolution
     this._edgeDirty = true;
     this._posDirty  = true;
+    console.log(`[setNodeVisuals] n=${n}, nodeIndex.size=${this.nodeIndex.size}`);
   }
 
   /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. */
@@ -757,6 +758,7 @@ export class GraphWebGLRenderer {
     this._edgeDirty = true;
     this._rebuildAdjacency();
     this._recomputeHighlighted();
+    console.log(`[setEdges] edges=${edges.length}`);
   }
 
   // ─── Adjacency + Dimming ────────────────────────────────────────────────────────
@@ -796,6 +798,7 @@ export class GraphWebGLRenderer {
     this.positions = positions;
     // Rebuild the index map in case topology changed (nodeIds re-sent on init/setTopology)
     if (nodeIds.length !== this.nodeIdOrder.length) {
+      console.log(`[updatePositions] nodeIds length changed: ${this.nodeIdOrder.length} → ${nodeIds.length}, rebuilding nodeIndex`);
       this.nodeIndex.clear();
       this.nodeIdOrder = new Int32Array(nodeIds);
       for (let i = 0; i < nodeIds.length; i++) {
@@ -991,6 +994,8 @@ export class GraphWebGLRenderer {
     }
 
     this.edgeInstCount = count;
+
+    console.log(`[EdgeTopo] edges=${ne}, resolved=${count}, skipped=${ne - count}, nodeIndex.size=${this.nodeIndex.size}`);
 
     const gl = this.gl!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
