@@ -31,7 +31,7 @@ import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
 import { useQuery } from '@tanstack/react-query';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, buildLinkId } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { buildResolver } from '@/hooks/useStringifyAST';
 import './TableView.css';
@@ -197,11 +197,12 @@ export function TableView({
       if (!node) continue;
       
       // Build link map for this node's resolver
+      // Key must be compound "targetNodeUuid:linkUuid" to match the link_id stored in the AST.
       const linkMap = new Map();
       for (const link of links) {
         const targetNode = nodeLookup.get(link.target_node_id);
-        if (targetNode) {
-          linkMap.set(link.uuid, {
+        if (targetNode && targetNode.uuid) {
+          linkMap.set(buildLinkId(targetNode.uuid, link.uuid), {
             targetNode,
             label: null, // Label lives in the AST, not in the DB
           });
