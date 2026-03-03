@@ -73,7 +73,7 @@ export function TerrainView({
   
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
-  const { data: apiLinks = [] } = useGraphLinks(nodeIds);
+  const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(nodeIds);
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
@@ -433,6 +433,14 @@ export function TerrainView({
           <h3>No nodes to display</h3>
           <p>Create some pages to see them in the terrain view.</p>
         </div>
+      </div>
+    );
+  }
+  
+  if (linksLoading) {
+    return (
+      <div className={`node-graph-view loading ${className}`}>
+        <div className="node-graph-view__loading">Loading terrain...</div>
       </div>
     );
   }
