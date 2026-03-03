@@ -716,29 +716,30 @@ export function TerrainView({
       </div>
       )}
       
-      {/* Loading overlay while links are being fetched */}
-      {linksLoading && (
+      {/* Show spinner overlay while links are loading; don't mount the renderer
+         until links have arrived so the physics engine initializes only once with
+         the correct topology (prevents two-phase init and progressive edge appearance). */}
+      {linksLoading ? (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__spinner" />
         </div>
+      ) : (
+        <TerrainRenderer
+          ref={rendererRef}
+          nodes={nodes}
+          links={links}
+          settings={graphSettings}
+          classColors={classColors}
+          visibilityFilters={visibilityFilters}
+          currentNodeId={currentNodeId}
+          selectedNodeIds={selectedNodeIds}
+          className="node-graph-view__renderer"
+          onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
+          onNodeRightClick={handleNodeRightClick}
+          onSelectionChange={handleSelectionChange}
+        />
       )}
-
-      {/* Terrain renderer */}
-      <TerrainRenderer
-        ref={rendererRef}
-        nodes={nodes}
-        links={links}
-        settings={graphSettings}
-        classColors={classColors}
-        visibilityFilters={visibilityFilters}
-        currentNodeId={currentNodeId}
-        selectedNodeIds={selectedNodeIds}
-        className="node-graph-view__renderer"
-        onNodeClick={handleNodeClick}
-        onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeRightClick={handleNodeRightClick}
-        onSelectionChange={handleSelectionChange}
-      />
     </div>
   );
 }

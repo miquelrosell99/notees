@@ -815,25 +815,26 @@ export function GraphView({
       </div>
       )}
       
-      {/* Loading overlay while links are being fetched */}
-      {linksLoading && (
+      {/* Show spinner overlay while links are loading; don't mount the renderer
+         until links have arrived so the physics engine initializes only once with
+         the correct topology (prevents two-phase init and progressive edge appearance). */}
+      {linksLoading ? (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__spinner" />
         </div>
+      ) : (
+        <GraphRenderer
+          ref={rendererRef}
+          nodes={nodes}
+          edges={links}
+          sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
+          baseNodeRadius={baseNodeRadius}
+          onNodeClick={handleNodeClick}
+          onNodeDblClick={handleNodeDoubleClick}
+          onEmptyClick={() => setSelectedNodes([])}
+          className="node-graph-view__renderer"
+        />
       )}
-
-      {/* Canvas — SGE WebGL2 renderer */}
-      <GraphRenderer
-        ref={rendererRef}
-        nodes={nodes}
-        edges={links}
-        sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
-        baseNodeRadius={baseNodeRadius}
-        onNodeClick={handleNodeClick}
-        onNodeDblClick={handleNodeDoubleClick}
-        onEmptyClick={() => setSelectedNodes([])}
-        className="node-graph-view__renderer"
-      />
       
       {/* Bottom Center: View mode switcher (normal / circle / tree) */}
       {showViewModes && (
