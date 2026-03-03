@@ -10,7 +10,6 @@
  */
 import { useMemo } from 'react';
 import { useAppStore } from '@/stores';
-import type { CardSizeMode } from '@/stores/appStore';
 import { 
   mdiGroup,
   mdiPlus,
@@ -18,11 +17,6 @@ import {
   mdiDockLeft,
   mdiDockRight,
   mdiDockTop,
-  mdiNumeric1,
-  mdiNumeric2,
-  mdiNumeric3,
-  mdiNumeric4,
-  mdiNumeric5,
   mdiTableColumn,
   mdiRestore,
   mdiChartGantt,
@@ -130,8 +124,6 @@ export function NodeCollectionToolbar({
   // Use store for card layout if not controlled
   const storeCardLayout = useAppStore(state => state.cardLayout);
   const storeSetCardLayout = useAppStore(state => state.setCardLayout);
-  const storeCardSize = useAppStore(state => state.cardSize);
-  const storeSetCardSize = useAppStore(state => state.setCardSize);
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {
@@ -142,21 +134,11 @@ export function NodeCollectionToolbar({
   const showGroupByButton = showGroupBy && (viewMode === 'list' || viewMode === 'card');
   const showAdd = showAddButton && onAdd;
   const showCardLayoutSelector = viewMode === 'card';
-  const showCardSizeSelector = viewMode === 'card';
   // Show property column selector in table view when callback is provided
   const showPropertyColumnSelector = viewMode === 'table' && onPropertyColumnsChange;
   // Show gantt property selector in gantt view when callbacks are provided
   const showGanttPropertySelector = viewMode === 'gantt' && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
   
-  // Card size options — levels 1 (widest) to 5 (narrowest); column count is adaptive
-  const cardSizeOptions = useMemo<SelectionButtonOption[]>(() => [
-    { value: '1', icon: mdiNumeric1, label: 'Widest cards' },
-    { value: '2', icon: mdiNumeric2, label: 'Wide cards' },
-    { value: '3', icon: mdiNumeric3, label: 'Medium cards' },
-    { value: '4', icon: mdiNumeric4, label: 'Narrow cards' },
-    { value: '5', icon: mdiNumeric5, label: 'Narrowest cards' },
-  ], []);
-
   // Build SelectionButton options from available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
     availableViewModes.map(mode => ({
@@ -290,17 +272,6 @@ export function NodeCollectionToolbar({
           onChange={(val) => effectiveOnCardLayoutChange(val)}
           size="sm"
           className="node-collection-toolbar__card-layout-selector"
-        />
-      )}
-      
-      {/* Card Size Selector - only shown in card view */}
-      {showCardSizeSelector && (
-        <SelectionButton
-          options={cardSizeOptions}
-          value={storeCardSize.toString()}
-          onChange={(val) => storeSetCardSize(parseInt(val) as CardSizeMode)}
-          size="sm"
-          className="node-collection-toolbar__card-size-selector"
         />
       )}
       

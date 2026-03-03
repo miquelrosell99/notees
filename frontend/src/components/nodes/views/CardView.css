@@ -2,49 +2,18 @@
  * CardView CSS
  *
  * Grid container layout for the card view — adaptive CSS multi-column masonry.
- * Column count is determined automatically by available space and the
- * per-size column-width (minimum card width). No fixed column counts.
+ * Column count is determined automatically by available space and the card
+ * min width. No fixed column counts or user-selectable sizes.
  */
 
 .node-card-view {
   column-gap: 1rem;
+  column-width: 280px;
   width: 100%;
 }
 
-/*
- * Card size variants — adaptive masonry via column-width.
- * The browser fills the container with as many columns as fit at the given
- * minimum width, then distributes remaining space evenly across all columns.
- */
-.node-card-view--size-1 {
-  column-width: 480px;
-}
-
-.node-card-view--size-2 {
-  column-width: 320px;
-}
-
-.node-card-view--size-3 {
-  column-width: 220px;
-}
-
-.node-card-view--size-4 {
-  column-width: 170px;
-}
-
-.node-card-view--size-5 {
-  column-width: 130px;
-}
-
-/* Horizontal layouts (cover-left/right) need more space per card. */
-.node-card-view--size-1:has(.node-card--cover-left, .node-card--cover-right) {
-  column-width: 600px;
-}
-
-.node-card-view--size-2:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-3:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-4:has(.node-card--cover-left, .node-card--cover-right),
-.node-card-view--size-5:has(.node-card--cover-left, .node-card--cover-right) {
+/* Horizontal layouts (cover-left/right) are wider per card */
+.node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
   column-width: 420px;
 }
 

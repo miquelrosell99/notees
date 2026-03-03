@@ -1,9 +1,8 @@
 /**
  * CardView — Card grid container.
  *
- * CSS column-based masonry layout with:
- * - Card size variants (1–5 columns) driven by store
- * - Horizontal layout overrides (max 2 columns)
+ * Adaptive CSS multi-column masonry layout.
+ * - Column count determined by container width and card min-width (CSS)
  * - Sortable drag support
  * - Selectable checkboxes
  * - "Add card" button
@@ -21,7 +20,8 @@ import {
   type JSX,
 } from 'react';
 
-import { NodeCard } from './CardItem';
+import { Button } from '@/components/core/Button';
+import { Card } from '@/components/core/Card';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
@@ -30,9 +30,7 @@ import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
-import { useAppStore } from '@/stores';
-import { Button } from '@/components/core/Button';
-import { Card } from '@/components/core/Card';
+import { NodeCard } from './CardItem';
 import { NodeIcon } from '@/components/core/icons';
 import { mdiPlus } from '@mdi/js';
 import { sortBySequence } from '@/utils/nodeSort';
@@ -127,9 +125,6 @@ export function CardView({
     const { graphNodes } = apiNodesToGraphNodes(allNodes);
     runtime.upsertNodes(graphNodes);
   }, [nodes, viewId]);
-
-  // Card size from store
-  const cardSize = useAppStore(state => state.cardSize);
 
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
@@ -270,7 +265,6 @@ export function CardView({
     sortable && 'node-card-view--sortable',
     selectable && 'node-card-view--selectable',
     layout === 'cover-top' && 'node-card-view--vertical-layout',
-    `node-card-view--size-${cardSize}`,
     groupedNodes && 'node-card-view--kanban',
     className,
   ].filter(Boolean).join(' ');

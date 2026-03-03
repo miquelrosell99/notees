@@ -21,9 +21,6 @@ export type ContentDisplayMode = 'document' | 'bullet' | 'card';
 /** Card layout when in card display mode */
 export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
 
-/** Card size options - number of columns */
-export type CardSizeMode = 1 | 2 | 3 | 4 | 5;
-
 interface SidebarNode {
   id: number;
   type: SidebarNodeType;
@@ -95,7 +92,6 @@ interface NodesState {
   // New features state
   contentDisplayMode: ContentDisplayMode;
   cardLayout: CardLayoutMode;
-  cardSize: CardSizeMode;
   isScratchpadOpen: boolean;
   lateNightThoughtsFilter: boolean;
   
@@ -149,7 +145,6 @@ interface NodesState {
   toggleContentDisplayMode: () => void;
   setContentDisplayMode: (mode: ContentDisplayMode) => void;
   setCardLayout: (layout: CardLayoutMode) => void;
-  setCardSize: (size: CardSizeMode) => void;
   toggleScratchpad: () => void;
   setScratchpadOpen: (open: boolean) => void;
   toggleLateNightThoughts: () => void;
@@ -192,7 +187,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   // New features state
   contentDisplayMode: 'bullet' as ContentDisplayMode,
   cardLayout: 'no-cover' as CardLayoutMode,
-  cardSize: 3 as CardSizeMode,
   isScratchpadOpen: false,
   lateNightThoughtsFilter: false,
   nodeViewModes: {},
@@ -395,7 +389,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   })),
   setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),
   setCardLayout: (layout) => set({ cardLayout: layout }),
-  setCardSize: (size) => set({ cardSize: size }),
   toggleScratchpad: () => set((state) => ({ isScratchpadOpen: !state.isScratchpadOpen })),
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
   toggleLateNightThoughts: () => set((state) => ({ lateNightThoughtsFilter: !state.lateNightThoughtsFilter })),
@@ -411,7 +404,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   partialize: (state) => ({ 
     nodeViewModes: state.nodeViewModes,
     cardLayout: state.cardLayout,
-    cardSize: state.cardSize,
     contentDisplayMode: state.contentDisplayMode,
   }),
 }));
