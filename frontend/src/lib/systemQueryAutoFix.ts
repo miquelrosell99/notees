@@ -331,6 +331,11 @@ export function autoFixSystemQuery(
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') {
               return markAsSystemNode(child);
             }
+          } else if (viewType === 'unlinked_references' && isClassCondition(child as ConditionNode)) {
+            const classCond = child as ClassCondition;
+            if (classCond.class_uuid === '00000000-0000-0000-0001-000000000002' && classCond.operator === 'does_not_contain') {
+              return markAsSystemNode(child);
+            }
           }
         } else if (child.type === 'group' && viewType === 'unlinked_references') {
           // Mark the OR group for unlinked references content+uuid search as system
@@ -397,6 +402,9 @@ export function autoFixSystemQuery(
           } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
             const propCond = child as PropertyCondition;
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') return false;
+          } else if (viewType === 'unlinked_references' && isClassCondition(child as ConditionNode)) {
+            const classCond = child as ClassCondition;
+            if (classCond.class_uuid === '00000000-0000-0000-0001-000000000002' && classCond.operator === 'does_not_contain') return false;
           }
         }
         // Also remove old-style OR groups for unlinked references that match the content pattern

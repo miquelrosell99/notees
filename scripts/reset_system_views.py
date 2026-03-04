@@ -101,6 +101,58 @@ async def reset_system_views():
                 ]
             },
             'is_system': True
+        },
+        'unlinked_references': {
+            'type': 'query',
+            'version': '1.0',
+            'scope': {
+                'type': 'scope',
+                'scope_type': 'entire_workspace'
+            },
+            'root_group': {
+                'type': 'group',
+                'logic': 'AND',
+                'children': [
+                    {
+                        'type': 'group',
+                        'logic': 'OR',
+                        'is_system': True,
+                        'children': [
+                            {
+                                'type': 'condition',
+                                'condition_type': 'content',
+                                'operator': 'contains',
+                                'value': '{current_node_name}',
+                                'is_system': True
+                            },
+                            {
+                                'type': 'condition',
+                                'condition_type': 'content',
+                                'operator': 'contains',
+                                'value': '{current_node_uuid}',
+                                'is_system': True
+                            }
+                        ]
+                    },
+                    {
+                        'type': 'condition',
+                        'condition_type': 'property',
+                        'property_name': 'uuid',
+                        'property_type': 'text',
+                        'operator': 'not_equals',
+                        'value': '{current_node_uuid}',
+                        'is_system': True
+                    },
+                    {
+                        'type': 'condition',
+                        'condition_type': 'class',
+                        'class_uuid': '00000000-0000-0000-0001-000000000002',
+                        'operator': 'does_not_contain',
+                        'is_system': True
+                    }
+                ]
+            },
+            'is_system': True
         }
     }
     
@@ -110,7 +162,7 @@ async def reset_system_views():
             SELECT nv.id, nv.node_id, nv.view_type, nv.name, nv.query_json, n.name as node_name
             FROM node_view nv
             JOIN node n ON n.id = nv.node_id
-            WHERE nv.view_type IN ('linked_references', 'child_pages', 'classed_nodes')
+            WHERE nv.view_type IN ('linked_references', 'child_pages', 'classed_nodes', 'unlinked_references')
             AND nv.is_default = true
             ORDER BY nv.node_id, nv.view_type
         """)
