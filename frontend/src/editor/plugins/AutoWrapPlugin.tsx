@@ -3,7 +3,7 @@
  *
  * When text is selected and user types an opening character ([, (, {, ", '),
  * the plugin wraps the selection with the matching pair and keeps the selection
- * active so typing the same character again will wrap it again (e.g., [[ or (().
+ * active so typing the same character again will wrap it again (e.g., (().
  *
  * When no text is selected, automatically inserts the closing character and
  * positions cursor between the pair.

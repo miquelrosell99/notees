@@ -1,5 +1,5 @@
 /**
- * TriggerPlugin — Detects trigger patterns (/, [[, @, #) and shows popups.
+ * TriggerPlugin — Detects trigger patterns (/, +, @, #) and shows popups.
  *
  * Monitors text input for trigger characters and displays the appropriate
  * popup menu for inserting links, types, tags, or slash commands.
@@ -33,7 +33,7 @@ interface TriggerState {
   query: string;
   triggerOffset: number;
   position: { top: number; left: number };
-  /** True when the [[ popup was opened by the /embed slash command or Alt+Enter */
+  /** True when the + popup was opened by the /embed slash command or Alt+Enter */
   embedMode?: boolean;
 }
 
@@ -120,10 +120,18 @@ export function TriggerPlugin({
 
         if (match) {
           const coords = getCaretCoordinates(editor);
-          // For link triggers, capture the current block ID so Alt+Enter embed works
+          // For link triggers, capture the current block ID for Alt+Enter embed
+          // and suppress the popup if the current block is a page.
           if (match.type === 'link' && !trigger.embedMode) {
             const blockNode = findParentNodeBlock(anchorNode);
             if (blockNode) {
+              const runtime = getNodeGraphRuntime();
+              const graphNode = runtime.getNode(blockNode.getBlockId());
+              if (graphNode?.isPage) {
+                // Node links are not allowed in page-typed blocks
+                if (trigger.isOpen) setTrigger(prev => ({ ...prev, isOpen: false }));
+                return;
+              }
               embedHostBlockIdRef.current = blockNode.getBlockId();
             }
           }
@@ -201,7 +209,7 @@ export function TriggerPlugin({
       } else if (trigger.type === 'slash') {
         // For type/tag slash commands, re-trigger those popups
         if (value === 'embed') {
-          // Remove trigger text and open the [[ popup in embed mode
+          // Remove trigger text and open the + popup in embed mode
           const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
           (anchorNode as any).setTextContent(newText);
           const newOffset = beforeTrigger.length;
@@ -214,7 +222,7 @@ export function TriggerPlugin({
             embedHostBlockIdRef.current = embedBlockNode.getBlockId();
           }
 
-          // Open [[ trigger in embed mode after the update
+          // Open + trigger in embed mode after the update
           const coords = getCaretCoordinates(editor);
           setTimeout(() => {
             setTrigger({
@@ -247,14 +255,20 @@ export function TriggerPlugin({
           selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
           selection.focus.set(anchorNode.getKey(), newOffset, 'text');
 
-          // Resolve the parent block's server ID
+          // Resolve the parent block's server ID and page status
           if (onSlashCommand) {
             const blockNode = findParentNodeBlock(anchorNode);
             let blockServerId: number | undefined;
+            let isPageBlock = false;
             if (blockNode) {
               const runtime = getNodeGraphRuntime();
               const graphNode = runtime.getNode(blockNode.getBlockId());
               blockServerId = graphNode?.serverId;
+              isPageBlock = graphNode?.isPage ?? false;
+            }
+            // Node links are not allowed in page-typed blocks
+            if ((value === 'link' || value === 'blocklink') && isPageBlock) {
+              return;
             }
             // Defer callback to after the editor update completes
             setTimeout(() => onSlashCommand(value, blockServerId), 0);
@@ -345,7 +359,7 @@ export function TriggerPlugin({
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
       } else {
-        // For # tag and [[ link triggers
+        // For # tag and + link triggers
         if (trigger.embedMode) {
           // Embed mode (opened by /embed slash command): create sibling embed block
           insertEmbedSibling(node.uuid);
@@ -357,9 +371,9 @@ export function TriggerPlugin({
       }
     };
 
-    // Alt+Enter: insert as embed sibling (for regular [[ link trigger)
+    // Alt+Enter: insert as embed sibling (for regular + link trigger)
     const handleSelectEmbed = (node: Node) => {
-      // Remove the [[ trigger text first (doesn't apply in embedMode — already cleaned)
+      // Remove the + trigger text first (doesn't apply in embedMode — already cleaned)
       if (!trigger.embedMode) {
         editor.update(() => {
           const selection = $getSelection();
@@ -415,6 +429,16 @@ interface TriggerMatch {
 }
 
 function detectTriggerPattern(text: string): TriggerMatch | null {
+  // + link trigger (not preceded by word char)
+  const linkMatch = text.match(/(?:^|[^a-zA-Z0-9])\+([^+\s]*)$/);
+  if (linkMatch) {
+    return {
+      type: 'link',
+      query: linkMatch[1],
+      triggerStart: text.length - linkMatch[1].length - 1,
+    };
+  }
+
   // @ type trigger (not preceded by word char)
   const typeMatch = text.match(/(?:^|[^a-zA-Z0-9])@([^@\s]*)$/);
   if (typeMatch) {

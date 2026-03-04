@@ -4,7 +4,7 @@
  * Shared search/filter logic for node selection components.
  * Used by:
  * - NodePicker (property value selection)
- * - SuggestionPopup (inline @/# /[[ triggers)
+ * - SuggestionPopup (inline @/# /+ triggers)
  * 
  * Features:
  * - Query-based search using useSearch API

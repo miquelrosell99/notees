@@ -594,7 +594,7 @@ export function BlockEditor({
           onSelectionChange={onSelectionChange}
         />
 
-        {/* Triggers (/, [[, @, #) */}
+        {/* Triggers (/, +, @, #) */}
         <TriggerPlugin
           onLinkSelect={handlePillClick}
           onAddClass={onAddClass}

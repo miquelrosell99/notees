@@ -347,6 +347,11 @@ class LinkParsingService:
         # Remove existing non-tag text links from this source (property_id IS NULL, is_tag=0)
         await self._delete_non_tag_text_links(node_id)
         
+        # Page nodes may not contain inline node links — enforce the constraint
+        # and return early (existing links were already cleaned up above).
+        if source_node and source_node.is_page:
+            return []
+        
         # Parse new links from AST (link_id format: "nodeUuid:linkUuid")
         parsed = self.parse_links(content)
         
