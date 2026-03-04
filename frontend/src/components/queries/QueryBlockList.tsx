@@ -307,8 +307,10 @@ export function QueryBlockList({
     [blocks, onChange]
   );
 
-  // Safety check for blocks array
-  const safeBlocks = Array.isArray(blocks) ? blocks : [];
+  // Safety check for blocks array, filter out hidden system nodes (visible: false)
+  const safeBlocks = (Array.isArray(blocks) ? blocks : []).filter(
+    (b) => b.capabilities?.visible !== false
+  );
 
   return (
     <div className={`query-block-list ${className}`}>

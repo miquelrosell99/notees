@@ -106,7 +106,7 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
 };
 
 /**
- * Locked capabilities for system-defined nodes
+ * Locked capabilities for system-defined nodes (visible in query builder)
  */
 export const SYSTEM_CAPABILITIES: NodeCapabilities = {
   removable: false,
@@ -114,6 +114,17 @@ export const SYSTEM_CAPABILITIES: NodeCapabilities = {
   movable: false,
   combinable: false,
   visible: true,
+};
+
+/**
+ * Locked capabilities for hidden system nodes (enforced by backend, not shown in builder)
+ */
+export const HIDDEN_SYSTEM_CAPABILITIES: NodeCapabilities = {
+  removable: false,
+  editable: false,
+  movable: false,
+  combinable: false,
+  visible: false,
 };
 
 // ==================== AST Node Types ====================
@@ -579,13 +590,21 @@ export function getMaxDepth(ast: QueryAST): number {
 // ==================== Capability Helpers ====================
 
 /**
- * Check if a node is a system node (locked capabilities)
+ * Check if a node is a system node (locked capabilities, visible or hidden)
  */
 export function isSystemNode(node: ConditionNode | GroupNode | NotNode): boolean {
   if (!node) return false;
   const caps = node.capabilities;
   if (!caps) return false;
-  return !caps.removable && !caps.editable && !caps.movable && caps.visible;
+  return !caps.removable && !caps.editable && !caps.movable;
+}
+
+/**
+ * Check if a node should be hidden from the query builder UI
+ */
+export function isHiddenSystemNode(node: ConditionNode | GroupNode | NotNode): boolean {
+  if (!node) return false;
+  return node.capabilities?.visible === false;
 }
 
 /**
@@ -605,11 +624,21 @@ export function isNodeRemovable(node: ConditionNode | GroupNode | NotNode): bool
 }
 
 /**
- * Mark a node as a system node (locked)
+ * Mark a node as a system node (locked, visible in query builder)
  */
 export function markAsSystemNode<T extends ConditionNode | GroupNode | NotNode>(node: T): T {
   return {
     ...node,
     capabilities: SYSTEM_CAPABILITIES,
+  };
+}
+
+/**
+ * Mark a node as a hidden system node (locked, not shown in query builder)
+ */
+export function markAsHiddenSystemNode<T extends ConditionNode | GroupNode | NotNode>(node: T): T {
+  return {
+    ...node,
+    capabilities: HIDDEN_SYSTEM_CAPABILITIES,
   };
 }

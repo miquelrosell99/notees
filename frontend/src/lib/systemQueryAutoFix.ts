@@ -12,7 +12,7 @@
  */
 
 import type { QueryAST, ConditionNode, GroupNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, ScopeNode } from '@/types/queryAST';
-import { markAsSystemNode, isSystemNode } from '@/types/queryAST';
+import { markAsSystemNode, markAsHiddenSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/nodeView';
 
 // ==================== Type Guards ====================
@@ -201,11 +201,11 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
 
-  // Unlinked References - exclude the current node itself
+  // Unlinked References - exclude the current node itself (hidden: backend detail, not shown in builder)
   {
     viewType: 'unlinked_references',
     requiresCondition: (_ast, _context) => {
-      return markAsSystemNode({
+      return markAsHiddenSystemNode({
         type: 'condition',
         condition_type: 'property',
         property_name: 'uuid',
@@ -329,7 +329,7 @@ export function autoFixSystemQuery(
           } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
             const propCond = child as PropertyCondition;
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') {
-              return markAsSystemNode(child);
+              return markAsHiddenSystemNode(child);
             }
           } else if (viewType === 'unlinked_references' && isClassCondition(child as ConditionNode)) {
             const classCond = child as ClassCondition;
