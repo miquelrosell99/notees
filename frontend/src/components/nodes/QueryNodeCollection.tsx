@@ -913,6 +913,18 @@ export function QueryNodeCollection({
             />
           )}
           
+          {/* Hide add view button for pseudo-nodes and inline mode (query blocks manage AST directly) */}
+          {!isPseudoNode && !isInlineMode && (
+            <Button
+              icon={mdiPlusBox}
+              iconOnly
+              variant="ghost"
+              size="xs"
+              onClick={handleAddView}
+              title="Add view"
+            />
+          )}
+
           {activeView && (
             <div className="query-section__filter-btn-wrapper">
               <Button
@@ -929,18 +941,6 @@ export function QueryNodeCollection({
                 </Badge>
               )}
             </div>
-          )}
-          
-          {/* Hide add view button for pseudo-nodes and inline mode (query blocks manage AST directly) */}
-          {!isPseudoNode && !isInlineMode && (
-            <Button
-              icon={mdiPlusBox}
-              iconOnly
-              variant="ghost"
-              size="xs"
-              onClick={handleAddView}
-              title="Add view"
-            />
           )}
         </>
       )}

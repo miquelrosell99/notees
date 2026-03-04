@@ -11,11 +11,11 @@
   gap: var(--spacing-2);
 }
 
-/* Left section - header/block element */
+/* Left section - header/block element + add/filter controls */
 .node-collection-toolbar__left {
   display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-3);
+  align-items: center;
+  gap: var(--spacing-1);
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -111,13 +111,6 @@
   font-weight: 500;
 }
 
-/* Left element (block element, collapsible header) */
-.node-collection-toolbar__left {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
 /* When NodeViewSection header is in the toolbar */
 .node-collection-toolbar .node-view-section__header-content {
   display: flex;
@@ -125,7 +118,6 @@
   gap: var(--spacing-1);
   cursor: pointer;
   min-width: 0;
-  width: 100%;
 }
 
 .node-collection-toolbar .node-view-section__toggle {
@@ -159,4 +151,61 @@
   flex-shrink: 0;
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-sm);
+}
+
+/* ── View overflow dropdown ─────────────────────────────────── */
+
+.view-overflow-menu {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1);
+}
+
+.view-overflow-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease;
+}
+
+.view-overflow-menu__item:hover {
+  background-color: var(--color-hover-overlay);
+}
+
+.view-overflow-menu__item--active {
+  background-color: var(--color-pressed-overlay);
+  font-weight: 500;
+}
+
+/* ── View settings panel ────────────────────────────────────── */
+
+.view-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.view-settings-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+}
+
+.view-settings-panel__label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 var(--spacing-2);
 }
