@@ -14,8 +14,9 @@ class PropertyResponse(BaseModel):
     type: str
     multi: bool = False  # Aligned with frontend naming
     is_system: bool = False
-    is_local: bool = False
-    node_id: Optional[int] = None  # For local properties
+    is_local: bool = False   # Backward compat: True when scope != 'global'
+    scope: str = 'global'    # 'global' | 'class' | 'node'
+    node_id: Optional[int] = None  # For scoped properties
     icon_visibility: str = "hidden"  # 'hidden' | 'before_content' | 'after_bullet'
     create_date: str
     write_date: str
@@ -108,8 +109,9 @@ class PropertyCreateRequest(BaseModel):
     icon: Optional[str] = None
     type: str = "text"  # integer, float, boolean (scalar) | node, text, image, date (relation) | selection
     is_multi: bool = False
-    is_local: bool = False
-    node_id: Optional[int] = None  # For local properties (must be a page node)
+    scope: str = "global"       # 'global' | 'class' | 'node'
+    is_local: bool = False      # Backward compat — overridden by scope if scope is set
+    node_id: Optional[int] = None  # For scoped properties (class or node)
     # For relation-type: which classes filter selectable nodes
     class_filters: List[int] = []
     # For selection-type: initial options

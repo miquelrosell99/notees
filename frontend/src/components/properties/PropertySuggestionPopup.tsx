@@ -10,9 +10,9 @@
  * Uses the same dropdown pattern as NodeSelector for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useProperties } from '@/hooks';
+import { useProperties, useAvailableProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
-import type { Property, PropertyType, PropertyCreate } from '@/types/api';
+import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { AddIcon } from '../core/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
@@ -38,7 +38,19 @@ export interface PropertySuggestionPopupProps {
   onCreate: (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => void;
   /** Property IDs to exclude from the list (already applied) */
   excludeIds?: number[];
+  /** Context node ID — enables node-scoped properties in results and "Create node-local" option */
+  contextNodeId?: number;
+  /** Context class IDs — enables class-scoped properties in results and "Create class-local" option */
+  contextClassIds?: number[];
+  /** Default scope for newly created properties when "Create global" button is clicked (default: 'global') */
+  defaultScope?: PropertyScope;
 }
+
+/** Scope badge labels */
+const SCOPE_BADGE: Record<string, string> = {
+  class: '@',
+  node: '●',
+};
 
 export function PropertySuggestionPopup({
   isOpen,
@@ -46,14 +58,21 @@ export function PropertySuggestionPopup({
   onClose,
   onCreate,
   excludeIds = [],
+  contextNodeId,
+  contextClassIds,
+  defaultScope,
 }: PropertySuggestionPopupProps) {
   const [query, setQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [initialPropertyName, setInitialPropertyName] = useState('');
+  const [initialPropertyScope, setInitialPropertyScope] = useState<PropertyScope>('global');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  const { data: allProperties, isLoading } = useProperties();
+
+  const hasContext = contextNodeId != null || (contextClassIds?.length ?? 0) > 0;
+  const { data: allProperties, isLoading } = useAvailableProperties(
+    hasContext ? { contextNodeId, contextClassIds } : {}
+  );
   
   // Filter properties based on search and exclusions
   const filteredProperties = useMemo(() => {
@@ -94,20 +113,21 @@ export function PropertySuggestionPopup({
     setQuery('');
   }, [onSelect]);
 
-  const handleCreate = useCallback(() => {
+  const handleCreate = useCallback((scope: PropertyScope = defaultScope ?? 'global') => {
     if (!query.trim()) return;
     setInitialPropertyName(query.trim());
+    setInitialPropertyScope(scope);
     setShowCreateModal(true);
-  }, [query]);
+  }, [query, defaultScope]);
 
-  // Keyboard list navigation
+  // Keyboard list navigation — Enter triggers create with defaultScope
   const handleSelectByIndex = useCallback((index: number) => {
     if (index < filteredProperties.length) {
       handleSelect(filteredProperties[index]);
     } else if (showCreateOption) {
-      handleCreate();
+      handleCreate(defaultScope ?? 'global');
     }
-  }, [filteredProperties, showCreateOption, handleSelect, handleCreate]);
+  }, [filteredProperties, showCreateOption, handleSelect, handleCreate, defaultScope]);
 
   const handleClose = useCallback(() => {
     onClose();
@@ -127,9 +147,10 @@ export function PropertySuggestionPopup({
       setQuery('');
       setShowCreateModal(false);
       setInitialPropertyName('');
+      setInitialPropertyScope(defaultScope ?? 'global');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultScope]);
   
   const handleCreateConfirm = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     onCreate(data);
@@ -141,7 +162,8 @@ export function PropertySuggestionPopup({
   const handleCreateCancel = useCallback(() => {
     setShowCreateModal(false);
     setInitialPropertyName('');
-  }, []);
+    setInitialPropertyScope(defaultScope ?? 'global');
+  }, [defaultScope]);
   
   // Close on click outside
   useEffect(() => {
@@ -197,24 +219,77 @@ export function PropertySuggestionPopup({
                   </span>
                 )}
                 <span className="property-suggestion-popup__option-name">{property.name}</span>
+                {property.scope && property.scope !== 'global' && (
+                  <span
+                    className={`property-suggestion-popup__scope-badge property-suggestion-popup__scope-badge--${property.scope}`}
+                    title={property.scope === 'class' ? 'Class property' : 'Node-local property'}
+                  >
+                    {SCOPE_BADGE[property.scope]}
+                  </span>
+                )}
                 <span className="property-suggestion-popup__option-type">{property.type}</span>
               </button>
             ))}
             
-            {/* Create new option */}
+            {/* Create options */}
             {showCreateOption && (
-              <button
-                className={`property-suggestion-popup__option property-suggestion-popup__option--create ${
-                  selectedIndex === filteredProperties.length ? 'property-suggestion-popup__option--selected' : ''
-                }`}
-                onClick={handleCreate}
-                onMouseEnter={() => setSelectedIndex(filteredProperties.length)}
-              >
-                <span className="property-suggestion-popup__option-icon">
-                  <AddIcon size="xs" />
-                </span>
-                <span>Create "{query.trim()}"</span>
-              </button>
+              <>
+                {/* Primary create button (keyboard accessible) */}
+                <button
+                  className={`property-suggestion-popup__option property-suggestion-popup__option--create ${
+                    selectedIndex === filteredProperties.length ? 'property-suggestion-popup__option--selected' : ''
+                  }`}
+                  onClick={() => handleCreate(defaultScope ?? 'global')}
+                  onMouseEnter={() => setSelectedIndex(filteredProperties.length)}
+                >
+                  <span className="property-suggestion-popup__option-icon">
+                    <AddIcon size="xs" />
+                  </span>
+                  <span>Create "{query.trim()}"</span>
+                  {defaultScope && defaultScope !== 'global' && (
+                    <span className={`property-suggestion-popup__scope-badge property-suggestion-popup__scope-badge--${defaultScope}`}>
+                      {SCOPE_BADGE[defaultScope]}
+                    </span>
+                  )}
+                </button>
+
+                {/* Alternate scope options */}
+                {hasContext && (defaultScope ?? 'global') !== 'global' && (
+                  <button
+                    className="property-suggestion-popup__option property-suggestion-popup__option--create-alt"
+                    onClick={() => handleCreate('global')}
+                  >
+                    <span className="property-suggestion-popup__option-icon">
+                      <AddIcon size="xs" />
+                    </span>
+                    <span>Create "{query.trim()}" as global</span>
+                  </button>
+                )}
+                {contextClassIds?.length && (defaultScope ?? 'global') !== 'class' && (
+                  <button
+                    className="property-suggestion-popup__option property-suggestion-popup__option--create-alt"
+                    onClick={() => handleCreate('class')}
+                  >
+                    <span className="property-suggestion-popup__option-icon">
+                      <AddIcon size="xs" />
+                    </span>
+                    <span>Create "{query.trim()}" as class-local</span>
+                    <span className="property-suggestion-popup__scope-badge property-suggestion-popup__scope-badge--class">@</span>
+                  </button>
+                )}
+                {contextNodeId != null && (defaultScope ?? 'global') !== 'node' && (
+                  <button
+                    className="property-suggestion-popup__option property-suggestion-popup__option--create-alt"
+                    onClick={() => handleCreate('node')}
+                  >
+                    <span className="property-suggestion-popup__option-icon">
+                      <AddIcon size="xs" />
+                    </span>
+                    <span>Create "{query.trim()}" as node-local</span>
+                    <span className="property-suggestion-popup__scope-badge property-suggestion-popup__scope-badge--node">●</span>
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
@@ -227,6 +302,7 @@ export function PropertySuggestionPopup({
       onClose={handleCreateCancel}
       onCreate={handleCreateConfirm}
       initialName={initialPropertyName}
+      initialScope={initialPropertyScope}
     />
   </>
   );

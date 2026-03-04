@@ -1,9 +1,10 @@
 """Property CRUD and class filter endpoints."""
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 
 from ..auth import get_current_user
 from ...models import User
-from ...domain.entities import Property, PropertyType, SCALAR_TYPES, RELATION_TYPES
+from ...domain.entities import Property, PropertyType, PropertyScope, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
 from ...db.connection import acquire_connection
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
@@ -47,6 +48,29 @@ async def list_local_properties(
     return {"properties": [_property_to_response(p) for p in properties]}
 
 
+@router.get("/available")
+async def list_available_properties(
+    context_node_id: Optional[int] = None,
+    context_class_ids: Optional[str] = None,  # comma-separated list of ints
+    user: User = Depends(get_current_user),
+):
+    """List properties available in a given context: global + class-scoped (if context_class_ids) + node-scoped (if context_node_id)."""
+    repo = await _get_property_repo(user)
+
+    class_ids: list[int] = []
+    if context_class_ids:
+        try:
+            class_ids = [int(x) for x in context_class_ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(400, "context_class_ids must be a comma-separated list of integers")
+
+    properties = await repo.get_available_properties(
+        context_node_id=context_node_id,
+        context_class_ids=class_ids or None,
+    )
+    return {"properties": [_property_to_response(p) for p in properties]}
+
+
 @router.post("/", name="create_property")
 async def create_property(
     request: PropertyCreateRequest,
@@ -61,18 +85,26 @@ async def create_property(
     except ValueError:
         raise HTTPException(400, f"Invalid property type: {request.type}")
     
-    # Check for duplicate name (for non-local properties)
-    if not request.is_local:
+    # Resolve scope: explicit scope wins; fall back to is_local for backward compat
+    if request.scope and request.scope != 'global':
+        scope = PropertyScope(request.scope)
+    elif request.is_local:
+        scope = PropertyScope.NODE
+    else:
+        scope = PropertyScope.GLOBAL
+
+    # Check for duplicate name for global properties
+    if scope == PropertyScope.GLOBAL:
         existing = await repo.get_by_name(request.name)
         if existing:
             raise HTTPException(409, f"Property '{request.name}' already exists")
-    
+
     prop = Property(
         name=request.name,
         icon=request.icon,
         type=prop_type,
         is_multi=request.is_multi,
-        is_local=request.is_local,
+        scope=scope,
         node_id=request.node_id,
     )
     

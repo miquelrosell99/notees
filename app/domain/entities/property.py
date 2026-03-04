@@ -48,6 +48,20 @@ class PropertyType(str, Enum):
     SELECTION = "selection"
 
 
+class PropertyScope(str, Enum):
+    """Scope of a property definition.
+    
+    - GLOBAL: Available workspace-wide (the default). Name unique per workspace.
+    - CLASS:  Scoped to a class node; inherited by instances via class_property.
+              Name unique per (node_id, scope).
+    - NODE:   Scoped to a specific node only (e.g. a page).
+              Name unique per (node_id, scope).
+    """
+    GLOBAL = "global"
+    CLASS = "class"
+    NODE = "node"
+
+
 # Property types that use scalar storage
 SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN}
 
@@ -63,8 +77,10 @@ class Property:
     """Domain entity representing a property definition.
     
     Properties can be:
-    - Global: name must be unique across all properties
-    - Local: is_local=True, name must be unique within the same node_id (page node)
+    - Global (scope=GLOBAL): name unique per workspace.
+    - Class  (scope=CLASS):  name unique per (node_id, scope); node_id is a class node.
+                             Inherited by instances via class_property.
+    - Node   (scope=NODE):   name unique per (node_id, scope); node_id is any page node.
     """
     id: Optional[int] = None
     uuid: str = field(default_factory=generate_uuid)
@@ -73,8 +89,8 @@ class Property:
     type: PropertyType = PropertyType.TEXT
     is_multi: bool = False  # Allow multiple values? (always False for text/image)
     is_system: bool = False  # System-defined vs user-defined
-    is_local: bool = False  # Local properties are unique per node_id, not globally
-    node_id: Optional[int] = None  # For local properties: the page node this belongs to
+    scope: PropertyScope = PropertyScope.GLOBAL
+    node_id: Optional[int] = None  # For class/node scope: the node this property belongs to
     icon_visibility: str = "hidden"  # Where to show selection value icon: 'hidden' | 'before_content' | 'after_bullet'
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
@@ -86,6 +102,11 @@ class Property:
     # For selection-type properties: available options
     # Stored in property_selection_line table
     _selection_lines: List['PropertySelectionLine'] = field(default_factory=list, repr=False)
+    
+    @property
+    def is_local(self) -> bool:
+        """Backward compatibility: True when scope is not global."""
+        return self.scope != PropertyScope.GLOBAL
     
     def __post_init__(self):
         """Enforce constraints after initialization."""

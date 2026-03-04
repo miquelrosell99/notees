@@ -574,7 +574,9 @@ export function PropertiesSection({
   // Handler for creating a new property with full configuration
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     setShowPropertyPopup(false);
-    createPropertyMutation.mutate(data, {
+    const scope = data.scope ?? (data.is_local ? 'node' : 'global');
+    const node_id = scope === 'node' && !data.node_id ? nodeId : data.node_id;
+    createPropertyMutation.mutate({ ...data, scope, node_id } as PropertyCreate, {
       onSuccess: async (newProperty) => {
         // Add selection options if provided
         if (data.selection_options && data.selection_options.length > 0) {
@@ -719,6 +721,7 @@ export function PropertiesSection({
               onSelect={handleSelectProperty}
               onCreate={handleCreateNewProperty}
               excludeIds={appliedPropertyIds}
+              contextNodeId={nodeId}
             />
           </div>
         )}
@@ -789,6 +792,7 @@ export function PropertiesSection({
               onSelect={handleSelectProperty}
               onCreate={handleCreateNewProperty}
               excludeIds={appliedPropertyIds}
+              contextNodeId={nodeId}
             />
           </div>
         )}

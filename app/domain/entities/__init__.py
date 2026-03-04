@@ -10,6 +10,7 @@ from .node import (
 from .property import (
     Property,
     PropertyType,
+    PropertyScope,
     PropertySelectionLine,
     PropertyClassFilter,
     ClassProperty,
@@ -64,6 +65,7 @@ __all__ = [
     # Property
     "Property",
     "PropertyType",
+    "PropertyScope",
     "PropertySelectionLine",
     "PropertyClassFilter",
     "ClassProperty",

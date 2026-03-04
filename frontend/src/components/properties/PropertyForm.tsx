@@ -45,6 +45,8 @@ export interface PropertyFormProps {
   name: string;
   propertyType: PropertyType;
   isLocal: boolean;
+  /** When true, the local/global toggle is hidden (scope is pre-decided externally) */
+  isLocalLocked?: boolean;
   isMultiValue: boolean;
   defaultValue: string;
   nameError?: string | null;

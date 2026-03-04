@@ -14,6 +14,7 @@ import {
   useAddPropertyToClass,
   useRemovePropertyFromClass,
   useReorderClassProperties,
+  useCreateProperty,
   useProperties,
 } from '@/hooks';
 import { mdiPlus, mdiDotsVertical } from '@mdi/js';
@@ -24,7 +25,7 @@ import { PropertiesIcon } from '../core/icons';
 import { ListSortable } from '../core/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { useAppStore } from '@/stores';
-import type { Property, PropertyType } from '@/types/api';
+import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { getMdiPath } from '@/utils/iconDom';
 import './PropertiesSection.css';
 
@@ -37,6 +38,7 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   date: 'mdiCalendar',
   selection: 'mdiFormatListBulleted',
   node: 'mdiLink',
+  image: 'mdiImage',
 };
 
 function getPropertyIconPath(property: Property): string | null {
@@ -75,8 +77,29 @@ export function ClassPropertiesEditor({
 
   // Mutations
   const addPropertyMutation = useAddPropertyToClass();
+  const createPropertyMutation = useCreateProperty();
   const removePropertyMutation = useRemovePropertyFromClass();
   const reorderMutation = useReorderClassProperties();
+
+  // Handle creating a new property and immediately linking it to the class
+  const handleCreateProperty = useCallback(
+    (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
+      const scope = data.scope ?? (data.is_local ? 'node' : 'global');
+      const node_id = scope === 'class' ? classNodeId : data.node_id;
+      createPropertyMutation.mutate(
+        { ...data, scope, node_id } as PropertyCreate,
+        {
+          onSuccess: (created) => {
+            addPropertyMutation.mutate(
+              { classId: classNodeId, propertyId: created.id },
+              { onSuccess: () => setShowPropertyPopup(false) }
+            );
+          },
+        }
+      );
+    },
+    [classNodeId, createPropertyMutation, addPropertyMutation]
+  );
 
   // Get IDs of properties already applied to this class
   const appliedPropertyIds = useMemo(() => {
@@ -203,8 +226,10 @@ export function ClassPropertiesEditor({
               isOpen={showPropertyPopup}
               onClose={() => setShowPropertyPopup(false)}
               onSelect={handleAddProperty}
-              onCreate={() => setShowPropertyPopup(false)}
+              onCreate={handleCreateProperty}
               excludeIds={appliedPropertyIds}
+              contextClassIds={[classNodeId]}
+              defaultScope="class"
             />
           </div>
         )}
