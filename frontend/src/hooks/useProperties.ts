@@ -160,6 +160,22 @@ export function useRemovePropertyFromClass() {
 }
 
 /**
+ * Hook to reorder class properties
+ */
+export function useReorderClassProperties() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ classId, propertyIds }: { classId: number; propertyIds: number[] }) =>
+      propertiesApi.reorderClassProperties(classId, propertyIds),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+    },
+  });
+}
+
+/**
  * Hook to add class extension (inheritance)
  */
 export function useAddClassExtends() {
