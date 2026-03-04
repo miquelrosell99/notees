@@ -568,17 +568,54 @@ export function GanttView({
       const rect = el.getBoundingClientRect();
       const cursorX = e.clientX - rect.left;
       const pivotDays = (el.scrollLeft + cursorX) / pxPerDayRef.current;
-      const newScrollLeft = pivotDays * next - cursorX;
+      const newScrollLeft = Math.max(0, pivotDays * next - cursorX);
 
       pxPerDayRef.current = next;
-      setPxPerDay(next);
 
-      // Defer scroll adjustment until after the layout pass that widens the extent
-      requestAnimationFrame(() => {
-        if (rightPaneRef.current) {
-          rightPaneRef.current.scrollLeft = Math.max(0, newScrollLeft);
+      // Synchronously widen the scroll extent so scrollLeft won't be clamped
+      if (extentRef.current) {
+        const dr = dateRangeRef.current;
+        const newWidth = Math.max((daysBetween(dr.start, dr.end) + 1) * next, 600);
+        extentRef.current.style.width = `${newWidth}px`;
+      }
+
+      // Set scroll position now (extent is already wide enough)
+      el.scrollLeft = newScrollLeft;
+      scrollLeftRef.current = el.scrollLeft;
+
+      // Sync canvas position & header immediately
+      if (canvasRef.current) {
+        canvasRef.current.style.left = `${el.scrollLeft}px`;
+      }
+
+      // Synchronously reposition header markers so they don't jitter
+      if (headerInnerRef.current) {
+        headerInnerRef.current.style.width = `${Math.max((daysBetween(dateRangeRef.current.start, dateRangeRef.current.end) + 1) * next, 600)}px`;
+        headerInnerRef.current.style.transform = `translateX(${-el.scrollLeft}px)`;
+
+        // Reposition existing marker spans and regenerate text if tier changed
+        const oldTier = getHeaderTier(pxPerDayRef.current / (e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR));
+        const newTier = getHeaderTier(next);
+        const tierChanged = oldTier.dayStep !== newTier.dayStep;
+
+        const markers = headerInnerRef.current.children;
+        for (let i = 0; i < markers.length; i++) {
+          const span = markers[i] as HTMLSpanElement;
+          const dayOffset = Number(span.dataset.day);
+          if (!isNaN(dayOffset)) {
+            span.style.left = `${dayOffset * next}px`;
+            if (tierChanged) {
+              span.textContent = newTier.format(addDays(dateRangeRef.current.start, dayOffset));
+            }
+          }
         }
-      });
+      }
+
+      // Immediate redraw with fresh ref values — no frame delay
+      drawRef.current();
+
+      // Queue React state update for header labels, extent width etc.
+      setPxPerDay(next);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -596,7 +633,13 @@ export function GanttView({
   const rightPaneRef   = useRef<HTMLDivElement>(null);
   const leftInnerRef   = useRef<HTMLDivElement>(null);
   const headerInnerRef = useRef<HTMLDivElement>(null);
+  const extentRef      = useRef<HTMLDivElement>(null);
   const rendererRef    = useRef(new GanttRenderer());
+
+  // Stable refs so the wheel handler always has the latest draw + dateRange
+  const drawRef      = useRef<() => void>(() => {});
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
 
   // ── Persist bar dates after drag ────────────────────────────────────────
   const queryClient = useQueryClient();
@@ -645,14 +688,19 @@ export function GanttView({
       rangeStart: dateRange.start,
       scrollLeft: scrollLeftRef.current,
       scrollTop:  scrollTopRef.current,
-      pxPerDay,
+      pxPerDay: pxPerDayRef.current, // always fresh – avoids stale-closure glitch during Ctrl+scroll
       today,
       dragState: dragStateRef.current,
       colors: readColors(canvas),
     });
-  }, [rows, dateRange, pxPerDay, today]);
+  }, [rows, dateRange, today]); // pxPerDay intentionally omitted – read from ref
 
-  useEffect(() => { draw(); }, [draw]);
+  // Keep drawRef current so the wheel handler can call the latest version
+  drawRef.current = draw;
+
+  // Trigger a redraw whenever rows/range/today change OR when pxPerDay state changes
+  // (the latter handles toolbar timeScale changes without re-capturing the value in draw).
+  useEffect(() => { draw(); }, [draw, pxPerDay]);
 
   // Canvas size follows the right pane's visible area
   useEffect(() => {
@@ -852,7 +900,7 @@ export function GanttView({
             style={{ width: totalTimelineWidth }}
           >
             {allHeaderLabels.map(hl => (
-              <span key={hl.key} className="gantt-header__marker" style={{ left: hl.x }}>
+              <span key={hl.key} className="gantt-header__marker" data-day={hl.key} style={{ left: hl.x }}>
                 {hl.label}
               </span>
             ))}
@@ -914,6 +962,7 @@ export function GanttView({
             scroll container; canvas has pointer-events:auto for drag/click.
           */}
           <div
+            ref={extentRef}
             className="gantt-scroll-extent"
             style={{ width: totalTimelineWidth, height: totalContentHeight }}
           >
