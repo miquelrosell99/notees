@@ -2,7 +2,7 @@
  * TriggerSuggestionPopup — Wrapper around SuggestionPopup for editor triggers.
  *
  * Provides onCreate for creating new pages, classes, or tags
- * directly from the [[ / @ / # trigger menus.
+ * directly from the + / @ / # trigger menus.
  */
 
 import { useCallback, type JSX } from 'react';

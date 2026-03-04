@@ -20,6 +20,8 @@ import {
 } from 'lexical';
 import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
+import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { findParentNodeBlock } from '../utils/selectionUtils';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -123,15 +125,27 @@ export function CreateLinkPlugin({
           savedSelectionRef.current = null;
         }
 
+        // Check if the current block is a page — node links are not allowed in page-typed blocks
+        let isPageBlock = false;
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (blockNode) {
+            const runtime = getNodeGraphRuntime();
+            const graphNode = runtime.getNode(blockNode.getBlockId());
+            isPageBlock = graphNode?.isPage ?? false;
+          }
+        }
+
         if (event.shiftKey) {
           // Ctrl+Shift+L → page link, selected text becomes the label
-          onPageLabelRef.current(selectedText);
+          if (!isPageBlock) onPageLabelRef.current(selectedText);
         } else if (event.altKey) {
-          // Ctrl+Alt+L → URL link
+          // Ctrl+Alt+L → URL link (always allowed)
           onUrlLinkRef.current(selectedText);
         } else {
           // Ctrl+L → page link, selected text as search query
-          onPageSearchRef.current(selectedText);
+          if (!isPageBlock) onPageSearchRef.current(selectedText);
         }
       });
     };
