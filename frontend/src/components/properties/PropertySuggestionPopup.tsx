@@ -165,9 +165,10 @@ export function PropertySuggestionPopup({
     setInitialPropertyScope(defaultScope ?? 'global');
   }, [defaultScope]);
   
-  // Close on click outside
+  // Close on click outside (disabled while create modal is open to avoid
+  // portal clicks being treated as "outside" the popup container)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || showCreateModal) return;
     
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
@@ -177,7 +178,7 @@ export function PropertySuggestionPopup({
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose]);
+  }, [isOpen, showCreateModal, onClose]);
   
   if (!isOpen) return null;
   
