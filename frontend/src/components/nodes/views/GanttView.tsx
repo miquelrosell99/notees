@@ -327,7 +327,9 @@ class GanttRenderer {
         let dEnd = item.endDate;
 
         if (dragged && dragState) {
-          dStart = addDays(dStart, dragState.deltaDays);
+          if (dragState.mode === 'move') {
+            dStart = addDays(dStart, dragState.deltaDays);
+          }
           if (dEnd !== null) {
             dEnd = dragState.mode === 'move'
               ? addDays(dEnd, dragState.deltaDays)
@@ -449,14 +451,17 @@ export function GanttView({
     if (!startDateProperty) return [];
     return nodes
       .flatMap(node => {
+        const override = optimisticOverrides.get(node.id);
         const props = node.properties as Record<number, unknown> | undefined;
-        const startDate = resolveDate(props?.[startDateProperty.id], dayNodeMap);
+        const startDate = override?.startDate ?? resolveDate(props?.[startDateProperty.id], dayNodeMap);
         if (!startDate) return [];
-        const endDate = endDateProperty ? resolveDate(props?.[endDateProperty.id], dayNodeMap) : null;
+        const endDate = override
+          ? override.endDate
+          : (endDateProperty ? resolveDate(props?.[endDateProperty.id], dayNodeMap) : null);
         return [{ node, startDate, endDate }];
       })
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-  }, [nodes, startDateProperty, endDateProperty, dayNodeMap]);
+  }, [nodes, startDateProperty, endDateProperty, dayNodeMap, optimisticOverrides]);
 
   const pageMap = useMemo(
     () => new Map(nodes.filter(n => n.is_page).map(n => [n.id, n])),
@@ -502,6 +507,11 @@ export function GanttView({
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
+  // ── Optimistic date overrides (hold new dates while API call is in-flight) ──
+  const [optimisticOverrides, setOptimisticOverrides] = useState<
+    Map<number, { startDate: Date; endDate: Date | null }>
+  >(new Map());
+
   // ── Context menu ────────────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{ node: Node; x: number; y: number } | null>(null);
 
@@ -516,19 +526,35 @@ export function GanttView({
   const queryClient = useQueryClient();
   const { mutate: persistDates } = useMutation({
     mutationFn: async ({
-      nodeId, newStart, newEnd,
-    }: { nodeId: number; newStart: Date; newEnd: Date | null }) => {
+      nodeId, mode, newStart, newEnd,
+    }: { nodeId: number; mode: 'move' | 'resize-end'; newStart: Date; newEnd: Date | null }) => {
       if (!startDateProperty) return;
-      const startDayNode = await getOrCreateDaily(formatDateForApi(newStart));
-      await setProperty(nodeId, startDateProperty.id, startDayNode.id);
+      if (mode === 'move') {
+        const startDayNode = await getOrCreateDaily(formatDateForApi(newStart));
+        await setProperty(nodeId, startDateProperty.id, startDayNode.id);
+      }
       if (newEnd && endDateProperty) {
         const endDayNode = await getOrCreateDaily(formatDateForApi(newEnd));
         await setProperty(nodeId, endDateProperty.id, endDayNode.id);
       }
     },
+    onMutate: ({ nodeId, newStart, newEnd }) => {
+      setOptimisticOverrides(prev => {
+        const next = new Map(prev);
+        next.set(nodeId, { startDate: newStart, endDate: newEnd });
+        return next;
+      });
+    },
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: ['gantt-day-nodes'] });
+    },
+    onSettled: (_, __, { nodeId }) => {
+      setOptimisticOverrides(prev => {
+        const next = new Map(prev);
+        next.delete(nodeId);
+        return next;
+      });
     },
   });
 
@@ -663,10 +689,13 @@ export function GanttView({
     if (!drag) return;
 
     if (drag.deltaDays !== 0) {
-      const newStart = addDays(drag.origStart, drag.deltaDays);
-      let newEnd = drag.origEnd;
-      if (newEnd) newEnd = addDays(newEnd, drag.deltaDays); // both modes shift by deltaDays
-      persistDates({ nodeId: drag.nodeId, newStart, newEnd });
+      const newStart = drag.mode === 'move'
+        ? addDays(drag.origStart, drag.deltaDays)
+        : drag.origStart; // resize-end keeps start unchanged
+      const newEnd = drag.origEnd
+        ? addDays(drag.origEnd, drag.deltaDays)
+        : null;
+      persistDates({ nodeId: drag.nodeId, mode: drag.mode, newStart, newEnd });
     } else {
       // No movement → treat as click
       const rect = canvas.getBoundingClientRect();
