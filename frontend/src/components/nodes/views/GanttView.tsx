@@ -38,12 +38,15 @@ const RESIZE_HANDLE = 8; // px on right edge that triggers resize-end mode
 const LABEL_WIDTH = 220;
 const HEADER_HEIGHT = 32;
 
-/** Pixels per day for each zoom level */
-const PX_PER_DAY: Record<'day' | 'week' | 'month', number> = {
-  day: 40,
-  week: 12,
-  month: 4,
+/** Initial pixels per day for each named zoom level (used as starting point) */
+const PX_PER_DAY_INITIAL: Record<'day' | 'week' | 'month', number> = {
+  day:   40,
+  week:  12,
+  month:  4,
 };
+const PX_PER_DAY_MIN = 0.3;
+const PX_PER_DAY_MAX = 80;
+const ZOOM_FACTOR    = 1.12; // per scroll step
 
 // ==================== Internal types ====================
 
@@ -210,10 +213,40 @@ function readColors(el: Element): CanvasColors {
   };
 }
 
-function formatHeaderLabel(date: Date, pxPerDay: number): string {
-  if (pxPerDay >= 25) return date.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' });
-  if (pxPerDay >= 8)  return date.toLocaleDateString('default', { month: 'short', day: 'numeric' });
-  return date.toLocaleDateString('default', { month: 'short', year: 'numeric' });
+/** Returns the day-step and label formatter for the current zoom level */
+function getHeaderTier(pxPerDay: number): {
+  dayStep: number;
+  format: (d: Date) => string;
+} {
+  if (pxPerDay >= 25) return {
+    dayStep: 1,
+    format: d => d.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' }),
+  };
+  if (pxPerDay >= 6) return {
+    dayStep: 7,
+    format: d => d.toLocaleDateString('default', { month: 'short', day: 'numeric' }),
+  };
+  if (pxPerDay >= 1.5) return {
+    dayStep: 30,
+    format: d => d.toLocaleDateString('default', { month: 'short', year: 'numeric' }),
+  };
+  if (pxPerDay >= 0.4) return {
+    dayStep: 91,
+    format: d => `Q${Math.floor(d.getMonth() / 3) + 1}\u2009${d.getFullYear()}`,
+  };
+  return {
+    dayStep: 365,
+    format: d => String(d.getFullYear()),
+  };
+}
+
+/** Returns minor/major grid line intervals (in days) for the current zoom level */
+function getGridIntervals(pxPerDay: number): { minor: number; major: number } {
+  if (pxPerDay >= 25) return { minor: 1,   major: 7   };
+  if (pxPerDay >= 6)  return { minor: 7,   major: 30  };
+  if (pxPerDay >= 1.5) return { minor: 30,  major: 91  };
+  if (pxPerDay >= 0.4) return { minor: 91,  major: 365 };
+  return                       { minor: 365, major: 1825 };
 }
 
 // ==================== Canvas Renderer ====================
@@ -276,8 +309,7 @@ class GanttRenderer {
     ctx.fillRect(0, 0, w, h);
 
     // Vertical grid lines
-    const gridInterval = pxPerDay >= 25 ? 1 : pxPerDay >= 8 ? 7 : 30;
-    const majorInterval = pxPerDay >= 25 ? 7 : pxPerDay >= 8 ? 30 : 90;
+    const { minor: gridInterval, major: majorInterval } = getGridIntervals(pxPerDay);
     const firstVisDay = Math.floor(scrollLeft / pxPerDay);
     const startGrid = Math.floor(firstVisDay / gridInterval) * gridInterval;
     const endGrid = startGrid + Math.ceil(w / pxPerDay) + gridInterval * 2;
@@ -480,7 +512,19 @@ export function GanttView({
   );
 
   const dateRange = useMemo(() => getDateRange(ganttNodeItems), [ganttNodeItems]);
-  const pxPerDay = PX_PER_DAY[timeScale];
+
+  // ── Continuous zoom (px per day) ────────────────────────────────────────
+  // Initialised from the `timeScale` prop; Ctrl+scroll updates it live.
+  const [pxPerDay, setPxPerDay] = useState(() => PX_PER_DAY_INITIAL[timeScale]);
+  const pxPerDayRef = useRef(PX_PER_DAY_INITIAL[timeScale]);
+
+  // Re-snap to prop when the user changes it from the toolbar
+  useEffect(() => {
+    const v = PX_PER_DAY_INITIAL[timeScale];
+    pxPerDayRef.current = v;
+    setPxPerDay(v);
+  }, [timeScale]);
+
   const totalTimelineWidth = Math.max((daysBetween(dateRange.start, dateRange.end) + 1) * pxPerDay, 600);
   const totalContentHeight = rowHeights(rows);
 
@@ -492,14 +536,14 @@ export function GanttView({
 
   // Header labels for the full date range (translated on horizontal scroll)
   const allHeaderLabels = useMemo(() => {
-    const interval = pxPerDay >= 25 ? 1 : pxPerDay >= 8 ? 7 : 30;
+    const { dayStep, format } = getHeaderTier(pxPerDay);
     const totalDays = daysBetween(dateRange.start, dateRange.end) + 1;
     const labels: { key: number; x: number; label: string }[] = [];
-    for (let d = 0; d < totalDays; d += interval) {
+    for (let d = 0; d < totalDays; d += dayStep) {
       labels.push({
         key: d,
         x: d * pxPerDay,
-        label: formatHeaderLabel(addDays(dateRange.start, d), pxPerDay),
+        label: format(addDays(dateRange.start, d)),
       });
     }
     return labels;
@@ -508,6 +552,37 @@ export function GanttView({
   // ── Scroll refs (avoid re-renders on every scroll event) ────────────────
   const scrollLeftRef = useRef(0);
   const scrollTopRef  = useRef(0);
+
+  // ── Ctrl+scroll zoom ────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = rightPaneRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const direction = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+      const next = Math.max(PX_PER_DAY_MIN, Math.min(PX_PER_DAY_MAX, pxPerDayRef.current * direction));
+      if (next === pxPerDayRef.current) return;
+
+      // Keep the date under the cursor stationary
+      const rect = el.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const pivotDays = (el.scrollLeft + cursorX) / pxPerDayRef.current;
+      const newScrollLeft = pivotDays * next - cursorX;
+
+      pxPerDayRef.current = next;
+      setPxPerDay(next);
+
+      // Defer scroll adjustment until after the layout pass that widens the extent
+      requestAnimationFrame(() => {
+        if (rightPaneRef.current) {
+          rightPaneRef.current.scrollLeft = Math.max(0, newScrollLeft);
+        }
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []); // intentionally empty – uses refs only
 
   // ── Drag state ──────────────────────────────────────────────────────────
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -640,7 +715,7 @@ export function GanttView({
     const my = e.clientY - rect.top;
 
     if (dragStateRef.current) {
-      const deltaDays = Math.round((mx - dragStateRef.current.startX) / pxPerDay);
+      const deltaDays = Math.round((mx - dragStateRef.current.startX) / pxPerDayRef.current);
       const updated = { ...dragStateRef.current, deltaDays };
       dragStateRef.current = updated;
       setDragState(updated);
