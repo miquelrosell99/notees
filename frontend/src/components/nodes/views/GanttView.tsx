@@ -21,6 +21,7 @@ import type { NodeGanttViewProps } from '@/types/nodeCollection';
 import { dateFromUuid } from '@/types/api';
 import { getNode, setProperty, getOrCreateDaily } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { NodeInline } from '../../blocks/NodeInline';
 import { NodeIcon } from '../../core/icons';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
@@ -545,11 +546,13 @@ export function GanttView({
         return next;
       });
     },
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
-      queryClient.invalidateQueries({ queryKey: ['gantt-day-nodes'] });
-    },
-    onSettled: (_, __, { nodeId }) => {
+    onSuccess: async (_, { nodeId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) }),
+        queryClient.invalidateQueries({ queryKey: ['gantt-day-nodes'] }),
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() }),
+      ]);
+      // Refetches done — safe to drop the optimistic override
       setOptimisticOverrides(prev => {
         const next = new Map(prev);
         next.delete(nodeId);
