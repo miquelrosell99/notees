@@ -372,12 +372,18 @@ export function autoFixSystemQuery(
         continue;
       }
       
-      // Remove any old system-marked conditions AND any conditions that match this specific system condition pattern
+      // Remove any old system-marked conditions AND any conditions that match this specific system condition pattern.
+      // IMPORTANT: if a child is already a proper system node (has capabilities, added by a previous section),
+      // only remove it if it matches the CURRENT section's pattern (deduplication). This prevents later
+      // sections from wiping out conditions added by earlier sections in the same pass.
       const nonSystemChildren = currentAst.root_group.children.filter((child) => {
-        if (isSystemNode(child) && section.hasRequiredCondition(
-          { ...currentAst, root_group: { ...currentAst.root_group, children: [child] } },
-          context
-        )) return false;
+        if (isSystemNode(child)) {
+          // Keep it unless it specifically satisfies the CURRENT section's requirement
+          return !section.hasRequiredCondition(
+            { ...currentAst, root_group: { ...currentAst.root_group, children: [child] } },
+            context
+          );
+        }
         
         if (child.type === 'condition') {
           if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
