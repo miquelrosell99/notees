@@ -191,6 +191,7 @@ CREATE TABLE IF NOT EXISTS property (
     is_multi BOOLEAN DEFAULT FALSE,
     is_system BOOLEAN DEFAULT FALSE,
     is_local BOOLEAN DEFAULT FALSE,
+    scope VARCHAR(20) NOT NULL DEFAULT 'global',
     node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
     icon_visibility VARCHAR(50) DEFAULT 'hidden',
     active BOOLEAN DEFAULT TRUE,
@@ -198,7 +199,7 @@ CREATE TABLE IF NOT EXISTS property (
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    CHECK (is_local = FALSE OR node_id IS NOT NULL),
+    CHECK (scope = 'global' OR node_id IS NOT NULL),
     CHECK (type NOT IN ('image') OR is_multi = FALSE)
 );
 
@@ -208,12 +209,12 @@ CREATE INDEX IF NOT EXISTS idx_property_workspace_id ON property(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_property_node_id ON property(node_id) WHERE node_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_property_create_uid ON property(create_uid);
 CREATE INDEX IF NOT EXISTS idx_property_write_uid ON property(write_uid);
--- Unique constraint for workspace properties (name unique per workspace, non-local)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_workspace ON property(name, workspace_id) 
-    WHERE is_local = FALSE AND active = TRUE;
--- Unique constraint for local properties (unique name per node_id)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_local ON property(name, node_id) 
-    WHERE is_local = TRUE AND active = TRUE;
+-- Unique constraint for global properties (name unique per workspace)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_global ON property(name, workspace_id)
+    WHERE scope = 'global' AND active = TRUE;
+-- Unique constraint for scoped properties (class or node): unique name per node_id+scope
+CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_scoped ON property(name, node_id, scope)
+    WHERE scope != 'global' AND active = TRUE;
 
 -- Property class filters
 CREATE TABLE IF NOT EXISTS property_class_filter (

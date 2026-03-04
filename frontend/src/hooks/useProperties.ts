@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
-import type { PropertyCreate, Node } from '@/types/api';
+import type { PropertyCreate, PropertyIconVisibility, Node } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 
@@ -20,6 +20,25 @@ export function useProperties() {
   return useQuery({
     queryKey: propertyKeys.list(),
     queryFn: () => propertiesApi.listProperties(),
+  });
+}
+
+/**
+ * Hook to fetch properties available in a given context:
+ * global + class-scoped (if contextClassIds) + node-scoped (if contextNodeId).
+ * Falls back to listProperties when no context is provided.
+ */
+export function useAvailableProperties(opts: {
+  contextNodeId?: number;
+  contextClassIds?: number[];
+} = {}) {
+  const hasContext = opts.contextNodeId != null || (opts.contextClassIds?.length ?? 0) > 0;
+  return useQuery({
+    queryKey: propertyKeys.available(opts),
+    queryFn: () =>
+      hasContext
+        ? propertiesApi.getAvailableProperties(opts)
+        : propertiesApi.listProperties(),
   });
 }
 
@@ -72,7 +91,7 @@ export function useUpdateProperty() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: string } }) => 
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null } }) => 
       propertiesApi.updateProperty(id, data),
     onSuccess: (updated) => {
       queryClient.setQueryData(propertyKeys.detail(updated.id), updated);

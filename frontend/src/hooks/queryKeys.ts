@@ -67,6 +67,8 @@ export const propertyKeys = {
   classExtends: (classId: number) => [...propertyKeys.all, 'class-extends', classId] as const,
   inheritedProperties: (classId: number) => [...propertyKeys.all, 'inherited', classId] as const,
   extendedByClasses: (classId: number) => [...propertyKeys.all, 'extended-by', classId] as const,
+  available: (opts: { contextNodeId?: number; contextClassIds?: number[] }) =>
+    [...propertyKeys.all, 'available', opts] as const,
 };
 
 // ==================== Comment Query Keys ====================
