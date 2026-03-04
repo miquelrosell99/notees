@@ -15,6 +15,7 @@ import { SelectionButton } from '../core/SelectionButton';
 import { NodeSelector } from '../nodes/NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
+import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useCurrentNodeUuid } from '@/hooks/useRouter';
 import type { ConditionNode, StyleType } from '@/types/queryAST';
 import { 
@@ -48,10 +49,23 @@ export function GenericConditionRenderer({
     : condition.condition_type === 'extends' 
       ? (condition as unknown as Record<string, unknown>).extends_class_id as number | null
       : null;
+
+  // Also extract the class UUID for fallback resolution when class_id is not set
+  const classUuid = !classId
+    ? (condition.condition_type === 'class'
+        ? (condition as unknown as Record<string, unknown>).class_uuid as string | null
+        : condition.condition_type === 'extends'
+          ? (condition as unknown as Record<string, unknown>).extends_class_uuid as string | null
+          : null)
+    : null;
+  // Filter out placeholder UUIDs that shouldn't be fetched
+  const classUuidForFetch = classUuid && classUuid !== '{current_node_uuid}' ? classUuid : null;
   
   // Hooks must be called unconditionally - always call them here
   const { data: allProperties = [] } = useProperties();
-  const { data: selectedClassNode } = useNode(classId);
+  const { data: selectedClassNodeById } = useNode(classId);
+  const { data: selectedClassNodeByUuid } = useNodeByUuid(classUuidForFetch);
+  const selectedClassNode = selectedClassNodeById ?? selectedClassNodeByUuid;
   
   // Determine if we're in dynamic mode
   const hasDynamicMode = config?.hasStaticDynamicToggle || alwaysUsesNestedGroup(condition.condition_type);
