@@ -182,6 +182,29 @@ async def remove_class_property(
     return {"status": "ok"}
 
 
+class ReorderClassPropertiesRequest(BaseModel):
+    property_ids: List[int]
+
+
+@router.put("/classes/{class_node_id}/properties/reorder")
+async def reorder_class_properties(
+    class_node_id: int,
+    request: ReorderClassPropertiesRequest,
+    user: User = Depends(get_current_user),
+):
+    """Reorder properties on a class by updating their sequence values.
+    
+    Accepts an ordered list of property IDs. Each property's sequence is
+    set to its position in the list.
+    """
+    repo = await _get_property_repo(user)
+    
+    for seq, property_id in enumerate(request.property_ids):
+        await repo.add_class_property(class_node_id, property_id, sequence=seq)
+    
+    return {"status": "ok"}
+
+
 # ============== Class Extends (Inheritance) ==============
 
 @router.get("/classes/{class_node_id}/extends")

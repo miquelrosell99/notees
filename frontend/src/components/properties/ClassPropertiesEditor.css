@@ -27,3 +27,28 @@
   font-style: italic;
 }
 
+/* Inline ⋮ options button on each property row */
+.class-property-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.list-sortable__item:hover .class-property-menu-btn,
+.class-property-menu-btn:focus {
+  opacity: 1;
+}
+
+.class-property-menu-btn:hover {
+  color: var(--color-on-surface);
+  background: var(--color-surface-variant);
+}
+
