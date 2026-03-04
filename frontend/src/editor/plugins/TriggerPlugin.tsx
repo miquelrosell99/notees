@@ -94,7 +94,7 @@ export function TriggerPlugin({
   // ─── Detect triggers on text change ────────────────────────
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
+    return editor.registerUpdateListener(({ editorState, tags }) => {
       editorState.read(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
@@ -105,6 +105,21 @@ export function TriggerPlugin({
         const anchorNode = selection.anchor.getNode();
         const text = anchorNode.getTextContent();
         const offset = selection.anchor.offset;
+
+        // Only detect new triggers when text was actually typed, not on
+        // pure cursor movements (clicks, arrow keys).  We allow continued
+        // detection while a trigger is already open so the query updates
+        // as the user keeps typing.
+        const textChanged = text !== lastTextRef.current;
+        lastTextRef.current = text;
+
+        // If nothing was typed and no trigger is open, skip detection.
+        // Also skip history-undo/redo replays — they aren't fresh typing.
+        if (!textChanged && !trigger.isOpen) return;
+        if (tags.has('historic')) {
+          if (trigger.isOpen) setTrigger(prev => ({ ...prev, isOpen: false }));
+          return;
+        }
 
         // Strip zero-width spaces before trigger detection —
         // empty blocks use ZWS for cursor placement and the transform
@@ -145,11 +160,9 @@ export function TriggerPlugin({
         } else if (trigger.isOpen) {
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
-
-        lastTextRef.current = text;
       });
     });
-  }, [editor, trigger.isOpen]);
+  }, [editor, trigger.isOpen, trigger.embedMode]);
 
   // ─── Escape closes trigger ─────────────────────────────────
 
