@@ -458,6 +458,7 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
         return ClassCondition(
             class_uuid=data.get("class_uuid", ""),
             class_id=data.get("class_id"),
+            operator=data.get("operator"),
         )
     elif condition_type == ConditionType.EXTENDS:
         return ExtendsCondition(

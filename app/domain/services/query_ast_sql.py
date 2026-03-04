@@ -241,23 +241,40 @@ class QueryASTToSQL:
             return None
         
         param_name = self._add_param(condition.class_uuid)
-        logger.debug(f"Generating class condition SQL with uuid={condition.class_uuid}")
+        logger.debug(f"Generating class condition SQL with uuid={condition.class_uuid}, operator={condition.operator}")
         
-        # Query nodes that have this class OR any class that extends this class (recursively)
-        # Uses a recursive CTE to find all child classes that extend the target class
-        return f"""(
-            EXISTS (
-                SELECT 1 FROM (
-                    -- Get the target class ID
-                    WITH RECURSIVE class_hierarchy AS (
-                        -- Base case: the target class itself
+        # Recursive CTE: the target class and all classes that extend it (inheritance)
+        class_hierarchy_cte = f"""WITH RECURSIVE class_hierarchy AS (
                         SELECT id FROM node WHERE uuid = %({param_name})s::uuid AND workspace_id = %(workspace_id)s
                         UNION
-                        -- Recursive case: classes that extend any class in the hierarchy
                         SELECT ce.target_id
                         FROM class_extend ce
                         INNER JOIN class_hierarchy ch ON ce.source_id = ch.id
-                    )
+                    )"""
+        
+        operator = condition.operator or 'contains'
+        
+        if operator == 'does_not_contain':
+            # Node does NOT have this class (or any subclass) in its class_ids array
+            return f"""(
+            NOT EXISTS (
+                SELECT 1 FROM (
+                    {class_hierarchy_cte}
+                    SELECT id FROM class_hierarchy
+                ) AS matching_classes
+                WHERE matching_classes.id = ANY(n.class_ids)
+            )
+        )"""
+        elif operator == 'defined':
+            return "n.class_ids IS NOT NULL AND array_length(n.class_ids, 1) > 0"
+        elif operator == 'not_defined':
+            return "(n.class_ids IS NULL OR array_length(n.class_ids, 1) = 0)"
+        else:
+            # Default: 'contains' / 'is' — node has this class (or a subclass)
+            return f"""(
+            EXISTS (
+                SELECT 1 FROM (
+                    {class_hierarchy_cte}
                     SELECT id FROM class_hierarchy
                 ) AS matching_classes
                 WHERE matching_classes.id = ANY(n.class_ids)
