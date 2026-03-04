@@ -200,6 +200,18 @@ export async function removeClassProperty(
   await api.delete(`${BASE}/classes/${classNodeId}/properties/${propertyId}`);
 }
 
+/**
+ * Reorder properties within a class by providing property IDs in the desired order
+ */
+export async function reorderClassProperties(
+  classNodeId: number,
+  propertyIds: number[]
+): Promise<void> {
+  await api.put(`${BASE}/classes/${classNodeId}/properties/reorder`, {
+    property_ids: propertyIds,
+  });
+}
+
 // ============== Class Extends (Inheritance) ==============
 
 /**
