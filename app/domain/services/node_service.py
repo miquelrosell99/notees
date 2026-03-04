@@ -1097,7 +1097,7 @@ class NodeService:
             
             # Check if property already has a value - don't override existing values
             existing_values = await self._property_repo.get_all_property_values(node_id)
-            if cp.property_id in existing_values and existing_values[cp.property_id]:
+            if cp.property_id in existing_values and existing_values[cp.property_id].get('values'):
                 continue
             
             # Set default value based on property type
