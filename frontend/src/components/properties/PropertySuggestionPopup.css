@@ -100,3 +100,40 @@
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
 }
+
+/* Scope badge: shown on properties that are class-local (@) or node-local (●) */
+.property-suggestion-popup__scope-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  margin-left: var(--spacing-1);
+}
+
+.property-suggestion-popup__scope-badge--class {
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.property-suggestion-popup__scope-badge--node {
+  color: var(--color-tertiary, var(--color-secondary));
+  background: var(--color-tertiary-container, var(--color-secondary-container));
+}
+
+/* Secondary "Create as..." buttons shown below the primary create option */
+.property-suggestion-popup__option--create-alt {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-on-surface-variant);
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.property-suggestion-popup__option--create-alt:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}

@@ -23,7 +23,7 @@ from typing import Optional, List, Any
 import asyncpg
 
 from ..entities import (
-    Property, PropertyType, PropertySelectionLine,
+    Property, PropertyType, PropertyScope, PropertySelectionLine,
     PropertyClassFilter, ClassProperty,
     NodeProperty, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
     SCALAR_TYPES, RELATION_TYPES, ALWAYS_SINGLE_TYPES,
@@ -77,7 +77,7 @@ class PostgresPropertyRepository(PropertyRepository):
             type=PropertyType(row['type']),
             is_multi=row.get('is_multi', False),
             is_system=row.get('is_system', False),
-            is_local=row.get('is_local', False),
+            scope=PropertyScope(row.get('scope', 'global')),
             node_id=row.get('node_id'),
             icon_visibility=row.get('icon_visibility', 'hidden'),
             create_date=create_date,
@@ -220,26 +220,34 @@ class PostgresPropertyRepository(PropertyRepository):
         if property.type in ALWAYS_SINGLE_TYPES:
             is_multi = False
         
-        # Validate local property constraints
-        if property.is_local:
+        # Validate scoped property constraints
+        if property.scope != PropertyScope.GLOBAL:
             if not property.node_id:
-                raise ValueError("Local properties must have a node_id")
+                raise ValueError("Class/node-scoped properties must have a node_id")
+            # For node scope: must be a page node; for class scope: must be a class node
             async with acquire_connection(self._pool) as conn:
-                row = await conn.fetchrow(
-                    "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
+                node_row = await conn.fetchrow(
+                    "SELECT is_page, is_class FROM node WHERE id = $1 AND workspace_id = $2",
                     property.node_id, self._workspace_id
                 )
-                if not row or not row['is_page']:
-                    raise ValueError("Local property node_id must reference a page node")
+                if not node_row:
+                    raise ValueError("Scoped property node_id must reference an existing node")
+                if property.scope == PropertyScope.NODE and not node_row['is_page']:
+                    raise ValueError("Node-scoped property node_id must reference a page node")
+                if property.scope == PropertyScope.CLASS and not node_row.get('is_class', False):
+                    raise ValueError("Class-scoped property node_id must reference a class node")
         
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, is_local, node_id, create_date, write_date, create_uid, write_uid)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $11)
+                INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system,
+                                      is_local, scope, node_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $12)
                 RETURNING id
             """, uuid, self._workspace_id if not property.is_system else None,
                 property.name, property.icon, property.type.value,
-                is_multi, property.is_system, property.is_local,
+                is_multi, property.is_system,
+                property.scope != PropertyScope.GLOBAL,  # is_local for backward compat
+                property.scope.value,
                 property.node_id, now, self._user_id)
             
             if row is None:
@@ -298,9 +306,9 @@ class PostgresPropertyRepository(PropertyRepository):
         """Get property by name."""
         async with acquire_connection(self._pool) as conn:
             if node_id is not None:
-                # Look for local property first
+                # Look for scoped property (class or node) first
                 row = await conn.fetchrow(
-                    "SELECT id FROM property WHERE name = $1 AND is_local = TRUE AND node_id = $2 AND active = TRUE",
+                    "SELECT id FROM property WHERE name = $1 AND scope != 'global' AND node_id = $2 AND active = TRUE",
                     name, node_id
                 )
                 if row:
@@ -308,7 +316,7 @@ class PostgresPropertyRepository(PropertyRepository):
             
             # Fall back to global property
             row = await conn.fetchrow(
-                "SELECT id FROM property WHERE name = $1 AND is_local = FALSE AND active = TRUE",
+                "SELECT id FROM property WHERE name = $1 AND scope = 'global' AND active = TRUE",
                 name
             )
             if not row:
@@ -360,7 +368,7 @@ class PostgresPropertyRepository(PropertyRepository):
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM property WHERE (workspace_id = $1 OR workspace_id IS NULL) AND is_local = FALSE AND active = TRUE ORDER BY name",
+                    "SELECT * FROM property WHERE (workspace_id = $1 OR workspace_id IS NULL) AND scope = 'global' AND active = TRUE ORDER BY name",
                     self._workspace_id
                 )
             properties = [self._row_to_property(row) for row in rows]
@@ -368,12 +376,61 @@ class PostgresPropertyRepository(PropertyRepository):
             return properties
     
     async def get_local_properties(self, node_id: int) -> List[Property]:
-        """Get all local properties for a specific page node."""
+        """Get all scoped (class or node) properties for a specific node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM property WHERE is_local = TRUE AND node_id = $1 AND active = TRUE ORDER BY name",
+                "SELECT * FROM property WHERE scope != 'global' AND node_id = $1 AND active = TRUE ORDER BY name",
                 node_id
             )
+            properties = [self._row_to_property(row) for row in rows]
+            await self._load_property_extras(conn, properties)
+            return properties
+
+    async def get_available_properties(
+        self,
+        context_node_id: Optional[int] = None,
+        context_class_ids: Optional[List[int]] = None,
+    ) -> List[Property]:
+        """Get properties available in a given context.
+
+        Returns:
+          - All global properties (scope='global')
+          - Class-scoped properties whose node_id is in context_class_ids
+          - Node-scoped properties whose node_id == context_node_id (if provided)
+        
+        Ordered by scope (global first, then class, then node) then name.
+        """
+        async with acquire_connection(self._pool) as conn:
+            parts: List[str] = []
+            params: List[Any] = [self._workspace_id]
+            idx = 2
+
+            # Always include global properties
+            parts.append(
+                f"(scope = 'global' AND (workspace_id = $1 OR workspace_id IS NULL) AND active = TRUE)"
+            )
+
+            # Class-scoped properties
+            if context_class_ids:
+                parts.append(f"(scope = 'class' AND node_id = ANY(${idx}) AND active = TRUE)")
+                params.append(context_class_ids)
+                idx += 1
+
+            # Node-scoped properties
+            if context_node_id is not None:
+                parts.append(f"(scope = 'node' AND node_id = ${idx} AND active = TRUE)")
+                params.append(context_node_id)
+                idx += 1
+
+            where = " OR ".join(parts)
+            sql = f"""
+                SELECT * FROM property
+                WHERE {where}
+                ORDER BY
+                    CASE scope WHEN 'global' THEN 0 WHEN 'class' THEN 1 ELSE 2 END,
+                    name
+            """
+            rows = await conn.fetch(sql, *params)
             properties = [self._row_to_property(row) for row in rows]
             await self._load_property_extras(conn, properties)
             return properties

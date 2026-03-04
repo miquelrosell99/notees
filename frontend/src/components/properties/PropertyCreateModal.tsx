@@ -12,7 +12,7 @@
  * - Allowed classes selector (for node type)
  */
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import type { PropertyType, PropertyCreate, Node } from '@/types/api';
+import type { PropertyType, PropertyCreate, PropertyScope, Node } from '@/types/api';
 import { useProperties, useNodes } from '@/hooks';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -39,6 +39,8 @@ export interface PropertyCreateModalProps {
   onCreate: (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => void;
   /** Optional initial name to pre-populate the field */
   initialName?: string;
+  /** If provided, locks the scope of the created property (hides scope toggle) */
+  initialScope?: PropertyScope;
 }
 
 export function PropertyCreateModal({
@@ -46,12 +48,13 @@ export function PropertyCreateModal({
   onClose,
   onCreate,
   initialName = '',
+  initialScope,
 }: PropertyCreateModalProps) {
   // Basic fields
   const [icon, setIcon] = useState('');
   const [name, setName] = useState('');
   const [selectedType, setSelectedType] = useState<PropertyType>('text');
-  const [isLocal, setIsLocal] = useState(false);
+  const [scope, setScope] = useState<PropertyScope>(initialScope ?? 'global');
   const [isMultiValue, setIsMultiValue] = useState(false);
   const [defaultValue, setDefaultValue] = useState('');
   
@@ -96,7 +99,7 @@ export function PropertyCreateModal({
       setIcon('');
       setName('');
       setSelectedType('text');
-      setIsLocal(false);
+      setScope(initialScope ?? 'global');
       setIsMultiValue(false);
       setDefaultValue('');
       setSelectionOptions([]);
@@ -109,7 +112,7 @@ export function PropertyCreateModal({
       // Set initial name when opening
       setName(initialName);
     }
-  }, [isOpen, initialName]);
+  }, [isOpen, initialName, initialScope]);
   
   // Handle type change
   const handleTypeChange = useCallback((type: string) => {
@@ -174,7 +177,8 @@ export function PropertyCreateModal({
     const data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] } = {
       name: name.trim(),
       type: selectedType,
-      is_local: isLocal,
+      scope,
+      is_local: scope !== 'global',  // backward compat
       icon: icon || undefined,
     };
     
@@ -191,7 +195,7 @@ export function PropertyCreateModal({
     
     onCreate(data);
     onClose();
-  }, [canCreate, name, selectedType, isLocal, icon, selectionOptions, onCreate, onClose]);
+  }, [canCreate, name, selectedType, scope, icon, selectionOptions, onCreate, onClose]);
   
   // Get type classes for display (exclude page class)
   const typeClasses = useMemo(() => 
@@ -249,7 +253,7 @@ export function PropertyCreateModal({
         icon={icon}
         name={name}
         propertyType={selectedType}
-        isLocal={isLocal}
+        isLocal={scope !== 'global'}
         isMultiValue={isMultiValue}
         defaultValue={defaultValue}
         nameError={nameError}
@@ -263,7 +267,8 @@ export function PropertyCreateModal({
         onIconChange={setIcon}
         onNameChange={setName}
         onTypeChange={handleTypeChange}
-        onIsLocalChange={setIsLocal}
+        onIsLocalChange={(val) => setScope(val ? (initialScope && initialScope !== 'global' ? initialScope : 'node') : 'global')}
+        isLocalLocked={!!initialScope}  // Lock scope toggle when scope is pre-decided
         onIsMultiValueChange={setIsMultiValue}
         onDefaultValueChange={setDefaultValue}
         onAddOption={handleAddOption}

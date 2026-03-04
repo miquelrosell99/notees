@@ -27,6 +27,21 @@ export async function listProperties(): Promise<Property[]> {
 }
 
 /**
+ * Get properties available in a given context:
+ * global properties + class-scoped properties (if contextClassIds) + node-scoped (if contextNodeId)
+ */
+export async function getAvailableProperties(opts: {
+  contextNodeId?: number;
+  contextClassIds?: number[];
+}): Promise<Property[]> {
+  const params: Record<string, string> = {};
+  if (opts.contextNodeId != null) params.context_node_id = String(opts.contextNodeId);
+  if (opts.contextClassIds?.length) params.context_class_ids = opts.contextClassIds.join(',');
+  const response = await api.get<PropertiesResponse>(`${BASE}/available`, { params });
+  return response.data.properties ?? [];
+}
+
+/**
  * Create a new property
  */
 export async function createProperty(data: PropertyCreate): Promise<Property> {

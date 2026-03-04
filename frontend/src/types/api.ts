@@ -476,6 +476,14 @@ export type PropertyIconVisibility = 'hidden' | 'before_content' | 'after_bullet
 export const ICON_VISIBILITY_PROPERTY_TYPES: PropertyType[] = ['selection'];
 
 /**
+ * Property scope: where a property is scoped to.
+ * 'global'  — available workspace-wide
+ * 'class'   — tied to a class node, shown to all instances of that class
+ * 'node'    — tied to a specific page node only
+ */
+export type PropertyScope = 'global' | 'class' | 'node';
+
+/**
  * Property definition
  */
 export interface Property {
@@ -487,8 +495,10 @@ export interface Property {
   type: PropertyType;
   multi: boolean;
   is_system: boolean;
-  is_local: boolean;  // Local properties apply only to specific nodes, not globally unique
-  node_id: number | null;  // For local properties, the node this property is scoped to
+  /** @deprecated use scope instead */
+  is_local: boolean;  // True when scope !== 'global'
+  scope: PropertyScope;  // 'global' | 'class' | 'node'
+  node_id: number | null;  // For scoped properties, the node this property is scoped to
   icon_visibility: PropertyIconVisibility;  // Where to show selection value icon at block level
   create_date: string;
   write_date: string;
@@ -589,7 +599,10 @@ export interface PropertyCreate {
   icon?: string | null;
   type?: PropertyType;
   multi?: boolean;
-  is_local?: boolean;  // Local properties only apply to specific nodes
+  /** @deprecated use scope instead */
+  is_local?: boolean;  // Backward compat — use scope when possible
+  scope?: PropertyScope;  // 'global' | 'class' | 'node'
+  node_id?: number | null;  // Required when scope is 'class' or 'node'
   class_filters?: number[];
   options?: string[];
 }
