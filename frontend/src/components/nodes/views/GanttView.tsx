@@ -446,6 +446,11 @@ export function GanttView({
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Optimistic date overrides (hold new dates while API call is in-flight) ──
+  const [optimisticOverrides, setOptimisticOverrides] = useState<
+    Map<number, { startDate: Date; endDate: Date | null }>
+  >(new Map());
+
   // ── Data derivation ─────────────────────────────────────────────────────
   const ganttNodeItems = useMemo<GanttNodeItem[]>(() => {
     if (!startDateProperty) return [];
@@ -506,11 +511,6 @@ export function GanttView({
   // ── Drag state ──────────────────────────────────────────────────────────
   const [dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
-
-  // ── Optimistic date overrides (hold new dates while API call is in-flight) ──
-  const [optimisticOverrides, setOptimisticOverrides] = useState<
-    Map<number, { startDate: Date; endDate: Date | null }>
-  >(new Map());
 
   // ── Context menu ────────────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{ node: Node; x: number; y: number } | null>(null);
