@@ -287,7 +287,6 @@ class TestCascadeDelete:
             name="Test Property",
             type=PropertyType.TEXT,
             is_multi=False,
-            is_local=False,
         )
         created_property = await property_repo.create(test_property)
         assert created_property.id is not None
