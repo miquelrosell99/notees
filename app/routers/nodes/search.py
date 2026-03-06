@@ -320,6 +320,7 @@ async def get_links_for_nodes(
     """
     node_ids = body.get("node_ids", [])
     scope = body.get("scope", "between")
+    semantic = body.get("semantic", False)
     if not node_ids or not isinstance(node_ids, list):
         return {"links": []}
     if scope not in ("between", "touching"):
@@ -496,6 +497,40 @@ async def get_links_for_nodes(
             )
         for row in property_link_rows:
             links.append({"source": row['node_id'], "target": row['target_id'], "type": "property-reference"})
+        
+        # 6. Semantic inference: co-occurrence links from blocks with multiple links
+        if semantic:
+            sem_rows = await conn.fetch(
+                """
+                SELECT nl.source_id AS block_id, nl.target_id AS target_page_id
+                FROM node_link nl
+                JOIN node block ON nl.source_id = block.id
+                JOIN node target ON nl.target_id = target.id
+                WHERE block.workspace_id = $1
+                  AND block.is_page = FALSE
+                  AND block.active = TRUE
+                  AND target.active = TRUE
+                  AND target.is_page = TRUE
+                  AND block.page_id = ANY($2::int[])
+                  AND nl.target_id = ANY($2::int[])
+                """,
+                service._workspace_id,
+                node_ids,
+            )
+            # Group targets by block; for each block with 2+ unique targets emit pairs
+            from collections import defaultdict
+            block_targets: dict = defaultdict(list)
+            for row in sem_rows:
+                block_targets[row['block_id']].append(row['target_page_id'])
+            for _block_id, targets in block_targets.items():
+                # Deduplicate and cap at 10 targets per block to bound pair explosion
+                unique_targets = list(dict.fromkeys(targets))[:10]
+                if len(unique_targets) < 2:
+                    continue
+                for i in range(len(unique_targets)):
+                    for j in range(i + 1, len(unique_targets)):
+                        a, b = unique_targets[i], unique_targets[j]
+                        links.append({"source": a, "target": b, "type": "semantic"})
         
         # Deduplicate
         seen = set()
