@@ -658,11 +658,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
 
       // Build edges (only unique source/target pairs), with dashed flag
-      // Parent/class/extends links are solid; reference links are dashed
+      // Parent/class/extends links are solid; reference links are dashed; semantic links are dashed with a distinct color
+      const SEMANTIC_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
       const physEdges = edges.map(e => ({
         source: e.source,
         target: e.target,
-        dashed: e.type === 'reference' || e.type === 'property-reference',
+        dashed: e.type === 'reference' || e.type === 'property-reference' || e.type === 'semantic',
+        color: e.type === 'semantic' ? SEMANTIC_COLOR : undefined,
       }));
 
       // Build visual metadata map
