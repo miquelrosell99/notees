@@ -186,12 +186,13 @@ export function useGraphNodes(options?: { enabled?: boolean }) {
  */
 export function useGraphLinks(
   nodeIds: number[],
-  options?: { enabled?: boolean; scope?: 'between' | 'touching' }
+  options?: { enabled?: boolean; scope?: 'between' | 'touching'; semantic?: boolean }
 ) {
   const scope = options?.scope ?? 'between';
+  const semantic = options?.semantic ?? false;
   return useQuery({
-    queryKey: nodeKeys.graphLinks(nodeIds, scope),
-    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope),
+    queryKey: nodeKeys.graphLinks(nodeIds, scope, semantic),
+    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope, semantic),
     enabled: (options?.enabled ?? true) && nodeIds.length > 0,
   });
 }

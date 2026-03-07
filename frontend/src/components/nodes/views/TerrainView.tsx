@@ -116,6 +116,7 @@ export function TerrainView({
     showMonthPages: true,
     showYearPages: true,
     showSystemPages: true,
+    showSemanticLinks: true,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   

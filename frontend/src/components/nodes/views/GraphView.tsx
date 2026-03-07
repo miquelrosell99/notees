@@ -31,8 +31,9 @@ import type {
   VisibilityFilters,
   ConstraintMode,
   LinkDirection,
+  type GraphDataMode,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree, mdiGraphOutline, mdiShareVariant } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -104,7 +105,19 @@ export function GraphView({
     prevNodeIdsRef.current = nodeIds;
     return nodeIds;
   }, [nodeIds]);
-  const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(stableNodeIds);
+
+  // Graph data mode: standard (explicit links) vs semantic (co-occurrence inference)
+  const [graphDataMode, setGraphDataMode] = useState<GraphDataMode>(() => {
+    try {
+      return (localStorage.getItem(getStorageKey(viewId, 'data_mode')) as GraphDataMode) || 'standard';
+    } catch {
+      return 'standard';
+    }
+  });
+
+  const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(stableNodeIds, {
+    semantic: graphDataMode === 'semantic',
+  });
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
@@ -149,6 +162,7 @@ export function GraphView({
     showMonthPages: true,
     showYearPages: true,
     showSystemPages: true,
+    showSemanticLinks: true,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   
@@ -274,6 +288,15 @@ export function GraphView({
     return () => clearTimeout(timer);
   }, [visibilityFilters, viewId]);
   
+  // Persist graphDataMode to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(getStorageKey(viewId, 'data_mode'), graphDataMode);
+    } catch {
+      // ignore
+    }
+  }, [graphDataMode, viewId]);
+
   // Build class ID set
   const classIds = useMemo(() => {
     const set = new Set<number>();
@@ -380,6 +403,7 @@ export function GraphView({
             (link.type === 'parent' || link.type === 'extends')) return false;
         if (!visibilityFilters.showReferenceLinks &&
             (link.type === 'reference' || link.type === 'property-reference')) return false;
+        if (!visibilityFilters.showSemanticLinks && link.type === 'semantic') return false;
         return true;
       })
       .map(link => ({ source: link.source, target: link.target, type: link.type }));
@@ -699,6 +723,19 @@ export function GraphView({
             <div className="visibility-option">
               <BooleanToggle
                 size="sm"
+                label="Semantic links"
+                description="Show inferred co-occurrence links (semantic mode)"
+                labelPosition="left"
+                checked={visibilityFilters.showSemanticLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showSemanticLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
                 label="Day pages"
                 description="Show daily journal pages"
                 labelPosition="left"
@@ -841,7 +878,7 @@ export function GraphView({
         className="node-graph-view__renderer"
       />
       
-      {/* Bottom Center: View mode switcher (normal / circle / tree) */}
+      {/* Bottom Center: View mode switcher and data mode toggle */}
       {showViewModes && (
         <div className="node-graph-view__bottom-center">
           <SelectionButton
@@ -853,6 +890,15 @@ export function GraphView({
             ]}
             value={viewMode}
             onChange={(value) => setViewMode(value as 'normal' | 'circle' | 'tree')}
+          />
+          <SelectionButton
+            size="sm"
+            options={[
+              { value: 'standard', icon: mdiGraphOutline, label: 'Standard' },
+              { value: 'semantic', icon: mdiShareVariant, label: 'Semantic' },
+            ]}
+            value={graphDataMode}
+            onChange={(value) => setGraphDataMode(value as GraphDataMode)}
           />
         </div>
       )}
