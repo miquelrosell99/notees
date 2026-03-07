@@ -572,7 +572,15 @@ export function NodeSelector({
             size="xs"
             icon={mdiPlus}
             className="node-selector__add-btn"
-            onClick={() => setIsPickerOpen(!isPickerOpen)}
+            onClick={() => setIsPickerOpen(true)}
+            onKeyDown={(e) => {
+              // Prevent space/enter from closing the picker when it's already open.
+              // Without this, the button retains focus briefly after opening and a
+              // space keypress would toggle it closed before focus moves to the input.
+              if (isPickerOpen && (e.key === ' ' || e.key === 'Enter')) {
+                e.preventDefault();
+              }
+            }}
             title={emptyText}
           >
             {nodes.length === 0 ? emptyText : ''}
