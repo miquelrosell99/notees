@@ -31,7 +31,7 @@ import type {
   VisibilityFilters,
   ConstraintMode,
   LinkDirection,
-  type GraphDataMode,
+  GraphDataMode,
 } from './viewTypes';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree, mdiGraphOutline, mdiShareVariant } from '@mdi/js';
 import { Button } from '@/components/core/Button';
