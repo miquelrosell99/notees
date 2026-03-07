@@ -29,11 +29,12 @@ export const LINE_DASH_DOTTED: number[] = [2, 3];
 
 // Link type priority: higher number wins when multiple links connect same pair
 export const LINK_TYPE_PRIORITY: Record<string, number> = {
-  'reference': 0,
-  'property-reference': 1,
-  'extends': 2,
-  'class': 3,
-  'parent': 4,
+  'semantic': 0,
+  'reference': 1,
+  'property-reference': 2,
+  'extends': 3,
+  'class': 4,
+  'parent': 5,
 };
 
 // ==================== Helper Functions ====================
