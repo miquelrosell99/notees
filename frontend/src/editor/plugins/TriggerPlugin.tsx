@@ -131,6 +131,36 @@ export function TriggerPlugin({
 
         // Look backwards from cursor for trigger patterns
         const textBefore = cleanText.slice(0, cleanOffset);
+
+        // If a link/type/tag trigger is already open, use stateful tracking instead of
+        // re-running pattern detection. This keeps the popup alive when the user types
+        // spaces or other characters — it only closes when the trigger char itself is
+        // deleted or the cursor moves before it.
+        if (trigger.isOpen && (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag')) {
+          if (trigger.embedMode) {
+            // Embed mode has no trigger char in the text — track everything before cursor
+            const newQuery = textBefore;
+            if (newQuery !== trigger.query) {
+              setTrigger(prev => ({ ...prev, query: newQuery }));
+            }
+            return;
+          }
+
+          const triggerChar = trigger.type === 'link' ? '+' : trigger.type === 'type' ? '@' : '#';
+          if (cleanOffset <= trigger.triggerOffset || cleanText[trigger.triggerOffset] !== triggerChar) {
+            // Trigger char was deleted or cursor moved before it — close popup
+            setTrigger(prev => ({ ...prev, isOpen: false }));
+            return;
+          }
+
+          // Query = everything typed after the trigger character up to the cursor
+          const newQuery = textBefore.slice(trigger.triggerOffset + 1);
+          if (newQuery !== trigger.query) {
+            setTrigger(prev => ({ ...prev, query: newQuery }));
+          }
+          return;
+        }
+
         const match = detectTriggerPattern(textBefore);
 
         if (match) {
