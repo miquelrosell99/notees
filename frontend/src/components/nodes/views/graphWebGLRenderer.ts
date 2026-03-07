@@ -444,7 +444,7 @@ export class GraphWebGLRenderer {
   private positions: Float32Array = new Float32Array(0);
 
   // --- Edge topology ---
-  private edges: Array<{ source: number; target: number; dashed?: boolean }> = [];
+  private edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number] }> = [];
 
   // --- Adjacency for dimming ---
   private _adjacency = new Map<number, Set<number>>();
@@ -752,8 +752,8 @@ export class GraphWebGLRenderer {
     console.log(`[setNodeVisuals] n=${n}, nodeIndex.size=${this.nodeIndex.size}`);
   }
 
-  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. */
-  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean }>): void {
+  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. `color` overrides the default edge color (RGBA 0..1). */
+  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number] }>): void {
     this.edges = edges;
     this._edgeDirty = true;
     this._rebuildAdjacency();
@@ -970,15 +970,17 @@ export class GraphWebGLRenderer {
       gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstCapacity * 4, gl.DYNAMIC_DRAW);
     }
 
-    const [er, eg, eb, ea] = getCssEdgeColor();
+    const defaultColor = getCssEdgeColor();
     const width = this.opts.edgeWidth;
 
     let count = 0;
     for (let i = 0; i < ne; i++) {
-      const { source, target, dashed } = edges[i];
+      const { source, target, dashed, color } = edges[i];
       const si = this.nodeIndex.get(source);
       const ti = this.nodeIndex.get(target);
       if (si === undefined || ti === undefined) continue;
+
+      const [er, eg, eb, ea] = color ?? defaultColor;
 
       // Store indices as floats — shader casts to int via int()
       const base = count * EDGE_STRIDE;
