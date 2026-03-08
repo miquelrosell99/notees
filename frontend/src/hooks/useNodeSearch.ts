@@ -14,8 +14,8 @@
  * - Hierarchical path support (e.g., "Page1/Page2" searches for Page2 child of Page1)
  * - "Create new" option detection
  */
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, nodeKeys } from './useNodes';
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types';
@@ -74,6 +74,18 @@ export interface UseNodeSearchReturn {
  *   classFilters: property.class_filters 
  * });
  */
+// Debounce hook for search queries
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(handle);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
 export function useNodeSearch(
   query: string,
   filters: NodeSearchFilters = {}
@@ -85,18 +97,21 @@ export function useNodeSearch(
     maxResults = 10,
   } = filters;
 
+  // Debounce the search query to avoid firing API on every keystroke
+  const debouncedQuery = useDebouncedValue(query, 150);
+
   // Convert classFilters array to comma-separated string for backend
   const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
 
   // Core search queries - pass class_filters to backend for server-side filtering
-  const { data: searchResults, isLoading: isSearchLoading } = useSearch(query, classFiltersParam);
+  const { data: searchResults, isLoading: isSearchLoading } = useSearch(debouncedQuery, classFiltersParam);
   const { data: allPages } = usePages();
   // Filtered pages query for when class_filters are present (empty-query case)
   const { data: filteredPages } = useQuery({
     queryKey: ['nodes', 'filtered-pages', classFiltersParam],
     queryFn: () => nodesApi.listNodes({ pages_only: true, class_filters: classFiltersParam }),
     enabled: !!classFiltersParam,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
   });
   const { data: allNodes } = useNodes(
     mode === 'all' || mode === 'blocks' ? {} : null
@@ -105,17 +120,20 @@ export function useNodeSearch(
   // Class-specific queries (only enabled when mode is 'classes')
   const { data: allClassNodes } = useClasses();
   const { data: classSearchResults, isLoading: isClassSearchLoading } = useSearchClasses(
-    mode === 'classes' ? query : ''
+    mode === 'classes' ? debouncedQuery : ''
   );
+
+  // Use debouncedQuery for API-driven filtering, but keep original query for "Create new" detection
+  const isLoading = isSearchLoading || isClassSearchLoading || debouncedQuery !== query;
 
   // Filter and organize results
   const { pageResults, blockResults } = useMemo(() => {
     // Helper to check if a node is a class definition (has is_class flag)
     const isClassDef = (node: Node) => node.is_class === true;
     
-    // Parse query for hierarchical path
-    const parsed = parseHierarchicalPath(query);
-    const searchQuery = parsed.isHierarchical ? parsed.leaf : query;
+    // Parse query for hierarchical path (use debouncedQuery for result filtering)
+    const parsed = parseHierarchicalPath(debouncedQuery);
+    const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
     
     // Classes mode - special handling for @ trigger
     if (mode === 'classes') {
@@ -295,7 +313,7 @@ export function useNodeSearch(
     return { pageResults: pages, blockResults: blocks };
   }, [
     mode,
-    query,
+    debouncedQuery,
     searchResults,
     allPages,
     filteredPages,
@@ -314,8 +332,10 @@ export function useNodeSearch(
   );
 
   // Determine if "Create new" option should be shown
+  // Don't show while still debouncing to prevent "Create page" flash
   const showCreateOption = useMemo(() => {
     if (!query.trim()) return false;
+    if (debouncedQuery !== query) return false; // Still debouncing, don't flash "Create"
     
     const parsed = parseHierarchicalPath(query);
     const searchTerm = parsed.isHierarchical ? parsed.leaf : query;
@@ -344,13 +364,13 @@ export function useNodeSearch(
     
     // No exact match in page results (case-sensitive comparison)
     return !pageResults.some(r => nodeNameToText(r.node.name) === searchTerm);
-  }, [pageResults, query, allPages]);
+  }, [pageResults, query, debouncedQuery, allPages]);
 
   return {
     pageResults,
     blockResults,
     allResults,
-    isLoading: isSearchLoading || isClassSearchLoading,
+    isLoading,
     showCreateOption,
   };
 }

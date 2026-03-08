@@ -571,18 +571,13 @@ async def search_nodes(
         except ValueError:
             pass
     
-    # Get node IDs for batch type lookup
-    node_ids = [n.id for n in nodes if n.id is not None]
-    
-    # Batch fetch type_ids for all nodes using PostgreSQL
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
-    
-    # Build response, optionally filtering by classes
+    # Build response - use class_ids already on node entities (no extra DB query needed)
+    # Only do the batch lookup when class_filters require it and nodes lack class_ids
     result = []
     for n in nodes:
         if n.id is None:
             continue
-        node_class_ids = class_ids_map.get(n.id, [])
+        node_class_ids = n.class_ids or []
         
         # Apply class filter if specified
         if filter_class_ids:
