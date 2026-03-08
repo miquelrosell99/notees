@@ -3,7 +3,7 @@
  * 
  * Read-only React Query hooks for fetching node data.
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
@@ -356,7 +356,8 @@ export function useSearch(query: string, classFilters?: string) {
     queryKey: nodeKeys.search(query, classFilters),
     queryFn: () => nodesApi.searchNodes(query, classFilters),
     enabled: query.length > 0,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30, // 30s - search results change less often than typed
   });
 }
 
@@ -393,7 +394,7 @@ export function useSearchClasses(query: string) {
     queryKey: [...nodeKeys.classes(), 'search', query] as const,
     queryFn: () => nodesApi.searchClasses(query),
     enabled: query.length > 0,
-    placeholderData: [],
+    placeholderData: keepPreviousData,
   });
 }
 
