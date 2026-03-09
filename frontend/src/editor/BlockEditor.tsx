@@ -140,6 +140,8 @@ export interface BlockEditorProps {
   onEnterAtRoot?: () => void;
   /** Called when UP arrow is pressed at the very first block (used by embed border selection) */
   onNavigateUpFromTop?: () => void;
+  /** Whether to hide inline property rows below blocks (default: false) */
+  hideProperties?: boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -175,6 +177,7 @@ export function BlockEditor({
   canDelete,
   onEnterAtRoot,
   onNavigateUpFromTop,
+  hideProperties = false,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -631,7 +634,7 @@ export function BlockEditor({
           <BlockPropertyIconsPlugin />
 
           {/* Inline property rows below blocks that have properties */}
-          <BlockPropertiesPlugin />
+          {!hideProperties && <BlockPropertiesPlugin />}
 
           {/* Asset previews — renders image/audio/file previews on asset blocks */}
           <AssetBlockPlugin />

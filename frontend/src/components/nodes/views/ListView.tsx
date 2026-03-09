@@ -113,6 +113,7 @@ export function ListView({
   groupByProperty,
   enableGrouping = false,
   showBreadcrumbs = false,
+  hideProperties = false,
 }: NodeListViewProps) {
   const viewId = useId();
 
@@ -315,6 +316,7 @@ export function ListView({
               pageId={pageId}
               pageUuid={pageUuid}
               showBreadcrumbs={showBreadcrumbs}
+              hideProperties={hideProperties}
             />
           );
         })}
@@ -428,6 +430,7 @@ export function ListView({
                   pageId={pageId}
                   pageUuid={pageUuid}
                   className="node-list-view__editor"
+                  hideProperties={hideProperties}
                 />
               </div>
             );
@@ -455,6 +458,7 @@ export function ListView({
         pageUuid={pageUuid}
         className="node-list-view__editor"
         onEnterAtRoot={onEnterAtRoot}
+        hideProperties={hideProperties}
       />
     </div>
   );
@@ -483,6 +487,7 @@ function ListViewGroup({
   pageId,
   pageUuid,
   showBreadcrumbs = false,
+  hideProperties = false,
 }: {
   group: NodeGroup;
   groupKey: string;
@@ -500,6 +505,7 @@ function ListViewGroup({
   pageId?: number;
   pageUuid?: string;
   showBreadcrumbs?: boolean;
+  hideProperties?: boolean;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -561,6 +567,7 @@ function ListViewGroup({
             pageId={pageId}
             pageUuid={pageUuid}
             className="node-list-view__editor"
+            hideProperties={hideProperties}
           />
         </div>
       )}
