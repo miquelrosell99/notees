@@ -81,8 +81,8 @@
 
 .suggestion-popup__item {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   padding: var(--spacing-2) var(--spacing-2);
   background: transparent;
@@ -92,6 +92,27 @@
   text-align: left;
   transition: background var(--motion-duration-short) var(--motion-easing-standard),
               transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.suggestion-popup__item-crumbs {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  padding-left: 26px;
+  margin-bottom: 1px;
+}
+
+.suggestion-popup__item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-width: 0;
 }
 
 .suggestion-popup__item:hover {
@@ -168,13 +189,7 @@
   flex-shrink: 0;
 }
 
-.suggestion-popup__item-path {
-  font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-  opacity: 0.55;
-  white-space: nowrap;
-  margin-right: 2px;
-}
+
 
 .suggestion-popup__item-class-pills {
   display: flex;
