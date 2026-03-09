@@ -60,18 +60,44 @@ async def search_classes(
     Only returns nodes where is_class=TRUE.
     """
     service = await _get_node_service(user)
-    # Search pages only (classes are pages)
-    nodes = await service.search(q, limit)
-    # Filter to classes only (is_class=True and no parent_id)
-    pages = [n for n in nodes if n.parent_id is None and n.is_class]
-    
+
+    # SQL expression extracting plain text from AST-formatted name column
+    name_text = """(CASE
+        WHEN name IS NOT NULL AND name LIKE '[%' THEN
+            COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(name::jsonb, '$.**.text') AS t), '')
+        ELSE COALESCE(name, '')
+    END)"""
+
+    async with acquire_connection(service._pool) as conn:
+        # Search directly within is_class=TRUE nodes to avoid post-filtering misses
+        if len(q) >= 3:
+            rows = await conn.fetch(f"""
+                SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                FROM node
+                WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                  AND is_class = TRUE AND parent_id IS NULL
+                  AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
+                ORDER BY rank DESC, write_date DESC
+                LIMIT $4
+            """, q, service._workspace_id, f'%{q}%', limit)
+        else:
+            rows = await conn.fetch(f"""
+                SELECT * FROM node
+                WHERE {name_text} ILIKE $1
+                  AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                  AND is_class = TRUE AND parent_id IS NULL
+                LIMIT $3
+            """, f'%{q}%', service._workspace_id, limit)
+
+    nodes = [service._node_repo.row_to_node(row) for row in rows]
+
     # Batch fetch class_ids
-    node_ids = [n.id for n in pages if n.id is not None]
+    node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
-    
+
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
-        for n in pages
+        for n in nodes
     ]}
 
 
