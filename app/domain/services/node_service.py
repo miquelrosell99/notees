@@ -1307,6 +1307,14 @@ class NodeService:
         )
         logger.info(f"[MERGE] Redirected node_link backlinks from {source_id} to {target_id}")
 
+        # Step 5b: Redirect node-type property values that point to the source page
+        pvr_result = await pool.execute(
+            "UPDATE property_value_relation SET target_id = $1 WHERE target_id = $2",
+            target_id, source_id,
+        )
+        pvr_count = int(pvr_result.split()[-1]) if pvr_result and pvr_result.split()[-1].isdigit() else 0
+        logger.info(f"[MERGE] Redirected {pvr_count} property_value_relation rows from {source_id} to {target_id}")
+
         # Step 6: Soft-delete source (backlinks already redirected, children already moved)
         await self.delete_node(source_id, user_id)
         logger.info(f"[MERGE] Soft-deleted source node {source_id}")
