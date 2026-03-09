@@ -20,7 +20,7 @@ import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
-import { InlineNodeBreadcrumbs, NodeBreadcrumbs } from '../NodeBreadcrumbs';
+import { NodeBreadcrumbs } from '../NodeBreadcrumbs';
 import './ListView.css';
 
 // ── Group type ───────────────────────────────────────────────────────────────
@@ -365,79 +365,49 @@ export const ListView = memo(function ListView({
     );
   }
 
-  // Non-grouped breadcrumb mode: when showBreadcrumbs=true and nodes have page_id,
-  // split top-level nodes into page-groups and show InlineNodeBreadcrumbs above each group.
+  // Non-grouped breadcrumb mode: show full NodeBreadcrumbs above each top-level node.
   if (showBreadcrumbs) {
-    const hasExternalPageNodes = nodes.some(n => !n.is_page && (n as any).page_id);
-    if (hasExternalPageNodes) {
-      const bcGroupMap = new Map<string, { page: Node | null; nodes: Node[] }>();
-      for (const node of nodes) {
-        const pageId = (node as any).page_id as number | undefined;
-        const key = pageId ? `page-${pageId}` : node.is_page ? `self-${node.id}` : 'no-page';
-        if (!bcGroupMap.has(key)) {
-          let pageNode: Node | null = null;
-          if (pageId) {
-            pageNode = {
-              id: pageId,
-              name: (node as any).page_name || 'Untitled',
-              uuid: (node as any).page_uuid || '',
-              is_page: true,
-            } as Node;
-          } else if (node.is_page) {
-            pageNode = node;
-          }
-          bcGroupMap.set(key, { page: pageNode, nodes: [] });
-        }
-        bcGroupMap.get(key)!.nodes.push(node);
-      }
-
-      const bcGroups = Array.from(bcGroupMap.values());
-      return (
-        <div className={`node-list-view node-list-view--breadcrumbs ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
-          {bcGroups.map((group, i) => {
-            const groupAllNodes: Node[] = [];
-            const collectNodes = (n: Node) => {
-              if (pagesOnly && !n.is_page) return;
-              groupAllNodes.push(n);
-              if (n.children) {
-                for (const child of n.children) collectNodes(child);
-              }
-            };
-            for (const n of group.nodes) collectNodes(n);
-            const sortedNodes = sortBySequence(groupAllNodes);
-            if (sortedNodes.length === 0) return null;
-            const key = group.page?.id ? `page-${group.page.id}` : `group-${i}`;
-            return (
-              <div key={key} className="node-list-view__breadcrumb-group">
-                {!group.nodes[0]?.is_page && group.page && (
-                  <InlineNodeBreadcrumbs
-                    node={group.nodes[0]}
-                    onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
-                    className="node-list-view__breadcrumb-header"
-                  />
-                )}
-                <BlockEditor
-                  editorId={`list-view-${viewId}-bc-${key}`}
-                  nodes={sortedNodes}
-                  mode="list"
-                  readOnly={!editable}
-                  onNavigateToNode={handleNavigateToNode}
-                  onOpenInSidebar={handleOpenInSidebar}
-                  onContentChange={handleContentChangeBridge}
-                  onAddClass={onAddClass}
-                  onSlashCommand={onSlashCommand}
-                  onPasteImage={onPasteImage}
-                  pageId={pageId}
-                  pageUuid={pageUuid}
-                  className="node-list-view__editor"
-                  hideProperties={hideProperties}
-                />
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
+    return (
+      <div className={`node-list-view node-list-view--breadcrumbs ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
+        {nodes.map((node) => {
+          const nodeFlat: Node[] = [];
+          const collect = (n: Node) => {
+            if (pagesOnly && !n.is_page) return;
+            nodeFlat.push(n);
+            if (n.children) for (const child of n.children) collect(child);
+          };
+          collect(node);
+          const sorted = sortBySequence(nodeFlat);
+          if (sorted.length === 0) return null;
+          return (
+            <div key={node.id} className="node-list-view__breadcrumb-group">
+              <NodeBreadcrumbs
+                nodeId={node.id}
+                nodeType={node.is_page ? 'page' : 'block'}
+                onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                className="node-list-view__breadcrumb-header"
+              />
+              <BlockEditor
+                editorId={`list-view-${viewId}-bc-${node.id}`}
+                nodes={sorted}
+                mode="list"
+                readOnly={!editable}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={handleOpenInSidebar}
+                onContentChange={handleContentChangeBridge}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
+                pageId={pageId}
+                pageUuid={pageUuid}
+                className="node-list-view__editor"
+                hideProperties={hideProperties}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   // BlockEditor handles runtime sync internally
@@ -553,22 +523,62 @@ function ListViewGroup({
       )}
       {!isCollapsed && (
         <div className="node-list-view__group-content">
-          <BlockEditor
-            editorId={`list-view-${viewId}-${groupKey}`}
-            nodes={sortedGroupNodes}
-            mode="list"
-            readOnly={!editable}
-            onNavigateToNode={handleNavigateToNode}
-            onOpenInSidebar={handleOpenInSidebar}
-            onContentChange={handleContentChangeBridge}
-            onAddClass={onAddClass}
-            onSlashCommand={onSlashCommand}
-            onPasteImage={onPasteImage}
-            pageId={pageId}
-            pageUuid={pageUuid}
-            className="node-list-view__editor"
-            hideProperties={hideProperties}
-          />
+          {showBreadcrumbs ? (
+            group.nodes.map((node) => {
+              const nodeFlat: Node[] = [];
+              const collect = (n: Node) => {
+                nodeFlat.push(n);
+                if (n.children) for (const child of n.children) collect(child);
+              };
+              collect(node);
+              const sorted = sortBySequence(nodeFlat);
+              if (sorted.length === 0) return null;
+              return (
+                <div key={node.id} className="node-list-view__breadcrumb-group">
+                  <NodeBreadcrumbs
+                    nodeId={node.id}
+                    nodeType={node.is_page ? 'page' : 'block'}
+                    onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                    stopAtPageLevel
+                    className="node-list-view__block-breadcrumbs"
+                  />
+                  <BlockEditor
+                    editorId={`list-view-${viewId}-${groupKey}-${node.id}`}
+                    nodes={sorted}
+                    mode="list"
+                    readOnly={!editable}
+                    onNavigateToNode={handleNavigateToNode}
+                    onOpenInSidebar={handleOpenInSidebar}
+                    onContentChange={handleContentChangeBridge}
+                    onAddClass={onAddClass}
+                    onSlashCommand={onSlashCommand}
+                    onPasteImage={onPasteImage}
+                    pageId={pageId}
+                    pageUuid={pageUuid}
+                    className="node-list-view__editor"
+                    hideProperties={hideProperties}
+                  />
+                </div>
+              );
+            })
+          ) : (
+            <BlockEditor
+              editorId={`list-view-${viewId}-${groupKey}`}
+              nodes={sortedGroupNodes}
+              mode="list"
+              readOnly={!editable}
+              onNavigateToNode={handleNavigateToNode}
+              onOpenInSidebar={handleOpenInSidebar}
+              onContentChange={handleContentChangeBridge}
+              onAddClass={onAddClass}
+              onSlashCommand={onSlashCommand}
+              onPasteImage={onPasteImage}
+              pageId={pageId}
+              pageUuid={pageUuid}
+              className="node-list-view__editor"
+              hideProperties={hideProperties}
+            />
+          )}
         </div>
       )}
     </div>

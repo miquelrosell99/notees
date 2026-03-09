@@ -151,6 +151,8 @@ interface NodeBreadcrumbsProps {
   onNavigateToProperty?: (propertyId: number) => void;
   /** Property context for when viewing a block from a text property */
   propertyContext?: { propertyId: number; propertyName: string } | null;
+  /** When true, only show ancestors below the page level (intermediate blocks) */
+  stopAtPageLevel?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -165,6 +167,7 @@ export function NodeBreadcrumbs({
   onNavigate,
   onNavigateToProperty,
   propertyContext,
+  stopAtPageLevel = false,
   className = '',
 }: NodeBreadcrumbsProps) {
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -178,7 +181,18 @@ export function NodeBreadcrumbs({
 
   // Build final breadcrumbs including property context
   const breadcrumbs = useMemo(() => {
-    const items = [...ancestorBreadcrumbs];
+    let items = [...ancestorBreadcrumbs];
+
+    // When stopAtPageLevel, strip the page and all ancestors above it
+    if (stopAtPageLevel) {
+      let lastPageIndex = -1;
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].isPage) { lastPageIndex = i; break; }
+      }
+      if (lastPageIndex >= 0) {
+        items = items.slice(lastPageIndex + 1);
+      }
+    }
 
     // If we have property context, insert it after the last page
     if (propertyContext && nodeType === 'block' && items.length > 0) {
@@ -197,7 +211,7 @@ export function NodeBreadcrumbs({
     }
 
     return items;
-  }, [ancestorBreadcrumbs, propertyContext, nodeType]);
+  }, [ancestorBreadcrumbs, propertyContext, nodeType, stopAtPageLevel]);
 
   // ─── Overflow detection ──────────────────────────────────────────────
   useEffect(() => {

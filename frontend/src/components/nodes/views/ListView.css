@@ -164,6 +164,26 @@
 
 .node-list-view__breadcrumb-header {
   padding-left: var(--spacing-5);
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Per-block breadcrumbs within grouped view (compact, below page level) */
+.node-list-view__block-breadcrumbs {
+  margin-bottom: 0;
+  padding: 0;
+  padding-left: var(--spacing-2);
+  gap: 2px;
+  font: var(--font-label-small);
+}
+
+.node-list-view__block-breadcrumbs .node-breadcrumb-link {
+  padding: 2px var(--spacing-1);
+}
+
+.node-list-view__block-breadcrumbs .node-breadcrumb-name {
+  max-width: 120px;
 }
 
 /* Pages section (standalone pages before grouped blocks) */
