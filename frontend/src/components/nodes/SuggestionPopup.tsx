@@ -34,6 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
@@ -383,11 +384,11 @@ export function SuggestionPopup({
   // Helper to get icon for item
   const renderItemIcon = (node: Node, isPage: boolean) => {
     if (type === 'type' || type === 'class') {
-      return <NodeIcon icon={node.icon} isPage={true} size="sm" />;
+      return <NodeIcon icon={getEffectiveIcon(node, allClasses as unknown as Node[])} isPage={true} size="sm" />;
     } else if (type === 'tag') {
       return <TagIcon size="sm" />;
     } else if (isPage) {
-      return <NodeIcon icon={node.icon} isPage={true} size="sm" />;
+      return <NodeIcon icon={getEffectiveIcon(node, allClasses as unknown as Node[])} isPage={true} size="sm" />;
     } else {
       return <BulletIcon size="sm" />;
     }
