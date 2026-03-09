@@ -236,7 +236,7 @@ export const ListView = memo(function ListView({
             pageNode = node;
           }
           
-          groups.set(pageKey, { page: pageNode, nodes: [] });
+          groups.set(pageKey, { page: pageNode, label: pageNode ? undefined : 'Other', nodes: [] });
         }
         
         groups.get(pageKey)!.nodes.push(node);
@@ -494,14 +494,6 @@ function ListViewGroup({
           </button>
           {group.page ? (
             <span className="node-list-view__group-page">
-              {showBreadcrumbs && (
-                <NodeBreadcrumbs
-                  nodeId={group.page.id}
-                  nodeType="page"
-                  onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
-                  className="node-list-view__group-ancestors"
-                />
-              )}
               <NodeInline
                 name={group.page.name}
                 icon={group.page.icon}
