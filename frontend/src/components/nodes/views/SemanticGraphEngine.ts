@@ -1421,7 +1421,6 @@ export class SemanticGraphEngine {
     const tick = (): void => {
       if (!this.running) return;
       this.step();
-      if (this.alpha < this.config.alphaMin && this.energy < 0.001) { this.running = false; return; }
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);
