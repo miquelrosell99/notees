@@ -322,11 +322,6 @@ async def get_linked_references(
         source_page = None
         if source.page_id:
             source_page = await service._node_repo.get_by_id(source.page_id)
-        elif not source.is_page and source.id:
-            # Fallback: compute page from hierarchy when page_id is not set
-            computed_page_id = await service._node_repo._compute_page_id(source.id)
-            if computed_page_id:
-                source_page = await service._node_repo.get_by_id(computed_page_id)
         
         if source.id:
             source_node_ids.append(source.id)
