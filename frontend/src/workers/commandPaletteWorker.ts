@@ -17,6 +17,7 @@ interface NodeSlim {
   name: string;
   parent_id: number | null;
   page_id: number | null;
+  is_page: boolean;
 }
 
 interface PropertySlim {
@@ -112,9 +113,10 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const blocks: WorkerBlockResult[] = [];
 
   for (const node of nodes) {
-    if (node.parent_id === null) {
-      // It's a page
-      pages.push({ nodeId: node.id });
+    if (node.is_page) {
+      // It's a page — compute breadcrumb if it has a parent
+      const breadcrumb = node.parent_id !== null ? buildBreadcrumb(node, nodeMap) : undefined;
+      pages.push({ nodeId: node.id, breadcrumb });
     } else {
       // It's a block — compute breadcrumb
       const breadcrumb = buildBreadcrumb(node, nodeMap);

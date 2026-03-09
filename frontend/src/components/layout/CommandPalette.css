@@ -209,8 +209,8 @@
 .command-palette__result-content {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
   overflow: hidden;
   min-width: 0;
 }
@@ -219,12 +219,23 @@
   font: var(--font-body-medium);
   color: var(--color-on-surface);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .command-palette__result--action .command-palette__result-name {
   color: var(--color-primary);
+}
+
+.command-palette__result-hierarchy {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .command-palette__result-breadcrumb {
