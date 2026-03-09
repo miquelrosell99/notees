@@ -400,15 +400,17 @@ export function CommandPalette({
     return items;
   }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap]);
   
-  // Focus input when opened
+  // Focus input when opened; refresh caches that may have gone stale since last open
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedClasses([]);
       setClassPopupPosition(null);
       inputRef.current?.focus();
+      queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
     }
-  }, [isOpen]);
+  }, [isOpen, queryClient]);
   
   // Calculate class popup position when typing @
   useEffect(() => {
@@ -488,7 +490,7 @@ export function CommandPalette({
               dateNode = await getOrCreateYearly(pd.year);
             }
             // Invalidate caches so the new page appears everywhere
-            queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+            queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
             queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
             queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
           }

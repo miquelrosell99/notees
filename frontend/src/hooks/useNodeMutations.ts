@@ -89,8 +89,11 @@ function invalidateNodeCaches(
   }
 
   if (pages) {
+    // Use ['nodes', 'pages'] prefix (without options) so ALL usePages() variants
+    // are matched — e.g. usePages({ includeChildren: true }) which uses a different
+    // options object and would otherwise be missed.
     queryClient.invalidateQueries({ 
-      queryKey: nodeKeys.pages(),
+      queryKey: [...nodeKeys.all, 'pages'],
       refetchType,
     });
   }
@@ -538,6 +541,7 @@ export function useUpdateNode() {
           nodeId: updatedNode.id,
           lists: true,
           pages: true,
+          search: true, // icon/name changes must be visible in search results
           refetch: false, // Let queries refetch on next mount
         });
         // BUGFIX: Also invalidate graphNodes since display fields (icon, color, name) changed
@@ -1247,7 +1251,7 @@ export function useAddClass() {
       
       // GLOBAL: If is_page flag changed, invalidate pages cache
       if (oldNode && oldNode.is_page !== updatedNode.is_page) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+        queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
       }
       
       // Always invalidate classes cache so newly created classes are picked up
@@ -1255,6 +1259,9 @@ export function useAddClass() {
       // Previously this was conditional on is_class changing, which missed the case where
       // a new class was just created and then added to a node in the same flow.
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
+      
+      // Invalidate search so node.classes arrays in search results stay fresh
+      queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
       
       // Invalidate class properties queries to ensure they're refetched
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
@@ -1419,13 +1426,16 @@ export function useRemoveClass() {
       
       // GLOBAL: If is_page flag changed, invalidate pages cache
       if (oldNode && oldNode.is_page !== updatedNode.is_page) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+        queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
       }
       
       // GLOBAL: If is_class flag changed, invalidate classes cache
       if (oldNode && oldNode.is_class !== updatedNode.is_class) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       }
+      
+      // Invalidate search so node.classes arrays in search results stay fresh
+      queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
       
       // Invalidate the classed nodes list so the removed node disappears immediately
       queryClient.invalidateQueries({ queryKey: ['nodes', 'by-class', classId] });
