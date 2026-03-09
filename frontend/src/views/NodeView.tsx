@@ -985,6 +985,7 @@ export function NodeView({
             {/* Row 2: Classes and Tags stacked */}
             <div className="page-header-section__types-and-tags">
               <div className="page-header-section__types">
+                <div className="section-label">Classes:</div>
                 <NodeSelector
                   nodes={pageClassDetails}
                   searchMode="classes"
