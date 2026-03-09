@@ -134,21 +134,23 @@ function ResultItem({
         className={`command-palette__result ${isSelected ? 'command-palette__result--selected' : ''}`}
         onClick={onClick}
       >
-        <span className="command-palette__result-icon">
-          {result.property.icon ? (
-            <span style={{ fontSize: '1.2em' }}>{result.property.icon}</span>
-          ) : (
-            <PropertiesIcon size="sm" />
-          )}
-        </span>
-        <span className="command-palette__result-content">
-          <span className="command-palette__result-name">
-            {result.property.name}
+        <div className="command-palette__result-row">
+          <span className="command-palette__result-icon">
+            {result.property.icon ? (
+              <span style={{ fontSize: '1.2em' }}>{result.property.icon}</span>
+            ) : (
+              <PropertiesIcon size="sm" />
+            )}
           </span>
-        </span>
-        <span className="command-palette__result-type">
-          property
-        </span>
+          <span className="command-palette__result-content">
+            <span className="command-palette__result-name">
+              {result.property.name}
+            </span>
+          </span>
+          <span className="command-palette__result-type">
+            property
+          </span>
+        </div>
       </button>
     );
   }
@@ -788,24 +790,26 @@ export function CommandPalette({
                     className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                     onClick={() => handleSelect(globalIndex)}
                   >
-                    <span className="command-palette__result-icon">
-                      {item.commandIcon === 'import' ? (
-                        <ImportIcon size="sm" />
-                      ) : item.commandIcon === 'maintenance' ? (
-                        <Icon path={mdiDatabaseRefresh} size={0.7} />
-                      ) : item.commandIcon === 'focus' ? (
-                        <Icon path={mdiBrain} size={0.7} />
-                      ) : item.commandIcon === 'uuid' ? (
-                        <Icon path={mdiFingerprint} size={0.7} />
-                      ) : item.commandIcon === 'merge' ? (
-                        <Icon path={mdiMerge} size={0.7} />
-                      ) : (
-                        <Icon path={mdiExport} size={0.7} />
-                      )}
-                    </span>
-                    <span className="command-palette__result-content">
-                      <span className="command-palette__result-name">{item.label}</span>
-                    </span>
+                    <div className="command-palette__result-row">
+                      <span className="command-palette__result-icon">
+                        {item.commandIcon === 'import' ? (
+                          <ImportIcon size="sm" />
+                        ) : item.commandIcon === 'maintenance' ? (
+                          <Icon path={mdiDatabaseRefresh} size={0.7} />
+                        ) : item.commandIcon === 'focus' ? (
+                          <Icon path={mdiBrain} size={0.7} />
+                        ) : item.commandIcon === 'uuid' ? (
+                          <Icon path={mdiFingerprint} size={0.7} />
+                        ) : item.commandIcon === 'merge' ? (
+                          <Icon path={mdiMerge} size={0.7} />
+                        ) : (
+                          <Icon path={mdiExport} size={0.7} />
+                        )}
+                      </span>
+                      <span className="command-palette__result-content">
+                        <span className="command-palette__result-name">{item.label}</span>
+                      </span>
+                    </div>
                   </button>
                 );
               })}
@@ -824,12 +828,14 @@ export function CommandPalette({
                         className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                         onClick={() => handleSelect(globalIndex)}
                       >
-                        <span className="command-palette__result-icon">
-                          <CalendarIcon size="sm" />
-                        </span>
-                        <span className="command-palette__result-content">
-                          <span className="command-palette__result-name">{item.label}</span>
-                        </span>
+                        <div className="command-palette__result-row">
+                          <span className="command-palette__result-icon">
+                            <CalendarIcon size="sm" />
+                          </span>
+                          <span className="command-palette__result-content">
+                            <span className="command-palette__result-name">{item.label}</span>
+                          </span>
+                        </div>
                       </button>
                     );
                   })}
@@ -851,12 +857,14 @@ export function CommandPalette({
                       className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                       onClick={() => handleSelect(globalIndex)}
                     >
-                      <span className="command-palette__result-icon">
-                        <AddIcon size="sm" />
-                      </span>
-                      <span className="command-palette__result-content">
-                        <span className="command-palette__result-name">{item.label}</span>
-                      </span>
+                      <div className="command-palette__result-row">
+                        <span className="command-palette__result-icon">
+                          <AddIcon size="sm" />
+                        </span>
+                        <span className="command-palette__result-content">
+                          <span className="command-palette__result-name">{item.label}</span>
+                        </span>
+                      </div>
                     </button>
                   );
                 }
@@ -930,13 +938,15 @@ export function CommandPalette({
                     className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                     onClick={() => handleSelect(globalIndex)}
                   >
-                    <span className="command-palette__result-icon">
-                      <AddIcon size="sm" />
-                    </span>
-                    <span className="command-palette__result-content">
-                      <span className="command-palette__result-name">{item.label}</span>
-                    </span>
-                    <kbd className="command-palette__item-shortcut">⌘↵</kbd>
+                    <div className="command-palette__result-row">
+                      <span className="command-palette__result-icon">
+                        <AddIcon size="sm" />
+                      </span>
+                      <span className="command-palette__result-content">
+                        <span className="command-palette__result-name">{item.label}</span>
+                      </span>
+                      <kbd className="command-palette__item-shortcut">⌘↵</kbd>
+                    </div>
                   </button>
                 );
               })}
