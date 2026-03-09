@@ -239,6 +239,7 @@ class BreadcrumbItem(BaseModel):
     """A single breadcrumb in the ancestor chain."""
     id: int
     name: str
+    display_name: str = ""
     icon: Optional[str] = None
     is_page: bool = False
 

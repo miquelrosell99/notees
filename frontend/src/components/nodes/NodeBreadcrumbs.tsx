@@ -24,6 +24,7 @@ import './NodeBreadcrumbs.css';
 export interface BreadcrumbItem {
   id: number;
   name: string;
+  displayName?: string;
   icon?: string | null;
   isPage: boolean;
   /** If this is a property breadcrumb item */
@@ -49,6 +50,7 @@ function NodeBreadcrumbsElement({ item, onClick, showSeparator = true }: NodeBre
     <span className="node-breadcrumb-item">
       <NodeInline
         name={item.name}
+        displayText={item.displayName}
         icon={item.icon}
         showBullet={!!item.icon}
         propertyName={item.isProperty ? item.name : undefined}
@@ -87,7 +89,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcr
             onClick={() => onClick(item)}
           >
             {item.icon && <span className="node-breadcrumb-popup-icon">{item.icon}</span>}
-            <span className="node-breadcrumb-popup-name">{item.isProperty ? item.name : (nodeNameToText(item.name) || 'Untitled')}</span>
+            <span className="node-breadcrumb-popup-name">{item.isProperty ? item.name : (item.displayName || nodeNameToText(item.name) || 'Untitled')}</span>
           </button>
         ))}
       </div>
@@ -129,6 +131,7 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
       chain.push({
         id: item.id,
         name: item.name || '',
+        displayName: item.display_name || undefined,
         icon: item.icon,
         isPage: item.is_page,
       });

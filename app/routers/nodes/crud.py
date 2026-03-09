@@ -558,19 +558,68 @@ async def get_node_breadcrumbs(
     Uses the closure table for O(1) ancestor lookup — much faster than
     chaining individual GET requests.
     """
+    from ...domain.stringify_ast import (
+        parse_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions,
+        NodeLinkResolution,
+    )
+
     service = await _get_node_service(user)
     
     # Use the repository's get_breadcrumbs which queries the closure table
     breadcrumb_nodes = await service._node_repo.get_breadcrumbs(node_id)
     
+    # Collect all node link references from breadcrumb names to resolve them
+    import re
+    link_node_uuids: set[str] = set()
+    for node in breadcrumb_nodes:
+        if node.name:
+            # Extract node UUIDs from link_id patterns ("nodeUuid:linkUuid" or bare UUID)
+            for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', node.name):
+                link_id = match.group(1)
+                colon = link_id.find(':')
+                node_uuid = link_id[:colon] if colon > 0 else link_id
+                link_node_uuids.add(node_uuid)
+
+    # Resolve link targets in a single batch query
+    link_target_map: dict[str, list] = {}
+    if link_node_uuids:
+        pool = service._node_repo._pool
+        async with acquire_connection(pool) as conn:
+            uuid_list = list(link_node_uuids)
+            placeholders = ', '.join(f'${i+2}' for i in range(len(uuid_list)))
+            rows = await conn.fetch(
+                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
+                service._node_repo._workspace_id, *uuid_list
+            )
+            for row in rows:
+                link_target_map[str(row['uuid'])] = parse_ast(row['name'])
+
+    def _resolve_link(link_id: str):
+        colon = link_id.find(':')
+        node_uuid = link_id[:colon] if colon > 0 else link_id
+        target_ast = link_target_map.get(node_uuid)
+        if target_ast is None:
+            return None
+        return NodeLinkResolution(
+            target_ast=target_ast, label=None, target_id=node_uuid,
+        )
+
+    opts = StringifyOptions(
+        mode=StringifyMode.TEXT_ONLY,
+        resolve_node_link=_resolve_link if link_target_map else None,
+    )
+
     # The breadcrumbs include the node itself at the end — exclude it
     items = []
     for node in breadcrumb_nodes:
         if node.id == node_id:
             continue
+        raw_name = node.name or ''
+        display = stringify_ast(parse_ast(raw_name), opts)
         items.append(BreadcrumbItem(
             id=node.id or 0,
-            name=node.name or '',
+            name=raw_name,
+            display_name=display or 'Untitled',
             icon=node.icon,
             is_page=node.is_page,
         ))
