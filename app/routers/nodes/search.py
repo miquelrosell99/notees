@@ -555,11 +555,12 @@ async def search_nodes(
     
     Args:
         q: Search query
-        limit: Maximum number of results
+        limit: Maximum number of results (capped at 5000)
         class_filters: Optional comma-separated list of class IDs to filter results
     
     Returns nodes with class_ids populated for reliable filtering.
     """
+    limit = min(limit, 5000)  # prevent runaway queries
     service = await _get_node_service(user)
     nodes = await service.search(q, limit)
     

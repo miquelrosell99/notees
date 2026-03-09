@@ -22,6 +22,7 @@ Provides REST API for:
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from contextlib import asynccontextmanager
@@ -102,6 +103,9 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
+# Compress responses ≥ 1 KB with gzip
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Configure CORS if origins are specified
 if settings.cors_origins:
     app.add_middleware(
@@ -173,10 +177,17 @@ async def log_requests(request, call_next):
         else:
             logger.debug(f"<- {status} {request.method} {path} ({duration_ms:.1f}ms)")
     
-    # Disable caching for development (offline mode disabled)
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    # Static assets (JS/CSS chunks with content-hash filenames) are safe to
+    # cache long-term. Everything else (API, index.html) must not be cached.
+    is_hashed_asset = path.startswith('/assets/')
+    if is_hashed_asset:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+    else:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     # Required for SharedArrayBuffer (crossOriginIsolated = true in the browser)
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
