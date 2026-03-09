@@ -22,7 +22,7 @@
  * ├─ TimelineView (timeline)
  * └─ GraphView (graph)
  */
-import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useCallback, useState, useEffect, type ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
@@ -297,13 +297,27 @@ export function NodeCollection({
     maxDepth,
   }), [editable, onNodeClick, onNodeShiftClick, onContentChange, maxDepth]);
 
+  // Memoize callbacks so React.memo on view components is effective
+  const stableOnNodeClick = useCallback(
+    (node: Parameters<NonNullable<typeof onNodeClick>>[0]) => onNodeClick?.(node),
+    [onNodeClick]
+  );
+  const stableOnNodeShiftClick = useCallback(
+    (node: Parameters<NonNullable<typeof onNodeShiftClick>>[0]) => onNodeShiftClick?.(node),
+    [onNodeShiftClick]
+  );
+  const stableOnContentChange = useCallback(
+    (...args: Parameters<NonNullable<typeof onContentChange>>) => onContentChange?.(...args),
+    [onContentChange]
+  );
+
   // Common props for all view components
   const viewProps = {
     nodes,
     editable,
-    onNodeClick,
-    onNodeShiftClick,
-    onContentChange,
+    onNodeClick: stableOnNodeClick,
+    onNodeShiftClick: stableOnNodeShiftClick,
+    onContentChange: stableOnContentChange,
     renderNode,
     maxDepth,
     className: '',
@@ -336,9 +350,9 @@ export function NodeCollection({
             sortable={sortable}
             onReorder={onReorder}
             renderItemAction={renderItemAction}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
+            onNodeClick={stableOnNodeClick}
+            onNodeShiftClick={stableOnNodeShiftClick}
+            onContentChange={stableOnContentChange}
             pageId={pageId}
             pageUuid={pageUuid}
             className={viewProps.className}
@@ -360,9 +374,9 @@ export function NodeCollection({
             nodes={nodes}
             editable={editable}
             maxDepth={maxDepth}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
+            onNodeClick={stableOnNodeClick}
+            onNodeShiftClick={stableOnNodeShiftClick}
+            onContentChange={stableOnContentChange}
             pageId={pageId}
             pageUuid={pageUuid}
             className={viewProps.className}
@@ -380,9 +394,9 @@ export function NodeCollection({
             layout={effectiveCardLayout}
             sortable={sortable}
             onReorder={onReorder}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
+            onNodeClick={stableOnNodeClick}
+            onNodeShiftClick={stableOnNodeShiftClick}
+            onContentChange={stableOnContentChange}
             onAdd={onAdd}
             customContextMenu={customContextMenu}
             className={viewProps.className}
@@ -403,9 +417,9 @@ export function NodeCollection({
             propertyUuids={selectedPropertyUuids}
             sortable={sortable}
             onReorder={onReorder}
-            onNodeClick={onNodeClick}
-            onNodeShiftClick={onNodeShiftClick}
-            onContentChange={onContentChange}
+            onNodeClick={stableOnNodeClick}
+            onNodeShiftClick={stableOnNodeShiftClick}
+            onContentChange={stableOnContentChange}
             customContextMenu={customContextMenu}
             className={viewProps.className}
             onAddClass={onAddClass}

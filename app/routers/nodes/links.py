@@ -271,12 +271,18 @@ async def get_backlinks(
     # Note: include_inherited parameter is not yet implemented in the service
     backlinks = await service._link_service.get_backlinks(node_id)
     
+    # Batch-fetch all source nodes in one query
+    source_ids = [link.source_node_id for link in backlinks]
+    source_nodes = {n.id: n for n in await service._node_repo.get_by_ids(source_ids)} if source_ids else {}
+    
+    # Batch-fetch all page nodes in one query
+    page_ids = list({n.page_id for n in source_nodes.values() if n.page_id})
+    page_nodes = {n.id: n for n in await service._node_repo.get_by_ids(page_ids)} if page_ids else {}
+    
     result = []
     for link in backlinks:
-        source = await service._node_repo.get_by_id(link.source_node_id)
-        source_page = None
-        if source and source.page_id:
-            source_page = await service._node_repo.get_by_id(source.page_id)
+        source = source_nodes.get(link.source_node_id)
+        source_page = page_nodes.get(source.page_id) if source and source.page_id else None
         
         result.append(BacklinkResponse(
             source_node_id=link.source_node_id,

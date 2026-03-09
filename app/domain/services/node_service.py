@@ -90,11 +90,12 @@ class NodeService:
         """
         flags = {}
         
-        for class_id in class_ids:
-            class_node = await self._node_repo.get_by_id(class_id)
-            if class_node and class_node.uuid in CLASS_UUID_TO_FLAG:
-                flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
-                flags[flag_name] = True
+        if class_ids:
+            class_nodes = await self._node_repo.get_by_ids(class_ids)
+            for class_node in class_nodes:
+                if class_node.uuid in CLASS_UUID_TO_FLAG:
+                    flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
+                    flags[flag_name] = True
         
         return flags
     
@@ -326,60 +327,73 @@ class NodeService:
         # Apply Class properties if any classes have associated properties with defaults
         if node.id is not None and data.classes:
             from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
-            
+
+            # Gather all class-property associations for all classes at once,
+            # then deduplicate property fetches so each unique property is
+            # fetched at most once even when shared across multiple classes.
+            all_cp_list = []
             for class_id in data.classes:
                 class_properties = await self._property_repo.get_class_properties(class_id)
-                for cp in class_properties:
-                    # Get the property to determine its type
+                all_cp_list.extend(class_properties)
+
+            # Build a cache of property objects keyed by property_id
+            prop_cache: Dict[int, Any] = {}
+            for cp in all_cp_list:
+                if cp.property_id not in prop_cache:
                     prop = await self._property_repo.get_by_id(cp.property_id)
-                    if not prop:
-                        continue
-                    
-                    # Skip if already has a value from property_values
-                    if data.property_values and cp.property_id in data.property_values:
-                        continue
-                    
-                    # Set default value based on property type
-                    try:
-                        if prop.type in SCALAR_TYPES:
-                            # Integer, Float, Boolean
-                            default = None
-                            if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
-                                default = cp.default_integer
-                            elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
-                                default = cp.default_float
-                            elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
-                                default = cp.default_boolean
-                            
-                            if default is not None:
-                                await self._property_repo.set_scalar_value(node.id, cp.property_id, default)
+                    prop_cache[cp.property_id] = prop
+
+            for cp in all_cp_list:
+                # Get the property to determine its type
+                prop = prop_cache.get(cp.property_id)
+                if not prop:
+                    continue
+                
+                # Skip if already has a value from property_values
+                if data.property_values and cp.property_id in data.property_values:
+                    continue
+                
+                # Set default value based on property type
+                try:
+                    if prop.type in SCALAR_TYPES:
+                        # Integer, Float, Boolean
+                        default = None
+                        if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
+                            default = cp.default_integer
+                        elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
+                            default = cp.default_float
+                        elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
+                            default = cp.default_boolean
                         
-                        elif prop.type in RELATION_TYPES:
-                            # Node, Text, Image, Date
-                            default = None
-                            if prop.type == PropertyType.NODE and cp.default_node_id is not None:
-                                default = cp.default_node_id
-                            elif prop.type == PropertyType.TEXT and cp.default_text is not None:
-                                default = cp.default_text
-                            # Image and Date don't have simple defaults
-                            
-                            if default is not None:
-                                if prop.type == PropertyType.NODE:
-                                    await self._property_repo.set_relation_value(node.id, cp.property_id, default)
-                                else:
-                                    # For TEXT, IMAGE - create a text node with the default value
-                                    text_node = await self._node_repo.create(
-                                        NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id),
-                                        user_id
-                                    )
-                                    await self._property_repo.set_relation_value(node.id, cp.property_id, text_node.id)
-                        
-                        elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
-                            await self._property_repo.set_selection_value(node.id, cp.property_id, cp.default_selection_id)
+                        if default is not None:
+                            await self._property_repo.set_scalar_value(node.id, cp.property_id, default)
                     
-                    except Exception as e:
-                        # Log but don't fail node creation if default value setting fails
-                        logger.warning(f"Failed to set default value for property {cp.property_id} on node {node.id}: {e}")
+                    elif prop.type in RELATION_TYPES:
+                        # Node, Text, Image, Date
+                        default = None
+                        if prop.type == PropertyType.NODE and cp.default_node_id is not None:
+                            default = cp.default_node_id
+                        elif prop.type == PropertyType.TEXT and cp.default_text is not None:
+                            default = cp.default_text
+                        # Image and Date don't have simple defaults
+                        
+                        if default is not None:
+                            if prop.type == PropertyType.NODE:
+                                await self._property_repo.set_relation_value(node.id, cp.property_id, default)
+                            else:
+                                # For TEXT, IMAGE - create a text node with the default value
+                                text_node = await self._node_repo.create(
+                                    NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id),
+                                    user_id
+                                )
+                                await self._property_repo.set_relation_value(node.id, cp.property_id, text_node.id)
+                    
+                    elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
+                        await self._property_repo.set_selection_value(node.id, cp.property_id, cp.default_selection_id)
+                
+                except Exception as e:
+                    # Log but don't fail node creation if default value setting fails
+                    logger.warning(f"Failed to set default value for property {cp.property_id} on node {node.id}: {e}")
         
         return node
     

@@ -42,5 +42,27 @@ export default defineConfig({
     // Output to the static folder for production
     outDir: '../app/static/dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split heavy vendor libraries into separate cacheable chunks
+          if (id.includes('node_modules/lexical') || id.includes('node_modules/@lexical/')) {
+            return 'vendor-lexical';
+          }
+          if (id.includes('node_modules/@dnd-kit/')) {
+            return 'vendor-dnd';
+          }
+          if (id.includes('node_modules/@tanstack/')) {
+            return 'vendor-query';
+          }
+          if (id.includes('node_modules/@mdi/')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+        },
+      },
+    },
   },
 })

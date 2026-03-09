@@ -7,7 +7,7 @@
  * Supports groupBy='page' to organize nodes under page headers.
  * Supports groupBy=<property-uuid> to group by a node property value.
  */
-import { useState, useCallback, useMemo, useId } from 'react';
+import { useState, useCallback, useMemo, useId, memo } from 'react';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeListViewProps } from '@/types/nodeCollection';
@@ -92,7 +92,7 @@ function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: s
  * Simply passes nodes to BlockEditor - no manual runtime sync needed.
  * The readOnly prop on BlockEditor controls edit vs preview mode.
  */
-export function ListView({
+export const ListView = memo(function ListView({
   nodes,
   editable,
   pagesOnly = false,
@@ -573,4 +573,4 @@ function ListViewGroup({
       )}
     </div>
   );
-}
+});

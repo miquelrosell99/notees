@@ -14,7 +14,7 @@
  * - Virtual columns: Classes, Created, Modified
  * - Date columns with daily page navigation
  */
-import React, { useMemo, useCallback, useState, type ReactNode } from 'react';
+import React, { useMemo, useCallback, useState, memo, type ReactNode } from 'react';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -112,7 +112,7 @@ function getSortFnForColumn(key: string): ((a: Node, b: Node) => number) | undef
  * Uses the core Table<Node> component with property columns,
  * expandable rows, selection, sorting, and drag-and-drop reordering.
  */
-export function TableView({
+export const TableView = memo(function TableView({
   nodes,
   editable = false,
   depth = 0,
@@ -523,4 +523,4 @@ export function TableView({
       )}
     </>
   );
-}
+});
