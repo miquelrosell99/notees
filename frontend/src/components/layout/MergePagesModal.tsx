@@ -57,6 +57,10 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
       await mergePages(sourceNode.id, targetNode.id);
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(sourceNode.id) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(targetNode.id) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(targetNode.id) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(targetNode.id) });
       openNode(targetNode.id);
       handleClose();
     } catch (e: unknown) {
