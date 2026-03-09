@@ -157,7 +157,7 @@ export function SuggestionPopup({
     return aliasedNode ? (nodeNameToText(aliasedNode.name) || 'Unknown') : null;
   }, [allSearchNodes, allNodes]);
   
-  // Helper to build parent page path (e.g. "Root / Parent /") for a page node
+  // Helper to build parent page path (e.g. "Root / Parent") for a page node
   const buildParentPath = useCallback((node: Node): string => {
     if (!node.parent_id || !allPagesForDate) return '';
     const segments: string[] = [];
@@ -168,18 +168,7 @@ export function SuggestionPopup({
       segments.unshift(nodeNameToText(parent.name) || 'Untitled');
       currentId = parent.parent_id ?? null;
     }
-    if (segments.length === 0) return '';
-    const fullPath = segments.join(' / ') + ' /';
-    if (fullPath.length <= 36) return fullPath;
-    // Trim from left, dropping leading ancestors until it fits
-    const parts = [...segments];
-    while (parts.length > 1) {
-      parts.shift();
-      const candidate = '.../ ' + parts.join(' / ') + ' /';
-      if (candidate.length <= 36) return candidate;
-    }
-    const last = parts[0];
-    return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
+    return segments.join(' / ');
   }, [allPagesForDate, pageById]);
 
   // Helper to get display classes for a node, excluding the system "page" class
@@ -501,26 +490,32 @@ export function SuggestionPopup({
                       onClick={() => handleItemClick(node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
                     >
-                      <Checkbox
-                        checked={true}
-                        size="sm"
-                        readOnly
-                        className="suggestion-popup__checkbox"
-                      />
-                      <span className="suggestion-popup__item-icon">
-                        {renderItemIcon(node, node.is_page)}
-                      </span>
-                      <span className="suggestion-popup__item-name">
-                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
-                        {nodeNameToText(node.name) || 'Untitled'}
-                      </span>
-                      {displayClasses.length > 0 && (
-                        <span className="suggestion-popup__item-class-pills">
-                          {displayClasses.map(cls => (
-                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                          ))}
-                        </span>
+                      {parentPath && (
+                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
+                          {parentPath}
+                        </div>
                       )}
+                      <div className="suggestion-popup__item-row">
+                        <Checkbox
+                          checked={true}
+                          size="sm"
+                          readOnly
+                          className="suggestion-popup__checkbox"
+                        />
+                        <span className="suggestion-popup__item-icon">
+                          {renderItemIcon(node, node.is_page)}
+                        </span>
+                        <span className="suggestion-popup__item-name">
+                          {nodeNameToText(node.name) || 'Untitled'}
+                        </span>
+                        {displayClasses.length > 0 && (
+                          <span className="suggestion-popup__item-class-pills">
+                            {displayClasses.map(cls => (
+                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -545,25 +540,31 @@ export function SuggestionPopup({
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
                     >
-                      <span className="suggestion-popup__item-icon">
-                        <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
-                      </span>
-                      <span className="suggestion-popup__item-name">
-                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
-                        {nodeNameToText(item.node.name) || 'Untitled'}
-                      </span>
-                      {aliasedName && (
-                        <span className="suggestion-popup__item-alias">
-                          alias of: {aliasedName}
-                        </span>
+                      {parentPath && (
+                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
+                          {parentPath}
+                        </div>
                       )}
-                      {displayClasses.length > 0 && (
-                        <span className="suggestion-popup__item-class-pills">
-                          {displayClasses.map(cls => (
-                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                          ))}
+                      <div className="suggestion-popup__item-row">
+                        <span className="suggestion-popup__item-icon">
+                          <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
                         </span>
-                      )}
+                        <span className="suggestion-popup__item-name">
+                          {nodeNameToText(item.node.name) || 'Untitled'}
+                        </span>
+                        {aliasedName && (
+                          <span className="suggestion-popup__item-alias">
+                            alias of: {aliasedName}
+                          </span>
+                        )}
+                        {displayClasses.length > 0 && (
+                          <span className="suggestion-popup__item-class-pills">
+                            {displayClasses.map(cls => (
+                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -640,33 +641,39 @@ export function SuggestionPopup({
                       onClick={() => handleItemClick(item.node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
                     >
-                      {multiSelect && (
-                        <Checkbox
-                          checked={isChecked}
-                          size="sm"
-                          readOnly
-                          className="suggestion-popup__checkbox"
-                        />
+                      {parentPath && (
+                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
+                          {parentPath}
+                        </div>
                       )}
-                      <span className="suggestion-popup__item-icon">
-                        {renderItemIcon(item.node, item.node.is_page)}
-                      </span>
-                      <span className="suggestion-popup__item-name">
-                        {parentPath && <span className="suggestion-popup__item-path">{parentPath} </span>}
-                        {nodeNameToText(item.node.name) || 'Untitled'}
-                      </span>
-                      {aliasedName && (
-                        <span className="suggestion-popup__item-alias">
-                          alias of: {aliasedName}
+                      <div className="suggestion-popup__item-row">
+                        {multiSelect && (
+                          <Checkbox
+                            checked={isChecked}
+                            size="sm"
+                            readOnly
+                            className="suggestion-popup__checkbox"
+                          />
+                        )}
+                        <span className="suggestion-popup__item-icon">
+                          {renderItemIcon(item.node, item.node.is_page)}
                         </span>
-                      )}
-                      {displayClasses.length > 0 && (
-                        <span className="suggestion-popup__item-class-pills">
-                          {displayClasses.map(cls => (
-                            <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                          ))}
+                        <span className="suggestion-popup__item-name">
+                          {nodeNameToText(item.node.name) || 'Untitled'}
                         </span>
-                      )}
+                        {aliasedName && (
+                          <span className="suggestion-popup__item-alias">
+                            alias of: {aliasedName}
+                          </span>
+                        )}
+                        {displayClasses.length > 0 && (
+                          <span className="suggestion-popup__item-class-pills">
+                            {displayClasses.map(cls => (
+                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
