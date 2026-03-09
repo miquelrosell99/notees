@@ -545,6 +545,13 @@ export function useUpdateNode() {
           queryKey: nodeKeys.graphNodes(),
           refetchType: 'none',
         });
+        // If this node is a class, invalidate the classes cache so pages
+        // that inherit their icon from this class update immediately
+        if (updatedNode.is_class) {
+          queryClient.invalidateQueries({
+            queryKey: nodeKeys.classes(),
+          });
+        }
       }
       
       // Invalidate inline classes query to update pill display (only if color changed)
