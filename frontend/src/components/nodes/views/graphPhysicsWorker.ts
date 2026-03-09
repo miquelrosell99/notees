@@ -448,6 +448,11 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
         }
       }
 
+      // Warmup burns alpha down to ~0.005, making all forces extremely weak.
+      // Reheat so the visible phase starts with enough force strength to
+      // settle any remaining instabilities (long chains, spikes, etc.).
+      engine.reheat();
+
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
       if (SAB_ENABLED) postSharedBufferRefs();
