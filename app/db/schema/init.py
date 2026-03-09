@@ -41,12 +41,49 @@ async def init_database(conn: asyncpg.Connection) -> None:
     if node_path_count == 0:
         await conn.execute("SELECT rebuild_node_path()")
     
+    # Repair any blocks with missing page_id using the closure table
+    await _repair_page_ids(conn)
+    
     # Store schema version
     await conn.execute("""
         INSERT INTO schema_meta (key, value, updated_at) 
         VALUES ('version', $1, NOW())
         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
     """, str(SCHEMA_VERSION))
+
+
+async def _repair_page_ids(conn: asyncpg.Connection) -> None:
+    """Fix blocks that have NULL page_id but have a page ancestor.
+    
+    Uses the closure table (node_path) to find the nearest page ancestor
+    for each block and sets page_id accordingly. Only updates rows that
+    actually need fixing, so this is fast when the data is already correct.
+    """
+    result = await conn.execute("""
+        UPDATE node n
+        SET page_id = nearest_page.id
+        FROM (
+            SELECT DISTINCT ON (np.descendant_id)
+                np.descendant_id,
+                ancestor.id
+            FROM node_path np
+            JOIN node ancestor ON ancestor.id = np.ancestor_id
+            WHERE ancestor.is_page = TRUE
+              AND ancestor.active = TRUE
+              AND np.depth > 0
+            ORDER BY np.descendant_id, np.depth ASC
+        ) nearest_page
+        WHERE n.id = nearest_page.descendant_id
+          AND n.is_page = FALSE
+          AND n.active = TRUE
+          AND n.page_id IS NULL
+    """)
+    # asyncpg returns "UPDATE N" where N is the count
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        from ...logging_config import get_logger
+        logger = get_logger(__name__)
+        logger.info(f"Repaired page_id for {count} blocks")
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:
