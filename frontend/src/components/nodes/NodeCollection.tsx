@@ -130,6 +130,7 @@ export function NodeCollection({
   pageMap,
   isolatedBlockState = false,
   suppressRootColor = false,
+  showBreadcrumbs = false,
   hideToolbar = false,
   toolbarPrefix,
   leftElement,
@@ -343,6 +344,7 @@ export function NodeCollection({
             groupBy={groupBy}
             groupByProperty={groupByProperty}
             enableGrouping={enableGrouping}
+            showBreadcrumbs={showBreadcrumbs}
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
