@@ -8,7 +8,7 @@
   max-width: 360px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: 0;
   overflow: hidden;
 }
 
@@ -17,7 +17,7 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  margin-bottom: var(--spacing-2);
+  margin: var(--spacing-2) var(--spacing-2) 0;
   background: var(--color-surface-container);
   border-radius: var(--shape-medium);
   font-size: 13px;
@@ -37,9 +37,8 @@
   white-space: nowrap;
 }
 
-.parent-selector-search {
-  width: 100%;
-  margin-bottom: var(--spacing-2);
+.parent-selector-remove-wrapper {
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
 }
 
 .parent-selector-remove {
