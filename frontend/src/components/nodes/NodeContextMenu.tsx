@@ -431,31 +431,31 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   
   // Parent selection submenu content
   const parentSubmenu = useMemo(() => (
-    <Card elevation="high" padding={true} className="parent-selector-submenu">
+    <Card elevation="high" padding={false} className="parent-selector-submenu">
       {node.parent_id && parentPage && (
         <div className="parent-selector-current">
           <span className="parent-selector-label">Current:</span>
           <span className="parent-selector-name">{nodeNameToText(parentPage.name) || 'Untitled'}</span>
         </div>
       )}
-      <div className="parent-selector-search">
-        <NodeSelector
-          trigger="inline"
-          searchMode="pages"
-          excludeNodeId={node.id}
-          searchPlaceholder="Search pages..."
-          onAdd={handleParentSelect}
-        />
-      </div>
+      <NodeSelector
+        trigger="inline"
+        searchMode="pages"
+        excludeNodeId={node.id}
+        searchPlaceholder="Search pages..."
+        onAdd={handleParentSelect}
+      />
       {node.parent_id && (
-        <Button 
-          variant="ghost"
-          size="sm"
-          className="parent-selector-remove"
-          onClick={handleRemoveParent}
-        >
-          Remove parent
-        </Button>
+        <div className="parent-selector-remove-wrapper">
+          <Button 
+            variant="ghost"
+            size="sm"
+            className="parent-selector-remove"
+            onClick={handleRemoveParent}
+          >
+            Remove parent
+          </Button>
+        </div>
       )}
     </Card>
   ), [node.parent_id, parentPage, handleParentSelect, handleRemoveParent]);
