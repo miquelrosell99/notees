@@ -2,23 +2,41 @@
  * Node Context Menu styles
  */
 
-/* Parent selector — inline in context menu */
-.parent-selector-row {
+/* Set parent modal */
+.set-parent-modal__content {
+  padding: 0;
+}
+
+.set-parent-current {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid var(--color-outline-variant);
+  font-size: 13px;
 }
 
-.parent-selector-row-label {
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
+.set-parent-current__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-on-surface);
+}
+
+.set-parent-current__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-error);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
   flex-shrink: 0;
 }
 
-.parent-selector-row .node-selector--select {
-  flex: 1;
-  min-width: 0;
+.set-parent-current__remove:hover {
+  background: var(--color-error-container);
 }
 
 
