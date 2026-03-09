@@ -462,7 +462,7 @@ export const ListView = memo(function ListView({
       />
     </div>
   );
-}
+});
 
 // ==================== ListViewGroup ====================
 
@@ -573,4 +573,4 @@ function ListViewGroup({
       )}
     </div>
   );
-});
+}
