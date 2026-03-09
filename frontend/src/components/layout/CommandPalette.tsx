@@ -170,36 +170,35 @@ function ResultItem({
       className={`command-palette__result ${isSelected ? 'command-palette__result--selected' : ''}`}
       onClick={onClick}
     >
-      <span className="command-palette__result-icon">
-        {result.type === 'page' ? (
-          <NodeIcon icon={getEffectiveIcon(result.node, allClasses)} isPage={true} size="sm" />
-        ) : (
-          <BulletIcon size="xs" />
-        )}
-      </span>
-      <span className="command-palette__result-content">
-        {result.breadcrumb && (
-          <span
-            className="command-palette__result-hierarchy"
-            title={result.breadcrumb}
-          >
-            {result.breadcrumb}&nbsp;&rsaquo;&nbsp;
+      {result.breadcrumb && (
+        <div className="command-palette__result-crumbs" title={result.breadcrumb}>
+          {result.breadcrumb}
+        </div>
+      )}
+      <div className="command-palette__result-row">
+        <span className="command-palette__result-icon">
+          {result.type === 'page' ? (
+            <NodeIcon icon={getEffectiveIcon(result.node, allClasses)} isPage={true} size="sm" />
+          ) : (
+            <BulletIcon size="xs" />
+          )}
+        </span>
+        <span className="command-palette__result-content">
+          <span className="command-palette__result-name">
+            {nodeNameToText(result.node.name) || 'Untitled'}
+          </span>
+        </span>
+        {aliasedNodeName && (
+          <span className="command-palette__result-alias">
+            alias of: {aliasedNodeName}
           </span>
         )}
-        <span className="command-palette__result-name">
-          {nodeNameToText(result.node.name) || 'Untitled'}
-        </span>
-      </span>
-      {aliasedNodeName && (
-        <span className="command-palette__result-alias">
-          alias of: {aliasedNodeName}
-        </span>
-      )}
-      {classLabel && (
-        <span className="command-palette__result-type">
-          {classLabel}
-        </span>
-      )}
+        {classLabel && (
+          <span className="command-palette__result-type">
+            {classLabel}
+          </span>
+        )}
+      </div>
     </button>
   );
 }
@@ -267,6 +266,13 @@ export function CommandPalette({
   // Get destination page for quick add
   const { data: todayNote } = useTodayNote();
   const { data: allPages } = usePages({ includeChildren: true });
+
+  // O(1) page lookup map for building parent breadcrumbs
+  const pageMap = useMemo(() => {
+    const map = new Map<number, Node>();
+    for (const p of allPages ?? []) map.set(p.id, p);
+    return map;
+  }, [allPages]);
   const inboxPage = allPages?.find(p => nodeNameToText(p.name) === 'Inbox');
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
   
@@ -347,9 +353,20 @@ export function CommandPalette({
     
     // Pages section — capped to MAX_PAGES
     const displayedPages = rawPages.slice(0, MAX_PAGES);
-    displayedPages.forEach(({ node }) =>
-      items.push({ type: 'page', result: { node, type: 'page' } }),
-    );
+    displayedPages.forEach(({ node }) => {
+      // Build ancestor breadcrumb using allPages map (worker only has search results)
+      let breadcrumb: string | undefined;
+      if (node.parent_id != null) {
+        const parts: string[] = [];
+        let current = pageMap.get(node.parent_id);
+        while (current) {
+          parts.unshift(nodeNameToText(current.name) || 'Untitled');
+          current = current.parent_id != null ? pageMap.get(current.parent_id) : undefined;
+        }
+        if (parts.length > 0) breadcrumb = parts.join(' / ');
+      }
+      items.push({ type: 'page', result: { node, type: 'page', breadcrumb } });
+    });
     
     // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0 
@@ -381,7 +398,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel]);
+  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap]);
   
   // Focus input when opened
   useEffect(() => {
