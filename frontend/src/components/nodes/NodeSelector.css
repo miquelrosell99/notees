@@ -290,3 +290,18 @@
   text-overflow: ellipsis;
 }
 
+/* ==================== Inline mode ==================== */
+/* Always-expanded search + results list (no toggle button) */
+
+.node-selector--inline {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.node-selector--inline .node-selector__options {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+}
+

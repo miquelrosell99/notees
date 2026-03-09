@@ -19,7 +19,7 @@ import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
-import { SearchBox } from '../core/SearchBox';
+import { NodeSelector } from './NodeSelector';
 import type { Node, NodeUpdate } from '@/types';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import './NodeContextMenu.css';
@@ -439,11 +439,12 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         </div>
       )}
       <div className="parent-selector-search">
-        <SearchBox
-          placeholder="Search pages..."
-          onSelect={handleParentSelect}
-          filterFn={(n: Node) => n.is_page === true}
-          autoFocus
+        <NodeSelector
+          trigger="inline"
+          searchMode="pages"
+          excludeNodeId={node.id}
+          searchPlaceholder="Search pages..."
+          onAdd={handleParentSelect}
         />
       </div>
       {node.parent_id && (

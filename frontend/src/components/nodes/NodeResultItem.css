@@ -1,0 +1,109 @@
+/**
+ * NodeResultItem styles
+ *
+ * Shared by SuggestionPopup, NodeSelector (all trigger modes), and any other
+ * component that renders a searchable list of nodes.
+ */
+
+.node-result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  padding: var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.node-result-item:hover,
+.node-result-item--highlighted {
+  background: var(--color-hover-overlay);
+}
+
+.node-result-item:active {
+  transform: scale(0.98);
+}
+
+/* Breadcrumb path above the row — direction:rtl clips the *left* side so the
+   immediate parent name stays visible. text-align:left realigns the text. */
+.node-result-item__crumbs {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+  /* indent by icon width (18px) + gap (8px) so path aligns with the name */
+  padding-left: 26px;
+  margin-bottom: 1px;
+}
+
+.node-result-item__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.node-result-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.node-result-item__name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+}
+
+.node-result-item__class-pills {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.node-result-item__class-pill {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.node-result-item__check {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+/* Create-new variant */
+.node-result-item--create {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.node-result-item--create .node-result-item__icon {
+  color: var(--color-primary);
+}
+
+.node-result-item--create .node-result-item__name {
+  color: var(--color-primary);
+}
