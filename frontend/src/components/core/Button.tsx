@@ -8,10 +8,12 @@
  * - Icon only: <Button icon={mdiCog} />
  * - Text only: <Button>Click me</Button>
  * - Icon + Text: <Button icon={mdiCog}>Settings</Button>
+ * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
  */
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useState, useCallback, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import Icon from '@mdi/react';
 import './Button.css';
+import { ConfirmationModal } from './ConfirmationModal';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -33,6 +35,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconOnly?: boolean;
   /** Children content */
   children?: ReactNode;
+  /** Whether to show a confirmation dialog before firing onClick */
+  confirm?: boolean;
+  /** Custom confirmation message (defaults to "Are you sure?") */
+  confirmMessage?: string;
 }
 
 const ICON_SIZES: Record<ButtonSize, number> = {
@@ -54,10 +60,35 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     children,
     className = '',
     disabled,
+    confirm: requiresConfirm = false,
+    confirmMessage,
+    onClick,
     ...props
   },
   ref
 ) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    if (requiresConfirm) {
+      e.preventDefault();
+      e.stopPropagation();
+      setConfirmOpen(true);
+    } else {
+      onClick?.(e);
+    }
+  }, [requiresConfirm, onClick]);
+
+  const handleConfirm = useCallback(() => {
+    setConfirmOpen(false);
+    // Synthesize a click event so onClick receives a proper event
+    onClick?.({} as React.MouseEvent<HTMLButtonElement>);
+  }, [onClick]);
+
+  const handleCancel = useCallback(() => {
+    setConfirmOpen(false);
+  }, []);
+
   const hasText = children && !iconOnly;
   const isIconOnly = icon && !hasText;
   const hasIconAndText = icon && hasText;
@@ -83,6 +114,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       className={classNames}
       disabled={disabled}
+      onClick={handleClick}
       {...props}
     >
       {icon && iconPosition === 'left' && (
@@ -91,6 +123,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {hasText && <span className="btn__text">{children}</span>}
       {icon && iconPosition === 'right' && (
         <Icon path={icon} size={iconSize} className="btn__icon btn__icon--right" />
+      )}
+      {requiresConfirm && (
+        <ConfirmationModal
+          isOpen={confirmOpen}
+          title="Confirm action"
+          message={confirmMessage ?? 'Are you sure?'}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
       )}
     </button>
   );
