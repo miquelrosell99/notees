@@ -17,8 +17,6 @@ import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
-import { Card } from '../core/Card';
-import { Button } from '../core/Button';
 import { NodeSelector } from './NodeSelector';
 import type { Node, NodeUpdate } from '@/types';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
@@ -399,7 +397,6 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   }, []);
   
   const commonItems = useCommonMenuItems(node, onClose, handleDeleteClick, handleArchiveClick, showDevOptions ? handleViewAST : undefined, handleExportClick);
-  const { data: parentPage } = useNode(node.parent_id ?? null);
   const updateNode = useUpdateNode();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
@@ -417,49 +414,6 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     onClose();
   }, [isPageFavorited, node.id, onClose]);
   
-  const handleParentSelect = useCallback((selectedNode: Node) => {
-    updateNode.mutate({ id: node.id, data: { parent_id: selectedNode.id } });
-    onParentChange?.(selectedNode.id);
-    onClose();
-  }, [node.id, updateNode, onParentChange, onClose]);
-  
-  const handleRemoveParent = useCallback(() => {
-    updateNode.mutate({ id: node.id, data: { parent_id: null } });
-    onParentChange?.(null);
-    onClose();
-  }, [node.id, updateNode, onParentChange, onClose]);
-  
-  // Parent selection submenu content
-  const parentSubmenu = useMemo(() => (
-    <Card elevation="high" padding={false} className="parent-selector-submenu">
-      {node.parent_id && parentPage && (
-        <div className="parent-selector-current">
-          <span className="parent-selector-label">Current:</span>
-          <span className="parent-selector-name">{nodeNameToText(parentPage.name) || 'Untitled'}</span>
-        </div>
-      )}
-      <NodeSelector
-        trigger="inline"
-        searchMode="pages"
-        excludeNodeId={node.id}
-        searchPlaceholder="Search pages..."
-        onAdd={handleParentSelect}
-      />
-      {node.parent_id && (
-        <div className="parent-selector-remove-wrapper">
-          <Button 
-            variant="ghost"
-            size="sm"
-            className="parent-selector-remove"
-            onClick={handleRemoveParent}
-          >
-            Remove parent
-          </Button>
-        </div>
-      )}
-    </Card>
-  ), [node.parent_id, parentPage, handleParentSelect, handleRemoveParent]);
-  
   const pageItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [
       {
@@ -475,8 +429,32 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     if (!node.is_daily && !node.is_monthly) {
       items.push({
         id: 'change-parent',
-        label: `Parent: ${parentPage ? nodeNameToText(parentPage.name) || 'Untitled' : 'None'}`,
-        submenu: parentSubmenu
+        label: 'Parent',
+        content: (
+          <div className="parent-selector-row">
+            <span className="parent-selector-row-label">Parent</span>
+            <NodeSelector
+              trigger="select"
+              size="sm"
+              searchMode="pages"
+              excludeNodeId={node.id}
+              value={node.parent_id}
+              placeholder="None"
+              searchPlaceholder="Search pages..."
+              onChange={(val) => {
+                const parentId = typeof val === 'number' ? val : null;
+                if (parentId !== null) {
+                  updateNode.mutate({ id: node.id, data: { parent_id: parentId } });
+                  onParentChange?.(parentId);
+                } else {
+                  updateNode.mutate({ id: node.id, data: { parent_id: null } });
+                  onParentChange?.(null);
+                }
+                onClose();
+              }}
+            />
+          </div>
+        ),
       });
       items.push({ id: 'sep-page-2', label: '', separator: true });
     }
@@ -484,7 +462,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     items.push(...commonItems);
     
     return items;
-  }, [isPageFavorited, parentPage, parentSubmenu, commonItems, handleToggleFavorite, node.is_daily, node.is_monthly]);
+  }, [isPageFavorited, node.parent_id, node.id, node.is_daily, node.is_monthly, commonItems, handleToggleFavorite, updateNode, onParentChange, onClose]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };

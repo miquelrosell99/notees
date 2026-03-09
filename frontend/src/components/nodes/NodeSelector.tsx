@@ -19,7 +19,7 @@ import { AddIcon } from '../core/icons';
 import { NodeResultItem } from './NodeResultItem';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
-import { SelectTrigger } from '../core/SelectTrigger';
+import { SelectTrigger, type SelectTriggerSize } from '../core/SelectTrigger';
 import { mdiPlus } from '@mdi/js';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
@@ -73,6 +73,8 @@ interface NodeSelectorProps {
   readOnly?: boolean;
   /** Initial search query to pre-fill when the picker opens */
   initialSearchQuery?: string;
+  /** Size variant for select trigger (default: 'md') */
+  size?: SelectTriggerSize;
   /** Additional CSS class */
   className?: string;
 }
@@ -99,6 +101,7 @@ export function NodeSelector({
   excludeNodeId,
   readOnly = false,
   initialSearchQuery = '',
+  size,
   className = '',
 }: NodeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -399,6 +402,7 @@ export function NodeSelector({
           disabled={readOnly}
           clearable={!readOnly && hasValue}
           hasValue={hasValue}
+          size={size}
           onClick={() => !readOnly && setIsPickerOpen(prev => !prev)}
           onClear={readOnly ? undefined : handleClearAll}
         >
