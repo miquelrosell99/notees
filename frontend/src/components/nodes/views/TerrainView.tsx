@@ -90,6 +90,7 @@ export function TerrainView({
   // Settings state - terrain mode specific
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
+    centralGravity: true,
     nodeSizeMode: 'mass', // Not used in terrain, but keep for compatibility
     heightMode: 'hierarchy',
     peakSizeMode: 'links',

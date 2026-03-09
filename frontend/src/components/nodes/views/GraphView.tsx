@@ -131,6 +131,7 @@ export function GraphView({
   // Settings state
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
+    centralGravity: true,
     nodeSizeMode: 'uniform',
     heightMode: 'hierarchy',
     peakSizeMode: 'links',
@@ -521,6 +522,20 @@ export function GraphView({
                 onChange={(e) => setGraphSettings(prev => ({
                   ...prev,
                   linkCountAttraction: e.target.checked
+                }))}
+              />
+            </div>
+
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Central gravity"
+                description="Pull disconnected components toward the canvas center"
+                labelPosition="left"
+                checked={graphSettings.centralGravity}
+                onChange={(e) => setGraphSettings(prev => ({
+                  ...prev,
+                  centralGravity: e.target.checked
                 }))}
               />
             </div>

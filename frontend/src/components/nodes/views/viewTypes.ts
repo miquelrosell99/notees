@@ -91,6 +91,7 @@ export interface ClassColor {
  */
 export interface GraphSettings {
   linkCountAttraction: boolean;
+  centralGravity: boolean;
   nodeSizeMode: NodeSizeMode;
   heightMode: HeightMode;
   peakSizeMode: PeakSizeMode;
@@ -172,6 +173,7 @@ export interface FrameData {
 
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   linkCountAttraction: false,
+  centralGravity: true,
   nodeSizeMode: 'uniform',
   heightMode: 'hierarchy',
   peakSizeMode: 'links',
