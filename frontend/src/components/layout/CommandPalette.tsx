@@ -178,14 +178,17 @@ function ResultItem({
         )}
       </span>
       <span className="command-palette__result-content">
+        {result.breadcrumb && (
+          <span
+            className="command-palette__result-hierarchy"
+            title={result.breadcrumb}
+          >
+            {result.breadcrumb}&nbsp;&rsaquo;&nbsp;
+          </span>
+        )}
         <span className="command-palette__result-name">
           {nodeNameToText(result.node.name) || 'Untitled'}
         </span>
-        {result.breadcrumb && (
-          <span className="command-palette__result-breadcrumb">
-            {result.breadcrumb}
-          </span>
-        )}
       </span>
       {aliasedNodeName && (
         <span className="command-palette__result-alias">
