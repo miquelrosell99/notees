@@ -602,6 +602,7 @@ export function BlockContextMenu({
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showParentModal, setShowParentModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -667,6 +668,13 @@ export function BlockContextMenu({
     }
 
     items.push({
+      id: 'set-parent',
+      label: 'Set parent page',
+      keepOpen: true,
+      onClick: () => setShowParentModal(true),
+    });
+
+    items.push({
       id: 'toggle-header',
       label: isHeader ? 'Remove header' : 'Set as header',
       onClick: () => {
@@ -704,7 +712,7 @@ export function BlockContextMenu({
     onClose();
   }, [onClose]);
   
-  const menuVisible = !showArchiveModal && !showASTModal && !showExportModal;
+  const menuVisible = !showArchiveModal && !showASTModal && !showExportModal && !showParentModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
     adjustMenuPosition(el, position);
@@ -744,6 +752,11 @@ export function BlockContextMenu({
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
         nodeUuid={node.uuid}
+      />
+      <SetParentModal
+        isOpen={showParentModal}
+        onClose={() => { setShowParentModal(false); onClose(); }}
+        node={node}
       />
     </>
   );
