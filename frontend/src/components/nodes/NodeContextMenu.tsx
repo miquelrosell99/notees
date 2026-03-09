@@ -15,6 +15,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
+import { Modal } from '../core/Modal';
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
@@ -354,6 +355,61 @@ export function NodeContextMenu({ node, position, onClose }: NodeContextMenuProp
   );
 }
 
+// ==================== Set Parent Modal ====================
+
+interface SetParentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  node: Node;
+  onParentChange?: (parentId: number | null) => void;
+}
+
+function SetParentModal({ isOpen, onClose, node, onParentChange }: SetParentModalProps) {
+  const updateNode = useUpdateNode();
+  const { data: parentNode } = useNode(node.parent_id ?? null);
+
+  const handleSelect = useCallback((val: number | number[] | null) => {
+    const parentId = typeof val === 'number' ? val : null;
+    updateNode.mutate({ id: node.id, data: { parent_id: parentId } });
+    onParentChange?.(parentId);
+    onClose();
+  }, [node.id, updateNode, onParentChange, onClose]);
+
+  const handleRemove = useCallback(() => {
+    updateNode.mutate({ id: node.id, data: { parent_id: null } });
+    onParentChange?.(null);
+    onClose();
+  }, [node.id, updateNode, onParentChange, onClose]);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Set parent"
+      size="sm"
+      contentClassName="set-parent-modal__content"
+    >
+      {node.parent_id && parentNode && (
+        <div className="set-parent-current">
+          <span className="set-parent-current__name">
+            {nodeNameToText(parentNode.name) || 'Untitled'}
+          </span>
+          <button className="set-parent-current__remove" onClick={handleRemove}>
+            Remove
+          </button>
+        </div>
+      )}
+      <NodeSelector
+        trigger="inline"
+        searchMode="pages"
+        excludeNodeId={node.id}
+        onChange={handleSelect}
+        searchPlaceholder="Search pages..."
+      />
+    </Modal>
+  );
+}
+
 // ==================== Page Context Menu ====================
 
 interface PageContextMenuProps extends BaseContextMenuProps {
@@ -369,6 +425,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showParentModal, setShowParentModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const deleteNode = useDeleteNode();
   const archiveNode = useArchiveNode();
@@ -429,32 +486,9 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     if (!node.is_daily && !node.is_monthly) {
       items.push({
         id: 'change-parent',
-        label: 'Parent',
-        content: (
-          <div className="parent-selector-row">
-            <span className="parent-selector-row-label">Parent</span>
-            <NodeSelector
-              trigger="select"
-              size="sm"
-              searchMode="pages"
-              excludeNodeId={node.id}
-              value={node.parent_id}
-              placeholder="None"
-              searchPlaceholder="Search pages..."
-              onChange={(val) => {
-                const parentId = typeof val === 'number' ? val : null;
-                if (parentId !== null) {
-                  updateNode.mutate({ id: node.id, data: { parent_id: parentId } });
-                  onParentChange?.(parentId);
-                } else {
-                  updateNode.mutate({ id: node.id, data: { parent_id: null } });
-                  onParentChange?.(null);
-                }
-                onClose();
-              }}
-            />
-          </div>
-        ),
+        label: 'Set parent',
+        keepOpen: true,
+        onClick: () => setShowParentModal(true),
       });
       items.push({ id: 'sep-page-2', label: '', separator: true });
     }
@@ -462,7 +496,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
     items.push(...commonItems);
     
     return items;
-  }, [isPageFavorited, node.parent_id, node.id, node.is_daily, node.is_monthly, commonItems, handleToggleFavorite, updateNode, onParentChange, onClose]);
+  }, [isPageFavorited, node.id, node.is_daily, node.is_monthly, commonItems, handleToggleFavorite]);
   
   const handleColorChange = useCallback((color: string | null) => {
     const data: NodeUpdate = { color };
@@ -493,7 +527,7 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
   
   return (
     <>
-      {!showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && (
+      {!showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showParentModal && (
         <div ref={wrapperRef} className="page-context-menu-wrapper" style={{ left: position.x, top: position.y }}>
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
           <ContextMenu
@@ -535,6 +569,12 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
         nodeUuid={node.uuid}
+      />
+      <SetParentModal
+        isOpen={showParentModal}
+        onClose={() => { setShowParentModal(false); onClose(); }}
+        node={node}
+        onParentChange={onParentChange}
       />
     </>
   );
