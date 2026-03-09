@@ -69,10 +69,15 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     }
   }, [sourceNode, targetNode, queryClient, openNode, handleClose]);
 
+  const isSameNode =
+    sourceNode !== null &&
+    targetNode !== null &&
+    (sourceNode.id === targetNode.id || (sourceNode.uuid && targetNode.uuid && sourceNode.uuid === targetNode.uuid));
+
   const canProceed =
     sourceNode !== null &&
     targetNode !== null &&
-    sourceNode.id !== targetNode.id &&
+    !isSameNode &&
     !isMerging;
 
   return (
@@ -144,7 +149,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
           />
         </div>
 
-        {sourceNode && targetNode && sourceNode.id === targetNode.id && (
+        {isSameNode && (
           <p className="merge-pages__warning">Source and target must be different pages.</p>
         )}
       </div>
