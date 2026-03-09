@@ -13,6 +13,7 @@ import { Button } from '../core/Button';
 import { TaskReport, type TaskPhaseResult } from '../core/TaskReport';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import './RebuildLinksModal.css';
 
 interface FixRawLinksModalProps {
@@ -67,6 +68,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
       // without requiring a page reload
       if (response.nodes_fixed > 0) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.all, refetchType: 'all' });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fix raw UUID links');
