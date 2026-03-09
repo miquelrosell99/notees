@@ -10,6 +10,7 @@
   flex-direction: column;
   align-items: stretch;
   width: 100%;
+  box-sizing: border-box;
   padding: var(--spacing-2);
   background: transparent;
   border: none;
