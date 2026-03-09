@@ -746,7 +746,11 @@ class PostgresNodeRepository(NodeRepository):
                     FROM node
                     WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                     AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
-                    ORDER BY rank DESC, write_date DESC
+                    ORDER BY
+                        (LOWER({name_text}) = LOWER($1)) DESC,
+                        (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
+                        rank DESC,
+                        write_date DESC
                     LIMIT $4
                 """, query, self._workspace_id, f'%{query}%', limit)
             else:
@@ -754,8 +758,12 @@ class PostgresNodeRepository(NodeRepository):
                     SELECT * FROM node
                     WHERE {name_text} ILIKE $1
                     AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    ORDER BY
+                        (LOWER({name_text}) = LOWER($4)) DESC,
+                        (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
+                        write_date DESC
                     LIMIT $3
-                """, f'%{query}%', self._workspace_id, limit)
+                """, f'%{query}%', self._workspace_id, limit, query)
             return [self._row_to_node(row) for row in rows]
     
     async def get_typed_with(self, type_node_id: int) -> List[Node]:
