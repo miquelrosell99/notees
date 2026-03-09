@@ -566,6 +566,10 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       const bullet = target.closest('.bullet-wrapper') as HTMLElement | null;
       if (!bullet || target.closest('.bullet-collapse-arrow')) return;
 
+      // Shift+click on bullet = open in sidebar (handled by ContextMenuPlugin's click handler).
+      // Don't intercept — let the click event propagate naturally.
+      if (e.shiftKey) return;
+
       const blockEl = findBlockRow(bullet);
       if (!blockEl) return;
       const blockId = blockEl.getAttribute('data-block-id');
