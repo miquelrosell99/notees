@@ -59,6 +59,8 @@ function invalidateNodeCaches(
     queryResults?: boolean;
     /** Invalidate graph data query */
     graph?: boolean;
+    /** Invalidate breadcrumbs queries */
+    breadcrumbs?: boolean;
     /** Invalidate a specific node's detail cache */
     nodeId?: number;
     /** Whether to actively refetch (default: false for soft invalidation) */
@@ -75,6 +77,7 @@ function invalidateNodeCaches(
     propertyBacklinks = false,
     queryResults = false,
     graph = false,
+    breadcrumbs = false,
     nodeId,
     refetch = false,
   } = options;
@@ -143,6 +146,13 @@ function invalidateNodeCaches(
   if (graph) {
     queryClient.invalidateQueries({ 
       queryKey: nodeKeys.graph(),
+      refetchType,
+    });
+  }
+
+  if (breadcrumbs) {
+    queryClient.invalidateQueries({ 
+      queryKey: [...nodeKeys.all, 'breadcrumbs'],
       refetchType,
     });
   }
@@ -607,6 +617,7 @@ export function useUpdateNode() {
           backlinks: true,
           propertyBacklinks: true,
           graph: true,
+          breadcrumbs: true,
           refetch: false, // No active refetch - too expensive
         });
         
