@@ -210,6 +210,9 @@ export interface NodeCollectionProps {
   
   /** Suppress color styling on root-level nodes */
   suppressRootColor?: boolean;
+
+  /** Whether to show breadcrumbs above top-level block nodes (list view only, default: false) */
+  showBreadcrumbs?: boolean;
   
   /** Card layout style */
   cardLayout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
