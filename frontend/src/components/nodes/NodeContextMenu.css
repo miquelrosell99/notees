@@ -2,53 +2,23 @@
  * Node Context Menu styles
  */
 
-/* Parent selector submenu */
-.parent-selector-submenu {
-  min-width: 280px;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-}
-
-.parent-selector-current {
+/* Parent selector — inline in context menu */
+.parent-selector-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  margin: var(--spacing-2) var(--spacing-2) 0;
-  background: var(--color-surface-container);
-  border-radius: var(--shape-medium);
+}
+
+.parent-selector-row-label {
   font-size: 13px;
-}
-
-.parent-selector-label {
   color: var(--color-on-surface-variant);
-  font-weight: 500;
-}
-
-.parent-selector-name {
-  color: var(--color-on-surface);
-  font-weight: 600;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.parent-selector-remove-wrapper {
-  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
-}
-
-.parent-selector-remove {
-  width: 100%;
-  justify-content: center;
-  color: var(--color-error);
-}
-
-.parent-selector-remove:hover {
-  background: var(--color-error-container);
+.parent-selector-row .node-selector--select {
+  flex: 1;
+  min-width: 0;
 }
 
 
