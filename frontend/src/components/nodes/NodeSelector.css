@@ -306,3 +306,7 @@
   padding: var(--spacing-1) 0;
 }
 
+.node-selector--inline .node-selector__search {
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
