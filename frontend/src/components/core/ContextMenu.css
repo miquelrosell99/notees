@@ -119,3 +119,13 @@ button.context-menu-item:hover:not(.disabled) {
   max-width: 320px;
   animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
+
+/* Custom content row — renders arbitrary React content inline in the menu */
+.context-menu-content-row {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.context-menu-content-row:last-child {
+  border-bottom: none;
+}
