@@ -442,6 +442,8 @@ export function PageContextMenu({ node, position, onClose, onParentChange }: Pag
         <SearchBox
           placeholder="Search pages..."
           onSelect={handleParentSelect}
+          filterFn={(n: Node) => n.is_page === true}
+          autoFocus
         />
       </div>
       {node.parent_id && (
