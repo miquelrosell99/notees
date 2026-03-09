@@ -22,6 +22,8 @@ export interface ContextMenuItem {
   keepOpen?: boolean;
   /** If provided, shows a submenu with custom content when item is clicked */
   submenu?: ReactNode;
+  /** If provided, renders custom content directly in the menu row instead of a button */
+  content?: ReactNode;
   onClick?: () => void;
 }
 
@@ -220,6 +222,19 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       {items.map((item, index) => {
         if (item.separator) {
           return <Separator key={`sep-${index}`} orientation="horizontal" spacing="sm" />;
+        }
+
+        if (item.content) {
+          return (
+            <div
+              key={item.id}
+              className="context-menu-content-row"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {item.content}
+            </div>
+          );
         }
 
         navigableIndex++;
