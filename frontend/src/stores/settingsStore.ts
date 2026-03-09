@@ -42,6 +42,20 @@ export type DefaultView = 'journal' | 'all-pages' | 'graph' | 'today';
  */
 export type HashtagPasteMode = 'inline-tag' | 'inline-class';
 
+/** First day of the week: 0 = Sunday, 1 = Monday, 6 = Saturday */
+export type FirstDayOfWeek = 0 | 1 | 6;
+
+export interface FirstDayOfWeekOption {
+  value: FirstDayOfWeek;
+  label: string;
+}
+
+export const FIRST_DAY_OF_WEEK_OPTIONS: FirstDayOfWeekOption[] = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 6, label: 'Saturday' },
+];
+
 interface SettingsState {
   // Theme
   theme: ThemePreference;
@@ -59,6 +73,8 @@ interface SettingsState {
   hashtagPasteMode: HashtagPasteMode;
   /** Show developer options (AST viewer, fix UUID links, create page with manual UUID) */
   showDevOptions: boolean;
+  /** First day of the week for calendar display */
+  firstDayOfWeek: FirstDayOfWeek;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -69,6 +85,7 @@ interface SettingsState {
   setLinkedRefsCollapseLevel: (level: number) => void;
   setHashtagPasteMode: (mode: HashtagPasteMode) => void;
   setShowDevOptions: (show: boolean) => void;
+  setFirstDayOfWeek: (day: FirstDayOfWeek) => void;
 }
 
 /**
@@ -184,6 +201,7 @@ export const useSettingsStore = create<SettingsState>()(
       linkedRefsCollapseLevel: 1,
       hashtagPasteMode: 'inline-tag',
       showDevOptions: false,
+      firstDayOfWeek: 0,
       
       // Actions
       setTheme: (theme) => {
@@ -215,6 +233,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setShowDevOptions: (showDevOptions) => {
         set({ showDevOptions });
+      },
+      setFirstDayOfWeek: (firstDayOfWeek) => {
+        set({ firstDayOfWeek });
       },
     }),
     {
