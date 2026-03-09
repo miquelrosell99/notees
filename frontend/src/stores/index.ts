@@ -21,12 +21,15 @@ export {
   formatMonth,
   formatYear,
   DATE_FORMAT_OPTIONS,
+  FIRST_DAY_OF_WEEK_OPTIONS,
   type ThemePreference, 
   type DateFormat,
   type DateFormatOption,
   type QuickAddDestination,
   type HashtagPasteMode,
   type DefaultView,
+  type FirstDayOfWeek,
+  type FirstDayOfWeekOption,
 } from './settingsStore';
 export {
   useFavoritesStore,

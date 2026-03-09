@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
-import { useAppStore } from '@/stores';
+import { useAppStore, useSettingsStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
 
@@ -14,7 +14,7 @@ interface CalendarPopupProps {
   anchorRef?: React.RefObject<HTMLElement>;
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const ALL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -45,6 +45,13 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   );
   
   const { openNode } = useAppStore();
+  const { firstDayOfWeek } = useSettingsStore();
+
+  // Rotate weekday labels so the configured first day appears first
+  const WEEKDAYS = [
+    ...ALL_WEEKDAYS.slice(firstDayOfWeek),
+    ...ALL_WEEKDAYS.slice(0, firstDayOfWeek),
+  ];
   
   // Fetch list of existing daily pages
   const { data: dailyPages } = useExistingDailyPages();
@@ -138,7 +145,9 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   if (!isOpen) return null;
   
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-  const firstDayOfMonth = getFirstDayOfMonth(currentYear, currentMonth);
+  const rawFirstDay = getFirstDayOfMonth(currentYear, currentMonth);
+  // Shift offset so it's relative to the configured first day of week
+  const firstDayOfMonth = (rawFirstDay - firstDayOfWeek + 7) % 7;
   
   const days: (number | null)[] = [];
   // Add empty slots for days before the first day of the month
