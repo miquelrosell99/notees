@@ -7,9 +7,12 @@
 import { useState, useCallback } from 'react';
 import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiDatabaseRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
+import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import './RebuildLinksModal.css';
 
 interface RebuildLinksModalProps {
@@ -21,6 +24,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [result, setResult] = useState<RebuildLinksResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const handleConfirm = useCallback(async () => {
     setIsRebuilding(true);
@@ -28,12 +32,17 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
     try {
       const response = await rebuildAllLinks();
       setResult(response);
+      // Invalidate all node and view caches so links, breadcrumbs, etc. update
+      if (response.links_created > 0) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.all, refetchType: 'all' });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rebuild links');
     } finally {
       setIsRebuilding(false);
     }
-  }, []);
+  }, [queryClient]);
 
   const handleClose = useCallback(() => {
     setResult(null);
