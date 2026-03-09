@@ -154,6 +154,7 @@ class NodeUpdateData:
     # Explicit clear flags for nullable fields (when None means "clear" vs "unchanged")
     clear_icon: bool = False
     clear_color: bool = False
+    clear_parent: bool = False
     parent_id: Optional[int] = None
     sequence: Optional[int] = None
     collapsed: Optional[bool] = None

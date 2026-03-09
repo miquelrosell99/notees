@@ -524,6 +524,9 @@ class PostgresNodeRepository(NodeRepository):
             set_clauses.append(f"page_id = ${param_idx}")
             params.append(page_id)
             param_idx += 1
+        elif data.clear_parent:
+            set_clauses.append("parent_id = NULL")
+            set_clauses.append("page_id = NULL")
         
         if data.sequence is not None:
             set_clauses.append(f"sequence = ${param_idx}")

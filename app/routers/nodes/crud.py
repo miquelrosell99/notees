@@ -1056,6 +1056,7 @@ async def update_node(
         # Set clear flags when field was explicitly provided as None
         clear_icon='icon' in request.model_fields_set and request.icon is None,
         clear_color='color' in request.model_fields_set and request.color is None,
+        clear_parent='parent_id' in request.model_fields_set and request.parent_id is None,
         parent_id=request.parent_id,
         sequence=request.sequence,
         collapsed=request.collapsed,
