@@ -862,6 +862,11 @@ export function useDeleteNode() {
         queryKey: ['nodeViews', 'queryResults'],
         refetchType: 'none',
       });
+      // Invalidate pseudo-node queries (e.g., All Pages view)
+      queryClient.invalidateQueries({ 
+        queryKey: ['pseudo-node-query'],
+        refetchType: 'active',
+      });
       // Invalidate graph data since nodes/links changed
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.graph(),
