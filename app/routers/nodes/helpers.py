@@ -169,13 +169,10 @@ async def _get_descendants(node_repo, parent_id: int) -> List[Node]:
     # Use the repository's get_descendants method if available
     if hasattr(node_repo, 'get_descendants'):
         descendant_ids = await node_repo.get_descendants(parent_id, include_self=False)
-        # Fetch full node data for each descendant
-        descendants = []
-        for desc_id in descendant_ids:
-            node = await node_repo.get_by_id(desc_id)
-            if node:
-                descendants.append(node)
-        return descendants
+        # Batch-fetch all descendants in a single query instead of N individual calls
+        if descendant_ids:
+            return await node_repo.get_by_ids(descendant_ids)
+        return []
     
     # Fallback to manual traversal if method not available
     all_descendants: List[Node] = []

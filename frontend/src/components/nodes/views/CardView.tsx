@@ -17,6 +17,7 @@ import {
   useMemo,
   useRef,
   useId,
+  memo,
   type JSX,
 } from 'react';
 
@@ -82,7 +83,7 @@ function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: s
 
 // ─── Component ────────────────────────────────────────────────────
 
-export function CardView({
+export const CardView = memo(function CardView({
   nodes,
   layout = 'no-cover',
   columns,
@@ -377,4 +378,4 @@ export function CardView({
       )}
     </div>
   );
-}
+});

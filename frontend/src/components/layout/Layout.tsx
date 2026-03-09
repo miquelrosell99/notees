@@ -38,34 +38,33 @@ import { Button } from '../core/Button';
 import './Layout.css';
 
 export function Layout() {
-  const { 
-    isSidebarCollapsed, 
-    rightSidebarOpen,
-    currentNodeId,
-    mainViewType,
-    viewMode,
-    isCommandPaletteOpen,
-    setCommandPaletteOpen,
-    isImportDataModalOpen,
-    setImportDataModalOpen,
-    isImportLogseqModalOpen,
-    setImportLogseqModalOpen,
-    isImportMarkdownModalOpen,
-    setImportMarkdownModalOpen,
-    isExportPageModalOpen,
-    setExportPageModalOpen,
-    isRebuildLinksModalOpen,
-    setRebuildLinksModalOpen,
-    isFixRawLinksModalOpen,
-    setFixRawLinksModalOpen,
-    isMergePagesModalOpen,
-    setMergePagesModalOpen,
-    isMinimapOpen,
-    setMinimapOpen,
-    commentsSidebarOpen,
-    setMainViewType,
-    openNode,
-  } = useAppStore();
+  // Use granular selectors to avoid re-rendering on unrelated store changes
+  const isSidebarCollapsed = useAppStore(s => s.isSidebarCollapsed);
+  const rightSidebarOpen = useAppStore(s => s.rightSidebarOpen);
+  const currentNodeId = useAppStore(s => s.currentNodeId);
+  const mainViewType = useAppStore(s => s.mainViewType);
+  const viewMode = useAppStore(s => s.viewMode);
+  const isCommandPaletteOpen = useAppStore(s => s.isCommandPaletteOpen);
+  const setCommandPaletteOpen = useAppStore(s => s.setCommandPaletteOpen);
+  const isImportDataModalOpen = useAppStore(s => s.isImportDataModalOpen);
+  const setImportDataModalOpen = useAppStore(s => s.setImportDataModalOpen);
+  const isImportLogseqModalOpen = useAppStore(s => s.isImportLogseqModalOpen);
+  const setImportLogseqModalOpen = useAppStore(s => s.setImportLogseqModalOpen);
+  const isImportMarkdownModalOpen = useAppStore(s => s.isImportMarkdownModalOpen);
+  const setImportMarkdownModalOpen = useAppStore(s => s.setImportMarkdownModalOpen);
+  const isExportPageModalOpen = useAppStore(s => s.isExportPageModalOpen);
+  const setExportPageModalOpen = useAppStore(s => s.setExportPageModalOpen);
+  const isRebuildLinksModalOpen = useAppStore(s => s.isRebuildLinksModalOpen);
+  const setRebuildLinksModalOpen = useAppStore(s => s.setRebuildLinksModalOpen);
+  const isFixRawLinksModalOpen = useAppStore(s => s.isFixRawLinksModalOpen);
+  const setFixRawLinksModalOpen = useAppStore(s => s.setFixRawLinksModalOpen);
+  const isMergePagesModalOpen = useAppStore(s => s.isMergePagesModalOpen);
+  const setMergePagesModalOpen = useAppStore(s => s.setMergePagesModalOpen);
+  const isMinimapOpen = useAppStore(s => s.isMinimapOpen);
+  const setMinimapOpen = useAppStore(s => s.setMinimapOpen);
+  const commentsSidebarOpen = useAppStore(s => s.commentsSidebarOpen);
+  const setMainViewType = useAppStore(s => s.setMainViewType);
+  const openNode = useAppStore(s => s.openNode);
   
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();

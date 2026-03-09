@@ -13,7 +13,7 @@
  *  - Click bar          → onNodeClick; shift-click → onNodeShiftClick
  *  - Right-click bar    → context menu
  */
-import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
+import { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
@@ -446,7 +446,7 @@ class GanttRenderer {
  * GanttView – canvas-based Gantt/timeline view for NodeCollection.
  * Uses "Node" naming throughout (not "Task") since this view is generic.
  */
-export function GanttView({
+export const GanttView = memo(function GanttView({
   nodes,
   startDateProperty,
   endDateProperty,
@@ -997,4 +997,4 @@ export function GanttView({
       )}
     </div>
   );
-}
+});

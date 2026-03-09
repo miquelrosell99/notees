@@ -5,7 +5,7 @@
  * Passes nodes directly to BlockEditor which handles runtime sync.
  */
 
-import { useMemo, useCallback, useId, type JSX } from 'react';
+import { useMemo, useCallback, useId, type JSX, memo } from 'react';
 import { BlockEditor } from '../../../editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
@@ -19,7 +19,7 @@ import './DocumentView.css';
  *
  * Accepts nodes[] and renders as a flat document (no bullets/indentation).
  */
-export function DocumentView({
+export const DocumentView = memo(function DocumentView({
   nodes,
   editable,
   maxDepth = Infinity,
@@ -146,4 +146,4 @@ export function DocumentView({
       />
     </div>
   );
-}
+});

@@ -7,7 +7,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import { setSetting } from '@/api/workspaces';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
@@ -38,7 +38,7 @@ const MAX_SCALE = 10;
 const ZOOM_SPEED_WHEEL = 0.002;
 const ZOOM_SPEED_PINCH = 0.01;
 
-export function TimelineView({
+export const TimelineView = memo(function TimelineView({
   nodes,
   className = '',
 }: NodeTimelineRendererProps) {
@@ -902,4 +902,4 @@ export function TimelineView({
       )}
     </div>
   );
-}
+});

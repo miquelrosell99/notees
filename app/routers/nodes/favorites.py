@@ -36,18 +36,19 @@ async def get_favorites(
         if not isinstance(favorites, list):
             return {"favorites": []}
         
-        # Filter out deleted or archived nodes
+        # Filter out deleted or archived nodes using a single batch query
         async with acquire_connection(service._pool) as conn:
-            valid_favorites = []
-            for node_id in favorites:
-                exists = await conn.fetchval("""
-                    SELECT 1 FROM node 
-                    WHERE id = $1 AND workspace_id = $2 
+            if favorites:
+                rows = await conn.fetch("""
+                    SELECT id FROM node 
+                    WHERE id = ANY($1::int[]) AND workspace_id = $2 
                           AND active = true 
                           AND (is_deleted = false OR is_deleted IS NULL)
-                """, node_id, service._workspace_id)
-                if exists:
-                    valid_favorites.append(node_id)
+                """, favorites, service._workspace_id)
+                valid_ids = {row['id'] for row in rows}
+                valid_favorites = [fid for fid in favorites if fid in valid_ids]
+            else:
+                valid_favorites = []
         
         return {"favorites": valid_favorites}
     except json.JSONDecodeError:

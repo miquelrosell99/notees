@@ -14,7 +14,7 @@
  * 
  * Uses TerrainRenderer for visualization.
  */
-import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue, memo } from 'react';
 import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useAppStore } from '@/stores';
@@ -63,7 +63,7 @@ interface SelectedNodeItem {
 // Helper to get localStorage key for a view
 const getStorageKey = (viewId: string, key: string) => `terrain_${viewId}_${key}`;
 
-export function TerrainView({ 
+export const TerrainView = memo(function TerrainView({ 
   viewId = 'default', 
   className = '',
   nodes: apiNodes,
@@ -745,4 +745,4 @@ export function TerrainView({
       />
     </div>
   );
-}
+});
