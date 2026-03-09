@@ -11,6 +11,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useExistingDailyPages } from '@/hooks';
+import { useSettingsStore } from '@/stores';
 import { parseDate } from '@/utils/dateParser';
 import { Button } from './Button';
 import './CalendarPopup.css';   // reuse grid styles from CalendarPopup
@@ -18,7 +19,7 @@ import './DatePickerPopup.css'; // own additions
 
 // ── helpers ──────────────────────────────────────────────
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const ALL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -72,6 +73,14 @@ export function DatePickerPopup({
   const [textInput, setTextInput] = useState('');
   const [parsedPreview, setParsedPreview] = useState<string | null>(null);
   const [parsedValid, setParsedValid] = useState(true);
+
+  const { firstDayOfWeek } = useSettingsStore();
+
+  // Rotate weekday labels so the configured first day appears first
+  const WEEKDAYS = [
+    ...ALL_WEEKDAYS.slice(firstDayOfWeek),
+    ...ALL_WEEKDAYS.slice(0, firstDayOfWeek),
+  ];
 
   const popupRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -185,7 +194,9 @@ export function DatePickerPopup({
   // ── calendar grid ──────────────────────────────────────
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-  const firstDayOfMonth = getFirstDayOfMonth(currentYear, currentMonth);
+  const rawFirstDay = getFirstDayOfMonth(currentYear, currentMonth);
+  // Shift offset so it's relative to the configured first day of week
+  const firstDayOfMonth = (rawFirstDay - firstDayOfWeek + 7) % 7;
 
   const days: (number | null)[] = [];
   for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
