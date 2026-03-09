@@ -306,6 +306,11 @@
   padding: var(--spacing-1) 0;
 }
 
+.node-selector--inline .node-selector__options .node-result-item {
+  padding-left: var(--spacing-3);
+  padding-right: var(--spacing-3);
+}
+
 .node-selector--inline .node-selector__search {
   padding: var(--spacing-2) var(--spacing-3);
 }
