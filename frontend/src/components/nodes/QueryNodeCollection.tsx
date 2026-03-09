@@ -991,6 +991,7 @@ export function QueryNodeCollection({
             activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
             showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
+            hideProperties={viewType === 'all_pages' || viewType === 'child_pages'}
           />
 
           {/* Load more button for windowed results (hidden in gantt mode — filtering happens inside GanttView) */}
