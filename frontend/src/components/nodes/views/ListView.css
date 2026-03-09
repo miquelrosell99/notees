@@ -134,6 +134,18 @@
 .node-list-view__group-ancestors {
   display: inline-flex;
   align-items: center;
+  margin-bottom: 0;
+  padding: 0;
+  gap: 2px;
+  font: var(--font-label-small);
+}
+
+.node-list-view__group-ancestors .node-breadcrumb-link {
+  padding: 2px var(--spacing-1);
+}
+
+.node-list-view__group-ancestors .node-breadcrumb-name {
+  max-width: 120px;
 }
 
 /* ==================== Non-grouped breadcrumb mode ==================== */
