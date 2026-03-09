@@ -1244,6 +1244,8 @@ class NodeService:
             raise ValueError(f"Target node {target_id} not found")
         if source_id == target_id:
             raise ValueError("Source and target must be different nodes")
+        if source.uuid and target.uuid and source.uuid == target.uuid:
+            raise ValueError("Source and target resolve to the same node (UUID match)")
         if not source.is_page:
             raise ValueError("Source node must be a page")
         if not target.is_page:
