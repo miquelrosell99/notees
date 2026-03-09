@@ -157,6 +157,7 @@ export function NodeCollection({
   onSlashCommand,
   onPasteImage,
   onEnterAtRoot,
+  hideProperties = false,
   ganttStartDateProperty: ganttStartDatePropertyProp,
   ganttEndDateProperty: ganttEndDatePropertyProp,
   onGanttStartDatePropertyChange,
@@ -349,6 +350,7 @@ export function NodeCollection({
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
             onEnterAtRoot={onEnterAtRoot}
+            hideProperties={hideProperties}
           />
         );
       
