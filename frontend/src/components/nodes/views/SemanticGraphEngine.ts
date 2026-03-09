@@ -1000,7 +1000,6 @@ export class SemanticGraphEngine {
   computeForces(): void {
     const N     = this.n;
     const cfg   = this.config;
-    const alpha = this.alpha;
     const posX = this.posX, posY = this.posY;
     const pin  = this.pinnedArr;
     const clId = this.clIdArr, compId = this.compIdArr;
@@ -1014,7 +1013,7 @@ export class SemanticGraphEngine {
     const clCx = this.clCx, clCy = this.clCy, clCC = this.clCount;
 
     // ─ A) Intra-cluster cohesion (shell model) ─────────────────────────────────
-    const clusterStr = cfg.clusterStrength * alpha;
+    const clusterStr = cfg.clusterStrength;
     const idealDist  = cfg.idealDistance;
     for (let i = 0; i < N; i++) {
       if (pin[i]) continue;
@@ -1032,7 +1031,7 @@ export class SemanticGraphEngine {
     const bigIds   = this.bigClusterBuf, bigK = this.bigClusterCount;
     const clFx = this.clFx, clFy = this.clFy;
     const nScale   = N > 1 ? Math.sqrt(N) : 1;
-    const repelStr = cfg.clusterRepelStrength * alpha * nScale;
+    const repelStr = cfg.clusterRepelStrength * nScale;
 
     if (bigK > 0) {
       for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
@@ -1057,7 +1056,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ C) Edge springs ─ pure arithmetic, no topology or derived math per step ─
-    const springStr  = cfg.springStrength * alpha;
+    const springStr  = cfg.springStrength;
     const E          = this.numEdges;
     const eSrc       = this.edgeSrc,   eTgt   = this.edgeTgt;
     const eRest      = this.edgeRest,  eStiff = this.edgeStiff;
@@ -1074,7 +1073,7 @@ export class SemanticGraphEngine {
     // ─ D) Local repulsion ─ open-addressing typed-array spatial hash ─────────── 
     const baseRepelRadius = cfg.localRepelRadius;
     const repelRadius  = N > 1000 ? baseRepelRadius * Math.min(1, Math.sqrt(1000 / N)) : baseRepelRadius;
-    const localStr     = cfg.localRepelStrength * alpha;
+    const localStr     = cfg.localRepelStrength;
     const repelRadSq   = repelRadius * repelRadius;
     const invRepelRad  = 1 / repelRadius;
 
@@ -1105,7 +1104,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ E) Radial stability ───────────────────────────────────────────────────── 
-    const radialStr = cfg.radialStrength * alpha;
+    const radialStr = cfg.radialStrength;
     if (radialStr > 0) {
       for (let k = 0; k < activeCount; k++) {
         const i = activeIdx[k];
@@ -1118,7 +1117,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ F) Component gravity ────────────────────────────────────────────────────  
-    const centerStr = cfg.componentCenterStrength * alpha;
+    const centerStr = cfg.componentCenterStrength;
     if (centerStr > 0) {
       let maxCompId = 0;
       for (let i = 0; i < N; i++) { if (compId[i] > maxCompId) maxCompId = compId[i]; }
@@ -1191,7 +1190,6 @@ export class SemanticGraphEngine {
       if (this.prevDt < cfg.dt) this.prevDt = Math.min(cfg.dt, this.prevDt * 1.02);
     }
     this.prevEnergy = this.energy;
-    this.alpha += (0 - this.alpha) * cfg.alphaDecay;
     this.ticks++;
   }
 

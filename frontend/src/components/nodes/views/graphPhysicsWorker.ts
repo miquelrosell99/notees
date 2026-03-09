@@ -52,15 +52,16 @@ const TICK_MS = 16;
 const MAX_TICK_BUDGET_MS = 50;
 
 /**
- * Warm-up convergence target.  Run physics steps synchronously until alpha
- * drops below this value so the layout is visually stable on the first frame.
- * alpha 0.1 ≈ 1150 steps at default decay (0.002) — well past the major
- * re-arrangement phase.  A hard time-budget cap prevents blocking the worker
- * for too long on very large graphs.
+ * Warm-up convergence target.  Run physics steps synchronously until the
+ * average kinetic energy drops below this threshold so the layout is visually
+ * stable on the first frame.  A hard time-budget cap prevents blocking the
+ * worker for too long on very large graphs.
  */
-const WARMUP_ALPHA_TARGET = 0.005;
+const WARMUP_ENERGY_TARGET = 0.05;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
 const WARMUP_TIME_BUDGET_MS = 3000;
+/** Minimum warm-up steps before checking energy convergence. */
+const WARMUP_MIN_STEPS = 100;
 
 
 
@@ -437,21 +438,19 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine = new SemanticGraphEngine(msg.nodes, msg.edges, msg.config);
 
       // ── Warm-up: run physics synchronously until the layout stabilises so
-      //    nodes are well-separated before the first frame.  This ensures all
-      //    edges are long enough to be visible immediately.
+      //    nodes are well-separated before the first frame.
       {
         const t0 = performance.now();
-        while (engine.getState().alpha > WARMUP_ALPHA_TARGET) {
+        let steps = 0;
+        while (true) {
           engine.step();
+          steps++;
+          // Check energy convergence only after a minimum number of steps
+          if (steps >= WARMUP_MIN_STEPS && engine.getState().energy < WARMUP_ENERGY_TARGET) break;
           // Bail out if we've spent too long (large graphs)
           if (performance.now() - t0 > WARMUP_TIME_BUDGET_MS) break;
         }
       }
-
-      // Warmup burns alpha down to ~0.005, making all forces extremely weak.
-      // Reheat so the visible phase starts with enough force strength to
-      // settle any remaining instabilities (long chains, spikes, etc.).
-      engine.reheat();
 
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
