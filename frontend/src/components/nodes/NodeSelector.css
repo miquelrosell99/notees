@@ -185,6 +185,7 @@
 
 .node-selector__search {
   width: 100%;
+  box-sizing: border-box;
   padding: var(--spacing-2);
   border: none;
   border-bottom: 1px solid var(--color-outline-variant);
