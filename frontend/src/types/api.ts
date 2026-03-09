@@ -279,6 +279,7 @@ export interface BatchGetNodesResponse {
 export interface BreadcrumbItemResponse {
   id: number;
   name: string;
+  display_name: string;
   icon: string | null;
   is_page: boolean;
 }
