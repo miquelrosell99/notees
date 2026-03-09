@@ -838,9 +838,10 @@ export function useDeleteNode() {
         queryKey: nodeKeys.lists(),
         refetchType: 'none',
       });
+      // Refetch pages list actively so live subscribers (e.g. command palette) update immediately
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.pages(),
-        refetchType: 'none',
+        refetchType: 'active',
       });
       // Invalidate all backlinks since they may reference the deleted node
       queryClient.invalidateQueries({ 
@@ -901,7 +902,11 @@ export function useArchiveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.pages(),
-        refetchType: 'none',
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['pseudo-node-query'],
+        refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'archived'],
@@ -934,7 +939,11 @@ export function useUnarchiveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.pages(),
-        refetchType: 'none',
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['pseudo-node-query'],
+        refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'archived'],
