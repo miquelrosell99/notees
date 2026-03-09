@@ -77,7 +77,11 @@ async def search_classes(
                 WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                   AND is_class = TRUE AND parent_id IS NULL
                   AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
-                ORDER BY rank DESC, write_date DESC
+                ORDER BY
+                    (LOWER({name_text}) = LOWER($1)) DESC,
+                    (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
+                    rank DESC,
+                    write_date DESC
                 LIMIT $4
             """, q, service._workspace_id, f'%{q}%', limit)
         else:
@@ -86,8 +90,12 @@ async def search_classes(
                 WHERE {name_text} ILIKE $1
                   AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                   AND is_class = TRUE AND parent_id IS NULL
+                ORDER BY
+                    (LOWER({name_text}) = LOWER($4)) DESC,
+                    (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
+                    write_date DESC
                 LIMIT $3
-            """, f'%{q}%', service._workspace_id, limit)
+            """, f'%{q}%', service._workspace_id, limit, q)
 
     nodes = [service._node_repo.row_to_node(row) for row in rows]
 
