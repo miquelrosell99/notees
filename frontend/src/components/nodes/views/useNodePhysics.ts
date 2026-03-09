@@ -997,6 +997,13 @@ export function useNodePhysics({
           // MAIN THREAD PHYSICS PATH (graph mode, or terrain before worker ready)
           // ================================================================
 
+          // Sync centralGravity setting to SGE config
+          if (sgeRef.current) {
+            sgeRef.current.setConfig({
+              componentCenterStrength: currentSettings.centralGravity ? 0.001 : 0,
+            });
+          }
+
           runMainThreadPhysicsStep(
             { sgeRef, dragNodeRef, dimensionsRef, frameDataRef } satisfies MainThreadPhysicsRefs,
             nodes, nodeMap, links,
