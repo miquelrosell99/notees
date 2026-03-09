@@ -61,7 +61,7 @@ export function useCommandPaletteSearch(
 
       const pages = rawPages.flatMap(r => {
         const node = nodeMap.get(r.nodeId);
-        return node ? [{ node }] : [];
+        return node ? [{ node, breadcrumb: r.breadcrumb }] : [];
       });
 
       const blocks = rawBlocks.flatMap(r => {
@@ -109,12 +109,13 @@ export function useCommandPaletteSearch(
 
     const id = ++seqRef.current;
 
-    // Send slim node representation — worker only needs id, name, parent_id, page_id
+    // Send slim node representation — worker only needs id, name, parent_id, page_id, is_page
     const nodes = searchResults.map(n => ({
       id: n.id,
       name: n.name,
       parent_id: n.parent_id,
       page_id: n.page_id,
+      is_page: n.is_page,
     }));
 
     const properties = allProperties.map(p => ({
