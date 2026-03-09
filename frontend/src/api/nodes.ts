@@ -247,6 +247,20 @@ export async function unarchiveNode(id: number): Promise<Node> {
 }
 
 /**
+ * Merge source page into target page.
+ * Moves all blocks from source to target, redirects backlinks, then deletes source.
+ */
+export async function mergePages(
+  sourceId: number,
+  targetId: number,
+): Promise<{ children_moved: number; target_id: number }> {
+  const response = await api.post<{ children_moved: number; target_id: number }>(
+    `${BASE}/${sourceId}/merge-into/${targetId}`,
+  );
+  return response.data;
+}
+
+/**
  * Get all archived pages
  */
 export async function getArchivedPages(): Promise<Node[]> {

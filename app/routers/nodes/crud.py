@@ -1207,6 +1207,25 @@ async def archive_node(
     return _node_to_response(node, classes=[t.id for t in types if t.id])
 
 
+@router.post("/{node_id}/merge-into/{target_id}", name="merge_pages")
+async def merge_pages(
+    node_id: int = Path(..., description="Source page ID (will be deleted)"),
+    target_id: int = Path(..., description="Target page ID (merge destination)"),
+    user: User = Depends(get_current_user),
+):
+    """Merge source page into target page.
+
+    Moves all blocks from source to target, redirects all backlinks that point to
+    source so they point to target instead, then soft-deletes the source page.
+    """
+    service = await _get_node_service(user)
+    try:
+        result = await service.merge_pages(node_id, target_id, user_id=int(user.id))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
 @router.post("/{node_id}/unarchive")
 async def unarchive_node(
     node_id: int,
