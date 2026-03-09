@@ -87,6 +87,18 @@ export function DocumentView({
 
   // Handler for shift-click (open in sidebar)
   const handleOpenInSidebar = useCallback((blockId: string) => {
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    if (graphNode?.serverId) {
+      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+      if (targetNode) {
+        onNodeShiftClick?.(targetNode);
+      } else {
+        onNodeShiftClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+      }
+      return;
+    }
+    // Fallback: UUID-based lookup
     const node = allNodes.find(n => n.uuid === blockId);
     if (node) {
       onNodeShiftClick?.(node);
