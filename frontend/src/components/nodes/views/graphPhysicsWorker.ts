@@ -62,12 +62,7 @@ const WARMUP_ALPHA_TARGET = 0.005;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
 const WARMUP_TIME_BUDGET_MS = 3000;
 
-/**
- * If alpha has cooled below this threshold AND kinetic energy is tiny,
- * the worker pauses the interval and waits for a reheat signal.
- */
-const SLEEP_ALPHA = 0.002;
-const SLEEP_ENERGY = 0.0005;
+
 
 // ============================================================
 // Worker State
@@ -416,15 +411,6 @@ function tick(): void {
   const elapsed = performance.now() - t0;
   if (elapsed > 50) {
     console.warn(`[SGE] ${substeps} step(s) took ${elapsed.toFixed(0)}ms (${engine.nodeCount} nodes)`);
-  }
-
-  const state = engine.getState();
-
-  // Auto-sleep when converged
-  if (state.alpha < SLEEP_ALPHA && state.energy < SLEEP_ENERGY) {
-    postFrame();
-    // Don't schedule next tick — sleep until reheated
-    return;
   }
 
   postFrame();
