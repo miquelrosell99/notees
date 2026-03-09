@@ -22,7 +22,7 @@ import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodeRef } from '../nodes/NodeRef';
@@ -304,20 +304,21 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid'; requiresPage?: boolean; devOnly?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge'; requiresPage?: boolean; devOnly?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
       { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
       { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance', devOnly: true },
       { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
+      { id: 'merge-pages', label: 'Merge pages', icon: 'merge' },
       { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
 
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' };
     const items: ItemEntry[] = [];
     
     // Commands section — show first when user is searching
@@ -597,6 +598,10 @@ export function CommandPalette({
           useAppStore.getState().setRebuildLinksModalOpen(true);
         } else if (item.commandId === 'fix-raw-links') {
           useAppStore.getState().setFixRawLinksModalOpen(true);
+        } else if (item.commandId === 'merge-pages') {
+          useAppStore.getState().setMergePagesModalOpen(true);
+          onClose();
+          return;
         } else if (item.commandId === 'toggle-focus-mode') {
           useAppStore.getState().toggleFocusMode();
         } else if (item.commandId === 'create-page-with-uuid') {
@@ -770,6 +775,8 @@ export function CommandPalette({
                         <Icon path={mdiBrain} size={0.7} />
                       ) : item.commandIcon === 'uuid' ? (
                         <Icon path={mdiFingerprint} size={0.7} />
+                      ) : item.commandIcon === 'merge' ? (
+                        <Icon path={mdiMerge} size={0.7} />
                       ) : (
                         <Icon path={mdiExport} size={0.7} />
                       )}

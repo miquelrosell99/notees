@@ -1207,6 +1207,155 @@ class NodeService:
             )
             return [self._node_repo.row_to_node(r) for r in rows]
     
+    async def merge_pages(
+        self,
+        source_id: int,
+        target_id: int,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Merge source page into target page.
+
+        - Moves all children (blocks) of source to target
+        - Redirects content in nodes that link to source so they link to target instead
+        - Redirects node_link backlinks from source → target
+        - Soft-deletes the source page
+
+        Args:
+            source_id: The ID of the page to merge (will be deleted)
+            target_id: The ID of the page to merge into
+            user_id: User performing the merge
+
+        Returns:
+            Dict with children_moved and target_id
+
+        Raises:
+            ValueError: If nodes are invalid, same, or not pages
+        """
+        import re
+
+        pool = self._node_repo.get_connection()
+
+        source = await self._node_repo.get_by_id(source_id)
+        target = await self._node_repo.get_by_id(target_id)
+
+        if not source:
+            raise ValueError(f"Source node {source_id} not found")
+        if not target:
+            raise ValueError(f"Target node {target_id} not found")
+        if source_id == target_id:
+            raise ValueError("Source and target must be different nodes")
+        if not source.is_page:
+            raise ValueError("Source node must be a page")
+        if not target.is_page:
+            raise ValueError("Target node must be a page")
+        if source.is_day or source.is_month or source.is_year:
+            raise ValueError("Cannot merge date journal pages")
+
+        logger.info(f"[MERGE] Merging node {source_id} ({source.name!r}) into {target_id} ({target.name!r})")
+
+        # Step 1: Get direct children of source
+        children_rows = await pool.fetch(
+            "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE ORDER BY sequence",
+            source_id,
+        )
+        children_ids = [row['id'] for row in children_rows]
+
+        # Step 2: Determine base sequence offset for appending to target
+        max_seq_row = await pool.fetchrow(
+            "SELECT COALESCE(MAX(sequence), -1) as max_seq FROM node WHERE parent_id = $1",
+            target_id,
+        )
+        base_seq = (max_seq_row['max_seq'] if max_seq_row else -1) + 1
+
+        # Step 3: Reparent children — the node_path_update DB trigger keeps the closure table in sync
+        for i, child_id in enumerate(children_ids):
+            await pool.execute(
+                """UPDATE node
+                      SET parent_id = $1, page_id = $2, sequence = $3,
+                          write_date = NOW(), version = version + 1
+                    WHERE id = $4 AND workspace_id = $5""",
+                target_id, target_id, base_seq + i, child_id, self._workspace_id,
+            )
+
+        logger.info(f"[MERGE] Reparented {len(children_ids)} children from {source_id} to {target_id}")
+
+        # Step 4: Update content of nodes that link to source to now link to target.
+        # Collect backlink source IDs before redirecting node_link.
+        backlink_rows = await pool.fetch(
+            "SELECT DISTINCT source_id FROM node_link WHERE target_id = $1 AND source_id != $2",
+            source_id, target_id,
+        )
+        backlink_source_ids = [row['source_id'] for row in backlink_rows]
+
+        if source.uuid and target.uuid:
+            for bsid in backlink_source_ids:
+                source_node = await self._node_repo.get_by_id(bsid)
+                if not source_node or not source_node.name:
+                    continue
+                updated = self._redirect_link_in_content(
+                    source_node.name,
+                    source_id, source.uuid,
+                    target_id, target.uuid,
+                )
+                if updated != source_node.name:
+                    await self._node_repo.update(bsid, NodeUpdateData(name=updated))
+
+        # Step 5: Redirect structural backlinks in node_link table
+        await pool.execute(
+            "UPDATE node_link SET target_id = $1 WHERE target_id = $2",
+            target_id, source_id,
+        )
+        logger.info(f"[MERGE] Redirected node_link backlinks from {source_id} to {target_id}")
+
+        # Step 6: Soft-delete source (backlinks already redirected, children already moved)
+        await self.delete_node(source_id, user_id)
+        logger.info(f"[MERGE] Soft-deleted source node {source_id}")
+
+        return {"children_moved": len(children_ids), "target_id": target_id}
+
+    def _redirect_link_in_content(
+        self,
+        content: str,
+        source_id: int,
+        source_uuid: str,
+        target_id: int,
+        target_uuid: str,
+    ) -> str:
+        """Replace references to source node with target node in content.
+
+        Handles both the new JSON AST format (link_id field) and the legacy
+        [[nodeId]] / {{nodeId}} text formats.
+        """
+        import re
+
+        result = content
+
+        # JSON AST format: "link_id":"<sourceUuid>:<linkUuid>" or "link_id":"<sourceUuid>"
+        result = result.replace(
+            f'"link_id":"{source_uuid}:',
+            f'"link_id":"{target_uuid}:',
+        )
+        result = result.replace(
+            f'"link_id":"{source_uuid}"',
+            f'"link_id":"{target_uuid}"',
+        )
+
+        # Legacy [[nodeId]] format
+        result = re.sub(
+            r'\[\[' + str(source_id) + r'\]\]',
+            f'[[{target_id}]]',
+            result,
+        )
+
+        # Legacy {{nodeId}} inline-class format
+        result = re.sub(
+            r'\{\{' + str(source_id) + r'\}\}',
+            '{{' + str(target_id) + '}}',
+            result,
+        )
+
+        return result
+
     async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
         """Archive a node and all its descendants (set active to false)."""
         from ...utils import utc_now

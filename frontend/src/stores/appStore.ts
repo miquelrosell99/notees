@@ -87,6 +87,7 @@ interface NodesState {
   isExportPageModalOpen: boolean;
   isRebuildLinksModalOpen: boolean;
   isFixRawLinksModalOpen: boolean;
+  isMergePagesModalOpen: boolean;
   showWorkspaceManager: boolean;
   isMinimapOpen: boolean;
   
@@ -130,6 +131,7 @@ interface NodesState {
   setExportPageModalOpen: (open: boolean) => void;
   setRebuildLinksModalOpen: (open: boolean) => void;
   setFixRawLinksModalOpen: (open: boolean) => void;
+  setMergePagesModalOpen: (open: boolean) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
   /** Add a card to the sidebar (shift-click behavior) */
@@ -198,6 +200,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   isExportPageModalOpen: false,
   isRebuildLinksModalOpen: false,
   isFixRawLinksModalOpen: false,
+  isMergePagesModalOpen: false,
   showWorkspaceManager: false,
   isMinimapOpen: false,
   // New features state
@@ -255,6 +258,7 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   setExportPageModalOpen: (open) => set({ isExportPageModalOpen: open }),
   setRebuildLinksModalOpen: (open) => set({ isRebuildLinksModalOpen: open }),
   setFixRawLinksModalOpen: (open) => set({ isFixRawLinksModalOpen: open }),
+  setMergePagesModalOpen: (open) => set({ isMergePagesModalOpen: open }),
   openNodeInSidebar: (nodeId, nodeType) => set({ 
     rightSidebarOpen: true, 
     rightSidebarContent: 'node',

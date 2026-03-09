@@ -1,0 +1,43 @@
+/**
+ * MergePagesModal styles
+ */
+
+.merge-pages__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2);
+}
+
+.merge-pages__description {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.merge-pages__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.merge-pages__label {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.merge-pages__error {
+  display: flex;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border-radius: var(--shape-small);
+  font: var(--font-body-small);
+}
+
+.merge-pages__warning {
+  font: var(--font-body-small);
+  color: var(--color-error);
+  margin: 0;
+}

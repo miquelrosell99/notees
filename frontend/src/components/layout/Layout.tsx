@@ -31,6 +31,7 @@ import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { RebuildLinksModal } from '../maintenance/RebuildLinksModal';
 import { FixRawLinksModal } from '../maintenance/FixRawLinksModal';
+import { MergePagesModal } from './MergePagesModal';
 import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -57,6 +58,8 @@ export function Layout() {
     setRebuildLinksModalOpen,
     isFixRawLinksModalOpen,
     setFixRawLinksModalOpen,
+    isMergePagesModalOpen,
+    setMergePagesModalOpen,
     isMinimapOpen,
     setMinimapOpen,
     commentsSidebarOpen,
@@ -334,6 +337,12 @@ export function Layout() {
         <FixRawLinksModal
           isOpen={isFixRawLinksModalOpen}
           onClose={() => setFixRawLinksModalOpen(false)}
+        />
+
+        {/* Merge Pages Modal */}
+        <MergePagesModal
+          isOpen={isMergePagesModalOpen}
+          onClose={() => setMergePagesModalOpen(false)}
         />
       </div>
     </RouterSync>
