@@ -231,6 +231,11 @@ export function useNodeSearch(
         results = filterNodesByHierarchy(query, results, allPages);
       }
 
+      // Apply exclusion filter
+      if (excludeNodeId !== undefined) {
+        results = results.filter(n => n.id !== excludeNodeId);
+      }
+
       return {
         pageResults: results.slice(0, maxResults).map(node => ({
           node,
