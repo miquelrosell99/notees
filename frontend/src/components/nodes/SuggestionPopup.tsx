@@ -27,6 +27,7 @@ import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hook
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '../core/icons';
 import { Checkbox } from '../core/Checkbox';
+import { NodeResultItem } from './NodeResultItem';
 import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
@@ -481,42 +482,25 @@ export function SuggestionPopup({
                 <div className="suggestion-popup__section-header">Selected</div>
                 {selectedNodes.map((node, index) => {
                   const globalIndex = selectedStartIndex + index;
-                  const parentPath = node.is_page ? buildParentPath(node) : '';
-                  const displayClasses = node.is_page ? getDisplayClasses(node) : [];
                   return (
-                    <button
+                    <NodeResultItem
                       key={`selected-${node.id}`}
-                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      node={node}
+                      parentPath={node.is_page ? buildParentPath(node) : ''}
+                      displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                      isHighlighted={globalIndex === selectedIndex}
                       onClick={() => handleItemClick(node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                    >
-                      {parentPath && (
-                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
-                          {parentPath}
-                        </div>
-                      )}
-                      <div className="suggestion-popup__item-row">
+                      before={
                         <Checkbox
                           checked={true}
                           size="sm"
                           readOnly
                           className="suggestion-popup__checkbox"
                         />
-                        <span className="suggestion-popup__item-icon">
-                          {renderItemIcon(node, node.is_page)}
-                        </span>
-                        <span className="suggestion-popup__item-name">
-                          {nodeNameToText(node.name) || 'Untitled'}
-                        </span>
-                        {displayClasses.length > 0 && (
-                          <span className="suggestion-popup__item-class-pills">
-                            {displayClasses.map(cls => (
-                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                            ))}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                      }
+                      iconOverride={renderItemIcon(node, node.is_page)}
+                    />
                   );
                 })}
               </div>
@@ -531,60 +515,37 @@ export function SuggestionPopup({
                 {pageResults.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
                   const aliasedName = getAliasedNodeName(item.node);
-                  const parentPath = item.node.is_page ? buildParentPath(item.node) : '';
-                  const displayClasses = item.node.is_page ? getDisplayClasses(item.node) : [];
                   return (
-                    <button
+                    <NodeResultItem
                       key={`page-${item.node.id}`}
-                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      node={item.node}
+                      parentPath={item.node.is_page ? buildParentPath(item.node) : ''}
+                      displayClasses={item.node.is_page ? getDisplayClasses(item.node) : []}
+                      isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                    >
-                      {parentPath && (
-                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
-                          {parentPath}
-                        </div>
-                      )}
-                      <div className="suggestion-popup__item-row">
-                        <span className="suggestion-popup__item-icon">
-                          <NodeIcon icon={item.node.icon} isPage={true} size="sm" />
-                        </span>
-                        <span className="suggestion-popup__item-name">
-                          {nodeNameToText(item.node.name) || 'Untitled'}
-                        </span>
-                        {aliasedName && (
+                      after={
+                        aliasedName ? (
                           <span className="suggestion-popup__item-alias">
                             alias of: {aliasedName}
                           </span>
-                        )}
-                        {displayClasses.length > 0 && (
-                          <span className="suggestion-popup__item-class-pills">
-                            {displayClasses.map(cls => (
-                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                            ))}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                        ) : undefined
+                      }
+                    />
                   );
                 })}
-                
+
                 {/* Create page button at bottom of pages section */}
                 {showCreateOption && onCreate && (
-                  <button
-                    className={`suggestion-popup__item suggestion-popup__item--create ${
-                      selectedIndex === createIndex ? 'suggestion-popup__item--selected' : ''
-                    }`}
+                  <NodeResultItem
+                    key="__create-page"
+                    node={{ name: `Create page "${query.trim()}"` } as Node}
+                    isHighlighted={selectedIndex === createIndex}
                     onClick={() => onCreate(query.trim(), false)}
                     onMouseEnter={() => setSelectedIndex(createIndex)}
-                  >
-                    <span className="suggestion-popup__item-icon">
-                      <AddIcon size="sm" />
-                    </span>
-                    <span className="suggestion-popup__item-name">
-                      Create page "{query.trim()}"
-                    </span>
-                  </button>
+                    className="node-result-item--create"
+                    iconOverride={<AddIcon size="sm" />}
+                  />
                 )}
               </div>
             )}
@@ -597,29 +558,26 @@ export function SuggestionPopup({
                   const globalIndex = blockStartIndex + index;
                   const aliasedName = getAliasedNodeName(item.node);
                   return (
-                    <button
+                    <NodeResultItem
                       key={`block-${item.node.id}`}
-                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      node={item.node}
+                      isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                    >
-                      <span className="suggestion-popup__item-icon">
-                        <BulletIcon size="sm" />
-                      </span>
-                      <span className="suggestion-popup__item-name">
-                        {nodeNameToText(item.node.name) || 'Untitled'}
-                      </span>
-                      {aliasedName && (
-                        <span className="suggestion-popup__item-alias">
-                          alias of: {aliasedName}
-                        </span>
-                      )}
-                    </button>
+                      iconOverride={<BulletIcon size="sm" />}
+                      after={
+                        aliasedName ? (
+                          <span className="suggestion-popup__item-alias">
+                            alias of: {aliasedName}
+                          </span>
+                        ) : undefined
+                      }
+                    />
                   );
                 })}
               </div>
             )}
-            
+
             {/* For type/tag mode OR multi-select mode - show flat list with checkboxes */}
             {(type !== 'link' || multiSelect) && allItems.length > 0 && (
               <div className="suggestion-popup__section">
@@ -632,88 +590,63 @@ export function SuggestionPopup({
                   const globalIndex = pageStartIndex + index;
                   const isChecked = multiSelect && selectedIds.has(item.node.id);
                   const aliasedName = getAliasedNodeName(item.node);
-                  const parentPath = item.node.is_page ? buildParentPath(item.node) : '';
-                  const displayClasses = item.node.is_page ? getDisplayClasses(item.node) : [];
                   return (
-                    <button
+                    <NodeResultItem
                       key={`result-${item.node.id}`}
-                      className={`suggestion-popup__item ${globalIndex === selectedIndex ? 'suggestion-popup__item--selected' : ''}`}
+                      node={item.node}
+                      parentPath={item.node.is_page ? buildParentPath(item.node) : ''}
+                      displayClasses={item.node.is_page ? getDisplayClasses(item.node) : []}
+                      isHighlighted={globalIndex === selectedIndex}
                       onClick={() => handleItemClick(item.node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                    >
-                      {parentPath && (
-                        <div className="suggestion-popup__item-crumbs" title={parentPath}>
-                          {parentPath}
-                        </div>
-                      )}
-                      <div className="suggestion-popup__item-row">
-                        {multiSelect && (
+                      before={
+                        multiSelect ? (
                           <Checkbox
                             checked={isChecked}
                             size="sm"
                             readOnly
                             className="suggestion-popup__checkbox"
                           />
-                        )}
-                        <span className="suggestion-popup__item-icon">
-                          {renderItemIcon(item.node, item.node.is_page)}
-                        </span>
-                        <span className="suggestion-popup__item-name">
-                          {nodeNameToText(item.node.name) || 'Untitled'}
-                        </span>
-                        {aliasedName && (
+                        ) : undefined
+                      }
+                      iconOverride={renderItemIcon(item.node, item.node.is_page)}
+                      after={
+                        aliasedName ? (
                           <span className="suggestion-popup__item-alias">
                             alias of: {aliasedName}
                           </span>
-                        )}
-                        {displayClasses.length > 0 && (
-                          <span className="suggestion-popup__item-class-pills">
-                            {displayClasses.map(cls => (
-                              <span key={cls.id} className="suggestion-popup__item-class-pill">{cls.name}</span>
-                            ))}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                        ) : undefined
+                      }
+                    />
                   );
                 })}
               </div>
             )}
-            
+
             {/* Create option for type/tag mode (non-multi-select) */}
             {type !== 'link' && !multiSelect && showCreateOption && onCreate && (
-              <button
-                className={`suggestion-popup__item suggestion-popup__item--create ${
-                  selectedIndex === pageResults.length ? 'suggestion-popup__item--selected' : ''
-                }`}
+              <NodeResultItem
+                key="__create-type"
+                node={{ name: `Create "${query.trim()}"` } as Node}
+                isHighlighted={selectedIndex === pageResults.length}
                 onClick={() => onCreate(query.trim(), false)}
                 onMouseEnter={() => setSelectedIndex(pageResults.length)}
-              >
-                <span className="suggestion-popup__item-icon">
-                  <AddIcon size="sm" />
-                </span>
-                <span className="suggestion-popup__item-name">
-                  Create "{query.trim()}"
-                </span>
-              </button>
+                className="node-result-item--create"
+                iconOverride={<AddIcon size="sm" />}
+              />
             )}
-            
+
             {/* Create option for multi-select mode */}
             {multiSelect && showCreateOption && onCreate && (
-              <button
-                className={`suggestion-popup__item suggestion-popup__item--create ${
-                  selectedIndex === createIndex ? 'suggestion-popup__item--selected' : ''
-                }`}
+              <NodeResultItem
+                key="__create-multi"
+                node={{ name: `Create "${query.trim()}"` } as Node}
+                isHighlighted={selectedIndex === createIndex}
                 onClick={() => onCreate(query.trim(), false)}
                 onMouseEnter={() => setSelectedIndex(createIndex)}
-              >
-                <span className="suggestion-popup__item-icon">
-                  <AddIcon size="sm" />
-                </span>
-                <span className="suggestion-popup__item-name">
-                  Create "{query.trim()}"
-                </span>
-              </button>
+                className="node-result-item--create"
+                iconOverride={<AddIcon size="sm" />}
+              />
             )}
           </>
         )}

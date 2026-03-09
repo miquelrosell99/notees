@@ -1,19 +1,13 @@
 /**
  * NodeSelector - Universal node selection component
  * 
- * Supports two trigger modes:
+ * Supports three trigger modes:
  * - 'pill-row': Row of node pills with add button (default, for tags/types/classes)
  * - 'select': Dropdown trigger with SelectTrigger (for property values, single/multi)
+ * - 'inline': Always-expanded search + results list, no toggle (for embedded pickers)
  * 
- * Features:
- * - Show pills for each node
- * - Navigate to a node on click
- * - Remove a node (optional)
- * - Change a node's color via right-click (optional)
- * - Add new nodes via a picker dropdown using useNodeSearch
- * - Single or multi-select support
- * - Class filtering via classFilters prop
- * - Create new nodes on the fly
+ * All modes use the shared NodeResultItem component so the result list UI is
+ * consistent everywhere nodes are selected.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,7 +15,8 @@ import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
-import { NodeIcon, AddIcon, BulletIcon, CheckIcon } from '../core/icons';
+import { AddIcon } from '../core/icons';
+import { NodeResultItem } from './NodeResultItem';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { SelectTrigger } from '../core/SelectTrigger';
@@ -29,12 +24,11 @@ import { mdiPlus } from '@mdi/js';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';
 
-type TriggerMode = 'pill-row' | 'select';
+type TriggerMode = 'pill-row' | 'select' | 'inline';
 
 interface NodeSelectorProps {
   /** The nodes to display as pills (or selected values in 'select' mode) */
@@ -359,11 +353,14 @@ export function NodeSelector({
       .filter((c): c is { id: number; name: string } => c !== null);
   }, [allClasses]);
 
+  // 'inline' mode is always active; other modes are active when picker is open
+  const isNavActive = trigger === 'inline' || isPickerOpen;
+
   const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
     totalItems,
     onSelect: handleSelectByIndex,
     onClose: handleClosePicker,
-    isOpen: isPickerOpen,
+    isOpen: isNavActive,
   });
 
   // 'select' mode: render SelectTrigger with portal dropdown
@@ -475,57 +472,29 @@ export function NodeSelector({
                 </div>
               ) : (
                 <>
-                  {filteredResults.map((node, index) => {
-                    const isSelected = assignedIds.has(node.id);
-                    const parentPath = node.is_page ? buildParentPath(node) : '';
-                    const displayClasses = node.is_page ? getDisplayClasses(node) : [];
-                    return (
-                      <button
-                        key={node.id}
-                        className={`node-selector__item ${
-                          index === selectedIndex ? 'node-selector__item--highlighted' : ''
-                        } ${
-                          isSelected ? 'node-selector__item--selected' : ''
-                        }`}
-                        onClick={() => handleAdd(node)}
-                        onMouseEnter={() => setSelectedIndex(index)}
-                      >
-                        <span className="node-selector__item-icon">
-                          <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />
-                        </span>
-                        <span className="node-selector__item-name">
-                          {parentPath && <span className="node-selector__item-path">{parentPath} </span>}
-                          {nodeNameToText(node.name) || 'Untitled'}
-                        </span>
-                        {displayClasses.length > 0 && (
-                          <span className="node-selector__item-class-pills">
-                            {displayClasses.map(cls => (
-                              <span key={cls.id} className="node-selector__item-class-pill">{cls.name}</span>
-                            ))}
-                          </span>
-                        )}
-                        {isSelected && (
-                          <span className="node-selector__item-check"><CheckIcon size="xs" /></span>
-                        )}
-                      </button>
-                    );
-                  })}
-                  
+                  {filteredResults.map((node, index) => (
+                    <NodeResultItem
+                      key={node.id}
+                      node={node}
+                      parentPath={node.is_page ? buildParentPath(node) : ''}
+                      displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                      isHighlighted={index === selectedIndex}
+                      isSelected={assignedIds.has(node.id)}
+                      onClick={() => handleAdd(node)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                    />
+                  ))}
+
                   {showCreateOption && (
-                    <button
-                      className={`node-selector__item node-selector__item--create ${
-                        selectedIndex === filteredResults.length ? 'node-selector__item--highlighted' : ''
-                      }`}
+                    <NodeResultItem
+                      key="__create"
+                      node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+                      isHighlighted={selectedIndex === filteredResults.length}
                       onClick={handleCreateNew}
                       onMouseEnter={() => setSelectedIndex(filteredResults.length)}
-                    >
-                      <span className="node-selector__item-icon">
-                        <AddIcon size="sm" />
-                      </span>
-                      <span className="node-selector__item-name">
-                        Create "{searchQuery.trim()}"
-                      </span>
-                    </button>
+                      className="node-result-item--create"
+                      iconOverride={<AddIcon size="sm" />}
+                    />
                   )}
                 </>
               )}
@@ -542,6 +511,58 @@ export function NodeSelector({
           </Card>,
           document.body
         )}
+      </div>
+    );
+  }
+
+  // 'inline' mode: always-expanded search + results (used for embedded pickers)
+  if (trigger === 'inline') {
+    return (
+      <div className={`node-selector node-selector--inline ${className}`}>
+        <input
+          ref={searchInputRef}
+          type="text"
+          className="node-selector__search"
+          placeholder={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+        <div className="node-selector__options">
+          {isLoading && searchQuery.length > 0 ? (
+            <div className="node-selector__loading">Searching...</div>
+          ) : filteredResults.length === 0 && !showCreateOption ? (
+            <div className="node-selector__no-results">
+              {searchQuery ? 'No matches found' : 'Start typing to search'}
+            </div>
+          ) : (
+            <>
+              {filteredResults.map((node, index) => (
+                <NodeResultItem
+                  key={node.id}
+                  node={node}
+                  parentPath={node.is_page ? buildParentPath(node) : ''}
+                  displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                  isHighlighted={index === selectedIndex}
+                  onClick={() => handleAdd(node)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                />
+              ))}
+              {showCreateOption && onCreateNew && (
+                <NodeResultItem
+                  key="__create"
+                  node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+                  isHighlighted={selectedIndex === filteredResults.length}
+                  onClick={handleCreateNew}
+                  onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                  className="node-result-item--create"
+                  iconOverride={<AddIcon size="sm" />}
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -610,42 +631,27 @@ export function NodeSelector({
                   </div>
                 ) : (
                   <>
-                    {filteredResults.map((node, index) => {
-                      const parentPath = node.is_page ? buildParentPath(node) : '';
-                      const displayClasses = node.is_page ? getDisplayClasses(node) : [];
-                      return (
-                        <button
-                          key={node.id}
-                          className={`node-selector__option ${index === selectedIndex ? 'node-selector__option--selected' : ''}`}
-                          onClick={() => handleAdd(node)}
-                          onMouseEnter={() => setSelectedIndex(index)}
-                        >
-                          <NodeIcon icon={node.icon} isPage={true} size="xs" />
-                          <span className="node-selector__option-name">
-                            {parentPath && <span className="node-selector__item-path">{parentPath} </span>}
-                            {nodeNameToText(node.name) || 'Untitled'}
-                          </span>
-                          {displayClasses.length > 0 && (
-                            <span className="node-selector__item-class-pills">
-                              {displayClasses.map(cls => (
-                                <span key={cls.id} className="node-selector__item-class-pill">{cls.name}</span>
-                              ))}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {filteredResults.map((node, index) => (
+                      <NodeResultItem
+                        key={node.id}
+                        node={node}
+                        parentPath={node.is_page ? buildParentPath(node) : ''}
+                        displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                        isHighlighted={index === selectedIndex}
+                        onClick={() => handleAdd(node)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                      />
+                    ))}
                     {showCreateOption && (
-                      <button
-                        className={`node-selector__option node-selector__option--create ${
-                          selectedIndex === filteredResults.length ? 'node-selector__option--selected' : ''
-                        }`}
+                      <NodeResultItem
+                        key="__create"
+                        node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+                        isHighlighted={selectedIndex === filteredResults.length}
                         onClick={handleCreateNew}
                         onMouseEnter={() => setSelectedIndex(filteredResults.length)}
-                      >
-                        <AddIcon size="xs" />
-                        <span>Create "{searchQuery.trim()}"</span>
-                      </button>
+                        className="node-result-item--create"
+                        iconOverride={<AddIcon size="xs" />}
+                      />
                     )}
                   </>
                 )}
