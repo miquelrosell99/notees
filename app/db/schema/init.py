@@ -282,7 +282,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         # 3. Create 'Scheduled' date property
         scheduled_row = await conn.fetchrow("""
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Scheduled', 'mdi:calendar-check', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Scheduled Date', 'mdi:calendar-check', 'date', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """, SYSTEM_PROPERTY_UUIDS["task_scheduled"], workspace_id, now, user_id)

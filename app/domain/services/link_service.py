@@ -677,6 +677,7 @@ class LinkParsingService:
             LEFT JOIN property p ON nl.property_id = p.id
             LEFT JOIN node page ON n.page_id = page.id
             WHERE nl.target_id = ANY($1)
+              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
               AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
               AND (nl.is_inline_class IS NULL OR nl.is_inline_class = FALSE)
         """, descendant_ids)
@@ -730,6 +731,7 @@ class LinkParsingService:
             JOIN node n ON pvr.node_id = n.id
             LEFT JOIN node page ON n.page_id = page.id
             WHERE pvr.target_id = ANY($1)
+              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
               AND p.type = 'node'
               AND p.name NOT IN ('classes', 'extends')
         """, descendant_ids)
