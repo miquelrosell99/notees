@@ -459,6 +459,64 @@ def _node_to_comment_response(node: Node, children: list[Node] | None = None) ->
     )
 
 
+async def _resolve_referenced_display_names(pool, workspace_id: int, target_rows) -> Dict[str, str]:
+    """Resolve node links embedded in names and return uuid → resolved plain-text map.
+
+    Only returns entries for rows whose names actually contain node links.
+    Used by referenced_nodes builders so inline link pills show resolved text
+    instead of "..." for blocks whose names reference other nodes.
+    """
+    import re
+    from ...domain.stringify_ast import parse_ast, stringify_ast, StringifyMode, StringifyOptions, NodeLinkResolution
+
+    link_node_uuids: set = set()
+    for row in target_rows:
+        name = row['name'] or ''
+        for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', name):
+            link_id = match.group(1)
+            colon = link_id.find(':')
+            node_uuid = link_id[:colon] if colon > 0 else link_id
+            link_node_uuids.add(node_uuid)
+
+    link_target_map: Dict[str, Any] = {}
+    if link_node_uuids:
+        async with acquire_connection(pool) as conn:
+            uuid_list = list(link_node_uuids)
+            placeholders = ', '.join(f'${i+2}' for i in range(len(uuid_list)))
+            rows = await conn.fetch(
+                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
+                workspace_id, *uuid_list,
+            )
+            for ref_row in rows:
+                link_target_map[str(ref_row['uuid'])] = parse_ast(ref_row['name'])
+
+    if not link_target_map:
+        return {}
+
+    def _resolve_link(link_id: str):
+        colon = link_id.find(':')
+        node_uuid = link_id[:colon] if colon > 0 else link_id
+        target_ast = link_target_map.get(node_uuid)
+        if target_ast is None:
+            return None
+        return NodeLinkResolution(target_ast=target_ast, label=None, target_id=node_uuid)
+
+    opts = StringifyOptions(
+        mode=StringifyMode.TEXT_ONLY,
+        resolve_node_link=_resolve_link,
+    )
+
+    result: Dict[str, str] = {}
+    for row in target_rows:
+        name = row['name'] or ''
+        if '"link_id"' in name:
+            resolved = stringify_ast(parse_ast(name), opts)
+            if resolved:
+                result[str(row['uuid'])] = resolved
+
+    return result
+
+
 def _format_date_with_pattern(year: int, month: int, day: int, pattern: str) -> str:
     """Format a date according to the given pattern.
     
