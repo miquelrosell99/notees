@@ -356,6 +356,7 @@ class LinkParsingService:
         parsed = self.parse_links(content)
         
         created_links = []
+        seen_target_ids: set[int] = set()
         
         for node_identifier, position, link_uuid, label in parsed:
             # Resolve the target node — try UUID first, fall back to numeric ID
@@ -372,6 +373,11 @@ class LinkParsingService:
                 continue
             
             target_id = target_node.id
+            
+            # Skip duplicate links to the same target within the same block
+            if target_id in seen_target_ids:
+                continue
+            seen_target_ids.add(target_id)
             
             # Check if this was previously a tag link - if so, preserve that
             is_tag = target_id in existing_tag_targets
@@ -683,8 +689,14 @@ class LinkParsingService:
         """, descendant_ids)
         
         backlinks = []
+        seen_source_target_pairs: set[tuple[int, int]] = set()
         
         for row in rows:
+            pair = (row['source_id'], row['target_id'])
+            if pair in seen_source_target_pairs:
+                continue
+            seen_source_target_pairs.add(pair)
+            
             link = NodeLink(
                 id=row['id'],
                 source_id=row['source_id'],
