@@ -148,6 +148,57 @@
   color: var(--color-on-primary-container);
 }
 
+/* ==================== Shortcuts Tab ==================== */
+.settings-shortcuts__group {
+  margin-bottom: var(--spacing-6);
+}
+
+.settings-shortcuts__group-title {
+  font: var(--font-title-small);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 var(--spacing-2) 0;
+}
+
+.settings-shortcuts__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.settings-shortcuts__row {
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.settings-shortcuts__row:last-child {
+  border-bottom: none;
+}
+
+.settings-shortcuts__description {
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.settings-shortcuts__key {
+  padding: var(--spacing-2) 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.settings-shortcuts__kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
+  border-bottom-width: 2px;
+  border-radius: var(--shape-extra-small);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-family-mono, monospace);
+}
+
 /* ==================== User Info ==================== */
 .settings-user-card {
   width: 100%;

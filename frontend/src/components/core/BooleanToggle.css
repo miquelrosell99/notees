@@ -62,18 +62,18 @@
 
 /* Sizes */
 .toggle-track--sm {
-  width: 32px;
-  height: 18px;
+  width: var(--toggle-track-width-sm, 32px);
+  height: var(--toggle-track-height-sm, 18px);
 }
 
 .toggle-track--md {
-  width: 44px;
-  height: 24px;
+  width: var(--toggle-track-width-md, 44px);
+  height: var(--toggle-track-height-md, 24px);
 }
 
 .toggle-track--lg {
-  width: 56px;
-  height: 30px;
+  width: var(--toggle-track-width-lg, 56px);
+  height: var(--toggle-track-height-lg, 30px);
 }
 
 /* Thumb */
@@ -87,41 +87,41 @@
 }
 
 .toggle-track--sm .toggle-thumb {
-  width: 12px;
-  height: 12px;
-  left: 2px;
+  width: var(--toggle-thumb-size-sm, 12px);
+  height: var(--toggle-thumb-size-sm, 12px);
+  left: var(--toggle-thumb-offset, 2px);
 }
 
 .toggle-track--md .toggle-thumb {
-  width: 16px;
-  height: 16px;
-  left: 2px;
+  width: var(--toggle-thumb-size-md, 16px);
+  height: var(--toggle-thumb-size-md, 16px);
+  left: var(--toggle-thumb-offset, 2px);
 }
 
 .toggle-track--lg .toggle-thumb {
-  width: 22px;
-  height: 22px;
-  left: 2px;
+  width: var(--toggle-thumb-size-lg, 22px);
+  height: var(--toggle-thumb-size-lg, 22px);
+  left: var(--toggle-thumb-offset, 2px);
 }
 
 /* On/Off text */
 .toggle-on-text,
 .toggle-off-text {
   position: absolute;
-  font-size: 8px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .toggle-on-text {
-  left: 6px;
+  left: var(--spacing-1);
   color: var(--color-on-primary);
   opacity: 0;
 }
 
 .toggle-off-text {
-  right: 6px;
+  right: var(--spacing-1);
   color: var(--color-outline);
   opacity: 1;
 }
@@ -151,15 +151,15 @@
 }
 
 .toggle-input:checked + .toggle-track--sm .toggle-thumb {
-  transform: translateX(14px);
+  transform: translateX(calc(var(--toggle-track-width-sm, 32px) - var(--toggle-thumb-size-sm, 12px) - var(--toggle-thumb-offset, 2px) * 2));
 }
 
 .toggle-input:checked + .toggle-track--md .toggle-thumb {
-  transform: translateX(20px);
+  transform: translateX(calc(var(--toggle-track-width-md, 44px) - var(--toggle-thumb-size-md, 16px) - var(--toggle-thumb-offset, 2px) * 2));
 }
 
 .toggle-input:checked + .toggle-track--lg .toggle-thumb {
-  transform: translateX(26px);
+  transform: translateX(calc(var(--toggle-track-width-lg, 56px) - var(--toggle-thumb-size-lg, 22px) - var(--toggle-thumb-offset, 2px) * 2));
 }
 
 .toggle-input:checked + .toggle-track .toggle-on-text {
@@ -174,7 +174,7 @@
 .toggle-label-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-1);
   min-width: 0;
 }
 
@@ -183,7 +183,7 @@
 }
 
 .toggle-label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface);
   user-select: none;
 }
@@ -193,7 +193,7 @@
 }
 
 .toggle-description {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 

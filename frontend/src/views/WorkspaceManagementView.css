@@ -64,9 +64,9 @@
   border: none;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   padding: var(--spacing-2) var(--spacing-4);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -83,7 +83,7 @@
 
 .workspace-management__username {
   color: var(--color-on-surface-variant);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
 }
 
 .workspace-management__logout {
@@ -91,9 +91,9 @@
   border: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
+  font-size: var(--font-size-button);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--shape-medium);
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -141,8 +141,8 @@
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-4) var(--spacing-6);
-  border-radius: 10px;
-  font-size: var(--spacing-4);
+  border-radius: var(--shape-extra-large);
+  font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
@@ -182,7 +182,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--color-scrim);
   backdrop-filter: blur(2px);
   pointer-events: all;
 }
@@ -195,10 +195,10 @@
   padding: var(--spacing-8) var(--spacing-12);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  border-radius: var(--shape-extra-large);
+  box-shadow: var(--elevation-5);
   color: var(--color-on-surface);
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
 }
 
@@ -312,11 +312,11 @@
 }
 
 .workspace-management__card-badge {
-  font-size: 0.65rem;
-  padding: 0.15rem var(--spacing-2);
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
   background: var(--color-primary);
   color: var(--color-on-primary);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -337,15 +337,15 @@
 .workspace-management__card-stats {
   display: flex;
   gap: var(--spacing-3);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
 .workspace-management__card-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  font-size: var(--spacing-3);
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -366,21 +366,21 @@
   padding: var(--spacing-2) var(--spacing-3);
   margin-bottom: var(--spacing-2);
   border: 1px solid var(--color-error);
-  border-radius: var(--radius-sm);
+  border-radius: var(--shape-small);
   background: color-mix(in srgb, var(--color-error) 8%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--spacing-1);
 }
 
 .workspace-management__restore-warn {
-  font-size: var(--spacing-3);
+  font-size: var(--font-size-sm);
   color: var(--color-error);
   line-height: 1.4;
 }
 
 .workspace-management__restore-error {
-  font-size: var(--spacing-3);
+  font-size: var(--font-size-sm);
   color: var(--color-error);
   font-weight: 500;
 }
@@ -403,7 +403,7 @@
   border: none;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   padding: var(--spacing-2) 0;
   margin-bottom: var(--spacing-6);
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
@@ -422,7 +422,7 @@
 
 .workspace-management__form-subtitle {
   color: var(--color-on-surface-variant);
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   margin: 0 0 var(--spacing-8);
   line-height: 1.5;
 }
@@ -440,7 +440,7 @@
 }
 
 .workspace-management__label {
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--color-on-surface-variant);
 }
@@ -490,7 +490,7 @@
 }
 
 .workspace-management__field-error {
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   color: var(--color-error);
   margin: 0;
 }
@@ -498,7 +498,7 @@
 /* Dropzone */
 .workspace-management__dropzone {
   border: 2px dashed var(--color-outline-variant);
-  border-radius: 10px;
+  border-radius: var(--shape-extra-large);
   padding: var(--spacing-8);
   text-align: center;
   cursor: pointer;
@@ -534,7 +534,7 @@
 
 .workspace-management__dropzone-hint {
   color: var(--color-on-surface-variant);
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   margin: 0;
 }
 
@@ -556,7 +556,7 @@
 
 .workspace-management__file-size {
   color: var(--color-on-surface-variant);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
 }
 
 /* Error message */
@@ -564,12 +564,12 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 0.875rem var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
   background: var(--color-error-container);
   border: 1px solid var(--color-error);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   color: var(--color-error);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
 }
 
 /* Form actions */
@@ -590,7 +590,7 @@
 
 .workspace-management__footer p {
   color: var(--color-on-surface-variant);
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   margin: 0;
 }
 

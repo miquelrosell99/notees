@@ -1,0 +1,44 @@
+/**
+ * DataStateView Component Styles
+ */
+
+.data-state-view--loading {
+  padding: var(--spacing-4);
+}
+
+.data-state-view--error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-12) var(--spacing-4);
+  color: var(--color-on-surface-variant);
+}
+
+.data-state-view__error-icon {
+  font-size: var(--font-size-lg);
+  color: var(--color-warning);
+  opacity: 0.8;
+}
+
+.data-state-view__error-title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.data-state-view__error-message {
+  font: var(--font-body-medium);
+  color: var(--color-error);
+  margin: 0;
+  max-width: 400px;
+}
+
+.data-state-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8) var(--spacing-4);
+  min-height: 200px;
+}

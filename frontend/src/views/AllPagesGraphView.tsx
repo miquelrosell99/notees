@@ -6,6 +6,8 @@
  */
 import { useGraphNodes } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
+import { ErrorBoundary } from '@/components/core/ErrorBoundary';
+import { DataStateView } from '@/components/core/DataStateView';
 import './AllPagesGraphView.css';
 
 export interface AllPagesGraphViewProps {
@@ -13,38 +15,28 @@ export interface AllPagesGraphViewProps {
 }
 
 export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
-  const { data: graphNodes, isLoading } = useGraphNodes();
-
-  if (isLoading) {
-    return (
-      <div className={`all-pages-graph-view all-pages-graph-view--loading ${className}`}>
-        <div className="node-graph-view__loading-overlay">
-          <div className="node-graph-view__spinner" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!graphNodes || graphNodes.length === 0) {
-    return (
-      <div className={`all-pages-graph-view all-pages-graph-view--empty ${className}`}>
-        <div className="all-pages-graph-view__empty">
-          <h3>No pages found</h3>
-          <p>Create some pages to see them in the graph view.</p>
-        </div>
-      </div>
-    );
-  }
+  const { data: graphNodes, isLoading, error, refetch } = useGraphNodes();
 
   return (
     <div className={`all-pages-graph-view ${className}`}>
-      <GraphView
-        viewId="global"
-        nodes={graphNodes}
-        className="all-pages-graph-view__graph"
-      />
+      <DataStateView
+        isLoading={isLoading}
+        error={error}
+        isEmpty={!graphNodes || graphNodes.length === 0}
+        skeletonRows={6}
+        emptyTitle="No pages found"
+        emptyDescription="Create some pages to see them in the graph view."
+        onRetry={refetch}
+        className="all-pages-graph-view__state"
+      >
+        <ErrorBoundary context="Graph View" showRetry>
+          <GraphView
+            viewId="global"
+            nodes={graphNodes!}
+            className="all-pages-graph-view__graph"
+          />
+        </ErrorBoundary>
+      </DataStateView>
     </div>
   );
 }
-
-export default AllPagesGraphView;
