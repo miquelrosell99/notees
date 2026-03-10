@@ -24,7 +24,7 @@
   border: 1px solid var(--color-outline-variant);
   box-shadow: var(--elevation-3);
   pointer-events: auto;
-  animation: toast-slide-in 0.2s ease-out;
+  animation: toast-slide-in var(--motion-duration-medium) var(--motion-easing-standard)-out;
 }
 
 @keyframes toast-slide-in {

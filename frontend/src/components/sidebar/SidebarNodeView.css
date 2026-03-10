@@ -74,7 +74,7 @@
   color: var(--color-on-surface-variant);
   font: var(--font-label-medium);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .sidebar-node-view__expand-btn:hover {

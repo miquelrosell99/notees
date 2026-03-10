@@ -5,7 +5,7 @@
 .all-pages-view {
   max-width: 800px;
   margin: 0 auto;
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
 }
 
 .all-pages-view.loading,
@@ -37,6 +37,10 @@
 .all-pages-view__search {
   margin-bottom: var(--spacing-3);
 }
-  padding: 2rem;
-  color: var(--color-on-surface-variant);
+
+.page-header.all-pages-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
 }

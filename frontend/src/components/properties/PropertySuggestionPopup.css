@@ -49,7 +49,7 @@
   color: var(--color-on-surface);
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s ease;
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
 .property-suggestion-popup__option:hover,

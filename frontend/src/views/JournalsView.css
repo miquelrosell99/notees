@@ -5,13 +5,13 @@
 .journals-view {
   max-width: 900px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: var(--spacing-4);
 }
 
 .journals-list {
   display: flex;
   flex-direction: column;
-  gap: 3rem;
+  gap: var(--spacing-12);
 }
 
 .journal-entry {
@@ -42,7 +42,7 @@
 
 .journals-load-more {
   text-align: center;
-  padding: 2rem;
+  padding: var(--spacing-8);
 }
 
 .load-more-btn {
@@ -53,7 +53,7 @@
   cursor: pointer;
   color: var(--color-on-surface);
   font-size: 0.875rem;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .load-more-btn:hover {
@@ -66,12 +66,47 @@
 .journals-error,
 .journals-empty {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: var(--spacing-12) var(--spacing-4);
   color: var(--color-on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
 }
 
 .journals-error {
   color: var(--color-error);
+}
+
+.journals-loading__spinner {
+  width: var(--height-lg);
+  height: var(--height-lg);
+  border: var(--border-width-thick) solid var(--color-outline-variant);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: journals-spin var(--motion-duration-extra-long) var(--motion-easing-linear) infinite;
+}
+
+@keyframes journals-spin {
+  to { transform: rotate(360deg); }
+}
+
+.journals-empty__icon {
+  opacity: 0.35;
+  margin-bottom: var(--spacing-2);
+}
+
+.journals-empty__title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.journals-empty__description {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  max-width: 32ch;
+  margin: 0;
 }
 
 /* Override NodeView styles for journal context */
@@ -81,7 +116,7 @@
 }
 
 .journal-entry .page-header {
-  padding: 0.5rem 0 1rem;
+  padding: var(--spacing-2) 0 var(--spacing-4);
 }
 
 .journal-entry .node-breadcrumbs {

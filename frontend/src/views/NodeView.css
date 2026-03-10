@@ -175,7 +175,7 @@
 .node-view__banner-content {
   width: 100%;
   overflow: hidden;
-  transition: height 0.25s ease, opacity 0.25s ease;
+  transition: height var(--motion-duration-medium) var(--motion-easing-standard), opacity var(--motion-duration-medium) var(--motion-easing-standard);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,7 +274,7 @@
 
 .node-view__cover-content {
   overflow: hidden;
-  transition: width 0.25s ease, opacity 0.25s ease;
+  transition: width var(--motion-duration-medium) var(--motion-easing-standard), opacity var(--motion-duration-medium) var(--motion-easing-standard);
   display: flex;
   align-items: center;
   max-height: 200px;
@@ -359,7 +359,7 @@
 .focused-block-content-add {
   padding: var(--spacing-2) 0;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .focused-block-content:hover .focused-block-content-add {

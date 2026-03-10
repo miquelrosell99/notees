@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
-import { TrashIcon } from '../components/core/icons';
+import { TrashIcon, RestoreIcon } from '../components/core/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useAppStore } from '@/stores';
 import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
@@ -207,7 +207,16 @@ export function TrashView({ className = '' }: TrashViewProps) {
         
         {isLoading && <div className="trash-view__loading">Loading...</div>}
         {error && <div className="trash-view__error">Failed to load trash</div>}
-        {!isLoading && !error && (
+        {!isLoading && !error && nodes?.length === 0 && (
+          <div className="trash-view__empty">
+            <TrashIcon size="lg" />
+            <h3 className="trash-view__empty-title">Trash is empty</h3>
+            <p className="trash-view__empty-description">
+              Deleted pages and blocks appear here. You can restore them or delete permanently.
+            </p>
+          </div>
+        )}
+        {!isLoading && !error && !!nodes?.length && (
           <NodeCollection
             nodes={nodes ?? []}
             viewMode={viewMode}

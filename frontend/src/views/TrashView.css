@@ -1,5 +1,5 @@
 .trash-view {
-  padding: 2rem;
+  padding: var(--spacing-8);
   max-width: 900px;
   margin: 0 auto;
 }
@@ -36,30 +36,43 @@
 
 .trash-view__loading {
   text-align: center;
-  padding: 3rem;
+  padding: var(--spacing-12);
   color: var(--color-on-surface-variant);
 }
 
 .trash-view__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
   text-align: center;
-  padding: 4rem 2rem;
+  padding: var(--spacing-16) var(--spacing-8);
   color: var(--color-on-surface-variant);
 }
 
 .trash-view__empty svg {
-  margin-bottom: 1rem;
-  opacity: 0.4;
+  opacity: 0.3;
+  margin-bottom: var(--spacing-2);
 }
 
-.trash-view__empty p {
-  font-size: 1.1rem;
+.trash-view__empty-title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.trash-view__empty-description {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  max-width: 36ch;
+  margin: 0;
 }
 
 .trash-view__bulk-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-6);
+  padding: var(--spacing-4);
   background: var(--color-surface-variant);
   border-radius: var(--shape-medium);
 }
@@ -67,14 +80,14 @@
 .trash-view__list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .trash-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
   background: var(--color-surface-variant);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -105,7 +118,7 @@
 
 .trash-item__name {
   font-weight: 500;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--spacing-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -122,13 +135,13 @@
 
 .trash-item__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
   flex-shrink: 0;
 }
 
 /* Icon button overrides */
 .trash-item__actions button {
-  padding: 0.5rem;
+  padding: var(--spacing-2);
 }
 
 .trash-item__actions button:hover {

@@ -78,7 +78,7 @@
   cursor: pointer;
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-list-view__group-collapse:hover {
@@ -215,7 +215,7 @@
   font-weight: 600;
   cursor: pointer;
   border-radius: var(--shape-small);
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-list-group__page-header:hover {
@@ -227,7 +227,7 @@
   display: flex;
   gap: var(--spacing-1);
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-list-group__header:hover .node-list-group__actions {
@@ -254,7 +254,7 @@
   cursor: pointer;
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-list-group__collapse-arrow:hover {

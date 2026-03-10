@@ -21,7 +21,7 @@
   right: var(--spacing-4);
   display: flex;
   gap: var(--spacing-2);
-  z-index: 10001;
+  z-index: var(--z-modal);
 }
 
 .image-modal-close,
@@ -40,7 +40,7 @@
   position: fixed;
   top: var(--spacing-4);
   left: var(--spacing-4);
-  z-index: 10001;
+  z-index: var(--z-modal);
 }
 
 .image-modal-image {

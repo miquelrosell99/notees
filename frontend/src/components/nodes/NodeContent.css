@@ -14,9 +14,9 @@
 /* Separator line for content sections (bullet, document, card modes) */
 .node-content-children,
 .node-content-cards {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-outline-variant);
+  margin-top: var(--spacing-4);
+  padding-top: var(--spacing-4);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* Document mode - paragraphs without bullets, but keep separator line */
@@ -59,7 +59,7 @@
 .node-content-add {
   padding: var(--spacing-2) 0;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-content:hover .node-content-add {
@@ -74,7 +74,8 @@
   cursor: pointer;
   border-radius: var(--shape-small);
   font: var(--font-body-medium);
-  transition: all 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .add-block-btn:hover {

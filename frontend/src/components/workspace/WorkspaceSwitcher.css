@@ -45,7 +45,7 @@
   top: calc(100% + var(--spacing-1));
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: var(--z-node-overlay);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;

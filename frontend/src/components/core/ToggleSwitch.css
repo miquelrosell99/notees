@@ -50,18 +50,18 @@
 
 /* Track sizes */
 .toggle-switch--sm .toggle-switch__track {
-  width: 28px;
-  height: 16px;
+  width: calc(var(--height-sm) * 1.75);
+  height: var(--height-xs);
 }
 
 .toggle-switch--md .toggle-switch__track {
-  width: 36px;
-  height: 20px;
+  width: calc(var(--height-md) * 1.6);
+  height: var(--height-sm);
 }
 
 .toggle-switch--lg .toggle-switch__track {
-  width: 44px;
-  height: 24px;
+  width: calc(var(--height-lg) * 1.45);
+  height: var(--height-md);
 }
 
 /* Thumb */
@@ -77,35 +77,36 @@
   background: var(--color-primary);
 }
 
+/* Thumb sizes and resting position */
 .toggle-switch--sm .toggle-switch__thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   left: 2px;
 }
 
 .toggle-switch--md .toggle-switch__thumb {
-  width: 16px;
-  height: 16px;
-  left: 2px;
-}
-
-.toggle-switch--lg .toggle-switch__thumb {
   width: 20px;
   height: 20px;
   left: 2px;
 }
 
+.toggle-switch--lg .toggle-switch__thumb {
+  width: 26px;
+  height: 26px;
+  left: 2px;
+}
+
 /* Checked state - move thumb to the right */
 .toggle-switch--checked.toggle-switch--sm .toggle-switch__thumb {
-  transform: translateX(12px);
+  transform: translateX(calc(var(--height-xs) - 2px));
 }
 
 .toggle-switch--checked.toggle-switch--md .toggle-switch__thumb {
-  transform: translateX(16px);
+  transform: translateX(calc(var(--height-sm) - 2px));
 }
 
 .toggle-switch--checked.toggle-switch--lg .toggle-switch__thumb {
-  transform: translateX(20px);
+  transform: translateX(calc(var(--height-md) - 2px));
 }
 
 /* Hover state */

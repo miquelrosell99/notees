@@ -74,7 +74,7 @@
 
 .export-modal__preview--loading {
   opacity: 0.4;
-  transition: opacity 120ms ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 /* ── Error ── */
@@ -157,7 +157,7 @@
 
 /* Options panel portal — must sit above modal (--z-modal: 10001) */
 .export-modal__options-panel {
-  z-index: 10002 !important;
+  z-index: var(--z-floating) !important;
   max-height: 60vh;
   overflow-y: auto;
   overscroll-behavior: contain;

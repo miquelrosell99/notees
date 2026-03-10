@@ -49,7 +49,7 @@
   border-radius: var(--shape-small);
   cursor: pointer;
   color: var(--color-on-surface-variant);
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   font: inherit;
 }
 
@@ -175,7 +175,7 @@
   font: var(--font-label-medium);
   text-align: left;
   white-space: nowrap;
-  transition: background 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-breadcrumbs-popup-item:hover {

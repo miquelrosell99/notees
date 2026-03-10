@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
+import { ArchiveIcon } from '../components/core/icons';
 import { useAppStore } from '@/stores';
 import api from '@/api/client';
 import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
@@ -134,7 +135,17 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         
         {isLoading && <div className="archived-pages-view__loading">Loading...</div>}
         {error && <div className="archived-pages-view__error">Failed to load archived pages</div>}
-        {!isLoading && !error && (
+        {!isLoading && !error && nodes?.length === 0 && (
+          <div className="archived-pages-view__empty">
+            <ArchiveIcon size="lg" />
+            <h3 className="archived-pages-view__empty-title">No archived pages</h3>
+            <p className="archived-pages-view__empty-description">
+              Archived pages are hidden from your workspace but kept safe here.
+              Right-click any page and select Archive to move it here.
+            </p>
+          </div>
+        )}
+        {!isLoading && !error && !!nodes?.length && (
           <NodeCollection
             nodes={nodes ?? []}
             viewMode={viewMode}

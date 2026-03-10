@@ -9,6 +9,7 @@ import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNotifications } from '@/stores/notificationStore';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -29,6 +30,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
   const queryClient = useQueryClient();
+  const { success, error: notifyError, warning } = useNotifications();
 
   if (!isOpen) return null;
 
@@ -50,13 +52,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setDateFormat(pendingDateFormat);
         queryClient.invalidateQueries({ queryKey: ['nodes'] });
         queryClient.invalidateQueries({ queryKey: ['page'] });
+        success('Date format updated', 'Daily and monthly notes now use the new format.');
       }
       if (result.errors.length > 0) {
-        console.error('Some date format updates failed:', result.errors);
+        warning('Some dates could not be updated', `${result.errors.length} item(s) failed to migrate.`);
       }
     } catch (error) {
-      console.error('Failed to update date format:', error);
-      alert('Failed to update date format. Please try again.');
+      notifyError('Failed to update date format', 'Please try again.');
     } finally {
       setIsUpdatingDateFormat(false);
       setPendingDateFormat(null);

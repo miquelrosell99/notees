@@ -33,7 +33,7 @@
   color: var(--color-on-surface);
   border: none;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-selector__chip:hover {
@@ -76,7 +76,7 @@
 }
 
 .node-selector__dropdown--portal {
-  z-index: 10002;
+  z-index: var(--z-floating);
 }
 
 .node-selector__search-wrapper {
@@ -99,7 +99,7 @@
   color: var(--color-on-surface);
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s ease;
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
 .node-selector__item:hover,
@@ -164,7 +164,7 @@
 .node-selector__add-btn {
   color: var(--color-on-surface-variant);
   opacity: 0.6;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-selector__add-btn:hover {
@@ -216,7 +216,7 @@
   color: var(--color-on-surface);
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s ease;
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
 .node-selector__option:hover,

@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-outline);
+  border: var(--border-width-thick) solid var(--color-outline);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   pointer-events: none;
@@ -49,18 +49,18 @@
 
 /* Sizes */
 .checkbox-checkmark--sm {
-  width: 14px;
-  height: 14px;
+  width: var(--height-xs);
+  height: var(--height-xs);
 }
 
 .checkbox-checkmark--md {
-  width: 18px;
-  height: 18px;
+  width: var(--height-sm);
+  height: var(--height-sm);
 }
 
 .checkbox-checkmark--lg {
-  width: 22px;
-  height: 22px;
+  width: var(--height-md);
+  height: var(--height-md);
 }
 
 /* Icon */
@@ -69,10 +69,10 @@
   height: 100%;
   color: var(--color-on-primary);
   opacity: 0;
-  transform: scale(0.8);
+  transform: scale(0.75);
   transition: 
     opacity var(--motion-duration-short) var(--motion-easing-standard),
-    transform var(--motion-duration-short) var(--motion-easing-standard);
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 /* States */

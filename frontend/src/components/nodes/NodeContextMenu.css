@@ -45,7 +45,7 @@
 .node-context-menu-wrapper,
 .page-context-menu-wrapper {
   position: fixed;
-  z-index: 9999;
+  z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
 }
@@ -90,7 +90,7 @@
   border-radius: var(--shape-small);
   border: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   display: flex;
   align-items: center;
   justify-content: center;

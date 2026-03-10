@@ -99,7 +99,7 @@
   border: 2px dashed var(--color-outline);
   border-radius: 12px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition: border-color var(--motion-duration-medium) var(--motion-easing-standard), background-color var(--motion-duration-medium) var(--motion-easing-standard);
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
 }

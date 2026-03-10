@@ -37,30 +37,30 @@
 
 /* ==================== Sizes ==================== */
 .btn--xs {
-  height: 28px;
+  height: var(--height-sm);
   padding: 0 var(--spacing-2);
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
   gap: var(--spacing-1);
 }
 
 .btn--sm {
-  height: 32px;
+  height: var(--height-md);
   padding: 0 var(--spacing-3);
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   gap: var(--spacing-1);
 }
 
 .btn--md {
-  height: 38px;
+  height: var(--height-lg);
   padding: 0 var(--spacing-4);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-button);
   gap: var(--spacing-2);
 }
 
 .btn--lg {
-  height: 46px;
+  height: var(--height-xl);
   padding: 0 var(--spacing-5);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   gap: var(--spacing-2);
 }
 
@@ -94,19 +94,19 @@
 }
 
 .btn--icon-only.btn--xs {
-  width: 28px;
+  width: var(--height-sm);
 }
 
 .btn--icon-only.btn--sm {
-  width: 32px;
+  width: var(--height-md);
 }
 
 .btn--icon-only.btn--md {
-  width: 38px;
+  width: var(--height-lg);
 }
 
 .btn--icon-only.btn--lg {
-  width: 46px;
+  width: var(--height-xl);
 }
 
 /* ==================== Variants ==================== */

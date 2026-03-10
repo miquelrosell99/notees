@@ -84,7 +84,7 @@
   background: transparent;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-config-section__visibility-btn:hover {

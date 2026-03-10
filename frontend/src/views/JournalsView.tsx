@@ -4,13 +4,14 @@
  * Only shows pages that already exist, does not create new ones.
  * Uses NodeView component for each daily page for consistent editing experience.
  */
-import { useState, useMemo } from 'react';
-import { useExistingDailyPages, useNode } from '@/hooks';
+import { useState, useMemo, useCallback } from 'react';
+import { useExistingDailyPages, useNode, useDailyNote } from '@/hooks';
 import './JournalsView.css';
 import { useAppStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
+import { JournalIcon } from '../components/core/icons';
 
 interface JournalEntryProps {
   dailyPageId: number;
@@ -61,6 +62,13 @@ interface JournalsViewProps {
 export function JournalsView({ className = '' }: JournalsViewProps) {
   const { data: dailyPages, isLoading, error } = useExistingDailyPages();
   const [visibleCount, setVisibleCount] = useState(10);
+  const { openNode } = useAppStore();
+  const { refetch: refetchToday } = useDailyNote(new Date());
+
+  const handleOpenToday = useCallback(async () => {
+    const result = await refetchToday();
+    if (result.data) openNode(result.data.id);
+  }, [refetchToday, openNode]);
   
   // Sort daily pages in descending order (newest first)
   const sortedPages = useMemo(() => {
@@ -85,7 +93,10 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   if (isLoading) {
     return (
       <div className={`journals-view ${className}`}>
-        <div className="journals-loading">Loading journal entries...</div>
+        <div className="journals-loading">
+          <div className="journals-loading__spinner" aria-label="Loading journal entries" />
+          <p>Loading journal entries...</p>
+        </div>
       </div>
     );
   }
@@ -116,7 +127,18 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
           </>
         ) : (
           <div className="journals-empty">
-            <p>No journal entries yet.</p>
+            <JournalIcon size="lg" className="journals-empty__icon" />
+            <h3 className="journals-empty__title">No journal entries yet</h3>
+            <p className="journals-empty__description">
+              Daily journal pages are created automatically when you open today's note.
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleOpenToday}
+            >
+              Open today's note
+            </Button>
           </div>
         )}
       </div>

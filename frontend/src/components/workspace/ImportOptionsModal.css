@@ -101,7 +101,7 @@
   content: '▶';
   font-size: 0.55rem;
   color: var(--color-on-surface-variant);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .import-unified__preview[open] .import-unified__preview-summary::before {

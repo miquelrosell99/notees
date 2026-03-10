@@ -17,7 +17,7 @@
 /* Top app bar */
 .focus-mode .top-bar-card {
   opacity: 0.07;
-  transition: opacity 0.25s ease;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 .focus-mode .top-bar-card:hover {
   opacity: 1;
@@ -28,7 +28,7 @@
 /* Right sidebar wrapper */
 .focus-mode .sidebar-wrapper--right {
   opacity: 0.05;
-  transition: opacity 0.25s ease;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 .focus-mode .sidebar-wrapper--right:hover {
   opacity: 1;
@@ -37,7 +37,7 @@
 /* NodeView toolbar & breadcrumbs (fixed header above scrollable content) */
 .focus-mode .main-content-header {
   opacity: 0.06;
-  transition: opacity 0.25s ease;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 .focus-mode .main-content-header:hover {
   opacity: 1;
@@ -52,7 +52,7 @@
 .node-view.focus .page-icon-btn {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* Banner (entire area including the collapse arrow) */
@@ -99,7 +99,7 @@
 
 .focus-mode .block-ui > .bullet-wrapper {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 .focus-mode .node-block:hover > .block-ui > .bullet-wrapper {

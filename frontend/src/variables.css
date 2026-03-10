@@ -85,6 +85,18 @@
   --color-accent: #404040;
   --color-accent-subtle: #737373;
 
+  /* ==================== Component Height Scale ==================== */
+  --height-xs: 24px;
+  --height-sm: 28px;
+  --height-md: 32px;
+  --height-lg: 38px;
+  --height-xl: 46px;
+  --height-2xl: 56px;
+
+  /* ==================== Border Width ==================== */
+  --border-width-default: 1px;
+  --border-width-thick: 2px;
+
   /* ==================== Component Sizes ==================== */
   --bullet-size-xs: 4px;
   --bullet-size-md: 6px;
@@ -135,6 +147,7 @@
   --font-size-xs: 0.6875rem;   /* 11px – label-small */
   --font-size-sm: 0.75rem;     /* 12px – body-small / label-medium */
   --font-size-base: 0.875rem;  /* 14px – body-medium / label-large */
+  --font-size-button: 0.8125rem; /* 13px – button md (between sm and base) */
   --font-size-md: 1rem;        /* 16px – body-large / title-medium */
   --font-size-lg: 1.25rem;     /* 20px – title-large */
 
@@ -188,9 +201,12 @@
   --z-sticky: 200;
   --z-fixed: 300;
   --z-popover: 600;
+  --z-node-overlay: 1000;    /* node refs, property cells, whiteboard UI */
   --z-modal-backdrop: 10000;
   --z-modal: 10001;
-  --z-tooltip: 10002;
+  --z-floating: 10002;       /* context menus / dropdowns rendered above modals */
+  --z-tooltip: 10003;
+  --z-skip-link: 99999;
 
   /* ==================== Layout ==================== */
   --sidebar-width: 240px;

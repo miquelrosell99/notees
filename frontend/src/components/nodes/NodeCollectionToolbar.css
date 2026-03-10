@@ -99,7 +99,7 @@
   color: var(--color-on-surface);
   text-align: left;
   width: 100%;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-collection-toolbar__group-by-option:hover {
@@ -174,7 +174,7 @@
   color: var(--color-on-surface);
   text-align: left;
   width: 100%;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .view-overflow-menu__item:hover {
