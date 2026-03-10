@@ -18,8 +18,9 @@ import { $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNod
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../editorConfig';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
-import { parseLinkId, buildLinkId } from '../../lib/astBuilder';
-import type { ASTInlineNode } from '../../types/ast';
+import { parseLinkId, buildLinkId, parseAST } from '../../lib/astBuilder';
+import type { ASTInlineNode, ASTDocument } from '../../types/ast';
+import { getNodeByUuid } from '../../api/nodes';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import type { Node } from '../../types/api';
@@ -226,11 +227,28 @@ export function ContextMenuPlugin({
     };
   }, [contextMenu]);
 
-  // Replace a pill with the target node's inline content (text + preserved links)
-  const unlinkPillKeepText = useCallback((linkId: string) => {
+  // Replace a pill with the target node's name AST (text + preserved links)
+  const unlinkPillKeepText = useCallback(async (linkId: string) => {
     const { nodeUuid } = parseLinkId(linkId);
-    const runtime = getNodeGraphRuntime();
-    const targetNode = nodeUuid ? runtime.getNode(nodeUuid) : undefined;
+
+    // Resolve the target node's name AST — try runtime first, then API
+    let nameAST: ASTDocument | null = null;
+    let fallbackLabel: string | null = null;
+
+    if (nodeUuid) {
+      const runtime = getNodeGraphRuntime();
+      const runtimeNode = runtime.getNode(nodeUuid);
+      if (runtimeNode) {
+        nameAST = runtimeNode.contentAST;
+      } else {
+        try {
+          const apiNode = await getNodeByUuid(nodeUuid);
+          nameAST = parseAST(apiNode.name);
+        } catch {
+          // node not found — fall through to label/uuid fallback
+        }
+      }
+    }
 
     editor.update(() => {
       const root = $getRoot();
@@ -239,8 +257,8 @@ export function ContextMenuPlugin({
           if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
             const replacements: LexicalNode[] = [];
 
-            if (targetNode?.contentAST) {
-              for (const para of targetNode.contentAST) {
+            if (nameAST && nameAST.length > 0) {
+              for (const para of nameAST) {
                 if ('children' in para) {
                   for (const inline of para.children) {
                     collectInlineReplacements(inline, replacements);
@@ -250,8 +268,8 @@ export function ContextMenuPlugin({
             }
 
             if (replacements.length === 0) {
-              // Fallback: use custom label, or the nodeUuid as plain text
-              const label = child.getLabel();
+              // Fallback: use custom label captured before update, or uuid
+              const label = fallbackLabel ?? child.getLabel();
               replacements.push($createTextNode(label || nodeUuid || linkId));
             }
 
