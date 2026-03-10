@@ -201,6 +201,7 @@ const CardChildrenEditor = memo(function CardChildrenEditor({
             <ContentEditable
               className="node-card__children-editable"
               aria-label="Card content"
+              spellCheck={!readOnly}
             />
           }
           placeholder={null}
