@@ -314,6 +314,20 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
                 VALUES ($1, $2, 3)
                 ON CONFLICT (class_node_id, property_id) DO NOTHING
             """, task_class_id, priority_property_id)
+        
+        # 5. Create 'Closed Date' date property
+        closed_date_row = await conn.fetchrow("""
+            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, 'Closed Date', 'mdi:calendar-remove', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
+            RETURNING id
+        """, SYSTEM_PROPERTY_UUIDS["task_closed_date"], workspace_id, now, user_id)
+        if closed_date_row:
+            await conn.execute("""
+                INSERT INTO class_property (class_node_id, property_id, sequence)
+                VALUES ($1, $2, 4)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING
+            """, task_class_id, closed_date_row['id'])
     
     # Create default pages
     for page_name in DEFAULT_PAGES:
