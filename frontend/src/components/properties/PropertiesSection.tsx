@@ -22,6 +22,7 @@ import {
   usePageClass,
 } from '@/hooks';
 import { useAppStore } from '@/stores';
+import { useNotifications } from '@/stores/notificationStore';
 import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -522,9 +523,13 @@ export function PropertiesSection({
     return entries;
   }, [node, allProperties, classProperties1, classProperties2, classProperties3]);
 
+  const { error: notifyError } = useNotifications();
+
   const handlePropertyChange = useCallback((propertyId: number, value: unknown) => {
-    setPropertyMutation.mutate({ nodeId, propertyId, value });
-  }, [nodeId, setPropertyMutation]);
+    setPropertyMutation.mutate({ nodeId, propertyId, value }, {
+      onError: () => notifyError('Failed to save property', 'Please try again.'),
+    });
+  }, [nodeId, setPropertyMutation, notifyError]);
 
   const handleCreatePage = useCallback(async (name: string, additionalClasses?: number[]): Promise<Node> => {
     return new Promise((resolve, reject) => {

@@ -6,6 +6,8 @@
  */
 import { usePages } from '@/hooks';
 import { TimelineView } from '@/components/nodes/views/TimelineView';
+import { ErrorBoundary } from '@/components/core/ErrorBoundary';
+import { DataStateView } from '@/components/core/DataStateView';
 import './AllPagesTimelineView.css';
 
 export interface AllPagesTimelineViewProps {
@@ -13,33 +15,26 @@ export interface AllPagesTimelineViewProps {
 }
 
 export function AllPagesTimelineView({ className = '' }: AllPagesTimelineViewProps) {
-  const { data: pages, isLoading } = usePages();
-
-  if (isLoading) {
-    return (
-      <div className={`all-pages-timeline-view all-pages-timeline-view--loading ${className}`}>
-        <div className="all-pages-timeline-view__loading">Loading timeline...</div>
-      </div>
-    );
-  }
-
-  if (!pages || pages.length === 0) {
-    return (
-      <div className={`all-pages-timeline-view all-pages-timeline-view--empty ${className}`}>
-        <div className="all-pages-timeline-view__empty">
-          <h3>No pages found</h3>
-          <p>Create some pages to see them in the timeline.</p>
-        </div>
-      </div>
-    );
-  }
+  const { data: pages, isLoading, error, refetch } = usePages();
 
   return (
     <div className={`all-pages-timeline-view ${className}`}>
-      <TimelineView
-        nodes={pages}
-        className="all-pages-timeline-view__timeline"
-      />
+      <DataStateView
+        isLoading={isLoading}
+        error={error}
+        isEmpty={!pages || pages.length === 0}
+        skeletonRows={6}
+        emptyTitle="No pages found"
+        emptyDescription="Create some pages to see them in the timeline."
+        onRetry={refetch}
+      >
+        <ErrorBoundary context="Timeline View" showRetry>
+          <TimelineView
+            nodes={pages!}
+            className="all-pages-timeline-view__timeline"
+          />
+        </ErrorBoundary>
+      </DataStateView>
     </div>
   );
 }

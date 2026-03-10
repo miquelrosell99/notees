@@ -7,14 +7,14 @@
 .link-edit-modal__body {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg, 16px);
-  padding: var(--spacing-md, 12px) var(--spacing-lg, 16px);
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .link-edit-modal__section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs, 4px);
+  gap: var(--spacing-1);
 }
 
 .link-edit-modal__mode-section {
@@ -22,9 +22,9 @@
 }
 
 .link-edit-modal__label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -32,34 +32,35 @@
 /* ─── Label / URL input ───────────────────────────────────────── */
 
 .link-edit-modal__input {
-  padding: var(--spacing-sm, 8px);
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.85rem;
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: var(--font-size-button);
   outline: none;
 }
 
 .link-edit-modal__input:focus {
-  border-color: var(--accent-color, #4f8ff7);
-  box-shadow: 0 0 0 2px var(--accent-color-faded, rgba(79, 143, 247, 0.2));
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-container);
 }
 
 .link-edit-modal__input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
 }
 
 .link-edit-modal__hint {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
 }
 
 .link-edit-modal__hint--warning {
-  color: var(--color-warning, #f59e0b);
+  color: var(--color-warning);
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs, 4px);
-  margin-top: var(--spacing-xs, 4px);
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
 }
 
 /* ─── Info box ────────────────────────────────────────────────── */
@@ -67,15 +68,15 @@
 .link-edit-modal__info {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-sm, 8px);
-  padding: var(--spacing-sm, 8px);
-  background: var(--color-surface-container-high, #e8f0fe);
-  border-radius: var(--radius-md, 6px);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-medium);
 }
 
 .link-edit-modal__info-text {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
   line-height: 1.4;
 }
 
@@ -84,5 +85,5 @@
 .link-edit-modal__footer {
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-sm, 8px);
+  gap: var(--spacing-2);
 }
