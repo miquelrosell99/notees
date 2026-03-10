@@ -688,6 +688,14 @@ BEGIN
     END IF;
 END $$;
 
+-- Migration: Rename 'Scheduled' property to 'Scheduled Date' in all workspaces
+DO $$
+BEGIN
+    UPDATE property
+    SET name = 'Scheduled Date', write_date = NOW()
+    WHERE uuid = '00000000-0000-0000-0003-000000000003' AND name = 'Scheduled';
+END $$;
+
 -- Migration: Create 'Closed Date' property for task class in all existing workspaces
 DO $$
 DECLARE

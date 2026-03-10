@@ -1331,6 +1331,17 @@ class NodeService:
         pvr_count = int(pvr_result.split()[-1]) if pvr_result and pvr_result.split()[-1].isdigit() else 0
         logger.info(f"[MERGE] Redirected {pvr_count} property_value_relation rows from {source_id} to {target_id}")
 
+        # Step 5c: Delete outgoing node_links from source page itself.
+        # These are links in the source page's own content (source_id = source).
+        # Children were already reparented so their links are fine, but the
+        # source page's own outgoing links would otherwise remain orphaned
+        # after soft-delete, showing up as backlinks from a missing node.
+        await pool.execute(
+            "DELETE FROM node_link WHERE source_id = $1",
+            source_id,
+        )
+        logger.info(f"[MERGE] Deleted outgoing node_links from source page {source_id}")
+
         # Step 6: Soft-delete source (backlinks already redirected, children already moved)
         await self.delete_node(source_id, user_id)
         logger.info(f"[MERGE] Soft-deleted source node {source_id}")
