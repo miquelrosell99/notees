@@ -80,7 +80,7 @@
 /* Fixed positioning variant for breaking out of containers */
 .search-dropdown--fixed {
   position: fixed;
-  z-index: 10001; /* Above context menus */
+  z-index: var(--z-floating); /* Above context menus */
   margin-top: 0;
 }
 

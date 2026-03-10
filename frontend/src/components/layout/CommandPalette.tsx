@@ -31,6 +31,7 @@ import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { useNotifications } from '@/stores/notificationStore';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -230,6 +231,7 @@ export function CommandPalette({
   const { openNode, openPropertyView } = useAppStore();
   const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
   const { navigateToNode } = useNodeNavigation();
+  const { error: notifyError, warning: notifyWarning } = useNotifications();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
@@ -462,7 +464,7 @@ export function CommandPalette({
       setQuery(beforeAt.trim());
       inputRef.current?.focus();
     } catch (error) {
-      console.error('Failed to create class:', error);
+      notifyError('Failed to create class', 'Please try again.');
     }
   }, [classClassId, pageClassId, query, createNodeMutation]);
   
@@ -502,7 +504,7 @@ export function CommandPalette({
             openNode(dateNode.id);
           }
         } catch (error) {
-          console.error('Failed to navigate to date page:', error);
+          notifyError('Failed to navigate to date', 'Could not open or create the date page.');
         }
         onClose();
         break;
@@ -532,7 +534,7 @@ export function CommandPalette({
         // and optional class from @classname syntax
         try {
           if (!pageClassId) {
-            console.error('[CommandPalette] Page class not found');
+            notifyWarning('Setup incomplete', 'Page class not found. Please reload the app.');
             break;
           }
           
@@ -582,18 +584,18 @@ export function CommandPalette({
                 parentId: parentId,
               });
             } else {
-              console.error('Failed to create page:', createErr);
+              notifyError('Failed to create page', 'Please try again.');
             }
           }
         } catch (error) {
-          console.error('Failed to create page:', error);
+          notifyError('Failed to create page', 'Please try again.');
         }
         break;
         
       case 'quick-add':
         // Quick add as block (to daily page or inbox) with selected classes
         if (!destinationPage) {
-          console.error('[CommandPalette] No destination page for quick add');
+          notifyWarning('No destination', 'Set a Quick Add destination in settings.');
           break;
         }
         try {
@@ -603,7 +605,7 @@ export function CommandPalette({
             classes: selectedClasses.map(c => c.id),
           });
         } catch (error) {
-          console.error('Failed to quick add:', error);
+          notifyError('Failed to add item', 'Please try again.');
         }
         onClose();
         break;

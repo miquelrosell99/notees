@@ -9,7 +9,7 @@
 }
 
 .inline-confirm-button--confirming {
-  animation: inline-confirm-shake 0.2s ease-in-out;
+  animation: inline-confirm-shake var(--motion-duration-medium) var(--motion-easing-standard)-in-out;
 }
 
 @keyframes inline-confirm-shake {
