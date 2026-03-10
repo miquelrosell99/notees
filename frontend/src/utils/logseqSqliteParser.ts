@@ -95,11 +95,25 @@ class TransitDecoder {
     return raw;
   }
 
-  /** Resolve a Transit value (keyword, UUID, integer, nested map/list). */
+  /**
+   * Resolve a Transit value (keyword, UUID, integer, nested map/list).
+   *
+   * Transit caches keywords and symbols in ALL positions (keys AND values).
+   * We must add decoded keywords to keyCache here to keep cache indices in sync
+   * with the encoder — otherwise subsequent ^N references resolve to wrong entries.
+   */
   private resolveValue(raw: unknown): unknown {
     if (typeof raw === 'string') {
-      if (raw.startsWith('~:')) return raw.slice(2);
-      if (raw.startsWith('~u')) return raw.slice(2);
+      if (raw.startsWith('~:')) {
+        const decoded = raw.slice(2);
+        this.keyCache.push(decoded);
+        return decoded;
+      }
+      if (raw.startsWith('~u')) {
+        const decoded = raw.slice(2);
+        this.keyCache.push(decoded);
+        return decoded;
+      }
       if (raw.startsWith('~i')) {
         const n = parseInt(raw.slice(2), 10);
         return isNaN(n) ? raw : n;
@@ -232,7 +246,19 @@ const LOGSEQ_PROPERTY_WHITELIST = new Set([
 ]);
 
 /** Logseq property type → type string (matching EDN parser output format). */
-function mapPropertyType(rawType: unknown): string {
+function mapPropertyType(rawType: unknown, entities?: Map<number, RawEntity>): string {
+  // Handle numeric entity references (Datascript stores enum values as entity refs)
+  if (typeof rawType === 'number' && entities) {
+    const typeEntity = entities.get(rawType);
+    if (typeEntity) {
+      const ident = String(typeEntity['db/ident'] ?? '');
+      // Extract type name from ident like "logseq.property.type/node" → "node"
+      const lastSlash = ident.lastIndexOf('/');
+      if (lastSlash >= 0) {
+        return mapPropertyType(ident.slice(lastSlash + 1));
+      }
+    }
+  }
   const t = String(rawType);
   switch (t) {
     case 'node': return 'node';
@@ -453,7 +479,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     const prop: LogseqProperty = {
       id: ident,
       title,
-      type: mapPropertyType(rawType),
+      type: mapPropertyType(rawType, entities),
       cardinality: cardinality,
     };
     if (classFilters?.length) prop.classFilters = classFilters;
@@ -541,7 +567,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     for (const [ident, propEid] of userPropertyIdents) {
       if (ident in attrs) {
         const propEntity = entities.get(propEid);
-        const propType = propEntity ? mapPropertyType(propEntity['logseq.property/type'] ?? 'default') : 'default';
+        const propType = propEntity ? mapPropertyType(propEntity['logseq.property/type'] ?? 'default', entities) : 'default';
         props[ident] = resolvePropertyValue(attrs[ident], propType);
         found = true;
       }
