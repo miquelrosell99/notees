@@ -27,7 +27,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   background: var(--color-surface);
-  transition: border-color 0.12s, background-color 0.12s;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
   user-select: none;
 }
 
@@ -63,7 +63,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.12s;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .radio-group__option--selected .radio-group__indicator {

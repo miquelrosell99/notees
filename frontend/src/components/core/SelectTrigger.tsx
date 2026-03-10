@@ -46,6 +46,10 @@ export interface SelectTriggerProps {
   tabIndex?: number;
   /** ARIA label */
   ariaLabel?: string;
+  /** Whether the field has an error (for aria-invalid) */
+  'aria-invalid'?: boolean;
+  /** ID of element describing this field (for aria-describedby) */
+  'aria-describedby'?: string;
 }
 
 /**
@@ -64,6 +68,8 @@ export function SelectTrigger({
   className = '',
   tabIndex = 0,
   ariaLabel,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedby,
 }: SelectTriggerProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
@@ -110,6 +116,8 @@ export function SelectTrigger({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedby}
         onKeyDown={handleKeyDown}
       >
         <div className="select-trigger__content">

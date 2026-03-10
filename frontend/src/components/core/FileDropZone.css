@@ -93,7 +93,7 @@
   color: var(--color-on-surface-variant);
   cursor: pointer;
   padding: 0;
-  transition: background-color 0.12s, color 0.12s;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .file-drop-zone__selected-action:hover {

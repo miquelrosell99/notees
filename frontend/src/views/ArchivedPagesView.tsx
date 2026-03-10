@@ -18,6 +18,8 @@ import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback } from 'react';
 import { Button } from '../components/core/Button';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
+import { LoadingSkeleton } from '../components/core/LoadingSkeleton';
+import { EmptyState } from '../components/core/EmptyState';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -88,7 +90,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   }, [unarchiveMutation, deleteMutation]);
   
   // Fetch archived pages directly from API
-  const { data: nodes, isLoading, error } = useQuery({
+  const { data: nodes, isLoading, error, refetch } = useQuery({
     queryKey: ['archived-pages'],
     queryFn: async () => {
       const response = await api.get<{ pages: Node[] }>('/nodes/archived');
@@ -133,17 +135,23 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           />
         </div>
         
-        {isLoading && <div className="archived-pages-view__loading">Loading...</div>}
-        {error && <div className="archived-pages-view__error">Failed to load archived pages</div>}
+        {isLoading && (
+          <LoadingSkeleton rows={4} className="archived-pages-view__loading" />
+        )}
+        {error && (
+          <EmptyState
+            title="Failed to load archived pages"
+            description="There was a problem fetching your archived pages."
+            actionLabel="Try again"
+            onAction={() => refetch()}
+          />
+        )}
         {!isLoading && !error && nodes?.length === 0 && (
-          <div className="archived-pages-view__empty">
-            <ArchiveIcon size="lg" />
-            <h3 className="archived-pages-view__empty-title">No archived pages</h3>
-            <p className="archived-pages-view__empty-description">
-              Archived pages are hidden from your workspace but kept safe here.
-              Right-click any page and select Archive to move it here.
-            </p>
-          </div>
+          <EmptyState
+            icon={<ArchiveIcon size="lg" />}
+            title="No archived pages"
+            description="Archived pages are hidden from your workspace but kept safe here. Right-click any page and select Archive to move it here."
+          />
         )}
         {!isLoading && !error && !!nodes?.length && (
           <NodeCollection

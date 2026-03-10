@@ -17,7 +17,7 @@
   tab-size: 2;
   white-space: pre;
   overflow: auto;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--motion-duration-shorter) var(--motion-easing-standard), box-shadow var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
 .code-textarea:focus {

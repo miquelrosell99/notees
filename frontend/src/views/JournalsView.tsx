@@ -11,6 +11,8 @@ import { useAppStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
+import { LoadingSkeleton } from '../components/core/LoadingSkeleton';
+import { EmptyState } from '../components/core/EmptyState';
 import { JournalIcon } from '../components/core/icons';
 
 interface JournalEntryProps {
@@ -60,7 +62,7 @@ interface JournalsViewProps {
 }
 
 export function JournalsView({ className = '' }: JournalsViewProps) {
-  const { data: dailyPages, isLoading, error } = useExistingDailyPages();
+  const { data: dailyPages, isLoading, error, refetch } = useExistingDailyPages();
   const [visibleCount, setVisibleCount] = useState(10);
   const { openNode } = useAppStore();
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -93,10 +95,7 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   if (isLoading) {
     return (
       <div className={`journals-view ${className}`}>
-        <div className="journals-loading">
-          <div className="journals-loading__spinner" aria-label="Loading journal entries" />
-          <p>Loading journal entries...</p>
-        </div>
+        <LoadingSkeleton rows={5} showHeading className="journals-loading" />
       </div>
     );
   }
@@ -104,7 +103,13 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   if (error) {
     return (
       <div className={`journals-view ${className}`}>
-        <div className="journals-error">Failed to load journal entries</div>
+        <EmptyState
+          title="Failed to load journal entries"
+          description="There was a problem fetching your journal pages."
+          actionLabel="Try again"
+          onAction={() => refetch()}
+          className="journals-error"
+        />
       </div>
     );
   }
@@ -126,20 +131,13 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
             )}
           </>
         ) : (
-          <div className="journals-empty">
-            <JournalIcon size="lg" className="journals-empty__icon" />
-            <h3 className="journals-empty__title">No journal entries yet</h3>
-            <p className="journals-empty__description">
-              Daily journal pages are created automatically when you open today's note.
-            </p>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleOpenToday}
-            >
-              Open today's note
-            </Button>
-          </div>
+          <EmptyState
+            icon={<JournalIcon size="lg" />}
+            title="No journal entries yet"
+            description="Daily journal pages are created automatically when you open today's note."
+            actionLabel="Open today's note"
+            onAction={handleOpenToday}
+          />
         )}
       </div>
     </div>

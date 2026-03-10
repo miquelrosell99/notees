@@ -3,7 +3,7 @@
  * 
  * A dropdown selection component with search and multi-select support.
  */
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
 import { mdiCheck } from '@mdi/js';
@@ -100,6 +100,7 @@ export function Dropdown<T = string>({
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const errorId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -218,6 +219,8 @@ export function Dropdown<T = string>({
             size={size}
             clearable={clearable}
             hasValue={hasValue}
+            aria-invalid={error || undefined}
+            aria-describedby={error && errorMessage ? errorId : undefined}
             onClear={handleClear}
             onClick={handleToggle}
           >
@@ -322,7 +325,7 @@ export function Dropdown<T = string>({
 
       {/* Error message */}
       {error && errorMessage && (
-        <span className="dropdown-error-message">{errorMessage}</span>
+        <span id={errorId} className="dropdown-error-message" role="alert">{errorMessage}</span>
       )}
       </div>
     </div>

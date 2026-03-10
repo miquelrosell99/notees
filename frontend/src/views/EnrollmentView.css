@@ -44,7 +44,7 @@
   height: 8px;
   border-radius: var(--shape-full);
   background: var(--color-outline-variant);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--motion-duration-long) var(--motion-easing-collapse), transform var(--motion-duration-long) var(--motion-easing-collapse), box-shadow var(--motion-duration-long) var(--motion-easing-collapse);
   transform: scale(1);
 }
 
@@ -52,7 +52,7 @@
   background: var(--color-primary);
   transform: scale(1.25);
   box-shadow: 0 0 0 4px var(--color-primary-container);
-  animation: dotPulse 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: dotPulse var(--motion-duration-long) var(--motion-easing-collapse);
 }
 
 @keyframes dotPulse {

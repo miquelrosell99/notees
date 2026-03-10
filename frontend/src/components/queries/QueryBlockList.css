@@ -43,7 +43,7 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  transition: opacity 0.2s, box-shadow 0.2s;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard), box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* Block content */

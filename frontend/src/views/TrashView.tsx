@@ -18,6 +18,8 @@ import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback, useMemo } from 'react';
 import { Button } from '../components/core/Button';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
+import { LoadingSkeleton } from '../components/core/LoadingSkeleton';
+import { EmptyState } from '../components/core/EmptyState';
 import './TrashView.css';
 
 interface TrashViewProps {
@@ -33,7 +35,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const queryClient = useQueryClient();
   
   // Fetch trash directly from API
-  const { data: nodes, isLoading, error } = useQuery({
+  const { data: nodes, isLoading, error, refetch } = useQuery({
     queryKey: ['trash'],
     queryFn: getTrash,
   });
@@ -205,16 +207,23 @@ export function TrashView({ className = '' }: TrashViewProps) {
           />
         </div>
         
-        {isLoading && <div className="trash-view__loading">Loading...</div>}
-        {error && <div className="trash-view__error">Failed to load trash</div>}
+        {isLoading && (
+          <LoadingSkeleton rows={4} className="trash-view__loading" />
+        )}
+        {error && (
+          <EmptyState
+            title="Failed to load trash"
+            description="There was a problem fetching deleted pages."
+            actionLabel="Try again"
+            onAction={() => refetch()}
+          />
+        )}
         {!isLoading && !error && nodes?.length === 0 && (
-          <div className="trash-view__empty">
-            <TrashIcon size="lg" />
-            <h3 className="trash-view__empty-title">Trash is empty</h3>
-            <p className="trash-view__empty-description">
-              Deleted pages and blocks appear here. You can restore them or delete permanently.
-            </p>
-          </div>
+          <EmptyState
+            icon={<TrashIcon size="lg" />}
+            title="Trash is empty"
+            description="Deleted pages and blocks appear here. You can restore them or delete permanently."
+          />
         )}
         {!isLoading && !error && !!nodes?.length && (
           <NodeCollection
