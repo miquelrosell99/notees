@@ -231,16 +231,16 @@ const LOGSEQ_PROPERTY_WHITELIST = new Set([
   'logseq.property/priority',
 ]);
 
-/** Logseq property type → EDN-style type string. */
+/** Logseq property type → type string (matching EDN parser output format). */
 function mapPropertyType(rawType: unknown): string {
   const t = String(rawType);
   switch (t) {
-    case 'node': return ':node';
-    case 'date': return ':date';
-    case 'number': return ':number';
-    case 'checkbox': return ':checkbox';
-    case 'entity': return ':node';
-    default: return ':default';
+    case 'node': return 'node';
+    case 'date': return 'date';
+    case 'number': return 'number';
+    case 'checkbox': return 'checkbox';
+    case 'entity': return 'node';
+    default: return 'default';
   }
 }
 
@@ -454,7 +454,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
       id: ident,
       title,
       type: mapPropertyType(rawType),
-      cardinality: cardinality.startsWith('db.') ? `:${cardinality}` : cardinality,
+      cardinality: cardinality,
     };
     if (classFilters?.length) prop.classFilters = classFilters;
     if (selectionOptions.length > 0) prop.selectionOptions = selectionOptions;
@@ -484,7 +484,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
    * Entity ID references are converted to page-ref markers.
    */
   function resolvePropertyValue(value: unknown, propType: string): unknown {
-    if (typeof value === 'number' && (propType === ':node' || propType === ':entity')) {
+    if (typeof value === 'number' && (propType === 'node' || propType === 'entity')) {
       // Entity ID reference → page-ref / uuid-ref marker
       const refUuid = eidToUuid.get(value);
       const refTitle = eidToTitle.get(value);
@@ -497,7 +497,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
       }
       return value;
     }
-    if (typeof value === 'number' && propType === ':date') {
+    if (typeof value === 'number' && propType === 'date') {
       // Date references point to journal day entities
       const dateEntity = entities.get(value);
       if (dateEntity && 'block/journal-day' in dateEntity) {
@@ -541,7 +541,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
     for (const [ident, propEid] of userPropertyIdents) {
       if (ident in attrs) {
         const propEntity = entities.get(propEid);
-        const propType = propEntity ? mapPropertyType(propEntity['logseq.property/type'] ?? 'default') : ':default';
+        const propType = propEntity ? mapPropertyType(propEntity['logseq.property/type'] ?? 'default') : 'default';
         props[ident] = resolvePropertyValue(attrs[ident], propType);
         found = true;
       }
