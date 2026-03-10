@@ -10,14 +10,16 @@
 
 import { useState, useEffect, useCallback, useMemo, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getRoot } from 'lexical';
-import { mdiPencilOutline, mdiTrashCanOutline } from '@mdi/js';
+import { $getRoot, $createTextNode, $createLineBreakNode, type LexicalNode } from 'lexical';
+import { mdiPencilOutline, mdiTrashCanOutline, mdiLinkVariantOff } from '@mdi/js';
 
 import { $isBlockNode } from '../nodes/BlockNode';
-import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
+import { $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../editorConfig';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
+import { parseLinkId, buildLinkId } from '../../lib/astBuilder';
+import type { ASTInlineNode } from '../../types/ast';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import type { Node } from '../../types/api';
@@ -224,6 +226,53 @@ export function ContextMenuPlugin({
     };
   }, [contextMenu]);
 
+  // Replace a pill with the target node's inline content (text + preserved links)
+  const unlinkPillKeepText = useCallback((linkId: string) => {
+    const { nodeUuid } = parseLinkId(linkId);
+    const runtime = getNodeGraphRuntime();
+    const targetNode = nodeUuid ? runtime.getNode(nodeUuid) : undefined;
+
+    editor.update(() => {
+      const root = $getRoot();
+      const findAndExpand = (parent: ReturnType<typeof $getRoot>): boolean => {
+        for (const child of parent.getChildren()) {
+          if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
+            const replacements: LexicalNode[] = [];
+
+            if (targetNode?.contentAST) {
+              for (const para of targetNode.contentAST) {
+                if ('children' in para) {
+                  for (const inline of para.children) {
+                    collectInlineReplacements(inline, replacements);
+                  }
+                }
+              }
+            }
+
+            if (replacements.length === 0) {
+              // Fallback: use custom label, or the nodeUuid as plain text
+              const label = child.getLabel();
+              replacements.push($createTextNode(label || nodeUuid || linkId));
+            }
+
+            for (const node of replacements) {
+              child.insertBefore(node);
+            }
+            child.remove();
+            return true;
+          }
+          if ('getChildren' in child && typeof child.getChildren === 'function') {
+            if (findAndExpand(child as any)) return true;
+          }
+        }
+        return false;
+      };
+      findAndExpand(root);
+    });
+
+    onPillRemove?.(linkId);
+  }, [editor, onPillRemove]);
+
   // Remove a pill by linkId from the Lexical tree
   const removePillByLinkId = useCallback((linkId: string) => {
     editor.update(() => {
@@ -262,6 +311,15 @@ export function ContextMenuPlugin({
         },
       },
       {
+        id: 'unlink-keep-text',
+        label: 'Unlink (keep text)',
+        icon: mdiLinkVariantOff,
+        onClick: () => {
+          unlinkPillKeepText(linkId);
+          handleCloseContextMenu();
+        },
+      },
+      {
         id: 'delete-link',
         label: 'Delete link',
         icon: mdiTrashCanOutline,
@@ -273,7 +331,7 @@ export function ContextMenuPlugin({
         },
       },
     ];
-  }, [contextMenu, onPillEdit, onPillRemove, handleCloseContextMenu, removePillByLinkId]);
+  }, [contextMenu, onPillEdit, onPillRemove, handleCloseContextMenu, removePillByLinkId, unlinkPillKeepText]);
 
   // Render context menu
   if (!contextMenu) return null;
@@ -325,4 +383,66 @@ export function ContextMenuPlugin({
       onClose={handleCloseContextMenu}
     />
   );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+/**
+ * Recursively collect Lexical nodes from an AST inline node.
+ *
+ * - Text/code → TextNode (with format)
+ * - hard_break → LineBreakNode
+ * - node_link → InlineLinkNode with a fresh linkUuid (new link instance in
+ *   this block), same target nodeUuid
+ * - Formatting wrappers (strong/em/etc.) → recurse, pass format bits down
+ */
+function collectInlineReplacements(
+  inline: ASTInlineNode,
+  out: LexicalNode[],
+  format = 0,
+): void {
+  switch (inline.type) {
+    case 'text': {
+      if (inline.text) {
+        const node = $createTextNode(inline.text);
+        if (format !== 0) node.setFormat(format);
+        out.push(node);
+      }
+      break;
+    }
+    case 'code': {
+      const node = $createTextNode(inline.text);
+      node.setFormat(format | 16); // IS_CODE
+      out.push(node);
+      break;
+    }
+    case 'hard_break':
+      out.push($createLineBreakNode());
+      break;
+    case 'node_link': {
+      const { nodeUuid: targetUuid } = parseLinkId(inline.link_id);
+      if (targetUuid) {
+        const newLinkId = buildLinkId(targetUuid, crypto.randomUUID());
+        out.push($createInlineLinkNode(newLinkId, inline.ref_type, undefined, inline.label ?? undefined));
+      }
+      break;
+    }
+    case 'strong':
+      for (const c of inline.children) collectInlineReplacements(c, out, format | 1);
+      break;
+    case 'em':
+      for (const c of inline.children) collectInlineReplacements(c, out, format | 2);
+      break;
+    case 'underline':
+      for (const c of inline.children) collectInlineReplacements(c, out, format | 8);
+      break;
+    case 'strikethrough':
+      for (const c of inline.children) collectInlineReplacements(c, out, format | 4);
+      break;
+    case 'highlight':
+      for (const c of inline.children) collectInlineReplacements(c, out, format);
+      break;
+    default:
+      break;
+  }
 }
