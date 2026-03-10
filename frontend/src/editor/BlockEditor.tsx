@@ -540,6 +540,7 @@ export function BlockEditor({
             <ContentEditable
               className="notees-editor-content"
               aria-label="Note editor"
+              spellCheck={!readOnly}
             />
           }
           placeholder={
