@@ -6,7 +6,8 @@
 import { useCallback } from 'react';
 import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/core/SearchBox';
-import { PageIcon } from '../components/core/icons';
+import { Button } from '../components/core/Button';
+import { PageIcon, AddIcon } from '../components/core/icons';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import './AllPagesView.css';
@@ -16,7 +17,7 @@ interface AllPagesViewProps {
 }
 
 export function AllPagesView({ className = '' }: AllPagesViewProps) {
-  const { openNode } = useAppStore();
+  const { openNode, setCommandPaletteOpen } = useAppStore();
   
   // Special pseudo-node ID and UUID for all_pages view
   const PSEUDO_NODE_ID = 0;
@@ -31,8 +32,17 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
       {/* Page Header */}
       <div className="page-header-section">
         <div className="page-header-section__header">
-          <div className="page-header">
+          <div className="page-header all-pages-view__header">
             <h1 className="page-header__title">All Pages</h1>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={AddIcon}
+              onClick={() => setCommandPaletteOpen(true)}
+              title="New page (Ctrl+K)"
+            >
+              New page
+            </Button>
           </div>
         </div>
       </div>

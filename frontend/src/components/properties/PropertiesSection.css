@@ -317,7 +317,7 @@
   align-self: flex-start;
   color: var(--color-on-surface-variant);
   opacity: 0.6;
-  transition: opacity 0.15s ease, border-color 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard);
   padding-left: var(--spacing-2);  /* Add spacing from border */
 }
 

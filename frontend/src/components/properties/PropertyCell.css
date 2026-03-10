@@ -11,7 +11,7 @@
 
 .property-cell--editable {
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-cell--editable:hover {
@@ -126,7 +126,7 @@ textarea.property-cell__input {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 1001;
+  z-index: var(--z-floating);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
@@ -145,7 +145,7 @@ textarea.property-cell__input {
   gap: 8px;
   font-size: 13px;
   color: var(--color-on-surface);
-  transition: background 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-cell__picker-option:hover {

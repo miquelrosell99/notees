@@ -14,7 +14,7 @@
   border-radius: 4px;
   cursor: pointer;
   color: var(--color-outline);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-activity-btn:hover {
@@ -44,7 +44,7 @@
 .node-activity-item {
   padding: 2px 0;
   border-radius: 4px;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-activity-item:hover {
@@ -83,7 +83,7 @@
   text-decoration: none;
   font-weight: 500;
   border-radius: 2px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .activity-node-link:hover {

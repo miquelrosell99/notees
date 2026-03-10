@@ -43,7 +43,7 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   background: var(--color-surface);
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .group-by-selector__search-box:focus-within {
@@ -84,7 +84,7 @@
   padding: 7px 14px;
   cursor: pointer;
   border-radius: 0;
-  transition: background 0.1s ease;
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
   user-select: none;
 }
 

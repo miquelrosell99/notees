@@ -10,7 +10,7 @@
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
   min-width: 200px;
-  z-index: 10000;
+  z-index: var(--z-modal-backdrop);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;

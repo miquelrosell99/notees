@@ -74,15 +74,15 @@
 
 /* Padding options */
 .card--padded.card--padding-sm {
-  padding: var(--spacing-1);
-}
-
-.card--padded.card--padding-md {
   padding: var(--spacing-2);
 }
 
+.card--padded.card--padding-md {
+  padding: var(--spacing-4);
+}
+
 .card--padded.card--padding-lg {
-  padding: var(--spacing-3);
+  padding: var(--spacing-6);
 }
 
 /* Interactive state — TE tactile: lift on hover, press-in on click */

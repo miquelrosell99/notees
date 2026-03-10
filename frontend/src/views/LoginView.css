@@ -8,13 +8,13 @@
   justify-content: center;
   min-height: 100vh;
   background: var(--color-surface-container);
-  padding: 1rem;
+  padding: var(--spacing-4);
 }
 
 .login-container {
   background: var(--color-surface);
-  padding: 2rem;
-  border-radius: 8px;
+  padding: var(--spacing-8);
+  border-radius: var(--shape-large);
   box-shadow: var(--elevation-3);
   width: 100%;
   max-width: 400px;
@@ -22,56 +22,60 @@
 
 .login-container h1 {
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-2);
   color: var(--color-primary);
 }
 
 .login-subtitle {
   text-align: center;
   color: var(--color-on-surface-variant);
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-6);
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-4);
 }
 
 .login-form .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--spacing-1);
 }
 
 .login-form label {
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
 }
 
 .login-form input {
-  padding: 0.75rem;
-  border: 1px solid var(--color-outline-variant);
-  font-size: 1rem;
+  padding: var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  font-size: var(--font-size-md);
   background: var(--color-surface);
   color: var(--color-on-surface);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .login-form input:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-color: var(--color-primary);
 }
 
 .login-form .btn-primary {
-  padding: 0.75rem;
+  padding: var(--spacing-3);
   background: var(--color-primary);
   color: var(--color-on-primary);
   border: none;
-  border-radius: 4px;
-  font-size: 1rem;
+  border-radius: var(--shape-large);
+  font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
-  margin-top: 0.5rem;
+  margin-top: var(--spacing-2);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .login-form .btn-primary:hover {
@@ -85,16 +89,16 @@
 
 .login-form .error-message {
   color: var(--color-error);
-  font-size: 0.875rem;
-  padding: 0.5rem;
+  font-size: var(--font-size-base);
+  padding: var(--spacing-2);
   background: var(--color-error-container);
-  border-radius: 4px;
+  border-radius: var(--shape-medium);
 }
 
 .login-toggle {
   text-align: center;
-  margin-top: 1rem;
-  font-size: 0.875rem;
+  margin-top: var(--spacing-4);
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
 }
 

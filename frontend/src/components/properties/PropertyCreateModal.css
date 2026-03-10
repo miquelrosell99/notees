@@ -43,7 +43,7 @@
   border-radius: 6px;
   background: var(--color-surface-variant);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-create-modal__icon-picker:hover {
@@ -72,7 +72,7 @@
   border: 2px solid var(--color-outline-variant);
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   text-align: left;
 }
 
@@ -130,7 +130,7 @@
   border-radius: 4px;
   background: var(--color-surface);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-create-modal__option-icon-picker:hover {
@@ -186,7 +186,7 @@
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .property-create-modal__select:hover {

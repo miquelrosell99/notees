@@ -4,7 +4,7 @@
 
 .floating-toolbar {
   pointer-events: auto;
-  animation: floating-toolbar-fade-in 0.15s ease-out;
+  animation: floating-toolbar-fade-in var(--motion-duration-short) var(--motion-easing-standard)-out;
 }
 
 @keyframes floating-toolbar-fade-in {

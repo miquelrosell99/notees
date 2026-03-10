@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat } from '@/stores';
 import { setSetting } from '@/api/workspaces';
+import { useNotifications } from '@/stores/notificationStore';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import './EnrollmentView.css';
@@ -26,6 +27,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
   const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(theme);
   const [selectedDateFormat, setSelectedDateFormat] = useState<DateFormat>(dateFormat);
   const [isSaving, setIsSaving] = useState(false);
+  const { error: notifyError } = useNotifications();
 
   // Trigger entering animation on mount and when step changes
   useEffect(() => {
@@ -48,6 +50,11 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
     }, 300); // Match CSS animation duration
   };
 
+  const handleBack = () => {
+    if (step === 'theme') transitionToStep('welcome');
+    else if (step === 'date-format') transitionToStep('theme');
+  };
+
   const handleNext = async () => {
     if (step === 'welcome') {
       transitionToStep('theme');
@@ -64,7 +71,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
           setSetting('enrollment_completed', true),
         ]);
       } catch (e) {
-        console.error('Failed to save preferences:', e);
+        notifyError('Failed to save preferences', 'Your settings may not persist after refresh.');
       }
       setIsSaving(false);
       transitionToStep('done');
@@ -78,7 +85,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
     try {
       await setSetting('enrollment_completed', true);
     } catch (e) {
-      console.error('Failed to save enrollment status:', e);
+      notifyError('Failed to save enrollment status', 'Please refresh and try again.');
     }
     setIsSaving(false);
     onComplete();
@@ -180,6 +187,9 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
                   <Button variant="primary" size="md" onClick={handleNext}>
                     Continue
                   </Button>
+                  <Button variant="ghost" size="sm" onClick={handleBack}>
+                    Back
+                  </Button>
                 </div>
               </div>
               )}
@@ -206,6 +216,9 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
                 <div className="enrollment__actions">
                   <Button variant="primary" size="md" onClick={handleNext} disabled={isSaving}>
                     {isSaving ? 'Saving...' : 'Finish'}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleBack} disabled={isSaving}>
+                    Back
                   </Button>
                 </div>
               </div>

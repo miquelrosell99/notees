@@ -10,7 +10,7 @@
   justify-content: flex-end;
   margin-bottom: 4px;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-block--table:hover .table-block-toolbar,

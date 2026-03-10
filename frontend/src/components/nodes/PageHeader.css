@@ -20,14 +20,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: var(--height-2xl);
+  height: var(--height-2xl);
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
   border-radius: var(--shape-medium);
-  transition: background 0.15s ease;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -37,7 +37,7 @@
 }
 
 .page-icon-large {
-  font-size: 3rem;
+  font-size: var(--font-size, 3rem);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -61,12 +61,12 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 2px dashed var(--color-outline-variant);
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
-  font-size: 1.5rem;
+  font-size: var(--font-headline-small);
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .page-header:hover .page-icon-placeholder,
@@ -82,7 +82,7 @@
   flex: 1;
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
   flex-wrap: wrap;
   min-width: 200px;
 }
@@ -105,12 +105,12 @@
   overflow-wrap: break-word;
   resize: none;
   overflow: hidden;
-  font-family: inherit;
+  font-family: var(--font-family-base);
   field-sizing: content;
 }
 
 .page-title-child-preview {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   font-weight: 400;
   color: var(--color-outline);
   font-style: italic;
@@ -138,12 +138,12 @@
 .archived-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-error-container);
   background: var(--color-error-container);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -151,12 +151,12 @@
 .aliased-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container-high);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   opacity: 0.8;
 }
 

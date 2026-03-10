@@ -16,7 +16,7 @@
   border-radius: var(--shape-small);
   color: var(--color-outline);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
   padding: 1rem;
 }
 
