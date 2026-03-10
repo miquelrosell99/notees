@@ -8,6 +8,7 @@ from ..nodes.helpers import _get_node_service, _node_to_response, extract_proper
 from ...models import User
 from ...domain.entities import PropertyType, SCALAR_TYPES, RELATION_TYPES
 from ...logging_config import get_logger
+from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS, generate_day_uuid
 from .models import (
     NodePropertyResponse,
     ScalarValueRequest,
@@ -23,6 +24,68 @@ from .helpers import (
 )
 
 logger = get_logger(__name__)
+
+
+async def _handle_closed_date_automation(
+    node_id: int,
+    prop: Any,
+    selection_value: Any,
+    repo: Any,
+    node_service: Any,
+) -> None:
+    """Auto-set or clear Closed Date when task Status is set to Done/Cancelled."""
+    if prop.uuid != SYSTEM_PROPERTY_UUIDS["task_status"]:
+        return
+
+    closed_date_prop = await repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_closed_date"])
+    if not closed_date_prop or closed_date_prop.id is None:
+        return
+
+    # Only act if closed_date property is assigned to this node
+    existing_props = await repo.get_all_property_values(node_id)
+    if closed_date_prop.id not in existing_props:
+        return
+
+    # Determine which selection option was chosen
+    if selection_value is None or selection_value == '':
+        selected_id = None
+    elif isinstance(selection_value, list):
+        selected_id = selection_value[0] if selection_value else None
+    else:
+        selected_id = int(selection_value)
+
+    CLOSED_STATUSES = {"Done", "Cancelled"}
+    should_close = False
+
+    if selected_id is not None and prop.id is not None:
+        lines = await repo.get_selection_lines(prop.id)
+        selected_line = next((l for l in lines if l.id == selected_id), None)
+        if selected_line and selected_line.name in CLOSED_STATUSES:
+            should_close = True
+
+    if should_close:
+        from datetime import date
+        from ...domain.entities import NodeCreateData
+        from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
+        from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+
+        today = date.today()
+        day_uuid = generate_day_uuid(today)
+        day_node = await node_service._node_repo.get_by_uuid(day_uuid)
+        if not day_node:
+            day_type = await node_service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
+            classes = [node_service._page_class_id]
+            if day_type and day_type.id:
+                classes.append(day_type.id)
+            iso_name = serialize_ast(parse_ast(today.strftime("%Y-%m-%d"), ParseMode.PLAIN))
+            day_node = await node_service._node_repo.create(
+                NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid
+            )
+        if day_node and day_node.id:
+            await repo.clear_relation_values(node_id, closed_date_prop.id)
+            await repo.set_relation_value(node_id, closed_date_prop.id, day_node.id)
+    else:
+        await repo.clear_relation_values(node_id, closed_date_prop.id)
 
 
 router = APIRouter()
@@ -140,7 +203,14 @@ async def set_property_value(
                 raise ValueError(f"Selection property expects selection_line_id or array of IDs, got {type(request.value)}")
     except ValueError as e:
         raise HTTPException(400, str(e))
-    
+
+    # Auto-update Closed Date when task Status changes
+    if prop.type not in SCALAR_TYPES and prop.type not in RELATION_TYPES:
+        try:
+            await _handle_closed_date_automation(node_id, prop, request.value, repo, node_service)
+        except Exception as e:
+            logger.warning(f"[CLOSED_DATE] Automation failed for node {node_id}: {e}")
+
     # Fetch and return the updated node with properties
     node = await node_service.get_node(node_id)
     if not node:

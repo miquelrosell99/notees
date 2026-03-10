@@ -688,6 +688,45 @@ BEGIN
     END IF;
 END $$;
 
+-- Migration: Create 'Closed Date' property for task class in all existing workspaces
+DO $$
+DECLARE
+    ws RECORD;
+    task_class_id integer;
+    prop_id integer;
+BEGIN
+    FOR ws IN SELECT id FROM workspace LOOP
+        -- Get the task class node ID for this workspace
+        SELECT n.id INTO task_class_id
+        FROM node n
+        WHERE n.workspace_id = ws.id AND n.uuid = '00000000-0000-0000-0001-000000000012' AND n.active = TRUE
+        LIMIT 1;
+
+        -- Insert the Closed Date property
+        INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date)
+        VALUES ('00000000-0000-0000-0003-000000000005', ws.id, 'Closed Date', 'mdi:calendar-remove', 'date', FALSE, FALSE, NOW(), NOW())
+        ON CONFLICT (workspace_id, uuid) DO NOTHING
+        RETURNING id INTO prop_id;
+
+        -- If the property was just created and the task class exists, link it
+        IF prop_id IS NOT NULL AND task_class_id IS NOT NULL THEN
+            INSERT INTO class_property (class_node_id, property_id, sequence)
+            VALUES (task_class_id, prop_id, 4)
+            ON CONFLICT (class_node_id, property_id) DO NOTHING;
+        -- If property already existed, ensure it's linked to the task class
+        ELSIF task_class_id IS NOT NULL THEN
+            SELECT id INTO prop_id FROM property
+            WHERE workspace_id = ws.id AND uuid = '00000000-0000-0000-0003-000000000005'
+            LIMIT 1;
+            IF prop_id IS NOT NULL THEN
+                INSERT INTO class_property (class_node_id, property_id, sequence)
+                VALUES (task_class_id, prop_id, 4)
+                ON CONFLICT (class_node_id, property_id) DO NOTHING;
+            END IF;
+        END IF;
+    END LOOP;
+END $$;
+
 -- ============================================================
 -- SCHEMA METADATA
 -- ============================================================

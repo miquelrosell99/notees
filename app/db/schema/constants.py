@@ -163,6 +163,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "task_deadline": "00000000-0000-0000-0003-000000000002",
     "task_scheduled": "00000000-0000-0000-0003-000000000003",
     "task_priority": "00000000-0000-0000-0003-000000000004",
+    "task_closed_date": "00000000-0000-0000-0003-000000000005",
 }
 
 # Task status options with their icons (icon field may be JSON with embedded color)
