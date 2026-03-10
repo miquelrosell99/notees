@@ -10,6 +10,8 @@ import type { DateFormat } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotifications } from '@/stores/notificationStore';
+import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
+import type { ShortcutContext } from '@/stores/keyboardStore';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
@@ -21,7 +23,16 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general';
+type SettingsTab = 'general' | 'shortcuts';
+
+const SHORTCUT_CONTEXT_LABELS: Record<ShortcutContext, string> = {
+  global: 'Global',
+  editor: 'Editor',
+  selection: 'Selection',
+  modal: 'Modal',
+  sidebar: 'Sidebar',
+  search: 'Search',
+};
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -72,7 +83,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const tabs: { id: SettingsTab; label: string; }[] = [
     { id: 'general', label: 'General'},
+    { id: 'shortcuts', label: 'Shortcuts'},
   ];
+
+  const shortcutsByContext = DEFAULT_SHORTCUTS.reduce<Record<string, typeof DEFAULT_SHORTCUTS>>((acc, s) => {
+    const label = SHORTCUT_CONTEXT_LABELS[s.context] ?? s.context;
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(s);
+    return acc;
+  }, {});
 
   return (
     <>
@@ -102,6 +121,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </nav>
 
           <div className="settings-modal__content">
+            {activeTab === 'shortcuts' && (
+              <div className="settings-section">
+                {Object.entries(shortcutsByContext).map(([group, shortcuts]) => (
+                  <div key={group} className="settings-shortcuts__group">
+                    <h3 className="settings-shortcuts__group-title">{group}</h3>
+                    <table className="settings-shortcuts__table">
+                      <tbody>
+                        {shortcuts.map(s => (
+                          <tr key={s.id} className="settings-shortcuts__row">
+                            <td className="settings-shortcuts__description">{s.description}</td>
+                            <td className="settings-shortcuts__key">
+                              <kbd className="settings-shortcuts__kbd">{formatShortcutKey(s)}</kbd>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
             {activeTab === 'general' && (
               <div className="settings-section">
                 <h3 className="settings-section__title">Graph Settings</h3>

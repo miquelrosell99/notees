@@ -63,6 +63,7 @@ import {
 } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import { Card } from '../core/Card';
+import { ErrorBoundary } from '../core/ErrorBoundary';
 import './NodeCollection.css';
 
 // ==================== Context ====================
@@ -451,7 +452,11 @@ export function NodeCollection({
       }
       
       case 'timeline':
-        return <TimelineView nodes={nodes} />;
+        return (
+          <ErrorBoundary context="Timeline View" showRetry>
+            <TimelineView nodes={nodes} />
+          </ErrorBoundary>
+        );
       
       case 'graph': {
         // Graph only shows pages - convert Node to API GraphNode format
@@ -481,7 +486,12 @@ export function NodeCollection({
           });
         }
         const graphContent = <GraphView nodes={graphNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__graph" />;
-        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{graphContent}</Card> : graphContent;
+        const wrappedGraph = (
+          <ErrorBoundary context="Graph View" showRetry>
+            {graphContent}
+          </ErrorBoundary>
+        );
+        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{wrappedGraph}</Card> : wrappedGraph;
       }
       
       case 'terrain': {
@@ -512,7 +522,12 @@ export function NodeCollection({
           });
         }
         const terrainContent = <TerrainView nodes={terrainNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__terrain" />;
-        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{terrainContent}</Card> : terrainContent;
+        const wrappedTerrain = (
+          <ErrorBoundary context="Terrain View" showRetry>
+            {terrainContent}
+          </ErrorBoundary>
+        );
+        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{wrappedTerrain}</Card> : wrappedTerrain;
       }
       
       default:
@@ -568,7 +583,9 @@ export function NodeCollection({
           {/* Content */}
           {!hideContent && (
             <div className="node-collection__content">
-              {renderViewMode()}
+              <div key={viewMode} className="node-collection__view-content">
+                {renderViewMode()}
+              </div>
             </div>
           )}
         </div>
