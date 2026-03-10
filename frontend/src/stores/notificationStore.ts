@@ -100,12 +100,11 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
 
 // Hook for easy access to notification actions only
 export function useNotifications() {
-  return useNotificationStore((state) => ({
-    success: state.success,
-    error: state.error,
-    warning: state.warning,
-    info: state.info,
-    addNotification: state.addNotification,
-    removeNotification: state.removeNotification,
-  }));
+  const success = useNotificationStore((state) => state.success);
+  const error = useNotificationStore((state) => state.error);
+  const warning = useNotificationStore((state) => state.warning);
+  const info = useNotificationStore((state) => state.info);
+  const addNotification = useNotificationStore((state) => state.addNotification);
+  const removeNotification = useNotificationStore((state) => state.removeNotification);
+  return { success, error, warning, info, addNotification, removeNotification };
 }
