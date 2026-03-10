@@ -55,6 +55,7 @@ import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
 import { CreateLinkPlugin, isLikelyUrl, type PendingNewLink } from './plugins/CreateLinkPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
+import * as nodesApi from '@/api/nodes';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
@@ -368,8 +369,24 @@ export function BlockEditor({
 
   const [pendingNewLink, setPendingNewLink] = useState<PendingNewLink | null>(null);
 
-  // Ctrl+L — page link, selected text as search query
-  const handleOpenPageSearch = useCallback((selectedText: string) => {
+  // Ctrl+L — page link: auto-select first search result if text is selected,
+  // otherwise fall back to opening the modal with the text as query.
+  const handleOpenPageSearch = useCallback(async (selectedText: string) => {
+    if (selectedText) {
+      try {
+        const results = await nodesApi.searchNodes(selectedText);
+        if (results.length > 0) {
+          setPendingNewLink({
+            refType: 'node',
+            nodeUuid: results[0].uuid,
+            label: null,
+          });
+          return;
+        }
+      } catch {
+        // fall through to modal on error
+      }
+    }
     setCreateLinkModalState({
       initialMode: 'node',
       initialSearchQuery: selectedText || undefined,
