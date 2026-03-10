@@ -4,7 +4,7 @@
  * A reusable text input component with consistent styling.
  * Features slightly rounded corners and subtle border.
  */
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import './TextField.css';
 
 export type TextFieldSize = 'sm' | 'md' | 'lg';
@@ -45,6 +45,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   },
   ref
 ) {
+  const errorId = useId();
+
   const inputClasses = [
     'text-field',
     `text-field--${size}`,
@@ -78,6 +80,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         ref={ref}
         className={inputClasses}
         disabled={disabled}
+        aria-invalid={error || undefined}
+        aria-describedby={error && errorMessage ? errorId : undefined}
         {...props}
       />
       {icon && (
@@ -92,6 +96,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       ref={ref}
       className={inputClasses}
       disabled={disabled}
+      aria-invalid={error || undefined}
+      aria-describedby={error && errorMessage ? errorId : undefined}
       {...props}
     />
   );
@@ -102,7 +108,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         <label className="text-field__label">{label}</label>
         {inputElement}
         {error && errorMessage && (
-          <span className="text-field__error">{errorMessage}</span>
+          <span id={errorId} className="text-field__error" role="alert">{errorMessage}</span>
         )}
       </div>
     );
@@ -112,7 +118,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     <>
       {inputElement}
       {error && errorMessage && (
-        <span className="text-field__error">{errorMessage}</span>
+        <span id={errorId} className="text-field__error" role="alert">{errorMessage}</span>
       )}
     </>
   );

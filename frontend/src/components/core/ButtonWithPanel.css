@@ -14,7 +14,7 @@
 /* ==================== Panel Base ==================== */
 .btn-panel {
   position: absolute;
-  z-index: 100;
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Ensure only content scrolls, not the panel itself */

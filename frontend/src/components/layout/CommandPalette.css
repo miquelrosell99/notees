@@ -248,6 +248,14 @@
   color: var(--color-primary);
 }
 
+.command-palette__highlight {
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+  font-weight: 600;
+}
+
 .command-palette__result-breadcrumb {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);

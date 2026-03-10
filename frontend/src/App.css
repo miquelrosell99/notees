@@ -22,11 +22,11 @@ svg.mdi-icon,
   left: 0;
   background: var(--color-primary);
   color: var(--color-on-primary);
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   z-index: var(--z-skip-link);
-  transition: top 0.2s;
+  transition: top var(--motion-duration-medium) var(--motion-easing-standard);
   text-decoration: none;
-  border-radius: 0 0 4px 0;
+  border-radius: 0 0 var(--shape-small) 0;
 }
 
 .skip-link:focus {

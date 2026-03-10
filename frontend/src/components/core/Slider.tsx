@@ -113,6 +113,11 @@ export function Slider({
           value={value}
           disabled={disabled}
           onChange={handleChange}
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          aria-disabled={disabled || undefined}
         />
       </div>
     </div>
