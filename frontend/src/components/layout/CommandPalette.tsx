@@ -96,6 +96,24 @@ const MAX_BLOCKS = 8;
 const MAX_PROPERTIES = 5;
 
 /**
+ * Highlights matching substrings in text
+ */
+function HighlightText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight.trim()) return <>{text}</>;
+  const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part)
+          ? <mark key={i} className="command-palette__highlight">{part}</mark>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  );
+}
+
+/**
  * Result item component
  */
 function ResultItem({
@@ -105,6 +123,7 @@ function ResultItem({
   allNodes,
   allClasses,
   pageClassId,
+  searchTerm = '',
 }: {
   result: SearchResult;
   isSelected: boolean;
@@ -112,6 +131,7 @@ function ResultItem({
   allNodes?: Node[];
   allClasses?: Node[];
   pageClassId?: number | null;
+  searchTerm?: string;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   
@@ -145,7 +165,7 @@ function ResultItem({
           </span>
           <span className="command-palette__result-content">
             <span className="command-palette__result-name">
-              {result.property.name}
+              <HighlightText text={result.property.name} highlight={searchTerm} />
             </span>
           </span>
           <span className="command-palette__result-type">
@@ -188,7 +208,7 @@ function ResultItem({
         </span>
         <span className="command-palette__result-content">
           <span className="command-palette__result-name">
-            {nodeNameToText(result.node.name) || 'Untitled'}
+            <HighlightText text={nodeNameToText(result.node.name) || 'Untitled'} highlight={searchTerm} />
           </span>
         </span>
         {aliasedNodeName && (
@@ -879,6 +899,7 @@ export function CommandPalette({
                     allNodes={searchResults}
                     allClasses={allClasses}
                     pageClassId={pageClassId}
+                    searchTerm={debouncedSearchTerm}
                   />
                 );
               })}
@@ -902,6 +923,7 @@ export function CommandPalette({
                     allNodes={searchResults}
                     allClasses={allClasses}
                     pageClassId={pageClassId}
+                    searchTerm={debouncedSearchTerm}
                   />
                 );
               })}
@@ -922,6 +944,7 @@ export function CommandPalette({
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
+                    searchTerm={debouncedSearchTerm}
                   />
                 );
               })}

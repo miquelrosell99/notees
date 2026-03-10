@@ -1,7 +1,7 @@
 /* GanttPropertySelector styles */
 
 .gantt-property-selector {
-  padding: 8px;
+  padding: var(--spacing-2);
   min-width: 220px;
   max-height: 420px;
   overflow-y: auto;
@@ -9,21 +9,21 @@
 
 .gantt-property-selector__loading,
 .gantt-property-selector__empty {
-  padding: 8px;
-  font-size: 0.8125rem;
+  padding: var(--spacing-2);
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
 .gantt-property-selector__section {
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .gantt-property-selector__section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  font-size: 0.75rem;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-label-small);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
@@ -33,23 +33,23 @@
 .gantt-property-selector__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-1);
 }
 
 .gantt-property-selector__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
   width: 100%;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.12s;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
   color: var(--color-on-surface);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-button);
 }
 
 .gantt-property-selector__item:hover {
@@ -71,26 +71,26 @@
 .gantt-property-selector__divider {
   height: 1px;
   background: var(--color-outline-variant);
-  margin: 6px 0;
+  margin: var(--spacing-2) 0;
 }
 
 /* Time scale selector */
 .gantt-property-selector__scale-row {
   display: flex;
-  gap: 4px;
-  padding: 2px 8px 4px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1);
 }
 
 .gantt-property-selector__scale-btn {
   flex: 1;
-  padding: 4px 6px;
+  padding: var(--spacing-1) var(--spacing-2);
   background: none;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   cursor: pointer;
-  font-size: 0.75rem;
+  font: var(--font-label-small);
   color: var(--color-on-surface);
-  transition: background-color 0.12s, border-color 0.12s;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard);
   text-align: center;
 }
 

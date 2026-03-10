@@ -39,7 +39,7 @@
   color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.1s, color 0.1s;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .list-sortable__item:hover .class-property-menu-btn,

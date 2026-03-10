@@ -171,6 +171,7 @@
   /* ==================== Motion ==================== */
   --motion-duration-instant: 50ms;
   --motion-duration-short: 100ms;
+  --motion-duration-shorter: 150ms;
   --motion-duration-medium: 200ms;
   --motion-duration-long: 300ms;
   --motion-duration-extra-long: 500ms;
@@ -294,4 +295,63 @@
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
 
+}
+
+/* ==================== Responsive Breakpoints ==================== */
+:root {
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-wide: 1440px;
+}
+
+/* ==================== Global Keyframes Library ==================== */
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide up + fade */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Continuous rotation — for loading spinners */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Subtle pulse — for dot indicators, progress states */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+/* Skeleton shimmer — for loading placeholders */
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+
+/* Spring scale-up — for new item appearance */
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Breathe — for active/selected block indicators */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
 }
