@@ -42,6 +42,7 @@ from .helpers import (
     _get_class_ids_batch,
     _get_alias_ids,
     extract_properties_dict,
+    _resolve_referenced_display_names,
 )
 
 
@@ -778,11 +779,13 @@ async def get_node(
                   AND n.is_deleted = FALSE
             """, all_source_ids)
             
+            display_names = await _resolve_referenced_display_names(pool, service._workspace_id or 0, target_rows)
             referenced_nodes: Dict[str, NodeResponse] = {}
             for row in target_rows:
-                referenced_nodes[str(row['uuid'])] = NodeResponse(
+                uuid_str = str(row['uuid'])
+                referenced_nodes[uuid_str] = NodeResponse(
                     id=row['id'],
-                    uuid=str(row['uuid']),
+                    uuid=uuid_str,
                     name=row['name'] or '',
                     icon=row['icon'],
                     color=row['color'],
@@ -795,6 +798,7 @@ async def get_node(
                     sequence=row['sequence'],
                     collapsed=row['collapsed'],
                     active=row['active'],
+                    display_name=display_names.get(uuid_str),
                 )
             response.referenced_nodes = referenced_nodes
 
@@ -1009,11 +1013,13 @@ async def get_page_content(
               AND n.is_deleted = FALSE
         """, all_source_ids)
         
+        display_names = await _resolve_referenced_display_names(pool, service._workspace_id or 0, target_rows)
         referenced_nodes: Dict[str, NodeResponse] = {}
         for row in target_rows:
-            referenced_nodes[str(row['uuid'])] = NodeResponse(
+            uuid_str = str(row['uuid'])
+            referenced_nodes[uuid_str] = NodeResponse(
                 id=row['id'],
-                uuid=str(row['uuid']),
+                uuid=uuid_str,
                 name=row['name'] or '',
                 icon=row['icon'],
                 color=row['color'],
@@ -1026,6 +1032,7 @@ async def get_page_content(
                 sequence=row['sequence'],
                 collapsed=row['collapsed'],
                 active=row['active'],
+                display_name=display_names.get(uuid_str),
             )
         page_response.referenced_nodes = referenced_nodes
     
