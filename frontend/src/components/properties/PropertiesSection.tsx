@@ -28,6 +28,7 @@ import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api'
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { ChevronRightIcon, PropertiesIcon, NodeIcon } from '../core/icons';
+import { addSelectionOption } from '@/api/properties';
 import type { PropertyType } from '@/types/api';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
@@ -583,10 +584,13 @@ export function PropertiesSection({
     const node_id = scope === 'node' && !data.node_id ? nodeId : data.node_id;
     createPropertyMutation.mutate({ ...data, scope, node_id } as PropertyCreate, {
       onSuccess: async (newProperty) => {
-        // Add selection options if provided
+        // Create any selection options that were specified at property-creation time
         if (data.selection_options && data.selection_options.length > 0) {
-          // TODO: Add API call to create selection options
-          // For now, they should be created by the backend if supported
+          await Promise.all(
+            data.selection_options.map((opt, idx) =>
+              addSelectionOption(newProperty.id, opt.name, opt.icon ?? null, idx)
+            )
+          );
         }
         
         // Add the property to this node with appropriate default value

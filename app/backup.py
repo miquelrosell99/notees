@@ -102,35 +102,56 @@ class BackupScheduler:
         pg_dump = find_pg_dump()
         
         logger.info(f"Creating backup: {backup_file.name}")
-        
+
+        # Parse db_url to pass credentials via environment variables instead of
+        # the command-line argument (credentials in argv are visible to other
+        # processes via `ps` output on Linux/macOS).
+        import urllib.parse as _urlparse
+        _parsed = _urlparse.urlparse(db_url)
+        pg_env = {
+            **os.environ,
+            "PGPASSWORD": _parsed.password or "",
+            "PGUSER":     _parsed.username or "",
+            "PGHOST":     _parsed.hostname or "localhost",
+            "PGPORT":     str(_parsed.port or 5432),
+            "PGDATABASE": (_parsed.path or "/notees").lstrip("/"),
+        }
+
         try:
-            # Run pg_dump with custom format for better compression
+            # Run pg_dump with custom format for better compression.
+            # Credentials come from the environment — not from the argv list.
             process = await asyncio.create_subprocess_exec(
                 pg_dump,
-                db_url,
                 "--file", str(backup_file),
                 "--format", "custom",
                 "--compress", "9",
                 "--verbose",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=pg_env,
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
                 raise RuntimeError(f"pg_dump failed with code {process.returncode}: {error_msg}")
-            
+
             # Get file size
             size_mb = backup_file.stat().st_size / (1024 * 1024)
             logger.info(f"Backup created successfully: {backup_file.name} ({size_mb:.2f} MB)")
-            
+
         except FileNotFoundError:
             logger.error(
                 "pg_dump command not found. Please install PostgreSQL client tools. "
                 "On Ubuntu: apt install postgresql-client, on macOS: brew install postgresql"
             )
+        except RuntimeError:
+            # pg_dump returned non-zero — already logged above; re-raise so the
+            # scheduler can decide whether to retry / alert.
+            if backup_file.exists():
+                backup_file.unlink()
+            raise
         except Exception as e:
             logger.error(f"Failed to create backup: {e}", exc_info=True)
             # Clean up partial backup file
@@ -184,34 +205,48 @@ class BackupScheduler:
             return False
         
         db_url = get_database_url()
-        
+
         logger.warning(f"Starting database restore from {backup_filename} - THIS WILL ERASE CURRENT DATA")
-        
+
+        import urllib.parse as _urlparse
+        _parsed = _urlparse.urlparse(db_url)
+        pg_env = {
+            **os.environ,
+            "PGPASSWORD": _parsed.password or "",
+            "PGUSER":     _parsed.username or "",
+            "PGHOST":     _parsed.hostname or "localhost",
+            "PGPORT":     str(_parsed.port or 5432),
+            "PGDATABASE": (_parsed.path or "/notees").lstrip("/"),
+        }
+
         try:
-            # Use pg_restore with --clean to drop existing objects first
+            # Use pg_restore with --clean to drop existing objects first.
+            # Credentials come from the environment — not from the argv list.
             process = await asyncio.create_subprocess_exec(
                 "pg_restore",
-                "--dbname", db_url,
                 "--clean",
                 "--if-exists",
                 "--verbose",
                 str(backup_file),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=pg_env,
             )
             
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
                 logger.error(f"pg_restore failed: {error_msg}")
                 return False
-            
+
             logger.info(f"Database restored successfully from {backup_filename}")
             return True
-            
+
         except FileNotFoundError:
             logger.error("pg_restore command not found. Please install PostgreSQL client tools.")
+            return False
+        except RuntimeError:
             return False
         except Exception as e:
             logger.error(f"Failed to restore backup: {e}", exc_info=True)

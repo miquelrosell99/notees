@@ -1268,8 +1268,22 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             wb.duplicateElements([...interaction.selectedIds]);
           }
           break;
-        // Tool shortcuts
-        case 'v': case 'V': if (!e.ctrlKey) wb.setTool('select'); break;
+        case 'c':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            if (interaction.selectedIds.size > 0) {
+              wb.copySelectedElements([...interaction.selectedIds]);
+            }
+          }
+          break;
+        case 'v':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            wb.pasteElements();
+          } else {
+            wb.setTool('select');
+          }
+          break;
         case 'r': case 'R': if (!e.ctrlKey) wb.setTool('rectangle'); break;
         case 'o': case 'O': wb.setTool('ellipse'); break;
         case 'p': case 'P': wb.setTool('pen'); break;

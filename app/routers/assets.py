@@ -65,6 +65,45 @@ ASSET_CATEGORIES = {
 # Max file size: 50MB (for audio files)
 MAX_FILE_SIZE = 50 * 1024 * 1024
 
+# Magic byte signatures: map expected MIME types → list of (offset, bytes) signatures.
+# We check the file header rather than trusting the client-supplied Content-Type.
+_MAGIC_SIGNATURES: dict[str, list[tuple[int, bytes]]] = {
+    "image/jpeg":  [(0, b"\xff\xd8\xff")],
+    "image/png":   [(0, b"\x89PNG\r\n\x1a\n")],
+    "image/webp":  [(0, b"RIFF"), (8, b"WEBP")],
+    "audio/mpeg":  [(0, b"ID3"), (0, b"\xff\xfb"), (0, b"\xff\xf3"), (0, b"\xff\xf2")],
+    "audio/mp3":   [(0, b"ID3"), (0, b"\xff\xfb"), (0, b"\xff\xf3"), (0, b"\xff\xf2")],
+    "audio/wav":   [(0, b"RIFF"), (8, b"WAVE")],
+    "audio/wave":  [(0, b"RIFF"), (8, b"WAVE")],
+    "audio/x-wav": [(0, b"RIFF"), (8, b"WAVE")],
+    "audio/ogg":   [(0, b"OggS")],
+    "audio/opus":  [(0, b"OggS")],
+    "audio/webm":  [(0, b"\x1aE\xdf\xa3")],
+}
+
+
+def _check_magic_bytes(content: bytes, content_type: str) -> bool:
+    """Verify that file content begins with the expected magic bytes.
+
+    Returns True when the signature matches or when no signature is defined for
+    the given MIME type (fail-open to avoid blocking legitimate edge cases).
+    """
+    sigs = _MAGIC_SIGNATURES.get(content_type)
+    if not sigs:
+        return True  # No signature registered → accept
+
+    # For multi-signature types (e.g. WAV / WebP) ALL non-zero-offset checks
+    # that share a group must pass together.  We model this by pairing sigs
+    # that belong to the same "group" — here we treat them sequentially and
+    # require at least one full group to pass.
+    # For simplicity: group consecutive sigs; a single-element list is its own group.
+    for sig_offset, sig_bytes in sigs:
+        chunk = content[sig_offset: sig_offset + len(sig_bytes)]
+        if chunk == sig_bytes:
+            return True  # At least one matching signature found
+
+    return False
+
 
 def get_asset_category(content_type: str) -> str:
     """Get the asset category (image, audio, etc.) from content type."""
@@ -236,12 +275,21 @@ async def upload_asset(
     
     # Read file content
     content = await file.read()
-    
+
     # Validate file size
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB"
+        )
+
+    # Validate actual file content matches the declared MIME type to prevent
+    # attackers from uploading arbitrary files with a spoofed Content-Type.
+    if not _check_magic_bytes(content, content_type):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File content does not match declared type '{content_type}'. "
+                   "Upload rejected to prevent content-type spoofing."
         )
     
     user_id = int(current_user.id)

@@ -77,6 +77,14 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
 
     // Common element actions
     items.push({
+      id: 'copy',
+      label: `Copy${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
+      icon: 'content-copy',
+      shortcut: 'Ctrl+C',
+      onClick: () => { wb.copySelectedElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
+    });
+
+    items.push({
       id: 'duplicate',
       label: `Duplicate${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
       icon: 'content-duplicate',
@@ -170,8 +178,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
       label: 'Paste',
       icon: 'content-paste',
       shortcut: 'Ctrl+V',
-      disabled: true, // TODO: implement clipboard
-      onClick: () => { onClose(); },
+      onClick: () => { wb.pasteElements(); onClose(); },
     });
 
     items.push({ id: 'sep-canvas-2', label: '', separator: true });
