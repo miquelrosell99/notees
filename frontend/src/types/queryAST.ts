@@ -73,7 +73,9 @@ export type PropertyType =
   | 'checkbox'
   | 'select'
   | 'multi_select'
-  | 'node';
+  | 'node'
+  | 'url'
+  | 'email';
 
 // ==================== Capability Model ====================
 

@@ -71,6 +71,73 @@ async def list_available_properties(
     return {"properties": [_property_to_response(p) for p in properties]}
 
 
+@router.get("/stats")
+async def get_property_stats(
+    user: User = Depends(get_current_user),
+):
+    """Return usage counts per property across all nodes in this workspace."""
+    from ...db.connection import get_pool
+    pool = await get_pool()
+    repo = await _get_property_repo(user)
+    async with acquire_connection(pool) as conn:
+        rows = await conn.fetch("""
+            SELECT np.property_id,
+                   COUNT(DISTINCT np.node_id) AS usage_count
+            FROM node_property np
+            JOIN property p ON np.property_id = p.id
+            WHERE p.workspace_id = $1 OR p.workspace_id IS NULL
+            GROUP BY np.property_id
+        """, repo._workspace_id)
+    return {"stats": [{"property_id": r["property_id"], "usage_count": r["usage_count"]} for r in rows]}
+
+
+@router.get("/suggestions")
+async def get_property_suggestions(
+    node_id: Optional[int] = None,
+    user: User = Depends(get_current_user),
+):
+    """Return property suggestions for a node, ranked by usage frequency."""
+    repo = await _get_property_repo(user)
+    from ...db.connection import get_pool
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        # Properties already on the node
+        assigned_ids: set[int] = set()
+        if node_id:
+            rows = await conn.fetch(
+                "SELECT property_id FROM node_property WHERE node_id = $1",
+                node_id,
+            )
+            assigned_ids = {r["property_id"] for r in rows}
+
+        # Rank global properties by usage
+        rows = await conn.fetch("""
+            SELECT p.id, p.name, p.icon, p.type,
+                   COUNT(DISTINCT np.node_id) AS usage_count
+            FROM property p
+            LEFT JOIN node_property np ON np.property_id = p.id
+            WHERE (p.workspace_id = $1 OR p.workspace_id IS NULL)
+              AND p.active = TRUE
+              AND p.scope = 'global'
+            GROUP BY p.id, p.name, p.icon, p.type
+            ORDER BY usage_count DESC, p.name
+            LIMIT 20
+        """, repo._workspace_id)
+
+    suggestions = [
+        {
+            "property_id": r["id"],
+            "name": r["name"],
+            "icon": r["icon"],
+            "type": r["type"],
+            "usage_count": r["usage_count"],
+            "already_assigned": r["id"] in assigned_ids,
+        }
+        for r in rows
+    ]
+    return {"suggestions": suggestions}
+
+
 @router.post("/", name="create_property")
 async def create_property(
     request: PropertyCreateRequest,
@@ -239,15 +306,27 @@ async def update_property(
     # Only call repo.update() if there are name/icon/icon_visibility changes.
     # This avoids the "Cannot modify system properties" error when only
     # the multi flag was changed (already handled above).
-    if request.name is not None or request.icon is not None or request.icon_visibility is not None:
-        try:
-            prop = await repo.update(property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
-        
+    if request.name is not None or request.icon is not None or request.icon_visibility is not None or request.validation_rules is not None:
+        if request.validation_rules is not None:
+            # Update validation_rules directly since repo.update() doesn't support it yet
+            from ...db.connection import get_pool
+            pool = await get_pool()
+            import json
+            async with acquire_connection(pool) as conn:
+                await conn.execute(
+                    "UPDATE property SET validation_rules = $1::jsonb, write_date = $2, write_uid = $3 WHERE id = $4",
+                    json.dumps(request.validation_rules), utc_now(), int(user.id), property_id
+                )
+        if request.name is not None or request.icon is not None or request.icon_visibility is not None:
+            try:
+                prop = await repo.update(property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            if not prop:
+                raise HTTPException(404, "Property not found")
+        prop = await repo.get_by_id(property_id)
         if not prop:
             raise HTTPException(404, "Property not found")
-        
         return _property_to_response(prop)
     else:
         # Only multi changed (or nothing) — reload and return

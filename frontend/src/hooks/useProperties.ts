@@ -195,6 +195,29 @@ export function useReorderClassProperties() {
 }
 
 /**
+ * Hook to update class property settings (required, hidden)
+ */
+export function useUpdateClassProperty() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      classId,
+      propertyId,
+      data,
+    }: {
+      classId: number;
+      propertyId: number;
+      data: { required?: boolean; hidden?: boolean };
+    }) => propertiesApi.updateClassProperty(classId, propertyId, data),
+    onSuccess: (_, { classId }) => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+    },
+  });
+}
+
+/**
  * Hook to add class extension (inheritance)
  */
 export function useAddClassExtends() {

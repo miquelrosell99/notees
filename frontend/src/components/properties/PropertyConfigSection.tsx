@@ -17,6 +17,7 @@ import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
+import { parseIconField } from '@/utils/iconDom';
 import { useUpdateProperty, useClasses } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { Button } from '../core/Button';
@@ -87,11 +88,13 @@ export function PropertyConfigSection({
     if (!newOptionName.trim()) return;
     
     try {
+      const { icon: parsedIcon, color: parsedColor } = parseIconField(newOptionIcon || '');
       const newOption = await addSelectionOption(
         property.id,
         newOptionName.trim(),
-        newOptionIcon || null,
-        property.options.length // sequence
+        parsedIcon || newOptionIcon || null,
+        property.options.length, // sequence
+        parsedColor || null,
       );
       
       // Update property with new option
@@ -128,13 +131,15 @@ export function PropertyConfigSection({
     }
   }, [property, onUpdate]);
   
-  const handleUpdateSelectionOptionIcon = useCallback(async (id: string, icon: string) => {
+  const handleUpdateSelectionOptionIcon = useCallback(async (id: string, iconField: string) => {
+    // Parse color from the JSON icon field so we can save it to the dedicated color column
+    const { icon: parsedIcon, color: parsedColor } = parseIconField(iconField);
     try {
-      await updateSelectionOption(property.id, Number(id), { icon });
+      await updateSelectionOption(property.id, Number(id), { icon: parsedIcon || null, color: parsedColor || null });
       const updatedProperty: Property = {
         ...property,
         options: property.options.map(o =>
-          String(o.id) === id ? { ...o, icon } : o
+          String(o.id) === id ? { ...o, icon: iconField, color: parsedColor || null } : o
         ),
       };
       onUpdate(updatedProperty);

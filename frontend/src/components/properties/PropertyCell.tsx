@@ -21,8 +21,11 @@ import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../nodes/ImageNode';
 import { NodeRef } from '../nodes/NodeRef';
 import { NodeSelector } from '../nodes/NodeSelector';
+import Icon from '@mdi/react';
+import { mdiClose } from '@mdi/js';
 import { Pill } from '../core/Pill';
 import { NodeIcon } from '../core/icons';
+import { parseIconField } from '@/utils/iconDom';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useAppStore } from '@/stores';
@@ -592,16 +595,21 @@ function SelectionPropertyCell({
         {editable ? '—' : ''}
         {isPickerOpen && (
           <div className="property-cell__picker">
-            {options.map(option => (
-              <div
-                key={option.id}
-                className="property-cell__picker-option"
-                onClick={() => handleAddOption(option)}
-              >
-                {option.icon && <NodeIcon icon={option.icon} size="xs" />}
-                <span>{option.name}</span>
-              </div>
-            ))}
+            {options.map(option => {
+              const color = option.color || parseIconField(option.icon || '').color || null;
+              return (
+                <div
+                  key={option.id}
+                  className="property-cell__picker-option"
+                  onClick={() => handleAddOption(option)}
+                >
+                  {color
+                    ? <span className="selection-color-dot" style={{ background: color }} />
+                    : option.icon && <NodeIcon icon={option.icon} size="xs" />}
+                  <span>{option.name}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -611,14 +619,18 @@ function SelectionPropertyCell({
   // Has values
   return (
     <div ref={cellRef} className="property-cell property-cell--selection">
-      {resolvedOptions.map((option) => (
-        <Pill
-          key={option.id}
-          label={option.name}
-          size="sm"
-          onRemove={editable ? () => handleRemoveOption(option) : undefined}
-        />
-      ))}
+      {resolvedOptions.map((option) => {
+        const color = option.color || parseIconField(option.icon || '').color || null;
+        return (
+          <Pill
+            key={option.id}
+            text={option.name}
+            color={color || undefined}
+            rightIcon={editable ? <Icon path={mdiClose} size={0.55} /> : undefined}
+            onRightIconClick={editable ? () => handleRemoveOption(option) : undefined}
+          />
+        );
+      })}
       {editable && property.is_multi && (
         <Button
           variant="ghost"
@@ -633,16 +645,21 @@ function SelectionPropertyCell({
         <div className="property-cell__picker">
           {options
             .filter(opt => !resolvedOptions.some(r => r.id === opt.id))
-            .map(option => (
-              <div
-                key={option.id}
-                className="property-cell__picker-option"
-                onClick={() => handleAddOption(option)}
-              >
-                {option.icon && <NodeIcon icon={option.icon} size="xs" />}
-                <span>{option.name}</span>
-              </div>
-            ))}
+            .map(option => {
+              const color = option.color || parseIconField(option.icon || '').color || null;
+              return (
+                <div
+                  key={option.id}
+                  className="property-cell__picker-option"
+                  onClick={() => handleAddOption(option)}
+                >
+                  {color
+                    ? <span className="selection-color-dot" style={{ background: color }} />
+                    : option.icon && <NodeIcon icon={option.icon} size="xs" />}
+                  <span>{option.name}</span>
+                </div>
+              );
+            })}
         </div>
       )}
     </div>

@@ -44,6 +44,7 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         scope=prop.scope.value,
         node_id=prop.node_id,
         icon_visibility=prop.icon_visibility,
+        validation_rules=prop.validation_rules,
         create_date=prop.create_date,
         write_date=prop.write_date,
         class_filters=prop._class_filters,
@@ -53,6 +54,7 @@ def _property_to_response(prop: Property) -> PropertyResponse:
                 property_id=l.property_id,
                 name=l.name,
                 icon=l.icon,
+                color=l.color,
                 order=l.order,
             )
             for l in prop._selection_lines

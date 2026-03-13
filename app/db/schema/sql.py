@@ -736,6 +736,60 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- MIGRATIONS: PROPERTY MANAGEMENT UX OVERHAUL (Phase 1-4)
+-- ============================================================
+
+-- Migration: Add color column to property_selection_line (replaces JSON-in-icon hack)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property_selection_line' AND column_name = 'color'
+    ) THEN
+        ALTER TABLE property_selection_line ADD COLUMN color VARCHAR(50) DEFAULT NULL;
+    END IF;
+END $$;
+
+-- Migration: Add validation_rules JSONB column to property
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property' AND column_name = 'validation_rules'
+    ) THEN
+        ALTER TABLE property ADD COLUMN validation_rules JSONB DEFAULT NULL;
+    END IF;
+END $$;
+
+-- Migration: Add required column to class_property
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'class_property' AND column_name = 'required'
+    ) THEN
+        ALTER TABLE class_property ADD COLUMN required BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: Add sequence and hidden columns to node_property for per-page ordering
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_property' AND column_name = 'sequence'
+    ) THEN
+        ALTER TABLE node_property ADD COLUMN sequence INTEGER DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_property' AND column_name = 'hidden'
+    ) THEN
+        ALTER TABLE node_property ADD COLUMN hidden BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- ============================================================
 -- SCHEMA METADATA
 -- ============================================================
 

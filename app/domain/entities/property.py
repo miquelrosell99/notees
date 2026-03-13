@@ -37,6 +37,8 @@ class PropertyType(str, Enum):
     INTEGER = "integer"
     FLOAT = "float"
     BOOLEAN = "boolean"
+    URL = "url"         # URL string with link rendering
+    EMAIL = "email"     # Email string with mailto: rendering
     
     # Relation types - stored in property_value_relation
     NODE = "node"       # Reference to other nodes
@@ -63,7 +65,7 @@ class PropertyScope(str, Enum):
 
 
 # Property types that use scalar storage
-SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN}
+SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN, PropertyType.URL, PropertyType.EMAIL}
 
 # Property types that use relation storage
 RELATION_TYPES = {PropertyType.NODE, PropertyType.TEXT, PropertyType.IMAGE, PropertyType.DATE}
@@ -92,6 +94,7 @@ class Property:
     scope: PropertyScope = PropertyScope.GLOBAL
     node_id: Optional[int] = None  # For class/node scope: the node this property belongs to
     icon_visibility: str = "hidden"  # Where to show selection value icon: 'hidden' | 'before_content' | 'after_bullet'
+    validation_rules: Optional[dict] = None  # Optional validation constraints (min, max, pattern, required, etc.)
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     
@@ -141,6 +144,7 @@ class PropertySelectionLine:
     property_id: int = 0
     name: str = ""
     icon: Optional[str] = None
+    color: Optional[str] = None  # Hex color or CSS color name for pill background
     order: int = 0
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
@@ -362,6 +366,7 @@ class ClassProperty:
     property_id: int = 0  # The property to apply
     sequence: int = 0  # Order of properties on the class
     hidden: bool = False  # Whether this property is hidden by default in the UI
+    required: bool = False  # Whether the property is required on nodes of this class
     
     # Default values (polymorphic - only one is used based on property type)
     default_integer: Optional[int] = None

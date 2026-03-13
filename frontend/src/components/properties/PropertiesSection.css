@@ -269,6 +269,50 @@
   opacity: 1;
 }
 
+/* URL and Email property values */
+.property-value-url {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-medium);
+}
+
+.property-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.property-link:hover {
+  text-decoration: underline;
+}
+
+.property-link-edit {
+  all: unset;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.75rem;
+  transition: opacity 0.1s;
+}
+
+.property-value-url:hover .property-link-edit {
+  opacity: 1;
+}
+
+/* Selection option color dot (shown in Dropdown and property pills) */
+.selection-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ==================== Hidden Properties Section ==================== */
 
 .properties-hidden-section {

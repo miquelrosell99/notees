@@ -465,7 +465,7 @@ export interface BatchNodeDailyResponse {
 /**
  * Property types
  */
-export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'node' | 'selection' | 'date' | 'image';
+export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'url' | 'email' | 'node' | 'selection' | 'date' | 'image';
 
 /**
  * Icon visibility for property values at block level.
@@ -501,6 +501,7 @@ export interface Property {
   scope: PropertyScope;  // 'global' | 'class' | 'node'
   node_id: number | null;  // For scoped properties, the node this property is scoped to
   icon_visibility: PropertyIconVisibility;  // Where to show selection value icon at block level
+  validation_rules: Record<string, unknown> | null;  // Optional validation constraints
   create_date: string;
   write_date: string;
   // For node-type properties
@@ -524,7 +525,8 @@ export interface PropertyBacklink {
 export interface SelectionOption {
   id: number;
   name: string;
-  icon: string | null; // plain icon name or JSON {"icon":"...","color":"..."}  
+  icon: string | null; // plain icon name
+  color: string | null; // Hex or CSS color for the pill (#e2e8f0, blue, etc.)
   sequence: number;
 }
 
@@ -541,6 +543,7 @@ export interface ClassProperty {
   sequence: number;
   default_value: unknown;
   hidden: boolean;  // Whether this property is hidden by default in the UI
+  required: boolean;  // Whether this property is required for nodes of this class
 }
 
 /**

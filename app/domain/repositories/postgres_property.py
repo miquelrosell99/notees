@@ -187,6 +187,7 @@ class PostgresPropertyRepository(PropertyRepository):
             property_id=row['property_id'],
             name=row['name'],
             icon=row.get('icon'),
+            color=row.get('color'),
             order=row['sequence'] if 'sequence' in row.keys() else 0,
             create_date=create_date,
             write_date=write_date,
@@ -200,6 +201,7 @@ class PostgresPropertyRepository(PropertyRepository):
             property_id=row['property_id'],
             sequence=row.get('sequence', 0),
             hidden=row.get('hidden', False),
+            required=row.get('required', False),
             default_integer=row.get('default_integer'),
             default_float=row.get('default_float'),
             default_text=row.get('default_text'),
@@ -681,7 +683,7 @@ class PostgresPropertyRepository(PropertyRepository):
             value_float = None
             value_integer = None
             
-            if prop.type == PropertyType.TEXT:
+            if prop.type in (PropertyType.TEXT, PropertyType.URL, PropertyType.EMAIL):
                 value_text = str(value) if value is not None else None
             elif prop.type == PropertyType.INTEGER:
                 value_integer = int(value) if value is not None else None
@@ -805,15 +807,16 @@ class PostgresPropertyRepository(PropertyRepository):
     
     # ============== Selection Lines ==============
     
-    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None, sequence: int = 0) -> PropertySelectionLine:
+    async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None,
+                                  sequence: int = 0, color: Optional[str] = None) -> PropertySelectionLine:
         """Add an option to a selection-type property."""
         now = utc_now()
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO property_selection_line (property_id, name, icon, sequence, create_date, write_date, create_uid, write_uid)
-                VALUES ($1, $2, $3, $4, $5, $5, $6, $6)
+                INSERT INTO property_selection_line (property_id, name, icon, color, sequence, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
                 RETURNING *
-            """, property_id, name, icon, sequence, now, self._user_id)
+            """, property_id, name, icon, color, sequence, now, self._user_id)
             
             if row is None:
                 raise RuntimeError("Failed to add selection line - no row returned")
@@ -829,7 +832,8 @@ class PostgresPropertyRepository(PropertyRepository):
             return [self._row_to_selection_line(row) for row in rows]
     
     async def update_selection_line(self, line_id: int, name: Optional[str] = None,
-                                     icon: Optional[str] = None, order: Optional[int] = None) -> Optional[PropertySelectionLine]:
+                                     icon: Optional[str] = None, order: Optional[int] = None,
+                                     color: Optional[str] = None) -> Optional[PropertySelectionLine]:
         """Update a selection option."""
         now = utc_now()
         updates = []
@@ -844,6 +848,11 @@ class PostgresPropertyRepository(PropertyRepository):
         if icon is not None:
             updates.append(f"icon = ${param_idx}")
             params.append(icon)
+            param_idx += 1
+
+        if color is not None:
+            updates.append(f"color = ${param_idx}")
+            params.append(color)
             param_idx += 1
 
         if order is not None:
@@ -1220,15 +1229,16 @@ class PostgresPropertyRepository(PropertyRepository):
             return [self._row_to_class_property(row) for row in rows]
     
     async def add_class_property(self, class_node_id: int, property_id: int,
-                                 sequence: int = 0, default_value: Any = None) -> ClassProperty:
+                                 sequence: int = 0, default_value: Any = None,
+                                 required: bool = False) -> ClassProperty:
         """Link a property to a class."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow("""
-                INSERT INTO class_property (class_node_id, property_id, sequence)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (class_node_id, property_id) DO UPDATE SET sequence = $3
+                INSERT INTO class_property (class_node_id, property_id, sequence, required)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (class_node_id, property_id) DO UPDATE SET sequence = $3, required = $4
                 RETURNING *
-            """, class_node_id, property_id, sequence)
+            """, class_node_id, property_id, sequence, required)
             
             if row is None:
                 raise RuntimeError("Failed to add class property - no row returned")
@@ -1242,7 +1252,41 @@ class PostgresPropertyRepository(PropertyRepository):
                 class_node_id, property_id
             )
             return result == "DELETE 1"
-    
+
+    async def update_class_property(
+        self,
+        class_node_id: int,
+        property_id: int,
+        required: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+    ) -> Optional[ClassProperty]:
+        """Update an existing class property (required, hidden flags)."""
+        updates: list[str] = []
+        params: list = []
+        if required is not None:
+            params.append(required)
+            updates.append(f"required = ${len(params)}")
+        if hidden is not None:
+            params.append(hidden)
+            updates.append(f"hidden = ${len(params)}")
+        if not updates:
+            async with acquire_connection(self._pool) as conn:
+                row = await conn.fetchrow(
+                    "SELECT * FROM class_property WHERE class_node_id = $1 AND property_id = $2",
+                    class_node_id, property_id,
+                )
+                return self._row_to_class_property(row) if row else None
+        params.extend([class_node_id, property_id])
+        pid1 = len(params) - 1
+        pid2 = len(params)
+        set_clause = ", ".join(updates)
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                f"UPDATE class_property SET {set_clause} WHERE class_node_id = ${pid1} AND property_id = ${pid2} RETURNING *",
+                *params,
+            )
+            return self._row_to_class_property(row) if row else None
+
     async def get_all_inherited_properties(self, class_node_id: int) -> List[ClassProperty]:
         """Get all properties for a class including inherited ones."""
         async with acquire_connection(self._pool) as conn:

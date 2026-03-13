@@ -92,23 +92,25 @@ export async function addSelectionOption(
   propertyId: number,
   name: string,
   icon?: string | null,
-  sequence?: number
+  sequence?: number,
+  color?: string | null
 ): Promise<SelectionOption> {
   const response = await api.post<SelectionOption>(`${BASE}/${propertyId}/selection-lines`, {
     name,
     icon,
+    color,
     order: sequence ?? 0,
   });
   return response.data;
 }
 
 /**
- * Update a selection option (e.g. change icon)
+ * Update a selection option (e.g. change icon or color)
  */
 export async function updateSelectionOption(
   propertyId: number,
   optionId: number,
-  data: { icon?: string | null; name?: string; order?: number }
+  data: { icon?: string | null; name?: string; order?: number; color?: string | null }
 ): Promise<SelectionOption> {
   const response = await api.put<SelectionOption>(
     `${BASE}/${propertyId}/selection-lines/${optionId}`,
@@ -192,7 +194,8 @@ export async function addClassProperty(
   classNodeId: number,
   propertyId: number,
   sequence?: number,
-  defaultValue?: unknown
+  defaultValue?: unknown,
+  required?: boolean
 ): Promise<ClassProperty> {
   const response = await api.post<ClassProperty>(
     `${BASE}/classes/${classNodeId}/properties`,
@@ -200,6 +203,7 @@ export async function addClassProperty(
       property_id: propertyId,
       sequence: sequence ?? 0,
       default_value: defaultValue,
+      required: required ?? false,
     }
   );
   return response.data;
@@ -225,6 +229,52 @@ export async function reorderClassProperties(
   await api.put(`${BASE}/classes/${classNodeId}/properties/reorder`, {
     property_ids: propertyIds,
   });
+}
+
+/**
+ * Update class property binding (required, hidden flags)
+ */
+export async function updateClassProperty(
+  classNodeId: number,
+  propertyId: number,
+  data: { required?: boolean; hidden?: boolean }
+): Promise<ClassProperty> {
+  const response = await api.patch<ClassProperty>(
+    `${BASE}/classes/${classNodeId}/properties/${propertyId}`,
+    data
+  );
+  return response.data;
+}
+
+/**
+ * Get property usage stats (usage_count per property_id)
+ */
+export async function getPropertyStats(): Promise<Array<{ property_id: number; usage_count: number }>> {
+  const response = await api.get<{ stats: Array<{ property_id: number; usage_count: number }> }>(`${BASE}/stats`);
+  return response.data.stats ?? [];
+}
+
+/**
+ * Get property suggestions for a node, ranked by usage frequency
+ */
+export async function getPropertySuggestions(nodeId?: number): Promise<Array<{
+  property_id: number;
+  name: string;
+  icon: string | null;
+  type: string;
+  usage_count: number;
+  already_assigned: boolean;
+}>> {
+  const params = nodeId != null ? { node_id: nodeId } : {};
+  const response = await api.get<{ suggestions: Array<{
+    property_id: number;
+    name: string;
+    icon: string | null;
+    type: string;
+    usage_count: number;
+    already_assigned: boolean;
+  }> }>(`${BASE}/suggestions`, { params });
+  return response.data.suggestions ?? [];
 }
 
 // ============== Class Extends (Inheritance) ==============

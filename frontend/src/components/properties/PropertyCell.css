@@ -160,3 +160,12 @@ textarea.property-cell__input {
   align-items: center;
   justify-content: center;
 }
+
+/* Colored dot for selection options */
+.selection-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
