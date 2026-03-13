@@ -288,6 +288,33 @@ export function useWhiteboard(nodeId: number | null) {
     });
   }, [updateElements]);
 
+  // In-memory clipboard for whiteboard elements (survives across pastes within
+  // the same session but does not persist across page reloads, which is
+  // acceptable — cross-page paste would require serialisation to localStorage).
+  const clipboardRef = useRef<WhiteboardElement[]>([]);
+
+  const copySelectedElements = useCallback((ids: string[]) => {
+    const toCopy = latestDataRef.current.elements.filter(el => ids.includes(el.id));
+    clipboardRef.current = toCopy.map(el => structuredClone(el));
+  }, [latestDataRef]);
+
+  const pasteElements = useCallback((offsetX = 20, offsetY = 20) => {
+    if (clipboardRef.current.length === 0) return;
+    updateElements(elements => {
+      const maxZ = Math.max(...elements.map(el => el.zIndex), 0);
+      const pasted = clipboardRef.current.map((el, i) => ({
+        ...structuredClone(el),
+        id: createElementId(),
+        x: el.x + offsetX,
+        y: el.y + offsetY,
+        zIndex: maxZ + i + 1,
+      } as WhiteboardElement));
+      // Shift the clipboard so repeated pastes cascade rather than stack
+      clipboardRef.current = pasted.map(el => structuredClone(el));
+      return [...elements, ...pasted];
+    });
+  }, [updateElements]);
+
   const bringToFront = useCallback((ids: string[]) => {
     updateElements(elements => {
       const maxZ = Math.max(...elements.map(el => el.zIndex), 0);
@@ -622,6 +649,8 @@ export function useWhiteboard(nodeId: number | null) {
     moveElements,
     resizeElement,
     duplicateElements,
+    copySelectedElements,
+    pasteElements,
     bringToFront,
     sendToBack,
     // Element creation

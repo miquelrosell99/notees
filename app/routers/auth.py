@@ -84,44 +84,24 @@ async def register(request: Request, user_data: UserCreate):
 @limiter.limit("5/minute")  # 5 attempts per minute per IP
 async def login(request: Request, credentials: UserLogin):
     """Login and get access token."""
-    import logging
-    import sys
-    log = logging.getLogger("app.routers.auth")
-    print(f"[AUTH] Login attempt for user: '{credentials.username}'", file=sys.stderr, flush=True)
-    log.info(f"Login attempt for user: '{credentials.username}'")
-    
+    logger.info(f"Login attempt for user: '{credentials.username}'")
+
     # Detailed checks so we can log specific failure reasons
     user = await auth.get_user_by_username(credentials.username)
     if not user:
-        print(f"[AUTH] Login failed for '{credentials.username}': user not found", file=sys.stderr, flush=True)
-        log.warning(f"Login failed for '{credentials.username}': user not found")
+        logger.warning(f"Login failed for '{credentials.username}': user not found")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    # Debug logging for password verification
     stored_hash = user.get("hashed_password", "")
-    print(f"[AUTH DEBUG] User ID: {user.get('id')}", file=sys.stderr, flush=True)
-    print(f"[AUTH DEBUG] Password length: {len(credentials.password)}", file=sys.stderr, flush=True)
-    print(f"[AUTH DEBUG] Hash prefix: {stored_hash[:30]}", file=sys.stderr, flush=True)
-    log.info(f"Attempting password verification for user {credentials.username} (ID: {user.get('id')})")
-    
     if not auth.verify_password(credentials.password, stored_hash):
-        print(f"[AUTH] Login failed for '{credentials.username}': invalid password", file=sys.stderr, flush=True)
-        log.warning(f"Login failed for '{credentials.username}': invalid password")
+        logger.warning(f"Login failed for '{credentials.username}': invalid password")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     if not user.get("is_active", True):
-        print(f"[AUTH] Login failed for '{credentials.username}': account inactive", file=sys.stderr, flush=True)
-        log.warning(f"Login failed for '{credentials.username}': account inactive")
+        logger.warning(f"Login failed for '{credentials.username}': account inactive")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    # At this point authentication is successful
-    print(f"[AUTH] Login successful for '{credentials.username}' (id={user.get('id')})", file=sys.stderr, flush=True)
-    log.info(f"Login successful for '{credentials.username}' (id={user.get('id')})")
-    
-    token = auth.create_token(user["id"], user["username"])
-    return {"access_token": token, "token_type": "bearer", "user": user}
-
-
+    logger.info(f"Login successful for '{credentials.username}' (id={user.get('id')})")
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user)):
     """Get current user info."""
