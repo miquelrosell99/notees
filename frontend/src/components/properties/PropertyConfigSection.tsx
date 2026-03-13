@@ -312,6 +312,15 @@ export function PropertyConfigSection({
         </div>
       )}
 
+      {/* Validation rules - for text, integer, float, url, email */}
+      {['text', 'integer', 'float', 'url', 'email'].includes(property.type) && (
+        <ValidationRulesSection
+          property={property}
+          onUpdate={onUpdate}
+          onError={setError}
+        />
+      )}
+
       <PropertyForm
         icon=""
         onIconChange={() => {}}
@@ -382,6 +391,87 @@ export function PropertyConfigSection({
           </p>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/**
+ * ValidationRulesSection - inline editor for property.validation_rules
+ */
+function ValidationRulesSection({
+  property,
+  onUpdate,
+  onError,
+}: {
+  property: Property;
+  onUpdate: (p: Property) => void;
+  onError: (msg: string | null) => void;
+}) {
+  const updatePropertyMutation = useUpdateProperty();
+  const rules = property.validation_rules ?? {};
+
+  const save = useCallback(async (newRules: Record<string, unknown>) => {
+    // Remove empty keys
+    const cleaned = Object.fromEntries(
+      Object.entries(newRules).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    );
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.id,
+        data: { validation_rules: Object.keys(cleaned).length ? cleaned : null },
+      });
+      onUpdate(updated);
+      onError(null);
+    } catch {
+      onError('Failed to update validation rules');
+    }
+  }, [property.id, updatePropertyMutation, onUpdate, onError]);
+
+  if (property.type === 'integer' || property.type === 'float') {
+    return (
+      <div className="property-config-section__validation">
+        <label className="property-config-section__validation-label">Validation</label>
+        <div className="property-config-section__validation-row">
+          <label>Min</label>
+          <input
+            type="number"
+            className="property-config-section__validation-input"
+            value={rules.min != null ? String(rules.min) : ''}
+            step={property.type === 'float' ? 'any' : 1}
+            onChange={(e) => {
+              const v = e.target.value;
+              save({ ...rules, min: v ? Number(v) : null });
+            }}
+            placeholder="No min"
+          />
+          <label>Max</label>
+          <input
+            type="number"
+            className="property-config-section__validation-input"
+            value={rules.max != null ? String(rules.max) : ''}
+            step={property.type === 'float' ? 'any' : 1}
+            onChange={(e) => {
+              const v = e.target.value;
+              save({ ...rules, max: v ? Number(v) : null });
+            }}
+            placeholder="No max"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // text, url, email — regex pattern
+  return (
+    <div className="property-config-section__validation">
+      <label className="property-config-section__validation-label">Validation pattern</label>
+      <input
+        type="text"
+        className="property-config-section__validation-input property-config-section__validation-input--wide"
+        value={typeof rules.pattern === 'string' ? rules.pattern : ''}
+        onChange={(e) => save({ ...rules, pattern: e.target.value || null })}
+        placeholder={property.type === 'url' ? 'https?://.*' : property.type === 'email' ? '.+@.+\\..+' : 'Regex pattern'}
+      />
     </div>
   );
 }
