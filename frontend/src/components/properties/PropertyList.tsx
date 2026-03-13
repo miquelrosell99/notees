@@ -33,6 +33,9 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   date: 'mdiCalendar',
   selection: 'mdiFormatListBulleted',
   node: 'mdiLink',
+  url: 'mdiLinkVariant',
+  email: 'mdiEmail',
+  image: 'mdiImage',
 };
 
 /** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */

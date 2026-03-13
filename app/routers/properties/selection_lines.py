@@ -33,6 +33,7 @@ async def list_selection_lines(
             property_id=l.property_id,
             name=l.name,
             icon=l.icon,
+            color=l.color,
             order=l.order,
         )
         for l in lines
@@ -54,6 +55,7 @@ async def add_selection_line(
             request.name,
             request.icon,
             sequence=request.order,
+            color=request.color,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -63,6 +65,7 @@ async def add_selection_line(
         property_id=line.property_id,
         name=line.name,
         icon=line.icon,
+        color=line.color,
         order=line.order,
     )
 
@@ -82,6 +85,7 @@ async def update_selection_line(
         name=request.name,
         icon=request.icon,
         order=request.order,
+        color=request.color,
     )
     
     if not line:
@@ -92,6 +96,7 @@ async def update_selection_line(
         property_id=line.property_id,
         name=line.name,
         icon=line.icon,
+        color=line.color,
         order=line.order,
     )
 

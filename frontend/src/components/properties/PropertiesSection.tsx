@@ -40,6 +40,9 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   date: 'mdiCalendar',
   selection: 'mdiFormatListBulleted',
   node: 'mdiLink',
+  url: 'mdiLinkVariant',
+  email: 'mdiEmail',
+  image: 'mdiImage',
 };
 
 /** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */
@@ -56,6 +59,7 @@ import { PropertyList, type PropertyEntry } from './PropertyList';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { Bullet } from '../blocks/Bullet';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { parseIconField } from '@/utils/iconDom';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import './PropertiesSection.css';
 
@@ -239,6 +243,10 @@ function PropertyValue({
         finalValue = parseInt(editValue, 10);
         if (isNaN(finalValue as number)) return;
         break;
+      case 'url':
+      case 'email':
+        finalValue = editValue.trim();
+        break;
       default:
         finalValue = editValue;
     }
@@ -338,12 +346,16 @@ function PropertyValue({
         // Multi-value selection: use Dropdown with multiple
         // eslint-disable-next-line react-hooks/rules-of-hooks
         const selectionOptions = useMemo(() => 
-          options.map(opt => ({
-            value: opt.id,
-            label: opt.name,
-            // NodeIcon parses JSON icon fields (icon+color) internally
-            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
-          })),
+          options.map(opt => {
+            const color = opt.color || parseIconField(opt.icon || '').color || null;
+            return {
+              value: opt.id,
+              label: opt.name,
+              iconNode: color
+                ? <span className="selection-color-dot" style={{ background: color }} />
+                : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
+            };
+          }),
           [options]
         );
         
@@ -363,12 +375,16 @@ function PropertyValue({
         // Single-value selection: use Dropdown
         // eslint-disable-next-line react-hooks/rules-of-hooks
         const selectionOptions = useMemo(() => 
-          options.map(opt => ({
-            value: opt.id,
-            label: opt.name,
-            // NodeIcon parses JSON icon fields (icon+color) internally
-            iconNode: opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
-          })),
+          options.map(opt => {
+            const color = opt.color || parseIconField(opt.icon || '').color || null;
+            return {
+              value: opt.id,
+              label: opt.name,
+              iconNode: color
+                ? <span className="selection-color-dot" style={{ background: color }} />
+                : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
+            };
+          }),
           [options]
         );
         
@@ -401,9 +417,103 @@ function PropertyValue({
         />
       );
 
+    case 'url':
+      return <UrlPropertyValue value={value} readOnly={readOnly} onChange={onChange} />;
+
+    case 'email':
+      return <EmailPropertyValue value={value} readOnly={readOnly} onChange={onChange} />;
+
     default:
       return <span className="property-value-unknown">{String(value ?? '')}</span>;
   }
+}
+
+/** Render a URL value as a clickable link */
+function UrlPropertyValue({ value, readOnly, onChange }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const strValue = typeof value === 'string' ? value : '';
+
+  if (isEditing) {
+    return (
+      <input
+        type="url"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={() => { setIsEditing(false); onChange(editValue.trim()); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { setIsEditing(false); onChange(editValue.trim()); }
+          if (e.key === 'Escape') setIsEditing(false);
+        }}
+        autoFocus
+        className="property-value-input"
+        placeholder="https://..."
+      />
+    );
+  }
+
+  if (strValue) {
+    return (
+      <span className="property-value-url">
+        <a href={strValue} target="_blank" rel="noopener noreferrer" className="property-link" onClick={e => e.stopPropagation()}>
+          {strValue}
+        </a>
+        {!readOnly && (
+          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setIsEditing(true); }} title="Edit URL">✎</button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setIsEditing(true); }} disabled={readOnly}>
+      <span className="property-placeholder">Add URL…</span>
+    </Button>
+  );
+}
+
+/** Render an email value as a mailto: link */
+function EmailPropertyValue({ value, readOnly, onChange }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const strValue = typeof value === 'string' ? value : '';
+
+  if (isEditing) {
+    return (
+      <input
+        type="email"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={() => { setIsEditing(false); onChange(editValue.trim()); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { setIsEditing(false); onChange(editValue.trim()); }
+          if (e.key === 'Escape') setIsEditing(false);
+        }}
+        autoFocus
+        className="property-value-input"
+        placeholder="user@example.com"
+      />
+    );
+  }
+
+  if (strValue) {
+    return (
+      <span className="property-value-url">
+        <a href={`mailto:${strValue}`} className="property-link" onClick={e => e.stopPropagation()}>
+          {strValue}
+        </a>
+        {!readOnly && (
+          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setIsEditing(true); }} title="Edit email">✎</button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setIsEditing(true); }} disabled={readOnly}>
+      <span className="property-placeholder">Add email…</span>
+    </Button>
+  );
 }
 
 /**

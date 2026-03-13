@@ -52,3 +52,42 @@
   background: var(--color-surface-variant);
 }
 
+/* Actions wrapper (required toggle + menu button) */
+.class-property-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Required toggle button (* asterisk) */
+.class-property-required-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  color: var(--color-on-surface-variant);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Always show required toggle if it's active (required=true) */
+.class-property-required-btn--active {
+  opacity: 1;
+  color: var(--color-error, #d32f2f);
+}
+
+.list-sortable__item:hover .class-property-required-btn,
+.class-property-required-btn:focus {
+  opacity: 1;
+}
+
+.class-property-required-btn:not(.class-property-required-btn--active):hover {
+  color: var(--color-on-surface);
+  background: var(--color-surface-variant);
+}
+
