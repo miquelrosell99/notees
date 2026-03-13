@@ -1,7 +1,9 @@
 """CRUD operations for nodes."""
 from typing import Optional, List, Dict
 
-from fastapi import APIRouter, HTTPException, Depends, Path
+from fastapi import APIRouter, HTTPException, Depends, Path, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError, SystemClassConstraintError
@@ -45,13 +47,15 @@ from .helpers import (
     _resolve_referenced_display_names,
 )
 
-
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 
 @router.post("/", name="create_node")
+@limiter.limit("120/minute")
 async def create_node(
-    request: NodeCreateRequest,
+    request: Request,
+    body: NodeCreateRequest,
     user: User = Depends(get_current_user),
 ):
     """Create a new node."""
@@ -60,14 +64,14 @@ async def create_node(
     # Create node with provided classes
     # The repository will compute is_page, is_class, etc. from the classes
     data = NodeCreateData(
-        name=request.name,
-        icon=request.icon,
-        color=request.color,
-        parent_id=request.parent_id,
-        sequence=request.sequence,
-        classes=list(request.classes),
-        property_values=request.properties,
-        uuid=request.uuid,
+        name=body.name,
+        icon=body.icon,
+        color=body.color,
+        parent_id=body.parent_id,
+        sequence=body.sequence,
+        classes=list(body.classes),
+        property_values=body.properties,
+        uuid=body.uuid,
     )
     
     try:
@@ -82,12 +86,14 @@ async def create_node(
                 "conflicting_classes": e.conflicting_classes,
             },
         )
-    return _node_to_response(node, classes=list(request.classes))
+    return _node_to_response(node, classes=list(body.classes))
 
 
 @router.post("/batch", name="batch_create_nodes")
+@limiter.limit("60/minute")
 async def batch_create_nodes(
-    request: BatchNodeCreateRequest,
+    request: Request,
+    body: BatchNodeCreateRequest,
     user: User = Depends(get_current_user),
 ):
     """Create multiple nodes in a single batch.
@@ -103,7 +109,7 @@ async def batch_create_nodes(
     
     # Build NodeCreateData list
     create_items = []
-    for item in request.nodes:
+    for item in body.nodes:
         create_items.append(NodeCreateData(
             name=item.name,
             icon=item.icon,
@@ -118,7 +124,7 @@ async def batch_create_nodes(
     raw_results = await service.batch_create_nodes(
         create_items,
         user_id=int(user.id),
-        uuid_conflict_mode=request.uuid_conflict_mode,
+        uuid_conflict_mode=body.uuid_conflict_mode,
     )
     
     results = []
@@ -131,7 +137,7 @@ async def batch_create_nodes(
                 existing += 1
             else:
                 created += 1
-            classes = list(request.nodes[i].classes)
+            classes = list(body.nodes[i].classes)
             results.append(BatchNodeCreateResultItem(
                 index=i,
                 success=True,
@@ -146,13 +152,15 @@ async def batch_create_nodes(
                 error=r["error"],
             ))
     
-    logger.info(f"[BATCH_CREATE] {created} created, {existing} existing, {failed} failed out of {len(request.nodes)}")
+    logger.info(f"[BATCH_CREATE] {created} created, {existing} existing, {failed} failed out of {len(body.nodes)}")
     return BatchNodeCreateResponse(results=results, created=created, failed=failed)
 
 
 @router.put("/batch", name="batch_update_nodes")
+@limiter.limit("120/minute")
 async def batch_update_nodes(
-    request: BatchNodeUpdateRequest,
+    request: Request,
+    body: BatchNodeUpdateRequest,
     user: User = Depends(get_current_user),
 ):
     """Update multiple nodes in a single batch.
@@ -170,7 +178,7 @@ async def batch_update_nodes(
     update_items = []
     resolve_errors = []  # Track items that can't even be resolved
     
-    for i, item in enumerate(request.nodes):
+    for i, item in enumerate(body.nodes):
         node_id = item.id
         
         # If no id provided, try to resolve from uuid
@@ -254,13 +262,15 @@ async def batch_update_nodes(
     # Sort by original index for consistent ordering
     results.sort(key=lambda r: r.index)
     
-    logger.info(f"[BATCH_UPDATE] {updated} updated, {failed} failed out of {len(request.nodes)}")
+    logger.info(f"[BATCH_UPDATE] {updated} updated, {failed} failed out of {len(body.nodes)}")
     return BatchNodeUpdateResponse(results=results, updated=updated, failed=failed)
 
 
 @router.delete("/batch", name="batch_delete_nodes")
+@limiter.limit("120/minute")
 async def batch_delete_nodes(
-    request: BatchNodeDeleteRequest,
+    request: Request,
+    body: BatchNodeDeleteRequest,
     user: User = Depends(get_current_user),
 ):
     """Delete multiple nodes by UUID in a single batch.
@@ -272,7 +282,7 @@ async def batch_delete_nodes(
     logger = get_logger(__name__)
     
     service = await _get_node_service(user)
-    raw_results = await service.batch_delete_nodes(request.uuids)
+    raw_results = await service.batch_delete_nodes(body.uuids)
     
     results = []
     deleted = 0
@@ -282,19 +292,19 @@ async def batch_delete_nodes(
             deleted += 1
             results.append(BatchNodeDeleteResultItem(
                 index=i,
-                uuid=request.uuids[i],
+                uuid=body.uuids[i],
                 success=True,
             ))
         else:
             failed += 1
             results.append(BatchNodeDeleteResultItem(
                 index=i,
-                uuid=request.uuids[i],
+                uuid=body.uuids[i],
                 success=False,
                 error=r["error"],
             ))
     
-    logger.info(f"[BATCH_DELETE] {deleted} deleted, {failed} failed out of {len(request.uuids)}")
+    logger.info(f"[BATCH_DELETE] {deleted} deleted, {failed} failed out of {len(body.uuids)}")
     return BatchNodeDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
@@ -1092,7 +1102,9 @@ async def _apply_node_extras(service, node_id: int, classes, properties) -> None
 
 
 @router.put("/{node_id}")
+@limiter.limit("120/minute")
 async def update_node(
+    http_request: Request,
     node_id: int,
     request: NodeUpdateRequest,
     user: User = Depends(get_current_user),
@@ -1174,7 +1186,9 @@ async def move_node(
 
 
 @router.delete("/{node_id}/permanent", name="permanently_delete_node")
+@limiter.limit("120/minute")
 async def permanently_delete_node(
+    request: Request,
     node_id: int,
     user: User = Depends(get_current_user),
 ):
@@ -1193,7 +1207,9 @@ async def permanently_delete_node(
 
 
 @router.delete("/{node_id}")
+@limiter.limit("120/minute")
 async def delete_node(
+    request: Request,
     node_id: int,
     user: User = Depends(get_current_user),
 ):

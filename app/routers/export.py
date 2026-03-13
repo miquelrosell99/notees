@@ -114,19 +114,30 @@ async def export_single_node(
 
 @router.post("/render-pdf")
 async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current_user)):
-    """Render an HTML string to a PDF using WeasyPrint."""
+    """Render an HTML string to a PDF using WeasyPrint.
+    
+    Falls back to returning the HTML with a Content-Type of text/html and a
+    warning header when WeasyPrint is not installed, so callers can still
+    present the content (e.g. let the browser print to PDF via Ctrl+P).
+    """
     try:
         from weasyprint import HTML as WeasyprintHTML
-    except ImportError:
-        raise HTTPException(status_code=501, detail="PDF rendering is not available (WeasyPrint not installed)")
-
-    try:
         pdf_bytes = WeasyprintHTML(string=request.html).write_pdf()
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="export.pdf"'}
+        )
+    except ImportError:
+        # WeasyPrint not installed — return the HTML so the client can use the
+        # browser's built-in print-to-PDF as a fallback.
+        return Response(
+            content=request.html.encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={
+                "X-PDF-Fallback": "true",
+                "X-PDF-Fallback-Reason": "WeasyPrint is not installed on this server. Use your browser's Print → Save as PDF to export.",
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="export.pdf"'}
-    )

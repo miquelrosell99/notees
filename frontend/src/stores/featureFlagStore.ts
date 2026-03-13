@@ -89,7 +89,7 @@ export const DEFAULT_FLAGS: Record<FeatureFlagName, FeatureFlagDefinition> = {
   blockComments: {
     name: 'blockComments',
     description: 'Enable comments on individual blocks',
-    defaultEnabled: false,
+    defaultEnabled: true,
     userToggleable: true,
   },
   aiAssist: {
@@ -325,7 +325,6 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
         
         if (Object.keys(overrides).length > 0) {
           set({ overrides });
-          console.log('[FeatureFlags] Applied URL overrides:', overrides);
         }
       },
     }),

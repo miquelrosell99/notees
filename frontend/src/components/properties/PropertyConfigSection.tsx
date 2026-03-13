@@ -18,6 +18,7 @@ import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
 import { useUpdateProperty, useClasses } from '@/hooks';
+import { useAppStore } from '@/stores/appStore';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { PropertyForm } from './PropertyForm';
@@ -42,7 +43,8 @@ export function PropertyConfigSection({
   const [isLocal] = useState(property.is_local || false);
   const [isMultiValue, setIsMultiValue] = useState(property.multi || false);
   const [showMultiValueConfirm, setShowMultiValueConfirm] = useState(false);
-  const [defaultValue] = useState(''); // TODO: Get from property
+  const defaultValue = ''; // default_value not yet supported by backend
+  const openNode = useAppStore(state => state.openNode);
   const [newOptionName, setNewOptionName] = useState('');
   const [newOptionIcon, setNewOptionIcon] = useState('');
   const [showAddOption, setShowAddOption] = useState(false);
@@ -259,12 +261,12 @@ export function PropertyConfigSection({
       {property.is_local && property.node_id && (
         <div className="property-config-section__scope">
           <span className="property-config-section__scope-label">Applies to </span>
-          <a 
-            href="#" 
+          <a
+            href="#"
             className="property-config-section__scope-link"
             onClick={(e) => {
               e.preventDefault();
-              // TODO: Navigate to node
+              if (property.node_id) openNode(property.node_id);
             }}
           >
             Page #{property.node_id}

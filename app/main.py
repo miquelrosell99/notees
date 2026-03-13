@@ -106,6 +106,24 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 # Compress responses ≥ 1 KB with gzip
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Limit request body size to 55 MB (slightly above the asset 50 MB cap to allow for multipart overhead)
+from starlette.middleware import Middleware
+from starlette.requests import Request as StarletteRequest
+
+MAX_REQUEST_BODY_SIZE = 55 * 1024 * 1024  # 55 MB
+
+@app.middleware("http")
+async def limit_request_body_size(request: StarletteRequest, call_next):
+    """Reject requests whose body exceeds MAX_REQUEST_BODY_SIZE to prevent memory exhaustion."""
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=413,
+            content={"detail": f"Request body too large. Maximum size is {MAX_REQUEST_BODY_SIZE // (1024 * 1024)} MB."},
+        )
+    return await call_next(request)
+
 # Configure CORS if origins are specified
 if settings.cors_origins:
     app.add_middleware(
