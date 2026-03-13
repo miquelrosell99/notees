@@ -215,10 +215,12 @@ function PropertyValue({
 }: PropertyValueProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const startEditing = useCallback(() => {
     if (readOnly) return;
     setEditValue(String(value ?? ''));
+    setValidationError(null);
     setIsEditing(true);
   }, [readOnly, value]);
 
@@ -250,9 +252,31 @@ function PropertyValue({
       default:
         finalValue = editValue;
     }
+
+    // Validate against validation_rules if present
+    const rules = property.validation_rules;
+    if (rules && finalValue != null && finalValue !== '') {
+      if (rules.pattern && typeof finalValue === 'string') {
+        try {
+          if (!new RegExp(String(rules.pattern)).test(finalValue)) {
+            setValidationError(`Does not match pattern: ${rules.pattern}`);
+            return;
+          }
+        } catch { /* invalid regex — skip */ }
+      }
+      if (rules.min != null && typeof finalValue === 'number' && finalValue < Number(rules.min)) {
+        setValidationError(`Minimum value is ${rules.min}`);
+        return;
+      }
+      if (rules.max != null && typeof finalValue === 'number' && finalValue > Number(rules.max)) {
+        setValidationError(`Maximum value is ${rules.max}`);
+        return;
+      }
+    }
+    setValidationError(null);
     
     onChange(finalValue);
-  }, [editValue, property.type, onChange]);
+  }, [editValue, property.type, property.validation_rules, onChange]);
 
   switch (property.type) {
     case 'boolean':
@@ -270,19 +294,22 @@ function PropertyValue({
     case 'float':
       if (isEditing) {
         return (
-          <input
-            type="number"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit();
-              if (e.key === 'Escape') setIsEditing(false);
-            }}
-            step={property.type === 'float' ? 'any' : 1}
-            autoFocus
-            className="property-value-input property-value-number"
-          />
+          <div>
+            <input
+              type="number"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitEdit();
+                if (e.key === 'Escape') setIsEditing(false);
+              }}
+              step={property.type === 'float' ? 'any' : 1}
+              autoFocus
+              className={`property-value-input property-value-number ${validationError ? 'property-value-input--error' : ''}`}
+            />
+            {validationError && <div className="property-validation-error">{validationError}</div>}
+          </div>
         );
       }
       return (
@@ -418,10 +445,10 @@ function PropertyValue({
       );
 
     case 'url':
-      return <UrlPropertyValue value={value} readOnly={readOnly} onChange={onChange} />;
+      return <UrlPropertyValue value={value} readOnly={readOnly} onChange={onChange} validationRules={property.validation_rules} />;
 
     case 'email':
-      return <EmailPropertyValue value={value} readOnly={readOnly} onChange={onChange} />;
+      return <EmailPropertyValue value={value} readOnly={readOnly} onChange={onChange} validationRules={property.validation_rules} />;
 
     default:
       return <span className="property-value-unknown">{String(value ?? '')}</span>;
@@ -429,26 +456,45 @@ function PropertyValue({
 }
 
 /** Render a URL value as a clickable link */
-function UrlPropertyValue({ value, readOnly, onChange }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void }) {
+function UrlPropertyValue({ value, readOnly, onChange, validationRules }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void; validationRules?: Record<string, unknown> | null }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const strValue = typeof value === 'string' ? value : '';
+
+  const handleSave = useCallback(() => {
+    const trimmed = editValue.trim();
+    if (validationRules?.pattern && trimmed) {
+      try {
+        if (!new RegExp(String(validationRules.pattern)).test(trimmed)) {
+          setValidationError(`Does not match pattern: ${validationRules.pattern}`);
+          return;
+        }
+      } catch { /* invalid regex */ }
+    }
+    setValidationError(null);
+    setIsEditing(false);
+    onChange(trimmed);
+  }, [editValue, validationRules, onChange]);
 
   if (isEditing) {
     return (
-      <input
-        type="url"
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-        onBlur={() => { setIsEditing(false); onChange(editValue.trim()); }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { setIsEditing(false); onChange(editValue.trim()); }
-          if (e.key === 'Escape') setIsEditing(false);
-        }}
-        autoFocus
-        className="property-value-input"
-        placeholder="https://..."
-      />
+      <div>
+        <input
+          type="url"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') setIsEditing(false);
+          }}
+          autoFocus
+          className={`property-value-input ${validationError ? 'property-value-input--error' : ''}`}
+          placeholder="https://..."
+        />
+        {validationError && <div className="property-validation-error">{validationError}</div>}
+      </div>
     );
   }
 
@@ -459,40 +505,59 @@ function UrlPropertyValue({ value, readOnly, onChange }: { value: unknown; readO
           {strValue}
         </a>
         {!readOnly && (
-          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setIsEditing(true); }} title="Edit URL">✎</button>
+          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit URL">✎</button>
         )}
       </span>
     );
   }
 
   return (
-    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setIsEditing(true); }} disabled={readOnly}>
+    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setValidationError(null); setIsEditing(true); }} disabled={readOnly}>
       <span className="property-placeholder">Add URL…</span>
     </Button>
   );
 }
 
 /** Render an email value as a mailto: link */
-function EmailPropertyValue({ value, readOnly, onChange }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void }) {
+function EmailPropertyValue({ value, readOnly, onChange, validationRules }: { value: unknown; readOnly: boolean; onChange: (v: unknown) => void; validationRules?: Record<string, unknown> | null }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const strValue = typeof value === 'string' ? value : '';
+
+  const handleSave = useCallback(() => {
+    const trimmed = editValue.trim();
+    if (validationRules?.pattern && trimmed) {
+      try {
+        if (!new RegExp(String(validationRules.pattern)).test(trimmed)) {
+          setValidationError(`Does not match pattern: ${validationRules.pattern}`);
+          return;
+        }
+      } catch { /* invalid regex */ }
+    }
+    setValidationError(null);
+    setIsEditing(false);
+    onChange(trimmed);
+  }, [editValue, validationRules, onChange]);
 
   if (isEditing) {
     return (
-      <input
-        type="email"
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-        onBlur={() => { setIsEditing(false); onChange(editValue.trim()); }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { setIsEditing(false); onChange(editValue.trim()); }
-          if (e.key === 'Escape') setIsEditing(false);
-        }}
-        autoFocus
-        className="property-value-input"
-        placeholder="user@example.com"
-      />
+      <div>
+        <input
+          type="email"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') setIsEditing(false);
+          }}
+          autoFocus
+          className={`property-value-input ${validationError ? 'property-value-input--error' : ''}`}
+          placeholder="user@example.com"
+        />
+        {validationError && <div className="property-validation-error">{validationError}</div>}
+      </div>
     );
   }
 
@@ -503,14 +568,14 @@ function EmailPropertyValue({ value, readOnly, onChange }: { value: unknown; rea
           {strValue}
         </a>
         {!readOnly && (
-          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setIsEditing(true); }} title="Edit email">✎</button>
+          <button type="button" className="property-link-edit" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit email">✎</button>
         )}
       </span>
     );
   }
 
   return (
-    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setIsEditing(true); }} disabled={readOnly}>
+    <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setValidationError(null); setIsEditing(true); }} disabled={readOnly}>
       <span className="property-placeholder">Add email…</span>
     </Button>
   );
