@@ -17,10 +17,13 @@ import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty, useClasses, useNode, nodeKeys } from '@/hooks';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import * as nodesApi from '@/api/nodes';
+import { getOrCreateDaily } from '@/api/nodes';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../nodes/ImageNode';
 import { NodeRef } from '../nodes/NodeRef';
 import { NodeSelector } from '../nodes/NodeSelector';
+import { DatePickerPopup } from '../core/DatePickerPopup';
 import Icon from '@mdi/react';
 import { mdiClose } from '@mdi/js';
 import { Pill } from '../core/Pill';
@@ -84,6 +87,9 @@ export function PropertyCell({
       case 'image':
         // Handled separately with ImageNode
         return '';
+      case 'url':
+      case 'email':
+        return '';
       default:
         return String(value);
     }
@@ -122,6 +128,18 @@ export function PropertyCell({
         break;
       default:
         finalValue = editValue;
+    }
+
+    // Validate against validation_rules
+    const rules = property.validation_rules;
+    if (rules && finalValue != null && finalValue !== '') {
+      if (rules.pattern && typeof finalValue === 'string') {
+        try {
+          if (!new RegExp(String(rules.pattern)).test(finalValue)) return;
+        } catch { /* invalid regex */ }
+      }
+      if (rules.min != null && typeof finalValue === 'number' && finalValue < Number(rules.min)) return;
+      if (rules.max != null && typeof finalValue === 'number' && finalValue > Number(rules.max)) return;
     }
     
     try {
@@ -230,6 +248,42 @@ export function PropertyCell({
       <SelectionPropertyCell
         property={property}
         parentNode={node}
+        value={value}
+        editable={editable}
+      />
+    );
+  }
+
+  // URL-type property
+  if (property.type === 'url') {
+    return (
+      <UrlPropertyCell
+        node={node}
+        property={property}
+        value={value}
+        editable={editable}
+      />
+    );
+  }
+
+  // Email-type property
+  if (property.type === 'email') {
+    return (
+      <EmailPropertyCell
+        node={node}
+        property={property}
+        value={value}
+        editable={editable}
+      />
+    );
+  }
+
+  // Date-type property
+  if (property.type === 'date') {
+    return (
+      <DatePropertyCell
+        node={node}
+        property={property}
         value={value}
         editable={editable}
       />
@@ -661,6 +715,283 @@ function SelectionPropertyCell({
               );
             })}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * UrlPropertyCell - Renders URL values as clickable links with inline editing
+ */
+function UrlPropertyCell({
+  node,
+  property,
+  value,
+  editable,
+}: {
+  node: Node;
+  property: Property;
+  value: unknown;
+  editable: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const setPropertyMutation = useSetNodeProperty();
+
+  const urlValue = typeof value === 'string' ? value : '';
+
+  const handleClick = useCallback(() => {
+    if (!editable) return;
+    setEditValue(urlValue);
+    setIsEditing(true);
+  }, [editable, urlValue]);
+
+  const handleSave = useCallback(async () => {
+    setIsEditing(false);
+    const trimmed = editValue.trim();
+    if (trimmed === urlValue) return;
+    try {
+      await setPropertyMutation.mutateAsync({
+        nodeId: node.id,
+        propertyId: property.id,
+        value: trimmed || null,
+      });
+    } catch (error) {
+      console.error('Failed to save URL property:', error);
+    }
+  }, [editValue, urlValue, node.id, property.id, setPropertyMutation]);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  if (isEditing) {
+    return (
+      <div className="property-cell property-cell--editing">
+        <input
+          ref={inputRef}
+          className="property-cell__input"
+          type="url"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); handleSave(); }
+            if (e.key === 'Escape') { setIsEditing(false); setEditValue(''); }
+          }}
+          placeholder="https://..."
+        />
+      </div>
+    );
+  }
+
+  if (!urlValue) {
+    return (
+      <div
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
+        onClick={handleClick}
+      >
+        {editable ? '—' : ''}
+      </div>
+    );
+  }
+
+  return (
+    <div className="property-cell property-cell--url" onClick={editable ? handleClick : undefined}>
+      <a
+        href={urlValue}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="property-cell__link"
+        onClick={(e) => { if (editable) e.preventDefault(); }}
+      >
+        {urlValue}
+      </a>
+    </div>
+  );
+}
+
+/**
+ * EmailPropertyCell - Renders email values as mailto links with inline editing
+ */
+function EmailPropertyCell({
+  node,
+  property,
+  value,
+  editable,
+}: {
+  node: Node;
+  property: Property;
+  value: unknown;
+  editable: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const setPropertyMutation = useSetNodeProperty();
+
+  const emailValue = typeof value === 'string' ? value : '';
+
+  const handleClick = useCallback(() => {
+    if (!editable) return;
+    setEditValue(emailValue);
+    setIsEditing(true);
+  }, [editable, emailValue]);
+
+  const handleSave = useCallback(async () => {
+    setIsEditing(false);
+    const trimmed = editValue.trim();
+    if (trimmed === emailValue) return;
+    try {
+      await setPropertyMutation.mutateAsync({
+        nodeId: node.id,
+        propertyId: property.id,
+        value: trimmed || null,
+      });
+    } catch (error) {
+      console.error('Failed to save email property:', error);
+    }
+  }, [editValue, emailValue, node.id, property.id, setPropertyMutation]);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  if (isEditing) {
+    return (
+      <div className="property-cell property-cell--editing">
+        <input
+          ref={inputRef}
+          className="property-cell__input"
+          type="email"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); handleSave(); }
+            if (e.key === 'Escape') { setIsEditing(false); setEditValue(''); }
+          }}
+          placeholder="name@example.com"
+        />
+      </div>
+    );
+  }
+
+  if (!emailValue) {
+    return (
+      <div
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
+        onClick={handleClick}
+      >
+        {editable ? '—' : ''}
+      </div>
+    );
+  }
+
+  return (
+    <div className="property-cell property-cell--email" onClick={editable ? handleClick : undefined}>
+      <a
+        href={`mailto:${emailValue}`}
+        className="property-cell__link"
+        onClick={(e) => { if (editable) e.preventDefault(); }}
+      >
+        {emailValue}
+      </a>
+    </div>
+  );
+}
+
+/**
+ * DatePropertyCell - Renders date values with DatePickerPopup for editing
+ * Date properties store a day-page node ID; we resolve it to show the name
+ */
+function DatePropertyCell({
+  node,
+  property,
+  value,
+  editable,
+}: {
+  node: Node;
+  property: Property;
+  value: unknown;
+  editable: boolean;
+}) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const cellRef = useRef<HTMLDivElement>(null);
+  const setPropertyMutation = useSetNodeProperty();
+
+  // value is a day-page node ID (number)
+  const dayNodeId = typeof value === 'number' ? value : null;
+  const { data: dayNode } = useNode(dayNodeId);
+
+  // Derive ISO date from the day node's UUID (format: YYYYMMDD)
+  const isoDate = useMemo(() => {
+    if (!dayNode?.uuid) return undefined;
+    const u = dayNode.uuid;
+    if (u.length === 8 && /^\d{8}$/.test(u)) {
+      return `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+    }
+    return undefined;
+  }, [dayNode?.uuid]);
+
+  const displayName = dayNode ? nodeNameToText(dayNode.name) : '';
+
+  const handleSelect = useCallback(async (selectedIsoDate: string) => {
+    setIsPickerOpen(false);
+    try {
+      const dayPage = await getOrCreateDaily(selectedIsoDate);
+      await setPropertyMutation.mutateAsync({
+        nodeId: node.id,
+        propertyId: property.id,
+        value: dayPage.id,
+      });
+    } catch (error) {
+      console.error('Failed to save date property:', error);
+    }
+  }, [node.id, property.id, setPropertyMutation]);
+
+  if (!dayNodeId) {
+    return (
+      <div
+        ref={cellRef}
+        className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
+        onClick={() => editable && setIsPickerOpen(true)}
+      >
+        {editable ? '—' : ''}
+        {isPickerOpen && (
+          <DatePickerPopup
+            value={undefined}
+            onSelect={handleSelect}
+            onClose={() => setIsPickerOpen(false)}
+            anchorRef={cellRef}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={cellRef}
+      className={`property-cell property-cell--date ${editable ? 'property-cell--editable' : ''}`}
+      onClick={() => editable && setIsPickerOpen(true)}
+      title={editable ? 'Click to change date' : undefined}
+    >
+      <span className="property-cell__date-name">{displayName || '...'}</span>
+      {isPickerOpen && (
+        <DatePickerPopup
+          value={isoDate}
+          onSelect={handleSelect}
+          onClose={() => setIsPickerOpen(false)}
+          anchorRef={cellRef}
+        />
       )}
     </div>
   );

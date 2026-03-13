@@ -10,10 +10,12 @@
  * Uses the same dropdown pattern as NodeSelector for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useProperties, useAvailableProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { getPropertySuggestions } from '@/api/properties';
 import { AddIcon } from '../core/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
 import './PropertySuggestionPopup.css';
@@ -73,8 +75,16 @@ export function PropertySuggestionPopup({
   const { data: allProperties, isLoading } = useAvailableProperties(
     hasContext ? { contextNodeId, contextClassIds } : {}
   );
+
+  // Fetch usage-ranked suggestions to sort properties by popularity
+  const { data: suggestions } = useQuery({
+    queryKey: ['property-suggestions', contextNodeId],
+    queryFn: () => getPropertySuggestions(contextNodeId ?? undefined),
+    enabled: isOpen,
+    staleTime: 30_000,
+  });
   
-  // Filter properties based on search and exclusions
+  // Filter properties based on search and exclusions, sorted by usage
   const filteredProperties = useMemo(() => {
     if (!allProperties) return [];
     
@@ -89,9 +99,15 @@ export function PropertySuggestionPopup({
         p.name.toLowerCase().includes(q)
       );
     }
+
+    // Sort by usage count (most used first)
+    if (suggestions?.length) {
+      const usageMap = new Map(suggestions.map(s => [s.property_id, s.usage_count]));
+      filtered.sort((a, b) => (usageMap.get(b.id) ?? 0) - (usageMap.get(a.id) ?? 0));
+    }
     
     return filtered;
-  }, [allProperties, excludeIds, query]);
+  }, [allProperties, excludeIds, query, suggestions]);
   
   // Check if exact match exists (for "create new" option)
   const exactMatch = useMemo(() => {

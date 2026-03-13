@@ -31,6 +31,9 @@ export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
   { type: 'date', label: 'Date', description: 'Date picker', supportsMultiValue: false },
   { type: 'selection', label: 'Selection', description: 'Choose from options', supportsMultiValue: true },
   { type: 'node', label: 'Node', description: 'Link to another node', supportsMultiValue: true },
+  { type: 'url', label: 'URL', description: 'Web link', supportsMultiValue: false },
+  { type: 'email', label: 'Email', description: 'Email address', supportsMultiValue: false },
+  { type: 'image', label: 'Image', description: 'Image asset', supportsMultiValue: false },
 ];
 
 interface SelectionOptionWithId {

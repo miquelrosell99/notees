@@ -157,6 +157,17 @@
   outline: none;
 }
 
+.property-value-input--error {
+  border-color: var(--color-error);
+}
+
+.property-validation-error {
+  font-size: 11px;
+  color: var(--color-error);
+  margin-top: 2px;
+  padding: 0 var(--spacing-2);
+}
+
 .property-value-number {
   max-width: 100px;
 }
