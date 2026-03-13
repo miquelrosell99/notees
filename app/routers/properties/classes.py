@@ -6,7 +6,7 @@ import asyncpg
 
 from ..auth import get_current_user
 from ...models import User
-from .models import ClassPropertyRequest, ClassPropertyResponse
+from .models import ClassPropertyRequest, ClassPropertyUpdateRequest, ClassPropertyResponse
 from .helpers import _get_property_repo
 from ...db.connection import acquire_connection, get_pool
 
@@ -125,6 +125,7 @@ async def get_class_properties(
             sequence=cp.sequence,
             default_value=default_value,
             hidden=cp.hidden,
+            required=cp.required,
         ))
     
     return {"class_properties": result}
@@ -149,6 +150,7 @@ async def add_class_property(
             request.property_id,
             request.sequence,
             request.default_value,
+            required=request.required,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -163,6 +165,7 @@ async def add_class_property(
         sequence=cp.sequence,
         default_value=request.default_value,
         hidden=cp.hidden,
+        required=cp.required,
     )
 
 
@@ -180,6 +183,43 @@ async def remove_class_property(
         raise HTTPException(404, "Class property not found")
     
     return {"status": "ok"}
+
+
+@router.patch("/classes/{class_node_id}/properties/{property_id}")
+async def update_class_property(
+    class_node_id: int,
+    property_id: int,
+    request: ClassPropertyUpdateRequest,
+    user: User = Depends(get_current_user),
+):
+    """Update an existing class property (required, hidden flags)."""
+    repo = await _get_property_repo(user)
+
+    cp = await repo.update_class_property(
+        class_node_id,
+        property_id,
+        required=request.required,
+        hidden=request.hidden,
+    )
+    if cp is None:
+        raise HTTPException(404, "Class property not found")
+
+    prop = await repo.get_by_id(cp.property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    return ClassPropertyResponse(
+        id=cp.id,  # type: ignore[arg-type]
+        class_node_id=cp.class_node_id,
+        class_node_name="",
+        property_id=cp.property_id,
+        property_name=prop.name,
+        property_type=prop.type.value,
+        sequence=cp.sequence,
+        default_value=None,
+        hidden=cp.hidden,
+        required=cp.required,
+    )
 
 
 class ReorderClassPropertiesRequest(BaseModel):

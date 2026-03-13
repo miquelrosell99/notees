@@ -18,6 +18,7 @@ class PropertyResponse(BaseModel):
     scope: str = 'global'    # 'global' | 'class' | 'node'
     node_id: Optional[int] = None  # For scoped properties
     icon_visibility: str = "hidden"  # 'hidden' | 'before_content' | 'after_bullet'
+    validation_rules: Optional[dict] = None  # Optional validation constraints
     create_date: str
     write_date: str
     # For relation-type properties
@@ -32,6 +33,7 @@ class SelectionLineResponse(BaseModel):
     property_id: int
     name: str
     icon: Optional[str] = None
+    color: Optional[str] = None  # Hex or CSS color for the pill
     order: int = 0
 
 
@@ -88,6 +90,7 @@ class ClassPropertyResponse(BaseModel):
     sequence: int = 0
     default_value: Optional[Any] = None
     hidden: bool = False
+    required: bool = False  # Whether this property is required for nodes of this class
 
 
 class ClassExtendsResponse(BaseModel):
@@ -107,7 +110,7 @@ class PropertyCreateRequest(BaseModel):
     """Request to create a property."""
     name: str
     icon: Optional[str] = None
-    type: str = "text"  # integer, float, boolean (scalar) | node, text, image, date (relation) | selection
+    type: str = "text"  # integer, float, boolean, url, email (scalar) | node, text, image, date (relation) | selection
     is_multi: bool = False
     scope: str = "global"       # 'global' | 'class' | 'node'
     is_local: bool = False      # Backward compat — overridden by scope if scope is set
@@ -116,6 +119,8 @@ class PropertyCreateRequest(BaseModel):
     class_filters: List[int] = []
     # For selection-type: initial options
     selection_lines: List[str] = []
+    # Optional validation rules: {min?, max?, pattern?, required?, min_date?, max_date?}
+    validation_rules: Optional[dict] = None
 
 
 class PropertyUpdateRequest(BaseModel):
@@ -124,6 +129,7 @@ class PropertyUpdateRequest(BaseModel):
     icon: Optional[str] = None
     multi: Optional[bool] = None  # Aligned with frontend naming
     icon_visibility: Optional[str] = None  # 'hidden' | 'before_content' | 'after_bullet'
+    validation_rules: Optional[dict] = None  # Optional validation constraints
 
 
 class PropertyTypeChangeRequest(BaseModel):
@@ -136,6 +142,7 @@ class SelectionLineRequest(BaseModel):
     """Request to add/update a selection line."""
     name: str
     icon: Optional[str] = None
+    color: Optional[str] = None  # Hex or CSS color for the pill
     order: int = 0
 
 
@@ -143,6 +150,7 @@ class SelectionLineUpdateRequest(BaseModel):
     """Request to update a selection line."""
     name: Optional[str] = None
     icon: Optional[str] = None
+    color: Optional[str] = None  # Hex or CSS color for the pill
     order: Optional[int] = None
 
 
@@ -168,6 +176,15 @@ class ClassPropertyRequest(BaseModel):
     """Request to link a property to a class."""
     property_id: int
     sequence: int = 0
+    default_value: Optional[Any] = None
+    required: bool = False
+    hidden: bool = False
+
+
+class ClassPropertyUpdateRequest(BaseModel):
+    """Request to update a class property binding (required, hidden, default)."""
+    required: Optional[bool] = None
+    hidden: Optional[bool] = None
     default_value: Optional[Any] = None
 
 

@@ -433,7 +433,8 @@ class PropertyRepository(ABC):
     
     @abstractmethod
     async def add_class_property(self, class_node_id: int, property_id: int,
-                                 sequence: int = 0, default_value: Any = None) -> ClassProperty:
+                                 sequence: int = 0, default_value: Any = None,
+                                 required: bool = False) -> ClassProperty:
         """Link a property to a class."""
         pass
     
@@ -441,7 +442,18 @@ class PropertyRepository(ABC):
     async def remove_class_property(self, class_node_id: int, property_id: int) -> bool:
         """Remove a property from a class."""
         pass
-    
+
+    @abstractmethod
+    async def update_class_property(
+        self,
+        class_node_id: int,
+        property_id: int,
+        required: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+    ) -> Optional[ClassProperty]:
+        """Update an existing class property (required, hidden flags)."""
+        pass
+
     @abstractmethod
     async def get_all_inherited_properties(self, class_node_id: int) -> List[ClassProperty]:
         """Get all properties for a class including inherited ones."""

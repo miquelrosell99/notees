@@ -16,8 +16,9 @@ import {
   useReorderClassProperties,
   useCreateProperty,
   useProperties,
+  useUpdateClassProperty,
 } from '@/hooks';
-import { mdiPlus, mdiDotsVertical } from '@mdi/js';
+import { mdiPlus, mdiDotsVertical, mdiAsterisk } from '@mdi/js';
 import { Button } from '../core/Button';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { NodeViewSection } from '../nodes/NodeViewSection';
@@ -38,6 +39,8 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   date: 'mdiCalendar',
   selection: 'mdiFormatListBulleted',
   node: 'mdiLink',
+  url: 'mdiLinkVariant',
+  email: 'mdiEmail',
   image: 'mdiImage',
 };
 
@@ -49,6 +52,7 @@ function getPropertyIconPath(property: Property): string | null {
 interface SortablePropertyItem {
   id: number;
   property: Property;
+  required: boolean;
 }
 
 interface ClassPropertiesEditorProps {
@@ -80,6 +84,7 @@ export function ClassPropertiesEditor({
   const createPropertyMutation = useCreateProperty();
   const removePropertyMutation = useRemovePropertyFromClass();
   const reorderMutation = useReorderClassProperties();
+  const updateClassPropertyMutation = useUpdateClassProperty();
 
   // Handle creating a new property and immediately linking it to the class
   const handleCreateProperty = useCallback(
@@ -112,7 +117,7 @@ export function ClassPropertiesEditor({
     return classProperties
       .map(cp => {
         const property = allProperties.find(p => p.id === cp.property_id);
-        return property ? { id: cp.property_id, property } : null;
+        return property ? { id: cp.property_id, property, required: cp.required ?? false } : null;
       })
       .filter((item): item is SortablePropertyItem => item !== null);
   }, [classProperties, allProperties]);
@@ -188,16 +193,32 @@ export function ClassPropertiesEditor({
             renderText={(item) => item.property.name}
             renderAction={(item) =>
               !readOnly ? (
-                <button
-                  className="class-property-menu-btn"
-                  title="Property options"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setContextMenu({ property: item.property, x: e.clientX, y: e.clientY });
-                  }}
-                >
-                  <Icon path={mdiDotsVertical} size={0.65} />
-                </button>
+                <div className="class-property-actions">
+                  <button
+                    className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''}`}
+                    title={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateClassPropertyMutation.mutate({
+                        classId: classNodeId,
+                        propertyId: item.property.id,
+                        data: { required: !item.required },
+                      });
+                    }}
+                  >
+                    <Icon path={mdiAsterisk} size={0.55} />
+                  </button>
+                  <button
+                    className="class-property-menu-btn"
+                    title="Property options"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu({ property: item.property, x: e.clientX, y: e.clientY });
+                    }}
+                  >
+                    <Icon path={mdiDotsVertical} size={0.65} />
+                  </button>
+                </div>
               ) : null
             }
             onItemContextMenu={(item, event) => {
