@@ -20,7 +20,8 @@ import { NodeResultItem } from './NodeResultItem';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { SelectTrigger, type SelectTriggerSize } from '../core/SelectTrigger';
-import { mdiPlus } from '@mdi/js';
+import { mdiPlus, mdiChevronDown } from '@mdi/js';
+import Icon from '@mdi/react';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -395,33 +396,48 @@ export function NodeSelector({
     }
     
     return (
-      <div className={`node-selector node-selector--select ${className}`} ref={containerRef}>
-        {/* SelectTrigger */}
-        <SelectTrigger
-          isOpen={isPickerOpen}
-          disabled={readOnly}
-          clearable={!readOnly && hasValue}
-          hasValue={hasValue}
-          size={size}
-          onClick={() => !readOnly && setIsPickerOpen(prev => !prev)}
-          onClear={readOnly ? undefined : handleClearAll}
-        >
-          {hasValue ? (
-            multi ? (
-              // Multi-select: Show NodeRefs with remove buttons
-              <div className="node-selector__selected-pills">
-                {nodes.map(node => (
-                  <NodeRef
-                    key={node.id}
-                    nodeId={node.id}
-                    onClick={() => onNodeClick?.(node)}
-                    onRemove={readOnly ? undefined : () => handleRemove(node)}
-                    readOnly={readOnly}
-                  />
-                ))}
-              </div>
-            ) : (
-              // Single-select: Show node name only
+      <div className={`node-selector node-selector--select ${multi ? 'node-selector--select-multi' : ''} ${className}`} ref={containerRef}>
+        {multi ? (
+          // Multi-select: flat layout with pills + separate arrow button
+          <div className="node-selector__multi-trigger">
+            <div className="node-selector__selected-pills">
+              {nodes.map(node => (
+                <NodeRef
+                  key={node.id}
+                  nodeId={node.id}
+                  onClick={() => onNodeClick?.(node)}
+                  onRemove={readOnly ? undefined : () => handleRemove(node)}
+                  readOnly={readOnly}
+                />
+              ))}
+              {nodes.length === 0 && (
+                <span className="node-selector__placeholder">{placeholder}</span>
+              )}
+            </div>
+            {!readOnly && (
+              <button
+                type="button"
+                className={`node-selector__arrow-btn ${isPickerOpen ? 'node-selector__arrow-btn--open' : ''}`}
+                onClick={() => setIsPickerOpen(prev => !prev)}
+                aria-label="Toggle picker"
+                aria-expanded={isPickerOpen}
+              >
+                <Icon path={mdiChevronDown} size={0.7} />
+              </button>
+            )}
+          </div>
+        ) : (
+          // Single-select: use SelectTrigger as before
+          <SelectTrigger
+            isOpen={isPickerOpen}
+            disabled={readOnly}
+            clearable={!readOnly && hasValue}
+            hasValue={hasValue}
+            size={size}
+            onClick={() => !readOnly && setIsPickerOpen(prev => !prev)}
+            onClear={readOnly ? undefined : handleClearAll}
+          >
+            {hasValue ? (
               (() => {
                 const node = nodes[0];
                 return (
@@ -432,11 +448,11 @@ export function NodeSelector({
                   </span>
                 );
               })()
-            )
-          ) : (
-            <span className="node-selector__placeholder">{placeholder}</span>
-          )}
-        </SelectTrigger>
+            ) : (
+              <span className="node-selector__placeholder">{placeholder}</span>
+            )}
+          </SelectTrigger>
+        )}
         
         {/* Dropdown Menu - Rendered in Portal */}
         {isPickerOpen && menuPosition && createPortal(

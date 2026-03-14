@@ -10,6 +10,50 @@
 .node-selector--select {
   display: block;
   min-height: 0;
+  width: 100%;
+}
+
+/* Multi-select: flat layout with pills + separate arrow */
+.node-selector__multi-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-1);
+  min-height: 28px;
+}
+
+.node-selector__arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: var(--spacing-1);
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__arrow-btn:hover {
+  opacity: 1;
+  background: var(--color-surface-container-high);
+}
+
+.node-selector__arrow-btn--open {
+  opacity: 1;
+}
+
+.node-selector__arrow-btn--open svg {
+  transform: rotate(180deg);
+}
+
+.node-selector__arrow-btn svg {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-selector--readonly {
@@ -48,6 +92,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
 }
 
 .node-selector__single-value {
