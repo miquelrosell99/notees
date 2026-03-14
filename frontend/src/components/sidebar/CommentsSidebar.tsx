@@ -13,6 +13,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { mdiClose } from '@mdi/js';
 import { CommentIcon, ReplyIcon, SendIcon, TrashIcon, ResolveIcon } from '../core/icons';
 import { Button } from '../core/Button';
+import { Card } from '../core/Card';
 import { formatRelativeTime } from '@/utils/dateFormat';
 import type { Comment } from '@/types/api';
 
@@ -159,73 +160,95 @@ function CommentItem({
     <div 
       className={`comment-thread ${isResolved ? 'comment-thread--resolved' : ''} ${depth > 0 ? 'comment-thread--reply' : ''}`}
     >
-      <div className="comment-bubble">
-        {/* Avatar placeholder */}
-        <div className="comment-avatar">
-          <CommentIcon size="xs" />
-        </div>
-
-        <div className="comment-body">
-          {/* Header: timestamp + actions */}
-          <div className="comment-header">
-            <span className="comment-time" title={new Date(comment.create_date).toLocaleString()}>
-              {formatRelativeTime(comment.create_date)}
-            </span>
-            {comment.write_date !== comment.create_date && (
-              <span className="comment-edited" title={`Edited ${new Date(comment.write_date).toLocaleString()}`}>
-                (edited)
-              </span>
-            )}
-            <div className="comment-actions">
-              {depth === 0 && (
-                <button
-                  className={`comment-action-btn ${isResolved ? 'comment-action-btn--active' : ''}`}
-                  onClick={handleToggleResolved}
-                  title={isResolved ? 'Unresolve' : 'Resolve'}
-                >
-                  <ResolveIcon size="xs" />
-                </button>
-              )}
-              <button
-                className="comment-action-btn"
-                onClick={() => onReply(comment.id)}
-                title="Reply"
-              >
-                <ReplyIcon size="xs" />
-              </button>
-              <button
-                className={`comment-action-btn ${showConfirmDelete ? 'comment-action-btn--danger' : ''}`}
-                onClick={handleDelete}
-                title={showConfirmDelete ? 'Click again to confirm' : 'Delete'}
-              >
-                <TrashIcon size="xs" />
-              </button>
-            </div>
+      <Card
+        className="comment-card"
+        variant="filled"
+        elevation="none"
+        padding={false}
+        radius="md"
+      >
+        <div className="comment-bubble">
+          {/* Avatar placeholder */}
+          <div className="comment-avatar">
+            <CommentIcon size="xs" />
           </div>
 
-          {/* Content */}
-          {isEditing ? (
-            <CommentInput
-              value={editContent}
-              onChange={setEditContent}
-              onSubmit={handleSave}
-              onCancel={() => { setEditContent(comment.name); setIsEditing(false); }}
-              autoFocus
-              submitLabel="Save"
-              compact
-            />
-          ) : (
-            <div 
-              className="comment-content"
-              onClick={() => setIsEditing(true)}
-              title="Click to edit"
-            >
-              {isResolved && <span className="comment-resolved-badge">Resolved</span>}
-              {nodeNameToText(comment.name) || <span className="comment-placeholder">Empty comment</span>}
+          <div className="comment-body">
+            {/* Header: timestamp + actions */}
+            <div className="comment-header">
+              <span className="comment-time" title={new Date(comment.create_date).toLocaleString()}>
+                {formatRelativeTime(comment.create_date)}
+              </span>
+              {comment.write_date !== comment.create_date && (
+                <span className="comment-edited" title={`Edited ${new Date(comment.write_date).toLocaleString()}`}>
+                  (edited)
+                </span>
+              )}
+              <div className="comment-actions">
+                {depth === 0 && (
+                  <button
+                    className={`comment-action-btn ${isResolved ? 'comment-action-btn--active' : ''}`}
+                    onClick={handleToggleResolved}
+                    title={isResolved ? 'Unresolve' : 'Resolve'}
+                  >
+                    <ResolveIcon size="xs" />
+                  </button>
+                )}
+                <button
+                  className="comment-action-btn"
+                  onClick={() => onReply(comment.id)}
+                  title="Reply"
+                >
+                  <ReplyIcon size="xs" />
+                </button>
+                <button
+                  className={`comment-action-btn ${showConfirmDelete ? 'comment-action-btn--danger' : ''}`}
+                  onClick={handleDelete}
+                  title={showConfirmDelete ? 'Click again to confirm' : 'Delete'}
+                >
+                  <TrashIcon size="xs" />
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Content */}
+            {isEditing ? (
+              <CommentInput
+                value={editContent}
+                onChange={setEditContent}
+                onSubmit={handleSave}
+                onCancel={() => { setEditContent(comment.name); setIsEditing(false); }}
+                autoFocus
+                submitLabel="Save"
+                compact
+              />
+            ) : (
+              <div 
+                className="comment-content"
+                onClick={() => setIsEditing(true)}
+                title="Click to edit"
+              >
+                {isResolved && <span className="comment-resolved-badge">Resolved</span>}
+                {nodeNameToText(comment.name) || <span className="comment-placeholder">Empty comment</span>}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+
+        {/* Child blocks inside the card */}
+        {comment.children && comment.children.length > 0 && (
+          <div className="comment-child-blocks">
+            {comment.children.map((child) => (
+              <div key={child.id} className="comment-child-block">
+                <span className="comment-child-block__bullet">&bull;</span>
+                <span className="comment-child-block__text">
+                  {nodeNameToText(child.name) || <span className="comment-placeholder">Empty</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {/* Inline reply form */}
       {replyingTo === comment.id && (
@@ -241,29 +264,6 @@ function CommentItem({
             isPending={isReplyPending}
             compact
           />
-        </div>
-      )}
-
-      {/* Nested replies */}
-      {comment.children && comment.children.length > 0 && (
-        <div className="comment-replies">
-          {comment.children.map((child) => (
-            <CommentItem
-              key={child.id}
-              comment={child}
-              nodeId={nodeId}
-              depth={depth + 1}
-              onDelete={onDelete}
-              onUpdate={onUpdate}
-              onReply={onReply}
-              replyingTo={replyingTo}
-              replyText={replyText}
-              onReplyTextChange={onReplyTextChange}
-              onSubmitReply={onSubmitReply}
-              onCancelReply={onCancelReply}
-              isReplyPending={isReplyPending}
-            />
-          ))}
         </div>
       )}
     </div>
