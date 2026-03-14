@@ -65,6 +65,14 @@
 /* Comment thread card */
 .sidebar-comment-card.card {
   margin: 0;
+  border-color: color-mix(in srgb, var(--color-outline-variant) 75%, transparent);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-comment-card.card:hover {
+  border-color: var(--color-outline-variant);
+  background: var(--color-surface-container-low);
 }
 
 .sidebar-comment-card__header {
@@ -72,12 +80,6 @@
   flex-direction: column;
   gap: 2px;
   cursor: pointer;
-  border-radius: var(--shape-corner-xs);
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.sidebar-comment-card__header:hover {
-  background: var(--color-surface-container);
 }
 
 .sidebar-comment-card__snippet {
