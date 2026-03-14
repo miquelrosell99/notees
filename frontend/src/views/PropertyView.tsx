@@ -251,7 +251,8 @@ export function PropertyView({
   );
 
   const mainContent = (
-    <main className="main-content property-view">
+    <main className="main-content">
+      <div className="property-view">
       {/* Property Header - using PageHeader for consistency */}
         <div className="page-header-section">
           <div className="page-header-section__header">
@@ -307,6 +308,7 @@ export function PropertyView({
           onCancel={handleCancelDelete}
         />
       )}
+      </div>
       </main>
   );
 
