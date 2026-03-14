@@ -20,6 +20,7 @@ class NodeResponse(BaseModel):
     is_daily: bool = False  # Daily journal page
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
+    is_comment: bool = False  # Whether this node is a comment
     create_date: str
     write_date: str
     open_date: Optional[str] = None  # When the page was last opened/viewed
