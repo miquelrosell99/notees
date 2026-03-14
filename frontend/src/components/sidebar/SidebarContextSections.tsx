@@ -15,6 +15,7 @@ import { Button } from '../core/Button';
 import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
 import { TextField } from '../core/TextField';
 import { formatRelativeTime } from '@/utils/dateFormat';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
@@ -36,7 +37,7 @@ interface CommentRowProps {
 }
 
 function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
-  const snippet = comment.name?.slice(0, 80) || 'Empty comment';
+  const snippet = nodeNameToText(comment.name, 80) || 'Empty comment';
   const time = formatRelativeTime(comment.create_date);
   const isResolved = comment.collapsed;
   

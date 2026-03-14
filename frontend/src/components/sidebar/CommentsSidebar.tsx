@@ -221,7 +221,7 @@ function CommentItem({
               title="Click to edit"
             >
               {isResolved && <span className="comment-resolved-badge">Resolved</span>}
-              {comment.name || <span className="comment-placeholder">Empty comment</span>}
+              {nodeNameToText(comment.name) || <span className="comment-placeholder">Empty comment</span>}
             </div>
           )}
         </div>
