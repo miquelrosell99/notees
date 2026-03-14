@@ -37,7 +37,8 @@
 /* ==================== Property Row ==================== */
 
 .property-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-1) 0;
@@ -49,9 +50,7 @@
   display: flex;
   align-items: center;
   gap: 0;
-  min-width: 140px;
-  max-width: 180px;
-  flex-shrink: 0;
+  overflow: hidden;
   font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
   text-align: left;
@@ -82,7 +81,6 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  flex: 1;
   min-width: 0;
 }
 
@@ -388,14 +386,13 @@
 }
 
 .properties-view.block-variant .property-row {
+  grid-template-columns: minmax(80px, 140px) 1fr;
   padding: 2px 0;
   min-height: 24px;
   align-items: center;
 }
 
 .properties-view.block-variant .property-label {
-  min-width: 100px;
-  max-width: 140px;
   font: var(--font-body-small);
   gap: 0;
 }
@@ -428,9 +425,7 @@
 }
 
 .text-property-block--has-content {
-  border-radius: var(--shape-small);
-  background: var(--color-surface-container-lowest);
-  padding: var(--spacing-1) 0;
+  padding: 0;
 }
 
 .text-property-block__spinner {
@@ -446,6 +441,16 @@
 /* Hide the NodeCollection toolbar and empty state padding */
 .text-property-block__editor .node-collection-toolbar {
   display: none;
+}
+
+/* Hide block bullets inside text property editor — the property row provides its own bullet */
+.text-property-block__editor .block-ui {
+  display: none;
+}
+
+/* Remove top margin from the first block so text aligns with the property row bullet */
+.text-property-block__editor .node-block {
+  margin-top: 0;
 }
 
 .text-property-block__editor .node-list-view {
