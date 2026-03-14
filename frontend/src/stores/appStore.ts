@@ -62,10 +62,6 @@ interface NodesState {
   sidebarCards: SidebarCard[]; // List of cards in sidebar
   localGraphNodeId: number | null;
   
-  // Comments sidebar state
-  commentsSidebarOpen: boolean;
-  commentsNodeId: number | null;
-  
   // View mode
   viewMode: ViewMode;
   /** Sidebar collapsed state captured on focus mode entry, for restoration on exit */
@@ -144,9 +140,6 @@ interface NodesState {
   /** Open local graph as a sidebar card */
   openLocalGraph: (nodeId: number) => void;
   closeLocalGraph: () => void;
-  openCommentsForNode: (nodeId: number) => void;
-  closeCommentsSidebar: () => void;
-  toggleCommentsSidebar: () => void;
   setShowWorkspaceManager: (show: boolean) => void;
   toggleMinimap: () => void;
   setMinimapOpen: (open: boolean) => void;
@@ -186,8 +179,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   sidebarNode: null,
   sidebarCards: [],
   localGraphNodeId: null,
-  commentsSidebarOpen: false,
-  commentsNodeId: null,
   viewMode: 'default',
   mainViewType: 'node' as MainViewType,
   currentPropertyId: null,
@@ -389,17 +380,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
       localGraphNodeId: null,
     };
   }),
-  openCommentsForNode: (nodeId) => set({
-    commentsSidebarOpen: true,
-    commentsNodeId: nodeId,
-  }),
-  closeCommentsSidebar: () => set({
-    commentsSidebarOpen: false,
-    commentsNodeId: null,
-  }),
-  toggleCommentsSidebar: () => set((state) => ({
-    commentsSidebarOpen: !state.commentsSidebarOpen,
-  })),
   setShowWorkspaceManager: (show) => set({ showWorkspaceManager: show }),
   toggleMinimap: () => set((state) => ({ isMinimapOpen: !state.isMinimapOpen })),
   setMinimapOpen: (open) => set({ isMinimapOpen: open }),
