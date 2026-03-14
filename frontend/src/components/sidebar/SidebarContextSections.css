@@ -58,70 +58,62 @@
 .sidebar-comments-list {
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
 }
 
-/* Comment row */
-.sidebar-comment-row {
-  display: flex;
-  align-items: flex-start;
-  padding: var(--spacing-1) var(--spacing-3);
-  cursor: pointer;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
-  border-bottom: 1px solid var(--color-outline-variant);
+/* Comment thread card */
+.sidebar-comment-card.card {
+  margin: 0;
 }
 
-.sidebar-comment-row:last-child {
-  border-bottom: none;
-}
-
-.sidebar-comment-row:hover {
-  background: var(--color-surface-container);
-}
-
-.sidebar-comment-row__content {
-  flex: 1;
-  min-width: 0;
+.sidebar-comment-card__header {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  cursor: pointer;
+  border-radius: var(--shape-corner-xs);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.sidebar-comment-row__snippet {
+.sidebar-comment-card__header:hover {
+  background: var(--color-surface-container);
+}
+
+.sidebar-comment-card__snippet {
   font: var(--font-body-small);
   color: var(--color-on-surface);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1.4;
 }
 
-.sidebar-comment-row__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+.sidebar-comment-card__time {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
 }
 
-.sidebar-comment-row__time {
-  white-space: nowrap;
+.sidebar-comment-card__children {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-1);
+  border-top: 1px solid var(--color-outline-variant);
 }
 
-.sidebar-comment-row__replies {
-  white-space: nowrap;
-  opacity: 0.7;
+.sidebar-comment-card__children .node-inline {
+  padding: 2px 0;
+  font: var(--font-body-small);
 }
 
-/* Resolved comment row */
-.sidebar-comment-row--resolved {
+/* Resolved comment card */
+.sidebar-comment-card--resolved {
   opacity: 0.5;
 }
 
-.sidebar-comment-row--resolved:hover {
+.sidebar-comment-card--resolved:hover {
   opacity: 0.8;
 }
 
-.sidebar-comment-row__resolved {
+.sidebar-comment-card__resolved {
   color: var(--color-success);
   margin-right: var(--spacing-1);
   font-weight: 600;

@@ -12,8 +12,10 @@ import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { Button } from '../core/Button';
+import { Card } from '../core/Card';
 import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
 import { TextField } from '../core/TextField';
+import { NodeInline } from '../blocks/NodeInline';
 import { formatRelativeTime } from '@/utils/dateFormat';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Comment } from '@/types/api';
@@ -30,53 +32,46 @@ function countAllComments(comments: Comment[]): number {
   return count;
 }
 
-interface CommentRowProps {
-  comment: Comment;
-  depth?: number;
-}
-
-function CommentRow({ comment, depth = 0 }: CommentRowProps) {
-  const snippet = nodeNameToText(comment.name, 80) || 'Empty comment';
+function CommentThread({ comment }: { comment: Comment }) {
+  const openNode = useAppStore(s => s.openNode);
   const time = formatRelativeTime(comment.create_date);
   const isResolved = comment.collapsed;
-  
+
   return (
-    <>
-      <div 
-        className={`sidebar-comment-row ${isResolved ? 'sidebar-comment-row--resolved' : ''}`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+    <Card
+      className={`sidebar-comment-card ${isResolved ? 'sidebar-comment-card--resolved' : ''}`}
+      elevation="none"
+      variant="outlined"
+      paddingSize="sm"
+    >
+      <div
+        className="sidebar-comment-card__header"
+        onClick={() => openNode(comment.id)}
       >
-        <div className="sidebar-comment-row__content">
-          <span className="sidebar-comment-row__snippet">
-            {isResolved && <span className="sidebar-comment-row__resolved">&check;</span>}
-            {snippet}
-          </span>
-          <span className="sidebar-comment-row__meta">
-            <span className="sidebar-comment-row__time">{time}</span>
-            {comment.children && comment.children.length > 0 && (
-              <span className="sidebar-comment-row__replies">
-                {comment.children.length} {comment.children.length === 1 ? 'reply' : 'replies'}
-              </span>
-            )}
-          </span>
-        </div>
+        <span className="sidebar-comment-card__snippet">
+          {isResolved && <span className="sidebar-comment-card__resolved">&check;</span>}
+          {nodeNameToText(comment.name, 80) || 'Empty comment'}
+        </span>
+        <span className="sidebar-comment-card__time">{time}</span>
       </div>
-      {comment.children?.map(child => (
-        <CommentRow 
-          key={child.id} 
-          comment={child} 
-          depth={depth + 1}
-        />
-      ))}
-    </>
+      {comment.children && comment.children.length > 0 && (
+        <div className="sidebar-comment-card__children">
+          {comment.children.map(child => (
+            <NodeInline
+              key={child.id}
+              name={child.name}
+              nodeId={child.id}
+              showBullet
+              onClick={() => openNode(child.id)}
+            />
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
-interface CommentsListProps {
-  comments: Comment[];
-}
-
-function CommentsList({ comments }: CommentsListProps) {
+function CommentsList({ comments }: { comments: Comment[] }) {
   if (comments.length === 0) {
     return (
       <div className="sidebar-section-empty">
@@ -84,14 +79,11 @@ function CommentsList({ comments }: CommentsListProps) {
       </div>
     );
   }
-  
+
   return (
     <div className="sidebar-comments-list">
       {comments.map(comment => (
-        <CommentRow 
-          key={comment.id} 
-          comment={comment}
-        />
+        <CommentThread key={comment.id} comment={comment} />
       ))}
     </div>
   );
