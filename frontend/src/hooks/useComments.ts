@@ -41,8 +41,8 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, name }: { nodeId: number; name: string }) => 
-      nodesApi.createComment(nodeId, name),
+    mutationFn: ({ nodeId, name, parentCommentId }: { nodeId: number; name: string; parentCommentId?: number }) => 
+      nodesApi.createComment(nodeId, name, parentCommentId),
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeId) });
       queryClient.invalidateQueries({ queryKey: commentKeys.count(nodeId) });
