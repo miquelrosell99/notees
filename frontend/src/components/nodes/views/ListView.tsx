@@ -36,6 +36,12 @@ interface NodeGroup {
   nodes: Node[];
 }
 
+/** Result of grouping: named groups + ungrouped remainder */
+interface GroupingResult {
+  groups: NodeGroup[];
+  ungrouped: Node[];
+}
+
 // ── Property grouping helpers ─────────────────────────────────────────────────
 
 /**
@@ -206,52 +212,54 @@ export const ListView = memo(function ListView({
     }
   }, [onContentChange]);
 
-  // Group nodes by page or property value when enableGrouping is true
-  const groupedNodes = useMemo((): NodeGroup[] | null => {
+  // Group nodes by page or property value when enableGrouping is true.
+  // Nodes that don't belong to any group (pages when grouping by page,
+  // or nodes missing the property) are collected in `ungrouped`.
+  const groupingResult = useMemo((): GroupingResult | null => {
     if (!enableGrouping || groupBy === 'none') {
       return null; // No grouping
     }
 
     if (groupBy === 'page') {
-      // Group top-level nodes by their page
+      // Group top-level nodes by their page.
+      // Pages themselves and nodes without a page go into ungrouped.
       const groups = new Map<string, NodeGroup>();
+      const ungrouped: Node[] = [];
       
       for (const node of nodes) {
-        const pageKey = (node as any).page_id 
-          ? `page-${(node as any).page_id}` 
-          : node.is_page 
-            ? `self-${node.id}` 
-            : 'no-page';
-        
-        if (!groups.has(pageKey)) {
-          let pageNode: Node | null = null;
-          if ((node as any).page_id) {
-            pageNode = {
+        if ((node as any).page_id) {
+          const pageKey = `page-${(node as any).page_id}`;
+          if (!groups.has(pageKey)) {
+            const pageNode = {
               id: (node as any).page_id,
               name: (node as any).page_name || 'Untitled',
               uuid: (node as any).page_uuid || '',
               is_page: true,
             } as Node;
-          } else if (node.is_page) {
-            pageNode = node;
+            groups.set(pageKey, { page: pageNode, nodes: [] });
           }
-          
-          groups.set(pageKey, { page: pageNode, label: pageNode ? undefined : 'Other', nodes: [] });
+          groups.get(pageKey)!.nodes.push(node);
+        } else {
+          // Pages themselves or nodes without a page_id → ungrouped
+          ungrouped.push(node);
         }
-        
-        groups.get(pageKey)!.nodes.push(node);
       }
       
-      return Array.from(groups.values());
+      return { groups: Array.from(groups.values()), ungrouped };
     }
 
     // Property-based grouping
     if (groupByProperty) {
       const propId = String(groupByProperty.id);
       const groups = new Map<string, NodeGroup>();
+      const ungrouped: Node[] = [];
       
       for (const node of nodes) {
         const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+        if (rawValue === null || rawValue === undefined) {
+          ungrouped.push(node);
+          continue;
+        }
         const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
         
         if (!groups.has(label)) {
@@ -260,17 +268,32 @@ export const ListView = memo(function ListView({
         groups.get(label)!.nodes.push(node);
       }
       
-      return Array.from(groups.values());
+      return { groups: Array.from(groups.values()), ungrouped };
     }
 
     return null;
   }, [nodes, groupBy, groupByProperty, enableGrouping]);
 
+  // Collect and sort nodes for ungrouped section
+  const ungroupedAllNodes = useMemo(() => {
+    if (!groupingResult || groupingResult.ungrouped.length === 0) return [];
+    const result: Node[] = [];
+    const collect = (n: Node) => {
+      if (pagesOnly && !n.is_page) return;
+      result.push(n);
+      if (n.children) {
+        for (const child of n.children) collect(child);
+      }
+    };
+    for (const n of groupingResult.ungrouped) collect(n);
+    return sortBySequence(result);
+  }, [groupingResult, pagesOnly]);
+
   // Grouped view (by page or property)
-  if (groupedNodes) {
+  if (groupingResult) {
     return (
       <div className={`node-list-view node-list-view--grouped ${className}`}>
-        {groupedNodes.map((group, groupIndex) => {
+        {groupingResult.groups.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
           const groupAllNodes: Node[] = [];
           const collectGroupNodes = (n: Node) => {
@@ -320,6 +343,31 @@ export const ListView = memo(function ListView({
             />
           );
         })}
+        {ungroupedAllNodes.length > 0 && (
+          <div className="node-list-view__ungrouped">
+            <div className="node-list-view__ungrouped-header">
+              <span className="node-list-view__group-label">No {groupBy === 'page' ? 'page' : groupByProperty?.name ?? 'value'}</span>
+            </div>
+            <div className="node-list-view__ungrouped-content">
+              <BlockEditor
+                editorId={`list-view-${viewId}-ungrouped`}
+                nodes={ungroupedAllNodes}
+                mode="list"
+                readOnly={!editable}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={handleOpenInSidebar}
+                onContentChange={handleContentChangeBridge}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
+                pageId={pageId}
+                pageUuid={pageUuid}
+                className="node-list-view__editor"
+                hideProperties={hideProperties}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -123,6 +123,26 @@
   padding-left: var(--spacing-2);
 }
 
+/* Ungrouped section — nodes that don't belong to any group */
+.node-list-view__ungrouped {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  border-top: 1px solid var(--color-outline-variant);
+  padding-top: var(--spacing-4);
+}
+
+.node-list-view__ungrouped-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+}
+
+.node-list-view__ungrouped-content {
+  /* No left padding — flat list, not indented under a group */
+}
+
 /* Group page wrapper — contains ancestors breadcrumbs + page NodeInline */
 .node-list-view__group-page {
   display: inline-flex;
