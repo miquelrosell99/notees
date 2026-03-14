@@ -221,16 +221,19 @@
 /* Base custom caret — replaces the native browser caret */
 .notees-custom-caret {
   position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
   z-index: 10;
   background: var(--color-on-surface);
   display: none;
-  transition: width 0.22s var(--motion-easing-standard),
-              height 0.18s var(--motion-easing-standard),
-              top 0.18s var(--motion-easing-standard),
-              left 0.18s var(--motion-easing-standard),
-              border-radius 0.22s var(--motion-easing-standard),
-              opacity 0.18s var(--motion-easing-standard);
+  will-change: transform, width, height;
+  contain: layout style;
+  transition: transform 0.08s var(--motion-easing-standard),
+              width 0.12s var(--motion-easing-standard),
+              height 0.08s var(--motion-easing-standard),
+              border-radius 0.12s var(--motion-easing-standard),
+              opacity 0.08s var(--motion-easing-standard);
 }
 
 /* Line caret (normal typing mode) */
