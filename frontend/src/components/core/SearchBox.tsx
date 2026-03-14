@@ -12,7 +12,7 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useAppStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, SearchIcon } from './icons';
-import { TextField } from './TextField';
+import { SearchField } from './SearchField';
 import './SearchBox.css';
 
 interface SearchSection<T = Node> {
@@ -294,7 +294,7 @@ export function SearchBox<T = Node>({
 
   return (
     <div ref={containerRef} className={`search-box ${className}`}>
-      <TextField
+      <SearchField
         ref={inputRef}
         value={query}
         onChange={handleInputChange}
