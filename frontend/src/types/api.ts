@@ -52,6 +52,7 @@ export interface Node {
   is_daily?: boolean; // Whether this is a daily note
   is_monthly?: boolean; // Whether this is a monthly note
   is_yearly?: boolean; // Whether this is a yearly note
+  is_comment?: boolean; // Whether this node is a comment
   
   // For tree responses
   children?: Node[];
