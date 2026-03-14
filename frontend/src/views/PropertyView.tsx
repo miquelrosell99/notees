@@ -17,7 +17,7 @@ import type { Property, Node } from '@/types/api';
 import type { QueryAST } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
 import { useAppStore } from '@/stores';
-import { createEmptyQueryAST, createPropertyCondition } from '@/types/queryAST';
+import { createEmptyQueryAST, createPropertyCondition, markAsSystemNode } from '@/types/queryAST';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { QuerySection } from '../components/nodes/QuerySection';
 import { PropertyConfigSection } from '../components/properties/PropertyConfigSection';
@@ -91,7 +91,7 @@ export function PropertyView({
     const ast = createEmptyQueryAST();
     ast.scope.scope_type = 'entire_workspace';
     ast.root_group.children.push(
-      createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid)
+      markAsSystemNode(createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid))
     );
     setPropertyQueryAST(ast);
   // eslint-disable-next-line react-hooks/exhaustive-deps
