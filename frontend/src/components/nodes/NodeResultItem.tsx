@@ -64,7 +64,6 @@ export function NodeResultItem({
         <span className="node-result-item__name">
           {nodeNameToText(node.name) || 'Untitled'}
         </span>
-        {after}
         {displayClasses && displayClasses.length > 0 && (
           <span className="node-result-item__class-pills">
             {displayClasses.map(cls => (
@@ -72,6 +71,7 @@ export function NodeResultItem({
             ))}
           </span>
         )}
+        {after}
         {isSelected && (
           <span className="node-result-item__check">
             <CheckIcon size="xs" />
