@@ -568,7 +568,6 @@ export function NodeSelector({
                         parentPath={node.is_page ? buildParentPath(node) : ''}
                         displayClasses={node.is_page ? getDisplayClasses(node) : []}
                         isHighlighted={index === selectedIndex}
-                        isSelected={isAssigned}
                         onClick={() => handleToggle(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
                         after={
