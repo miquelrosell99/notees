@@ -572,8 +572,10 @@ export async function getComments(nodeId: number): Promise<CommentsResponse> {
 /**
  * Create a new comment on a node
  */
-export async function createComment(nodeId: number, name: string): Promise<Comment> {
-  const response = await api.post<Comment>(`${BASE}/${nodeId}/comments`, { name });
+export async function createComment(nodeId: number, name: string, parentCommentId?: number): Promise<Comment> {
+  const body: Record<string, unknown> = { name };
+  if (parentCommentId) body.parent_comment_id = parentCommentId;
+  const response = await api.post<Comment>(`${BASE}/${nodeId}/comments`, body);
   return response.data;
 }
 
@@ -837,5 +839,38 @@ export interface FixRawUuidLinksResponse {
 
 export async function fixRawUuidLinks(): Promise<FixRawUuidLinksResponse> {
   const response = await api.post<FixRawUuidLinksResponse>(`${BASE}/fix-raw-uuid-links`);
+  return response.data;
+}
+
+// ==================== Templates ====================
+
+export interface TemplateInstantiateOptions {
+  parent_id?: number;
+  name?: string;
+  variables?: Record<string, string>;
+  as_blocks?: boolean;
+}
+
+export interface TemplateInstantiateResult {
+  node: Node | null;
+  blocks: Node[];
+  as_blocks: boolean;
+}
+
+export async function listTemplates(): Promise<{ templates: Node[]; total: number }> {
+  const response = await api.get<{ templates: Node[]; total: number }>(`${BASE}/templates`);
+  return response.data;
+}
+
+export async function getTemplateVariables(nodeId: number): Promise<{ variables: string[] }> {
+  const response = await api.get<{ variables: string[] }>(`${BASE}/${nodeId}/template-variables`);
+  return response.data;
+}
+
+export async function instantiateTemplate(
+  nodeId: number,
+  options: TemplateInstantiateOptions,
+): Promise<TemplateInstantiateResult> {
+  const response = await api.post<TemplateInstantiateResult>(`${BASE}/${nodeId}/instantiate`, options);
   return response.data;
 }

@@ -103,6 +103,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     description: 'Upload any supported file',
     icon: <AttachmentIcon size="sm" />,
   },
+  {
+    id: 'template',
+    label: 'Add template',
+    description: 'Insert content from a template',
+    icon: <PageIcon size="sm" />,
+  },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────

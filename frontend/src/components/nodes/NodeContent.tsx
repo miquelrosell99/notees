@@ -28,6 +28,7 @@ import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
+import { TemplatePicker } from '../templates/TemplatePicker';
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -123,6 +124,9 @@ export function NodeContent({
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
 
+  // Template picker state
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
     switch (commandId) {
@@ -169,6 +173,9 @@ export function NodeContent({
         if (blockServerId != null) {
           openCommentsForNode(blockServerId);
         }
+        break;
+      case 'template':
+        setIsTemplatePickerOpen(true);
         break;
     }
   }, [systemClassMap, addClass, node.id, openCommentsForNode]);
@@ -392,6 +399,13 @@ export function NodeContent({
         onConfirm={handleTableConfirm}
         onAdaptExisting={handleTableAdaptExisting}
         onCancel={handleTableCancel}
+      />
+
+      {/* Template Picker */}
+      <TemplatePicker
+        isOpen={isTemplatePickerOpen}
+        onClose={() => setIsTemplatePickerOpen(false)}
+        pageNodeId={node.id}
       />
     </div>
   );

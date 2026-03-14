@@ -979,7 +979,216 @@ class NodeService:
             """, node_id, self._workspace_id)
             
             return row['day_count'] if row else 0
-    
+
+    async def list_templates(self) -> List[Node]:
+        """List all template nodes in this workspace."""
+        if self._pool is None or self._workspace_id is None:
+            return []
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch("""
+                SELECT * FROM node
+                WHERE workspace_id = $1
+                  AND is_template = TRUE
+                  AND active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY name
+            """, self._workspace_id)
+            return [self._node_repo.row_to_node(row) for row in rows]
+
+    async def extract_template_variables(self, node_id: int) -> List[str]:
+        """Extract {{variable_name}} placeholders from a node and all its descendants."""
+        import re
+
+        if self._pool is None or self._workspace_id is None:
+            return []
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch("""
+                SELECT n.name FROM node n
+                WHERE n.id = $1 AND n.workspace_id = $2
+                  AND n.active = TRUE
+                UNION
+                SELECT n.name FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND np.depth > 0
+                  AND n.workspace_id = $2 AND n.active = TRUE
+            """, node_id, self._workspace_id)
+
+        pattern = re.compile(r'\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}')
+        seen: set = set()
+        variables: List[str] = []
+        for row in rows:
+            name = row['name']
+            if not name:
+                continue
+            for match in pattern.finditer(name):
+                var = match.group(1)
+                if var not in seen:
+                    seen.add(var)
+                    variables.append(var)
+        return variables
+
+    async def instantiate_template(
+        self,
+        template_id: int,
+        user_id: int,
+        parent_id: Optional[int] = None,
+        name: Optional[str] = None,
+        variables: Optional[Dict[str, str]] = None,
+        as_blocks: bool = False,
+    ) -> Dict[str, Any]:
+        """Create a deep copy of a template node tree.
+
+        Rewrites internal link_id references and substitutes {{variable}} placeholders.
+        When as_blocks=True the template root is omitted and its direct children
+        are placed under parent_id instead.
+        """
+        import re
+        import uuid as uuid_module
+
+        if self._pool is None or self._workspace_id is None:
+            raise ValueError("Service not fully initialised (missing pool or workspace_id)")
+
+        # 1. Load the template root
+        template_node = await self._node_repo.get_by_id(template_id)
+        if not template_node or not template_node.is_template:
+            raise ValueError(f"Node {template_id} is not a template")
+
+        # 2. Load all descendants ordered by depth then sequence
+        async with acquire_connection(self._pool) as conn:
+            desc_rows = await conn.fetch("""
+                SELECT n.id, n.uuid, n.name, n.icon, n.color,
+                       n.parent_id, n.sequence, n.class_ids, n.collapsed
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND np.depth > 0
+                  AND n.workspace_id = $2
+                  AND n.active = TRUE
+                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
+                ORDER BY np.depth, n.sequence
+            """, template_id, self._workspace_id)
+
+            # 3. Look up the template class DB id so we can strip it from copies
+            template_class_uuid = SYSTEM_CLASS_UUIDS.get("template", "")
+            tc_row = await conn.fetchrow(
+                "SELECT id FROM node WHERE uuid::text = $1 AND workspace_id = $2",
+                template_class_uuid, self._workspace_id
+            )
+        template_class_db_id: Optional[int] = tc_row['id'] if tc_row else None
+
+        # 4. Build old-id → new-uuid mapping for every node in the tree
+        all_old_ids = [template_node.id] + [int(r['id']) for r in desc_rows]
+        old_id_to_new_uuid: Dict[int, str] = {old_id: str(uuid_module.uuid4()) for old_id in all_old_ids}
+
+        # old string UUID → new string UUID (for content rewriting)
+        old_uuid_to_new_uuid: Dict[str, str] = {}
+        old_uuid_to_new_uuid[str(template_node.uuid)] = old_id_to_new_uuid[template_node.id]
+        for r in desc_rows:
+            old_uuid_to_new_uuid[str(r['uuid'])] = old_id_to_new_uuid[int(r['id'])]
+
+        def substitute_content(content: str) -> str:
+            if not content:
+                return content
+            result = content
+            for old_uuid, new_uuid in old_uuid_to_new_uuid.items():
+                # Rewrite link_id values like "oldUUID:someOtherPart" and plain "oldUUID"
+                result = result.replace(f'"link_id":"{old_uuid}:', f'"link_id":"{new_uuid}:')
+                result = result.replace(f'"link_id":"{old_uuid}"', f'"link_id":"{new_uuid}"')
+            if variables:
+                for var_name, var_value in variables.items():
+                    result = result.replace('{{' + var_name + '}}', var_value)
+            return result
+
+        # 5. Strip template class from root's class_ids
+        root_classes = [c for c in list(template_node.class_ids or []) if c != template_class_db_id]
+
+        # 6. Create nodes — root first (unless as_blocks), then descendants depth-first
+        old_id_to_new_id: Dict[int, int] = {}
+
+        if not as_blocks:
+            root_name = substitute_content(name or template_node.name or '')
+            root_data = NodeCreateData(
+                name=root_name,
+                icon=template_node.icon,
+                color=template_node.color,
+                parent_id=parent_id,
+                sequence=0,
+                classes=root_classes,
+                uuid=old_id_to_new_uuid[template_node.id],
+            )
+            root_node = await self.create_node(root_data, user_id)
+            old_id_to_new_id[template_node.id] = root_node.id
+        else:
+            # Map template root → the provided parent so children chain correctly
+            old_id_to_new_id[template_node.id] = parent_id  # type: ignore[assignment]
+
+        for row in desc_rows:
+            old_id = int(row['id'])
+            old_parent_id = int(row['parent_id']) if row['parent_id'] is not None else None
+            new_parent_id = old_id_to_new_id.get(old_parent_id)  # type: ignore[arg-type]
+            if new_parent_id is None:
+                logger.warning(f"[TEMPLATE] Skipping node {old_id}: parent {old_parent_id} not yet mapped")
+                continue
+
+            node_data = NodeCreateData(
+                name=substitute_content(row['name'] or ''),
+                icon=row['icon'],
+                color=row['color'],
+                parent_id=new_parent_id,
+                sequence=row['sequence'],
+                classes=list(row['class_ids'] or []),
+                uuid=old_id_to_new_uuid[old_id],
+            )
+            new_node = await self.create_node(node_data, user_id)
+            old_id_to_new_id[old_id] = new_node.id
+
+        # 7. Copy scalar/relation/selection property values from template root to new root
+        if not as_blocks and template_node.id in old_id_to_new_id:
+            new_root_id = old_id_to_new_id[template_node.id]
+            template_props = await self._property_repo.get_all_property_values(template_node.id)
+            from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+            for prop_id, prop_data in template_props.items():
+                prop = prop_data.get('property')
+                values = prop_data.get('values', [])
+                if not prop or not values:
+                    continue
+                try:
+                    for val in values:
+                        if prop.type in SCALAR_TYPES:
+                            scalar = (
+                                val.value_integer if getattr(val, 'value_integer', None) is not None else
+                                val.value_float if getattr(val, 'value_float', None) is not None else
+                                val.value_boolean if getattr(val, 'value_boolean', None) is not None else
+                                getattr(val, 'value_text', None)
+                            )
+                            if scalar is not None:
+                                await self._property_repo.set_scalar_value(new_root_id, prop_id, scalar)
+                        elif prop.type in RELATION_TYPES:
+                            target = getattr(val, 'target_id', None)
+                            if target is not None:
+                                await self._property_repo.set_relation_value(new_root_id, prop_id, target)
+                        elif prop.type == PropertyType.SELECTION:
+                            sel_id = getattr(val, 'selection_line_id', None)
+                            if sel_id is not None:
+                                await self._property_repo.set_selection_value(new_root_id, prop_id, sel_id)
+                except Exception as exc:
+                    logger.warning(f"[TEMPLATE] Could not copy property {prop_id}: {exc}")
+
+        # 8. Return result
+        if as_blocks:
+            block_nodes = []
+            for row in desc_rows:
+                new_id = old_id_to_new_id.get(int(row['id']))
+                if new_id:
+                    n = await self._node_repo.get_by_id(new_id)
+                    if n:
+                        block_nodes.append(n)
+            return {'node': None, 'blocks': block_nodes, 'as_blocks': True}
+        else:
+            root_node = await self._node_repo.get_by_id(old_id_to_new_id[template_node.id])
+            return {'node': root_node, 'blocks': [], 'as_blocks': False}
+
     async def get_node(self, node_id: int) -> Optional[Node]:
         """Get a node by ID."""
         return await self._node_repo.get_by_id(node_id)

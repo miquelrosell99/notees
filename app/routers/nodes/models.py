@@ -187,6 +187,7 @@ class PropertyBacklinkResponse(BaseModel):
 class CommentCreateRequest(BaseModel):
     """Request to create a comment on a node."""
     name: str = ""  # Initial comment content
+    parent_comment_id: int | None = None  # If set, creates a reply to this comment
 
 
 class CommentResponse(BaseModel):
@@ -380,3 +381,25 @@ class BatchNodeDailyResultItem(BaseModel):
 class BatchNodeDailyResponse(BaseModel):
     """Response for batch daily get-or-create."""
     results: List[BatchNodeDailyResultItem]
+
+
+# ==================== Template Operations ====================
+
+class TemplateInstantiateRequest(BaseModel):
+    """Request to instantiate a template node."""
+    parent_id: Optional[int] = None
+    name: Optional[str] = None
+    variables: Dict[str, str] = {}
+    as_blocks: bool = False  # If True, create children under parent_id without a root page
+
+
+class TemplateInstantiateResponse(BaseModel):
+    """Response from template instantiation."""
+    node: Optional[NodeResponse] = None  # The new root node (None when as_blocks=True)
+    blocks: List[NodeResponse] = []     # The created blocks (populated when as_blocks=True)
+    as_blocks: bool = False
+
+
+class TemplateVariablesResponse(BaseModel):
+    """Template variable names extracted from content."""
+    variables: List[str]  # Deduplicated list of {{variable_name}} placeholders
