@@ -383,7 +383,7 @@ class QueryASTToSQL:
                 logger.warning(f"Property condition missing UUID, skipping (name={condition.property_name!r})")
                 return None
             prop_param = self._add_param(condition.property_uuid)
-            prop_join_clause = f"JOIN property p ON p.uuid = %({prop_param})s::uuid"
+            prop_join_clause = f"JOIN property p ON p.id = np.property_id AND p.uuid = %({prop_param})s::uuid"
             
             if condition.operator == 'is_empty':
                 return f"""NOT EXISTS (
