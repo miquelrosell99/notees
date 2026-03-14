@@ -98,13 +98,66 @@
 .sidebar-comment-row__meta {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1);
+  gap: var(--spacing-2);
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
 }
 
 .sidebar-comment-row__time {
   white-space: nowrap;
+}
+
+.sidebar-comment-row__replies {
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* Resolved comment row */
+.sidebar-comment-row--resolved {
+  opacity: 0.5;
+}
+
+.sidebar-comment-row--resolved:hover {
+  opacity: 0.8;
+}
+
+.sidebar-comment-row__resolved {
+  color: var(--color-success);
+  margin-right: var(--spacing-1);
+  font-weight: 600;
+}
+
+/* Header actions */
+.sidebar-comments-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Quick-add inline input */
+.sidebar-quick-add-comment {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.sidebar-quick-add-comment__input {
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container);
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+}
+
+.sidebar-quick-add-comment__input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-outline-variant));
+}
+
+.sidebar-quick-add-comment__input::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
 }
 
 /* Activity section - use existing NodeActivityLogSection styles */

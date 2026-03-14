@@ -65,6 +65,9 @@ import {
   mdiRefresh,
   mdiPalette,
   mdiRestore,
+  mdiReply,
+  mdiSend,
+  mdiCheckCircleOutline,
 } from '@mdi/js';
 
 // Icon size presets
@@ -213,6 +216,18 @@ export const CloseIcon = ({ size = 'md', className, color, title }: IconProps) =
 
 export const CommentIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path={mdiCommentTextOutline} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const ReplyIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiReply} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const SendIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiSend} size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const ResolveIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path={mdiCheckCircleOutline} size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ImageIcon = ({ size = 'md', className, color, title }: IconProps) => (
