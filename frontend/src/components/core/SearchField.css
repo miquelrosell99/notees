@@ -1,0 +1,51 @@
+/**
+ * SearchField Component Styles
+ *
+ * Rounded search input with left icon, tinted background,
+ * and focus highlight. Shared by SearchBox, NodeSelector, etc.
+ */
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.search-field:focus-within {
+  border-color: var(--color-outline);
+  background: var(--color-surface);
+  box-shadow: var(--elevation-1);
+}
+
+.search-field__icon {
+  display: flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.search-field__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  outline: none;
+  min-width: 0;
+}
+
+.search-field__input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.search-field__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
