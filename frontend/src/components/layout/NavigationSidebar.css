@@ -84,14 +84,22 @@
   padding: var(--spacing-2);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
+  gap: 2px;
 }
 
 /* ==================== Navigation Items ==================== */
 /* Sidebar nav items use Button component with ghost variant */
 .sidebar-nav-item {
-  /* text-transform: uppercase; */
   font-size: var(--font-size-base);
+  height: 30px;
+  border-radius: var(--shape-medium);
+  padding: 0 var(--spacing-2);
+  gap: var(--spacing-2);
+}
+
+.sidebar-nav-item .btn__text {
+  text-align: left;
+  justify-self: start;
 }
 
 .sidebar-item-icon {
@@ -140,7 +148,7 @@
 
 /* ==================== Sidebar Sections ==================== */
 .sidebar-section {
-  margin-top: var(--spacing-3);
+  margin-top: var(--spacing-2);
 }
 
 .sidebar-section-header {
@@ -420,8 +428,8 @@
 .sidebar-footer {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3);
+  gap: 2px;
+  padding: var(--spacing-2);
   border-top: 1px solid var(--color-outline-variant);
   margin-top: auto;
 }
