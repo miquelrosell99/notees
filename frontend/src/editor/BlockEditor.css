@@ -112,6 +112,9 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  height: 1.6em;
+  line-height: 1.6;
+  overflow: visible;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
