@@ -64,7 +64,13 @@
 }
 
 .property-row__label--clickable:hover {
-  background: var(--color-surface-container);
+  background: none;
+}
+
+/* Override NodeInline hover: underline instead of background */
+.property-row__label .node-inline--clickable:hover {
+  background: none;
+  text-decoration: underline;
 }
 
 .property-row__icon {
