@@ -12,7 +12,8 @@ import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { Button } from '../core/Button';
-import { CommentIcon, ClockIcon, AddIcon } from '../core/icons';
+import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
+import { TextField } from '../core/TextField';
 import { formatRelativeTime } from '@/utils/dateFormat';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
@@ -127,14 +128,24 @@ function QuickAddComment({ nodeId, onClose }: { nodeId: number; onClose: () => v
 
   return (
     <div className="sidebar-quick-add-comment">
-      <input
-        className="sidebar-quick-add-comment__input"
+      <TextField
+        size="sm"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Add a comment..."
         autoFocus
         onBlur={() => { if (!text.trim()) onClose(); }}
+        icon={
+          <button
+            className="sidebar-quick-add-comment__send"
+            onClick={handleSubmit}
+            disabled={!text.trim()}
+            title="Send comment"
+          >
+            <SendIcon size="xs" />
+          </button>
+        }
       />
     </div>
   );

@@ -140,24 +140,29 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
-.sidebar-quick-add-comment__input {
+.sidebar-quick-add-comment .text-field__container {
   width: 100%;
-  padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--color-surface-container);
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
 }
 
-.sidebar-quick-add-comment__input:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-outline-variant));
-}
-
-.sidebar-quick-add-comment__input::placeholder {
+.sidebar-quick-add-comment__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--color-on-surface-variant);
-  opacity: 0.6;
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-quick-add-comment__send:hover:not(:disabled) {
+  color: var(--color-primary);
+}
+
+.sidebar-quick-add-comment__send:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* Activity section - use existing NodeActivityLogSection styles */
