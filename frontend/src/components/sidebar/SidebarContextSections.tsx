@@ -103,16 +103,15 @@ function CommentsList({ comments, onClickComment }: CommentsListProps) {
 /**
  * Inline quick-add for comments from the right sidebar
  */
-function QuickAddComment({ nodeId }: { nodeId: number }) {
+function QuickAddComment({ nodeId, onClose }: { nodeId: number; onClose: () => void }) {
   const [text, setText] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
   const createComment = useCreateComment();
 
   const handleSubmit = () => {
     if (!text.trim()) return;
     createComment.mutate(
       { nodeId, name: text.trim() },
-      { onSuccess: () => { setText(''); setIsOpen(false); } }
+      { onSuccess: () => { setText(''); onClose(); } }
     );
   };
 
@@ -122,11 +121,9 @@ function QuickAddComment({ nodeId }: { nodeId: number }) {
       handleSubmit();
     } else if (e.key === 'Escape') {
       setText('');
-      setIsOpen(false);
+      onClose();
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="sidebar-quick-add-comment">
@@ -135,9 +132,9 @@ function QuickAddComment({ nodeId }: { nodeId: number }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Quick comment..."
+        placeholder="Add a comment..."
         autoFocus
-        onBlur={() => { if (!text.trim()) setIsOpen(false); }}
+        onBlur={() => { if (!text.trim()) onClose(); }}
       />
     </div>
   );
@@ -195,7 +192,7 @@ export function SidebarContextSections() {
               variant="ghost"
               size="xs"
               onClick={() => setQuickAddOpen(v => !v)}
-              title="Quick add comment"
+              title="Add comment"
             >
               <AddIcon size="xs" />
             </Button>
@@ -212,7 +209,7 @@ export function SidebarContextSections() {
           </div>
         }
       >
-        {quickAddOpen && <QuickAddComment nodeId={currentNodeId} />}
+        {quickAddOpen && <QuickAddComment nodeId={currentNodeId} onClose={() => setQuickAddOpen(false)} />}
         {commentsLoading ? (
           <div className="sidebar-section-loading">Loading...</div>
         ) : (
