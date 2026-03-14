@@ -315,15 +315,6 @@ export function NodeSelector({
     }
   }, [onChange, onAdd, multi, trigger, value, assignedIds]);
 
-  // Toggle handler for multi-select dropdown: add if not selected, remove if selected
-  const handleToggle = useCallback((node: Node) => {
-    if (assignedIds.has(node.id)) {
-      handleRemove(node);
-    } else {
-      handleAdd(node);
-    }
-  }, [assignedIds, handleAdd, handleRemove]);
-
   const handleRemove = useCallback((node: Node) => {
     if (onChange) {
       // Value-based API: update value
@@ -337,6 +328,15 @@ export function NodeSelector({
       onRemove?.(node);
     }
   }, [onChange, onRemove, multi, value]);
+
+  // Toggle handler for multi-select dropdown: add if not selected, remove if selected
+  const handleToggle = useCallback((node: Node) => {
+    if (assignedIds.has(node.id)) {
+      handleRemove(node);
+    } else {
+      handleAdd(node);
+    }
+  }, [assignedIds, handleAdd, handleRemove]);
 
   const handleCreateNew = useCallback(async () => {
     if (!searchQuery.trim() || !onCreateNew) return;
