@@ -62,7 +62,6 @@ export function NodeContent({
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const addSidebarCard = useAppStore(s => s.addSidebarCard);
-  const openCommentsForNode = useAppStore(s => s.openCommentsForNode);
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Lazy-load children of collapsed blocks when they are expanded
@@ -169,16 +168,11 @@ export function NodeContent({
         setAssetTypeFilter(undefined);
         setIsAssetUploadOpen(true);
         break;
-      case 'comment':
-        if (blockServerId != null) {
-          openCommentsForNode(blockServerId);
-        }
-        break;
       case 'template':
         setIsTemplatePickerOpen(true);
         break;
     }
-  }, [systemClassMap, addClass, node.id, openCommentsForNode]);
+  }, [systemClassMap, addClass, node.id]);
 
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
@@ -406,6 +400,7 @@ export function NodeContent({
         isOpen={isTemplatePickerOpen}
         onClose={() => setIsTemplatePickerOpen(false)}
         pageNodeId={node.id}
+        pageUuid={node.uuid}
       />
     </div>
   );
