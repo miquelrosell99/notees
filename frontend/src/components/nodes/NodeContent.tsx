@@ -124,7 +124,7 @@ export function NodeContent({
   const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
 
   // Template picker state
-  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const [templatePickerPos, setTemplatePickerPos] = useState<{ top: number; left: number } | null>(null);
 
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
@@ -168,9 +168,18 @@ export function NodeContent({
         setAssetTypeFilter(undefined);
         setIsAssetUploadOpen(true);
         break;
-      case 'template':
-        setIsTemplatePickerOpen(true);
+      case 'template': {
+        // Capture caret position for the floating picker
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          setTemplatePickerPos({ top: rect.bottom + 4, left: rect.left });
+        } else {
+          // Fallback: centre of viewport
+          setTemplatePickerPos({ top: window.innerHeight / 2 - 160, left: window.innerWidth / 2 - 160 });
+        }
         break;
+      }
     }
   }, [systemClassMap, addClass, node.id]);
 
@@ -397,8 +406,8 @@ export function NodeContent({
 
       {/* Template Picker */}
       <TemplatePicker
-        isOpen={isTemplatePickerOpen}
-        onClose={() => setIsTemplatePickerOpen(false)}
+        position={templatePickerPos}
+        onClose={() => setTemplatePickerPos(null)}
         pageNodeId={node.id}
         pageUuid={node.uuid}
       />
