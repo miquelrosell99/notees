@@ -1,13 +1,13 @@
 /**
- * TemplatePicker — Node picker for selecting a template to instantiate.
+ * TemplatePicker — Floating node picker for selecting a template to instantiate.
  *
- * Uses NodeSelector filtered to the template class. When the user selects
- * a template, it fetches {{variable}} placeholders. If any exist it opens
- * TemplateVariableModal; otherwise it instantiates immediately and injects
- * the resulting blocks into the runtime.
+ * Renders as a fixed-position popup (like SuggestionPopup / node link picker).
+ * Uses NodeSelector filtered to the template class. When the user selects a
+ * template, it fetches {{variable}} placeholders. If any, opens
+ * TemplateVariableModal; otherwise instantiates immediately.
  */
-import { useState, useMemo, type JSX } from 'react';
-import { Modal } from '../core/Modal';
+import { useState, useMemo, useEffect, useRef, useCallback, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { NodeSelector } from '../nodes/NodeSelector';
 import { useClasses } from '@/hooks';
 import { useInstantiateTemplate } from '@/hooks/useTemplates';
@@ -16,9 +16,11 @@ import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
+import '../nodes/SuggestionPopup.css';
 
 export interface TemplatePickerProps {
-  isOpen: boolean;
+  /** Cursor-relative position to anchor the popup. Null = hidden. */
+  position: { top: number; left: number } | null;
   onClose: () => void;
   /** The page node that owns the inserted blocks (parent_id for as_blocks mode). */
   pageNodeId: number;
@@ -29,12 +31,14 @@ export interface TemplatePickerProps {
 }
 
 export function TemplatePicker({
-  isOpen,
+  position,
   onClose,
   pageNodeId,
   pageUuid,
   onSuccess,
-}: TemplatePickerProps): JSX.Element {
+}: TemplatePickerProps): JSX.Element | null {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [adjustedPos, setAdjustedPos] = useState(position);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [variableModalOpen, setVariableModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +56,45 @@ export function TemplatePicker({
     [templateClassId],
   );
 
-  const handleSelect = async (template: Node) => {
+  // Adjust position to stay within viewport
+  useEffect(() => {
+    if (!position || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pad = 8;
+    let { top, left } = position;
+    if (left + rect.width > window.innerWidth - pad) left = window.innerWidth - rect.width - pad;
+    if (left < pad) left = pad;
+    if (top + rect.height > window.innerHeight - pad) {
+      const above = position.top - rect.height - 24;
+      top = above >= pad ? above : window.innerHeight - rect.height - pad;
+    }
+    if (top < pad) top = pad;
+    setAdjustedPos({ top, left });
+  }, [position, templateClassId]);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!position) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [position, onClose]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!position) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+    };
+    document.addEventListener('keydown', handler, true);
+    return () => document.removeEventListener('keydown', handler, true);
+  }, [position, onClose]);
+
+  const handleSelect = useCallback(async (template: Node) => {
     setError(null);
     setSelectedTemplateId(template.id);
     try {
@@ -66,15 +108,14 @@ export function TemplatePicker({
     } catch (e: unknown) {
       setError((e as { message?: string })?.message ?? 'Failed to load template variables');
     }
-  };
+  }, []);
 
-  const doInstantiate = async (templateId: number, variables: Record<string, string>) => {
+  const doInstantiate = useCallback(async (templateId: number, variables: Record<string, string>) => {
     try {
       const result = await instantiate.mutateAsync({
         nodeId: templateId,
         options: { parent_id: pageNodeId, as_blocks: true, variables },
       });
-      // Inject the new blocks directly into the runtime so they appear immediately
       if (result.blocks.length > 0) {
         const runtime = getNodeGraphRuntime();
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, pageNodeId, pageUuid);
@@ -85,50 +126,62 @@ export function TemplatePicker({
     } catch (e: unknown) {
       setError((e as { message?: string })?.message ?? 'Failed to instantiate template');
     }
-  };
+  }, [instantiate, pageNodeId, pageUuid, onSuccess, onClose]);
 
-  const handleVariableConfirm = async (variables: Record<string, string>) => {
+  const handleVariableConfirm = useCallback(async (variables: Record<string, string>) => {
     setVariableModalOpen(false);
-    if (selectedTemplateId != null) {
-      await doInstantiate(selectedTemplateId, variables);
-    }
-  };
+    if (selectedTemplateId != null) await doInstantiate(selectedTemplateId, variables);
+  }, [selectedTemplateId, doInstantiate]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setSelectedTemplateId(null);
     setVariableModalOpen(false);
     setError(null);
     onClose();
-  };
+  }, [onClose]);
+
+  if (!position) return null;
 
   return (
     <>
-      <Modal
-        isOpen={isOpen && !variableModalOpen}
-        onClose={handleClose}
-        title="Insert Template"
-        size="sm"
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {classFilters.length > 0 ? (
-            <NodeSelector
-              trigger="inline"
-              searchMode="pages"
-              classFilters={classFilters}
-              multi={false}
-              searchPlaceholder="Search templates…"
-              onAdd={handleSelect}
-            />
-          ) : (
-            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Loading…</p>
-          )}
-          {error && (
-            <p style={{ margin: 0, color: 'var(--color-error, red)', fontSize: '0.85rem' }}>
-              {error}
-            </p>
-          )}
-        </div>
-      </Modal>
+      {!variableModalOpen && createPortal(
+        <div
+          ref={containerRef}
+          className="suggestion-popup"
+          style={{
+            position: 'fixed',
+            top: (adjustedPos ?? position).top,
+            left: (adjustedPos ?? position).left,
+            zIndex: 1000,
+          }}
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="suggestion-popup__header">
+            <span>Insert template</span>
+          </div>
+          <div className="suggestion-popup__list" style={{ padding: '4px 0' }}>
+            {classFilters.length > 0 ? (
+              <NodeSelector
+                trigger="inline"
+                searchMode="pages"
+                classFilters={classFilters}
+                multi={false}
+                searchPlaceholder="Search templates…"
+                onAdd={handleSelect}
+              />
+            ) : (
+              <div className="suggestion-popup__loading">Loading…</div>
+            )}
+            {error && (
+              <div style={{ padding: '4px 8px', color: 'var(--color-error, red)', fontSize: '0.8rem' }}>
+                {error}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {variableModalOpen && selectedTemplateId != null && (
         <TemplateVariableModal
