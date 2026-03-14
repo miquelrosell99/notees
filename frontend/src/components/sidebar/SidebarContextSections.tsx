@@ -3,20 +3,12 @@
  * 
  * Bottom-anchored sections in the right sidebar that show context-specific
  * information for the currently active node:
- * - Comments section: Shows all comments for the active node
+ * - Comments section: Shows all comments for the active node (always visible)
  * - Activity section: Shows activity log for the active node
- * 
- * These sections:
- * - Are NOT cards (lighter visual weight)
- * - Are not reorderable, pinnable, or draggable
- * - React to the currently active node (currentNodeId)
- * - Are collapsed by default
- * - Only render if they have content for the active node
- * - Expansion state is stored per session (not per node)
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useAppStore } from '@/stores';
-import { useComments, useNodeActivity } from '@/hooks';
+import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { Button } from '../core/Button';
@@ -25,9 +17,6 @@ import { formatRelativeTime } from '@/utils/dateFormat';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
-/**
- * Flatten comments tree to get total count (node-level + block-level)
- */
 function countAllComments(comments: Comment[]): number {
   let count = 0;
   for (const comment of comments) {
@@ -42,24 +31,33 @@ function countAllComments(comments: Comment[]): number {
 interface CommentRowProps {
   comment: Comment;
   depth?: number;
-  onClickComment: (commentId: number) => void;
+  onClickComment: () => void;
 }
 
 function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
   const snippet = comment.name?.slice(0, 80) || 'Empty comment';
   const time = formatRelativeTime(comment.create_date);
+  const isResolved = comment.collapsed;
   
   return (
     <>
       <div 
-        className="sidebar-comment-row"
+        className={`sidebar-comment-row ${isResolved ? 'sidebar-comment-row--resolved' : ''}`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        onClick={() => onClickComment(comment.id)}
+        onClick={onClickComment}
       >
         <div className="sidebar-comment-row__content">
-          <span className="sidebar-comment-row__snippet">{snippet}</span>
+          <span className="sidebar-comment-row__snippet">
+            {isResolved && <span className="sidebar-comment-row__resolved">&check;</span>}
+            {snippet}
+          </span>
           <span className="sidebar-comment-row__meta">
             <span className="sidebar-comment-row__time">{time}</span>
+            {comment.children && comment.children.length > 0 && (
+              <span className="sidebar-comment-row__replies">
+                {comment.children.length} {comment.children.length === 1 ? 'reply' : 'replies'}
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -77,7 +75,7 @@ function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
 
 interface CommentsListProps {
   comments: Comment[];
-  onClickComment: (commentId: number) => void;
+  onClickComment: () => void;
 }
 
 function CommentsList({ comments, onClickComment }: CommentsListProps) {
@@ -102,17 +100,58 @@ function CommentsList({ comments, onClickComment }: CommentsListProps) {
   );
 }
 
+/**
+ * Inline quick-add for comments from the right sidebar
+ */
+function QuickAddComment({ nodeId }: { nodeId: number }) {
+  const [text, setText] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const createComment = useCreateComment();
+
+  const handleSubmit = () => {
+    if (!text.trim()) return;
+    createComment.mutate(
+      { nodeId, name: text.trim() },
+      { onSuccess: () => { setText(''); setIsOpen(false); } }
+    );
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === 'Escape') {
+      setText('');
+      setIsOpen(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="sidebar-quick-add-comment">
+      <input
+        className="sidebar-quick-add-comment__input"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Quick comment..."
+        autoFocus
+        onBlur={() => { if (!text.trim()) setIsOpen(false); }}
+      />
+    </div>
+  );
+}
+
 export function SidebarContextSections() {
-  // Get the currently active/viewed node ID
   const currentNodeId = useAppStore(state => state.currentNodeId);
   const mainViewType = useAppStore(state => state.mainViewType);
   const { openCommentsForNode } = useAppStore();
   
-  // Expansion state - stored per session, not per node
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   
-  // Fetch data for the active node
   const { data: commentsData, isLoading: commentsLoading } = useComments(
     mainViewType === 'node' ? currentNodeId : null
   );
@@ -120,74 +159,69 @@ export function SidebarContextSections() {
     mainViewType === 'node' ? currentNodeId : null
   );
   
-  // Calculate counts
   const commentCount = useMemo(() => {
     if (!commentsData?.comments) return 0;
     return countAllComments(commentsData.comments);
   }, [commentsData]);
   
   const activityCount = activityData?.length ?? 0;
-  
-  // Visibility rules: don't render if no content
-  const showComments = commentCount > 0 || commentsLoading;
   const showActivity = activityCount > 0 || activityLoading;
   
-  // Handle clicking a comment row - opens the comments sidebar focused on that node
-  const handleClickComment = useCallback((_commentId: number) => {
-    if (currentNodeId) {
-      openCommentsForNode(currentNodeId);
-    }
+  const handleOpenComments = useCallback(() => {
+    if (currentNodeId) openCommentsForNode(currentNodeId);
   }, [currentNodeId, openCommentsForNode]);
   
-  // Handle adding a new comment - opens the comments sidebar
-  const handleAddComment = useCallback(() => {
-    if (currentNodeId) {
-      openCommentsForNode(currentNodeId);
-    }
-  }, [currentNodeId, openCommentsForNode]);
+  if (mainViewType !== 'node' || !currentNodeId) return null;
   
-  // Don't render anything if not viewing a node or no sections to show
-  if (mainViewType !== 'node' || !currentNodeId) {
-    return null;
-  }
-  
-  if (!showComments && !showActivity) {
-    return null;
+  // Always show comments section; only show activity if it has content
+  if (!showActivity && commentCount === 0 && !commentsLoading) {
+    // Show just the comments section with empty state
   }
   
   return (
     <div className="sidebar-context-sections">
-      {/* Comments Section */}
-      {showComments && (
-        <NodeViewSection
-          title="Comments"
-          icon={<CommentIcon size="xs" />}
-          count={commentCount}
-          expanded={commentsExpanded}
-          onExpandedChange={setCommentsExpanded}
-          className="sidebar-context-section sidebar-context-section--comments"
-          hideWhenEmpty={false}
-          headerActions={
+      {/* Comments Section — always visible */}
+      <NodeViewSection
+        title="Comments"
+        icon={<CommentIcon size="xs" />}
+        count={commentCount}
+        expanded={commentsExpanded}
+        onExpandedChange={setCommentsExpanded}
+        className="sidebar-context-section sidebar-context-section--comments"
+        hideWhenEmpty={false}
+        headerActions={
+          <div className="sidebar-comments-header-actions">
             <Button
               variant="ghost"
               size="xs"
-              onClick={handleAddComment}
-              title="Add comment"
+              onClick={() => setQuickAddOpen(v => !v)}
+              title="Quick add comment"
             >
               <AddIcon size="xs" />
             </Button>
-          }
-        >
-          {commentsLoading ? (
-            <div className="sidebar-section-loading">Loading...</div>
-          ) : (
-            <CommentsList 
-              comments={commentsData?.comments ?? []}
-              onClickComment={handleClickComment}
-            />
-          )}
-        </NodeViewSection>
-      )}
+            {commentCount > 0 && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={handleOpenComments}
+                title="Open full comments panel"
+              >
+                <CommentIcon size="xs" />
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {quickAddOpen && <QuickAddComment nodeId={currentNodeId} />}
+        {commentsLoading ? (
+          <div className="sidebar-section-loading">Loading...</div>
+        ) : (
+          <CommentsList 
+            comments={commentsData?.comments ?? []}
+            onClickComment={handleOpenComments}
+          />
+        )}
+      </NodeViewSection>
       
       {/* Activity Section */}
       {showActivity && (

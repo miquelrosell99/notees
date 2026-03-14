@@ -73,19 +73,27 @@ async def create_comment(
     if not comment_class:
         raise HTTPException(500, "Comment class not found")
     
-    # Get the next sequence number for comments
+    # Determine the actual parent (target node or parent comment for replies)
+    actual_parent_id = node_id
+    if request.parent_comment_id:
+        parent_comment = await service._node_repo.get_by_id(request.parent_comment_id)
+        if not parent_comment or not parent_comment.is_comment:
+            raise HTTPException(404, "Parent comment not found")
+        actual_parent_id = request.parent_comment_id
+    
+    # Get the next sequence number for comments under the parent
     pool = service._node_repo.get_connection()
     seq_row = await pool.fetchrow("""
         SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
         FROM node WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
               AND (is_deleted = FALSE OR is_deleted IS NULL)
-    """, node_id)
+    """, actual_parent_id)
     next_seq = seq_row['next_seq'] if seq_row else 0
     
-    # Create the comment node as a child of target node with Comment class
+    # Create the comment node as a child with Comment class
     data = NodeCreateData(
         name=request.name,
-        parent_id=node_id,
+        parent_id=actual_parent_id,
         classes=[comment_class.id],
         sequence=next_seq,
     )
