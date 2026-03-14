@@ -102,6 +102,10 @@ async def login(request: Request, credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     logger.info(f"Login successful for '{credentials.username}' (id={user.get('id')})")
+    token = auth.create_token(user["id"], user["username"])
+    return {"access_token": token, "token_type": "bearer", "user": user}
+
+
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user)):
     """Get current user info."""
