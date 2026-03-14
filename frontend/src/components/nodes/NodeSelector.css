@@ -20,6 +20,7 @@
   width: 100%;
   gap: var(--spacing-1);
   min-height: 28px;
+  padding: 0;
 }
 
 .node-selector__arrow-btn {
@@ -54,6 +55,11 @@
 
 .node-selector__arrow-btn svg {
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Multi-select search field spacing */
+.node-selector__search-field {
+  margin: var(--spacing-2);
 }
 
 .node-selector--readonly {
@@ -92,8 +98,13 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-1);
+  align-items: center;
   flex: 1;
   min-width: 0;
+}
+
+.node-selector__selected-pills .node-pill {
+  display: inline-flex;
 }
 
 .node-selector__single-value {

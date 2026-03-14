@@ -16,6 +16,8 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
 import { AddIcon } from '../core/icons';
+import { Checkbox } from '../core/Checkbox';
+import { SearchField } from '../core/SearchField';
 import { NodeResultItem } from './NodeResultItem';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
@@ -110,6 +112,7 @@ export function NodeSelector({
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
+  const arrowBtnRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -177,15 +180,66 @@ export function NodeSelector({
   // Only show create option if onCreate is provided and there's a query
   const showCreateOption = onCreateNew && searchShowCreate && searchQuery.trim().length > 0;
   
-  // Total selectable items
-  const totalItems = filteredResults.length + (showCreateOption ? 1 : 0);
+  // For multi-select dropdown: selected nodes first, then unselected search results
+  const multiDropdownItems = useMemo(() => {
+    if (!multi) return [];
+    // Get all search results that can be added (without excluding assigned ones)
+    const allSearchable = searchResults.filter(node => !canAdd || canAdd(node));
+    const selected = allSearchable.filter(node => assignedIds.has(node.id));
+    const unselected = allSearchable.filter(node => !assignedIds.has(node.id));
+    // Also include assigned nodes that aren't in search results (when no search query)
+    const searchIds = new Set(allSearchable.map(n => n.id));
+    const assignedNotInSearch = nodes.filter(n => !searchIds.has(n.id));
+    return [...assignedNotInSearch, ...selected, ...unselected];
+  }, [multi, searchResults, assignedIds, canAdd, nodes]);
 
-  // Position menu for 'select' mode with viewport flip
+  // Total selectable items
+  const totalItems = multi
+    ? multiDropdownItems.length + (showCreateOption ? 1 : 0)
+    : filteredResults.length + (showCreateOption ? 1 : 0);
+
+  // Position menu for 'select' single mode with viewport flip
   const menuPosition = useViewportFlip(
     containerRef,
-    trigger === 'select' && isPickerOpen,
+    trigger === 'select' && !multi && isPickerOpen,
     { maxHeight: 320, includeWidth: true, minWidth: 240 },
   );
+
+  // Position menu for 'select' multi mode - anchored to arrow button, right-aligned
+  const [multiMenuPos, setMultiMenuPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  useEffect(() => {
+    if (!(trigger === 'select' && multi && isPickerOpen) || !arrowBtnRef.current) {
+      setMultiMenuPos(null);
+      return;
+    }
+    const rect = arrowBtnRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const dropdownWidth = 280;
+    const gap = 4;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const maxPopupHeight = 320;
+
+    let top: number;
+    let maxHeight: number;
+    if (spaceBelow >= maxPopupHeight || spaceBelow > spaceAbove) {
+      top = rect.bottom + window.scrollY + gap;
+      maxHeight = Math.min(maxPopupHeight, spaceBelow - gap * 2);
+    } else {
+      maxHeight = Math.min(maxPopupHeight, spaceAbove - gap * 2);
+      top = rect.top + window.scrollY - maxHeight - gap;
+    }
+
+    // Right-align to arrow button
+    let left = rect.right + window.scrollX - dropdownWidth;
+    if (left < 16) left = 16;
+    if (left + dropdownWidth > viewportWidth - 16) {
+      left = viewportWidth - dropdownWidth - 16;
+    }
+
+    setMultiMenuPos({ top, left, maxHeight });
+  }, [trigger, multi, isPickerOpen]);
 
   // Position for 'pill-row' mode (simple fixed positioning)
   useEffect(() => {
@@ -238,7 +292,7 @@ export function NodeSelector({
     if (isPickerOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isPickerOpen, pickerPos, menuPosition]);
+  }, [isPickerOpen, pickerPos, menuPosition, multiMenuPos]);
 
   const handleAdd = useCallback((node: Node) => {
     // Prevent adding duplicates
@@ -260,6 +314,15 @@ export function NodeSelector({
       setSearchQuery('');
     }
   }, [onChange, onAdd, multi, trigger, value, assignedIds]);
+
+  // Toggle handler for multi-select dropdown: add if not selected, remove if selected
+  const handleToggle = useCallback((node: Node) => {
+    if (assignedIds.has(node.id)) {
+      handleRemove(node);
+    } else {
+      handleAdd(node);
+    }
+  }, [assignedIds, handleAdd, handleRemove]);
 
   const handleRemove = useCallback((node: Node) => {
     if (onChange) {
@@ -307,12 +370,20 @@ export function NodeSelector({
 
   // Keyboard list navigation
   const handleSelectByIndex = useCallback((index: number) => {
-    if (index < filteredResults.length) {
-      handleAdd(filteredResults[index]);
-    } else if (showCreateOption) {
-      handleCreateNew();
+    if (multi) {
+      if (index < multiDropdownItems.length) {
+        handleToggle(multiDropdownItems[index]);
+      } else if (showCreateOption) {
+        handleCreateNew();
+      }
+    } else {
+      if (index < filteredResults.length) {
+        handleAdd(filteredResults[index]);
+      } else if (showCreateOption) {
+        handleCreateNew();
+      }
     }
-  }, [filteredResults, showCreateOption, handleAdd, handleCreateNew]);
+  }, [multi, multiDropdownItems, filteredResults, showCreateOption, handleAdd, handleToggle, handleCreateNew]);
 
   const handleClosePicker = useCallback(() => {
     setIsPickerOpen(false);
@@ -416,6 +487,7 @@ export function NodeSelector({
             </div>
             {!readOnly && (
               <button
+                ref={arrowBtnRef}
                 type="button"
                 className={`node-selector__arrow-btn ${isPickerOpen ? 'node-selector__arrow-btn--open' : ''}`}
                 onClick={() => setIsPickerOpen(prev => !prev)}
@@ -454,8 +526,89 @@ export function NodeSelector({
           </SelectTrigger>
         )}
         
-        {/* Dropdown Menu - Rendered in Portal */}
-        {isPickerOpen && menuPosition && createPortal(
+        {/* Dropdown Menu for multi-select - Rendered in Portal */}
+        {multi && isPickerOpen && multiMenuPos && createPortal(
+          <Card
+            ref={menuRef}
+            className="node-selector__dropdown node-selector__dropdown--portal"
+            elevation="high"
+            padding={false}
+            style={{
+              position: 'absolute',
+              top: `${multiMenuPos.top}px`,
+              left: `${multiMenuPos.left}px`,
+              width: '280px',
+              maxHeight: `${multiMenuPos.maxHeight}px`,
+            }}
+          >
+            <SearchField
+              ref={searchInputRef}
+              icon={<AddIcon size="sm" />}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={onCreateNew ? 'Search or Create' : searchPlaceholder}
+              className="node-selector__search-field"
+            />
+            <div className="node-selector__list">
+              {isLoading && searchQuery.length > 0 ? (
+                <div className="node-selector__loading">Searching...</div>
+              ) : multiDropdownItems.length === 0 && !showCreateOption ? (
+                <div className="node-selector__empty">
+                  {searchQuery ? 'No matches found' : 'Start typing to search'}
+                </div>
+              ) : (
+                <>
+                  {multiDropdownItems.map((node, index) => {
+                    const isAssigned = assignedIds.has(node.id);
+                    return (
+                      <NodeResultItem
+                        key={node.id}
+                        node={node}
+                        parentPath={node.is_page ? buildParentPath(node) : ''}
+                        displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                        isHighlighted={index === selectedIndex}
+                        isSelected={isAssigned}
+                        onClick={() => handleToggle(node)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        after={
+                          <Checkbox
+                            size="sm"
+                            checked={isAssigned}
+                            onChange={() => handleToggle(node)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        }
+                      />
+                    );
+                  })}
+                  {showCreateOption && (
+                    <NodeResultItem
+                      key="__create"
+                      node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+                      isHighlighted={selectedIndex === multiDropdownItems.length}
+                      onClick={handleCreateNew}
+                      onMouseEnter={() => setSelectedIndex(multiDropdownItems.length)}
+                      className="node-result-item--create"
+                      iconOverride={<AddIcon size="sm" />}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+            {classFilters && classFilters.length > 0 && (
+              <div className="node-selector__footer">
+                <span className="node-selector__hint">
+                  Filtered by {classFilters.length} class{classFilters.length > 1 ? 'es' : ''}
+                </span>
+              </div>
+            )}
+          </Card>,
+          document.body
+        )}
+
+        {/* Dropdown Menu for single-select - Rendered in Portal */}
+        {!multi && isPickerOpen && menuPosition && createPortal(
           <Card
             ref={menuRef}
             className="node-selector__dropdown node-selector__dropdown--portal"
