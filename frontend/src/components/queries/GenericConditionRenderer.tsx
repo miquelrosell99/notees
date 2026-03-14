@@ -560,6 +560,38 @@ export function GenericConditionRenderer({
     } as unknown as ConditionNode);
   };
 
+  // Render property name dropdown for property conditions
+  const renderPropertyName = () => {
+    if (condition.condition_type !== 'property') return null;
+    
+    const propertyName = (condition as any).property_name || '';
+    const builtInProps = [
+      { value: 'uuid', label: 'uuid' },
+      { value: 'id', label: 'id' },
+    ];
+    const customProps = allProperties.map(p => ({ value: p.name, label: p.name }));
+    const allProps = [...builtInProps, ...customProps];
+    
+    return (
+      <Dropdown
+        value={propertyName}
+        onChange={(value) => {
+          const matched = allProperties.find(p => p.name === value);
+          onUpdate({
+            ...condition,
+            property_name: value || '',
+            property_uuid: matched?.uuid ?? undefined,
+          } as any);
+        }}
+        options={allProps}
+        placeholder="Select property"
+        disabled={readOnly}
+        size="sm"
+        className="prose-condition__input"
+      />
+    );
+  };
+
   // Main render
   return (
     <div className="prose-condition__inline">
@@ -575,6 +607,7 @@ export function GenericConditionRenderer({
       ) : (
         <span className="prose-condition__word">{displayLabel}</span>
       )}
+      {renderPropertyName()}
       {renderOperator()}
       {renderStaticInput()}
       {renderModeToggle()}
