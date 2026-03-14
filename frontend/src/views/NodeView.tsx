@@ -706,6 +706,9 @@ export function NodeView({
       // Skip children with this node as their class (they appear in classed_nodes view)
       if (child.classes?.includes(node.id)) continue;
       
+      // Skip comment blocks (they appear in the comments sidebar section)
+      if (child.is_comment) continue;
+      
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
       if (textPropertyBlockIds.has(child.id)) continue;
       

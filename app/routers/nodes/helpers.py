@@ -103,6 +103,7 @@ def _node_to_response(
         is_daily=node.is_day,
         is_monthly=node.is_month,
         is_yearly=node.is_year,
+        is_comment=node.is_comment,
         create_date=node.create_date,
         write_date=node.write_date,
         open_date=node.open_date,
