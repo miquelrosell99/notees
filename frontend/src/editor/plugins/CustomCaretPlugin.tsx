@@ -46,6 +46,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const wasPillRef = useRef(false);
   // Track the currently highlighted styled text span (cursor-inside indicator)
   const activeStyledNodeRef = useRef<HTMLElement | null>(null);
+  // Cached editorRoot (.notees-editor) to avoid repeated closest() traversals
+  const editorRootRef = useRef<Element | null>(null);
 
   // ─── Track active block for bullet pulse ─────────────────────
 
@@ -247,21 +249,27 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       return;
     }
 
-    // Get editor root for relative positioning
-    const editorRoot = rootElement.closest('.notees-editor');
+    // Cache editorRoot to avoid repeated closest() traversals
+    if (!editorRootRef.current || !editorRootRef.current.isConnected) {
+      editorRootRef.current = rootElement.closest('.notees-editor');
+    }
+    const editorRoot = editorRootRef.current;
     if (!editorRoot) {
       caret.style.display = 'none';
       return;
     }
     const editorRect = editorRoot.getBoundingClientRect();
 
-    // ─── Check if a pill node is selected (NodeSelection) ───
+    // ─── Single read() to gather all Lexical state ───
     let isPillSelected = false;
+    let hasFormat = false;
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         isPillSelected = nodes.length === 1 && $isInlineLinkNode(nodes[0]);
+      } else if ($isRangeSelection(selection) && selection.isCollapsed()) {
+        hasFormat = selection.format !== 0;
       }
     });
 
@@ -284,9 +292,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
         wasPillRef.current = true;
 
+        const tx = pillRect.left - editorRect.left - padding;
+        const ty = pillRect.top - editorRect.top - padding;
+
         caret.style.display = 'block';
-        caret.style.top = `${pillRect.top - editorRect.top - padding}px`;
-        caret.style.left = `${pillRect.left - editorRect.left - padding}px`;
+        caret.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
         caret.style.width = `${pillRect.width + padding * 2}px`;
         caret.style.height = `${pillRect.height + padding * 2}px`;
 
@@ -362,9 +372,11 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         requestAnimationFrame(() => { caret.style.transition = ''; });
       }
 
+      const selTx = overallRect.left - editorRect.left;
+      const selTy = overallRect.top - editorRect.top;
+
       caret.style.display = 'block';
-      caret.style.top = `${overallRect.top - editorRect.top}px`;
-      caret.style.left = `${overallRect.left - editorRect.left}px`;
+      caret.style.transform = `translate3d(${selTx}px, ${selTy}px, 0)`;
       caret.style.width = `${overallRect.width}px`;
       caret.style.height = `${overallRect.height}px`;
       caret.style.background = 'transparent';
@@ -431,27 +443,29 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       rect = range.getBoundingClientRect();
     }
 
+    // Resolve the text element once for both height fallback and line-height clamping
+    const textEl = startContainer.nodeType === Node.TEXT_NODE
+      ? startContainer.parentElement
+      : startContainer as Element;
+
+    // Compute line height once (used for both fallback and clamping)
+    let computedLineHeight = 40; // sensible default
+    if (textEl) {
+      const cs = getComputedStyle(textEl);
+      const lh = parseFloat(cs.lineHeight);
+      const fs = parseFloat(cs.fontSize);
+      computedLineHeight = !isNaN(lh) ? lh : (!isNaN(fs) ? fs * 1.6 : 40);
+    }
+
     // Height fallback for format boundaries
-    // Use computed line height rather than full parent height to avoid
-    // spanning the caret over images or other content below the text
     if (rect.height < 1) {
-      const parentEl = startContainer.nodeType === Node.TEXT_NODE
-        ? startContainer.parentElement
-        : startContainer as Element;
-      if (parentEl) {
-        const parentRect = parentEl.getBoundingClientRect();
-        // Get line height from computed style instead of using full parent height
-        const computedStyle = getComputedStyle(parentEl);
-        const lineHeight = parseFloat(computedStyle.lineHeight);
-        const fontSize = parseFloat(computedStyle.fontSize);
-        // Use line height if valid, otherwise calculate from font size or use default
-        const fallbackHeight = !isNaN(lineHeight) ? lineHeight : 
-                              (!isNaN(fontSize) ? fontSize * 1.6 : 20);
+      if (textEl) {
+        const parentRect = textEl.getBoundingClientRect();
         rect = new DOMRect(
           rect.left || parentRect.left,
           parentRect.top,
           rect.width || 2,
-          fallbackHeight
+          computedLineHeight
         );
       } else {
         rect = new DOMRect(rect.left, rect.top, rect.width || 2, 20);
@@ -459,20 +473,9 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     }
 
     // ─── Empty-block left-position fix ───
-    // When a block contains only a ZWS (empty), range.getBoundingClientRect()
-    // can report the left edge of the .node-block flex container (before the
-    // bullet) instead of the .node-block-content wrapper. Clamp to content left.
-    const anchorEl = startContainer.nodeType === Node.TEXT_NODE
-      ? startContainer.parentElement
-      : startContainer as Element;
-    // Try finding .node-block-content by traversing up (normal case: selection
-    // is on a text node or element *inside* the content wrapper).
+    const anchorEl = textEl;
     let contentEl = anchorEl?.closest('.node-block-content') as HTMLElement | null;
     if (!contentEl) {
-      // Selection may be on .node-block itself (happens when Lexical resolves
-      // an element-level selection on an empty BlockNode). In that case
-      // closest() won't find .node-block-content because it's a *child*, not
-      // an ancestor. Fall back to querySelector on the parent block.
       const blockEl = anchorEl?.closest('.node-block') as HTMLElement | null;
       contentEl = blockEl?.querySelector('.node-block-content') as HTMLElement | null;
     }
@@ -486,27 +489,10 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     const top = rect.top - editorRect.top;
     const left = rect.left - editorRect.left;
     
-    // Calculate caret height, clamping to line height to prevent spanning over images
-    // Find the text node or closest element to get proper line height
-    const textEl = startContainer.nodeType === Node.TEXT_NODE
-      ? startContainer.parentElement
-      : startContainer as Element;
-    let maxLineHeight = 40; // Default max to prevent extreme heights
-    if (textEl) {
-      const computedStyle = getComputedStyle(textEl);
-      const lineHeight = parseFloat(computedStyle.lineHeight);
-      const fontSize = parseFloat(computedStyle.fontSize);
-      if (!isNaN(lineHeight)) {
-        maxLineHeight = lineHeight;
-      } else if (!isNaN(fontSize)) {
-        maxLineHeight = fontSize * 1.6; // Standard line height multiplier
-      }
-    }
-    // Use rect height but clamp to line height to avoid spanning images below text
-    const height = rect.height > 1 ? Math.min(rect.height, maxLineHeight) : 20;
+    // Clamp height to line height to avoid spanning images below text
+    const height = rect.height > 1 ? Math.min(rect.height, computedLineHeight) : 20;
 
     // Disable position transitions on first placement or when exiting pill mode
-    // (pill→cursor: width would otherwise animate right-to-left as it shrinks)
     if (!hasPositionedRef.current || wasPillRef.current) {
       caret.style.transition = 'none';
       hasPositionedRef.current = true;
@@ -521,20 +507,20 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     if (prevTop !== null && hasPositionedRef.current) {
       const deltaY = top - prevTop;
       if (Math.abs(deltaY) > 10) {
+        // Use a separate animation so it doesn't interfere with translate3d positioning
         caret.animate(
           [
-            { transform: `translateY(${deltaY > 0 ? -3 : 3}px)` },
-            { transform: 'translateY(0.8px)' },
-            { transform: 'translateY(0)' },
+            { transform: `translate3d(${left}px, ${top + (deltaY > 0 ? -3 : 3)}px, 0)` },
+            { transform: `translate3d(${left}px, ${top + 0.8}px, 0)` },
+            { transform: `translate3d(${left}px, ${top}px, 0)` },
           ],
-          { duration: 280, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
+          { duration: 200, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
         );
       }
     }
 
     caret.style.display = 'block';
-    caret.style.top = `${top}px`;
-    caret.style.left = `${left}px`;
+    caret.style.transform = `translate3d(${left}px, ${top}px, 0)`;
     caret.style.height = `${height}px`;
 
     // Remove pill/selection classes
@@ -552,20 +538,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     }
 
     // ─── Styled-span underline indicator ─────────────────────────────
-    // When the cursor is inside a formatted span (bold, italic, code, etc.) and
-    // selection.format != 0 (meaning the next char will be styled), highlight the
-    // span itself with a subtle underline. Uses selection.format rather than
-    // node.getFormat() so the indicator disappears after the first arrow press at
-    // a style boundary (when the guard resets selection.format = 0).
-    let hasFormat = false;
-    editor.getEditorState().read(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        hasFormat = selection.format !== 0;
-      }
-    });
-
-    // Resolve the DOM span containing the cursor
+    // hasFormat was already computed in the single read() above
     let newStyledEl: HTMLElement | null = null;
     if (hasFormat) {
       const domSel = window.getSelection();

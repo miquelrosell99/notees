@@ -24,6 +24,7 @@ import {
   KEY_DELETE_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
+  KEY_DOWN_COMMAND,
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
@@ -63,6 +64,8 @@ export function NodeLinkPlugin({
   const [editor] = useLexicalComposerContext();
 
   // ─── Click handling ────────────────────────────────────────
+  // Single-click: select the pill (NodeSelection) for editing/deletion
+  // Double-click: navigate to the linked node
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -72,23 +75,69 @@ export function NodeLinkPlugin({
       if (pillWrapper) {
         const linkId = pillWrapper.getAttribute('data-link-id');
         const refType = (pillWrapper.getAttribute('data-ref-type') as InlineLinkRefType) || 'node';
-        if (linkId) {
-          if (refType === 'url') {
-            // URL pill: open in new tab
-            const url = pillWrapper.getAttribute('data-url');
-            if (url) window.open(url, '_blank', 'noopener,noreferrer');
-          } else {
-            // Node pill: navigate
-            onPillClick?.(linkId, refType);
-          }
+        if (!linkId) return true;
+
+        if (refType === 'url') {
+          // URL pill: open in new tab on any click
+          const url = pillWrapper.getAttribute('data-url');
+          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+          return true;
         }
+
+        // Single-click: select the pill via NodeSelection
+        event.preventDefault();
+        editor.update(() => {
+          // Find the InlineLinkNode matching this linkId
+          const root = $getRoot();
+          const findNode = (parent: ReturnType<typeof $getRoot>): void => {
+            for (const child of parent.getChildren()) {
+              if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
+                const nodeSelection = $createNodeSelection();
+                nodeSelection.add(child.getKey());
+                $setSelection(nodeSelection);
+                return;
+              }
+              if ('getChildren' in child && typeof child.getChildren === 'function') {
+                findNode(child as any);
+              }
+            }
+          };
+          findNode(root);
+        });
         return true;
       }
 
       return false;
     };
 
-    return editor.registerCommand(CLICK_COMMAND, handleClick, COMMAND_PRIORITY_HIGH);
+    // Double-click: navigate to the linked node
+    const handleDoubleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const pillWrapper = target.closest('.inline-link-wrapper');
+
+      if (pillWrapper) {
+        const linkId = pillWrapper.getAttribute('data-link-id');
+        const refType = (pillWrapper.getAttribute('data-ref-type') as InlineLinkRefType) || 'node';
+        if (linkId && refType !== 'url') {
+          event.preventDefault();
+          onPillClick?.(linkId, refType);
+        }
+        return true;
+      }
+      return false;
+    };
+
+    const rootElement = editor.getRootElement();
+    if (rootElement) {
+      rootElement.addEventListener('dblclick', handleDoubleClick);
+    }
+
+    const unsubClick = editor.registerCommand(CLICK_COMMAND, handleClick, COMMAND_PRIORITY_HIGH);
+
+    return () => {
+      unsubClick();
+      rootElement?.removeEventListener('dblclick', handleDoubleClick);
+    };
   }, [editor, onPillClick]);
 
   // ─── Apply pending pill update (from LinkEditModal) ──────────
@@ -312,6 +361,39 @@ export function NodeLinkPlugin({
       unsubDel();
     };
   }, [editor, onPillRemove]);
+
+  // ─── Enter on selected pill → navigate ─────────────────────
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event: KeyboardEvent) => {
+        if (event.key !== 'Enter') return false;
+
+        const selection = $getSelection();
+        if (!$isNodeSelection(selection)) return false;
+
+        const nodes = selection.getNodes();
+        for (const node of nodes) {
+          if ($isInlineLinkNode(node)) {
+            event.preventDefault();
+            const linkId = node.getLinkId();
+            const refType = node.getRefType();
+            if (refType === 'url') {
+              const url = node.getUrl();
+              if (url) window.open(url, '_blank', 'noopener,noreferrer');
+            } else {
+              onPillClick?.(linkId, refType);
+            }
+            return true;
+          }
+        }
+
+        return false;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onPillClick]);
 
   return null;
 }
