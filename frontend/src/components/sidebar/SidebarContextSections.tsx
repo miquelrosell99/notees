@@ -6,7 +6,7 @@
  * - Comments section: Shows all comments for the active node (always visible)
  * - Activity section: Shows activity log for the active node
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/stores';
 import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
@@ -33,10 +33,9 @@ function countAllComments(comments: Comment[]): number {
 interface CommentRowProps {
   comment: Comment;
   depth?: number;
-  onClickComment: () => void;
 }
 
-function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
+function CommentRow({ comment, depth = 0 }: CommentRowProps) {
   const snippet = nodeNameToText(comment.name, 80) || 'Empty comment';
   const time = formatRelativeTime(comment.create_date);
   const isResolved = comment.collapsed;
@@ -46,7 +45,6 @@ function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
       <div 
         className={`sidebar-comment-row ${isResolved ? 'sidebar-comment-row--resolved' : ''}`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
-        onClick={onClickComment}
       >
         <div className="sidebar-comment-row__content">
           <span className="sidebar-comment-row__snippet">
@@ -68,7 +66,6 @@ function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
           key={child.id} 
           comment={child} 
           depth={depth + 1}
-          onClickComment={onClickComment}
         />
       ))}
     </>
@@ -77,10 +74,9 @@ function CommentRow({ comment, depth = 0, onClickComment }: CommentRowProps) {
 
 interface CommentsListProps {
   comments: Comment[];
-  onClickComment: () => void;
 }
 
-function CommentsList({ comments, onClickComment }: CommentsListProps) {
+function CommentsList({ comments }: CommentsListProps) {
   if (comments.length === 0) {
     return (
       <div className="sidebar-section-empty">
@@ -95,7 +91,6 @@ function CommentsList({ comments, onClickComment }: CommentsListProps) {
         <CommentRow 
           key={comment.id} 
           comment={comment}
-          onClickComment={onClickComment}
         />
       ))}
     </div>
@@ -155,7 +150,6 @@ function QuickAddComment({ nodeId, onClose }: { nodeId: number; onClose: () => v
 export function SidebarContextSections() {
   const currentNodeId = useAppStore(state => state.currentNodeId);
   const mainViewType = useAppStore(state => state.mainViewType);
-  const { openCommentsForNode } = useAppStore();
   
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
@@ -175,10 +169,6 @@ export function SidebarContextSections() {
   
   const activityCount = activityData?.length ?? 0;
   const showActivity = activityCount > 0 || activityLoading;
-  
-  const handleOpenComments = useCallback(() => {
-    if (currentNodeId) openCommentsForNode(currentNodeId);
-  }, [currentNodeId, openCommentsForNode]);
   
   if (mainViewType !== 'node' || !currentNodeId) return null;
   
@@ -208,16 +198,6 @@ export function SidebarContextSections() {
             >
               <AddIcon size="xs" />
             </Button>
-            {commentCount > 0 && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={handleOpenComments}
-                title="Open full comments panel"
-              >
-                <CommentIcon size="xs" />
-              </Button>
-            )}
           </div>
         }
       >
@@ -227,7 +207,6 @@ export function SidebarContextSections() {
         ) : (
           <CommentsList 
             comments={commentsData?.comments ?? []}
-            onClickComment={handleOpenComments}
           />
         )}
       </NodeViewSection>

@@ -92,7 +92,6 @@ export type { SidebarLocalGraphProps } from './sidebar/SidebarLocalGraph';
 export { AllPagesView } from '../views/AllPagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './sidebar/SidebarNodeView';
-export { CommentsSidebar } from './sidebar/CommentsSidebar';
 
 // Modal components
 export { Modal } from './core/Modal';

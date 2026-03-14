@@ -24,7 +24,6 @@ import { TopBar } from './TopBar';
 import { RightSidebarCards } from '../sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
-import { CommentsSidebar } from '../sidebar/CommentsSidebar';
 import { ImportDataModal } from '../workspace/ImportDataModal';
 import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
 import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
@@ -62,7 +61,6 @@ export function Layout() {
   const setMergePagesModalOpen = useAppStore(s => s.setMergePagesModalOpen);
   const isMinimapOpen = useAppStore(s => s.isMinimapOpen);
   const setMinimapOpen = useAppStore(s => s.setMinimapOpen);
-  const commentsSidebarOpen = useAppStore(s => s.commentsSidebarOpen);
   const setMainViewType = useAppStore(s => s.setMainViewType);
   const openNode = useAppStore(s => s.openNode);
   
@@ -239,9 +237,6 @@ export function Layout() {
           <Card className="main-container" padding={false} elevation="medium">
             <MainContent />
           </Card>
-          
-          {/* Comments Sidebar - positioned between main and right sidebar */}
-          {commentsSidebarOpen && <CommentsSidebar />}
           
           {/* Floating Right Sidebar - uses Card component with panel of cards */}
           <div className="sidebar-wrapper sidebar-wrapper--right" style={rightSidebarStyle}>
