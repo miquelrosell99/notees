@@ -142,7 +142,7 @@ export function PropertyList({
             onNameClick={onPropertyNameClick}
             onPropertyContextMenu={onPropertyContextMenu}
             getContextMenuItems={getContextMenuItems}
-            showBullet={showBullets && entry.property.type !== 'text'}
+            showBullet={showBullets}
             onValueBulletClick={handleNodeValueClick}
             onValueBulletShiftClick={handleNodeValueShiftClick}
           />
@@ -171,7 +171,7 @@ export function PropertyList({
                   onNameClick={onPropertyNameClick}
                   onPropertyContextMenu={onPropertyContextMenu}
                   getContextMenuItems={getContextMenuItems}
-                  showBullet={showBullets && entry.property.type !== 'text'}
+                  showBullet={showBullets}
                   onValueBulletClick={handleNodeValueClick}
                   onValueBulletShiftClick={handleNodeValueShiftClick}
                 />
