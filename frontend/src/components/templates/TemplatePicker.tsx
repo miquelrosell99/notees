@@ -1,17 +1,20 @@
 /**
- * TemplatePicker — Modal for selecting a template to instantiate.
+ * TemplatePicker — Node picker for selecting a template to instantiate.
  *
- * Shows a searchable list of all workspace templates. When the user selects
- * one, it fetches the template's {{variable}} placeholders. If any exist it
- * opens TemplateVariableModal; otherwise it calls onInstantiate immediately.
+ * Uses NodeSelector filtered to the template class. When the user selects
+ * a template, it fetches {{variable}} placeholders. If any exist it opens
+ * TemplateVariableModal; otherwise it instantiates immediately and injects
+ * the resulting blocks into the runtime.
  */
 import { useState, useMemo, type JSX } from 'react';
 import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { SearchField } from '../core/SearchField';
-import { useTemplates, useTemplateVariables, useInstantiateTemplate } from '@/hooks/useTemplates';
+import { NodeSelector } from '../nodes/NodeSelector';
+import { useClasses } from '@/hooks';
+import { useInstantiateTemplate } from '@/hooks/useTemplates';
 import { TemplateVariableModal } from './TemplateVariableModal';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 
 export interface TemplatePickerProps {
@@ -19,7 +22,9 @@ export interface TemplatePickerProps {
   onClose: () => void;
   /** The page node that owns the inserted blocks (parent_id for as_blocks mode). */
   pageNodeId: number;
-  /** Called after successful instantiation. Passes the new root node when as_blocks=false. */
+  /** UUID of the page node — needed to properly link new blocks in the runtime. */
+  pageUuid: string;
+  /** Called after successful instantiation. */
   onSuccess?: (result: { node: Node | null; blocks: Node[] }) => void;
 }
 
@@ -27,39 +32,32 @@ export function TemplatePicker({
   isOpen,
   onClose,
   pageNodeId,
+  pageUuid,
   onSuccess,
 }: TemplatePickerProps): JSX.Element {
-  const [query, setQuery] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [variableModalOpen, setVariableModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: templatesData, isLoading } = useTemplates();
-  const { data: variablesData } = useTemplateVariables(
-    variableModalOpen ? null : selectedTemplateId,
-  );
+  const { data: allClasses = [] } = useClasses();
   const instantiate = useInstantiateTemplate();
 
-  const templates = templatesData?.templates ?? [];
+  const templateClassId = useMemo(
+    () => allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.template)?.id ?? null,
+    [allClasses],
+  );
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return templates;
-    const lower = query.toLowerCase();
-    return templates.filter(t => {
-      const name = nodeNameToText(t.name || '').toLowerCase();
-      return name.includes(lower);
-    });
-  }, [templates, query]);
+  const classFilters = useMemo(
+    () => (templateClassId != null ? [templateClassId] : []),
+    [templateClassId],
+  );
 
   const handleSelect = async (template: Node) => {
     setError(null);
     setSelectedTemplateId(template.id);
-    // Fetch variables (the useTemplateVariables hook will re-run via the id change)
-    // We do a direct fetch here to avoid waiting for the query to update
     try {
-      const res = await import('@/api/nodes').then(m =>
-        m.getTemplateVariables(template.id),
-      );
+      const { getTemplateVariables } = await import('@/api/nodes');
+      const res = await getTemplateVariables(template.id);
       if (res.variables.length > 0) {
         setVariableModalOpen(true);
       } else {
@@ -74,12 +72,14 @@ export function TemplatePicker({
     try {
       const result = await instantiate.mutateAsync({
         nodeId: templateId,
-        options: {
-          parent_id: pageNodeId,
-          as_blocks: true,
-          variables,
-        },
+        options: { parent_id: pageNodeId, as_blocks: true, variables },
       });
+      // Inject the new blocks directly into the runtime so they appear immediately
+      if (result.blocks.length > 0) {
+        const runtime = getNodeGraphRuntime();
+        const { graphNodes } = apiNodesToGraphNodes(result.blocks, pageNodeId, pageUuid);
+        runtime.upsertNodes(graphNodes);
+      }
       onSuccess?.(result);
       onClose();
     } catch (e: unknown) {
@@ -95,16 +95,11 @@ export function TemplatePicker({
   };
 
   const handleClose = () => {
-    setQuery('');
     setSelectedTemplateId(null);
     setVariableModalOpen(false);
     setError(null);
     onClose();
   };
-
-  const selectedTemplate = selectedTemplateId != null
-    ? templates.find(t => t.id === selectedTemplateId) ?? null
-    : null;
 
   return (
     <>
@@ -114,59 +109,33 @@ export function TemplatePicker({
         title="Insert Template"
         size="sm"
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder="Search templates…"
-            autoFocus
-          />
-
-          {isLoading && <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Loading…</p>}
-
-          {!isLoading && filtered.length === 0 && (
-            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-              {templates.length === 0 ? 'No templates found. Add the Template class to a page to create one.' : 'No templates match your search.'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {classFilters.length > 0 ? (
+            <NodeSelector
+              trigger="inline"
+              searchMode="pages"
+              classFilters={classFilters}
+              multi={false}
+              searchPlaceholder="Search templates…"
+              onAdd={handleSelect}
+            />
+          ) : (
+            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Loading…</p>
+          )}
+          {error && (
+            <p style={{ margin: 0, color: 'var(--color-error, red)', fontSize: '0.85rem' }}>
+              {error}
             </p>
           )}
-
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            {filtered.map(template => (
-              <li key={template.id}>
-                <button
-                  onClick={() => handleSelect(template)}
-                  disabled={instantiate.isPending}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    background: 'none',
-                    border: '1px solid transparent',
-                    borderRadius: '6px',
-                    padding: '0.5rem 0.75rem',
-                    cursor: 'pointer',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.9rem',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  {template.icon && <span style={{ marginRight: '0.5rem' }}>{template.icon}</span>}
-                  {nodeNameToText(template.name || '') || 'Untitled'}
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          {error && <p style={{ margin: 0, color: 'var(--color-error)' }}>{error}</p>}
         </div>
       </Modal>
 
-      {variableModalOpen && selectedTemplate != null && (
+      {variableModalOpen && selectedTemplateId != null && (
         <TemplateVariableModal
           isOpen={variableModalOpen}
-          onClose={() => setVariableModalOpen(false)}
-          templateId={selectedTemplate.id}
-          templateName={nodeNameToText(selectedTemplate.name || '') || 'Untitled'}
+          onClose={handleClose}
+          templateId={selectedTemplateId}
+          templateName=""
           onConfirm={handleVariableConfirm}
         />
       )}
