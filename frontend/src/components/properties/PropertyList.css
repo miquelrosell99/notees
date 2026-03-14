@@ -24,7 +24,8 @@
 /* ==================== Property Row ==================== */
 
 .property-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-1) 0;
@@ -36,10 +37,8 @@
   align-items: flex-start;
 }
 
-/* Align label with the first block's text line:
-   container padding (--spacing-1) + block margin (3px) */
 .property-row:has(.text-property-block--has-content) .property-row__label {
-  padding-top: calc(var(--spacing-1) + 3px);
+  padding-top: 0;
 }
 
 .property-row:has(.text-property-block--has-content) .property-row__value-container,
@@ -52,9 +51,7 @@
   display: flex;
   align-items: center;
   gap: 0;
-  min-width: 140px;
-  max-width: 180px;
-  flex-shrink: 0;
+  overflow: hidden;
   font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
   text-align: left;
@@ -92,7 +89,6 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  flex: 1;
   min-width: 0;
 }
 
@@ -144,6 +140,7 @@
 /* ==================== Block Variant ==================== */
 
 .property-list--block .property-row {
+  grid-template-columns: minmax(80px, 140px) 1fr;
   padding: 2px 0;
   min-height: 24px;
   align-items: center;
@@ -155,7 +152,5 @@
 }
 
 .property-list--block .property-row__label {
-  min-width: 100px;
-  max-width: 140px;
   font: var(--font-body-small);
 }
