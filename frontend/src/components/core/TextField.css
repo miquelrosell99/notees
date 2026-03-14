@@ -16,6 +16,7 @@
 
 .text-field {
   width: 100%;
+  height: var(--height-lg);
   padding: var(--spacing-2) var(--spacing-3);
   font-size: 0.875rem;
   color: var(--color-on-surface);
@@ -52,11 +53,13 @@
 
 /* Size variants */
 .text-field--sm {
+  height: var(--height-md);
   padding: var(--spacing-1) var(--spacing-2);
   font-size: 0.75rem;
 }
 
 .text-field--lg {
+  height: var(--height-xl);
   padding: var(--spacing-3) var(--spacing-4);
   font-size: 1rem;
 }
