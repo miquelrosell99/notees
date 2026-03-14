@@ -597,13 +597,6 @@ export const NodeCard = memo(function NodeCard({
       case 'file':
         // Cards don't currently support inline asset upload from slash commands
         break;
-      case 'comment': {
-        if (blockServerId != null) {
-          const { openCommentsForNode } = useAppStore.getState();
-          openCommentsForNode(blockServerId);
-        }
-        break;
-      }
     }
   }, [_propsAllClasses, addClass]);
 
