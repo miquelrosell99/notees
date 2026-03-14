@@ -34,6 +34,9 @@ from .models import (
     BatchGetNodesResponse,
     BreadcrumbItem,
     BreadcrumbsResponse,
+    TemplateInstantiateRequest,
+    TemplateInstantiateResponse,
+    TemplateVariablesResponse,
 )
 from .helpers import (
     _get_node_service,
@@ -387,6 +390,28 @@ async def get_archived_pages(
     return {"pages": result}
 
 
+@router.get("/templates", name="list_templates")
+async def list_templates(
+    user: User = Depends(get_current_user),
+):
+    """List all template nodes in the current workspace."""
+    service = await _get_node_service(user)
+    templates = await service.list_templates()
+
+    pool = service._node_repo.get_connection()
+    workspace_id = service._workspace_id or 0
+
+    result = []
+    for t in templates:
+        if t.id is None:
+            continue
+        class_ids = await _get_class_ids(service, t.id)
+        tag_ids = await _get_tag_ids(pool, workspace_id, t.id)
+        result.append(_node_to_response(t, classes=class_ids, tags=tag_ids))
+
+    return {"templates": result, "total": len(result)}
+
+
 @router.get("/trash", name="get_trash")
 async def get_trash(
     user: User = Depends(get_current_user),
@@ -636,6 +661,67 @@ async def get_node_breadcrumbs(
         ))
     
     return BreadcrumbsResponse(breadcrumbs=items)
+
+
+@router.get("/{node_id}/template-variables", name="get_template_variables")
+async def get_template_variables(
+    node_id: int = Path(..., ge=1, description="Node ID of the template"),
+    user: User = Depends(get_current_user),
+):
+    """Return the list of {{variable}} placeholders found in a template node and its descendants."""
+    service = await _get_node_service(user)
+
+    node = await service.get_node(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    if not node.is_template:
+        raise HTTPException(422, "Node is not a template")
+
+    variables = await service.extract_template_variables(node_id)
+    return TemplateVariablesResponse(variables=variables)
+
+
+@router.post("/{node_id}/instantiate", name="instantiate_template")
+async def instantiate_template(
+    node_id: int = Path(..., ge=1, description="Node ID of the template"),
+    body: TemplateInstantiateRequest = ...,
+    user: User = Depends(get_current_user),
+):
+    """Instantiate a template, creating a deep copy with optional variable substitution.
+
+    When as_blocks=True the template's children will be created directly under
+    parent_id without creating a root page.
+    """
+    service = await _get_node_service(user)
+
+    node = await service.get_node(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    if not node.is_template:
+        raise HTTPException(422, "Node is not a template")
+
+    result = await service.instantiate_template(
+        template_id=node_id,
+        user_id=int(user.id),
+        parent_id=body.parent_id,
+        name=body.name,
+        variables=body.variables,
+        as_blocks=body.as_blocks,
+    )
+
+    if result['as_blocks']:
+        blocks = [
+            _node_to_response(b, classes=list(b.class_ids or []))
+            for b in result['blocks'] if b
+        ]
+        return TemplateInstantiateResponse(node=None, blocks=blocks, as_blocks=True)
+    else:
+        root = result['node']
+        if not root:
+            raise HTTPException(500, "Template instantiation failed: no root node returned")
+        class_ids = await _get_class_ids(service, root.id)
+        response_node = _node_to_response(root, classes=class_ids)
+        return TemplateInstantiateResponse(node=response_node, blocks=[], as_blocks=False)
 
 
 @router.get("/{node_id}")
