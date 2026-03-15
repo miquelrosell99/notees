@@ -525,6 +525,50 @@ CREATE INDEX IF NOT EXISTS idx_link_click_user_id ON link_click(user_id);
 CREATE INDEX IF NOT EXISTS idx_link_click_node_link_uuid ON link_click(node_link_uuid) WHERE node_link_uuid IS NOT NULL;
 
 -- ============================================================
+-- NODE VERSION HISTORY
+-- ============================================================
+
+-- Stores snapshots of node content for version history / undo
+CREATE TABLE IF NOT EXISTS node_version (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    name TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_version_node_id ON node_version(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_version_created_at ON node_version(created_at);
+
+-- Trigger function: capture node content before update (when name changes)
+CREATE OR REPLACE FUNCTION capture_node_version()
+RETURNS TRIGGER AS $fn$
+BEGIN
+    -- Only capture when name actually changes
+    IF OLD.name IS DISTINCT FROM NEW.name THEN
+        INSERT INTO node_version (node_id, workspace_id, version, name, created_at, user_id)
+        VALUES (OLD.id, OLD.workspace_id, OLD.version, OLD.name, NOW(), NEW.write_uid);
+    END IF;
+    RETURN NEW;
+END;
+$fn$ LANGUAGE plpgsql;
+
+-- Attach trigger (idempotent)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'trg_node_version_capture'
+    ) THEN
+        CREATE TRIGGER trg_node_version_capture
+            BEFORE UPDATE ON node
+            FOR EACH ROW
+            EXECUTE FUNCTION capture_node_version();
+    END IF;
+END $$;
+
+-- ============================================================
 -- MIGRATIONS: TYPE -> CLASS RENAMING
 -- ============================================================
 
