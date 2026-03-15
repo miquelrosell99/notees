@@ -99,6 +99,26 @@
   border-top: 1px solid var(--color-outline-variant);
 }
 
+/* Upward opening: anchor bottom, reverse layout */
+.slash-command-menu--upward {
+  flex-direction: column-reverse;
+}
+
+.slash-command-menu--upward .slash-command-menu__list {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.slash-command-menu--upward .slash-command-menu__header {
+  border-bottom: none;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.slash-command-menu--upward .slash-command-menu__footer {
+  border-top: none;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
 .slash-command-menu__hint {
   display: flex;
   align-items: center;
