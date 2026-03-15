@@ -20,6 +20,21 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Recursively search a node tree for a node by ID.
+ * Returns the matching node or undefined.
+ */
+function findNodeInTree(root: import('@/types/api').Node, targetId: number): import('@/types/api').Node | undefined {
+  if (root.id === targetId) return root;
+  if (root.children) {
+    for (const child of root.children) {
+      const found = findNodeInTree(child, targetId);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 // ==================== Node Queries ====================
 
 /**
@@ -46,10 +61,26 @@ export function useNode(
     include_properties?: boolean;
   }
 ) {
+  const queryClient = useQueryClient();
   const result = useQuery({
     queryKey: nodeKeys.detail(id ?? 0, options),
     queryFn: () => nodesApi.getNode(id!, options),
     enabled: !!id,
+    // Provide data from existing parent caches while the fresh fetch loads.
+    // This prevents showing empty content when navigating to a block's
+    // focused view before its content save has completed on the server.
+    placeholderData: () => {
+      if (!id) return undefined;
+      const queryCache = queryClient.getQueryCache();
+      for (const query of queryCache.findAll({ queryKey: nodeKeys.details() })) {
+        const data = query.state.data as import('@/types/api').Node | undefined;
+        if (data) {
+          const found = findNodeInTree(data, id);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    },
     // IMPORTANT: structuralSharing must be disabled for nodes with nested children.
     // React Query's structural sharing compares objects by reference and can preserve
     // stale references in deeply nested structures (e.g., page -> block -> child-block).

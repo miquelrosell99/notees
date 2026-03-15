@@ -306,7 +306,6 @@ export function SidebarContextSections() {
             {versions.map((v) => (
               <div key={v.id} className="sidebar-version-item">
                 <div className="sidebar-version-item__info">
-                  <span className="sidebar-version-item__label">v{v.version}</span>
                   <span className="sidebar-version-item__date">
                     {v.created_at ? formatDate(new Date(v.created_at), useSettingsStore.getState().dateFormat) : ''}
                   </span>

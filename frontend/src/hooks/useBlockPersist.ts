@@ -148,22 +148,30 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
           onPersisted?.(blockId, createdNode.id);
 
-          // Invalidate parent node's cache so it includes the new child.
-          // The reconciliation in apiNodesToGraphNodes ensures the refetched
-          // data maps the server UUID back to the runtime's blockId, preventing
-          // a visual flash (remove old + add new) in the editor.
-          if (parentServerId != null) {
-            queryClient.invalidateQueries({
-              queryKey: nodeKeys.detailBase(parentServerId),
-            });
-          }
-
-          // Flush any queued content save for this block
+          // Flush any queued content save for this block BEFORE invalidating
+          // caches. This ensures that when the parent cache refetches, the
+          // block's content is already saved to the server.
           const queuedContent = pendingContentSaves.get(blockId);
           if (queuedContent != null) {
             pendingContentSaves.delete(blockId);
-            // Now that we have a serverId, save content directly via API
-            flushQueuedContent(createdNode.id, queuedContent);
+            // Save content first, then invalidate caches so refetches get fresh data
+            flushQueuedContent(createdNode.id, queuedContent).then(() => {
+              if (parentServerId != null) {
+                queryClient.invalidateQueries({
+                  queryKey: nodeKeys.detailBase(parentServerId),
+                });
+              }
+              queryClient.invalidateQueries({
+                queryKey: nodeKeys.detailBase(createdNode.id),
+              });
+            });
+          } else {
+            // No queued content — invalidate parent cache immediately
+            if (parentServerId != null) {
+              queryClient.invalidateQueries({
+                queryKey: nodeKeys.detailBase(parentServerId),
+              });
+            }
           }
 
           // Now check if any children were waiting on this parent
@@ -289,14 +297,15 @@ function serializeContentForAPI(contentAST: import('../runtime/types').ContentAS
 /**
  * Flush a queued content save now that the block has a serverId.
  * Calls the update API directly — converts markdown syntax in AST first.
+ * Returns a Promise so callers can defer cache invalidation until the save completes.
  */
-function flushQueuedContent(serverId: number, content: string): void {
+function flushQueuedContent(serverId: number, content: string): Promise<void> {
   // Match the same conversion logic as useContentSave.saveBlock
   const ast = parseAST(content);
   const converted = convertMarkdownInAST(ast);
   const finalContent = converted !== ast ? JSON.stringify(converted) : content;
 
-  updateNodeApi(serverId, { name: finalContent }).catch((error) => {
+  return updateNodeApi(serverId, { name: finalContent }).then(() => {}).catch((error) => {
     console.error('[useBlockPersist] Failed to flush content for serverId:', serverId, error);
   });
 }

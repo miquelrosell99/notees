@@ -131,12 +131,6 @@
   gap: var(--spacing-1);
 }
 
-.sidebar-version-item__label {
-  font: var(--font-body-small);
-  font-weight: 600;
-  color: var(--color-on-surface);
-}
-
 .sidebar-version-item__date {
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
