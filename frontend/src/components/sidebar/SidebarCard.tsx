@@ -16,7 +16,7 @@ import { Card } from '../core/Card';
 
 interface SidebarCardProps {
   /** Card title */
-  title?: string;
+  title?: ReactNode;
   /** Icon to display before the title */
   icon?: ReactNode;
   /** Optional subtitle or info text */
