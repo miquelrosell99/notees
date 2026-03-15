@@ -161,6 +161,7 @@ export function NodeCollection({
   templateClassFilters,
   onEnterAtRoot,
   hideProperties = false,
+  size,
   ganttStartDateProperty: ganttStartDatePropertyProp,
   ganttEndDateProperty: ganttEndDatePropertyProp,
   onGanttStartDatePropertyChange,
@@ -370,6 +371,7 @@ export function NodeCollection({
             templateClassFilters={templateClassFilters}
             onEnterAtRoot={onEnterAtRoot}
             hideProperties={hideProperties}
+            size={size}
           />
         );
       
