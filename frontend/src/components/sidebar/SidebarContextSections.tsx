@@ -30,7 +30,7 @@ function CommentsList({ comments }: { comments: Node[] }) {
   }
 
   const collapsedComments = useMemo(
-    () => comments.map(c => ({ ...c, collapsed: true })),
+    () => comments.map(c => ({ ...c, collapsed: !!(c.children && c.children.length > 0) })),
     [comments]
   );
 
