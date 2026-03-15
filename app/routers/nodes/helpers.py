@@ -13,7 +13,7 @@ from ...domain.repositories import (
 from ...db.connection import acquire_connection, get_pool
 from ...models import User
 from ...logging_config import get_logger
-from .models import NodeResponse, CommentResponse
+from .models import NodeResponse
 
 
 logger = get_logger(__name__)
@@ -438,26 +438,6 @@ async def _get_node_service(user: User) -> NodeService:
     node_service._user_id = user_id
     
     return node_service
-
-
-def _node_to_comment_response(node: Node, children: list[Node] | None = None) -> CommentResponse:
-    """Convert a node to a comment response."""
-    child_responses = None
-    if children:
-        child_responses = [_node_to_comment_response(c) for c in children]
-    
-    return CommentResponse(
-        id=node.id or 0,
-        uuid=node.uuid,
-        name=node.name or "",
-        icon=node.icon,
-        parent_id=node.parent_id,
-        sequence=node.sequence,
-        collapsed=node.collapsed,
-        create_date=node.create_date,
-        write_date=node.write_date,
-        children=child_responses,
-    )
 
 
 async def _resolve_referenced_display_names(pool, workspace_id: int, target_rows) -> Dict[str, str]:

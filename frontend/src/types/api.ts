@@ -86,22 +86,6 @@ export interface Node {
 }
 
 /**
- * Comment node - a node attached to another node as a comment
- */
-export interface Comment {
-  id: number;
-  uuid: string;
-  name: string;
-  icon: string | null;
-  parent_id: number | null;
-  sequence: number;
-  collapsed: boolean;
-  create_date: string;
-  write_date: string;
-  children?: Comment[];
-}
-
-/**
  * Helper to check if a node is a page
  */
 export function isPage(node: Node, pageTagId: number): boolean {
