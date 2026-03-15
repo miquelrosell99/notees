@@ -126,12 +126,6 @@
 /* ==================== Toolbar Buttons ==================== */
 /* Additional toolbar button styles work with Button component */
 
-/* Today button - text button style */
-.toolbar-btn.today-btn {
-  width: auto;
-  padding: 0 var(--spacing-2);
-}
-
 /* ==================== Node View Controls ==================== */
 .top-bar-node-controls {
   display: flex;
