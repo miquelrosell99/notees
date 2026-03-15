@@ -91,7 +91,6 @@ interface NodesState {
   contentDisplayMode: ContentDisplayMode;
   cardLayout: CardLayoutMode;
   isScratchpadOpen: boolean;
-  lateNightThoughtsFilter: boolean;
   
   // Per-node view mode storage (persisted)
   nodeViewModes: Record<string, NodeCollectionViewMode>;
@@ -149,9 +148,6 @@ interface NodesState {
   setCardLayout: (layout: CardLayoutMode) => void;
   toggleScratchpad: () => void;
   setScratchpadOpen: (open: boolean) => void;
-  toggleLateNightThoughts: () => void;
-  setLateNightThoughtsFilter: (enabled: boolean) => void;
-  
   // Per-node view mode actions
   setNodeViewMode: (nodeId: number, viewType: string, mode: NodeCollectionViewMode) => void;
   getNodeViewMode: (nodeId: number, viewType: string) => NodeCollectionViewMode | undefined;
@@ -198,7 +194,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   contentDisplayMode: 'bullet' as ContentDisplayMode,
   cardLayout: 'no-cover' as CardLayoutMode,
   isScratchpadOpen: false,
-  lateNightThoughtsFilter: false,
   nodeViewModes: {},
   nodeGroupBy: {},
   preFocusModeSidebarCollapsed: null,
@@ -395,9 +390,6 @@ export const useAppStore = create<NodesState>()(persist((set, get) => ({
   setCardLayout: (layout) => set({ cardLayout: layout }),
   toggleScratchpad: () => set((state) => ({ isScratchpadOpen: !state.isScratchpadOpen })),
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
-  toggleLateNightThoughts: () => set((state) => ({ lateNightThoughtsFilter: !state.lateNightThoughtsFilter })),
-  setLateNightThoughtsFilter: (enabled) => set({ lateNightThoughtsFilter: enabled }),
-  
   // Per-node view mode actions
   setNodeViewMode: (nodeId, viewType, mode) => set((state) => ({
     nodeViewModes: { ...state.nodeViewModes, [`${nodeId}-${viewType}`]: mode }
