@@ -7,6 +7,8 @@
  */
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useAppStore } from '@/stores/appStore';
+import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
 import './SidebarCardNode.css';
@@ -22,9 +24,12 @@ interface SidebarCardNodeProps {
 
 export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodeProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
+  const { openNode } = useAppStore();
   
-  // Pages show the name, blocks show "Block"
-  const title = cardType === 'page' ? (nodeNameToText(node?.name) || 'Untitled') : 'Block';
+  // Pages show the name, blocks show breadcrumbs
+  const title = cardType === 'page'
+    ? (nodeNameToText(node?.name) || 'Untitled')
+    : <NodeBreadcrumbs nodeId={nodeId} nodeType="block" onNavigate={(id) => openNode(id)} />;
   
   return (
     <SidebarCard
