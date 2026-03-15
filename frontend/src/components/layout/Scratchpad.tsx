@@ -255,6 +255,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       if (e.key !== 'Escape') return;
       if (!containerRef.current) return;
 
+      // If another handler already dealt with this ESC (e.g. editor clearing selection), skip
+      if (e.defaultPrevented) return;
+
       const active = document.activeElement;
 
       // Only handle ESC if focus is inside the scratchpad (or on body/nothing)
@@ -262,13 +265,13 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       const noFocus = !active || active === document.body;
       if (!focusInside && !noFocus) return;
 
-      // Layer 1: if a contenteditable inside the scratchpad is focused, let the editor handle it
+      // If a contenteditable inside the scratchpad is focused, let the editor handle it
       if (focusInside && (active as HTMLElement).isContentEditable) return;
 
-      // Layer 2: if any blocks are selected (have the selection CSS class), let the editor handle it
+      // If any blocks are selected, let the editor handle it
       if (containerRef.current.querySelector('.node-block--selected')) return;
 
-      // Layer 3: nothing active — close the scratchpad
+      // Nothing active — close the scratchpad
       e.preventDefault();
       e.stopPropagation();
       onClose();
