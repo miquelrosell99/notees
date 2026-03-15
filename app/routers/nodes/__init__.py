@@ -43,8 +43,6 @@ from .models import (
     InlineClassResponse,
     PropertyBacklinkResponse,
     CommentCreateRequest,
-    CommentResponse,
-    CommentsResponse,
     DateFormatUpdateRequest,
     BatchGetNodesRequest,
     BatchGetNodesResponse,
