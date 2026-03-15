@@ -145,10 +145,13 @@ export function NodeContent({
         as_blocks: true,
         variables: {},
       });
+      console.log('[TEMPLATE DEBUG] API returned blocks:', result.blocks.length, result.blocks.map(b => ({ id: b.id, uuid: b.uuid, parent_id: b.parent_id, name: b.name?.substring(0, 40) })));
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
+        console.log('[TEMPLATE DEBUG] graphNodes:', graphNodes.length, graphNodes.map(gn => ({ blockId: gn.blockId, parentId: gn.parentId, orderIndex: gn.orderIndex })));
         runtime.upsertNodes(graphNodes);
+        console.log('[TEMPLATE DEBUG] upsertNodes done, children of parent:', runtime.getChildren(parentUuid).length);
       }
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
