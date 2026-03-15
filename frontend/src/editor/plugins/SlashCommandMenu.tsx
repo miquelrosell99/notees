@@ -220,10 +220,11 @@ export function SlashCommandMenu({
   }, [onClose]);
 
   // Adjust position to stay within viewport
-  const adjustedPosition = useMemo(() => {
+  const { positionStyle, openUpward } = useMemo(() => {
     const popupWidth = 280;
     const popupHeight = 320;
     const padding = 8;
+    const gap = 24;
 
     let { top, left } = position;
 
@@ -234,21 +235,23 @@ export function SlashCommandMenu({
       left = padding;
     }
 
-    if (top + popupHeight > window.innerHeight - padding) {
-      top = position.top - popupHeight - 24;
-    }
+    const openUpward = top + popupHeight > window.innerHeight - padding;
 
-    return { top, left };
+    return {
+      positionStyle: openUpward
+        ? { bottom: window.innerHeight - top + gap, left }
+        : { top, left },
+      openUpward,
+    };
   }, [position]);
 
   return (
     <div
       ref={containerRef}
-      className="slash-command-menu"
+      className={`slash-command-menu${openUpward ? ' slash-command-menu--upward' : ''}`}
       style={{
         position: 'fixed',
-        top: adjustedPosition.top,
-        left: adjustedPosition.left,
+        ...positionStyle,
         zIndex: 1000,
       }}
       onMouseDown={(e) => e.stopPropagation()}
