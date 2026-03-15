@@ -701,16 +701,20 @@ class PostgresNodeRepository(NodeRepository):
             limit: Maximum number of pages to return (default: no limit for backward compatibility)
             offset: Number of pages to skip (for pagination)
         """
+        from ...db.schema.constants import SYSTEM_PAGE_UUIDS
+        
         async with acquire_connection(self._pool) as conn:
             query = """
                 SELECT * FROM node
                 WHERE is_page = true AND active = true AND is_deleted = false AND workspace_id = $1
+                  AND uuid NOT IN (SELECT unnest($2::text[]))
                 ORDER BY write_date DESC NULLS LAST
             """
-            params = [self._workspace_id]
+            excluded_uuids = list(SYSTEM_PAGE_UUIDS.values())
+            params: list = [self._workspace_id, excluded_uuids]
             
             if limit is not None:
-                query += " LIMIT $2 OFFSET $3"
+                query += " LIMIT $3 OFFSET $4"
                 params.extend([limit, offset])
             
             rows = await conn.fetch(query, *params)

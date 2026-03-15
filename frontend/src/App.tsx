@@ -24,6 +24,7 @@ import { listWorkspaces } from './api/workspaces';
 import { useAuthStore, useAppStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
+import { clearScratchpad } from './api/nodes';
 import './App.css';
 import './focus-mode.css';
 
@@ -151,12 +152,15 @@ function AppContent() {
         const store = useFavoritesStore.getState();
         store.loadFavorites();
         store.loadRecents();
+        // Clear scratchpad blocks from previous session
+        clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
       }).catch(() => {
         // Still render Layout even if settings fail — degrade gracefully
         setSettingsReady(true);
         const store = useFavoritesStore.getState();
         store.loadFavorites();
         store.loadRecents();
+        clearScratchpad().catch(() => {});
       });
     } else {
       setSettingsReady(false);
