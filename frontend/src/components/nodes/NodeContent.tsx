@@ -207,6 +207,13 @@ export function NodeContent({
         if (!cacheUpdated) {
           console.warn('[TEMPLATE] No cache entries were updated! parentId:', parentId);
         }
+
+        // Invalidate detail queries for the current node so a background
+        // refetch brings in the full server tree.  The manual cache update
+        // above provides instant visual feedback; this refetch ensures the
+        // data is authoritative and fixes edge-cases the optimistic update
+        // might miss (e.g. deeply nested structures or collapsed state).
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
       }
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
