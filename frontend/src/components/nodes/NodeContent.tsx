@@ -145,9 +145,11 @@ export function NodeContent({
         as_blocks: true,
         variables: {},
       });
+      console.log('[TEMPLATE] API returned', result.blocks.length, 'blocks:', result.blocks.map(b => ({ id: b.id, parent_id: b.parent_id, name: b.name?.slice(0, 30) })));
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
+        console.log('[TEMPLATE] graphNodes:', graphNodes.length, 'parentId:', parentId, 'parentUuid:', parentUuid);
         runtime.upsertNodes(graphNodes);
 
         // Optimistically update the TanStack query cache so that BlockEditor's
@@ -170,28 +172,37 @@ export function NodeContent({
           }
         }
 
+        // Use explicit cache iteration (setQueriesData is unreliable for
+        // nested structures — see useNodeMutations.ts for rationale).
         const { nodeKeys } = await import('@/hooks/queryKeys');
         const { queryClient } = await import('@/lib/queryClient');
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(node.id) },
-          (old) => {
-            if (!old) return old;
-            const addBlocksToParent = (n: Node): Node => {
-              if (n.id === parentId) {
-                return {
-                  ...n,
-                  children: [...(n.children || []), ...topLevel],
-                  has_children: true,
-                };
-              }
-              if (n.children) {
-                return { ...n, children: n.children.map(addBlocksToParent) };
-              }
-              return n;
+        const addBlocksToParent = (n: Node): Node => {
+          if (n.id === parentId) {
+            return {
+              ...n,
+              children: [...(n.children || []), ...topLevel],
+              has_children: true,
             };
-            return addBlocksToParent(old);
-          },
-        );
+          }
+          if (n.children) {
+            const mapped = n.children.map(addBlocksToParent);
+            if (mapped.some((c, i) => c !== n.children![i])) {
+              return { ...n, children: mapped };
+            }
+          }
+          return n;
+        };
+        const queryCache = queryClient.getQueryCache();
+        const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+        for (const query of detailQueries) {
+          const oldData = query.state.data as Node | undefined;
+          if (oldData) {
+            const newData = addBlocksToParent(oldData);
+            if (newData !== oldData) {
+              queryClient.setQueryData(query.queryKey, newData);
+            }
+          }
+        }
       }
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
