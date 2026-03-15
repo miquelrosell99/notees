@@ -8,8 +8,8 @@ from ...domain.entities import NodeCreateData
 from ..auth import get_current_user
 from ...models import User
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from .models import CommentCreateRequest, CommentsResponse
-from .helpers import _get_node_service, _node_to_comment_response
+from .models import CommentCreateRequest
+from .helpers import _get_node_service, _node_to_response, _get_class_ids_batch, _build_children_response
 
 
 router = APIRouter()
@@ -40,15 +40,36 @@ async def get_comments(
         ORDER BY sequence, create_date
     """, node_id)
     
-    comments = []
-    for row in rows:
-        comment_node = await service._node_repo.get_by_id(row['id'])
-        if comment_node and comment_node.id is not None:
-            # Get children of comment node (nested replies)
-            children = await service._node_repo.get_children(comment_node.id)
-            comments.append(_node_to_comment_response(comment_node, children))
+    comment_ids = [row['id'] for row in rows]
+    if not comment_ids:
+        return {"comments": [], "comment_count": 0}
     
-    return CommentsResponse(comments=comments, comment_count=len(comments))
+    # Fetch all comment nodes and their descendants
+    all_nodes = []
+    for cid in comment_ids:
+        comment_node = await service._node_repo.get_by_id(cid)
+        if comment_node and comment_node.id is not None:
+            all_nodes.append(comment_node)
+            children = await service._node_repo.get_children(comment_node.id)
+            if children:
+                all_nodes.extend(children)
+    
+    # Batch-fetch class IDs for all nodes
+    all_ids = [n.id for n in all_nodes if n.id]
+    class_ids_map = await _get_class_ids_batch(pool, service._workspace_id or 0, all_ids) if all_ids else {}
+    
+    # Build top-level comment responses with nested children
+    comments = []
+    for cid in comment_ids:
+        comment_node = await service._node_repo.get_by_id(cid)
+        if comment_node and comment_node.id is not None:
+            children = await service._node_repo.get_children(comment_node.id)
+            classes = class_ids_map.get(comment_node.id, [])
+            resp = _node_to_response(comment_node, classes=classes)
+            resp.children = _build_children_response(children, class_ids_map) if children else []
+            comments.append(resp)
+    
+    return {"comments": comments, "comment_count": len(comments)}
 
 
 @router.post("/{node_id}/comments")
@@ -103,7 +124,12 @@ async def create_comment(
     if not comment_node.id:
         raise HTTPException(500, "Failed to create comment node")
     
-    return _node_to_comment_response(comment_node)
+    classes = await _get_class_ids_batch(
+        service._node_repo.get_connection(),
+        service._workspace_id or 0,
+        [comment_node.id],
+    )
+    return _node_to_response(comment_node, classes=classes.get(comment_node.id, []))
 
 
 @router.delete("/{node_id}/comments/{comment_id}")

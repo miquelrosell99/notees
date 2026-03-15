@@ -191,32 +191,9 @@ class CommentCreateRequest(BaseModel):
     parent_comment_id: int | None = None  # If set, creates a reply to this comment
 
 
-class CommentResponse(BaseModel):
-    """Response with comment node data."""
-    id: int
-    uuid: str
-    name: str
-    icon: str | None = None
-    parent_id: int | None = None
-    sequence: int = 0
-    collapsed: bool = False
-    create_date: str
-    write_date: str
-    children: list["CommentResponse"] | None = None
-    
-    class Config:
-        from_attributes = True
-
-
 class AliasRequest(BaseModel):
     """Request to add an alias."""
     alias_node_id: int
-
-
-class CommentsResponse(BaseModel):
-    """Response with list of comments."""
-    comments: list[CommentResponse]
-    comment_count: int
 
 
 class DateFormatUpdateRequest(BaseModel):

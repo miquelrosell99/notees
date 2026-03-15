@@ -15,33 +15,11 @@ import { NodeCollection } from '../nodes/NodeCollection';
 import { Button } from '../core/Button';
 import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
 import { TextField } from '../core/TextField';
-import type { Comment, Node } from '@/types/api';
+import type { Node } from '@/types/api';
 import './SidebarContextSections.css';
 
-/** Convert Comment tree to Node tree so NodeCollection can render it.
- *  Top-level comments inherit the comment class icon; child blocks keep their own. */
-function commentToNode(c: Comment, isTopLevel = true): Node {
-  return {
-    id: c.id,
-    uuid: c.uuid,
-    name: c.name,
-    icon: c.icon ?? (isTopLevel ? 'mdiCommentOutline' : null),
-    color: null,
-    parent_id: c.parent_id,
-    page_id: null,
-    sequence: c.sequence,
-    collapsed: c.collapsed,
-    active: true,
-    is_page: false,
-    create_date: c.create_date,
-    write_date: c.write_date,
-    children: c.children?.map(child => commentToNode(child, false)),
-  };
-}
-
-function CommentsList({ comments }: { comments: Comment[] }) {
+function CommentsList({ comments }: { comments: Node[] }) {
   const openNode = useAppStore(s => s.openNode);
-  const commentNodes = useMemo(() => comments.map(commentToNode), [comments]);
 
   if (comments.length === 0) {
     return (
@@ -53,7 +31,7 @@ function CommentsList({ comments }: { comments: Comment[] }) {
 
   return (
     <NodeCollection
-      nodes={commentNodes}
+      nodes={comments}
       viewMode="list"
       editable={false}
       sortable={false}

@@ -538,26 +538,10 @@ export async function getPropertyBacklinks(nodeId: number): Promise<PropertyBack
 // ==================== Comments ====================
 
 /**
- * Comment node - a node attached to another node as a comment
- */
-export interface Comment {
-  id: number;
-  uuid: string;
-  name: string;
-  icon: string | null;
-  parent_id: number | null;
-  sequence: number;
-  collapsed: boolean;
-  create_date: string;
-  write_date: string;
-  children?: Comment[];
-}
-
-/**
- * Response with list of comments
+ * Response with list of comments (comments are full Node objects)
  */
 export interface CommentsResponse {
-  comments: Comment[];
+  comments: Node[];
   comment_count: number;
 }
 
@@ -572,10 +556,10 @@ export async function getComments(nodeId: number): Promise<CommentsResponse> {
 /**
  * Create a new comment on a node
  */
-export async function createComment(nodeId: number, name: string, parentCommentId?: number): Promise<Comment> {
+export async function createComment(nodeId: number, name: string, parentCommentId?: number): Promise<Node> {
   const body: Record<string, unknown> = { name };
   if (parentCommentId) body.parent_comment_id = parentCommentId;
-  const response = await api.post<Comment>(`${BASE}/${nodeId}/comments`, body);
+  const response = await api.post<Node>(`${BASE}/${nodeId}/comments`, body);
   return response.data;
 }
 
