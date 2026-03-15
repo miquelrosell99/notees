@@ -55,83 +55,8 @@
 }
 
 /* Comments list */
-.sidebar-comments-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1);
-}
-
-/* Comment thread card */
-.sidebar-comment-card.card {
-  margin: 0;
-  border-color: color-mix(in srgb, var(--color-outline-variant) 75%, transparent);
-  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
-              background-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.sidebar-comment-card.card:hover {
-  border-color: var(--color-outline-variant);
-  background: var(--color-surface-container-low);
-}
-
-.sidebar-comment-card__header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  cursor: pointer;
-}
-
-.sidebar-comment-card__snippet {
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
-  line-height: 1.4;
-}
-
-.sidebar-comment-card__time {
-  font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-}
-
-.sidebar-comment-card__children {
-  margin-top: var(--spacing-1);
-  padding-top: var(--spacing-1);
-  border-top: 1px solid var(--color-outline-variant);
-}
-
-.sidebar-comment-card__children .node-collection {
-  gap: 0;
-}
-
-.sidebar-comment-card__children .block {
-  font: var(--font-body-small);
-  min-height: unset;
-  padding: 0;
-}
-
-.sidebar-comment-card__children .block__bullet {
-  width: 14px;
-  height: 14px;
-  margin-top: 2px;
-}
-
-.sidebar-comment-card__children .block__content {
-  padding: 1px 0;
-}
-
-/* Resolved comment card */
-.sidebar-comment-card--resolved {
-  opacity: 0.5;
-}
-
-.sidebar-comment-card--resolved:hover {
-  opacity: 0.8;
-}
-
-.sidebar-comment-card__resolved {
-  color: var(--color-success);
-  margin-right: var(--spacing-1);
-  font-weight: 600;
+.sidebar-context-section--comments .node-collection {
+  padding: var(--spacing-1) 0;
 }
 
 /* Header actions */

@@ -8,69 +8,39 @@
  */
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/stores';
-import { useComments, useCreateComment, useNodeActivity, useNode } from '@/hooks';
+import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { Button } from '../core/Button';
-import { Card } from '../core/Card';
 import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
 import { TextField } from '../core/TextField';
-import { formatRelativeTime } from '@/utils/dateFormat';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
-import type { Comment } from '@/types/api';
+import type { Comment, Node } from '@/types/api';
 import './SidebarContextSections.css';
 
-function countTopLevelComments(comments: Comment[]): number {
-  return comments.length;
-}
-
-function CommentChildren({ commentId }: { commentId: number }) {
-  const { data: commentNode } = useNode(commentId, { include_children: true });
-  const children = commentNode?.children;
-  if (!children || children.length === 0) return null;
-  return (
-    <div className="sidebar-comment-card__children">
-      <NodeCollection
-        nodes={children}
-        viewMode="list"
-        editable={false}
-        sortable={false}
-        hideToolbar
-        showEmpty={false}
-      />
-    </div>
-  );
-}
-
-function CommentThread({ comment }: { comment: Comment }) {
-  const openNode = useAppStore(s => s.openNode);
-  const time = formatRelativeTime(comment.create_date);
-  const isResolved = comment.collapsed;
-
-  return (
-    <Card
-      className={`sidebar-comment-card ${isResolved ? 'sidebar-comment-card--resolved' : ''}`}
-      elevation="none"
-      variant="outlined"
-      paddingSize="sm"
-    >
-      <div
-        className="sidebar-comment-card__header"
-        onClick={() => openNode(comment.id)}
-      >
-        <span className="sidebar-comment-card__snippet">
-          {isResolved && <span className="sidebar-comment-card__resolved">&check;</span>}
-          {nodeNameToText(comment.name, 80) || 'Empty comment'}
-        </span>
-        <span className="sidebar-comment-card__time">{time}</span>
-      </div>
-      <CommentChildren commentId={comment.id} />
-    </Card>
-  );
+/** Convert Comment tree to Node tree so NodeCollection can render it */
+function commentToNode(c: Comment): Node {
+  return {
+    id: c.id,
+    uuid: c.uuid,
+    name: c.name,
+    icon: c.icon,
+    color: null,
+    parent_id: c.parent_id,
+    page_id: null,
+    sequence: c.sequence,
+    collapsed: c.collapsed,
+    active: true,
+    is_page: false,
+    create_date: c.create_date,
+    write_date: c.write_date,
+    children: c.children?.map(commentToNode),
+  };
 }
 
 function CommentsList({ comments }: { comments: Comment[] }) {
+  const commentNodes = useMemo(() => comments.map(commentToNode), [comments]);
+
   if (comments.length === 0) {
     return (
       <div className="sidebar-section-empty">
@@ -80,11 +50,15 @@ function CommentsList({ comments }: { comments: Comment[] }) {
   }
 
   return (
-    <div className="sidebar-comments-list">
-      {comments.map(comment => (
-        <CommentThread key={comment.id} comment={comment} />
-      ))}
-    </div>
+    <NodeCollection
+      nodes={commentNodes}
+      viewMode="list"
+      editable={false}
+      sortable={false}
+      hideToolbar
+      showEmpty={false}
+      size="sm"
+    />
   );
 }
 
@@ -154,8 +128,7 @@ export function SidebarContextSections() {
   );
   
   const commentCount = useMemo(() => {
-    if (!commentsData?.comments) return 0;
-    return countTopLevelComments(commentsData.comments);
+    return commentsData?.comments?.length ?? 0;
   }, [commentsData]);
   
   const activityCount = activityData?.length ?? 0;
