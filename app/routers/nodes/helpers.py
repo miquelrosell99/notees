@@ -90,7 +90,7 @@ def _node_to_response(
     return NodeResponse(
         id=node.id or 0,
         uuid=node.uuid,
-        name=node.name,
+        name=node.name or "",
         icon=node.icon,
         color=node.color,
         parent_id=node.parent_id,
@@ -449,7 +449,7 @@ def _node_to_comment_response(node: Node, children: list[Node] | None = None) ->
     return CommentResponse(
         id=node.id or 0,
         uuid=node.uuid,
-        name=node.name,
+        name=node.name or "",
         icon=node.icon,
         parent_id=node.parent_id,
         sequence=node.sequence,

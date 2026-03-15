@@ -1190,30 +1190,30 @@ async def _apply_node_extras(service, node_id: int, classes, properties) -> None
 @router.put("/{node_id}")
 @limiter.limit("120/minute")
 async def update_node(
-    http_request: Request,
+    request: Request,
     node_id: int,
-    request: NodeUpdateRequest,
+    body: NodeUpdateRequest,
     user: User = Depends(get_current_user),
 ):
     """Update a node."""
     from ...logging_config import get_logger
     logger = get_logger(__name__)
     
-    logger.info(f"[UPDATE_NODE] node_id={node_id}, request.color={request.color!r}, fields_set={request.model_fields_set}")
+    logger.info(f"[UPDATE_NODE] node_id={node_id}, body.color={body.color!r}, fields_set={body.model_fields_set}")
     
     service = await _get_node_service(user)
     
     data = NodeUpdateData(
-        name=request.name,
-        icon=request.icon,
-        color=request.color,
+        name=body.name,
+        icon=body.icon,
+        color=body.color,
         # Set clear flags when field was explicitly provided as None
-        clear_icon='icon' in request.model_fields_set and request.icon is None,
-        clear_color='color' in request.model_fields_set and request.color is None,
-        clear_parent='parent_id' in request.model_fields_set and request.parent_id is None,
-        parent_id=request.parent_id,
-        sequence=request.sequence,
-        collapsed=request.collapsed,
+        clear_icon='icon' in body.model_fields_set and body.icon is None,
+        clear_color='color' in body.model_fields_set and body.color is None,
+        clear_parent='parent_id' in body.model_fields_set and body.parent_id is None,
+        parent_id=body.parent_id,
+        sequence=body.sequence,
+        collapsed=body.collapsed,
     )
     
     logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")
@@ -1222,7 +1222,7 @@ async def update_node(
         node = await service.update_node(
             node_id, 
             data, 
-            expected_version=request.expected_version
+            expected_version=body.expected_version
         )
         if not node:
             raise HTTPException(404, "Node not found")
@@ -1230,8 +1230,8 @@ async def update_node(
         logger.info(f"[UPDATE_NODE] result node.color={node.color!r}")
 
         # Apply class reconciliation and property values if provided
-        if request.classes is not None or request.properties:
-            await _apply_node_extras(service, node_id, request.classes, request.properties)
+        if body.classes is not None or body.properties:
+            await _apply_node_extras(service, node_id, body.classes, body.properties)
 
         return _node_to_response(node)
     except OptimisticLockError as e:
