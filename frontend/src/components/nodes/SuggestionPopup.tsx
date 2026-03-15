@@ -389,15 +389,16 @@ export function SuggestionPopup({
   const createIndex = dateSuggestionCount + selectedCount + allItems.length;
   
   // Helper to get icon for item
-  const renderItemIcon = (node: Node, isPage: boolean) => {
+  const renderItemIcon = (node: Node, _isPage: boolean) => {
     if (type === 'type' || type === 'class') {
       return <NodeIcon icon={getEffectiveIcon(node, allClasses as unknown as Node[])} isPage={true} size="sm" />;
     } else if (type === 'tag') {
       return <TagIcon size="sm" />;
-    } else if (isPage) {
-      return <NodeIcon icon={getEffectiveIcon(node, allClasses as unknown as Node[])} isPage={true} size="sm" />;
     } else {
-      return <BulletIcon size="sm" />;
+      const effectiveIcon = getEffectiveIcon(node, allClasses as unknown as Node[]);
+      return effectiveIcon
+        ? <NodeIcon icon={effectiveIcon} isPage={false} size="sm" />
+        : <BulletIcon size="sm" />;
     }
   };
   
@@ -532,6 +533,7 @@ export function SuggestionPopup({
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
+                      iconOverride={renderItemIcon(item.node, item.node.is_page)}
                       after={
                         aliasedName ? (
                           <span className="suggestion-popup__item-alias">
@@ -569,10 +571,16 @@ export function SuggestionPopup({
                     <NodeResultItem
                       key={`block-${item.node.id}`}
                       node={item.node}
+                      displayClasses={getDisplayClasses(item.node)}
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                      iconOverride={<BulletIcon size="sm" />}
+                      iconOverride={(() => {
+                        const effectiveIcon = getEffectiveIcon(item.node, allClasses as unknown as Node[]);
+                        return effectiveIcon
+                          ? <NodeIcon icon={effectiveIcon} isPage={false} size="sm" />
+                          : <BulletIcon size="sm" />;
+                      })()}
                       after={
                         aliasedName ? (
                           <span className="suggestion-popup__item-alias">

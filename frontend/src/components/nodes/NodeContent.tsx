@@ -124,19 +124,30 @@ export function NodeContent({
   const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
 
   // Handle template instantiation from the inline /template picker
-  const handleTemplateInstantiate = useCallback(async (templateNodeId: number, _blockServerId: number | undefined) => {
+  const handleTemplateInstantiate = useCallback(async (templateNodeId: number, blockServerId: number | undefined) => {
     try {
       const { instantiateTemplate } = await import('@/api/nodes');
+      const { getNodeGraphRuntime } = await import('@/runtime/NodeGraphRuntime');
+      const runtime = getNodeGraphRuntime();
+
+      // Insert template children as children of the block where /template was typed
+      let parentId = blockServerId ?? node.id;
+      let parentUuid = node.uuid;
+      if (blockServerId != null) {
+        const allRuntimeNodes = runtime.getAllNodes();
+        const blockNode = allRuntimeNodes.find(n => n.serverId === blockServerId);
+        if (blockNode) {
+          parentUuid = blockNode.blockId;
+        }
+      }
       const result = await instantiateTemplate(templateNodeId, {
-        parent_id: node.id,
+        parent_id: parentId,
         as_blocks: true,
         variables: {},
       });
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
-        const { getNodeGraphRuntime } = await import('@/runtime/NodeGraphRuntime');
-        const runtime = getNodeGraphRuntime();
-        const { graphNodes } = apiNodesToGraphNodes(result.blocks, node.id, node.uuid);
+        const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
         runtime.upsertNodes(graphNodes);
       }
     } catch (e) {
