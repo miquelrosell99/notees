@@ -12,6 +12,7 @@
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { clearBlockSelection } from '../utils/selectionUtils';
+import { setActiveEditor, clearActiveEditor } from '../activeEditorRegistry';
 
 export interface BlurOnClickOutsidePluginProps {
   /** Whether the editor is in read-only mode */
@@ -23,6 +24,30 @@ export function BlurOnClickOutsidePlugin({
 }: BlurOnClickOutsidePluginProps): null {
   const [editor] = useLexicalComposerContext();
 
+  // ─── Cross-editor coordination ──────────────────────────────
+  // When this editor gains focus, blur the previously active editor.
+  // This prevents dual-editor input when clicking between editors
+  // (e.g., scratchpad → page editor).
+  useEffect(() => {
+    if (readOnly) return;
+
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
+
+    const onFocus = () => setActiveEditor(editor);
+    const onBlur = () => clearActiveEditor(editor);
+
+    rootElement.addEventListener('focus', onFocus, true);
+    rootElement.addEventListener('blur', onBlur, true);
+
+    return () => {
+      rootElement.removeEventListener('focus', onFocus, true);
+      rootElement.removeEventListener('blur', onBlur, true);
+      clearActiveEditor(editor);
+    };
+  }, [editor, readOnly]);
+
+  // ─── Click-outside blur ─────────────────────────────────────
   useEffect(() => {
     if (readOnly) return;
 
