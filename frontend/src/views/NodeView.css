@@ -12,6 +12,16 @@
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
 
+/* Reduced bottom padding in sidebar cards */
+.sidebar-card-node .node-view {
+  padding-bottom: var(--spacing-2);
+}
+
+/* Top spacing for focused block view (below the breadcrumbs topbar) */
+.node-view--block {
+  padding-top: var(--spacing-4);
+}
+
 /* Colored border for nodes with color (pages and focused blocks) - applied to main-content */
 .main-content.has-node-border {
   border-left: 8px solid var(--node-border-color);

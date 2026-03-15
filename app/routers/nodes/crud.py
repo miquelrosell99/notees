@@ -1613,12 +1613,12 @@ async def get_node_versions(
     
     async with acquire_connection(service._pool) as conn:
         rows = await conn.fetch("""
-            SELECT nv.id, nv.version, nv.name, nv.created_at, nv.user_id,
+            SELECT nv.id, nv.name, nv.created_at, nv.user_id,
                    u.username
             FROM node_version nv
             LEFT JOIN "user" u ON u.id = nv.user_id
             WHERE nv.node_id = $1 AND nv.workspace_id = $2
-            ORDER BY nv.version DESC
+            ORDER BY nv.created_at DESC
             LIMIT $3
         """, node_id, service._workspace_id, limit)
     
@@ -1626,7 +1626,6 @@ async def get_node_versions(
     for row in rows:
         versions.append({
             "id": row['id'],
-            "version": row['version'],
             "name": row['name'],
             "created_at": row['created_at'].isoformat() if row['created_at'] else None,
             "user": row['username'],
@@ -1646,7 +1645,7 @@ async def get_node_version(
     
     async with acquire_connection(service._pool) as conn:
         row = await conn.fetchrow("""
-            SELECT nv.id, nv.version, nv.name, nv.created_at, nv.user_id,
+            SELECT nv.id, nv.name, nv.created_at, nv.user_id,
                    u.username
             FROM node_version nv
             LEFT JOIN "user" u ON u.id = nv.user_id
@@ -1658,7 +1657,6 @@ async def get_node_version(
     
     return {
         "id": row['id'],
-        "version": row['version'],
         "name": row['name'],
         "created_at": row['created_at'].isoformat() if row['created_at'] else None,
         "user": row['username'],

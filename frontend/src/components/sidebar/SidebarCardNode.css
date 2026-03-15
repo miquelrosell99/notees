@@ -6,7 +6,8 @@
   max-height: 100%;
 }
 
-.sidebar-card-node--block .sidebar-card__header {
-  /* Block cards have minimal header - just the close button */
-  justify-content: flex-end;
+/* Reset breadcrumb spacing when used as sidebar card title */
+.sidebar-card-node--block .sidebar-card__title .node-breadcrumbs {
+  margin: 0;
+  padding: 0;
 }

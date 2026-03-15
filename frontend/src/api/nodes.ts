@@ -714,7 +714,6 @@ export async function getRecentlyCreatedPages(limit: number = 5): Promise<Recent
 
 export interface NodeVersion {
   id: number;
-  version: number;
   name: string | null;
   created_at: string;
   user: string | null;
