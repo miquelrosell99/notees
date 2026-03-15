@@ -40,7 +40,7 @@ function GlobalKeyboardHandler() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleQuickAdd, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useAppStore();
+  const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useAppStore();
   
   // Fetch workspaces when authenticated
   const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
@@ -104,12 +104,12 @@ function AppContent() {
   
   // Register keyboard shortcut handlers when authenticated
   // Use refs to avoid re-registering when callbacks change identity
-  const toggleQuickAddRef = useRef(toggleQuickAdd);
+  const toggleScratchpadRef = useRef(toggleScratchpad);
   const toggleCalendarRef = useRef(toggleCalendar);
   
   // Keep refs updated
   useEffect(() => {
-    toggleQuickAddRef.current = toggleQuickAdd;
+    toggleScratchpadRef.current = toggleScratchpad;
     toggleCalendarRef.current = toggleCalendar;
   });
   
@@ -118,9 +118,9 @@ function AppContent() {
     
     const { registerHandler } = useKeyboardStore.getState();
     
-    // Quick add shortcut (Ctrl/Cmd + N)
+    // Scratchpad shortcut (Ctrl/Cmd + N)
     const unregisterQuickAdd = registerHandler('quickAdd', () => {
-      toggleQuickAddRef.current();
+      toggleScratchpadRef.current();
     });
     
     // Calendar shortcut (Ctrl/Cmd + Shift + D)

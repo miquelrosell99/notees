@@ -64,13 +64,56 @@
   flex: 1;
   overflow-y: auto;
   min-height: 80px;
-  max-height: 420px;
+  max-height: 340px;
   padding: 4px 0;
   font-size: 14px;
 }
 
 .scratchpad-content .node-collection {
   padding: 0;
+}
+
+/* Footer with send row */
+.scratchpad-footer {
+  border-top: 1px solid var(--color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+.scratchpad-send-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.scratchpad-destination-hint {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.scratchpad-destination-hint:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.scratchpad-destination-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.scratchpad-destination-picker .node-selector-inline {
+  max-height: 200px;
 }
 
 .scratchpad-empty {
