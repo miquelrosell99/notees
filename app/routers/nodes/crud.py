@@ -371,6 +371,94 @@ async def get_recent_pages(
     return {"nodes": nodes}
 
 
+@router.get("/random")
+async def get_random_pages(
+    limit: int = 5,
+    user: User = Depends(get_current_user),
+):
+    """Get random pages from the workspace.
+    
+    Returns random non-deleted, non-system pages.
+    """
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        rows = await conn.fetch("""
+            SELECT id, uuid, name, icon, color, parent_id, page_id, 
+                   is_page, is_class, is_day, is_month, is_year,
+                   create_date, write_date
+            FROM node 
+            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
+                  AND is_class = false AND is_day = false AND is_month = false AND is_year = false
+                  AND workspace_id = $1
+            ORDER BY RANDOM()
+            LIMIT $2
+        """, service._workspace_id, limit)
+    
+    nodes = []
+    for row in rows:
+        nodes.append({
+            "id": row['id'],
+            "uuid": str(row['uuid']),
+            "name": row['name'],
+            "icon": row['icon'],
+            "color": row['color'],
+            "parent_id": row['parent_id'],
+            "page_id": row['page_id'],
+            "is_page": row['is_page'],
+            "is_class": row['is_class'],
+            "is_daily": row['is_day'],
+            "is_monthly": row['is_month'],
+            "is_yearly": row['is_year'],
+            "create_date": row['create_date'].isoformat() if row['create_date'] else None,
+            "write_date": row['write_date'].isoformat() if row['write_date'] else None,
+        })
+    
+    return {"nodes": nodes}
+
+
+@router.get("/recently-created")
+async def get_recently_created_pages(
+    limit: int = 5,
+    user: User = Depends(get_current_user),
+):
+    """Get recently created pages, ordered by create_date DESC."""
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        rows = await conn.fetch("""
+            SELECT id, uuid, name, icon, color, parent_id, page_id, 
+                   is_page, is_class, is_day, is_month, is_year,
+                   create_date, write_date
+            FROM node 
+            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
+                  AND workspace_id = $1
+            ORDER BY create_date DESC
+            LIMIT $2
+        """, service._workspace_id, limit)
+    
+    nodes = []
+    for row in rows:
+        nodes.append({
+            "id": row['id'],
+            "uuid": str(row['uuid']),
+            "name": row['name'],
+            "icon": row['icon'],
+            "color": row['color'],
+            "parent_id": row['parent_id'],
+            "page_id": row['page_id'],
+            "is_page": row['is_page'],
+            "is_class": row['is_class'],
+            "is_daily": row['is_day'],
+            "is_monthly": row['is_month'],
+            "is_yearly": row['is_year'],
+            "create_date": row['create_date'].isoformat() if row['create_date'] else None,
+            "write_date": row['write_date'].isoformat() if row['write_date'] else None,
+        })
+    
+    return {"nodes": nodes}
+
+
 @router.get("/archived")
 async def get_archived_pages(
     user: User = Depends(get_current_user),
@@ -774,8 +862,15 @@ async def instantiate_template(
     )
 
     if result['as_blocks']:
+        # Compute has_children: a block has children if another block
+        # in the result list references it as parent_id.
+        parent_ids_with_children = {b.parent_id for b in result['blocks'] if b and b.parent_id}
         blocks = [
-            _node_to_response(b, classes=list(b.class_ids or []))
+            _node_to_response(
+                b,
+                classes=list(b.class_ids or []),
+                has_children=(b.id in parent_ids_with_children),
+            )
             for b in result['blocks'] if b
         ]
         return TemplateInstantiateResponse(node=None, blocks=blocks, as_blocks=True)
@@ -1505,4 +1600,97 @@ async def mark_page_opened(
     # This keeps all query structure logic in one place
     
     return {"status": "ok", "open_date": now.isoformat()}
+
+
+@router.get("/{node_id}/versions", name="get_node_versions")
+async def get_node_versions(
+    node_id: int,
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+):
+    """Get version history for a node, ordered by most recent first."""
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        rows = await conn.fetch("""
+            SELECT nv.id, nv.version, nv.name, nv.created_at, nv.user_id,
+                   u.username
+            FROM node_version nv
+            LEFT JOIN "user" u ON u.id = nv.user_id
+            WHERE nv.node_id = $1 AND nv.workspace_id = $2
+            ORDER BY nv.version DESC
+            LIMIT $3
+        """, node_id, service._workspace_id, limit)
+    
+    versions = []
+    for row in rows:
+        versions.append({
+            "id": row['id'],
+            "version": row['version'],
+            "name": row['name'],
+            "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+            "user": row['username'],
+        })
+    
+    return {"versions": versions}
+
+
+@router.get("/{node_id}/versions/{version_id}", name="get_node_version")
+async def get_node_version(
+    node_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get a specific version of a node."""
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        row = await conn.fetchrow("""
+            SELECT nv.id, nv.version, nv.name, nv.created_at, nv.user_id,
+                   u.username
+            FROM node_version nv
+            LEFT JOIN "user" u ON u.id = nv.user_id
+            WHERE nv.id = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
+        """, version_id, node_id, service._workspace_id)
+    
+    if not row:
+        raise HTTPException(404, "Version not found")
+    
+    return {
+        "id": row['id'],
+        "version": row['version'],
+        "name": row['name'],
+        "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+        "user": row['username'],
+    }
+
+
+@router.post("/{node_id}/versions/{version_id}/restore", name="restore_node_version")
+async def restore_node_version(
+    node_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Restore a node to a previous version's content."""
+    service = await _get_node_service(user)
+    
+    async with acquire_connection(service._pool) as conn:
+        # Get the version content
+        row = await conn.fetchrow("""
+            SELECT name FROM node_version
+            WHERE id = $1 AND node_id = $2 AND workspace_id = $3
+        """, version_id, node_id, service._workspace_id)
+        
+        if not row:
+            raise HTTPException(404, "Version not found")
+    
+    # Update the node with the old content
+    data = NodeUpdateData(name=row['name'])
+    updated = await service.update_node(node_id, data, user_id=int(user.id))
+    
+    if not updated:
+        raise HTTPException(404, "Node not found")
+    
+    types = await service.get_node_classes(node_id)
+    return _node_to_response(updated, classes=[t.id for t in types if t.id])
 
