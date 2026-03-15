@@ -1,13 +1,16 @@
 /**
  * Scratchpad Component
- * 
- * A floating pseudo-page that is emptied each day.
- * Provides a quick note-taking space that resets daily.
+ *
+ * A floating panel backed by today's daily note.
+ * Renders a NodeCollection in list view for multi-level outliner editing.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOff, mdiSend } from '@mdi/js';
-import Icon from '@mdi/react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { mdiPin, mdiPinOff } from '@mdi/js';
 import { Button } from '../core/Button';
+import { NodeCollection } from '../nodes/NodeCollection';
+import { useDailyNote, useNode, useContentSave, useAddClass } from '@/hooks';
+import { useNodeNavigation } from '@/hooks';
+import type { Node } from '@/types';
 import './Scratchpad.css';
 
 interface ScratchpadProps {
@@ -17,86 +20,57 @@ interface ScratchpadProps {
   onEntryCountChange?: (count: number) => void;
 }
 
-interface ScratchpadEntry {
-  id: string;
-  content: string;
-  timestamp: string;
-}
-
-interface ScratchpadData {
-  date: string;
-  entries: ScratchpadEntry[];
-}
-
-const STORAGE_KEY = 'notees-scratchpad';
-
-function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
 export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: ScratchpadProps) {
-  const [entries, setEntries] = useState<ScratchpadEntry[]>([]);
-  const [newEntry, setNewEntry] = useState('');
   const [isPinned, setIsPinned] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load scratchpad data on mount
+  // Fetch today's daily note (auto-creates if missing)
+  const { data: dailyNode } = useDailyNote(new Date());
+
+  // Fetch the daily node with children
+  const { data: dailyNodeWithChildren } = useNode(dailyNode?.id ?? null, {
+    include_children: true,
+  });
+
+  // Block children from the daily note
+  const blockChildren = useMemo(() => {
+    const node = dailyNodeWithChildren ?? dailyNode;
+    if (!node?.children) return [];
+    return node.children.filter((c: Node) => !c.is_page);
+  }, [dailyNodeWithChildren?.children, dailyNode?.children]);
+
+  // Report entry count to parent
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const data: ScratchpadData = JSON.parse(stored);
-        const today = getTodayDateString();
-        
-        // Only load entries if they're from today
-        if (data.date === today) {
-          setEntries(data.entries);
-        } else {
-          // Clear old entries
-          setEntries([]);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, entries: [] }));
-        }
-      } catch (e) {
-        console.error('Failed to load scratchpad data:', e);
-        setEntries([]);
-      }
-    }
-    
-    // Load pinned state
+    onEntryCountChange?.(blockChildren.length);
+  }, [blockChildren.length, onEntryCountChange]);
+
+  // Content save for block editing
+  const { handleContentChange: handleBlockChange } = useContentSave();
+  const addClass = useAddClass();
+  const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
+
+  const handleAddClass = useCallback((blockId: number, classId: number) => {
+    addClass.mutate({ nodeId: blockId, classId });
+  }, [addClass]);
+
+  // Load pinned state
+  useEffect(() => {
     const pinnedState = localStorage.getItem('notees-scratchpad-pinned');
     if (pinnedState === 'true') {
       setIsPinned(true);
     }
-    
-
   }, []);
-
-  // Save entries when they change
-  useEffect(() => {
-    const data: ScratchpadData = {
-      date: getTodayDateString(),
-      entries,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    onEntryCountChange?.(entries.length);
-  }, [entries, onEntryCountChange]);
 
   // Position below anchor button when opened
   useEffect(() => {
     if (isOpen && anchorRef?.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      const popupWidth = 320;
+      const popupWidth = 360;
       const gap = 4;
       let left = rect.right - popupWidth;
-      // Clamp to viewport
       if (left < 8) left = 8;
       if (left + popupWidth > window.innerWidth - 8) {
         left = window.innerWidth - popupWidth - 8;
@@ -104,13 +78,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       setPosition({ x: left, y: rect.bottom + gap });
     } else if (isOpen && !position) {
       setPosition({ x: 100, y: 100 });
-    }
-  }, [isOpen]);
-
-  // Focus input when opened
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
     }
   }, [isOpen]);
 
@@ -131,46 +98,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isPinned, onClose, anchorRef]);
-
-  const handleAddEntry = useCallback(() => {
-    if (!newEntry.trim()) return;
-    
-    const entry: ScratchpadEntry = {
-      id: generateId(),
-      content: newEntry.trim(),
-      timestamp: new Date().toLocaleString(),
-    };
-    
-    setEntries(prev => [...prev, entry]);
-    setNewEntry('');
-    // Reset textarea height
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-    }
-  }, [newEntry]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleAddEntry();
-    }
-  }, [handleAddEntry]);
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNewEntry(e.target.value);
-    // Auto-resize
-    const el = e.target;
-    el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
-  }, []);
-
-  const handleDeleteEntry = useCallback((id: string) => {
-    setEntries(prev => prev.filter(entry => entry.id !== id));
-  }, []);
-
-  const handleClearAll = useCallback(() => {
-    setEntries([]);
-  }, []);
 
   const handleTogglePin = useCallback(() => {
     setIsPinned(prev => {
@@ -194,7 +121,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
     const handleMouseMove = (e: MouseEvent) => {
       const newPos = {
-        x: Math.max(0, Math.min(window.innerWidth - 320, e.clientX - dragOffset.current.x)),
+        x: Math.max(0, Math.min(window.innerWidth - 360, e.clientX - dragOffset.current.x)),
         y: Math.max(0, Math.min(window.innerHeight - 200, e.clientY - dragOffset.current.y)),
       };
       setPosition(newPos);
@@ -226,15 +153,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
         <div className="scratchpad-actions">
           <Button
             className="scratchpad-btn"
-            icon={mdiTrashCanOutline}
-            variant="ghost"
-            size="sm"
-            onClick={handleClearAll}
-            title="Clear all"
-            disabled={entries.length === 0}
-          />
-          <Button
-            className="scratchpad-btn"
             icon={isPinned ? mdiPin : mdiPinOff}
             variant="ghost"
             size="sm"
@@ -244,49 +162,25 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           />
         </div>
       </div>
-      
-      <div className="scratchpad-entries">
-        {entries.length === 0 ? (
-          <div className="scratchpad-empty">
-            No notes yet. Start typing below!
-          </div>
-        ) : (
-          entries.map(entry => (
-            <div key={entry.id} className="scratchpad-entry" title={entry.timestamp}>
-              <span className="scratchpad-entry-content">{entry.content}</span>
-              <Button
-                className="scratchpad-entry-delete"
-                icon={mdiClose}
-                variant="danger"
-                size="xs"
-                onClick={() => handleDeleteEntry(entry.id)}
-                title="Delete"
-              />
-            </div>
-          ))
-        )}
-      </div>
-      
-      <div className="scratchpad-input-area">
-        <div className="scratchpad-input-wrapper">
-          <textarea
-            ref={inputRef}
-            className="scratchpad-input"
-            value={newEntry}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a quick note... (Enter to add)"
-            rows={1}
+
+      <div className="scratchpad-content">
+        {dailyNode ? (
+          <NodeCollection
+            nodes={blockChildren}
+            viewMode="list"
+            editable={true}
+            onNodeClick={handleNodeClick}
+            onNodeShiftClick={handleNodeShiftClick}
+            onContentChange={handleBlockChange}
+            onAddClass={handleAddClass}
+            pageId={dailyNode.id}
+            pageUuid={dailyNode.uuid}
+            hideToolbar
+            showEmpty={false}
           />
-          <button
-            className="scratchpad-send-btn"
-            onClick={handleAddEntry}
-            disabled={!newEntry.trim()}
-            title="Add note"
-          >
-            <Icon path={mdiSend} size={0.7} />
-          </button>
-        </div>
+        ) : (
+          <div className="scratchpad-empty">Loading...</div>
+        )}
       </div>
     </div>
   );
