@@ -54,6 +54,11 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
 function CommentsList({ comments }: { comments: Node[] }) {
   const openNode = useAppStore(s => s.openNode);
 
+  const collapsedComments = useMemo(
+    () => comments.map(c => ({ ...c, collapsed: !!(c.children && c.children.length > 0) })),
+    [comments]
+  );
+
   if (comments.length === 0) {
     return (
       <div className="sidebar-section-empty">
@@ -61,11 +66,6 @@ function CommentsList({ comments }: { comments: Node[] }) {
       </div>
     );
   }
-
-  const collapsedComments = useMemo(
-    () => comments.map(c => ({ ...c, collapsed: !!(c.children && c.children.length > 0) })),
-    [comments]
-  );
 
   return (
     <NodeCollection
