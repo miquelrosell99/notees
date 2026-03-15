@@ -45,6 +45,7 @@ import {
 import { $createInlineLinkNode, $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
+import { isOtherEditorActive } from '../activeEditorRegistry';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
 import {
@@ -425,8 +426,11 @@ export function BlockPlugin({
 
     // If we consumed a pending focus, ensure the DOM ContentEditable
     // actually has focus (it may have been blurred by an external click,
-    // e.g. the "Add block" button).
-    if (pendingFocus && !runtime.getPendingFocus()) {
+    // e.g. the "Add block" button).  Skip if a different editor already
+    // has focus — the user clicked into another editor between the
+    // requestFocus and this sync, so stealing focus back would cause
+    // dual-editor input.
+    if (pendingFocus && !runtime.getPendingFocus() && !isOtherEditorActive(editor)) {
       editor.focus();
     }
 

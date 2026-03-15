@@ -49,6 +49,13 @@ export const SYSTEM_CLASS_UUIDS = {
 } as const;
 
 /**
+ * System page UUIDs - fixed UUIDs for system pages.
+ */
+export const SYSTEM_PAGE_UUIDS = {
+  scratchpad: '00000000-0000-0000-0002-000000000001',
+} as const;
+
+/**
  * Check if a property UUID is a system property
  */
 export function isSystemPropertyUuid(uuid: string): boolean {
