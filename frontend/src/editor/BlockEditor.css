@@ -320,10 +320,11 @@
 /* Real overlay element inserted by selectionUtils.ts */
 .block-selection-card {
   position: absolute;
-  background-color: var(--color-hover-overlay);
+  background-color: rgba(59, 130, 246, 0.15);
+  border: 2px solid rgba(59, 130, 246, 0.4);
   border-radius: var(--shape-medium);
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 
 /* Selected block bullets are highlighted */

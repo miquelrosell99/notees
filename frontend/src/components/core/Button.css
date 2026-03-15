@@ -246,3 +246,51 @@
   display: inline-flex;
   align-items: center;
 }
+
+/* ==================== Badge Styles ==================== */
+.btn--has-badge {
+  position: relative;
+}
+
+.btn__badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.btn__badge--top-right {
+  top: -4px;
+  right: -4px;
+}
+
+.btn__badge--bottom-right {
+  bottom: -3px;
+  right: -3px;
+}
+
+/* Icon badge — small circular background with icon */
+.btn__badge--icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  color: var(--color-on-primary);
+  opacity: 0.7;
+}
+
+/* Count badge — pill with number */
+.btn__badge--count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--shape-full, 999px);
+  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  color: var(--color-on-primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  opacity: 0.7;
+}

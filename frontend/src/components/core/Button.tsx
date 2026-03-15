@@ -18,6 +18,15 @@ import { ConfirmationModal } from './ConfirmationModal';
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
+export interface ButtonBadge {
+  /** MDI icon path to show as a small icon badge */
+  icon?: string;
+  /** Numeric count to show as a count badge */
+  count?: number;
+  /** Badge position */
+  position?: 'top-right' | 'bottom-right';
+}
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** MDI icon path (from @mdi/js) */
   icon?: string;
@@ -39,6 +48,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   confirm?: boolean;
   /** Custom confirmation message (defaults to "Are you sure?") */
   confirmMessage?: string;
+  /** Badges to display on the button */
+  badges?: ButtonBadge[];
 }
 
 const ICON_SIZES: Record<ButtonSize, number> = {
@@ -62,6 +73,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     disabled,
     confirm: requiresConfirm = false,
     confirmMessage,
+    badges,
     onClick,
     ...props
   },
@@ -93,6 +105,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const isIconOnly = icon && !hasText;
   const hasIconAndText = icon && hasText;
 
+  const hasBadges = badges && badges.length > 0;
+
   const classNames = [
     'btn',
     `btn--${variant}`,
@@ -102,6 +116,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     fullWidth && 'btn--full-width',
     active && 'btn--active',
     disabled && 'btn--disabled',
+    hasBadges && 'btn--has-badge',
     className,
   ]
     .filter(Boolean)
@@ -124,6 +139,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {icon && iconPosition === 'right' && (
         <Icon path={icon} size={iconSize} className="btn__icon btn__icon--right" />
       )}
+      {hasBadges && badges.map((badge, i) => {
+        const pos = badge.position ?? (badge.icon ? 'bottom-right' : 'top-right');
+        if (badge.icon) {
+          return (
+            <span key={i} className={`btn__badge btn__badge--icon btn__badge--${pos}`}>
+              <Icon path={badge.icon} size={0.4} />
+            </span>
+          );
+        }
+        if (badge.count != null && badge.count > 0) {
+          return (
+            <span key={i} className={`btn__badge btn__badge--count btn__badge--${pos}`}>
+              {badge.count > 99 ? '99+' : badge.count}
+            </span>
+          );
+        }
+        return null;
+      })}
       {requiresConfirm && (
         <ConfirmationModal
           isOpen={confirmOpen}

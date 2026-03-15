@@ -8,18 +8,20 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useMemo } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
   mdiPlus, 
   mdiMap, 
   mdiDockRight,
-  mdiNoteEditOutline
+  mdiNoteEditOutline,
+  mdiCommentOutline
 } from '@mdi/js';
 import { useAppStore } from '@/stores';
-import { useDailyNote } from '@/hooks';
+import { useDailyNote, useCommentCount } from '@/hooks';
 import { Button } from '../core/Button';
+import type { ButtonBadge } from '../core/Button';
 import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { CalendarPopup } from '../core/CalendarPopup';
 import { QuickAddPanel } from '../quickadd/QuickAddPanel';
@@ -48,6 +50,24 @@ export function TopBar() {
   } = useAppStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+
+  const currentNodeId = useAppStore(s => s.currentNodeId);
+  const sidebarCards = useAppStore(s => s.sidebarCards);
+  
+  // Comment count for the active node
+  const { data: commentCount } = useCommentCount(currentNodeId);
+
+  // Build badges for the right sidebar toggle button
+  const sidebarBadges = useMemo(() => {
+    const badges: ButtonBadge[] = [];
+    if (commentCount && commentCount > 0) {
+      badges.push({ icon: mdiCommentOutline, position: 'bottom-right' });
+    }
+    if (sidebarCards.length > 0) {
+      badges.push({ count: sidebarCards.length, position: 'top-right' });
+    }
+    return badges;
+  }, [commentCount, sidebarCards.length]);
   
   // Pre-fetch today's note (this will create it if needed when accessed)
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -168,6 +188,7 @@ export function TopBar() {
           aria-label="Toggle right sidebar"
           title="Toggle right sidebar"
           className="toolbar-btn"
+          badges={sidebarBadges}
         />
         
         {/* Account menu */}
