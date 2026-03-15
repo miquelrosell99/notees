@@ -228,13 +228,15 @@ export class NodeGraphRuntime {
    * Remap a runtime block from an old blockId to a new blockId.
    * Used when an optimistic block (e.g. "optimistic-123") is confirmed
    * by the server with a real UUID. Updates the node map, children index,
-   * and pending focus in-place WITHOUT emitting events (the caller or
-   * subsequent upsertNodes will handle reconciliation).
+   * and pending focus in-place, then emits a structure_changed event so
+   * Lexical editors sync their BlockNode blockIds with the new value.
    */
   remapBlockId(oldBlockId: string, newBlockId: string): void {
     const node = this.nodes.get(oldBlockId);
     if (!node) return;
     if (oldBlockId === newBlockId) return;
+
+    const parentId = node.parentId;
 
     // Move in node map
     this.nodes.delete(oldBlockId);
@@ -254,6 +256,12 @@ export class NodeGraphRuntime {
     // Update pendingFocus if it targeted the old blockId
     if (this.pendingFocus?.blockId === oldBlockId) {
       this.pendingFocus.blockId = newBlockId;
+    }
+
+    // Emit structure_changed so Lexical editors replace the old
+    // optimistic BlockNode with one carrying the real blockId.
+    if (parentId) {
+      this.emit({ type: 'structure_changed', parentIds: [parentId], source: 'sync' });
     }
   }
 
