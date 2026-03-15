@@ -20,6 +20,7 @@ export const SYSTEM_PROPERTY_UUIDS = {
   task_deadline: '00000000-0000-0000-0003-000000000002',
   task_scheduled: '00000000-0000-0000-0003-000000000003',
   task_priority: '00000000-0000-0000-0003-000000000004',
+  task_recurrence: '00000000-0000-0000-0003-000000000006',
 } as const;
 
 /** Task status cycle order for Ctrl+Enter */

@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
 import { useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -204,6 +204,41 @@ interface NodeViewProps {
 export interface NodeViewResult {
   header: React.ReactNode;
   content: React.ReactNode;
+}
+
+/**
+ * Counts words across a node and all its children recursively
+ */
+function countWordsInTree(node: Node): { words: number; blocks: number } {
+  let words = 0;
+  let blocks = 0;
+  
+  const text = nodeNameToText(node.name);
+  if (text) {
+    words += text.split(/\s+/).filter(w => w.length > 0).length;
+  }
+  blocks++;
+  
+  if (node.children) {
+    for (const child of node.children) {
+      const childCounts = countWordsInTree(child);
+      words += childCounts.words;
+      blocks += childCounts.blocks;
+    }
+  }
+  
+  return { words, blocks };
+}
+
+function WordCount({ node }: { node: Node }) {
+  const { words, blocks } = useMemo(() => countWordsInTree(node), [node]);
+  
+  return (
+    <div className="node-view-word-count">
+      <span>{words.toLocaleString()} words</span>
+      <span>{blocks.toLocaleString()} blocks</span>
+    </div>
+  );
 }
 
 export function NodeView({ 
@@ -1216,6 +1251,7 @@ export function NodeView({
             <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
             <span>Updated: {formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</span>
           </div>
+          <WordCount node={node} />
         </footer>
       )}
       

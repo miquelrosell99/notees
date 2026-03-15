@@ -10,20 +10,21 @@
  * - @classname syntax for filtering and creating pages with specific class
  * - @ triggers class suggestion popup for easy class selection
  */
-import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import './CommandPalette.css';
+import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useProperties, useNodeNavigation, useClasses } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
-import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
+import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly, getRecentPages, getRecentlyCreatedPages, getRandomPages } from '@/api/nodes';
+import type { RecentPage } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
 import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodeRef } from '../nodes/NodeRef';
@@ -339,7 +340,7 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge'; requiresPage?: boolean; devOnly?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random'; requiresPage?: boolean; devOnly?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
@@ -349,14 +350,34 @@ export function CommandPalette({
       { id: 'merge-pages', label: 'Merge pages', icon: 'merge' },
       { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
       { id: 'reset-views', label: 'Reset views to defaults (current node)', icon: 'maintenance', requiresPage: true, devOnly: true },
+      { id: 'open-random-page', label: 'Open random page', icon: 'random' },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
 
+  // Empty-state sections: recently accessed, recently created, random pages
+  const [recentAccessedPages, setRecentAccessedPages] = useState<RecentPage[]>([]);
+  const [recentCreatedPages, setRecentCreatedPages] = useState<RecentPage[]>([]);
+  const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
+
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random'; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
     const items: ItemEntry[] = [];
     
+    // When no query, show browse sections
+    if (!searchTerm.trim()) {
+      for (const page of recentAccessedPages) {
+        items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'recent-accessed' });
+      }
+      for (const page of recentCreatedPages) {
+        items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'recent-created' });
+      }
+      for (const page of randomPages) {
+        items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'random' });
+      }
+      return items;
+    }
+
     // Commands section — show first when user is searching
     if (searchTerm.trim()) {
       const lowerSearch = searchTerm.toLowerCase();
@@ -425,7 +446,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap]);
+  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap, recentAccessedPages, recentCreatedPages, randomPages]);
   
   // Focus input when opened; refresh caches that may have gone stale since last open
   useEffect(() => {
@@ -436,6 +457,10 @@ export function CommandPalette({
       inputRef.current?.focus();
       queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
+      // Fetch empty-state sections
+      getRecentPages(5).then(setRecentAccessedPages).catch(() => {});
+      getRecentlyCreatedPages(5).then(setRecentCreatedPages).catch(() => {});
+      getRandomPages(5).then(setRandomPages).catch(() => {});
     }
   }, [isOpen, queryClient]);
   
@@ -535,11 +560,12 @@ export function CommandPalette({
       
       case 'page':
       case 'block':
+      case 'browse-page':
         if (item.result?.node) {
           if (onSelect) {
             onSelect(item.result.node);
           } else {
-            navigateToNode(item.result.node);
+            openNode(item.result.node.id);
           }
         }
         onClose();
@@ -672,6 +698,17 @@ export function CommandPalette({
               notifyError('Failed to reset views', 'Please try again.');
             }
           }
+        } else if (item.commandId === 'open-random-page') {
+          try {
+            const pages = await getRandomPages(1);
+            if (pages.length > 0) {
+              openNode(pages[0].id);
+            } else {
+              notifyWarning('No pages', 'No pages found in workspace.');
+            }
+          } catch {
+            notifyError('Failed to open random page', 'Please try again.');
+          }
         }
         onClose();
         break;
@@ -709,13 +746,16 @@ export function CommandPalette({
   }, [isTypingClass, listKeyDown, onClose, allItems, handleSelect]);
   
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
-  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap, extraPages, extraBlocks, extraProperties } = useMemo(() => {
+  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap, extraPages, extraBlocks, extraProperties } = useMemo(() => {
     const dateItems: typeof allItems = [];
     const pageItems: typeof allItems = [];
     const blockItems: typeof allItems = [];
     const propertyItems: typeof allItems = [];
     const quickAddItems: typeof allItems = [];
     const commandItems: typeof allItems = [];
+    const browseRecentAccessed: typeof allItems = [];
+    const browseRecentCreated: typeof allItems = [];
+    const browseRandom: typeof allItems = [];
     const indexMap = new Map<typeof allItems[number], number>();
     
     for (let i = 0; i < allItems.length; i++) {
@@ -728,9 +768,14 @@ export function CommandPalette({
         case 'property': propertyItems.push(item); break;
         case 'quick-add': quickAddItems.push(item); break;
         case 'command': commandItems.push(item); break;
+        case 'browse-page':
+          if (item.browseSection === 'recent-accessed') browseRecentAccessed.push(item);
+          else if (item.browseSection === 'recent-created') browseRecentCreated.push(item);
+          else if (item.browseSection === 'random') browseRandom.push(item);
+          break;
       }
     }
-    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap,
+    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap,
       extraPages: Math.max(0, rawPages.length - MAX_PAGES),
       extraBlocks: Math.max(0, rawBlocks.length - MAX_BLOCKS),
       extraProperties: Math.max(0, rawProperties.length - MAX_PROPERTIES),
@@ -822,9 +867,62 @@ export function CommandPalette({
               )}
               
               {!query && (
-                <div className="command-palette__hint">
-                  Start typing to search pages, blocks, and properties
-                </div>
+                <>
+                  {browseRecentAccessed.length > 0 && (
+                    <div className="command-palette__section">
+                      <div className="command-palette__section-header">Recently Accessed</div>
+                      {browseRecentAccessed.map((item) => {
+                        const globalIndex = indexMap.get(item)!;
+                        return (
+                          <ResultItem
+                            key={item.result?.node?.id}
+                            result={item.result!}
+                            isSelected={selectedIndex === globalIndex}
+                            onClick={() => handleSelect(globalIndex)}
+                            allClasses={allClasses}
+                            pageClassId={pageClassId}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                  {browseRecentCreated.length > 0 && (
+                    <div className="command-palette__section">
+                      <div className="command-palette__section-header">Recently Created</div>
+                      {browseRecentCreated.map((item) => {
+                        const globalIndex = indexMap.get(item)!;
+                        return (
+                          <ResultItem
+                            key={item.result?.node?.id}
+                            result={item.result!}
+                            isSelected={selectedIndex === globalIndex}
+                            onClick={() => handleSelect(globalIndex)}
+                            allClasses={allClasses}
+                            pageClassId={pageClassId}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                  {browseRandom.length > 0 && (
+                    <div className="command-palette__section">
+                      <div className="command-palette__section-header">Random Pages</div>
+                      {browseRandom.map((item) => {
+                        const globalIndex = indexMap.get(item)!;
+                        return (
+                          <ResultItem
+                            key={item.result?.node?.id}
+                            result={item.result!}
+                            isSelected={selectedIndex === globalIndex}
+                            onClick={() => handleSelect(globalIndex)}
+                            allClasses={allClasses}
+                            pageClassId={pageClassId}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
               
               {/* Commands section */}
@@ -851,6 +949,8 @@ export function CommandPalette({
                           <Icon path={mdiFingerprint} size={0.7} />
                         ) : item.commandIcon === 'merge' ? (
                           <Icon path={mdiMerge} size={0.7} />
+                        ) : item.commandIcon === 'random' ? (
+                          <Icon path={mdiShuffle} size={0.7} />
                         ) : (
                           <Icon path={mdiExport} size={0.7} />
                         )}
