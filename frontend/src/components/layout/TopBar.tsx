@@ -12,7 +12,6 @@ import { useRef, useCallback, useState, useMemo } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
-  mdiPlus, 
   mdiMap, 
   mdiDockRight,
   mdiNoteEditOutline,
@@ -22,9 +21,7 @@ import { useAppStore } from '@/stores';
 import { useDailyNote, useCommentCount } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
 import { CalendarPopup } from '../core/CalendarPopup';
-import { QuickAddPanel } from '../quickadd/QuickAddPanel';
 import { Card } from '../core/Card';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
@@ -37,8 +34,6 @@ export function TopBar() {
     isCalendarOpen, 
     toggleCalendar, 
     setCalendarOpen,
-    isQuickAddOpen,
-    setQuickAddOpen,
     openNode,
     isMinimapOpen,
     toggleMinimap,
@@ -153,23 +148,6 @@ export function TopBar() {
             anchorRef={calendarBtnRef as React.RefObject<HTMLElement>}
           />
         </div>
-        
-        {/* Quick add button with panel */}
-        <ButtonWithPanel
-          icon={mdiPlus}
-          variant="ghost"
-          size="sm"
-          panelPosition="bottom"
-          panelAlignment="end"
-          panelWidth={320}
-          tooltip="Quick add (Ctrl+N)"
-          buttonClassName="toolbar-btn"
-          open={isQuickAddOpen}
-          onOpenChange={setQuickAddOpen}
-          usePortal
-        >
-          {(closePanel: () => void) => <QuickAddPanel onClose={closePanel} />}
-        </ButtonWithPanel>
         
         {/* Minimap toggle button */}
         <Button

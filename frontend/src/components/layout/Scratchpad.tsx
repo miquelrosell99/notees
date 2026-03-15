@@ -1,17 +1,25 @@
 /**
  * Scratchpad Component
  *
- * A floating panel backed by today's daily note.
- * Renders a NodeCollection in list view for multi-level outliner editing.
+ * Ephemeral floating panel for quick capture (cleared on page reload).
+ * Uses BlockEditor in draft mode for multi-level outliner editing.
+ * "Send all" sends top-level blocks (with children) to a chosen destination page.
  */
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { mdiPin, mdiPinOff } from '@mdi/js';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { mdiPin, mdiPinOff, mdiSend } from '@mdi/js';
 import { Button } from '../core/Button';
-import { NodeCollection } from '../nodes/NodeCollection';
-import { useDailyNote, useNode, useContentSave, useAddClass } from '@/hooks';
-import { useNodeNavigation } from '@/hooks';
-import type { Node } from '@/types';
+import { NodeSelector } from '../nodes/NodeSelector';
+import { BlockEditor } from '@/editor/BlockEditor';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { serializeContentAST } from '@/editor/editorConfig';
+import { useTodayNote, usePages, useCreateNode } from '@/hooks';
+import { useSettingsStore } from '@/stores';
+import type { GraphNode, ContentAST } from '@/runtime/types';
+import type { Node as ApiNode } from '@/types';
 import './Scratchpad.css';
+
+/** Stable virtual root ID for the scratchpad draft tree */
+const SCRATCHPAD_ROOT_ID = '__scratchpad-root__';
 
 interface ScratchpadProps {
   isOpen: boolean;
@@ -24,37 +32,158 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const [isPinned, setIsPinned] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [showDestinationPicker, setShowDestinationPicker] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch today's daily note (auto-creates if missing)
-  const { data: dailyNode } = useDailyNote(new Date());
+  const { quickAddDestination } = useSettingsStore();
+  const createNodeMutation = useCreateNode();
 
-  // Fetch the daily node with children
-  const { data: dailyNodeWithChildren } = useNode(dailyNode?.id ?? null, {
-    include_children: true,
-  });
+  // Get destination pages
+  const { data: todayNote } = useTodayNote();
+  const { data: allPages } = usePages();
+  const inboxPage = allPages?.find(p => p.name === 'Inbox');
+  const defaultDestination = quickAddDestination === 'today' ? todayNote : inboxPage;
 
-  // Block children from the daily note
-  const blockChildren = useMemo(() => {
-    const node = dailyNodeWithChildren ?? dailyNode;
-    if (!node?.children) return [];
-    return node.children.filter((c: Node) => !c.is_page);
-  }, [dailyNodeWithChildren?.children, dailyNode?.children]);
+  // Custom destination override (when user picks via NodeSelector)
+  const [customDestination, setCustomDestination] = useState<ApiNode | null>(null);
+  const destinationPage = customDestination ?? defaultDestination;
 
-  // Report entry count to parent
+  // Seed the runtime with an empty first block under the virtual root
+  const initialBlockId = useRef(crypto.randomUUID());
+  const seeded = useRef(false);
+
   useEffect(() => {
-    onEntryCountChange?.(blockChildren.length);
-  }, [blockChildren.length, onEntryCountChange]);
+    if (seeded.current) return;
+    seeded.current = true;
 
-  // Content save for block editing
-  const { handleContentChange: handleBlockChange } = useContentSave();
-  const addClass = useAddClass();
-  const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
+    const runtime = getNodeGraphRuntime();
+    const emptyAST: ContentAST = [{ children: [{ text: '' }] }];
 
-  const handleAddClass = useCallback((blockId: number, classId: number) => {
-    addClass.mutate({ nodeId: blockId, classId });
-  }, [addClass]);
+    const graphNode: GraphNode = {
+      blockId: initialBlockId.current,
+      parentId: SCRATCHPAD_ROOT_ID,
+      orderIndex: 0,
+      nodeType: 'block',
+      contentAST: emptyAST,
+      collapsed: false,
+      isDeleted: false,
+      isPage: false,
+      classIds: [],
+      tagIds: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: 1,
+      hasServerChildren: false,
+    };
+
+    runtime.upsertNodes([graphNode]);
+  }, []);
+
+  // Clean up draft blocks from runtime on unmount
+  useEffect(() => {
+    return () => {
+      const runtime = getNodeGraphRuntime();
+      const children = runtime.getChildren(SCRATCHPAD_ROOT_ID);
+      if (children.length > 0) {
+        const allIds = [
+          ...children.map(b => b.blockId),
+          ...children.flatMap(b => runtime.getDescendants(b.blockId).map(d => d.blockId)),
+        ];
+        runtime.removeNodes(allIds);
+      }
+    };
+  }, []);
+
+  // Track content changes
+  const handleContentChange = useCallback((_blockId: string, _content: string) => {
+    const runtime = getNodeGraphRuntime();
+    const children = runtime.getChildren(SCRATCHPAD_ROOT_ID);
+    const count = children.filter(child => {
+      const content = serializeContentAST(child.contentAST);
+      return content && content !== '' && content !== '[]' && content !== '[{"children":[{"text":""}]}]';
+    }).length;
+    setHasContent(count > 0);
+    onEntryCountChange?.(count);
+  }, [onEntryCountChange]);
+
+  // Recursively create blocks preserving hierarchy
+  const createBlockTree = useCallback(async (
+    parentServerId: number,
+    children: GraphNode[],
+  ) => {
+    for (const child of children) {
+      const content = serializeContentAST(child.contentAST);
+      const isEmpty = !content || content === '' || content === '[]' || content === '[{"children":[{"text":""}]}]';
+
+      const runtime = getNodeGraphRuntime();
+      const grandchildren = runtime.getChildren(child.blockId);
+
+      if (isEmpty && grandchildren.length === 0) continue;
+
+      const created = await createNodeMutation.mutateAsync({
+        name: isEmpty ? '' : content,
+        parent_id: parentServerId,
+        sequence: child.orderIndex,
+      });
+
+      if (grandchildren.length > 0) {
+        await createBlockTree(created.id, grandchildren);
+      }
+    }
+  }, [createNodeMutation]);
+
+  const handleSendAll = useCallback(async () => {
+    if (!destinationPage || isSending) return;
+
+    setIsSending(true);
+    try {
+      const runtime = getNodeGraphRuntime();
+      const topBlocks = runtime.getChildren(SCRATCHPAD_ROOT_ID);
+      if (topBlocks.length === 0) return;
+
+      await createBlockTree(destinationPage.id, topBlocks);
+
+      // Clean up and reseed
+      const allDraftIds = [
+        ...topBlocks.map(b => b.blockId),
+        ...topBlocks.flatMap(b => runtime.getDescendants(b.blockId).map(d => d.blockId)),
+      ];
+      runtime.removeNodes(allDraftIds);
+
+      // Reseed with an empty block
+      const newBlockId = crypto.randomUUID();
+      const emptyAST: ContentAST = [{ children: [{ text: '' }] }];
+      runtime.upsertNodes([{
+        blockId: newBlockId,
+        parentId: SCRATCHPAD_ROOT_ID,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: emptyAST,
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+        hasServerChildren: false,
+      }]);
+
+      setHasContent(false);
+      onEntryCountChange?.(0);
+    } finally {
+      setIsSending(false);
+    }
+  }, [destinationPage, isSending, createBlockTree, onEntryCountChange]);
+
+  const handleDestinationSelect = useCallback((node: ApiNode) => {
+    setCustomDestination(node);
+    setShowDestinationPicker(false);
+  }, []);
 
   // Load pinned state
   useEffect(() => {
@@ -88,8 +217,8 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     const handleClickOutside = (e: MouseEvent) => {
       if (
         containerRef.current &&
-        !containerRef.current.contains(e.target as Node) &&
-        (!anchorRef?.current || !anchorRef.current.contains(e.target as Node))
+        !containerRef.current.contains(e.target as globalThis.Node) &&
+        (!anchorRef?.current || !anchorRef.current.contains(e.target as globalThis.Node))
       ) {
         onClose();
       }
@@ -142,6 +271,12 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   if (!isOpen && !isPinned) return null;
   if (!position) return null;
 
+  const destinationLabel = customDestination
+    ? (customDestination.name ? (() => { try { const ast = JSON.parse(customDestination.name); return Array.isArray(ast) ? ast.map((b: { children?: { text?: string }[] }) => b.children?.map(c => c.text ?? '').join('') ?? '').join('') : customDestination.name; } catch { return customDestination.name; } })() : 'Untitled')
+    : (quickAddDestination === 'today' ? "Today's page" : 'Inbox');
+
+  const canSend = destinationPage && hasContent && !isSending;
+
   return (
     <div
       ref={containerRef}
@@ -164,22 +299,53 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       </div>
 
       <div className="scratchpad-content">
-        {dailyNode ? (
-          <NodeCollection
-            nodes={blockChildren}
-            viewMode="list"
-            editable={true}
-            onNodeClick={handleNodeClick}
-            onNodeShiftClick={handleNodeShiftClick}
-            onContentChange={handleBlockChange}
-            onAddClass={handleAddClass}
-            pageId={dailyNode.id}
-            pageUuid={dailyNode.uuid}
-            hideToolbar
-            showEmpty={false}
-          />
+        <BlockEditor
+          editorId="scratchpad"
+          rootBlockId={SCRATCHPAD_ROOT_ID}
+          mode="list"
+          draftMode
+          placeholder="What's on your mind?"
+          onContentChange={handleContentChange}
+          hideProperties
+        />
+      </div>
+
+      <div className="scratchpad-footer">
+        {showDestinationPicker ? (
+          <div className="scratchpad-destination-picker">
+            <NodeSelector
+              trigger="inline"
+              searchMode="pages"
+              onAdd={handleDestinationSelect}
+              searchPlaceholder="Pick destination page..."
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDestinationPicker(false)}
+            >
+              Cancel
+            </Button>
+          </div>
         ) : (
-          <div className="scratchpad-empty">Loading...</div>
+          <div className="scratchpad-send-row">
+            <button
+              className="scratchpad-destination-hint"
+              onClick={() => setShowDestinationPicker(true)}
+              title="Change destination"
+            >
+              → {destinationLabel}
+            </button>
+            <Button
+              icon={mdiSend}
+              variant="primary"
+              size="sm"
+              onClick={handleSendAll}
+              disabled={!canSend}
+            >
+              Send all
+            </Button>
+          </div>
         )}
       </div>
     </div>
