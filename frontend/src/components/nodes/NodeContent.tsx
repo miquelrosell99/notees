@@ -150,11 +150,48 @@ export function NodeContent({
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
         runtime.upsertNodes(graphNodes);
 
-        // Invalidate the TanStack cache for this page so BlockEditor's stale-cleanup
-        // won't remove the newly inserted blocks before they appear in the query data
+        // Optimistically update the TanStack query cache so that BlockEditor's
+        // stale-cleanup sees the new blocks in the `nodes` prop immediately,
+        // rather than waiting for an async refetch.
+        // The API returns blocks as a flat list; build a nested tree first.
+        const blockMap = new Map<number, Node>();
+        for (const b of result.blocks) blockMap.set(b.id, { ...b, children: [] });
+        const topLevel: Node[] = [];
+        for (const b of result.blocks) {
+          const mapped = blockMap.get(b.id)!;
+          if (b.parent_id === parentId) {
+            topLevel.push(mapped);
+          } else {
+            const parent = blockMap.get(b.parent_id!);
+            if (parent) {
+              parent.children = parent.children || [];
+              parent.children.push(mapped);
+            }
+          }
+        }
+
         const { nodeKeys } = await import('@/hooks/queryKeys');
         const { queryClient } = await import('@/lib/queryClient');
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.detailBase(node.id) },
+          (old) => {
+            if (!old) return old;
+            const addBlocksToParent = (n: Node): Node => {
+              if (n.id === parentId) {
+                return {
+                  ...n,
+                  children: [...(n.children || []), ...topLevel],
+                  has_children: true,
+                };
+              }
+              if (n.children) {
+                return { ...n, children: n.children.map(addBlocksToParent) };
+              }
+              return n;
+            };
+            return addBlocksToParent(old);
+          },
+        );
       }
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
