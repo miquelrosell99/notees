@@ -76,6 +76,10 @@ export function useViewportFlip(
       if (top + popupHeight > viewportHeight - edgePadding) {
         top = rect.top - popupHeight - gap;
       }
+      // Clamp so popup never goes above the viewport
+      if (top < edgePadding) {
+        top = edgePadding;
+      }
       top += scrollY;
     } else {
       // Dynamic flip: compute maxHeight based on available space
