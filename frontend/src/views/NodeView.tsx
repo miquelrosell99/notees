@@ -45,7 +45,7 @@ import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesE
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -94,15 +94,6 @@ function setCollapsedState(key: string, pageId: number, collapsed: boolean): voi
   } catch {
     // Ignore storage errors
   }
-}
-
-/**
- * Check if a time is during "late night" hours (10PM - 4AM)
- */
-function isLateNightTime(dateStr: string): boolean {
-  const date = new Date(dateStr);
-  const hour = date.getHours();
-  return hour >= 22 || hour < 4;
 }
 
 /**
@@ -247,7 +238,7 @@ export function NodeView({
   const { data: allNodes } = useNodes({ pages_only: true, page_size: 10000 });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode, contentDisplayMode, lateNightThoughtsFilter } = useAppStore();
+  const { addSidebarCard, openNode, contentDisplayMode } = useAppStore();
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -710,11 +701,6 @@ export function NodeView({
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
       if (textPropertyBlockIds.has(child.id)) continue;
       
-      // Apply late night thoughts filter if enabled
-      if (lateNightThoughtsFilter && child.create_date && !isLateNightTime(child.create_date)) {
-        continue;
-      }
-      
       if (child.is_page) {
         pages.push(child);
       } else {
@@ -723,7 +709,7 @@ export function NodeView({
     }
     
     return { blockChildren: blocks, pageChildren: pages };
-  }, [node?.children, node?.id, textPropertyBlockIds, lateNightThoughtsFilter]);
+  }, [node?.children, node?.id, textPropertyBlockIds]);
   
   // Context menu handlers
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -865,18 +851,6 @@ export function NodeView({
               />
             </div>
           )}
-          
-          {/* Late night thoughts filter */}
-          <Button
-            icon={mdiWeatherNight}
-            variant="ghost"
-            size="sm"
-            onClick={useAppStore.getState().toggleLateNightThoughts}
-            active={lateNightThoughtsFilter}
-            aria-label="Toggle late night thoughts"
-            title="Show only late night thoughts (created 10PM-4AM)"
-            className="toolbar-btn"
-          />
           
           {/* Local graph button */}
           <Button
@@ -1137,7 +1111,6 @@ export function NodeView({
           node={node}
           children={blockChildren}
           displayMode={contentDisplayMode}
-          lateNightFilterActive={lateNightThoughtsFilter}
           totalChildrenCount={node.children?.length || 0}
         />
       ) : (
