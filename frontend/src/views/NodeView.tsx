@@ -261,7 +261,7 @@ export function NodeView({
   const showPageHeader = hidePageHeader !== undefined ? !hidePageHeader : !sidebarMode;
   const showProperties = hideProperties !== undefined ? !hideProperties : true;
   const showQueries = hideQueries !== undefined ? !hideQueries : true;
-  const showFooter = hideFooter !== undefined ? !hideFooter : true;
+  const showFooter = hideFooter !== undefined ? !hideFooter : !sidebarMode;
   
   // Fetch the node — include properties/backlinks if we're showing properties or queries
   const { data: node, isLoading, error } = useNode(nodeId, { 
