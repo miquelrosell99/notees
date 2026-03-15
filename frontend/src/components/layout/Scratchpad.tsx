@@ -366,9 +366,8 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
               size="sm"
               onClick={handleSendAll}
               disabled={!canSend}
-            >
-              Send all
-            </Button>
+              title="Send all"
+            />
           </div>
         )}
       </div>
