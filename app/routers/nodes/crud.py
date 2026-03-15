@@ -707,6 +707,7 @@ async def instantiate_template(
         name=body.name,
         variables=body.variables,
         as_blocks=body.as_blocks,
+        after_id=body.after_id,
     )
 
     if result['as_blocks']:

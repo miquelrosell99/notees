@@ -369,6 +369,7 @@ class TemplateInstantiateRequest(BaseModel):
     name: Optional[str] = None
     variables: Dict[str, str] = {}
     as_blocks: bool = False  # If True, create children under parent_id without a root page
+    after_id: Optional[int] = None  # Insert blocks after this sibling (as_blocks mode)
 
 
 class TemplateInstantiateResponse(BaseModel):

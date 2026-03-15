@@ -503,6 +503,7 @@ export function TriggerPlugin({
         classFilters={trigger.classFilters}
         headerText={trigger.templateMode ? 'Insert template' : undefined}
         footerHintText={trigger.templateMode ? 'insert template' : undefined}
+        hideCreate={trigger.templateMode}
       />
     );
   }

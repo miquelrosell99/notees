@@ -27,6 +27,8 @@ export interface TriggerSuggestionPopupProps {
   headerText?: string;
   /** Footer hint text override */
   footerHintText?: string;
+  /** Hide the "create new" option */
+  hideCreate?: boolean;
 }
 
 export function TriggerSuggestionPopup({
@@ -41,6 +43,7 @@ export function TriggerSuggestionPopup({
   classFilters,
   headerText,
   footerHintText,
+  hideCreate,
 }: TriggerSuggestionPopupProps): JSX.Element {
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -70,7 +73,7 @@ export function TriggerSuggestionPopup({
       position={position}
       onSelect={onSelect}
       onClose={onClose}
-      onCreate={handleCreate}
+      onCreate={hideCreate ? undefined : handleCreate}
       onSelectDatePage={onSelectDatePage}
       onSelectEmbed={onSelectEmbed}
       showInlineOption={suggestionType === 'class'}
