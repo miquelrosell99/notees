@@ -771,6 +771,15 @@ export async function emptyTrash(): Promise<{ deleted_count: number }> {
 }
 
 /**
+ * Clear all blocks from the Scratchpad system page.
+ * Called on app startup to ensure scratchpad starts empty.
+ */
+export async function clearScratchpad(): Promise<{ status: string; deleted_count: number }> {
+  const response = await api.post<{ status: string; deleted_count: number }>(`${BASE}/scratchpad/clear`);
+  return response.data;
+}
+
+/**
  * Permanently delete multiple nodes from trash by ID.
  * Each node is processed independently — failures don't block others.
  */
