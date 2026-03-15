@@ -90,6 +90,8 @@ function scheduleDeleteFlush(): void {
 // ─── Hook ─────────────────────────────────────────────────────────
 
 interface UseBlockPersistOptions {
+  /** When false, the hook becomes a no-op (no singleton claim, no subscriptions). Used by draft-mode editors. */
+  enabled?: boolean;
   /** Called after a block is successfully persisted */
   onPersisted?: (blockId: string, serverId: number) => void;
   /** Called on persist error */
@@ -97,7 +99,7 @@ interface UseBlockPersistOptions {
 }
 
 export function useBlockPersist(options: UseBlockPersistOptions = {}) {
-  const { onPersisted, onError } = options;
+  const { enabled = true, onPersisted, onError } = options;
   const instanceIdRef = useRef(Math.random().toString(36));
   const queryClient = useQueryClient();
 
@@ -193,6 +195,8 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
   // Subscribe to runtime events
   useEffect(() => {
+    if (!enabled) return;
+
     const instanceId = instanceIdRef.current;
 
     if (activeInstanceId === null) {
@@ -258,7 +262,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
         activeInstanceId = null;
       }
     };
-  }, [persistAll]);
+  }, [enabled, persistAll]);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────

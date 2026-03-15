@@ -147,6 +147,8 @@ export interface BlockEditorProps {
   onNavigateUpFromTop?: () => void;
   /** Whether to hide inline property rows below blocks (default: false) */
   hideProperties?: boolean;
+  /** Draft mode: disables auto-persistence to the server. Blocks stay local in the runtime. */
+  draftMode?: boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -185,6 +187,7 @@ export function BlockEditor({
   onEnterAtRoot,
   onNavigateUpFromTop,
   hideProperties = false,
+  draftMode = false,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -201,11 +204,11 @@ export function BlockEditor({
   // ─── Sync structural changes to database ───────────────────
   // Listens to runtime structure_changed events (indent, outdent, reorder)
   // and persists parent_id and sequence to the backend
-  useStructureSync();
+  useStructureSync({ enabled: !draftMode });
 
   // ─── Persist new blocks to database ────────────────────────
   // Watches for runtime nodes without serverId and creates them via API
-  useBlockPersist();
+  useBlockPersist({ enabled: !draftMode });
 
   // ─── Sync nodes to runtime ─────────────────────────────────
   // If nodes[] provided, sync them to runtime with a virtual root.

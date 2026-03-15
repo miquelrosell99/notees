@@ -32,6 +32,8 @@ import { nodeKeys } from './queryKeys';
 import type { Node, NodeUpdate } from '@/types/api';
 
 interface UseStructureSyncOptions {
+  /** When false, the hook becomes a no-op (no singleton claim, no subscriptions). Used by draft-mode editors. */
+  enabled?: boolean;
   /** Debounce delay in ms (default: 200) */
   delay?: number;
   /** Called after successful sync */
@@ -61,7 +63,7 @@ const SYNC_COOLDOWN = 1000; // Don't sync same node within 1 second
  * Uses a singleton pattern - only the first mounted instance is active.
  */
 export function useStructureSync(options: UseStructureSyncOptions = {}) {
-  const { delay = 200, onSynced, onError } = options;
+  const { enabled = true, delay = 200, onSynced, onError } = options;
   const instanceIdRef = useRef<string>(Math.random().toString(36));
   const queryClient = useQueryClient();
   
@@ -220,6 +222,8 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
 
   // Subscribe to runtime structure changes (only if this is the active instance)
   useEffect(() => {
+    if (!enabled) return;
+
     const instanceId = instanceIdRef.current;
     
     // Register as active instance if none exists
@@ -280,7 +284,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
         activeInstanceId = null;
       }
     };
-  }, [delay, flush]);
+  }, [enabled, delay, flush]);
 
   return { flush };
 }
