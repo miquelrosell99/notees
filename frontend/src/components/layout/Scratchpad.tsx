@@ -229,14 +229,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             title="Clear all"
             disabled={entries.length === 0}
           />
-          <Button
-            className="scratchpad-btn"
-            icon={mdiClose}
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            title="Close"
-          />
         </div>
       </div>
       
