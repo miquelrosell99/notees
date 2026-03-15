@@ -253,7 +253,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             pageId={scratchpadPage.id}
             pageUuid={scratchpadPage.uuid}
             mode="list"
-            placeholder="What's on your mind?"
             onContentChange={handleContentChange}
             hideProperties
           />
