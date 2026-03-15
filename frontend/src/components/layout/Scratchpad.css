@@ -7,7 +7,7 @@
   width: 320px;
   max-height: 400px;
   background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 40%, transparent);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
   box-shadow: var(--elevation-4);
   display: flex;
@@ -32,7 +32,6 @@
 }
 
 .scratchpad.pinned {
-  border-color: var(--color-accent);
   box-shadow: 0 8px 32px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
@@ -175,7 +174,7 @@
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 40%, transparent);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   background: var(--color-surface-variant);
   padding: 4px 4px 4px 12px;
