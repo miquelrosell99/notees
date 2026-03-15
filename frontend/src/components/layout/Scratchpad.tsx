@@ -114,6 +114,24 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     }
   }, [isOpen]);
 
+  // Close on outside click when not pinned
+  useEffect(() => {
+    if (!isOpen || isPinned) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node) &&
+        (!anchorRef?.current || !anchorRef.current.contains(e.target as Node))
+      ) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, isPinned, onClose, anchorRef]);
+
   const handleAddEntry = useCallback(() => {
     if (!newEntry.trim()) return;
     
