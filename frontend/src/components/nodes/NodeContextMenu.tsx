@@ -12,7 +12,7 @@
  */
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount, useTodayNote, usePages } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useAppStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -123,9 +123,8 @@ export type ActionScope = 'page' | 'block' | 'both';
 
 export type ActionName =
   | 'favorite'
-  | 'set-parent'
+  | 'move-to'
   | 'convert-to-page'
-  | 'move-block'
   | 'toggle-header'
   | 'copy-uuid'
   | 'copy-link'
@@ -145,8 +144,7 @@ export type ActionConfig = readonly [ActionName, ActionScope];
 export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['favorite',        'page'],
   ['convert-to-page', 'block'],
-  ['move-block',      'block'],
-  ['set-parent',      'both'],
+  ['move-to',         'both'],
   ['toggle-header',   'block'],
   ['copy-uuid',       'both'],
   ['copy-link',       'both'],
@@ -161,18 +159,23 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
 // A separator is inserted before these actions (when they are visible and there are preceding items)
 const SEP_BEFORE = new Set<ActionName>(['copy-uuid', 'archive']);
 
-// ==================== Set Parent Modal ====================
+// ==================== Move To Modal ====================
 
-interface SetParentModalProps {
+interface MoveToModalProps {
   isOpen: boolean;
   onClose: () => void;
   node: Node;
   onParentChange?: (parentId: number | null) => void;
 }
 
-function SetParentModal({ isOpen, onClose, node, onParentChange }: SetParentModalProps) {
+function MoveToModal({ isOpen, onClose, node, onParentChange }: MoveToModalProps) {
   const updateNode = useUpdateNode();
   const { data: parentNode } = useNode(node.parent_id ?? null);
+  const { quickAddDestination } = useSettingsStore();
+  const { data: todayNote } = useTodayNote();
+  const { data: allPages } = usePages();
+  const inboxPage = allPages?.find((p: Node) => p.name === 'Inbox');
+  const quickAddTarget = quickAddDestination === 'today' ? todayNote : inboxPage;
 
   const handleSelect = useCallback((val: number | number[] | null) => {
     const parentId = typeof val === 'number' ? val : null;
@@ -187,20 +190,36 @@ function SetParentModal({ isOpen, onClose, node, onParentChange }: SetParentModa
     onClose();
   }, [node.id, updateNode, onParentChange, onClose]);
 
+  const handleSendToQuickAddDest = useCallback(() => {
+    if (!quickAddTarget) return;
+    updateNode.mutate({ id: node.id, data: { parent_id: quickAddTarget.id } });
+    onParentChange?.(quickAddTarget.id);
+    onClose();
+  }, [node.id, quickAddTarget, updateNode, onParentChange, onClose]);
+
+  const quickAddDestLabel = quickAddDestination === 'today' ? "Today's page" : 'Inbox';
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Set parent" size="sm" contentClassName="set-parent-modal__content">
+    <Modal isOpen={isOpen} onClose={onClose} title="Move to..." size="sm" contentClassName="set-parent-modal__content">
       {node.parent_id && parentNode && (
         <div className="set-parent-current">
           <span className="set-parent-current__name">{nodeNameToText(parentNode.name) || 'Untitled'}</span>
-          <button className="set-parent-current__remove" onClick={handleRemove}>Remove</button>
+          <button className="set-parent-current__remove" onClick={handleRemove}>Remove parent</button>
+        </div>
+      )}
+      {!node.is_page && quickAddTarget && (
+        <div className="move-to-quick-action">
+          <button className="move-to-quick-btn" onClick={handleSendToQuickAddDest}>
+            → Send to {quickAddDestLabel}
+          </button>
         </div>
       )}
       <NodeSelector
         trigger="inline"
-        searchMode="pages"
+        searchMode={node.is_page ? 'pages' : 'all'}
         excludeNodeId={node.id}
         onChange={handleSelect}
-        searchPlaceholder="Search pages..."
+        searchPlaceholder={node.is_page ? 'Search pages...' : 'Search pages & blocks...'}
       />
     </Modal>
   );
@@ -220,12 +239,10 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
    * Defaults to DEFAULT_ACTIONS. Order determines menu order.
    */
   actions?: ActionConfig[];
-  /** Callback when parent changes (set-parent action) */
+  /** Callback when parent changes (move-to action) */
   onParentChange?: (parentId: number | null) => void;
   /** Enables 'convert-to-page' action (block-scoped) */
   onConvertToPage?: () => void;
-  /** Enables 'move-block' action (block-scoped) */
-  onMoveBlock?: () => void;
 }
 
 export function NodeContextMenu({
@@ -235,7 +252,6 @@ export function NodeContextMenu({
   actions = DEFAULT_ACTIONS,
   onParentChange,
   onConvertToPage,
-  onMoveBlock,
 }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -309,12 +325,12 @@ export function NodeContextMenu({
           });
           break;
 
-        case 'set-parent':
+        case 'move-to':
           // Pages: hide for daily/monthly journals. Blocks: always show.
           if (node.is_page && (node.is_daily || node.is_monthly)) break;
           items.push({
-            id: 'set-parent',
-            label: node.is_page ? 'Set parent' : 'Set parent page',
+            id: 'move-to',
+            label: 'Move to…',
             keepOpen: true,
             onClick: () => setShowParentModal(true),
           });
@@ -326,15 +342,6 @@ export function NodeContextMenu({
             id: 'convert-to-page',
             label: 'Convert to page',
             onClick: () => { onConvertToPage(); onClose(); },
-          });
-          break;
-
-        case 'move-block':
-          if (!onMoveBlock) break;
-          items.push({
-            id: 'move-block',
-            label: 'Move block...',
-            onClick: () => { onMoveBlock(); onClose(); },
           });
           break;
 
@@ -442,7 +449,7 @@ export function NodeContextMenu({
     return items;
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader,
-    onConvertToPage, onMoveBlock, onClose,
+    onConvertToPage, onClose,
     addSidebarCard, openLocalGraph, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick,
   ]);
@@ -502,7 +509,7 @@ export function NodeContextMenu({
         onClose={() => { setShowExportModal(false); onClose(); }}
         nodeUuid={node.uuid}
       />
-      <SetParentModal
+      <MoveToModal
         isOpen={showParentModal}
         onClose={() => { setShowParentModal(false); onClose(); }}
         node={node}
