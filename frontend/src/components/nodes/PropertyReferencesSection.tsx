@@ -53,7 +53,8 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
 
   const processedChildren = node.children.map(child => {
     const childDepth = currentDepth + 1;
-    const shouldCollapse = childDepth >= collapseLevel;
+    const hasChildren = !!(child.children && child.children.length > 0);
+    const shouldCollapse = hasChildren && childDepth >= collapseLevel;
     
     return applyCollapseLevelToChildren(
       {
@@ -118,12 +119,13 @@ export function PropertyReferencesSection({
       
       // Build the node with its children, applying collapse level
       // The page itself starts collapsed (depth 0), children start at depth 1
+      const children = sourceNode.children || [];
       const nodeWithChildren: Node = {
         ...pageNode,
         // Use source_node's children if available
-        children: sourceNode.children || [],
-        // Page itself is collapsed initially
-        collapsed: true,
+        children,
+        // Page itself is collapsed initially (only if it has children)
+        collapsed: children.length > 0,
       };
       
       // Apply collapse level to children (they will be collapsed when page is expanded)
