@@ -21,6 +21,10 @@ export interface TriggerSuggestionPopupProps {
   onClose: () => void;
   onSelectDatePage?: (pageId: string, pageName: string) => void;
   onSelectEmbed?: (node: Node) => void;
+  /** Class IDs to restrict results to (passed through to SuggestionPopup) */
+  classFilters?: number[];
+  /** Header text override */
+  headerText?: string;
 }
 
 export function TriggerSuggestionPopup({
@@ -32,6 +36,8 @@ export function TriggerSuggestionPopup({
   onClose,
   onSelectDatePage,
   onSelectEmbed,
+  classFilters,
+  headerText,
 }: TriggerSuggestionPopupProps): JSX.Element {
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -65,6 +71,8 @@ export function TriggerSuggestionPopup({
       onSelectDatePage={onSelectDatePage}
       onSelectEmbed={onSelectEmbed}
       showInlineOption={suggestionType === 'class'}
+      classFilters={classFilters}
+      headerText={headerText}
     />
   );
 }

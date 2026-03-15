@@ -28,7 +28,7 @@ import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
-import { TemplatePicker } from '../templates/TemplatePicker';
+
 import './NodeContent.css';
 
 interface NodeContentProps {
@@ -123,8 +123,26 @@ export function NodeContent({
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
 
-  // Template picker state
-  const [templatePickerPos, setTemplatePickerPos] = useState<{ top: number; left: number } | null>(null);
+  // Handle template instantiation from the inline /template picker
+  const handleTemplateInstantiate = useCallback(async (templateNodeId: number, _blockServerId: number | undefined) => {
+    try {
+      const { instantiateTemplate } = await import('@/api/nodes');
+      const result = await instantiateTemplate(templateNodeId, {
+        parent_id: node.id,
+        as_blocks: true,
+        variables: {},
+      });
+      if (result.blocks.length > 0) {
+        const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
+        const { getNodeGraphRuntime } = await import('@/runtime/NodeGraphRuntime');
+        const runtime = getNodeGraphRuntime();
+        const { graphNodes } = apiNodesToGraphNodes(result.blocks, node.id, node.uuid);
+        runtime.upsertNodes(graphNodes);
+      }
+    } catch (e) {
+      console.error('[NodeContent] template instantiation failed', e);
+    }
+  }, [node.id, node.uuid]);
 
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
@@ -168,18 +186,6 @@ export function NodeContent({
         setAssetTypeFilter(undefined);
         setIsAssetUploadOpen(true);
         break;
-      case 'template': {
-        // Capture caret position for the floating picker
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const rect = sel.getRangeAt(0).getBoundingClientRect();
-          setTemplatePickerPos({ top: rect.bottom + 4, left: rect.left });
-        } else {
-          // Fallback: centre of viewport
-          setTemplatePickerPos({ top: window.innerHeight / 2 - 160, left: window.innerWidth / 2 - 160 });
-        }
-        break;
-      }
     }
   }, [systemClassMap, addClass, node.id]);
 
@@ -350,6 +356,8 @@ export function NodeContent({
             pageUuid={node.uuid}
             onAddClass={handleAddClass}
             onSlashCommand={handleSlashCommand}
+            onTemplateInstantiate={handleTemplateInstantiate}
+            templateClassFilters={systemClassMap?.template != null ? [systemClassMap.template] : undefined}
             onPasteImage={handlePasteImage}
           />
         </section>
@@ -404,13 +412,7 @@ export function NodeContent({
         onCancel={handleTableCancel}
       />
 
-      {/* Template Picker */}
-      <TemplatePicker
-        position={templatePickerPos}
-        onClose={() => setTemplatePickerPos(null)}
-        pageNodeId={node.id}
-        pageUuid={node.uuid}
-      />
+
     </div>
   );
 }
