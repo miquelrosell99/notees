@@ -74,7 +74,6 @@ export type { TableProps, TableColumn, TableSize, TableVariant, SortDirection } 
 export { Dropdown } from './core/Dropdown';
 export type { DropdownProps, DropdownOption, DropdownSize } from './core/Dropdown';
 
-export { QuickAddPanel } from './quickadd/QuickAddPanel';
 export { SidebarCard } from './sidebar/SidebarCard';
 
 // Node graph visualization components (force-directed graph)
