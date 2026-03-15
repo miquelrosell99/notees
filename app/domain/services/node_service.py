@@ -1071,6 +1071,7 @@ class NodeService:
                   AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
                 ORDER BY np.depth, n.sequence
             """, template_id, self._workspace_id)
+            logger.info(f"[TEMPLATE] template_id={template_id}, desc_rows count={len(desc_rows)}, names={[r['name'][:30] if r['name'] else '' for r in desc_rows]}")
 
             # 3. Look up the template class DB id so we can strip it from copies
             template_class_uuid = SYSTEM_CLASS_UUIDS.get("template", "")
@@ -1218,6 +1219,7 @@ class NodeService:
                     n = await self._node_repo.get_by_id(new_id)
                     if n:
                         block_nodes.append(n)
+            logger.info(f"[TEMPLATE] Returning {len(block_nodes)} blocks (from {len(desc_rows)} desc_rows)")
             return {'node': None, 'blocks': block_nodes, 'as_blocks': True}
         else:
             root_node = await self._node_repo.get_by_id(old_id_to_new_id[template_node.id])
