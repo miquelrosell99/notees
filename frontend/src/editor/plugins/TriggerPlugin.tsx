@@ -35,6 +35,12 @@ interface TriggerState {
   position: { top: number; left: number };
   /** True when the + popup was opened by the /embed slash command or Alt+Enter */
   embedMode?: boolean;
+  /** True when the popup was opened by the /template slash command */
+  templateMode?: boolean;
+  /** Class IDs to restrict results to (used in templateMode) */
+  classFilters?: number[];
+  /** Block server ID captured when templateMode was activated */
+  templateBlockServerId?: number;
 }
 
 export interface TriggerPluginProps {
@@ -44,12 +50,18 @@ export interface TriggerPluginProps {
   onAddClass?: (blockServerId: number, classId: number) => void;
   /** Called when an action-type slash command is selected (table, query, code, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  /** Called when a template is selected in templateMode (nodeId = template node server ID) */
+  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  /** Class IDs used to pre-filter the link popup when in templateMode */
+  templateClassFilters?: number[];
 }
 
 export function TriggerPlugin({
   onLinkSelect,
   onAddClass,
   onSlashCommand,
+  onTemplateInstantiate,
+  templateClassFilters,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [trigger, setTrigger] = useState<TriggerState>({
@@ -278,7 +290,40 @@ export function TriggerPlugin({
             });
           }, 0);
           // Don't close trigger normally — we're reopening it
-          return;        } else if (value === 'type') {
+          return;
+        } else if (value === 'template') {
+          // Remove trigger text and open the link popup in template mode
+          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+          (anchorNode as any).setTextContent(newText);
+          const newOffset = beforeTrigger.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+          // Capture host block server ID for instantiation
+          let templateBlockServerId: number | undefined;
+          const tplBlockNode = findParentNodeBlock(anchorNode);
+          if (tplBlockNode) {
+            const runtime = getNodeGraphRuntime();
+            const gn = runtime.getNode(tplBlockNode.getBlockId());
+            templateBlockServerId = gn?.serverId;
+          }
+
+          const coords = getCaretCoordinates(editor);
+          setTimeout(() => {
+            setTrigger({
+              isOpen: true,
+              type: 'link',
+              query: '',
+              triggerOffset: 0,
+              position: coords,
+              templateMode: true,
+              classFilters: templateClassFilters,
+              templateBlockServerId,
+            });
+          }, 0);
+          // Don't close trigger normally — we're reopening it
+          return;
+        } else if (value === 'type') {
           const newText = beforeTrigger + '@' + afterCursor;
           (anchorNode as any).setTextContent(newText || '\u200B');
           const newOffset = beforeTrigger.length + 1;
@@ -403,7 +448,13 @@ export function TriggerPlugin({
         }
       } else {
         // For # tag and + link triggers
-        if (trigger.embedMode) {
+        if (trigger.templateMode) {
+          // Template mode: instantiate the selected template
+          if (onTemplateInstantiate) {
+            onTemplateInstantiate(node.id, trigger.templateBlockServerId);
+          }
+          setTrigger(prev => ({ ...prev, isOpen: false }));
+        } else if (trigger.embedMode) {
           // Embed mode (opened by /embed slash command): create sibling embed block
           insertEmbedSibling(node.uuid);
           setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -447,8 +498,10 @@ export function TriggerPlugin({
         position={trigger.position}
         onSelect={handleSuggestionSelect}
         onClose={handleClose}
-        onSelectDatePage={trigger.type === 'link' ? handleSelectDatePage : undefined}
-        onSelectEmbed={trigger.type === 'link' ? handleSelectEmbed : undefined}
+        onSelectDatePage={trigger.type === 'link' && !trigger.templateMode ? handleSelectDatePage : undefined}
+        onSelectEmbed={trigger.type === 'link' && !trigger.templateMode && !trigger.embedMode ? handleSelectEmbed : undefined}
+        classFilters={trigger.classFilters}
+        headerText={trigger.templateMode ? 'Insert template' : undefined}
       />
     );
   }

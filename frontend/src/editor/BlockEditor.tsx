@@ -113,6 +113,10 @@ export interface BlockEditorProps {
   onAddClass?: (blockId: number, classId: number) => void;
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  /** Called when a template node is selected via the /template inline picker */
+  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  /** Class IDs used to filter the /template inline picker (should be the template class ID) */
+  templateClassFilters?: number[];
   /** Called when an image is pasted into a block */
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   /** Custom class name */
@@ -164,6 +168,8 @@ export function BlockEditor({
   onContentChange: onContentChangeCallback,
   onAddClass,
   onSlashCommand,
+  onTemplateInstantiate,
+  templateClassFilters,
   onPasteImage,
   className,
   placeholder = 'Type / for commands…',
@@ -620,6 +626,8 @@ export function BlockEditor({
           onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
           onSlashCommand={handleSlashCommand}
+          onTemplateInstantiate={onTemplateInstantiate}
+          templateClassFilters={templateClassFilters}
         />
 
         {/* Paste image handler */}
