@@ -75,6 +75,8 @@ export interface SuggestionPopupProps {
   onSelectDatePage?: (pageId: string, pageName: string) => void;
   /** Alt+Enter: insert as embed block instead of inline link (link mode only) */
   onSelectEmbed?: (node: Node) => void;
+  /** Override the footer hint text (e.g. "insert template" instead of "insert link") */
+  footerHintText?: string;
 }
 
 /**
@@ -99,6 +101,7 @@ export function SuggestionPopup({
   showInlineOption = false,
   onSelectDatePage,
   onSelectEmbed,
+  footerHintText,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -665,7 +668,7 @@ export function SuggestionPopup({
         ) : type === 'link' ? (
           <>
             <span className="suggestion-popup__hint">
-              <kbd>Enter</kbd> insert link
+              <kbd>Enter</kbd> {footerHintText || 'insert link'}
             </span>
             {onSelectEmbed && (
               <span className="suggestion-popup__hint">

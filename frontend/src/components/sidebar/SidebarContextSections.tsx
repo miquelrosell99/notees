@@ -29,9 +29,14 @@ function CommentsList({ comments }: { comments: Node[] }) {
     );
   }
 
+  const collapsedComments = useMemo(
+    () => comments.map(c => ({ ...c, collapsed: true })),
+    [comments]
+  );
+
   return (
     <NodeCollection
-      nodes={comments}
+      nodes={collapsedComments}
       viewMode="list"
       editable={false}
       sortable={false}
