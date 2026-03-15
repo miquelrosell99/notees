@@ -213,7 +213,8 @@ function countWordsInTree(node: Node, isRoot = true): { words: number; blocks: n
   let words = 0;
   let blocks = 0;
   
-  if (!isRoot) {
+  const skipSelf = isRoot && node.is_page;
+  if (!skipSelf) {
     const text = nodeNameToText(node.name);
     if (text) {
       words += text.split(/\s+/).filter(w => w.length > 0).length;
