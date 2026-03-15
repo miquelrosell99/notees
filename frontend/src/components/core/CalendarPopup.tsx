@@ -1,7 +1,7 @@
 /**
  * Calendar popup component for navigating to daily pages
  */
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -35,6 +35,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [navigateToMonth, setNavigateToMonth] = useState<{ year: number; month: number } | null>(null);
   const [navigateToYear, setNavigateToYear] = useState<number | null>(null);
+  const [todayAccent, setTodayAccent] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
   
   // Position popup with viewport flip
@@ -202,6 +203,13 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     setNavigateToYear(currentYear);
   };
   
+  const handleTodayClick = useCallback(() => {
+    setCurrentMonth(today.getMonth());
+    setCurrentYear(today.getFullYear());
+    setTodayAccent(true);
+    setTimeout(() => setTodayAccent(false), 1200);
+  }, [today]);
+  
   return (
     <div 
       className="calendar-popup" 
@@ -256,7 +264,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
               <Button
                 variant="ghost"
                 size="xs"
-                className={`calendar-day ${isToday(day) ? 'today' : ''} ${hasNote(day) ? 'has-note' : ''}`}
+                className={`calendar-day ${isToday(day) ? `today${todayAccent ? ' accent-pulse' : ''}` : ''} ${hasNote(day) ? 'has-note' : ''}`}
                 onClick={() => handleDayClick(day)}
               >
                 {day}
@@ -264,6 +272,17 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
             )}
           </div>
         ))}
+      </div>
+      
+      <div className="calendar-footer">
+        <Button
+          variant="ghost"
+          size="xs"
+          className="calendar-today-btn"
+          onClick={handleTodayClick}
+        >
+          Today
+        </Button>
       </div>
     </div>
   );
