@@ -56,6 +56,8 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   // Track content count from children
   const childCount = scratchpadPage?.children?.length ?? 0;
+  // Don't count a single empty block (auto-created placeholder)
+  const meaningfulCount = childCount === 1 && !scratchpadPage?.children?.[0]?.name ? 0 : childCount;
   const hasContent = childCount > 0;
 
   // Auto-create an empty block when scratchpad is empty so users can start typing immediately
@@ -74,15 +76,16 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   }, [scratchpadPage, childCount, createNodeMutation]);
 
   useEffect(() => {
-    onEntryCountChange?.(childCount);
-  }, [childCount, onEntryCountChange]);
+    onEntryCountChange?.(meaningfulCount);
+  }, [meaningfulCount, onEntryCountChange]);
 
   const handleContentChange = useCallback((_blockId: string, _content: string) => {
     // Content is auto-persisted by BlockEditor (not in draft mode)
     if (!scratchpadPage?.uuid) return;
     const runtime = getNodeGraphRuntime();
     const children = runtime.getChildren(scratchpadPage.uuid);
-    onEntryCountChange?.(children.length);
+    const count = children.length === 1 && !children[0]?.name ? 0 : children.length;
+    onEntryCountChange?.(count);
   }, [onEntryCountChange, scratchpadPage?.uuid]);
 
   const handleSendAll = useCallback(async () => {
