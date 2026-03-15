@@ -122,8 +122,10 @@ export const ListView = memo(function ListView({
   enableGrouping = false,
   showBreadcrumbs = false,
   hideProperties = false,
+  size,
 }: NodeListViewProps) {
   const viewId = useId();
+  const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
 
   // Collect all nodes recursively, filtering by pagesOnly if needed,
   // then sort by sequence (order field) so the editor receives them in
@@ -294,7 +296,7 @@ export const ListView = memo(function ListView({
   // Grouped view (by page or property)
   if (groupingResult) {
     return (
-      <div className={`node-list-view node-list-view--grouped ${className}`}>
+      <div className={`node-list-view node-list-view--grouped ${sizeClass} ${className}`}>
         {groupingResult.groups.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
           const groupAllNodes: Node[] = [];
@@ -385,7 +387,7 @@ export const ListView = memo(function ListView({
         items={nodes.map(n => ({ id: n.id, node: n }))}
         onReorder={onReorder}
         onItemClick={(item) => onNodeClick?.(item.node)}
-        className={`node-list-view node-list-view--sortable ${className}`}
+        className={`node-list-view node-list-view--sortable ${sizeClass} ${className}`}
         itemClassName="node-list-view__sortable-item"
         showDragHandle={true}
         renderIcon={(item) => (
@@ -413,7 +415,7 @@ export const ListView = memo(function ListView({
   // Early return if no nodes
   if (allNodes.length === 0) {
     return (
-      <div className={`node-list-view node-list-view--empty ${className}`}>
+      <div className={`node-list-view node-list-view--empty ${sizeClass} ${className}`}>
         <span className="node-list-view__empty-message">No items</span>
       </div>
     );
@@ -422,7 +424,7 @@ export const ListView = memo(function ListView({
   // Non-grouped breadcrumb mode: show full NodeBreadcrumbs above each top-level node.
   if (showBreadcrumbs) {
     return (
-      <div className={`node-list-view node-list-view--breadcrumbs ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
+      <div className={`node-list-view node-list-view--breadcrumbs ${sizeClass} ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
         {nodes.map((node) => {
           const nodeFlat: Node[] = [];
           const collect = (n: Node) => {
@@ -468,7 +470,7 @@ export const ListView = memo(function ListView({
 
   // BlockEditor handles runtime sync internally
   return (
-    <div className={`node-list-view ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
+    <div className={`node-list-view ${sizeClass} ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
       <BlockEditor
         editorId={`list-view-${viewId}`}
         nodes={allNodes}
