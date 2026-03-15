@@ -194,14 +194,21 @@ export function NodeContent({
         };
         const queryCache = queryClient.getQueryCache();
         const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+        console.log('[TEMPLATE] Cache update: topLevel blocks:', topLevel.length, 'matching queries:', detailQueries.length);
+        let cacheUpdated = false;
         for (const query of detailQueries) {
           const oldData = query.state.data as Node | undefined;
           if (oldData) {
             const newData = addBlocksToParent(oldData);
             if (newData !== oldData) {
               queryClient.setQueryData(query.queryKey, newData);
+              cacheUpdated = true;
+              console.log('[TEMPLATE] Cache updated for query:', query.queryKey);
             }
           }
+        }
+        if (!cacheUpdated) {
+          console.warn('[TEMPLATE] No cache entries were updated! parentId:', parentId);
         }
       }
     } catch (e) {
