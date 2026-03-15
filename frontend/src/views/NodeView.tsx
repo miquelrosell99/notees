@@ -209,19 +209,21 @@ export interface NodeViewResult {
 /**
  * Counts words across a node and all its children recursively
  */
-function countWordsInTree(node: Node): { words: number; blocks: number } {
+function countWordsInTree(node: Node, isRoot = true): { words: number; blocks: number } {
   let words = 0;
   let blocks = 0;
   
-  const text = nodeNameToText(node.name);
-  if (text) {
-    words += text.split(/\s+/).filter(w => w.length > 0).length;
+  if (!isRoot) {
+    const text = nodeNameToText(node.name);
+    if (text) {
+      words += text.split(/\s+/).filter(w => w.length > 0).length;
+    }
+    blocks++;
   }
-  blocks++;
   
   if (node.children) {
     for (const child of node.children) {
-      const childCounts = countWordsInTree(child);
+      const childCounts = countWordsInTree(child, false);
       words += childCounts.words;
       blocks += childCounts.blocks;
     }
