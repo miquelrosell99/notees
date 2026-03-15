@@ -6,7 +6,7 @@
  * "Send all" sends top-level blocks (with children) to a chosen destination page.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { mdiPin, mdiPinOff, mdiSend } from '@mdi/js';
+import { mdiPin, mdiPinOff, mdiSend, mdiPlus } from '@mdi/js';
 import { Button } from '../core/Button';
 import { NodeSelector } from '../nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
@@ -180,6 +180,25 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     }
   }, [destinationPage, isSending, createBlockTree, onEntryCountChange]);
 
+  const handleAddBlock = useCallback(() => {
+    const runtime = getNodeGraphRuntime();
+    const children = runtime.getChildren(SCRATCHPAD_ROOT_ID);
+    const newBlockId = crypto.randomUUID();
+    const lastChild = children.length > 0
+      ? children.reduce((a, b) => (a.orderIndex >= b.orderIndex ? a : b))
+      : null;
+
+    runtime.requestFocus(newBlockId);
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: SCRATCHPAD_ROOT_ID,
+      afterBlockId: lastChild?.blockId ?? null,
+      blockId: newBlockId,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+    });
+    runtime.flushEvents();
+  }, []);
+
   const handleDestinationSelect = useCallback((node: ApiNode) => {
     setCustomDestination(node);
     setShowDestinationPicker(false);
@@ -308,6 +327,11 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           onContentChange={handleContentChange}
           hideProperties
         />
+        <div className="scratchpad-add-block">
+          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+            Add block
+          </Button>
+        </div>
       </div>
 
       <div className="scratchpad-footer">

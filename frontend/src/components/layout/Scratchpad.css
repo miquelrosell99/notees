@@ -73,6 +73,17 @@
   padding: 0;
 }
 
+/* Add block button */
+.scratchpad-add-block {
+  padding: var(--spacing-1) var(--spacing-2);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.scratchpad-content:hover .scratchpad-add-block {
+  opacity: 1;
+}
+
 /* Footer with send row */
 .scratchpad-footer {
   border-top: 1px solid var(--color-outline-variant);
