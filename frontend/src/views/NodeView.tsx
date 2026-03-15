@@ -36,7 +36,7 @@ import { ImageNode } from '../components/nodes/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
-import { useResetNodeViews } from '@/hooks/useNodeViews';
+
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
 import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/properties/PropertiesSection';
@@ -45,7 +45,7 @@ import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesE
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiRestore } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiWeatherNight, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -257,8 +257,6 @@ export function NodeView({
   const createNode = useCreateNode();
   const setPropertyMutation = useSetNodeProperty();
   const createPropertyMutation = useCreateProperty();
-  const resetNodeViews = useResetNodeViews();
-  
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   // When set, the property popup targets a specific block; otherwise the current node
@@ -892,22 +890,7 @@ export function NodeView({
             className="toolbar-btn"
           />
           
-          {/* Reset all views button */}
-          <Button
-            icon={mdiRestore}
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              try {
-                await resetNodeViews.mutateAsync(nodeId);
-              } catch (error) {
-                console.error('Failed to reset views:', error);
-              }
-            }}
-            aria-label="Reset all views"
-            title="Reset all views to defaults"
-            className="toolbar-btn"
-          />
+
         </div>
       }
     />
