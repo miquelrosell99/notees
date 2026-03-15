@@ -1062,3 +1062,13 @@ body.notees-dragging-block * {
 .node-block--heading {
   margin-top: 0.25em;
 }
+
+/* TOC scroll-to highlight animation */
+@keyframes toc-highlight-flash {
+  0% { background-color: var(--color-primary-container); }
+  100% { background-color: transparent; }
+}
+
+.node-block--toc-highlight {
+  animation: toc-highlight-flash 1.5s ease-out;
+}

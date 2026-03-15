@@ -168,6 +168,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "task_scheduled": "00000000-0000-0000-0003-000000000003",
     "task_priority": "00000000-0000-0000-0003-000000000004",
     "task_closed_date": "00000000-0000-0000-0003-000000000005",
+    "task_recurrence": "00000000-0000-0000-0003-000000000006",
 }
 
 # Task status options with their icons (icon field may be JSON with embedded color)
@@ -186,6 +187,16 @@ TASK_PRIORITY_OPTIONS = [
     {"name": "Medium", "icon": "mdi:equal"},
     {"name": "High", "icon": "mdi:chevron-up"},
     {"name": "Urgent", "icon": "mdi:chevron-double-up"},
+]
+
+# Task recurrence options
+TASK_RECURRENCE_OPTIONS = [
+    {"name": "Daily", "icon": "mdi:calendar-today"},
+    {"name": "Every Weekday", "icon": "mdi:calendar-week"},
+    {"name": "Weekly", "icon": "mdi:calendar-week"},
+    {"name": "Biweekly", "icon": "mdi:calendar-multiselect"},
+    {"name": "Monthly", "icon": "mdi:calendar-month"},
+    {"name": "Yearly", "icon": "mdi:calendar-star"},
 ]
 
 SYSTEM_PROPERTIES = [

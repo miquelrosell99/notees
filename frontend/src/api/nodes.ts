@@ -694,6 +694,56 @@ export async function getRecentPages(limit: number = 10): Promise<RecentPage[]> 
   return response.data.nodes ?? [];
 }
 
+/**
+ * Get random pages from the workspace
+ */
+export async function getRandomPages(limit: number = 5): Promise<RecentPage[]> {
+  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/random`, { params: { limit } });
+  return response.data.nodes ?? [];
+}
+
+/**
+ * Get recently created pages, ordered by create_date DESC
+ */
+export async function getRecentlyCreatedPages(limit: number = 5): Promise<RecentPage[]> {
+  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/recently-created`, { params: { limit } });
+  return response.data.nodes ?? [];
+}
+
+// ============== Version History ==============
+
+export interface NodeVersion {
+  id: number;
+  version: number;
+  name: string | null;
+  created_at: string;
+  user: string | null;
+}
+
+/**
+ * Get version history for a node
+ */
+export async function getNodeVersions(nodeId: number, limit: number = 50): Promise<NodeVersion[]> {
+  const response = await api.get<{ versions: NodeVersion[] }>(`${BASE}/${nodeId}/versions`, { params: { limit } });
+  return response.data.versions ?? [];
+}
+
+/**
+ * Get a specific version of a node
+ */
+export async function getNodeVersion(nodeId: number, versionId: number): Promise<NodeVersion> {
+  const response = await api.get<NodeVersion>(`${BASE}/${nodeId}/versions/${versionId}`);
+  return response.data;
+}
+
+/**
+ * Restore a node to a previous version
+ */
+export async function restoreNodeVersion(nodeId: number, versionId: number): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeId}/versions/${versionId}/restore`);
+  return response.data;
+}
+
 // ============== Favorites (DB-backed) ==============
 
 /**
