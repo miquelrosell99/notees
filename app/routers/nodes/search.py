@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 
 from ..auth import get_current_user
 from ...models import User, PaginatedResponse
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
 from .helpers import (
     _get_node_service,
     _node_to_response,
@@ -34,6 +34,7 @@ async def get_workspace_data_endpoint(
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
             SYSTEM_CLASS_UUIDS["class"],
+            *SYSTEM_PAGE_UUIDS.values(),
         ]
         
         # Get all active pages as nodes (excluding system types)
@@ -252,6 +253,7 @@ async def get_workspace_nodes_endpoint(
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
             SYSTEM_CLASS_UUIDS["class"],
+            *SYSTEM_PAGE_UUIDS.values(),
         ]
         
         page_rows = await conn.fetch(

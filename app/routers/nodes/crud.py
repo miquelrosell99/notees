@@ -494,6 +494,69 @@ async def batch_permanent_delete(
     return BatchPermanentDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
+@router.post("/scratchpad/clear")
+async def clear_scratchpad(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Delete all children (blocks) of the Scratchpad system page.
+    
+    Called on app startup to ensure the scratchpad starts empty.
+    Hard-deletes all child blocks since scratchpad content is ephemeral.
+    """
+    from ...db.schema.constants import SYSTEM_PAGE_UUIDS
+    
+    service = await _get_node_service(user)
+    pool = service._node_repo.get_connection()
+    
+    scratchpad_uuid = SYSTEM_PAGE_UUIDS["scratchpad"]
+    
+    # Find the scratchpad page
+    scratchpad = await pool.fetchrow(
+        "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+        scratchpad_uuid, service._workspace_id
+    )
+    
+    if not scratchpad:
+        # Auto-create the scratchpad page if it doesn't exist (for existing workspaces)
+        from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
+        from datetime import datetime, timezone
+        
+        now = datetime.now(timezone.utc)
+        await pool.fetchrow("""
+            INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
+            ON CONFLICT (workspace_id, uuid) DO NOTHING
+            RETURNING id
+        """, scratchpad_uuid, service._workspace_id,
+            serialize_ast(parse_ast('Scratchpad', ParseMode.PLAIN)),
+            now, int(user.id))
+        
+        return {"status": "ok", "deleted_count": 0}
+    
+    scratchpad_id = scratchpad['id']
+    
+    # Get all descendant block IDs (children and their children recursively)
+    child_rows = await pool.fetch("""
+        SELECT descendant_id FROM node_path
+        WHERE ancestor_id = $1 AND depth > 0
+    """, scratchpad_id)
+    
+    if not child_rows:
+        return {"status": "ok", "deleted_count": 0}
+    
+    child_ids = [r['descendant_id'] for r in child_rows]
+    
+    # Hard-delete all children (scratchpad content is ephemeral)
+    deleted = await pool.execute("""
+        DELETE FROM node WHERE id = ANY($1) AND workspace_id = $2
+    """, child_ids, service._workspace_id)
+    
+    deleted_count = int(deleted.split()[-1]) if deleted else 0
+    
+    return {"status": "ok", "deleted_count": deleted_count}
+
+
 @router.post("/{node_id}/restore", name="restore_node")
 async def restore_node(
     node_id: int,

@@ -18,6 +18,7 @@ from .constants import (
     SYSTEM_CLASS_UUIDS,
     SYSTEM_CLASS_ICONS,
     SYSTEM_PROPERTY_UUIDS,
+    SYSTEM_PAGE_UUIDS,
     DEFAULT_PAGES,
     TASK_STATUS_OPTIONS,
     TASK_PRIORITY_OPTIONS,
@@ -344,6 +345,19 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         await conn.execute("""
             UPDATE node SET class_ids = $1 WHERE id = $2
         """, [page_class_id], new_page_id)
+    
+    # Create Scratchpad system page with fixed UUID
+    scratchpad_uuid = SYSTEM_PAGE_UUIDS["scratchpad"]
+    scratchpad_row = await conn.fetchrow("""
+        INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
+        VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
+        ON CONFLICT (workspace_id, uuid) DO NOTHING
+        RETURNING id
+    """, scratchpad_uuid, workspace_id, serialize_ast(parse_ast('Scratchpad', ParseMode.PLAIN)), now, user_id)
+    if scratchpad_row:
+        await conn.execute("""
+            UPDATE node SET class_ids = $1 WHERE id = $2
+        """, [page_class_id], scratchpad_row['id'])
 
 
 async def create_workspace_for_user(

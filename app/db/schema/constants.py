@@ -107,8 +107,12 @@ SYSTEM_CLASSES = [
 # Default pages created on initialization
 DEFAULT_PAGES = [
     "Inbox",
-    "Quick Add",
 ]
+
+# System pages with fixed UUIDs (never change these)
+SYSTEM_PAGE_UUIDS = {
+    "scratchpad": "00000000-0000-0000-0002-000000000001",
+}
 
 # System classes with fixed UUIDs (never change these)
 SYSTEM_CLASS_UUIDS = {
