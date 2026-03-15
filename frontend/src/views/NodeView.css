@@ -50,6 +50,16 @@
   color: var(--color-on-surface-variant);
 }
 
+.node-view-metadata-date {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.node-view-metadata-date:hover {
+  text-decoration: underline;
+}
+
 .node-view-word-count {
   display: flex;
   gap: var(--spacing-4);

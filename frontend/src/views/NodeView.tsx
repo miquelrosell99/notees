@@ -55,6 +55,7 @@ import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesContext';
 import type { Asset } from '../api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { uploadAsset } from '@/api/assets';
+import { getOrCreateDaily } from '@/api/nodes';
 
 import './NodeView.css';
 
@@ -290,6 +291,18 @@ export function NodeView({
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   // When set, the property popup targets a specific block; otherwise the current node
   const [propertyTargetNodeId, setPropertyTargetNodeId] = useState<number | null>(null);
+  
+  const navigateToDay = useCallback(async (dateStr: string) => {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return;
+    const formatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    try {
+      const dailyNode = await getOrCreateDaily(formatted);
+      openNode(dailyNode.id);
+    } catch (error) {
+      console.error('Failed to open daily page:', error);
+    }
+  }, [openNode]);
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
@@ -1251,8 +1264,8 @@ export function NodeView({
       {showFooter && (
         <footer className="node-view-footer">
           <div className="node-view-metadata">
-            <span>Created: {formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</span>
-            <span>Updated: {formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</span>
+            <span>Created: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
+            <span>Updated: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
           </div>
           <WordCount node={node} />
         </footer>
