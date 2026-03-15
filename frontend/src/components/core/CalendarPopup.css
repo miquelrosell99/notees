@@ -151,6 +151,26 @@
   color: var(--color-on-primary);
 }
 
+/* Accent pulse when navigating to today */
+.calendar-day.btn.today.accent-pulse {
+  animation: today-accent-pulse 1.2s ease-out;
+}
+
+@keyframes today-accent-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 50%, transparent);
+    transform: scale(1.15);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-primary) 0%, transparent);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    transform: scale(1);
+  }
+}
+
 /* ==================== Calendar Footer ==================== */
 .calendar-footer {
   margin-top: var(--spacing-3);
