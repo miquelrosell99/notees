@@ -39,6 +39,7 @@ function commentToNode(c: Comment): Node {
 }
 
 function CommentsList({ comments }: { comments: Comment[] }) {
+  const openNode = useAppStore(s => s.openNode);
   const commentNodes = useMemo(() => comments.map(commentToNode), [comments]);
 
   if (comments.length === 0) {
@@ -58,6 +59,7 @@ function CommentsList({ comments }: { comments: Comment[] }) {
       hideToolbar
       showEmpty={false}
       size="sm"
+      onNodeClick={(node) => openNode(node.id)}
     />
   );
 }
