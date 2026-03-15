@@ -2,6 +2,7 @@
  * Calendar popup component for navigating to daily pages
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { mdiCalendarToday } from '@mdi/js';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -276,13 +277,14 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
       
       <div className="calendar-footer">
         <Button
+          icon={mdiCalendarToday}
           variant="ghost"
           size="xs"
           className="calendar-today-btn"
           onClick={handleTodayClick}
-        >
-          Today
-        </Button>
+          aria-label="Go to today"
+          title="Go to today"
+        />
       </div>
     </div>
   );
