@@ -114,7 +114,7 @@ export function TopBar() {
           active={isScratchpadOpen}
           onClick={toggleScratchpad}
           aria-label="Open scratchpad"
-          title="Scratchpad (daily notes)"
+          title="Scratchpad"
           className="toolbar-btn"
           badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
         />
