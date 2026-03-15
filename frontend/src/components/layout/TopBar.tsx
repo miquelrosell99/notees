@@ -166,6 +166,7 @@ export function TopBar() {
           buttonClassName="toolbar-btn"
           open={isQuickAddOpen}
           onOpenChange={setQuickAddOpen}
+          usePortal
         >
           {(closePanel: () => void) => <QuickAddPanel onClose={closePanel} />}
         </ButtonWithPanel>
