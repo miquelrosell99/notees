@@ -149,8 +149,8 @@ export function TriggerPlugin({
         // spaces or other characters — it only closes when the trigger char itself is
         // deleted or the cursor moves before it.
         if (trigger.isOpen && (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag')) {
-          if (trigger.embedMode) {
-            // Embed mode has no trigger char in the text — track everything before cursor
+          if (trigger.embedMode || trigger.templateMode) {
+            // Embed/template mode has no trigger char in the text — track everything before cursor
             const newQuery = textBefore;
             if (newQuery !== trigger.query) {
               setTrigger(prev => ({ ...prev, query: newQuery }));
@@ -204,7 +204,7 @@ export function TriggerPlugin({
         }
       });
     });
-  }, [editor, trigger.isOpen, trigger.embedMode]);
+  }, [editor, trigger.isOpen, trigger.embedMode, trigger.templateMode]);
 
   // ─── Escape closes trigger ─────────────────────────────────
 
@@ -278,8 +278,8 @@ export function TriggerPlugin({
           }
 
           // Open + trigger in embed mode after the update
-          const coords = getCaretCoordinates(editor);
           setTimeout(() => {
+            const coords = getCaretCoordinates(editor);
             setTrigger({
               isOpen: true,
               type: 'link',
@@ -308,8 +308,8 @@ export function TriggerPlugin({
             templateBlockServerId = gn?.serverId;
           }
 
-          const coords = getCaretCoordinates(editor);
           setTimeout(() => {
+            const coords = getCaretCoordinates(editor);
             setTrigger({
               isOpen: true,
               type: 'link',
@@ -502,6 +502,7 @@ export function TriggerPlugin({
         onSelectEmbed={trigger.type === 'link' && !trigger.templateMode && !trigger.embedMode ? handleSelectEmbed : undefined}
         classFilters={trigger.classFilters}
         headerText={trigger.templateMode ? 'Insert template' : undefined}
+        footerHintText={trigger.templateMode ? 'insert template' : undefined}
       />
     );
   }
