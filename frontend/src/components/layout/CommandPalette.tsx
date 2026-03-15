@@ -695,8 +695,18 @@ export function CommandPalette({
       }
       return;
     }
+    // Modifier+Enter triggers quick-add directly
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      const quickAddIndex = allItems.findIndex(item => item.type === 'quick-add');
+      if (quickAddIndex !== -1) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelect(quickAddIndex);
+        return;
+      }
+    }
     listKeyDown(e);
-  }, [isTypingClass, listKeyDown, onClose]);
+  }, [isTypingClass, listKeyDown, onClose, allItems, handleSelect]);
   
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
   const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, indexMap, extraPages, extraBlocks, extraProperties } = useMemo(() => {
