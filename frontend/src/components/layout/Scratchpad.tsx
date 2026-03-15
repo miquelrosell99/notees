@@ -138,7 +138,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     const entry: ScratchpadEntry = {
       id: generateId(),
       content: newEntry.trim(),
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: new Date().toLocaleString(),
     };
     
     setEntries(prev => [...prev, entry]);
@@ -252,8 +252,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           </div>
         ) : (
           entries.map(entry => (
-            <div key={entry.id} className="scratchpad-entry">
-              <span className="scratchpad-entry-time">{entry.timestamp}</span>
+            <div key={entry.id} className="scratchpad-entry" title={entry.timestamp}>
               <span className="scratchpad-entry-content">{entry.content}</span>
               <Button
                 className="scratchpad-entry-delete"
