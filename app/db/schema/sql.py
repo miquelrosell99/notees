@@ -533,7 +533,6 @@ CREATE TABLE IF NOT EXISTS node_version (
     id SERIAL PRIMARY KEY,
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
     name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL
@@ -548,8 +547,8 @@ RETURNS TRIGGER AS $fn$
 BEGIN
     -- Only capture when name actually changes
     IF OLD.name IS DISTINCT FROM NEW.name THEN
-        INSERT INTO node_version (node_id, workspace_id, version, name, created_at, user_id)
-        VALUES (OLD.id, OLD.workspace_id, OLD.version, OLD.name, NOW(), NEW.write_uid);
+        INSERT INTO node_version (node_id, workspace_id, name, created_at, user_id)
+        VALUES (OLD.id, OLD.workspace_id, OLD.name, NOW(), NEW.write_uid);
     END IF;
     RETURN NEW;
 END;
@@ -565,6 +564,14 @@ BEGIN
             BEFORE UPDATE ON node
             FOR EACH ROW
             EXECUTE FUNCTION capture_node_version();
+    END IF;
+END $$;
+
+-- Migration: Drop version column from node_version (no longer needed, we use created_at)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_version' AND column_name = 'version') THEN
+        ALTER TABLE node_version DROP COLUMN version;
     END IF;
 END $$;
 
