@@ -51,6 +51,7 @@ export function TopBar() {
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
 
   const currentNodeId = useAppStore(s => s.currentNodeId);
   const sidebarCards = useAppStore(s => s.sidebarCards);
@@ -120,6 +121,7 @@ export function TopBar() {
           aria-label="Open scratchpad"
           title="Scratchpad (daily notes)"
           className="toolbar-btn"
+          badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
         />
         
         {/* Today button */}
@@ -204,6 +206,7 @@ export function TopBar() {
         isOpen={isScratchpadOpen}
         onClose={() => setScratchpadOpen(false)}
         anchorRef={scratchpadBtnRef}
+        onEntryCountChange={setScratchpadEntryCount}
       />
       
       {/* User Settings Modal */}

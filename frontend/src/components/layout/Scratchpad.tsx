@@ -14,6 +14,7 @@ interface ScratchpadProps {
   isOpen: boolean;
   onClose: () => void;
   anchorRef?: React.RefObject<HTMLElement | null>;
+  onEntryCountChange?: (count: number) => void;
 }
 
 interface ScratchpadEntry {
@@ -37,7 +38,7 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function Scratchpad({ isOpen, onClose, anchorRef }: ScratchpadProps) {
+export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: ScratchpadProps) {
   const [entries, setEntries] = useState<ScratchpadEntry[]>([]);
   const [newEntry, setNewEntry] = useState('');
   const [isPinned, setIsPinned] = useState(false);
@@ -85,7 +86,8 @@ export function Scratchpad({ isOpen, onClose, anchorRef }: ScratchpadProps) {
       entries,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [entries]);
+    onEntryCountChange?.(entries.length);
+  }, [entries, onEntryCountChange]);
 
   // Position below anchor button when opened
   useEffect(() => {
@@ -196,25 +198,25 @@ export function Scratchpad({ isOpen, onClose, anchorRef }: ScratchpadProps) {
           <Button
             className={`scratchpad-btn ${isPinned ? 'active' : ''}`}
             variant="ghost"
-            size="xs"
+            size="sm"
             active={isPinned}
             onClick={handleTogglePin}
             title={isPinned ? 'Unpin' : 'Pin'}
           >
-            <Icon path={isPinned ? mdiPin : mdiPinOff} size={0.7} />
+            <Icon path={isPinned ? mdiPin : mdiPinOff} size={0.85} />
           </Button>
           <Button
             className="scratchpad-btn"
             variant="ghost"
-            size="xs"
+            size="sm"
             onClick={handleClearAll}
             title="Clear all"
             disabled={entries.length === 0}
           >
-            <Icon path={mdiTrashCanOutline} size={0.7} />
+            <Icon path={mdiTrashCanOutline} size={0.85} />
           </Button>
-          <Button className="scratchpad-btn" variant="ghost" size="xs" onClick={onClose} title="Close">
-            <Icon path={mdiClose} size={0.7} />
+          <Button className="scratchpad-btn" variant="ghost" size="sm" onClick={onClose} title="Close">
+            <Icon path={mdiClose} size={0.85} />
           </Button>
         </div>
       </div>
@@ -236,7 +238,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef }: ScratchpadProps) {
                 onClick={() => handleDeleteEntry(entry.id)}
                 title="Delete"
               >
-                <Icon path={mdiClose} size={0.5} />
+                <Icon path={mdiClose} size={0.65} />
               </Button>
             </div>
           ))
