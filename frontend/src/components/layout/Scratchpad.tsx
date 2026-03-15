@@ -357,7 +357,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           rootBlockId={SCRATCHPAD_ROOT_ID}
           mode="list"
           draftMode
-          placeholder="What's on your mind?"
           onContentChange={handleContentChange}
           hideProperties
         />
