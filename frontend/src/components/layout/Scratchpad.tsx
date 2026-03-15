@@ -13,6 +13,7 @@ import './Scratchpad.css';
 interface ScratchpadProps {
   isOpen: boolean;
   onClose: () => void;
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 interface ScratchpadEntry {
@@ -36,11 +37,11 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
+export function Scratchpad({ isOpen, onClose, anchorRef }: ScratchpadProps) {
   const [entries, setEntries] = useState<ScratchpadEntry[]>([]);
   const [newEntry, setNewEntry] = useState('');
   const [isPinned, setIsPinned] = useState(false);
-  const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -74,15 +75,7 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
       setIsPinned(true);
     }
     
-    // Load position
-    const savedPos = localStorage.getItem('notees-scratchpad-position');
-    if (savedPos) {
-      try {
-        setPosition(JSON.parse(savedPos));
-      } catch (e) {
-        // Use default position
-      }
-    }
+
   }, []);
 
   // Save entries when they change
@@ -93,6 +86,24 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [entries]);
+
+  // Position below anchor button when opened
+  useEffect(() => {
+    if (isOpen && anchorRef?.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      const popupWidth = 320;
+      const gap = 4;
+      let left = rect.right - popupWidth;
+      // Clamp to viewport
+      if (left < 8) left = 8;
+      if (left + popupWidth > window.innerWidth - 8) {
+        left = window.innerWidth - popupWidth - 8;
+      }
+      setPosition({ x: left, y: rect.bottom + gap });
+    } else if (isOpen && !position) {
+      setPosition({ x: 100, y: 100 });
+    }
+  }, [isOpen]);
 
   // Focus input when opened
   useEffect(() => {
@@ -138,7 +149,7 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
 
   // Dragging handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget) return;
+    if (e.target !== e.currentTarget || !position) return;
     setIsDragging(true);
     dragOffset.current = {
       x: e.clientX - position.x,
@@ -159,7 +170,6 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
 
     const handleMouseUp = () => {
       setIsDragging(false);
-      localStorage.setItem('notees-scratchpad-position', JSON.stringify(position));
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -171,6 +181,7 @@ export function Scratchpad({ isOpen, onClose }: ScratchpadProps) {
   }, [isDragging, position]);
 
   if (!isOpen && !isPinned) return null;
+  if (!position) return null;
 
   return (
     <div

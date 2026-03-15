@@ -49,6 +49,7 @@ export function TopBar() {
     setScratchpadOpen,
   } = useAppStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
+  const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
 
   const currentNodeId = useAppStore(s => s.currentNodeId);
@@ -110,6 +111,7 @@ export function TopBar() {
         <div className="top-bar-right">
         {/* Scratchpad button */}
         <Button
+          ref={scratchpadBtnRef}
           icon={mdiNoteEditOutline}
           variant="ghost"
           size="sm"
@@ -201,6 +203,7 @@ export function TopBar() {
       <Scratchpad
         isOpen={isScratchpadOpen}
         onClose={() => setScratchpadOpen(false)}
+        anchorRef={scratchpadBtnRef}
       />
       
       {/* User Settings Modal */}
