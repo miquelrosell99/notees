@@ -1,7 +1,7 @@
 /**
  * Calendar popup component for navigating to daily pages
  */
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -203,12 +203,12 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     setNavigateToYear(currentYear);
   };
   
-  const handleTodayClick = useCallback(() => {
+  const handleTodayClick = () => {
     setCurrentMonth(today.getMonth());
     setCurrentYear(today.getFullYear());
     setTodayAccent(true);
     setTimeout(() => setTodayAccent(false), 1200);
-  }, [today]);
+  };
   
   return (
     <div 
