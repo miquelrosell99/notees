@@ -255,9 +255,15 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       if (e.key !== 'Escape') return;
       if (!containerRef.current) return;
 
-      // Layer 1: if a contenteditable inside the scratchpad is focused, let the editor handle it
       const active = document.activeElement;
-      if (active && containerRef.current.contains(active) && (active as HTMLElement).isContentEditable) return;
+
+      // Only handle ESC if focus is inside the scratchpad (or on body/nothing)
+      const focusInside = active && containerRef.current.contains(active);
+      const noFocus = !active || active === document.body;
+      if (!focusInside && !noFocus) return;
+
+      // Layer 1: if a contenteditable inside the scratchpad is focused, let the editor handle it
+      if (focusInside && (active as HTMLElement).isContentEditable) return;
 
       // Layer 2: if any blocks are selected (have the selection CSS class), let the editor handle it
       if (containerRef.current.querySelector('.node-block--selected')) return;
