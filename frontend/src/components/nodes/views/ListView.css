@@ -198,6 +198,54 @@
   font: var(--font-label-small);
 }
 
+/* ==================== Small size variant ==================== */
+
+.node-list-view--sm .node-block {
+  margin: 1px 0;
+  min-height: 1.3em;
+  line-height: 1.4;
+  font: var(--font-body-small);
+  /* Tighter indent for nested blocks */
+  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-4));
+}
+
+.node-list-view--sm .node-block-content {
+  min-height: 1.3em;
+  line-height: 1.4;
+}
+
+.node-list-view--sm .block-ui > .bullet-wrapper {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  margin-top: 1px;
+}
+
+.node-list-view--sm .bullet-dot {
+  width: var(--bullet-size-xs);
+  height: var(--bullet-size-xs);
+}
+
+.node-list-view--sm .bullet-outer-ring {
+  width: 12px;
+  height: 12px;
+}
+
+.node-list-view--sm .block-ui--after-content {
+  height: 1.3em;
+  line-height: 1.4;
+}
+
+.node-list-view--sm .notees-editor-content {
+  padding: 2px 0;
+}
+
+.node-list-view--sm .bullet-collapse-arrow {
+  width: 14px;
+  height: 14px;
+  left: -14px;
+}
+
 .node-list-view__block-breadcrumbs .node-breadcrumb-link {
   padding: 2px var(--spacing-1);
 }
