@@ -66,7 +66,8 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
 
   const processedChildren = node.children.map(child => {
     const childDepth = currentDepth + 1;
-    const shouldCollapse = childDepth >= collapseLevel;
+    const hasChildren = !!(child.children && child.children.length > 0);
+    const shouldCollapse = hasChildren && childDepth >= collapseLevel;
     
     // Recursively process this child's children
     const processedChild = applyCollapseLevelToChildren(
