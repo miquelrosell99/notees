@@ -17,6 +17,7 @@ import {
   useUpdateQueryAST,
   useUpdateNodeView,
   useDeleteNodeView,
+  useResetNodeViews,
   batchEnsureDefaults,
 } from '@/hooks/useNodeViews';
 import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
@@ -45,7 +46,7 @@ import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useAppStore, useSettingsStore } from '@/stores';
-import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy } from '@mdi/js';
+import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy, mdiRestore } from '@mdi/js';
 import './QueryNodeCollection.css';
 
 // ==================== Helper Functions ====================
@@ -346,6 +347,7 @@ export function QueryNodeCollection({
   const updateQueryMutation = useUpdateQueryAST();
   const updateViewMutation = useUpdateNodeView();
   const deleteViewMutation = useDeleteNodeView();
+  const resetNodeViewsMutation = useResetNodeViews();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   
@@ -1106,6 +1108,24 @@ export function QueryNodeCollection({
             )}
             
             <div className="query-section__footer-spacer" />
+            
+            <Button
+              icon={mdiRestore}
+              iconOnly
+              variant="ghost"
+              size="sm"
+              title="Reset all views to defaults"
+              onClick={async () => {
+                try {
+                  await resetNodeViewsMutation.mutateAsync(nodeId);
+                  setEditingView(null);
+                  setEditAST(null);
+                  setEditViewName('');
+                } catch (error) {
+                  console.error('Failed to reset views:', error);
+                }
+              }}
+            />
             
             <TextField
               value={editViewName}
