@@ -18,13 +18,14 @@ import { TextField } from '../core/TextField';
 import type { Comment, Node } from '@/types/api';
 import './SidebarContextSections.css';
 
-/** Convert Comment tree to Node tree so NodeCollection can render it */
-function commentToNode(c: Comment): Node {
+/** Convert Comment tree to Node tree so NodeCollection can render it.
+ *  Top-level comments inherit the comment class icon; child blocks keep their own. */
+function commentToNode(c: Comment, isTopLevel = true): Node {
   return {
     id: c.id,
     uuid: c.uuid,
     name: c.name,
-    icon: c.icon,
+    icon: c.icon ?? (isTopLevel ? 'mdiCommentOutline' : null),
     color: null,
     parent_id: c.parent_id,
     page_id: null,
@@ -34,7 +35,7 @@ function commentToNode(c: Comment): Node {
     is_page: false,
     create_date: c.create_date,
     write_date: c.write_date,
-    children: c.children?.map(commentToNode),
+    children: c.children?.map(child => commentToNode(child, false)),
   };
 }
 
