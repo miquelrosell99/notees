@@ -58,6 +58,21 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const childCount = scratchpadPage?.children?.length ?? 0;
   const hasContent = childCount > 0;
 
+  // Auto-create an empty block when scratchpad is empty so users can start typing immediately
+  const autoCreatedRef = useRef(false);
+  useEffect(() => {
+    if (scratchpadPage && childCount === 0 && !autoCreatedRef.current && !createNodeMutation.isPending) {
+      autoCreatedRef.current = true;
+      createNodeMutation.mutate({
+        name: '',
+        parent_id: scratchpadPage.id,
+      });
+    }
+    if (childCount > 0) {
+      autoCreatedRef.current = false;
+    }
+  }, [scratchpadPage, childCount, createNodeMutation]);
+
   useEffect(() => {
     onEntryCountChange?.(childCount);
   }, [childCount, onEntryCountChange]);
@@ -147,9 +162,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isPinned, onClose, anchorRef]);
 
-  // Close on Escape when no block is being edited or selected
+  // Close on Escape when no block is being edited or selected (pinned prevents closing)
   useEffect(() => {
-    if (!isOpen && !isPinned) return;
+    if (!isOpen || isPinned) return;
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -215,7 +230,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     };
   }, [isDragging, position]);
 
-  if (!isOpen && !isPinned) return null;
+  if (!isOpen) return null;
   if (!position) return null;
 
   const destinationLabel = customDestination
