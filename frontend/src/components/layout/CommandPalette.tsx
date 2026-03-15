@@ -17,6 +17,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
+import { resetNodeViews } from '@/api/nodeViews';
 import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
@@ -31,6 +32,7 @@ import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { useNotifications } from '@/stores/notificationStore';
 
 export interface CommandPaletteProps {
@@ -251,7 +253,7 @@ export function CommandPalette({
   const { openNode, openPropertyView } = useAppStore();
   const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
   const { navigateToNode } = useNodeNavigation();
-  const { error: notifyError, warning: notifyWarning } = useNotifications();
+  const { error: notifyError, warning: notifyWarning, success: notifySuccess } = useNotifications();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
@@ -346,6 +348,7 @@ export function CommandPalette({
       { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
       { id: 'merge-pages', label: 'Merge pages', icon: 'merge' },
       { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
+      { id: 'reset-views', label: 'Reset views to defaults (current node)', icon: 'maintenance', requiresPage: true, devOnly: true },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
@@ -655,6 +658,20 @@ export function CommandPalette({
           // Keep palette open — modal takes over; close palette so it doesn't layer underneath
           onClose();
           return;
+        } else if (item.commandId === 'reset-views') {
+          const currentId = useAppStore.getState().currentNodeId;
+          if (currentId) {
+            try {
+              await resetNodeViews(currentId);
+              queryClient.removeQueries({ queryKey: nodeViewKeys.details() });
+              queryClient.removeQueries({ queryKey: nodeViewKeys.queryResults() });
+              queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(currentId) });
+              queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(currentId) });
+              notifySuccess('Views reset', 'All views for this node have been reset to defaults.');
+            } catch {
+              notifyError('Failed to reset views', 'Please try again.');
+            }
+          }
         }
         onClose();
         break;

@@ -18,7 +18,6 @@ import {
   mdiDockRight,
   mdiDockTop,
   mdiDotsHorizontal,
-  mdiRestore,
   mdiTune,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
@@ -77,8 +76,6 @@ export interface NodeCollectionToolbarProps {
   selectedPropertyUuids?: string[];
   /** Callback when property column selection changes */
   onPropertyColumnsChange?: (propertyUuids: string[]) => void;
-  /** Callback when reset views button is clicked */
-  onResetViews?: () => void;
   /** Start date property for gantt view */
   ganttStartDateProperty?: Property;
   /** End date property for gantt view */
@@ -119,7 +116,6 @@ export function NodeCollectionToolbar({
   onCardLayoutChange,
   selectedPropertyUuids = [],
   onPropertyColumnsChange,
-  onResetViews,
   ganttStartDateProperty,
   ganttEndDateProperty,
   onGanttStartDatePropertyChange,
@@ -324,18 +320,6 @@ export function NodeCollectionToolbar({
         </ButtonWithPanel>
       )}
       
-      {/* Reset Views Button */}
-      {onResetViews && (
-        <Button
-          icon={mdiRestore}
-          iconOnly
-          variant="ghost"
-          size="sm"
-          onClick={onResetViews}
-          title="Reset all views to defaults"
-          className="node-collection-toolbar__reset-views"
-        />
-      )}
     </div>
         )}
     </div>
