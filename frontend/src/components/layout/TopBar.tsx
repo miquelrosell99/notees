@@ -8,7 +8,7 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useCallback, useState, useMemo } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
@@ -18,7 +18,7 @@ import {
   mdiCommentOutline
 } from '@mdi/js';
 import { useAppStore } from '@/stores';
-import { useDailyNote, useCommentCount } from '@/hooks';
+import { useCommentCount } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
 import { CalendarPopup } from '../core/CalendarPopup';
@@ -34,7 +34,6 @@ export function TopBar() {
     isCalendarOpen, 
     toggleCalendar, 
     setCalendarOpen,
-    openNode,
     isMinimapOpen,
     toggleMinimap,
     toggleRightSidebar,
@@ -66,16 +65,7 @@ export function TopBar() {
     return badges;
   }, [commentCount, sidebarCards.length]);
   
-  // Pre-fetch today's note (this will create it if needed when accessed)
-  const { refetch: refetchToday } = useDailyNote(new Date());
-  
-  const handleTodayClick = useCallback(async () => {
-    // Refetch to ensure we have the latest (or create if needed)
-    const result = await refetchToday();
-    if (result.data) {
-      openNode(result.data.id);
-    }
-  }, [refetchToday, openNode]);
+
 
   return (
     <Card 
@@ -117,17 +107,6 @@ export function TopBar() {
           title="Scratchpad"
           className="toolbar-btn"
           badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
-        />
-        
-        {/* Today button */}
-        <Button
-          icon={mdiCalendar}
-          variant="ghost"
-          size="sm"
-          onClick={handleTodayClick}
-          aria-label="Go to Today"
-          title="Go to Today"
-          className="toolbar-btn today-btn"
         />
         
         {/* Calendar button */}
