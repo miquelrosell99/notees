@@ -1037,12 +1037,15 @@ class NodeService:
         name: Optional[str] = None,
         variables: Optional[Dict[str, str]] = None,
         as_blocks: bool = False,
+        after_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a deep copy of a template node tree.
 
         Rewrites internal link_id references and substitutes {{variable}} placeholders.
         When as_blocks=True the template root is omitted and its direct children
-        are placed under parent_id instead.
+        are placed under parent_id instead.  When after_id is set, existing
+        siblings are shifted to make room and the new blocks are sequenced
+        starting after the after_id node.
         """
         import re
         import uuid as uuid_module
@@ -1106,6 +1109,31 @@ class NodeService:
         # 6. Create nodes — root first (unless as_blocks), then descendants depth-first
         old_id_to_new_id: Dict[int, int] = {}
 
+        # When as_blocks + after_id, compute a sequence offset so the new
+        # top-level children are inserted right after the anchor block.
+        seq_offset = 0
+        if as_blocks and after_id is not None and parent_id is not None:
+            async with acquire_connection(self._pool) as conn:
+                after_row = await conn.fetchrow(
+                    "SELECT sequence FROM node WHERE id = $1 AND workspace_id = $2",
+                    after_id, self._workspace_id
+                )
+                if after_row:
+                    anchor_seq = after_row['sequence']
+                    # Count how many direct template children will be inserted
+                    direct_count = sum(
+                        1 for r in desc_rows
+                        if int(r['parent_id']) == template_node.id
+                    )
+                    # Shift existing siblings that come after the anchor
+                    await conn.execute(
+                        """UPDATE node SET sequence = sequence + $1
+                           WHERE parent_id = $2 AND sequence > $3
+                             AND workspace_id = $4 AND active = TRUE""",
+                        direct_count, parent_id, anchor_seq, self._workspace_id
+                    )
+                    seq_offset = anchor_seq + 1
+
         if not as_blocks:
             root_name = substitute_content(name or template_node.name or '')
             root_data = NodeCreateData(
@@ -1131,12 +1159,18 @@ class NodeService:
                 logger.warning(f"[TEMPLATE] Skipping node {old_id}: parent {old_parent_id} not yet mapped")
                 continue
 
+            # For direct children of the template root in as_blocks mode,
+            # offset their sequence so they appear after the anchor block.
+            seq = row['sequence']
+            if as_blocks and old_parent_id == template_node.id:
+                seq = seq + seq_offset
+
             node_data = NodeCreateData(
                 name=substitute_content(row['name'] or ''),
                 icon=row['icon'],
                 color=row['color'],
                 parent_id=new_parent_id,
-                sequence=row['sequence'],
+                sequence=seq,
                 classes=list(row['class_ids'] or []),
                 uuid=old_id_to_new_uuid[old_id],
             )

@@ -833,6 +833,7 @@ export interface TemplateInstantiateOptions {
   name?: string;
   variables?: Record<string, string>;
   as_blocks?: boolean;
+  after_id?: number;
 }
 
 export interface TemplateInstantiateResult {
