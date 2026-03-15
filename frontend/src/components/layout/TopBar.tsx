@@ -8,7 +8,7 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useCallback } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
@@ -18,7 +18,7 @@ import {
   mdiCommentOutline
 } from '@mdi/js';
 import { useAppStore } from '@/stores';
-import { useCommentCount } from '@/hooks';
+import { useCommentCount, useDailyNote } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
 import { CalendarPopup } from '../core/CalendarPopup';
@@ -34,6 +34,7 @@ export function TopBar() {
     isCalendarOpen, 
     toggleCalendar, 
     setCalendarOpen,
+    openNode,
     isMinimapOpen,
     toggleMinimap,
     toggleRightSidebar,
@@ -46,6 +47,10 @@ export function TopBar() {
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
+  const [goToTodaySignal, setGoToTodaySignal] = useState(0);
+
+  // Pre-fetch today's note for shift+click
+  const { refetch: refetchToday } = useDailyNote(new Date());
 
   const currentNodeId = useAppStore(s => s.currentNodeId);
   const sidebarCards = useAppStore(s => s.sidebarCards);
@@ -116,15 +121,23 @@ export function TopBar() {
             icon={mdiCalendar}
             variant="ghost"
             size="sm"
-            onClick={toggleCalendar}
+            onClick={useCallback(async (e: React.MouseEvent) => {
+              if (e.shiftKey) {
+                const result = await refetchToday();
+                if (result.data) openNode(result.data.id);
+              } else {
+                toggleCalendar();
+              }
+            }, [refetchToday, openNode, toggleCalendar])}
             aria-label="Open calendar"
-            title="Open calendar"
+            title="Open calendar (Shift+click: go to today)"
             className="toolbar-btn"
           />
           <CalendarPopup 
             isOpen={isCalendarOpen} 
             onClose={() => setCalendarOpen(false)}
             anchorRef={calendarBtnRef as React.RefObject<HTMLElement>}
+            goToTodaySignal={goToTodaySignal}
           />
         </div>
         
