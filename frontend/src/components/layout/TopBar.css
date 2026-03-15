@@ -5,6 +5,7 @@
 /* ==================== Top Bar Card Container ==================== */
 .top-bar-card {
   background: transparent !important;
+  overflow: visible !important;
 }
 
 /* ==================== Top Bar Container ==================== */
