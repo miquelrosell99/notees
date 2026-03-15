@@ -247,6 +247,31 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isPinned, onClose, anchorRef]);
 
+  // Close on Escape when no block is being edited or selected
+  useEffect(() => {
+    if (!isOpen && !isPinned) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (!containerRef.current) return;
+
+      // Layer 1: if a contenteditable inside the scratchpad is focused, let the editor handle it
+      const active = document.activeElement;
+      if (active && containerRef.current.contains(active) && (active as HTMLElement).isContentEditable) return;
+
+      // Layer 2: if any blocks are selected (have the selection CSS class), let the editor handle it
+      if (containerRef.current.querySelector('.node-block--selected')) return;
+
+      // Layer 3: nothing active — close the scratchpad
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, isPinned, onClose]);
+
   const handleTogglePin = useCallback(() => {
     setIsPinned(prev => {
       localStorage.setItem('notees-scratchpad-pinned', String(!prev));
