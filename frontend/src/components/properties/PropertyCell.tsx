@@ -962,7 +962,16 @@ function DatePropertyCell({
       <div
         ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
-        onClick={() => editable && setIsPickerOpen(true)}
+        onClick={async (e) => {
+          if (!editable) return;
+          if (e.shiftKey) {
+            const today = new Date();
+            const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            await handleSelect(isoToday);
+            return;
+          }
+          setIsPickerOpen(true);
+        }}
       >
         {editable ? '—' : ''}
         {isPickerOpen && (

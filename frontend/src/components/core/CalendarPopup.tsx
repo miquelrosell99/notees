@@ -2,7 +2,6 @@
  * Calendar popup component for navigating to daily pages
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { mdiCalendarToday } from '@mdi/js';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useAppStore, useSettingsStore } from '@/stores';
@@ -13,6 +12,8 @@ interface CalendarPopupProps {
   isOpen: boolean;
   onClose: () => void;
   anchorRef?: React.RefObject<HTMLElement>;
+  /** When incremented, navigates the calendar to today's month with accent pulse */
+  goToTodaySignal?: number;
 }
 
 const ALL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -29,7 +30,7 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
 }
 
-export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps) {
+export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: CalendarPopupProps) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -144,6 +145,17 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose, anchorRef]);
   
+  // Navigate to today when signal changes (shift+click from parent)
+  useEffect(() => {
+    if (goToTodaySignal && goToTodaySignal > 0) {
+      setCurrentMonth(today.getMonth());
+      setCurrentYear(today.getFullYear());
+      setTodayAccent(true);
+      setTimeout(() => setTodayAccent(false), 1200);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goToTodaySignal]);
+  
   if (!isOpen) return null;
   
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -202,13 +214,6 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
   
   const handleYearClick = () => {
     setNavigateToYear(currentYear);
-  };
-  
-  const handleTodayClick = () => {
-    setCurrentMonth(today.getMonth());
-    setCurrentYear(today.getFullYear());
-    setTodayAccent(true);
-    setTimeout(() => setTodayAccent(false), 1200);
   };
   
   return (
@@ -273,18 +278,6 @@ export function CalendarPopup({ isOpen, onClose, anchorRef }: CalendarPopupProps
             )}
           </div>
         ))}
-      </div>
-      
-      <div className="calendar-footer">
-        <Button
-          icon={mdiCalendarToday}
-          variant="ghost"
-          size="xs"
-          className="calendar-today-btn"
-          onClick={handleTodayClick}
-          aria-label="Go to today"
-          title="Go to today"
-        />
       </div>
     </div>
   );

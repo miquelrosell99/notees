@@ -150,10 +150,16 @@ function DatePropertyValue({
     }
   }, [onChange, onDelete]);
 
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(async (e: React.MouseEvent) => {
     if (readOnly || loading) return;
+    if (e.shiftKey && value == null) {
+      const today = new Date();
+      const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      await handleSelect(isoToday);
+      return;
+    }
     setIsOpen(true);
-  }, [readOnly, loading]);
+  }, [readOnly, loading, value, handleSelect]);
 
   const displayName = dayNode ? nodeNameToText(dayNode.name) : null;
 
