@@ -213,21 +213,21 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
         <div className="scratchpad-actions">
           <Button
             className="scratchpad-btn"
-            icon={isPinned ? mdiPin : mdiPinOff}
-            variant="ghost"
-            size="sm"
-            active={isPinned}
-            onClick={handleTogglePin}
-            title={isPinned ? 'Unpin' : 'Pin'}
-          />
-          <Button
-            className="scratchpad-btn"
             icon={mdiTrashCanOutline}
             variant="ghost"
             size="sm"
             onClick={handleClearAll}
             title="Clear all"
             disabled={entries.length === 0}
+          />
+          <Button
+            className="scratchpad-btn"
+            icon={isPinned ? mdiPin : mdiPinOff}
+            variant="ghost"
+            size="sm"
+            active={isPinned}
+            onClick={handleTogglePin}
+            title={isPinned ? 'Unpin' : 'Pin'}
           />
         </div>
       </div>
