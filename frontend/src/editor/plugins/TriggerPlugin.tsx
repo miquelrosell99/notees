@@ -449,7 +449,25 @@ export function TriggerPlugin({
       } else {
         // For # tag and + link triggers
         if (trigger.templateMode) {
-          // Template mode: instantiate the selected template
+          // Template mode: remove the search text typed during template search,
+          // then instantiate the selected template
+          editor.update(() => {
+            const sel = $getSelection();
+            if (!$isRangeSelection(sel)) return;
+            const anchor = sel.anchor.getNode();
+            const rawText = anchor.getTextContent();
+            const text = rawText.replace(/\u200B/g, '');
+            const zwsBefore = (rawText.slice(0, sel.anchor.offset).match(/\u200B/g) || []).length;
+            const cursorClean = sel.anchor.offset - zwsBefore;
+            // triggerOffset is 0 in template mode; remove everything from 0 to cursor
+            const beforeTrigger = text.slice(0, trigger.triggerOffset);
+            const afterCursor = text.slice(cursorClean);
+            const newText = (beforeTrigger + afterCursor) || '\u200B';
+            (anchor as any).setTextContent(newText);
+            const newOffset = beforeTrigger.length;
+            sel.anchor.set(anchor.getKey(), newOffset, 'text');
+            sel.focus.set(anchor.getKey(), newOffset, 'text');
+          });
           if (onTemplateInstantiate) {
             onTemplateInstantiate(node.id, trigger.templateBlockServerId);
           }
