@@ -174,7 +174,7 @@ export function BlockEditor({
   templateClassFilters,
   onPasteImage,
   className,
-  placeholder = 'Type / for commands…',
+  placeholder = '',
   includeRoot,
   maxDepth,
   sliceBlockIds,
