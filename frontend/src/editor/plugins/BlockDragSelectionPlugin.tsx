@@ -172,16 +172,11 @@ export function BlockDragSelectionPlugin({
       lastHoveredBlock.current = null;
     };
 
-    const handleMouseLeave = () => {
-      if (isDragging.current) {
-        handleMouseUp();
-      }
-    };
-
     rootEl.addEventListener('mousedown', handleMouseDown);
-    rootEl.addEventListener('mousemove', handleMouseMove);
-    rootEl.addEventListener('mouseup', handleMouseUp);
-    rootEl.addEventListener('mouseleave', handleMouseLeave);
+    // mousemove/mouseup on document — rootEl has pointer-events:none so
+    // mouse events stop firing when the cursor is between blocks
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
 
     // Document-level click: clear block selection when clicking outside selected blocks
     const handleDocumentMouseDown = (e: MouseEvent) => {
@@ -207,9 +202,8 @@ export function BlockDragSelectionPlugin({
 
     return () => {
       rootEl.removeEventListener('mousedown', handleMouseDown);
-      rootEl.removeEventListener('mousemove', handleMouseMove);
-      rootEl.removeEventListener('mouseup', handleMouseUp);
-      rootEl.removeEventListener('mouseleave', handleMouseLeave);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleDocumentMouseDown);
       if (dragRafId.current !== null) {
         cancelAnimationFrame(dragRafId.current);

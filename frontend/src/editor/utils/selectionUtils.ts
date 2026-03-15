@@ -60,7 +60,7 @@ export function selectBlockWithChildren(
 
 /**
  * Create/update the selection card overlay to cover all currently selected blocks.
- * Uses offset-based positioning relative to .notees-editor (position:relative ancestor).
+ * Uses getBoundingClientRect for accurate viewport-relative positioning.
  */
 function updateSelectionOverlay(rootEl: HTMLElement): void {
   const editorWrapper = rootEl.closest('.notees-editor') as HTMLElement;
@@ -78,34 +78,26 @@ function updateSelectionOverlay(rootEl: HTMLElement): void {
   const firstEl = allSelected[0];
   const lastEl = allSelected[allSelected.length - 1];
 
-  // Walk offsetParent chain to compute position relative to editorWrapper
-  const getOffsetRelativeTo = (el: HTMLElement, ancestor: HTMLElement) => {
-    let top = 0;
-    let left = 0;
-    let current: HTMLElement | null = el;
-    while (current && current !== ancestor) {
-      top += current.offsetTop;
-      left += current.offsetLeft;
-      current = current.offsetParent as HTMLElement | null;
-    }
-    return { top, left };
-  };
+  // Use getBoundingClientRect for reliable positioning regardless of
+  // offsetParent chain, CSS contain, or intermediate wrappers
+  const editorRect = editorWrapper.getBoundingClientRect();
+  const firstRect = firstEl.getBoundingClientRect();
+  const lastRect = lastEl.getBoundingClientRect();
 
-  const firstOffset = getOffsetRelativeTo(firstEl, editorWrapper);
-  const lastOffset = getOffsetRelativeTo(lastEl, editorWrapper);
-
-  // Find the leftmost edge — use the primary selected block's left position
+  // Find the leftmost edge — use the primary selected block's position
   const parentSelected = rootEl.querySelector('.node-block--selected') as HTMLElement;
-  const leftOffset = parentSelected
-    ? getOffsetRelativeTo(parentSelected, editorWrapper).left
-    : firstOffset.left;
+  const parentRect = parentSelected ? parentSelected.getBoundingClientRect() : firstRect;
+
+  const top = firstRect.top - editorRect.top + editorWrapper.scrollTop - 2;
+  const left = parentRect.left - editorRect.left + editorWrapper.scrollLeft - 6;
+  const height = lastRect.bottom - firstRect.top + 4;
 
   const overlay = document.createElement('div');
   overlay.className = 'block-selection-card';
-  overlay.style.top = `${firstOffset.top - 2}px`;
-  overlay.style.left = `${leftOffset - 6}px`;
+  overlay.style.top = `${top}px`;
+  overlay.style.left = `${left}px`;
   overlay.style.right = '0';
-  overlay.style.height = `${(lastOffset.top + lastEl.offsetHeight) - firstOffset.top + 4}px`;
+  overlay.style.height = `${height}px`;
   editorWrapper.appendChild(overlay);
 }
 

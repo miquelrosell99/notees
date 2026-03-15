@@ -56,12 +56,29 @@ export function KeyboardSelectionPlugin({
     onSelectionChange?.([...selectedBlocks.current]);
   };
 
-  // ─── Clear selection when clicking in editor (entering edit mode) ─
-  // Note: Click clearing is handled by BlockDragSelectionPlugin's mousedown handler
-  // to avoid conflicts with drag selection. This plugin only manages keyboard selection.
+  // ─── Clear block selection state when editor regains focus (user clicked back in) ─
+  useEffect(() => {
+    if (readOnly) return;
+
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
+
+    const handleFocus = () => {
+      if (selectedBlocks.current.size > 0) {
+        clearBlockSelection(rootEl);
+        selectedBlocks.current.clear();
+        anchorBlockId.current = null;
+        onSelectionChange?.([]);
+      }
+    };
+
+    rootEl.addEventListener('focus', handleFocus, true);
+    return () => rootEl.removeEventListener('focus', handleFocus, true);
+  }, [editor, readOnly, onSelectionChange]);
 
   // ─── Escape: Toggle between edit mode → selection mode → clear ─────────
 
+  // Lexical command handles: edit mode → select current block
   useEffect(() => {
     if (readOnly) return;
 
@@ -71,34 +88,37 @@ export function KeyboardSelectionPlugin({
         const rootEl = editor.getRootElement();
         if (!rootEl) return true;
         
-        // Check if in selection mode (blocks are selected)
-        const hasBlockSelection = selectedBlocks.current.size > 0;
-        
-        if (hasBlockSelection) {
-          // Selection mode → clear selection
+        // If blocks are already selected (shouldn't normally reach here since
+        // editor is blurred in selection mode, but handle defensively)
+        if (selectedBlocks.current.size > 0) {
           clearBlockSelection(rootEl);
           selectedBlocks.current.clear();
+          anchorBlockId.current = null;
           onSelectionChange?.([]);
-        } else {
-          // Edit mode → select current block
-          let blockIdToSelect: string | null = null;
-          
-          const selection = $getSelection();
-          if ($isRangeSelection(selection)) {
-            const anchorNode = selection.anchor.getNode();
-            const blockNode = findParentNodeBlock(anchorNode);
-            if (blockNode) {
-              blockIdToSelect = blockNode.getBlockId();
-            }
-          }
+          onEscape?.();
+          return true;
+        }
 
-          if (blockIdToSelect) {
-            // Clear text selection in a separate update
-            editor.update(() => { $setSelection(null); });
-            window.getSelection()?.removeAllRanges();
-            // Use queueMicrotask to ensure Lexical has finished DOM updates
-            queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
+        // Edit mode → select current block
+        let blockIdToSelect: string | null = null;
+        
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode();
+          const blockNode = findParentNodeBlock(anchorNode);
+          if (blockNode) {
+            blockIdToSelect = blockNode.getBlockId();
           }
+        }
+
+        if (blockIdToSelect) {
+          // Clear Lexical selection first
+          editor.update(() => { $setSelection(null); });
+          window.getSelection()?.removeAllRanges();
+          // Apply block selection (CSS classes + overlay) while DOM is stable
+          applyBlockSelection(blockIdToSelect);
+          // Blur the editor so the custom caret hides and node-block--editing is removed
+          rootEl.blur();
         }
 
         onEscape?.();
@@ -107,6 +127,31 @@ export function KeyboardSelectionPlugin({
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly, onEscape, onSelectionChange]);
+
+  // Document-level Escape handler for deselecting blocks.
+  // When blocks are selected the editor is blurred, so Lexical commands won't fire.
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleGlobalEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (selectedBlocks.current.size === 0) return;
+
+      // If the editor has focus, let the Lexical command handler above deal with it
+      const rootEl = editor.getRootElement();
+      if (rootEl && rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+      if (rootEl) clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+      onEscape?.();
+    };
+
+    document.addEventListener('keydown', handleGlobalEscape);
+    return () => document.removeEventListener('keydown', handleGlobalEscape);
+  }, [editor, readOnly, onSelectionChange, onEscape]);
 
   // ─── Shift+Arrow Up: Extend/reduce block selection upward ────────
 
