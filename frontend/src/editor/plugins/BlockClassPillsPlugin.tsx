@@ -123,6 +123,7 @@ export function BlockClassPillsPlugin({
           .filter((cls): cls is Node =>
             cls !== undefined && 
             cls.uuid !== SYSTEM_CLASS_UUIDS.page &&
+            cls.uuid !== SYSTEM_CLASS_UUIDS.comment &&
             !inlineClassUuids.has(cls.uuid) // Hide if also inline
           );
 
