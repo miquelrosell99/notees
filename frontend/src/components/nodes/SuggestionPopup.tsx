@@ -55,6 +55,8 @@ export interface SuggestionPopupProps {
   onCreate?: (name: string, addInline: boolean) => void;
   /** Node ID to exclude from link results (used for non-page blocks) */
   excludeNodeId?: number;
+  /** Class IDs to filter results by (nodes must have at least one of these classes) */
+  classFilters?: number[];
   /** Enable multi-select mode with checkboxes */
   multiSelect?: boolean;
   /** Currently selected node IDs (for multi-select mode) */
@@ -87,6 +89,7 @@ export function SuggestionPopup({
   onClose,
   onCreate,
   excludeNodeId,
+  classFilters,
   multiSelect = false,
   selectedIds = new Set(),
   onToggleSelect,
@@ -108,6 +111,7 @@ export function SuggestionPopup({
   const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(query, {
     mode: searchMode,
     excludeNodeId,
+    classFilters,
     maxResults: 10,
   });
   

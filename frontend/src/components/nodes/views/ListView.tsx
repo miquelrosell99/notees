@@ -111,6 +111,8 @@ export const ListView = memo(function ListView({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onTemplateInstantiate,
+  templateClassFilters,
   onEnterAtRoot,
   pageId,
   pageUuid,
@@ -334,6 +336,8 @@ export const ListView = memo(function ListView({
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
               onPasteImage={onPasteImage}
+              onTemplateInstantiate={onTemplateInstantiate}
+              templateClassFilters={templateClassFilters}
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               pageId={pageId}
@@ -360,6 +364,8 @@ export const ListView = memo(function ListView({
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onPasteImage={onPasteImage}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
                 pageId={pageId}
                 pageUuid={pageUuid}
                 className="node-list-view__editor"
@@ -446,6 +452,8 @@ export const ListView = memo(function ListView({
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onPasteImage={onPasteImage}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
                 pageId={pageId}
                 pageUuid={pageUuid}
                 className="node-list-view__editor"
@@ -472,6 +480,8 @@ export const ListView = memo(function ListView({
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
         onPasteImage={onPasteImage}
+        onTemplateInstantiate={onTemplateInstantiate}
+        templateClassFilters={templateClassFilters}
         pageId={pageId}
         pageUuid={pageUuid}
         className="node-list-view__editor"
@@ -500,6 +510,8 @@ function ListViewGroup({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onTemplateInstantiate,
+  templateClassFilters,
   onNodeClick,
   onNodeShiftClick,
   pageId,
@@ -518,6 +530,8 @@ function ListViewGroup({
   onAddClass?: (nodeId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  templateClassFilters?: number[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   pageId?: number;
@@ -593,6 +607,8 @@ function ListViewGroup({
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
                     onPasteImage={onPasteImage}
+                    onTemplateInstantiate={onTemplateInstantiate}
+                    templateClassFilters={templateClassFilters}
                     pageId={pageId}
                     pageUuid={pageUuid}
                     className="node-list-view__editor"
@@ -613,6 +629,8 @@ function ListViewGroup({
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
               onPasteImage={onPasteImage}
+              onTemplateInstantiate={onTemplateInstantiate}
+              templateClassFilters={templateClassFilters}
               pageId={pageId}
               pageUuid={pageUuid}
               className="node-list-view__editor"

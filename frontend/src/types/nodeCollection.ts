@@ -103,6 +103,12 @@ export interface NodeCollectionProps {
   
   /** Called when an image is pasted into a block */
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+
+  /** Called when a template node is selected for instantiation */
+  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+
+  /** Class IDs to filter the template picker to (typically just the template system class) */
+  templateClassFilters?: number[];
   
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;
@@ -273,6 +279,12 @@ export interface NodeCollectionViewBaseProps {
   
   /** Called when an image is pasted into a block */
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+
+  /** Called when a template node is selected for instantiation */
+  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+
+  /** Class IDs to filter the template picker to (typically just the template system class) */
+  templateClassFilters?: number[];
   
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;

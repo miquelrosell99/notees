@@ -157,6 +157,8 @@ export function NodeCollection({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onTemplateInstantiate,
+  templateClassFilters,
   onEnterAtRoot,
   hideProperties = false,
   ganttStartDateProperty: ganttStartDatePropertyProp,
@@ -364,6 +366,8 @@ export function NodeCollection({
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
             onEnterAtRoot={onEnterAtRoot}
             hideProperties={hideProperties}
           />
@@ -384,6 +388,8 @@ export function NodeCollection({
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
           />
         );
       
@@ -406,6 +412,8 @@ export function NodeCollection({
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
           />
         );
       
@@ -426,6 +434,8 @@ export function NodeCollection({
             onAddClass={onAddClass}
             onSlashCommand={onSlashCommand}
             onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
           />
         );
       

@@ -29,6 +29,8 @@ export const DocumentView = memo(function DocumentView({
   onAddClass,
   onSlashCommand,
   onPasteImage,
+  onTemplateInstantiate,
+  templateClassFilters,
   pageId,
   pageUuid,
   className = '',
@@ -140,6 +142,8 @@ export const DocumentView = memo(function DocumentView({
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
         onPasteImage={onPasteImage}
+        onTemplateInstantiate={onTemplateInstantiate}
+        templateClassFilters={templateClassFilters}
         pageId={pageId}
         pageUuid={pageUuid}
         placeholder="Start writing…"
