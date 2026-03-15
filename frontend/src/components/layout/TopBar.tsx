@@ -14,7 +14,7 @@ import {
   mdiCalendar, 
   mdiMap, 
   mdiDockRight,
-  mdiNoteEditOutline,
+  mdiNoteTextOutline,
   mdiCommentOutline
 } from '@mdi/js';
 import { useAppStore } from '@/stores';
@@ -103,7 +103,7 @@ export function TopBar() {
         {/* Scratchpad button */}
         <Button
           ref={scratchpadBtnRef}
-          icon={mdiNoteEditOutline}
+          icon={mdiNoteTextOutline}
           variant="ghost"
           size="sm"
           active={isScratchpadOpen}
