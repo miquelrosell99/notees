@@ -237,6 +237,9 @@ export interface NodeCollectionProps {
   customContextMenuItems?: (node: Node, closeMenu: () => void) => ContextMenuItem[];
   /** Whether to hide inline property rows below blocks (list view only, default: false) */
   hideProperties?: boolean;
+
+  /** List view density size: 'sm' for compact, 'md' for normal (default: 'md') */
+  size?: 'sm' | 'md';
 }
 
 // ==================== View-Specific Props ====================
@@ -356,6 +359,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   enableGrouping?: boolean;
   /** Whether to hide inline property rows below blocks (default: false) */
   hideProperties?: boolean;
+
+  /** List view density size: 'sm' for compact, 'md' for normal (default: 'md') */
+  size?: 'sm' | 'md';
 }
 
 /**
