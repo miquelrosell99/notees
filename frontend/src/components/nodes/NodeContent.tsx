@@ -38,8 +38,6 @@ interface NodeContentProps {
   children: Node[];
   /** Display mode for content */
   displayMode?: 'bullet' | 'document' | 'card';
-  /** Whether late night filter is active */
-  lateNightFilterActive?: boolean;
   /** Total children count (before filtering) */
   totalChildrenCount?: number;
 }
@@ -57,7 +55,6 @@ export function NodeContent({
   node, 
   children,
   displayMode = 'bullet',
-  lateNightFilterActive = false,
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -404,13 +401,6 @@ export function NodeContent({
 
   return (
     <div className={`node-content ${displayMode}`} ref={contentRef}>
-      {/* Late night filter indicator */}
-      {lateNightFilterActive && children.length === 0 && totalChildrenCount > 0 && (
-        <div className="node-content-filter-indicator">
-          🌙 No late night thoughts found (10PM - 4AM)
-        </div>
-      )}
-      
       {/* Render children using NodeCollection with callbacks */}
       {children.length > 0 && (
         <section className={`node-content-children blocks-container ${displayMode === 'document' ? 'document-mode' : ''}`}>

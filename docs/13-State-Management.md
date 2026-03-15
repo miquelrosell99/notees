@@ -78,7 +78,6 @@ The primary store for navigation, layout, and view management.
 | `isQuickAddOpen` | `boolean` | `false` | Quick add dialog |
 | `isCalendarOpen` | `boolean` | `false` | Calendar modal |
 | `nodeViewModes` | `Record<number, ViewMode>` | `{}` | Per-node view overrides |
-| `lateNightThoughtsFilter` | `boolean` | `false` | Late night filter toggle |
 
 `MainViewType` values: `'node'`, `'all-pages'`, `'journals'`, `'graph'`, `'terrain'`, `'timeline'`, `'archived'`, `'trash'`, `'assets'`, `'property'`
 
