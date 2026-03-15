@@ -27,15 +27,14 @@
 
 /* Override NodeViewSection header for sidebar context */
 .sidebar-context-section .node-view-section__header {
-  padding: var(--spacing-1) var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-4);
 }
 
 /* Content area with capped height and internal scrolling */
 .sidebar-context-section.node-view-section .node-view-section__content {
   max-height: 200px;
   overflow-y: auto;
-  padding: 0;
-  padding-left: 0;
+  padding: 0 var(--spacing-2) 0 var(--spacing-4) !important;
 }
 
 /* Loading state */

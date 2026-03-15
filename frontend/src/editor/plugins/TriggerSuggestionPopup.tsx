@@ -25,6 +25,8 @@ export interface TriggerSuggestionPopupProps {
   classFilters?: number[];
   /** Header text override */
   headerText?: string;
+  /** Footer hint text override */
+  footerHintText?: string;
 }
 
 export function TriggerSuggestionPopup({
@@ -38,6 +40,7 @@ export function TriggerSuggestionPopup({
   onSelectEmbed,
   classFilters,
   headerText,
+  footerHintText,
 }: TriggerSuggestionPopupProps): JSX.Element {
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -73,6 +76,7 @@ export function TriggerSuggestionPopup({
       showInlineOption={suggestionType === 'class'}
       classFilters={classFilters}
       headerText={headerText}
+      footerHintText={footerHintText}
     />
   );
 }
