@@ -8,28 +8,39 @@
  */
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/stores';
-import { useComments, useCreateComment, useNodeActivity } from '@/hooks';
+import { useComments, useCreateComment, useNodeActivity, useNode } from '@/hooks';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
+import { NodeCollection } from '../nodes/NodeCollection';
 import { Button } from '../core/Button';
 import { Card } from '../core/Card';
 import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
 import { TextField } from '../core/TextField';
-import { NodeInline } from '../blocks/NodeInline';
 import { formatRelativeTime } from '@/utils/dateFormat';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Comment } from '@/types/api';
 import './SidebarContextSections.css';
 
-function countAllComments(comments: Comment[]): number {
-  let count = 0;
-  for (const comment of comments) {
-    count += 1;
-    if (comment.children && comment.children.length > 0) {
-      count += countAllComments(comment.children);
-    }
-  }
-  return count;
+function countTopLevelComments(comments: Comment[]): number {
+  return comments.length;
+}
+
+function CommentChildren({ commentId }: { commentId: number }) {
+  const { data: commentNode } = useNode(commentId, { include_children: true });
+  const children = commentNode?.children;
+  if (!children || children.length === 0) return null;
+  return (
+    <div className="sidebar-comment-card__children">
+      <NodeCollection
+        nodes={children}
+        viewMode="list"
+        editable={false}
+        sortable={false}
+        hideToolbar
+        showEmpty={false}
+      />
+    </div>
+  );
 }
 
 function CommentThread({ comment }: { comment: Comment }) {
@@ -54,19 +65,7 @@ function CommentThread({ comment }: { comment: Comment }) {
         </span>
         <span className="sidebar-comment-card__time">{time}</span>
       </div>
-      {comment.children && comment.children.length > 0 && (
-        <div className="sidebar-comment-card__children">
-          {comment.children.map(child => (
-            <NodeInline
-              key={child.id}
-              name={child.name}
-              nodeId={child.id}
-              showBullet
-              onClick={() => openNode(child.id)}
-            />
-          ))}
-        </div>
-      )}
+      <CommentChildren commentId={comment.id} />
     </Card>
   );
 }
@@ -156,7 +155,7 @@ export function SidebarContextSections() {
   
   const commentCount = useMemo(() => {
     if (!commentsData?.comments) return 0;
-    return countAllComments(commentsData.comments);
+    return countTopLevelComments(commentsData.comments);
   }, [commentsData]);
   
   const activityCount = activityData?.length ?? 0;
