@@ -182,7 +182,7 @@
 }
 
 .scratchpad-input-wrapper:focus-within {
-  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-outline-variant));
 }
 
 .scratchpad-input {
