@@ -5,7 +5,8 @@
  * Provides a quick note-taking space that resets daily.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOff } from '@mdi/js';
+import { mdiClose, mdiTrashCanOutline, mdiPin, mdiPinOff, mdiSend } from '@mdi/js';
+import Icon from '@mdi/react';
 import { Button } from '../core/Button';
 import './Scratchpad.css';
 
@@ -142,6 +143,10 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     
     setEntries(prev => [...prev, entry]);
     setNewEntry('');
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
   }, [newEntry]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -150,6 +155,14 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       handleAddEntry();
     }
   }, [handleAddEntry]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewEntry(e.target.value);
+    // Auto-resize
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }, []);
 
   const handleDeleteEntry = useCallback((id: string) => {
     setEntries(prev => prev.filter(entry => entry.id !== id));
@@ -256,15 +269,25 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       </div>
       
       <div className="scratchpad-input-area">
-        <textarea
-          ref={inputRef}
-          className="scratchpad-input"
-          value={newEntry}
-          onChange={(e) => setNewEntry(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a quick note... (Enter to add)"
-          rows={2}
-        />
+        <div className="scratchpad-input-wrapper">
+          <textarea
+            ref={inputRef}
+            className="scratchpad-input"
+            value={newEntry}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a quick note... (Enter to add)"
+            rows={1}
+          />
+          <button
+            className="scratchpad-send-btn"
+            onClick={handleAddEntry}
+            disabled={!newEntry.trim()}
+            title="Add note"
+          >
+            <Icon path={mdiSend} size={0.7} />
+          </button>
+        </div>
       </div>
     </div>
   );
