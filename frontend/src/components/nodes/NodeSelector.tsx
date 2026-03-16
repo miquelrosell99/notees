@@ -570,6 +570,7 @@ export function NodeSelector({
                         isHighlighted={index === selectedIndex}
                         onClick={() => handleToggle(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
+                        allClasses={allClasses}
                         after={
                           <Checkbox
                             size="sm"
@@ -654,6 +655,7 @@ export function NodeSelector({
                       isSelected={assignedIds.has(node.id)}
                       onClick={() => handleAdd(node)}
                       onMouseEnter={() => setSelectedIndex(index)}
+                      allClasses={allClasses}
                     />
                   ))}
 
@@ -719,6 +721,7 @@ export function NodeSelector({
                   isHighlighted={index === selectedIndex}
                   onClick={() => handleAdd(node)}
                   onMouseEnter={() => setSelectedIndex(index)}
+                  allClasses={allClasses}
                 />
               ))}
               {showCreateOption && onCreateNew && (
@@ -812,6 +815,7 @@ export function NodeSelector({
                         isHighlighted={index === selectedIndex}
                         onClick={() => handleAdd(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
+                        allClasses={allClasses}
                       />
                     ))}
                     {showCreateOption && (
