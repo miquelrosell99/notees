@@ -12,7 +12,6 @@
  * - Delete property action
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import Icon from '@mdi/react';
 import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
@@ -22,6 +21,8 @@ import { useUpdateProperty, useClasses } from '@/hooks';
 import { useAppStore } from '@/stores/appStore';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
+import { TextField } from '../core/TextField';
+import { SelectionButton } from '../core/SelectionButton';
 import { PropertyForm } from './PropertyForm';
 import './PropertyConfigSection.css';
 
@@ -281,34 +282,28 @@ export function PropertyConfigSection({
       
       {/* Icon visibility setting - only for selection properties */}
       {ICON_VISIBILITY_PROPERTY_TYPES.includes(property.type) && (
-        <div className="property-config-section__visibility">
-          <label className="property-config-section__visibility-label">Value icon display</label>
-          <div className="property-config-section__visibility-buttons">
-            {([
-              { value: 'hidden' as PropertyIconVisibility, icon: mdiEyeOff, title: 'Hidden (only in properties section)' },
-              { value: 'after_bullet' as PropertyIconVisibility, icon: mdiCircleSmall, title: 'After bullet' },
-              { value: 'before_content' as PropertyIconVisibility, icon: mdiTextBoxOutline, title: 'Before text (next to class pills)' },
-            ]).map(opt => (
-              <button
-                key={opt.value}
-                className={`property-config-section__visibility-btn ${property.icon_visibility === opt.value ? 'property-config-section__visibility-btn--active' : ''}`}
-                onClick={async () => {
-                  try {
-                    const updated = await updatePropertyMutation.mutateAsync({
-                      id: property.id,
-                      data: { icon_visibility: opt.value },
-                    });
-                    onUpdate(updated);
-                  } catch (err) {
-                    setError('Failed to update icon visibility');
-                  }
-                }}
-                title={opt.title}
-              >
-                <Icon path={opt.icon} size={0.7} />
-              </button>
-            ))}
-          </div>
+        <div className="property-form__field">
+          <label className="property-form__label">Value icon display</label>
+          <SelectionButton
+            options={[
+              { value: 'hidden' as PropertyIconVisibility, icon: mdiEyeOff, label: 'Hidden' },
+              { value: 'after_bullet' as PropertyIconVisibility, icon: mdiCircleSmall, label: 'After bullet' },
+              { value: 'before_content' as PropertyIconVisibility, icon: mdiTextBoxOutline, label: 'Before text' },
+            ]}
+            value={property.icon_visibility}
+            onChange={async (value) => {
+              try {
+                const updated = await updatePropertyMutation.mutateAsync({
+                  id: property.id,
+                  data: { icon_visibility: value as PropertyIconVisibility },
+                });
+                onUpdate(updated);
+              } catch {
+                setError('Failed to update icon visibility');
+              }
+            }}
+            size="md"
+          />
         </div>
       )}
 
@@ -320,6 +315,7 @@ export function PropertyConfigSection({
           onError={setError}
         />
       )}
+
 
       <PropertyForm
         icon=""
@@ -411,7 +407,6 @@ function ValidationRulesSection({
   const rules = property.validation_rules ?? {};
 
   const save = useCallback(async (newRules: Record<string, unknown>) => {
-    // Remove empty keys
     const cleaned = Object.fromEntries(
       Object.entries(newRules).filter(([, v]) => v !== '' && v !== null && v !== undefined)
     );
@@ -429,13 +424,12 @@ function ValidationRulesSection({
 
   if (property.type === 'integer' || property.type === 'float') {
     return (
-      <div className="property-config-section__validation">
-        <label className="property-config-section__validation-label">Validation</label>
+      <div className="property-form__field">
+        <label className="property-form__label">Validation</label>
         <div className="property-config-section__validation-row">
-          <label>Min</label>
-          <input
+          <label className="property-config-section__validation-inline-label">Min</label>
+          <TextField
             type="number"
-            className="property-config-section__validation-input"
             value={rules.min != null ? String(rules.min) : ''}
             step={property.type === 'float' ? 'any' : 1}
             onChange={(e) => {
@@ -443,11 +437,11 @@ function ValidationRulesSection({
               save({ ...rules, min: v ? Number(v) : null });
             }}
             placeholder="No min"
+            size="sm"
           />
-          <label>Max</label>
-          <input
+          <label className="property-config-section__validation-inline-label">Max</label>
+          <TextField
             type="number"
-            className="property-config-section__validation-input"
             value={rules.max != null ? String(rules.max) : ''}
             step={property.type === 'float' ? 'any' : 1}
             onChange={(e) => {
@@ -455,6 +449,7 @@ function ValidationRulesSection({
               save({ ...rules, max: v ? Number(v) : null });
             }}
             placeholder="No max"
+            size="sm"
           />
         </div>
       </div>
@@ -463,11 +458,10 @@ function ValidationRulesSection({
 
   // text, url, email — regex pattern
   return (
-    <div className="property-config-section__validation">
-      <label className="property-config-section__validation-label">Validation pattern</label>
-      <input
+    <div className="property-form__field">
+      <label className="property-form__label">Validation pattern</label>
+      <TextField
         type="text"
-        className="property-config-section__validation-input property-config-section__validation-input--wide"
         value={typeof rules.pattern === 'string' ? rules.pattern : ''}
         onChange={(e) => save({ ...rules, pattern: e.target.value || null })}
         placeholder={property.type === 'url' ? 'https?://.*' : property.type === 'email' ? '.+@.+\\..+' : 'Regex pattern'}
