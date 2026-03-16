@@ -858,7 +858,6 @@ export function PropertiesSection({
       {
         id: 'empty-property',
         label: 'Empty property',
-        disabled: property.is_system,
         onClick: () => {
           setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: '' });
         },
@@ -867,7 +866,6 @@ export function PropertiesSection({
         id: 'remove-property',
         label: 'Remove from node',
         danger: true,
-        disabled: property.is_system,
         onClick: () => {
           setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: null });
         },
