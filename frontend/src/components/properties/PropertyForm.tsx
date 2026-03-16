@@ -5,7 +5,7 @@
  * Provides a consistent interface for editing property settings.
  */
 import { useCallback } from 'react';
-import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan, mdiCheckboxMarkedOutline, mdiCheckboxBlankOutline, mdiMinus } from '@mdi/js';
+import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
@@ -334,17 +334,16 @@ export function PropertyForm({
         <div className="property-form__field">
           <label className="property-form__label">Default Value (Optional)</label>
           {propertyType === 'boolean' ? (
-            <SelectionButton
-              options={[
-                { value: '', icon: mdiMinus, label: 'None' },
-                { value: 'true', icon: mdiCheckboxMarkedOutline, label: 'Checked' },
-                { value: 'false', icon: mdiCheckboxBlankOutline, label: 'Unchecked' },
-              ]}
+            <select
               value={defaultValue}
-              onChange={onDefaultValueChange}
-              size="md"
+              onChange={(e) => onDefaultValueChange(e.target.value)}
+              className="property-form__select"
               disabled={readOnly}
-            />
+            >
+              <option value="">None</option>
+              <option value="true">Checked</option>
+              <option value="false">Unchecked</option>
+            </select>
           ) : propertyType === 'selection' && selectionOptions.length > 0 ? (
             <select
               value={defaultValue}
