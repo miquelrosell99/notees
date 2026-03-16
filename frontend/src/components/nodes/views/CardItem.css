@@ -260,9 +260,7 @@
 /* ─── Properties row ────────────────────────────────────────────── */
 
 .node-card__properties-row {
-  padding: 0 0.75rem;
   border-bottom: 1px solid var(--color-outline-variant);
-  background: var(--color-surface-container);
 }
 
 .node-card__properties-row:empty {
