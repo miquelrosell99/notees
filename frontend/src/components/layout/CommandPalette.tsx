@@ -892,6 +892,7 @@ export function CommandPalette({
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
+                            allNodes={allPages}
                             allClasses={allClasses}
                             pageClassId={pageClassId}
                           />
@@ -910,6 +911,7 @@ export function CommandPalette({
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
+                            allNodes={allPages}
                             allClasses={allClasses}
                             pageClassId={pageClassId}
                           />
@@ -928,6 +930,7 @@ export function CommandPalette({
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
+                            allNodes={allPages}
                             allClasses={allClasses}
                             pageClassId={pageClassId}
                           />
