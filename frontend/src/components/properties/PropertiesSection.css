@@ -73,8 +73,29 @@
   outline: none;
 }
 
+/* Inline input — looks like plain text, editable in place */
+.property-value-inline-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  outline: none;
+}
+
+.property-value-inline-input::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+}
+
 .property-value-input--error {
   border-color: var(--color-error);
+}
+
+.property-value-inline-input.property-value-input--error {
+  border: none;
+  box-shadow: inset 0 -2px 0 var(--color-error);
 }
 
 .property-validation-error {

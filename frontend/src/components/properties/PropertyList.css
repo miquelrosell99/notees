@@ -94,6 +94,41 @@
   padding: var(--spacing-2) var(--spacing-3);
 }
 
+/* --- Normalize child components to flush-left alignment --- */
+
+/* All buttons inside value cell: strip horizontal padding (cell handles it) */
+.property-row__value .btn.btn {
+  padding-left: 0;
+  padding-right: 0;
+  min-height: unset;
+  height: unset;
+}
+
+/* SelectTrigger (Dropdown + NodeSelector): borderless, flush with cell */
+.property-row__value .select-trigger {
+  border: none;
+  border-radius: 0;
+}
+
+.property-row__value .select-trigger__content {
+  padding-left: 0;
+  min-height: unset;
+}
+
+/* Date property button */
+.property-row__value .property-value-date-display {
+  padding-left: 0;
+}
+
+/* Consistent placeholder color across all types */
+.property-row__value .property-placeholder,
+.property-row__value .select-trigger__placeholder,
+.property-row__value .node-selector__placeholder,
+.property-row__value .dropdown-value--placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.5;
+}
+
 /* ==================== Multi-Value Row Group ==================== */
 
 .property-row-group {
