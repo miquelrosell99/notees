@@ -17,6 +17,16 @@
   flex-direction: column;
 }
 
+.property-references-section__entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.property-references-section__breadcrumbs {
+  padding: 0 var(--spacing-1);
+  margin-bottom: var(--spacing-1);
+}
+
 .property-references-section__divider {
   border: none;
   border-top: 1px solid var(--color-border-subtle, var(--color-border));
