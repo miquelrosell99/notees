@@ -24,7 +24,7 @@ import {
   useNodeNavigation,
 } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
-import { mdiPlus, mdiDockRight, mdiArrowRight } from '@mdi/js';
+import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '../nodes/NodeCollection';
@@ -251,7 +251,6 @@ export function TextPropertyBlock({
           onDragOver={handleDragOver}
         >
           <Button
-            icon={mdiPlus}
             className="text-property-block__add-btn"
             onClick={handleAddText}
             disabled={readOnly || isCreating}
@@ -259,7 +258,7 @@ export function TextPropertyBlock({
             size="xs"
             variant="ghost"
           >
-            {isCreating ? 'Creating...' : 'Add text'}
+            {isCreating ? 'Creating…' : '—'}
           </Button>
         </div>
       );
@@ -306,7 +305,6 @@ export function TextPropertyBlock({
         onDragOver={handleDragOver}
       >
         <Button
-          icon={mdiPlus}
           className="text-property-block__add-btn"
           onClick={handleAddText}
           disabled={readOnly || isCreating}
@@ -314,7 +312,7 @@ export function TextPropertyBlock({
           size="xs"
           variant="ghost"
         >
-          {isCreating ? 'Creating...' : 'Add text'}
+          {isCreating ? 'Creating…' : '—'}
         </Button>
       </div>
     );
