@@ -445,29 +445,11 @@ export const TableView = memo(function TableView({
     setContextMenuNode(null);
   }, []);
 
-  // Separate top-level nodes into blocks and pages
-  const { blockNodes, pageNodes } = useMemo(() => {
-    const blockNodes: Node[] = [];
-    const pageNodes: Node[] = [];
-    for (const node of nodes) {
-      if (node.is_page) {
-        pageNodes.push(node);
-      } else {
-        blockNodes.push(node);
-      }
-    }
-    return { blockNodes, pageNodes };
-  }, [nodes]);
-
-  // Only separate when there are both pages and non-pages
-  const hasMixedContent = blockNodes.length > 0 && pageNodes.length > 0;
-  const mainNodes = hasMixedContent ? blockNodes : nodes;
-
   return (
     <>
-      {mainNodes.length > 0 && (
+      {nodes.length > 0 && (
         <Table<Node>
-          data={mainNodes}
+          data={nodes}
           columns={tableColumns}
           getRowKey={(node) => node.id}
           size="md"
@@ -486,33 +468,6 @@ export const TableView = memo(function TableView({
           nodeEditable={editable}
           defaultSort={defaultSort}
         />
-      )}
-
-      {/* Pages section - separate table at the bottom */}
-      {hasMixedContent && pageNodes.length > 0 && (
-        <div className="node-table-view__pages-section">
-          <div className="node-table-view__pages-header">Pages</div>
-          <Table<Node>
-            data={pageNodes}
-            columns={tableColumns}
-            getRowKey={(node) => node.id}
-            size="md"
-            variant="bordered"
-            selectable={selectable}
-            selectedKeys={selectedKeys}
-            onSelectionChange={handleSelectionChange}
-            onRowContextMenu={handleRowContextMenu}
-            expandable={expandableConfig}
-            reorderable={undefined}
-            depth={depth}
-            className={`node-table-view ${className}`}
-            getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
-            onNodeOpen={openNode}
-            onNodeOpenInSidebar={addSidebarCard}
-            nodeEditable={editable}
-            defaultSort={defaultSort}
-          />
-        </div>
       )}
 
       {/* Context menu */}
