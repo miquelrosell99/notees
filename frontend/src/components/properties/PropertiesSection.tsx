@@ -6,10 +6,6 @@
  * 
  * Text properties are now stored as node references (blocks) and displayed
  * using the TextPropertyBlock component.
- * 
- * Variants:
- * - page: Full property display with icons, bullets before values (default)
- * - block: Compact property display for blocks
  */
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { 
@@ -63,13 +59,10 @@ import { parseIconField } from '@/utils/iconDom';
 import { NodeViewSection } from '../nodes/NodeViewSection';
 import './PropertiesSection.css';
 
-export type PropertiesSectionVariant = 'page' | 'block';
-
 interface PropertiesSectionProps {
   nodeId: number;
   className?: string;
   readOnly?: boolean;
-  variant?: PropertiesSectionVariant;
   showHiddenSection?: boolean;
   showAddProperty?: boolean;
   onNavigateToNode?: (nodeId: number) => void;
@@ -594,7 +587,6 @@ export function PropertiesSection({
   nodeId,
   className = '',
   readOnly = false,
-  variant = 'page',
   showHiddenSection = true,
   showAddProperty = true,
   onNavigateToNode,
@@ -833,7 +825,7 @@ export function PropertiesSection({
     return { visibleProperties: visible, hiddenProperties: hidden };
   }, [nodeProperties, filterPropertyIds, isMainNode]);
 
-  const variantClass = variant === 'block' ? 'block-variant' : '';
+
   
   // Render property value function for PropertyList
   const renderPropertyValue = useCallback((entry: PropertyEntry, isReadOnly: boolean) => {
@@ -879,7 +871,7 @@ export function PropertiesSection({
 
   if (nodeLoading) {
     return (
-      <div className={`properties-view loading ${variantClass} ${className}`}>
+      <div className={`properties-view loading ${className}`}>
         <div className="properties-skeleton">Loading properties...</div>
       </div>
     );
@@ -892,7 +884,7 @@ export function PropertiesSection({
   // If no properties at all, show empty message
   if (nodeProperties.length === 0) {
     return (
-      <section className={`properties-view ${variantClass} ${className}`}>
+      <section className={`properties-view ${className}`}>
         {showAddProperty && !readOnly && (
           <div className="properties-add-wrapper">
             <Button 
@@ -935,7 +927,6 @@ export function PropertiesSection({
         onPropertyContextMenu={handlePropertyContextMenu}
         getContextMenuItems={getPropertyContextMenuItems}
         className={`properties-inline ${className}`}
-        variant={variant}
       />
     );
   }
@@ -945,12 +936,12 @@ export function PropertiesSection({
       title="Properties"
       icon={<PropertiesIcon size="sm" />}
       count={nodeProperties.length}
-      className={`properties-section ${variantClass} ${className}`}
+      className={`properties-section ${className}`}
       expanded={isExpanded}
       onExpandedChange={setIsExpanded}
       hideWhenEmpty={true}
     >
-      <section className={`properties-view ${variantClass}`}>
+      <section className={`properties-view`}>
         {/* Properties List using standard PropertyList component */}
         <PropertyList
           properties={[...visibleProperties, ...hiddenProperties]}
@@ -960,7 +951,6 @@ export function PropertiesSection({
           renderValue={renderPropertyValue}
           onPropertyContextMenu={handlePropertyContextMenu}
           getContextMenuItems={getPropertyContextMenuItems}
-          variant={variant}
         />
 
         {/* Add property button */}

@@ -378,13 +378,6 @@
   opacity: 1;
 }
 
-/* ==================== Block Variant (Compact) ==================== */
-
-.properties-view.block-variant {
-  padding: var(--spacing-2) 0;
-  margin-left: var(--spacing-2);
-}
-
 /* ==================== Text Property Block ==================== */
 
 .text-property-block {

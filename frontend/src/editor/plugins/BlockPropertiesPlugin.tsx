@@ -43,7 +43,6 @@ function BlockInlineProperties({ nodeId, showAddProperty, isMainNode }: { nodeId
   return (
     <PropertiesSection
       nodeId={nodeId}
-      variant="block"
       inline={!showAddProperty}
       readOnly={false}
       showHiddenSection={showAddProperty}

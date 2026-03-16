@@ -73,8 +73,6 @@ export interface PropertyListProps {
   getContextMenuItems?: (property: Property) => ContextMenuItem[];
   /** Additional className */
   className?: string;
-  /** Variant for styling */
-  variant?: 'page' | 'block';
   /** Whether to show bullets before values */
   showBullets?: boolean;
   /** Handler when clicking on a node value bullet */
@@ -96,7 +94,6 @@ export function PropertyList({
   onPropertyContextMenu,
   getContextMenuItems,
   className = '',
-  variant = 'page',
   showBullets = true,
   onNodeValueClick,
   onNodeValueShiftClick,
@@ -127,10 +124,8 @@ export function PropertyList({
   const visibleProperties = properties.filter(p => !p.hidden);
   const hiddenProperties = properties.filter(p => p.hidden);
 
-  const variantClass = variant === 'block' ? 'property-list--block' : '';
-
   return (
-    <div className={`property-list ${variantClass} ${className}`}>
+    <div className={`property-list ${className}`}>
       {/* Visible properties */}
       <div className="property-list__items">
         {visibleProperties.map(entry => (
