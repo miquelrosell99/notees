@@ -239,6 +239,32 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
+/* Collapse arrow button */
+.node-card__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  padding: 0;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card__collapse-btn svg {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card__collapse-btn:hover {
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
+}
+
 
 .node-card__header:first-child {
   border-radius: var(--shape-medium) var(--shape-medium) 0 0;
@@ -427,52 +453,9 @@
   height: auto;
 }
 
-/* Hover-reveal body — collapsed by default, expands on hover */
-.node-card__body--hover-reveal {
-  padding: 0;
-  min-height: 8px;
-  transition: padding var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-/* Collapsed indicator (three dots) */
-.node-card__collapsed-indicator {
-  text-align: center;
-  font-size: 0.875rem;
-  color: var(--color-outline);
-  opacity: 0.5;
-  padding: 0.125rem;
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard), max-height var(--motion-duration-medium) var(--motion-easing-standard), padding var(--motion-duration-medium) var(--motion-easing-standard);
-  pointer-events: none;
-  max-height: 1.5rem;
-  overflow: hidden;
-}
-
-.node-card__body--hover-reveal:hover .node-card__collapsed-indicator {
-  opacity: 0;
-  max-height: 0;
-  padding: 0;
-}
-
-/* Content wrapper — hidden by default */
-.node-card__body--hover-reveal .node-card__body-content {
-  opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  padding: 0;
-  pointer-events: none;
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard), max-height var(--motion-duration-long) var(--motion-easing-standard), padding var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-/* Expand on hover */
-.node-card__body--hover-reveal:hover {
-  padding: 0 0.75rem 0.75rem;
-}
-
-.node-card__body--hover-reveal:hover .node-card__body-content {
-  opacity: 1;
-  max-height: 1000px;
-  padding: 0;
-  pointer-events: auto;
+/* Collapsed body — hidden */
+.node-card__body--collapsed {
+  display: none;
 }
 
 /* Show border on tags row to separate from body */

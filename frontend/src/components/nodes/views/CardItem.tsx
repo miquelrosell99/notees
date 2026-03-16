@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useState, useMemo, memo, type JSX } from 'react';
+import Icon from '@mdi/react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -69,7 +70,7 @@ import { uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
-import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose } from '@mdi/js';
+import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose, mdiChevronDown } from '@mdi/js';
 import { TableCreationModal, type TableSize } from '@/components/core/TableCreationModal';
 
 import './CardItem.css';
@@ -310,6 +311,9 @@ export const NodeCard = memo(function NodeCard({
 
   // Content save hook
   const { handleContentChange: saveContent } = useContentSave();
+
+  // Body collapse state
+  const [isBodyCollapsed, setIsBodyCollapsed] = useState(false);
 
   // Drag/hover states
   const [isCoverDragging, setIsCoverDragging] = useState(false);
@@ -776,6 +780,17 @@ export const NodeCard = memo(function NodeCard({
 
         {/* Row: Title */}
         <div className="node-card__header">
+          {hasChildren && (
+            <button
+              className="node-card__collapse-btn"
+              onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
+              title={isBodyCollapsed ? 'Expand' : 'Collapse'}
+              aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
+              aria-expanded={!isBodyCollapsed}
+            >
+              <Icon path={mdiChevronDown} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
+            </button>
+          )}
           <div className="node-card__title-wrapper">
             <CardTitleEditor
               blockId={String(node.uuid || node.id)}
@@ -872,11 +887,8 @@ export const NodeCard = memo(function NodeCard({
         </div>
         )}
 
-        {/* Row: Body — hover-reveal children */}
-        <div className="node-card__body node-card__body--hover-reveal">
-          {hasChildren && (
-            <div className="node-card__collapsed-indicator">•••</div>
-          )}
+        {/* Row: Body — collapsible children */}
+        <div className={`node-card__body${isBodyCollapsed ? ' node-card__body--collapsed' : ''}`}>
           <div className="node-card__body-content">
             {hasChildren && (
               <CardChildrenEditor
