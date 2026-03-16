@@ -8,6 +8,7 @@
 import type { Node } from '@/types';
 import { NodeIcon, CheckIcon } from '../core/icons';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import './NodeResultItem.css';
 
 export interface NodeResultItemProps {
@@ -30,6 +31,8 @@ export interface NodeResultItemProps {
   after?: React.ReactNode;
   /** Override the default NodeIcon (e.g. BulletIcon for blocks) */
   iconOverride?: React.ReactNode;
+  /** All class nodes, used to resolve inherited icons */
+  allClasses?: Node[];
 }
 
 export function NodeResultItem({
@@ -44,6 +47,7 @@ export function NodeResultItem({
   before,
   after,
   iconOverride,
+  allClasses,
 }: NodeResultItemProps) {
   return (
     <button
@@ -59,7 +63,7 @@ export function NodeResultItem({
       <div className="node-result-item__row">
         {before}
         <span className="node-result-item__icon">
-          {iconOverride ?? <NodeIcon icon={node.icon} isPage={node.is_page} size="sm" />}
+          {iconOverride ?? <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node.icon} isPage={node.is_page} size="sm" />}
         </span>
         <span className="node-result-item__name">
           {nodeNameToText(node.name) || 'Untitled'}
