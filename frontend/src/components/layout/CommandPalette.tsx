@@ -204,9 +204,12 @@ function ResultItem({
         <span className="command-palette__result-icon">
           {result.type === 'page' ? (
             <NodeIcon icon={getEffectiveIcon(result.node, allClasses)} isPage={true} size="sm" />
-          ) : (
-            <BulletIcon size="xs" />
-          )}
+          ) : (() => {
+            const effectiveIcon = getEffectiveIcon(result.node, allClasses);
+            return effectiveIcon
+              ? <NodeIcon icon={effectiveIcon} isPage={false} size="sm" />
+              : <BulletIcon size="xs" />;
+          })()}
         </span>
         <span className="command-palette__result-content">
           <span className="command-palette__result-name">
