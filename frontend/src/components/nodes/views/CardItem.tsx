@@ -313,7 +313,7 @@ export const NodeCard = memo(function NodeCard({
   const { handleContentChange: saveContent } = useContentSave();
 
   // Body collapse state
-  const [isBodyCollapsed, setIsBodyCollapsed] = useState(false);
+  const [isBodyCollapsed, setIsBodyCollapsed] = useState(true);
 
   // Drag/hover states
   const [isCoverDragging, setIsCoverDragging] = useState(false);
@@ -780,17 +780,15 @@ export const NodeCard = memo(function NodeCard({
 
         {/* Row: Title */}
         <div className="node-card__header">
-          {hasChildren && (
-            <button
-              className="node-card__collapse-btn"
-              onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
-              title={isBodyCollapsed ? 'Expand' : 'Collapse'}
-              aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
-              aria-expanded={!isBodyCollapsed}
-            >
-              <Icon path={mdiChevronDown} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
-            </button>
-          )}
+          <button
+            className="node-card__collapse-btn"
+            onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
+            title={isBodyCollapsed ? 'Expand' : 'Collapse'}
+            aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
+            aria-expanded={!isBodyCollapsed}
+          >
+            <Icon path={mdiChevronDown} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
+          </button>
           <div className="node-card__title-wrapper">
             <CardTitleEditor
               blockId={String(node.uuid || node.id)}
