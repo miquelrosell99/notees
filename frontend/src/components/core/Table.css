@@ -593,3 +593,7 @@
 .table-node-cell__editor .block-row {
   padding-left: 0 !important;
 }
+
+.table-node-cell__editor .node-block-class-pills {
+  display: none;
+}
