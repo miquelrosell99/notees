@@ -182,13 +182,12 @@ function ResultItem({
   // Handle node results
   if (!result.node) return null;
 
-  const classLabel = (result.node.classes ?? [])
+  const displayClasses = (result.node.classes ?? [])
     .filter(cid => cid !== pageClassId)
     .map(cid => allClasses?.find(c => c.id === cid))
     .filter((c): c is Node => c !== undefined)
-    .map(c => nodeNameToText(c.name))
-    .filter(Boolean)
-    .join(', ');
+    .map(c => ({ id: c.id, name: nodeNameToText(c.name) }))
+    .filter(cls => cls.name);
 
   return (
     <button
@@ -219,9 +218,11 @@ function ResultItem({
             alias of: {aliasedNodeName}
           </span>
         )}
-        {classLabel && (
-          <span className="command-palette__result-type">
-            {classLabel}
+        {displayClasses.length > 0 && (
+          <span className="node-result-item__class-pills">
+            {displayClasses.map(cls => (
+              <span key={cls.id} className="node-result-item__class-pill">{cls.name}</span>
+            ))}
           </span>
         )}
       </div>
