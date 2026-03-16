@@ -1,22 +1,23 @@
 /**
  * PropertyList Component Styles
  * 
- * Reusable component for property rows - used by:
- * - PropertiesSection (via NodeViewSection wrapper)
- * - ClassPropertiesEditor (class property definitions)
- * - Block properties
- * 
- * Matches PropertiesSection.css styling exactly
+ * Two-column table layout (Capacities-style):
+ *   Left column: property icon + name
+ *   Right column: property value
+ * Subtle horizontal dividers between rows.
  */
 
-.property-list {
+/* ==================== Table Container ==================== */
+
+.property-table {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
 }
 
-.property-list__items,
-.property-list__hidden-items {
+.property-table__body {
   display: flex;
   flex-direction: column;
 }
@@ -27,9 +28,12 @@
   display: grid;
   grid-template-columns: minmax(120px, 180px) 1fr;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) 0;
-  min-height: 28px;
+  min-height: 32px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.property-row:last-child {
+  border-bottom: none;
 }
 
 /* Text property rows need top-aligned layout for multi-line editors */
@@ -38,20 +42,11 @@
 }
 
 .property-row:has(.text-property-block--has-content) .property-row__label {
-  padding-top: 0;
+  padding-top: 6px;
 }
 
-.property-row:has(.text-property-block--has-content) .property-row__value-container,
-.property-row:has(.text-property-block--has-content) .property-row__value-wrapper {
-  align-items: flex-start;
-}
+/* ==================== Property Label ==================== */
 
-/* Text properties use the block's own bullet — remove wrapper gap so alignment is natural */
-.property-row:has(.text-property-block) .property-row__value-wrapper {
-  gap: 0;
-}
-
-/* Property Label */
 .property-row__label {
   display: flex;
   align-items: center;
@@ -61,15 +56,9 @@
   color: var(--color-on-surface-variant);
   text-align: left;
   cursor: default;
-}
-
-.property-row__label--clickable {
-  cursor: pointer;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.property-row__label--clickable:hover {
-  background: none;
+  padding: var(--spacing-1) var(--spacing-2);
+  height: 100%;
+  border-right: 1px solid var(--color-outline-variant);
 }
 
 /* Override NodeInline hover: underline instead of background */
@@ -92,32 +81,53 @@
 }
 
 .property-row__source {
-  display: none; /* Hide source in normal view, matches PropertiesSection */
+  display: none;
 }
 
-/* Property Value */
-.property-row__value-container {
+/* ==================== Property Value ==================== */
+
+.property-row__value {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
   min-width: 0;
+  min-height: 32px;
+  padding: 2px var(--spacing-2);
 }
 
-.property-row__value-wrapper {
+/* ==================== Multi-Value Row Group ==================== */
+
+.property-row-group {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex: 1;
-  min-width: 0;
+  flex-direction: column;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.property-row-group:last-child {
+  border-bottom: none;
+}
+
+/* Rows inside a group don't have their own bottom border */
+.property-row-group .property-row {
+  border-bottom: none;
+}
+
+/* Value cells in a group get a top border (except the first) */
+.property-row-group .property-row--continuation .property-row__value {
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+/* Continuation rows: empty label cell, no border between merged labels */
+.property-row--continuation .property-row__label {
+  border-right: 1px solid var(--color-outline-variant);
 }
 
 /* ==================== Hidden Properties Section ==================== */
 
-.property-list__hidden-section {
-  margin-top: var(--spacing-1);
+.property-table__hidden-section {
+  margin-top: 0;
 }
 
-.property-list__hidden-toggle {
+.property-table__hidden-toggle {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -131,23 +141,16 @@
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.property-list__hidden-toggle:hover {
+.property-table__hidden-toggle:hover {
   color: var(--color-on-surface);
 }
 
-.property-list__hidden-toggle svg {
+.property-table__hidden-toggle svg {
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.property-list__hidden-toggle.expanded svg {
+.property-table__hidden-toggle.expanded svg {
   transform: rotate(90deg);
 }
-
-.property-list__hidden-items {
-  display: flex;
-  flex-direction: column;
-}
-
-/* ==================== Block Variant ==================== */
 
 

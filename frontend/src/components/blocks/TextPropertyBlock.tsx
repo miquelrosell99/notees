@@ -24,7 +24,7 @@ import {
   useNodeNavigation,
 } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
-import { mdiPlus } from '@mdi/js';
+import { mdiPlus, mdiDockRight, mdiArrowRight } from '@mdi/js';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '../nodes/NodeCollection';
@@ -56,11 +56,13 @@ function SingleTextBlock({
   blockNodeId,
   readOnly,
   onOpenInSidebar,
+  onOpenNode,
   onEnterAtRoot,
 }: {
   blockNodeId: number;
   readOnly: boolean;
   onOpenInSidebar?: (blockId: number) => void;
+  onOpenNode?: (blockId: number) => void;
   onEnterAtRoot?: () => void;
 }) {
   const { data: blockNode, isLoading } = useNode(blockNodeId, {
@@ -86,6 +88,32 @@ function SingleTextBlock({
 
   return (
     <div className="text-property-block__editor">
+      <div className="text-property-block__nav-actions">
+        {onOpenInSidebar && (
+          <Button
+            icon={mdiDockRight}
+            variant="ghost"
+            size="xs"
+            title="Open in sidebar"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenInSidebar(blockNodeId);
+            }}
+          />
+        )}
+        {onOpenNode && (
+          <Button
+            icon={mdiArrowRight}
+            variant="ghost"
+            size="xs"
+            title="Open"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenNode(blockNodeId);
+            }}
+          />
+        )}
+      </div>
       <NodeCollection
         nodes={[blockNode]}
         viewMode="list"
@@ -250,6 +278,7 @@ export function TextPropertyBlock({
             blockNodeId={id}
             readOnly={readOnly}
             onOpenInSidebar={onOpenInSidebar}
+            onOpenNode={(blockId) => handleNodeClick({ id: blockId } as Node)}
             onEnterAtRoot={handleAddText}
           />
         ))}
@@ -299,20 +328,12 @@ export function TextPropertyBlock({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      <div className="text-property-block__editor">
-        <NodeCollection
-          nodes={[singleBlockNode]}
-          viewMode="list"
-          availableViewModes={['list']}
-          editable={!readOnly}
-          onNodeClick={handleNodeClick}
-          onNodeShiftClick={handleNodeShiftClick}
-          onContentChange={handleContentChange}
-          pageId={singleBlockNode.id}
-          pageUuid={singleBlockNode.uuid}
-          hideToolbar={true}
-        />
-      </div>
+      <SingleTextBlock
+        blockNodeId={blockNodeId}
+        readOnly={readOnly}
+        onOpenInSidebar={onOpenInSidebar}
+        onOpenNode={(blockId) => handleNodeClick({ id: blockId } as Node)}
+      />
     </div>
   );
 }
