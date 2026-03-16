@@ -1177,6 +1177,14 @@ export function useMoveNode() {
         queryKey: nodeKeys.lists(),
         refetchType: 'none',
       });
+      // Moving a node changes its page context, which affects linked references
+      // and property backlinks for any pages the block links to.
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'linked-refs'],
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'property-backlinks'],
+      });
     },
   });
 }
