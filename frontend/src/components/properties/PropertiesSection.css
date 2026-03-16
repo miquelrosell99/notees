@@ -334,6 +334,13 @@
   gap: var(--spacing-2);
 }
 
+.text-property-block--drop-target {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+  border-radius: var(--shape-small);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
 .text-property-block--loading {
   display: flex;
   align-items: center;

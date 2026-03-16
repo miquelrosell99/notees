@@ -15,7 +15,7 @@
  * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   useNode, 
   useCreateNode, 
@@ -29,6 +29,8 @@ import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { Button } from '../core/Button';
+import { getDragCoordinator } from '@/runtime/DragCoordinator';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 
 interface TextPropertyBlockProps {
   /** The property definition */
@@ -199,56 +201,91 @@ export function TextPropertyBlock({
     onOpenInSidebar?.(clickedNode.id);
   }, [onOpenInSidebar]);
   
-  // Handle drop on this property (to receive a block)
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
+  // ─── DragCoordinator-based drop zone ─────────────────────────
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const isOverRef = useRef(false);
+
+  // Subscribe to DragCoordinator to detect active drags
+  useEffect(() => {
     if (readOnly) return;
-    
-    const data = e.dataTransfer.getData('application/x-notees-block');
-    if (!data) return;
-    
-    try {
-      const { blockId } = JSON.parse(data);
-      
-      // Don't allow dropping on self
-      if (ids.includes(blockId)) return;
-      
-      // Move the block to be a child of this node
-      moveNode.mutate({
-        id: blockId,
-        parentId: nodeId,
-      });
-      
-      if (isMulti) {
-        // Multi: append dropped block to the array
-        const newIds = [...ids, blockId];
-        onPropertyChange(property.id, newIds);
-      } else {
-        // Single: set this property to the dropped block
-        onPropertyChange(property.id, blockId);
+    const coordinator = getDragCoordinator();
+    const unsub = coordinator.subscribe((state) => {
+      setIsDragActive(state.status === 'dragging');
+      if (state.status !== 'dragging') {
+        setIsDragOver(false);
+        isOverRef.current = false;
       }
-    } catch (error) {
-      console.error('Failed to handle drop:', error);
-    }
-  }, [readOnly, ids, nodeId, property.id, moveNode, onPropertyChange, isMulti]);
-  
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (readOnly) return;
-    
-    if (e.dataTransfer.types.includes('application/x-notees-block')) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    }
+    });
+    return unsub;
   }, [readOnly]);
+
+  // Handle mouseup on the container during a drag → intercept the drop
+  useEffect(() => {
+    if (readOnly || !isDragActive) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleMouseEnter = () => {
+      isOverRef.current = true;
+      setIsDragOver(true);
+    };
+    const handleMouseLeave = () => {
+      isOverRef.current = false;
+      setIsDragOver(false);
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isOverRef.current) return;
+      const coordinator = getDragCoordinator();
+      const payload = coordinator.getDragPayload();
+      if (!payload) return;
+
+      // Resolve the dragged block's server ID from the runtime
+      const runtime = getNodeGraphRuntime();
+      const graphNode = runtime.getNode(payload.blockId);
+      const serverId = graphNode?.serverId;
+      if (!serverId) return;
+
+      // Don't allow dropping on self
+      if (ids.includes(serverId)) return;
+
+      // Cancel the DragCoordinator drag so the DragDropPlugin's handler
+      // treats it as a cancelled drag and runs cleanup (ghost, classes, etc.)
+      coordinator.cancelDrag();
+
+      // Move the block to be a child of this node
+      moveNode.mutate({ id: serverId, parentId: nodeId });
+
+      if (isMulti) {
+        onPropertyChange(property.id, [...ids, serverId]);
+      } else {
+        onPropertyChange(property.id, serverId);
+      }
+
+      setIsDragOver(false);
+      isOverRef.current = false;
+    };
+
+    el.addEventListener('mouseenter', handleMouseEnter);
+    el.addEventListener('mouseleave', handleMouseLeave);
+    el.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      el.removeEventListener('mouseenter', handleMouseEnter);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+      el.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [readOnly, isDragActive, ids, nodeId, property.id, moveNode, onPropertyChange, isMulti]);
+
+  const dropZoneClass = isDragOver ? ' text-property-block--drop-target' : '';
 
   // === Multi mode rendering ===
   if (isMulti) {
     if (ids.length === 0) {
       return (
         <div 
-          className="text-property-block text-property-block--empty"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
+          ref={containerRef}
+          className={`text-property-block text-property-block--empty${dropZoneClass}`}
         >
           <Button
             className="text-property-block__add-btn"
@@ -267,9 +304,7 @@ export function TextPropertyBlock({
     return (
       <div 
         ref={containerRef}
-        className="text-property-block text-property-block--has-content text-property-block--multi"
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
+        className={`text-property-block text-property-block--has-content text-property-block--multi${dropZoneClass}`}
       >
         {ids.map((id) => (
           <SingleTextBlock
@@ -300,9 +335,8 @@ export function TextPropertyBlock({
   if (!blockNodeId || !singleBlockNode) {
     return (
       <div 
-        className="text-property-block text-property-block--empty"
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
+        ref={containerRef}
+        className={`text-property-block text-property-block--empty${dropZoneClass}`}
       >
         <Button
           className="text-property-block__add-btn"
@@ -322,9 +356,7 @@ export function TextPropertyBlock({
   return (
     <div 
       ref={containerRef}
-      className="text-property-block text-property-block--has-content"
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
+      className={`text-property-block text-property-block--has-content${dropZoneClass}`}
     >
       <SingleTextBlock
         blockNodeId={blockNodeId}
