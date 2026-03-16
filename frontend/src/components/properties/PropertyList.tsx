@@ -1,14 +1,15 @@
 /**
  * PropertyList Component
  * 
- * A reusable component for displaying a list of property rows.
- * Extracted from PropertiesSection to be reusable in other contexts.
+ * A reusable component for displaying a list of property rows in a
+ * two-column table layout (Capacities-style):
+ *   Left column: property icon + name
+ *   Right column: property value
  * 
  * Features:
- * - Property rows with labels and values using Block component for consistent styling
+ * - Clean table layout with subtle row dividers
  * - Hidden properties section
  * - Context menu support (at row level)
- * - Bullet points for non-text properties
  * - Default icons for property types when no custom icon is set
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Property type)
@@ -18,7 +19,6 @@ import type { Property, PropertyType, Node } from '@/types/api';
 import { useAppStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeInline } from '../blocks/NodeInline';
-import { Bullet } from '../blocks/Bullet';
 import { ChevronRightIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { PageContextMenu } from '../nodes/NodeContextMenu';
@@ -73,12 +73,65 @@ export interface PropertyListProps {
   getContextMenuItems?: (property: Property) => ContextMenuItem[];
   /** Additional className */
   className?: string;
-  /** Whether to show bullets before values */
-  showBullets?: boolean;
-  /** Handler when clicking on a node value bullet */
+  /** Handler when clicking on a node value */
   onNodeValueClick?: (nodeId: number) => void;
-  /** Handler when shift+clicking on a node value bullet */
+  /** Handler when shift+clicking on a node value */
   onNodeValueShiftClick?: (nodeId: number) => void;
+}
+
+/** Check if an entry is a multi-value text property with multiple values */
+function isMultiTextEntry(entry: PropertyEntry): entry is PropertyEntry & { value: number[] } {
+  return entry.property.type === 'text' && entry.property.multi === true && Array.isArray(entry.value) && entry.value.length > 1;
+}
+
+/** Render a list of property entries as rows, expanding multi-text into grouped rows */
+function renderPropertyRows(
+  entries: PropertyEntry[],
+  readOnly: boolean,
+  renderValue: (entry: PropertyEntry, readOnly: boolean) => ReactNode,
+  onNameClick: PropertyListProps['onPropertyNameClick'],
+  onPropertyContextMenu: PropertyListProps['onPropertyContextMenu'],
+  getContextMenuItems: PropertyListProps['getContextMenuItems'],
+  onValueClick: (nodeId: number) => void,
+  onValueShiftClick: (nodeId: number) => void,
+) {
+  return entries.map(entry => {
+    if (isMultiTextEntry(entry)) {
+      // Expand into multiple rows, one per block ID
+      const blockIds = entry.value;
+      return (
+        <div key={entry.property.id} className="property-row-group">
+          {blockIds.map((blockId, idx) => (
+            <PropertyRow
+              key={`${entry.property.id}-${blockId}`}
+              entry={{ ...entry, value: blockId }}
+              readOnly={readOnly}
+              renderValue={renderValue}
+              onNameClick={onNameClick}
+              onPropertyContextMenu={onPropertyContextMenu}
+              getContextMenuItems={getContextMenuItems}
+              onValueClick={onValueClick}
+              onValueShiftClick={onValueShiftClick}
+              hideLabel={idx > 0}
+            />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <PropertyRow
+        key={entry.property.id}
+        entry={entry}
+        readOnly={readOnly}
+        renderValue={renderValue}
+        onNameClick={onNameClick}
+        onPropertyContextMenu={onPropertyContextMenu}
+        getContextMenuItems={getContextMenuItems}
+        onValueClick={onValueClick}
+        onValueShiftClick={onValueShiftClick}
+      />
+    );
+  });
 }
 
 /**
@@ -94,7 +147,6 @@ export function PropertyList({
   onPropertyContextMenu,
   getContextMenuItems,
   className = '',
-  showBullets = true,
   onNodeValueClick,
   onNodeValueShiftClick,
 }: PropertyListProps) {
@@ -125,30 +177,26 @@ export function PropertyList({
   const hiddenProperties = properties.filter(p => p.hidden);
 
   return (
-    <div className={`property-list ${className}`}>
+    <div className={`property-table ${className}`}>
       {/* Visible properties */}
-      <div className="property-list__items">
-        {visibleProperties.map(entry => (
-          <PropertyRow
-            key={entry.property.id}
-            entry={entry}
-            readOnly={readOnly}
-            renderValue={renderValue}
-            onNameClick={onPropertyNameClick}
-            onPropertyContextMenu={onPropertyContextMenu}
-            getContextMenuItems={getContextMenuItems}
-            showBullet={showBullets}
-            onValueBulletClick={handleNodeValueClick}
-            onValueBulletShiftClick={handleNodeValueShiftClick}
-          />
-        ))}
+      <div className="property-table__body">
+        {renderPropertyRows(
+          visibleProperties,
+          readOnly,
+          renderValue,
+          onPropertyNameClick,
+          onPropertyContextMenu,
+          getContextMenuItems,
+          handleNodeValueClick,
+          handleNodeValueShiftClick,
+        )}
       </div>
 
       {/* Hidden properties section */}
       {showHiddenSection && hiddenProperties.length > 0 && (
-        <div className="property-list__hidden-section">
+        <div className="property-table__hidden-section">
           <button
-            className={`property-list__hidden-toggle ${showHidden ? 'expanded' : ''}`}
+            className={`property-table__hidden-toggle ${showHidden ? 'expanded' : ''}`}
             onClick={() => setShowHidden(!showHidden)}
           >
             <ChevronRightIcon size="xs" />
@@ -156,21 +204,17 @@ export function PropertyList({
           </button>
 
           {showHidden && (
-            <div className="property-list__hidden-items">
-              {hiddenProperties.map(entry => (
-                <PropertyRow
-                  key={entry.property.id}
-                  entry={entry}
-                  readOnly={readOnly}
-                  renderValue={renderValue}
-                  onNameClick={onPropertyNameClick}
-                  onPropertyContextMenu={onPropertyContextMenu}
-                  getContextMenuItems={getContextMenuItems}
-                  showBullet={showBullets}
-                  onValueBulletClick={handleNodeValueClick}
-                  onValueBulletShiftClick={handleNodeValueShiftClick}
-                />
-              ))}
+            <div className="property-table__body">
+              {renderPropertyRows(
+                hiddenProperties,
+                readOnly,
+                renderValue,
+                onPropertyNameClick,
+                onPropertyContextMenu,
+                getContextMenuItems,
+                handleNodeValueClick,
+                handleNodeValueShiftClick,
+              )}
             </div>
           )}
         </div>
@@ -186,11 +230,12 @@ interface PropertyRowProps {
   onNameClick?: (property: Property, event: React.MouseEvent) => void;
   onPropertyContextMenu?: (property: Property, event: React.MouseEvent) => void;
   getContextMenuItems?: (property: Property) => ContextMenuItem[];
-  showBullet: boolean;
-  /** Handler when clicking on the value bullet (for node properties) */
-  onValueBulletClick?: (nodeId: number) => void;
-  /** Handler when shift+clicking on the value bullet */
-  onValueBulletShiftClick?: (nodeId: number) => void;
+  /** Handler when clicking on a node value */
+  onValueClick?: (nodeId: number) => void;
+  /** Handler when shift+clicking on a node value */
+  onValueShiftClick?: (nodeId: number) => void;
+  /** Whether to hide the label (for multi-row continuation) */
+  hideLabel?: boolean;
 }
 
 /**
@@ -204,9 +249,9 @@ function PropertyRow({
   onNameClick,
   onPropertyContextMenu,
   getContextMenuItems,
-  showBullet,
-  onValueBulletClick,
-  onValueBulletShiftClick,
+  onValueClick,
+  onValueShiftClick,
+  hideLabel,
 }: PropertyRowProps) {
   const { property, source, value } = entry;
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -239,25 +284,25 @@ function PropertyRow({
   // Generate context menu items for this row
   const contextMenuItems = getContextMenuItems ? getContextMenuItems(property) : [];
   
-  // Handle bullet click - opens property page
-  const handleBulletClick = useCallback(() => {
+  // Handle label click - opens property page
+  const handleLabelClick = useCallback(() => {
     openPropertyView(property.id);
   }, [openPropertyView, property.id]);
   
-  // Handle shift+click on bullet - opens property in sidebar
-  const handleBulletShiftClick = useCallback(() => {
+  // Handle shift+click on label - opens property in sidebar
+  const handleLabelShiftClick = useCallback(() => {
     addSidebarCard({ type: 'property', id: property.id });
   }, [addSidebarCard, property.id]);
   
-  // Handle context menu on node value bullet
-  const handleNodeValueContextMenu = useCallback((nodeId: number, event: React.MouseEvent) => {
+  // Handle context menu on node value
+  const handleNodeValueContextMenu = useCallback((_nodeId: number, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     setNodeValueContextMenuPosition({ x: event.clientX, y: event.clientY });
     setShowNodeValueContextMenu(true);
   }, []);
 
-  // Create a minimal node for the Block component to display the property name
+  // Create a minimal node for NodeInline to display the property name
   const propertyAsNode = useMemo<Node>(() => ({
     id: property.id,
     uuid: property.uuid,
@@ -276,42 +321,29 @@ function PropertyRow({
 
   return (
     <>
-      <div className="property-row" onClick={handleNameClick}>
-        <div className="property-row__label">
-
-          <NodeInline
-            name={propertyAsNode.name}
-            icon={propertyAsNode.icon}
-            isPage={false}
-            nodeId={propertyAsNode.id}
-            showBullet={true}
-            onClick={handleBulletClick}
-            onShiftClick={handleBulletShiftClick}
-          />
-          {source && (
-            <span className="property-row__source" title={`From ${source}`}>
-              ({source})
-            </span>
+      <div className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
+        <div className="property-row__label" onClick={handleNameClick}>
+          {!hideLabel && (
+            <>
+              <NodeInline
+                name={propertyAsNode.name}
+                icon={propertyAsNode.icon}
+                isPage={false}
+                nodeId={propertyAsNode.id}
+                showBullet={false}
+                onClick={handleLabelClick}
+                onShiftClick={handleLabelShiftClick}
+              />
+              {source && (
+                <span className="property-row__source" title={`From ${source}`}>
+                  ({source})
+                </span>
+              )}
+            </>
           )}
         </div>
-        <div className="property-row__value-container">
-          <div className="property-row__value-wrapper">
-            {showBullet && property.type !== 'text' && (
-              (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? (
-                <Bullet
-                  nodeId={value}
-                  interactive={true}
-                  size="xs"
-                  onClick={() => onValueBulletClick?.(value)}
-                  onShiftClick={() => onValueBulletShiftClick?.(value)}
-                  onContextMenu={handleNodeValueContextMenu}
-                />
-              ) : (
-                <Bullet interactive={false} size="xs" />
-              )
-            )}
-            {renderValue(entry, readOnly)}
-          </div>
+        <div className="property-row__value">
+          {renderValue(entry, readOnly)}
         </div>
       </div>
 
