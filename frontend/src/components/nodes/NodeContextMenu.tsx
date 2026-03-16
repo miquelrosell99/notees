@@ -23,6 +23,8 @@ import { ExportPageModal } from '../workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
 import type { Node, NodeUpdate } from '@/types';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import type { ContentAST } from '@/runtime/types';
 import './NodeContextMenu.css';
 
 // ==================== Viewport Adjustment =====================
@@ -355,7 +357,24 @@ export function NodeContextMenu({
                 if (!Array.isArray(ast) || ast.length === 0) return;
                 const newAst = ast.map((block: { type: string; [key: string]: unknown }, i: number) =>
                   i === 0 ? { ...block, type: block.type === 'heading' ? 'paragraph' : 'heading' } : block
-                );
+                ) as ContentAST;
+
+                // Update runtime directly for immediate UI feedback.
+                // The runtime is the source of truth for contentAST;
+                // going only through the API would be blocked by
+                // upsertNodes preserving the old contentAST.
+                const runtime = getNodeGraphRuntime();
+                const runtimeNode = runtime.getNode(node.uuid);
+                if (runtimeNode) {
+                  runtime.applyIntent({
+                    type: 'update_content',
+                    blockId: node.uuid,
+                    contentAST: newAst,
+                  });
+                  runtime.flushEvents();
+                }
+
+                // Also persist to backend
                 updateNode.mutate({ id: node.id, data: { name: JSON.stringify(newAst) } });
               } catch { /* ignore */ }
               onClose();
