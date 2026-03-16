@@ -419,14 +419,21 @@
   display: none;
 }
 
-/* Hide block bullets inside text property editor — the property row provides its own bullet */
-.text-property-block__editor .block-ui {
-  display: none;
-}
-
-/* Remove top margin from the first block so text aligns with the property row bullet */
+/* Let the block's own bullet show — aligns text naturally with the bullet */
 .text-property-block__editor .node-block {
   margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Match the block bullet to property-row bullet sizing (xs: 18×18, no extra margins) */
+.text-property-block__editor .block-ui > .bullet-wrapper {
+  margin-top: 0;
+  margin-right: var(--spacing-2);
+}
+
+.text-property-block__editor .block-ui > .bullet-wrapper.bullet-sm {
+  width: 18px;
+  height: 18px;
 }
 
 .text-property-block__editor .node-list-view {

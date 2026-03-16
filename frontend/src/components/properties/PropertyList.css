@@ -46,6 +46,11 @@
   align-items: flex-start;
 }
 
+/* Text properties use the block's own bullet — remove wrapper gap so alignment is natural */
+.property-row:has(.text-property-block) .property-row__value-wrapper {
+  gap: 0;
+}
+
 /* Property Label */
 .property-row__label {
   display: flex;
