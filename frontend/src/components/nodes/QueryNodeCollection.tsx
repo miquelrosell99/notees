@@ -1011,7 +1011,7 @@ export function QueryNodeCollection({
           )}
 
           {/* Pages section - shows when there are pages OR property ref items */}
-          {showPagesSection && (
+          {showPagesSection && !hideContent && (
             <>
               <div className={`linked-references__pages-header ${
                 resultBlocks.length === 0 ? 'linked-references__pages-header--no-blocks' : ''
