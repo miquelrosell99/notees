@@ -296,18 +296,20 @@ function PropertyRow({
         </div>
         <div className="property-row__value-container">
           <div className="property-row__value-wrapper">
-            {showBullet && (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? (
-              <Bullet
-                nodeId={value}
-                interactive={true}
-                size="xs"
-                onClick={() => onValueBulletClick?.(value)}
-                onShiftClick={() => onValueBulletShiftClick?.(value)}
-                onContextMenu={handleNodeValueContextMenu}
-              />
-            ) : showBullet ? (
-              <Bullet interactive={false} size="xs" />
-            ) : null}
+            {showBullet && property.type !== 'text' && (
+              (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? (
+                <Bullet
+                  nodeId={value}
+                  interactive={true}
+                  size="xs"
+                  onClick={() => onValueBulletClick?.(value)}
+                  onShiftClick={() => onValueBulletShiftClick?.(value)}
+                  onContextMenu={handleNodeValueContextMenu}
+                />
+              ) : (
+                <Bullet interactive={false} size="xs" />
+              )
+            )}
             {renderValue(entry, readOnly)}
           </div>
         </div>
