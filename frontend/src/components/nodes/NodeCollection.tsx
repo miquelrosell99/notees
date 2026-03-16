@@ -372,6 +372,7 @@ export function NodeCollection({
             onEnterAtRoot={onEnterAtRoot}
             hideProperties={hideProperties}
             size={size}
+            maxDepth={maxDepth}
           />
         );
       

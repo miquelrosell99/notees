@@ -123,6 +123,7 @@ export const ListView = memo(function ListView({
   showBreadcrumbs = false,
   hideProperties = false,
   size,
+  maxDepth,
 }: NodeListViewProps) {
   const viewId = useId();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
@@ -489,6 +490,7 @@ export const ListView = memo(function ListView({
         className="node-list-view__editor"
         onEnterAtRoot={onEnterAtRoot}
         hideProperties={hideProperties}
+        maxDepth={maxDepth}
       />
     </div>
   );
