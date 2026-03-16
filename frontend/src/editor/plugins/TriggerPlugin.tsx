@@ -508,11 +508,45 @@ export function TriggerPlugin({
       handleSelect(pageId, { type: 'date' });
     };
 
+    // Parse @class syntax from link trigger query
+    const parsedLinkQuery = trigger.type === 'link' ? parseLinkQueryWithClass(trigger.query) : null;
+    const linkQuery = parsedLinkQuery?.linkQuery ?? trigger.query;
+    const isTypingClass = parsedLinkQuery?.isTypingClass ?? false;
+    const classQuery = parsedLinkQuery?.classQuery ?? '';
+
+    const handleClassSelect = (classNode: Node) => {
+      // Remove the @classQuery from editor text
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+        const anchorNode = selection.anchor.getNode();
+        const rawText = anchorNode.getTextContent();
+        const text = rawText.replace(/\u200B/g, '');
+        const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+        const cursorClean = selection.anchor.offset - zwsBefore;
+        const afterTriggerChar = text.slice(trigger.triggerOffset + 1);
+        const atIdx = afterTriggerChar.indexOf('@');
+        if (atIdx === -1) return;
+        const keepBefore = text.slice(0, trigger.triggerOffset + 1 + atIdx);
+        const afterCursor = text.slice(cursorClean);
+        const newText = keepBefore + afterCursor;
+        (anchorNode as any).setTextContent(newText || '\u200B');
+        const newOffset = keepBefore.length;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+      });
+      // Add class to class filters
+      setTrigger(prev => ({
+        ...prev,
+        classFilters: [...(prev.classFilters ?? []).filter(id => id !== classNode.id), classNode.id],
+      }));
+    };
+
     return (
       <TriggerSuggestionPopup
         suggestionType={suggestionType}
         triggerType={trigger.type}
-        query={trigger.query}
+        query={linkQuery}
         position={trigger.position}
         onSelect={handleSuggestionSelect}
         onClose={handleClose}
@@ -522,6 +556,9 @@ export function TriggerPlugin({
         headerText={trigger.templateMode ? 'Insert template' : undefined}
         footerHintText={trigger.templateMode ? 'insert template' : undefined}
         hideCreate={trigger.templateMode}
+        isTypingClass={trigger.type === 'link' ? isTypingClass : undefined}
+        classQuery={trigger.type === 'link' ? classQuery : undefined}
+        onClassSelect={trigger.type === 'link' ? handleClassSelect : undefined}
       />
     );
   }
@@ -542,6 +579,14 @@ interface TriggerMatch {
   type: TriggerType;
   query: string;
   triggerStart: number;
+}
+
+function parseLinkQueryWithClass(query: string): { linkQuery: string; isTypingClass: boolean; classQuery: string } {
+  const atMatch = query.match(/^(.*?)@(\S*)$/);
+  if (atMatch) {
+    return { linkQuery: atMatch[1], isTypingClass: true, classQuery: atMatch[2] };
+  }
+  return { linkQuery: query, isTypingClass: false, classQuery: '' };
 }
 
 function detectTriggerPattern(text: string): TriggerMatch | null {
