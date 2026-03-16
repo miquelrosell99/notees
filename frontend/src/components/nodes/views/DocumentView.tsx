@@ -34,6 +34,7 @@ export const DocumentView = memo(function DocumentView({
   pageId,
   pageUuid,
   className = '',
+  hideProperties,
 }: NodeDocumentViewProps): JSX.Element {
   const viewId = useId();
 
@@ -147,6 +148,7 @@ export const DocumentView = memo(function DocumentView({
         pageId={pageId}
         pageUuid={pageUuid}
         placeholder="Start writing…"
+        hideProperties={hideProperties}
       />
     </div>
   );

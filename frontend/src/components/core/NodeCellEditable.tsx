@@ -1,23 +1,28 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
 import { NodeInline } from '../blocks/NodeInline';
-import { BlockEditor } from '@/editor/BlockEditor';
-import { useContentSave } from '@/hooks/useContentSave';
+import { NodeCollection } from '../nodes/NodeCollection';
+import { useContentSave, useNodeNavigation } from '@/hooks';
+import { useBlockPersist } from '@/hooks/useBlockPersist';
 
 interface NodeCellEditableProps {
   node: Node;
 }
 
 /**
- * A node name cell that switches to an inline BlockEditor on click.
+ * A node name cell that switches to an inline NodeCollection/BlockEditor on click.
+ * Uses the same pattern as TextPropertyBlock for text properties.
  * Click outside or press Escape to close.
  */
 export function NodeCellEditable({ node }: NodeCellEditableProps) {
   const [editing, setEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { handleContentChange: save, flushAll } = useContentSave();
+  const { handleContentChange, flushAll } = useContentSave();
+  const { handleNodeClick } = useNodeNavigation();
   const flushRef = useRef(flushAll);
   flushRef.current = flushAll;
+
+  useBlockPersist();
 
   const closeEditing = useCallback(() => {
     flushRef.current();
@@ -27,35 +32,39 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
   // Click-outside → close editor
   useEffect(() => {
     if (!editing) return;
-    const handler = (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
         closeEditing();
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeEditing();
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [editing, closeEditing]);
-
-  // Bridge: BlockEditor string blockId → numeric node.id
-  const handleContentChangeBridge = useCallback((_blockId: string, content: string) => {
-    save(node.id, content);
-  }, [node.id, save]);
 
   if (editing) {
     return (
       <div ref={containerRef} className="table-node-cell__editor" onClick={(e) => e.stopPropagation()}>
-        <BlockEditor
+        <NodeCollection
           nodes={[node]}
-          mode="document"
+          viewMode="document"
+          availableViewModes={['document']}
+          editable={true}
+          onNodeClick={handleNodeClick}
+          onContentChange={handleContentChange}
+          pageId={node.id}
+          pageUuid={node.uuid}
+          hideToolbar={true}
           hideProperties={true}
-          draftMode={true}
-          onContentChange={handleContentChangeBridge}
-          canIndent={() => false}
-          canOutdent={() => false}
-          canMerge={() => false}
-          canDelete={() => false}
-          onEscape={closeEditing}
-          className="table-node-cell__block-editor"
+          maxDepth={0}
         />
       </div>
     );
