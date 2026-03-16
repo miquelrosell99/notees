@@ -12,7 +12,6 @@ import { useRef, useState, useMemo, useCallback } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
-  mdiMap, 
   mdiDockRight,
   mdiNoteTextOutline,
   mdiCommentOutline
@@ -35,8 +34,6 @@ export function TopBar() {
     toggleCalendar, 
     setCalendarOpen,
     openNode,
-    isMinimapOpen,
-    toggleMinimap,
     toggleRightSidebar,
     rightSidebarOpen,
     isScratchpadOpen,
@@ -140,18 +137,6 @@ export function TopBar() {
             goToTodaySignal={goToTodaySignal}
           />
         </div>
-        
-        {/* Minimap toggle button */}
-        <Button
-          icon={mdiMap}
-          variant="ghost"
-          size="sm"
-          active={isMinimapOpen}
-          onClick={toggleMinimap}
-          aria-label="Toggle minimap"
-          title="Toggle minimap"
-          className="toolbar-btn"
-        />
         
         {/* Right sidebar toggle button */}
         <Button

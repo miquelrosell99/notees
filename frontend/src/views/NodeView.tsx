@@ -45,7 +45,7 @@ import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesE
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiGraphOutline, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -951,18 +951,6 @@ export function NodeView({
             onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
             size="sm"
           />
-          <Button
-            icon={mdiGraphOutline}
-            variant="ghost"
-            size="sm"
-            active={useAppStore.getState().rightSidebarContent === 'localGraph'}
-            onClick={() => useAppStore.getState().openLocalGraph(nodeId)}
-            aria-label="Local graph"
-            title="Show local graph for this node"
-            className="toolbar-btn"
-          />
-          
-
         </div>
       }
     />
