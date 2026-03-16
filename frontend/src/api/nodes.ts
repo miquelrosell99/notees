@@ -685,6 +685,8 @@ export interface RecentPage {
   write_date: string;
   open_date: string;
   classes?: number[];
+  aliased_id?: number | null;
+  aliases?: number[];
 }
 
 /**

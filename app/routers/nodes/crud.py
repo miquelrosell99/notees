@@ -46,6 +46,7 @@ from .helpers import (
     _get_tag_ids_batch,
     _get_class_ids_batch,
     _get_alias_ids,
+    _get_alias_ids_batch,
     extract_properties_dict,
     _resolve_referenced_display_names,
 )
@@ -340,7 +341,7 @@ async def get_recent_pages(
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, open_date, class_ids
+                   create_date, write_date, open_date, class_ids, aliased_id
             FROM node 
             WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
                   AND open_date IS NOT NULL AND workspace_id = $1
@@ -348,6 +349,9 @@ async def get_recent_pages(
             LIMIT $2
         """, service._workspace_id, limit)
     
+    node_ids = [row['id'] for row in rows]
+    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+
     nodes = []
     for row in rows:
         nodes.append({
@@ -367,6 +371,8 @@ async def get_recent_pages(
             "write_date": row['write_date'].isoformat() if row['write_date'] else None,
             "open_date": row['open_date'].isoformat() if row['open_date'] else None,
             "classes": list(row['class_ids'] or []),
+            "aliased_id": row['aliased_id'],
+            "aliases": alias_ids_map.get(row['id'], []),
         })
     
     return {"nodes": nodes}
@@ -387,7 +393,7 @@ async def get_random_pages(
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, class_ids
+                   create_date, write_date, class_ids, aliased_id
             FROM node 
             WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
                   AND is_class = false AND is_day = false AND is_month = false AND is_year = false
@@ -396,6 +402,9 @@ async def get_random_pages(
             LIMIT $2
         """, service._workspace_id, limit)
     
+    node_ids = [row['id'] for row in rows]
+    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+
     nodes = []
     for row in rows:
         nodes.append({
@@ -414,6 +423,8 @@ async def get_random_pages(
             "create_date": row['create_date'].isoformat() if row['create_date'] else None,
             "write_date": row['write_date'].isoformat() if row['write_date'] else None,
             "classes": list(row['class_ids'] or []),
+            "aliased_id": row['aliased_id'],
+            "aliases": alias_ids_map.get(row['id'], []),
         })
     
     return {"nodes": nodes}
@@ -431,7 +442,7 @@ async def get_recently_created_pages(
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, class_ids
+                   create_date, write_date, class_ids, aliased_id
             FROM node 
             WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL) 
                   AND workspace_id = $1
@@ -439,6 +450,9 @@ async def get_recently_created_pages(
             LIMIT $2
         """, service._workspace_id, limit)
     
+    node_ids = [row['id'] for row in rows]
+    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+
     nodes = []
     for row in rows:
         nodes.append({
@@ -457,6 +471,8 @@ async def get_recently_created_pages(
             "create_date": row['create_date'].isoformat() if row['create_date'] else None,
             "write_date": row['write_date'].isoformat() if row['write_date'] else None,
             "classes": list(row['class_ids'] or []),
+            "aliased_id": row['aliased_id'],
+            "aliases": alias_ids_map.get(row['id'], []),
         })
     
     return {"nodes": nodes}
