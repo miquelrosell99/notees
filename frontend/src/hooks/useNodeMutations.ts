@@ -383,19 +383,28 @@ export function useCreateNode() {
         graph: newNode.is_page,
       });
       
-      // BUGFIX: Also invalidate graphNodes query (separate from graph query)
       if (newNode.is_page) {
+        // Also invalidate graphNodes query (separate from graph query)
         queryClient.invalidateQueries({ 
           queryKey: nodeKeys.graphNodes(),
           refetchType: 'active',
         });
+        // Actively refetch all node view query results (child_pages, classed_nodes, etc.)
+        queryClient.invalidateQueries({
+          queryKey: nodeViewKeys.queryResults(),
+          refetchType: 'active',
+        });
+        // Actively refetch pseudo-node queries (e.g. All Pages view)
+        queryClient.invalidateQueries({
+          queryKey: ['pseudo-node-query'],
+          refetchType: 'active',
+        });
       }
       
-      // GLOBAL: If the new node is a page with a parent, invalidate parent and query results
+      // GLOBAL: If the new node is a page with a parent, also invalidate the parent's detail cache
       if (newNode.is_page && newNode.parent_id) {
         invalidateNodeCaches(queryClient, {
           nodeId: newNode.parent_id,
-          queryResults: true,
           refetch: true,
         });
       }
@@ -869,10 +878,10 @@ export function useDeleteNode() {
         queryKey: ['nodes', 'page-content'],
         refetchType: 'none',
       });
-      // Invalidate all node view query results (linked references, etc.)
+      // Actively refetch all node view query results so views update immediately
       queryClient.invalidateQueries({ 
         queryKey: ['nodeViews', 'queryResults'],
-        refetchType: 'none',
+        refetchType: 'active',
       });
       // Invalidate pseudo-node queries (e.g., All Pages view)
       queryClient.invalidateQueries({ 
@@ -916,6 +925,10 @@ export function useArchiveNode() {
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
+        queryKey: nodeViewKeys.queryResults(),
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
         queryKey: ['pseudo-node-query'],
         refetchType: 'active',
       });
@@ -950,6 +963,10 @@ export function useUnarchiveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.pages(),
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: nodeViewKeys.queryResults(),
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
