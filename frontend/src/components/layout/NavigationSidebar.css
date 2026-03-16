@@ -284,8 +284,8 @@
 
 .sidebar-favorite-item .block-row,
 .sidebar-recent-item .block-row {
-  padding: var(--spacing-1) var(--spacing-2);
-  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-3);
+  gap: var(--spacing-3);
   min-height: 32px;
   align-items: center;
 }
@@ -311,7 +311,7 @@
 .sidebar-recent-item .block-content-view .content-with-pills {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1);
+  gap: var(--spacing-3);
   line-height: 1.2;
 }
 
@@ -329,7 +329,7 @@
 .sidebar-recent-item {
   display: flex;
   align-items: center;
-  padding: 0;
+  padding: var(--spacing-1);
   cursor: pointer;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
