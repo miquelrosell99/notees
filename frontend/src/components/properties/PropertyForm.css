@@ -184,14 +184,21 @@
 
 .property-form__select {
   width: 100%;
-  padding: 8px 12px;
-  background: var(--color-surface-variant);
+  height: var(--height-lg);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: 0.875rem;
   font-family: inherit;
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-form__select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-outline-variant));
 }
 
 .property-form__select:hover:not(:disabled) {
