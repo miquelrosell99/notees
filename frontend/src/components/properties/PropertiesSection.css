@@ -14,88 +14,6 @@
   flex-direction: column;
   gap: 0;
   padding: var(--spacing-2) 0;
-  margin-left: var(--spacing-2);
-}
-
-.properties-view.loading {
-  opacity: 0.7;
-}
-
-.properties-skeleton {
-  color: var(--color-on-surface-variant);
-  font: var(--font-body-small);
-  padding: var(--spacing-2) 0;
-}
-
-/* ==================== Properties List ==================== */
-
-.properties-list {
-  display: flex;
-  flex-direction: column;
-}
-
-/* ==================== Property Row ==================== */
-
-.property-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 180px) 1fr;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) 0;
-  min-height: 28px;
-}
-
-/* Property Label - no longer clickable */
-.property-label {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  overflow: hidden;
-  font: var(--font-body-medium);
-  color: var(--color-on-surface-variant);
-  text-align: left;
-  cursor: default;
-}
-
-
-.property-label .property-icon {
-  font-size: 0.875rem;
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.property-label .property-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.property-label .property-source {
-  display: none; /* Hide source in normal view */
-}
-
-/* ==================== Property Value Container ==================== */
-
-.property-value-container {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-/* Remove the CSS pseudo-element bullet - we'll use the Bullet component instead */
-.property-value-container::before {
-  display: none;
-}
-
-/* Wrapper for bullet + value */
-.property-value-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex: 1;
-  min-width: 0;
 }
 
 /* ==================== Property Value Types ==================== */
@@ -412,6 +330,7 @@
 .text-property-block__editor {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 /* Hide the NodeCollection toolbar and empty state padding */
@@ -419,21 +338,32 @@
   display: none;
 }
 
-/* Let the block's own bullet show — aligns text naturally with the bullet */
+/* Let the block render naturally inside the property table cell */
 .text-property-block__editor .node-block {
   margin-top: 0;
   margin-bottom: 0;
 }
 
-/* Match the block bullet to property-row bullet sizing (xs: 18×18, no extra margins) */
-.text-property-block__editor .block-ui > .bullet-wrapper {
-  margin-top: 0;
-  margin-right: var(--spacing-2);
+/* Hide bullet only for the root block — children keep their bullets */
+.text-property-block__editor .node-block[data-depth="0"] > .block-ui {
+  display: none;
 }
 
-.text-property-block__editor .block-ui > .bullet-wrapper.bullet-sm {
-  width: 18px;
-  height: 18px;
+/* Navigation actions (open / open in sidebar) for text property blocks */
+.text-property-block__nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  position: absolute;
+  right: var(--spacing-1);
+  top: 0;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.text-property-block__editor:hover .text-property-block__nav-actions {
+  opacity: 1;
 }
 
 .text-property-block__editor .node-list-view {
