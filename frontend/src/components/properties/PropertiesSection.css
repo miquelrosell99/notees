@@ -381,25 +381,8 @@
 /* ==================== Block Variant (Compact) ==================== */
 
 .properties-view.block-variant {
-  padding: var(--spacing-1) 0;
-  margin-left: 0;
-}
-
-.properties-view.block-variant .property-row {
-  grid-template-columns: minmax(60px, auto) 1fr;
-  padding: 2px 0;
-  min-height: 24px;
-  align-items: center;
-}
-
-.properties-view.block-variant .property-label {
-  font: var(--font-body-small);
-  gap: 0;
-}
-
-.properties-view.block-variant .property-value-display {
-  font: var(--font-body-small);
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-2) 0;
+  margin-left: var(--spacing-2);
 }
 
 /* ==================== Text Property Block ==================== */
