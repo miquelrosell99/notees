@@ -55,12 +55,10 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     setError(null);
     try {
       await mergePages(sourceNode.id, targetNode.id);
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(sourceNode.id) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(targetNode.id) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(targetNode.id) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(targetNode.id) });
+      // Invalidate all node queries: the merge updates content in any node that
+      // linked to the source (link redirections), so we can't predict which
+      // specific caches are stale.
+      queryClient.invalidateQueries({ queryKey: nodeKeys.all });
       openNode(targetNode.id);
       handleClose();
     } catch (e: unknown) {
