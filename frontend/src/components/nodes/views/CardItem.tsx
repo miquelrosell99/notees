@@ -781,7 +781,7 @@ export const NodeCard = memo(function NodeCard({
         {/* Row: Title */}
         <div className="node-card__header">
           <button
-            className="node-card__collapse-btn"
+            className={`node-card__collapse-btn${hasChildren ? ' node-card__collapse-btn--has-children' : ''}`}
             onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
             title={isBodyCollapsed ? 'Expand' : 'Collapse'}
             aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
