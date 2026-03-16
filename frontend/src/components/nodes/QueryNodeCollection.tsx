@@ -287,9 +287,8 @@ export function QueryNodeCollection({
     setNodeViewMode(nodeId, viewType, mode);
   };
   
-  // For all_pages/child_pages, grouping by page is meaningless; default 'none'
-  const defaultGroupBy: NodeCollectionGroupBy =
-    (viewType === 'all_pages' || viewType === 'child_pages') ? 'none' : 'page';
+  // Default to 'none' — user can enable grouping via the toolbar
+  const defaultGroupBy: NodeCollectionGroupBy = 'none';
   const [groupBy, setGroupByState] = useState<NodeCollectionGroupBy>(
     getNodeGroupBy(nodeId, viewType) ?? defaultGroupBy
   );
