@@ -15,7 +15,8 @@ import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
-import { AddIcon } from '../core/icons';
+import { AddIcon, NodeIcon } from '../core/icons';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { Checkbox } from '../core/Checkbox';
 import { SearchField } from '../core/SearchField';
 import { NodeResultItem } from './NodeResultItem';
@@ -512,11 +513,20 @@ export function NodeSelector({
             {hasValue ? (
               (() => {
                 const node = nodes[0];
+                const displayCls = node ? getDisplayClasses(node) : [];
                 return (
                   <span className="node-selector__single-value">
+                    <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node?.icon} isPage={node?.is_page} size="xs" />
                     <span className="node-selector__single-value-name">
                       {nodeNameToText(node?.name) || 'Untitled'}
                     </span>
+                    {displayCls.length > 0 && (
+                      <span className="node-selector__single-value-classes">
+                        {displayCls.map(cls => (
+                          <span key={cls.id} className="node-selector__single-value-class-pill">{cls.name}</span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 );
               })()
