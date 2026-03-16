@@ -320,8 +320,8 @@
 /* Real overlay element inserted by selectionUtils.ts */
 .block-selection-card {
   position: absolute;
-  background-color: rgba(59, 130, 246, 0.15);
-  border: 2px solid rgba(59, 130, 246, 0.4);
+  background-color: var(--color-focus-overlay);
+  border: 2px solid var(--color-outline);
   border-radius: var(--shape-medium);
   pointer-events: none;
   z-index: 2;
@@ -673,8 +673,8 @@
   min-width: 0;
   /* Indent to align with block text content (past the bullet) */
   padding-left: calc(var(--spacing-6) + 2px);
-  margin-top: 2px;
-  margin-bottom: 2px;
+  margin-top: 8px;
+  margin-bottom: 6px;
 }
 
 /* ─── Node block heading ───────────────────────────────────────── */
