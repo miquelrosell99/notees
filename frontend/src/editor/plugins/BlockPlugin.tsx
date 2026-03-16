@@ -1987,5 +1987,6 @@ function extractBlockContent(block: BlockNode): ContentAST {
     }
   }
 
-  return [{ type: 'paragraph', children: inlines.length > 0 ? inlines : [{ type: 'text', text: '' }] }];
+  const blockType = block.getIsHeading() ? 'heading' : 'paragraph';
+  return [{ type: blockType, children: inlines.length > 0 ? inlines : [{ type: 'text', text: '' }] }] as ContentAST;
 }
