@@ -658,6 +658,14 @@ export function useUpdateNode() {
           breadcrumbs: true,
           refetch: false, // No active refetch - too expensive
         });
+
+        // If this node is a class, invalidate the classes cache so class pills
+        // update immediately with the new name
+        if (updatedNode.is_class) {
+          queryClient.invalidateQueries({
+            queryKey: nodeKeys.classes(),
+          });
+        }
         
         // SOFT invalidate the parent page's detail query to refresh children's backlink_count
         // Use refetchType: 'none' to avoid race conditions with optimistic updates
