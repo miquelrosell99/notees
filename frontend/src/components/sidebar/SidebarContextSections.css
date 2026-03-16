@@ -171,24 +171,27 @@
 }
 
 .sidebar-toc-item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  text-align: left;
-  padding: 3px 8px;
-  border: none;
-  background: none;
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
-  cursor: pointer;
+  padding: 2px 8px;
   border-radius: var(--shape-corner-xs);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .sidebar-toc-item:hover {
   background: var(--color-surface-container-highest);
+}
+
+.sidebar-toc-item__text {
+  flex: 1;
+  min-width: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sidebar-context-section--activity .node-activity-log {
   padding: 0;

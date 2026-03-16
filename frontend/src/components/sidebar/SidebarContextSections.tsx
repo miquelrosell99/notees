@@ -25,6 +25,7 @@ import { isHeadingBlock } from '@/types/ast';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useNotifications } from '@/stores/notificationStore';
+import { Bullet } from '../blocks/Bullet';
 import './SidebarContextSections.css';
 
 interface TocEntry {
@@ -134,6 +135,7 @@ function QuickAddComment({ nodeId, onClose }: { nodeId: number; onClose: () => v
 export function SidebarContextSections() {
   const currentNodeId = useAppStore(state => state.currentNodeId);
   const mainViewType = useAppStore(state => state.mainViewType);
+  const openNode = useAppStore(state => state.openNode);
   
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
@@ -222,15 +224,25 @@ export function SidebarContextSections() {
         >
           <nav className="sidebar-toc-list">
             {tocEntries.map((entry) => (
-              <button
+              <div
                 key={entry.id}
                 className="sidebar-toc-item"
-                style={{ paddingLeft: `${(entry.level - 1) * 12 + 8}px` }}
-                onClick={() => handleTocClick(entry.id)}
-                title={entry.text}
+                style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
               >
-                {entry.text}
-              </button>
+                <Bullet
+                  nodeId={entry.id}
+                  interactive
+                  size="sm"
+                  onClick={() => openNode(entry.id)}
+                />
+                <span
+                  className="sidebar-toc-item__text"
+                  onClick={() => handleTocClick(entry.id)}
+                  title={entry.text}
+                >
+                  {entry.text}
+                </span>
+              </div>
             ))}
           </nav>
         </NodeViewSection>
