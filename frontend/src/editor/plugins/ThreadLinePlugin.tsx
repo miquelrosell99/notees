@@ -61,13 +61,18 @@ export function ThreadLinePlugin({ mode = 'list' }: ThreadLinePluginProps): null
       editorContent.querySelectorAll<HTMLElement>('.node-block'),
     );
 
-    // Skip redraw when block structure (IDs, depths, expand/collapse state) is unchanged
+    // Skip redraw when block structure (IDs, depths, expand/collapse state, properties height) is unchanged
     const structureKey = allBlocks
-      .map(b =>
-        `${b.dataset.blockId}:${b.dataset.depth}:` +
-        `${b.classList.contains('node-block--has-children') ? 'h' : ''}` +
-        `${b.classList.contains('node-block--collapsed') ? 'c' : ''}`,
-      )
+      .map(b => {
+        const propPreview = b.querySelector<HTMLElement>(':scope > .node-block-properties-preview');
+        const propH = propPreview ? propPreview.offsetHeight : 0;
+        return (
+          `${b.dataset.blockId}:${b.dataset.depth}:` +
+          `${b.classList.contains('node-block--has-children') ? 'h' : ''}` +
+          `${b.classList.contains('node-block--collapsed') ? 'c' : ''}` +
+          `:p${propH}`
+        );
+      })
       .join('|');
     if (structureKey === lastStructureKey.current) return;
     lastStructureKey.current = structureKey;
@@ -107,7 +112,20 @@ export function ThreadLinePlugin({ mode = 'list' }: ThreadLinePluginProps): null
       // All coordinates relative to the editor wrapper
       // (getBoundingClientRect difference is scroll-safe)
       const lineX = bulletRect.left - wrapperRect.left + bulletRect.width / 2;
-      const lineTop = bulletRect.top - wrapperRect.top + bulletRect.height;
+
+      // If this block has a visible properties table, start the line below
+      // the table rather than directly below the bullet, to avoid overlapping.
+      const propertiesPreview = block.querySelector<HTMLElement>(
+        ':scope > .node-block-properties-preview',
+      );
+      let lineTop: number;
+      if (propertiesPreview && propertiesPreview.offsetHeight > 0) {
+        const propRect = propertiesPreview.getBoundingClientRect();
+        lineTop = propRect.bottom - wrapperRect.top;
+      } else {
+        lineTop = bulletRect.top - wrapperRect.top + bulletRect.height;
+      }
+
       const lineBottom = lastRect.top - wrapperRect.top + lastRect.height / 2;
 
       if (lineBottom <= lineTop) continue;
