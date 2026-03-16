@@ -16,6 +16,7 @@ import { BlockEditor } from '@/editor/BlockEditor';
 import { useSettingsStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useContentSave } from '@/hooks';
+import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 import './PropertyReferencesSection.css';
 
 interface PropertyRefItem {
@@ -181,16 +182,34 @@ export function PropertyReferencesSection({
   return (
     <div className="property-references-section">
       <div className="property-references-section__list">
-        <BlockEditor
-          editorId={`prop-refs-${viewId}`}
-          nodes={allNodes}
-          mode="list"
-          readOnly={!editable}
-          onNavigateToNode={handleNavigateToNode}
-          onOpenInSidebar={handleOpenInSidebar}
-          onContentChange={handleContentChange}
-          onAddClass={onAddClass}
-        />
+        {pageNodes.map((pageNode, index) => {
+          const item = items[index];
+          const nodesForPage = flattenNodes([pageNode]);
+          const propertyCtx = item.propertyId && item.propertyName
+            ? { propertyId: item.propertyId, propertyName: item.propertyName }
+            : undefined;
+          return (
+            <div key={pageNode.id} className="property-references-section__entry">
+              <NodeBreadcrumbs
+                nodeId={pageNode.id}
+                nodeType={pageNode.is_page ? 'page' : 'block'}
+                onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                propertyContext={propertyCtx}
+                className="property-references-section__breadcrumbs"
+              />
+              <BlockEditor
+                editorId={`prop-refs-${viewId}-${pageNode.id}`}
+                nodes={nodesForPage}
+                mode="list"
+                readOnly={!editable}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={handleOpenInSidebar}
+                onContentChange={handleContentChange}
+                onAddClass={onAddClass}
+              />
+            </div>
+          );
+        })}
       </div>
       <hr className="property-references-section__divider" />
     </div>

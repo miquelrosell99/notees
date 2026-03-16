@@ -197,9 +197,9 @@ export function NodeBreadcrumbs({
       }
     }
 
-    // If we have property context, insert it after the last page
-    if (propertyContext && nodeType === 'block' && items.length > 0) {
-      let insertAt = 0;
+    // If we have property context, insert it after the last page (or at the end)
+    if (propertyContext && nodeType === 'block') {
+      let insertAt = items.length;
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].isPage) { insertAt = i + 1; break; }
       }

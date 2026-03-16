@@ -28,7 +28,6 @@ import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection } from './NodeCollection';
-import { PropertyReferencesSection, type PropertyRefItem } from './PropertyReferencesSection';
 import type { Node } from '@/types';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
@@ -463,15 +462,14 @@ export function QueryNodeCollection({
   // Extract nodes from linked references and attach metadata
   // Show page collapsed only when link comes from a property on a PAGE
   // For links in blocks (including text properties of blocks), show the block
-  const { linkedReferencesBlocks, linkedReferencesPages, propertyRefItems } = useMemo(() => {
-    if (!linkedReferencesData) return { linkedReferencesBlocks: [] as Node[], linkedReferencesPages: [] as Node[], propertyRefItems: [] as PropertyRefItem[] };
+  const { linkedReferencesBlocks, linkedReferencesPages } = useMemo(() => {
+    if (!linkedReferencesData) return { linkedReferencesBlocks: [] as Node[], linkedReferencesPages: [] as Node[] };
     
     const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
     
     const blocks: Node[] = [];
     const pages: Node[] = [];
-    const propRefItems: PropertyRefItem[] = [];
-    // In card/non-list view, deduplicate property-referencing pages by ID so each source
+    // Deduplicate property-referencing pages by ID so each source
     // page appears once even if multiple blocks on it have a property pointing to this node.
     const seenPropertyPageIds = new Set<number>();
     
@@ -480,21 +478,6 @@ export function QueryNodeCollection({
       const isPropertyLink = ref.link_type === 'property';
       const hasPropertyInBreadcrumbs = ref.breadcrumb_path?.some(seg => seg.is_property) ?? false;
       const isPropertyContext = isPropertyLink || hasPropertyInBreadcrumbs;
-      
-      // Property reference on a page → goes into the separate property refs section (list view only)
-      const isPropertyRefPage = isPropertyContext && ref.source_node.is_page && ref.property_id;
-      
-      if (isListView && isPropertyRefPage) {
-        // Extract as a property reference page item for the top section
-        const pageNode = ref.source_page ?? ref.source_node;
-        propRefItems.push({
-          ref,
-          pageNode,
-          propertyId: ref.property_id!,
-          propertyName: ref.property_name ?? '',
-        });
-        continue;
-      }
       
       // In card/non-list view, property-context links (direct property links or text links inside
       // a text property) show as PAGE cards rather than individual block cards. The whole source
@@ -523,11 +506,9 @@ export function QueryNodeCollection({
       // Show page collapsed only when:
       // 1. It's a property-context link AND
       // 2. The source_node is a page (meaning the property is on the page, not on a block)
-      const showPageCollapsed = isPropertyContext && ref.source_node.is_page && ref.source_page;
+      const showPageCollapsed = isPropertyContext && ref.source_node.is_page;
       
-      const displayNode = (isListView && showPageCollapsed) 
-        ? ref.source_page! 
-        : ref.source_node;
+      const displayNode = ref.source_node;
       
       const shouldCollapse = isListView && showPageCollapsed;
       
@@ -561,6 +542,11 @@ export function QueryNodeCollection({
       // Separate blocks and pages for list view
       if (isListView) {
         if (displayNode.is_page) {
+          // Deduplicate property-context pages (same page may have multiple links)
+          if (isPropertyContext) {
+            if (seenPropertyPageIds.has(displayNode.id)) continue;
+            seenPropertyPageIds.add(displayNode.id);
+          }
           pages.push(nodeWithCollapsedChildren);
         } else {
           blocks.push(nodeWithCollapsedChildren);
@@ -571,7 +557,7 @@ export function QueryNodeCollection({
       }
     }
     
-    return { linkedReferencesBlocks: blocks, linkedReferencesPages: pages, propertyRefItems: propRefItems };
+    return { linkedReferencesBlocks: blocks, linkedReferencesPages: pages };
   }, [linkedReferencesData, nodeId, collectionViewMode, linkedRefsCollapseLevel]);
 
   // Execute ad-hoc query for pseudo-nodes
@@ -680,9 +666,8 @@ export function QueryNodeCollection({
   const isListOrDocView = collectionViewMode === 'list' || collectionViewMode === 'document';
   const showPageSeparation = isListOrDocView && resultBlocks.length > 0 && resultPages.length > 0;
 
-  // Show the PAGES section when there are pages to show OR property ref items to display
-  // Property ref items are extracted from regular results, so they need their own rendering path
-  const showPagesSection = showPageSeparation || (isListOrDocView && viewType === 'linked_references' && propertyRefItems.length > 0);
+  // Show the PAGES section when there are both blocks and pages to display
+  const showPagesSection = showPageSeparation;
 
   // Preview query for edit modal — debounced to avoid excessive backend calls
   const previewAST = useMemo(() => editAST ? normalizeAST(editAST) : undefined, [editAST]);
@@ -891,7 +876,7 @@ export function QueryNodeCollection({
     });
   }
 
-  const resultCount = resultNodes.length + propertyRefItems.length;
+  const resultCount = resultNodes.length;
 
   // Resolve leftElement (can be static or function)
   const resolvedLeftElement = typeof leftElement === 'function' 
@@ -1017,16 +1002,6 @@ export function QueryNodeCollection({
                 resultBlocks.length === 0 ? 'linked-references__pages-header--no-blocks' : ''
               }`}>PAGES</div>
 
-              {/* Property references section - linked_references only */}
-              {viewType === 'linked_references' && propertyRefItems.length > 0 && (
-                <PropertyReferencesSection
-                  items={propertyRefItems}
-                  editable={can_edit}
-                  onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-                  onNodeShiftClick={(node) => onNodeClick?.(node.id, node.is_page)}
-                />
-              )}
-
               {resultPages.length > 0 && <NodeCollection
                 nodes={resultPages}
                 viewId={activeView?.id}
@@ -1050,6 +1025,7 @@ export function QueryNodeCollection({
                 autoCollapse={true}
                 containerCard={false}
                 onAddClass={handleAddClass}
+                showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
               />}
             </>
           )}
