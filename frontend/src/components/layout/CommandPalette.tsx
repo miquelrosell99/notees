@@ -24,7 +24,7 @@ import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle, mdiMap, mdiGraphOutline } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodeRef } from '../nodes/NodeRef';
@@ -340,7 +340,7 @@ export function CommandPalette({
   // All selectable items (pages, blocks, properties, quick-add actions)
   // Command definitions for the palette
   const commands = useMemo(() => {
-    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random'; requiresPage?: boolean; devOnly?: boolean }> = [
+    const cmds: Array<{ id: string; label: string; icon: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; requiresPage?: boolean; devOnly?: boolean }> = [
       { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
       { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
       { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
@@ -351,6 +351,8 @@ export function CommandPalette({
       { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
       { id: 'reset-views', label: 'Reset views to defaults (current node)', icon: 'maintenance', requiresPage: true, devOnly: true },
       { id: 'open-random-page', label: 'Open random page', icon: 'random' },
+      { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
+      { id: 'toggle-local-graph', label: 'Toggle local graph', icon: 'graph', requiresPage: true },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
@@ -361,7 +363,7 @@ export function CommandPalette({
   const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
 
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random'; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
     const items: ItemEntry[] = [];
     
     // When no query, show browse sections
@@ -709,6 +711,13 @@ export function CommandPalette({
           } catch {
             notifyError('Failed to open random page', 'Please try again.');
           }
+        } else if (item.commandId === 'toggle-minimap') {
+          useAppStore.getState().toggleMinimap();
+        } else if (item.commandId === 'toggle-local-graph') {
+          const currentId = useAppStore.getState().currentNodeId;
+          if (currentId) {
+            useAppStore.getState().openLocalGraph(currentId);
+          }
         }
         onClose();
         break;
@@ -951,6 +960,10 @@ export function CommandPalette({
                           <Icon path={mdiMerge} size={0.7} />
                         ) : item.commandIcon === 'random' ? (
                           <Icon path={mdiShuffle} size={0.7} />
+                        ) : item.commandIcon === 'minimap' ? (
+                          <Icon path={mdiMap} size={0.7} />
+                        ) : item.commandIcon === 'graph' ? (
+                          <Icon path={mdiGraphOutline} size={0.7} />
                         ) : (
                           <Icon path={mdiExport} size={0.7} />
                         )}
