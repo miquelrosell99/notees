@@ -574,3 +574,22 @@
 .table-node-cell__actions:focus-within {
   opacity: 1;
 }
+
+/* Inline BlockEditor in editable node cells */
+.table-node-cell__editor {
+  flex: 1;
+  min-width: 0;
+}
+
+.table-node-cell__editor .notees-editor-wrapper {
+  margin: 0;
+}
+
+.table-node-cell__editor .notees-editor-content {
+  padding: 0;
+  min-height: auto;
+}
+
+.table-node-cell__editor .block-row {
+  padding-left: 0 !important;
+}

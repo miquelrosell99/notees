@@ -16,6 +16,7 @@ import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } fr
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import { NodeInline } from '../blocks/NodeInline';
+import { NodeCellEditable } from './NodeCellEditable';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';
@@ -143,6 +144,8 @@ export interface TableProps<T> {
   onNodeOpen?: (nodeId: number, type: 'page' | 'block') => void;
   /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
   onNodeOpenInSidebar?: (nodeId: number, type: 'page' | 'block') => void;
+  /** Whether node name cells should be editable on click */
+  nodeEditable?: boolean;
   /** Initial sort state — columns are sorted in this order on first render */
   defaultSort?: SortEntry[];
 }
@@ -191,6 +194,7 @@ export function Table<T>({
   onExpandedChange: _onExpandedChange,
   onNodeOpen,
   onNodeOpenInSidebar,
+  nodeEditable,
   defaultSort,
 }: TableProps<T>) {
   // Multi-column sort state: array of { key, direction } in sort priority order
@@ -485,16 +489,20 @@ export function Table<T>({
               >
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
-                    <span className="table-node-cell__name">
-                      <NodeInline
-                        name={cellValue.name}
-                        icon={cellValue.icon}
-                        isPage={cellValue.is_page}
-                        nodeId={cellValue.id}
-                        showIcon={false}
-                        displayText={(cellValue as any)._resolvedText}
-                      />
-                    </span>
+                    {nodeEditable ? (
+                      <NodeCellEditable node={cellValue as unknown as Node} />
+                    ) : (
+                      <span className="table-node-cell__name">
+                        <NodeInline
+                          name={cellValue.name}
+                          icon={cellValue.icon}
+                          isPage={cellValue.is_page}
+                          nodeId={cellValue.id}
+                          showIcon={false}
+                          displayText={(cellValue as any)._resolvedText}
+                        />
+                      </span>
+                    )}
                     <div className="table-node-cell__actions">
                       {onNodeOpenInSidebar && (
                         <Button
