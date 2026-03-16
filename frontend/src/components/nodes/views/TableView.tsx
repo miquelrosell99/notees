@@ -483,6 +483,7 @@ export const TableView = memo(function TableView({
           getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
           onNodeOpen={openNode}
           onNodeOpenInSidebar={addSidebarCard}
+          nodeEditable={editable}
           defaultSort={defaultSort}
         />
       )}
@@ -508,6 +509,7 @@ export const TableView = memo(function TableView({
             getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
             onNodeOpen={openNode}
             onNodeOpenInSidebar={addSidebarCard}
+            nodeEditable={editable}
             defaultSort={defaultSort}
           />
         </div>
