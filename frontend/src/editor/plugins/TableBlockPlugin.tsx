@@ -19,7 +19,7 @@
  * Follows the portal pattern of BlockClassPillsPlugin and AssetBlockPlugin.
  */
 
-import { useEffect, useState, useCallback, useMemo, type JSX } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
@@ -28,10 +28,62 @@ import { useNode } from '@/hooks';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import type { Node } from '@/types';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import type { ASTDocument, ASTInlineNode } from '@/types/ast';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { NodeRef } from '@/components/nodes/NodeRef';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import './TableBlockPlugin.css';
+
+// ─── Inline AST renderer ─────────────────────────────────────────
+
+function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
+  return nodes.map((node, i) => {
+    switch (node.type) {
+      case 'text':
+        return node.text || null;
+      case 'node_link': {
+        const { nodeUuid } = parseLinkId(node.link_id);
+        return (
+          <NodeRef
+            key={i}
+            variant="inline"
+            nodeUuid={nodeUuid}
+            refType={node.ref_type === 'class' ? 'class' : 'node'}
+            customName={node.label ?? undefined}
+          />
+        );
+      }
+      case 'strong':
+        return <strong key={i}>{renderInlineNodes(node.children)}</strong>;
+      case 'em':
+        return <em key={i}>{renderInlineNodes(node.children)}</em>;
+      case 'strikethrough':
+        return <s key={i}>{renderInlineNodes(node.children)}</s>;
+      case 'highlight':
+        return <mark key={i}>{renderInlineNodes(node.children)}</mark>;
+      case 'underline':
+        return <u key={i}>{renderInlineNodes(node.children)}</u>;
+      case 'external_link':
+        return (
+          <a key={i} href={node.url} target="_blank" rel="noreferrer">
+            {renderInlineNodes(node.children)}
+          </a>
+        );
+      case 'hard_break':
+        return <br key={i} />;
+      default:
+        return null;
+    }
+  });
+}
+
+function CellContent({ name }: { name: string | null | undefined }): JSX.Element {
+  const ast: ASTDocument = parseAST(name);
+  const inlines = ast.flatMap(block => ('children' in block ? block.children : []));
+  const content = renderInlineNodes(inlines as ASTInlineNode[]);
+  return <>{content.length > 0 ? content : '\u00A0'}</>;
+}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -112,7 +164,7 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     const CellTag = isHeader ? 'th' : 'td';
     return (
       <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
-        <CellTag className="table-block-cell">{nodeNameToText(row.name) || '\u00A0'}</CellTag>
+        <CellTag className="table-block-cell"><CellContent name={row.name} /></CellTag>
       </tr>
     );
   }
@@ -122,7 +174,7 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
       {cells.map(cell => (
         <CellTag key={cell.id} className="table-block-cell">
-          {nodeNameToText(cell.name) || '\u00A0'}
+          <CellContent name={cell.name} />
         </CellTag>
       ))}
     </tr>
