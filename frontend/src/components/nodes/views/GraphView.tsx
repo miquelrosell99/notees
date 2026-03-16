@@ -33,7 +33,7 @@ import type {
   LinkDirection,
   GraphDataMode,
 } from './viewTypes';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree, mdiGraphOutline, mdiShareVariant } from '@mdi/js';
+import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -739,13 +739,18 @@ export function GraphView({
               <BooleanToggle
                 size="sm"
                 label="Semantic links"
-                description="Show inferred co-occurrence links (semantic mode)"
+                description="Fetch and show inferred co-occurrence links"
                 labelPosition="left"
-                checked={visibilityFilters.showSemanticLinks}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showSemanticLinks: e.target.checked
-                }))}
+                checked={graphDataMode === 'semantic'}
+                onChange={(e) => {
+                  const mode = e.target.checked ? 'semantic' : 'standard';
+                  setGraphDataMode(mode);
+                  if (!e.target.checked) {
+                    setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: false }));
+                  } else {
+                    setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: true }));
+                  }
+                }}
               />
             </div>
             <div className="visibility-option">
@@ -893,7 +898,7 @@ export function GraphView({
         className="node-graph-view__renderer"
       />
       
-      {/* Bottom Center: View mode switcher and data mode toggle */}
+      {/* Bottom Center: View mode switcher */}
       {showViewModes && (
         <div className="node-graph-view__bottom-center">
           <SelectionButton
@@ -905,15 +910,6 @@ export function GraphView({
             ]}
             value={viewMode}
             onChange={(value) => setViewMode(value as 'normal' | 'circle' | 'tree')}
-          />
-          <SelectionButton
-            size="sm"
-            options={[
-              { value: 'standard', icon: mdiGraphOutline, label: 'Standard' },
-              { value: 'semantic', icon: mdiShareVariant, label: 'Semantic' },
-            ]}
-            value={graphDataMode}
-            onChange={(value) => setGraphDataMode(value as GraphDataMode)}
           />
         </div>
       )}
