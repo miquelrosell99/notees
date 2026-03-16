@@ -164,6 +164,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
       <div className="focused-block-content">
         {/* The focused block itself — always shown as a bullet */}
         <NodeCollection
+          key="focused-block-bullet"
           nodes={[node]}
           viewMode="list"
           availableViewModes={['list']}
@@ -201,6 +202,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
   return (
     <div className="focused-block-content">
       <NodeCollection
+        key="focused-block-list"
         nodes={[node]}
         viewMode="list"
         availableViewModes={['list', 'card']}
