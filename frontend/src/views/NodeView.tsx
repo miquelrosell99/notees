@@ -899,21 +899,6 @@ export function NodeView({
       }
       right={
         <div className="node-view-controls">
-          {/* Bullet/Card mode selector - for blocks, document mode is not available */}
-          <SelectionButton
-            options={resolvedType === 'block' ? [
-              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
-            ] : [
-              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-              { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
-            ]}
-            value={contentDisplayMode}
-            onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
-            size="sm"
-          />
-          
           {/* Card layout selector - only visible in card mode */}
           {contentDisplayMode === 'card' && (
             <div className="card-layout-selector">
@@ -951,8 +936,21 @@ export function NodeView({
               />
             </div>
           )}
-          
-          {/* Local graph button */}
+
+          {/* Bullet/Card mode selector - for blocks, document mode is not available */}
+          <SelectionButton
+            options={resolvedType === 'block' ? [
+              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+            ] : [
+              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+              { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
+              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+            ]}
+            value={contentDisplayMode}
+            onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+            size="sm"
+          />
           <Button
             icon={mdiGraphOutline}
             variant="ghost"
