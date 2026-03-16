@@ -25,12 +25,15 @@ export interface InlineLinkProps {
 export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
   // ─── URL pill ──────────────────────────────────────────────
   if (refType === 'url') {
-    const displayText = url
-      ? url.replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 50) || url
-      : 'URL';
+    // linkId holds the custom label when it differs from the URL
+    const customLabel = linkId && linkId !== url ? linkId : null;
+    const displayText = customLabel
+      ?? (url
+        ? url.replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 50) || url
+        : 'URL');
 
     return (
-      <span className="inline-link-inner" data-ref-type="url">
+      <span className="inline-link-inner" data-ref-type="url" title={customLabel ? url : undefined}>
         <span className="inline-link-icon">
           <Icon path={mdiWeb} size="14px" />
         </span>
