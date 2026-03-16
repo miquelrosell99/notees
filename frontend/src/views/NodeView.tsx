@@ -4,7 +4,7 @@
  * Main component for displaying nodes with two variants:
  * - Page variant: Shows PageHeader, NodeContent with children, and sections
  * - Block variant: Shows the focused block as a top-level list item using NodeCollection
- *                  (only list view mode is available for blocks)
+ *                  (list, document, and card view modes are available)
  * 
  * Structure:
  * - Page:
@@ -102,14 +102,15 @@ function setCollapsedState(key: string, pageId: number, collapsed: boolean): voi
  * 
  * Used when viewing a single block (not a page). The block itself is rendered
  * as the first item in a list view, with its children nested below it.
- * Only list view mode is available for focused blocks.
+ * Supports list and card view modes.
  */
 interface FocusedBlockContentProps {
   node: Node;
   onAddSidebarCard: (nodeId: number) => void;
+  displayMode?: 'bullet' | 'document' | 'card';
 }
 
-function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProps) {
+function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }: FocusedBlockContentProps) {
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -152,12 +153,57 @@ function FocusedBlockContent({ node, onAddSidebarCard }: FocusedBlockContentProp
     runtime.flushEvents();
   }, [node.uuid, node.children]);
 
+  // In card mode, show the focused block as a bullet header (depth 0 only),
+  // then its children separately as cards.
+  // In list mode, the single NodeCollection handles both the block and children.
+  // Document mode is not supported for focused blocks; treat it as list.
+  const isCardMode = displayMode === 'card';
+
+  if (isCardMode) {
+    return (
+      <div className="focused-block-content">
+        {/* The focused block itself — always shown as a bullet */}
+        <NodeCollection
+          nodes={[node]}
+          viewMode="list"
+          availableViewModes={['list']}
+          editable={true}
+          onNodeClick={handleNodeClick}
+          onNodeShiftClick={handleNodeShiftClick}
+          onContentChange={handleContentChange}
+          showClasses={true}
+          pageId={node.id}
+          pageUuid={node.uuid}
+          maxDepth={0}
+        />
+        {/* Children shown as cards */}
+        <NodeCollection
+          nodes={node.children ?? []}
+          viewMode="card"
+          availableViewModes={['list', 'card']}
+          editable={true}
+          onNodeClick={handleNodeClick}
+          onNodeShiftClick={handleNodeShiftClick}
+          onContentChange={handleContentChange}
+          showClasses={true}
+          pageId={node.id}
+          pageUuid={node.uuid}
+        />
+        <div className="focused-block-content-add">
+          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+            Add block
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="focused-block-content">
       <NodeCollection
         nodes={[node]}
         viewMode="list"
-        availableViewModes={['list']}
+        availableViewModes={['list', 'card']}
         editable={true}
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
@@ -851,22 +897,23 @@ export function NodeView({
       }
       right={
         <div className="node-view-controls">
-          {/* Document/Bullet/Card mode selector - only for pages, not blocks */}
-          {resolvedType !== 'block' && (
-            <SelectionButton
-              options={[
-                { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-                { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-                { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
-              ]}
-              value={contentDisplayMode}
-              onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
-              size="sm"
-            />
-          )}
+          {/* Bullet/Card mode selector - for blocks, document mode is not available */}
+          <SelectionButton
+            options={resolvedType === 'block' ? [
+              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+            ] : [
+              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
+              { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
+              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+            ]}
+            value={contentDisplayMode}
+            onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+            size="sm"
+          />
           
-          {/* Card layout selector - only visible in card mode for pages */}
-          {resolvedType !== 'block' && contentDisplayMode === 'card' && (
+          {/* Card layout selector - only visible in card mode */}
+          {contentDisplayMode === 'card' && (
             <div className="card-layout-selector">
               <Button 
                 variant="ghost"
@@ -1170,6 +1217,7 @@ export function NodeView({
         <FocusedBlockContent
           node={node}
           onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
+          displayMode={contentDisplayMode}
         />
       )}
       
