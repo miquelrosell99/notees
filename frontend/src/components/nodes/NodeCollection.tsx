@@ -393,6 +393,7 @@ export function NodeCollection({
             onPasteImage={onPasteImage}
             onTemplateInstantiate={onTemplateInstantiate}
             templateClassFilters={templateClassFilters}
+            hideProperties={hideProperties}
           />
         );
       
