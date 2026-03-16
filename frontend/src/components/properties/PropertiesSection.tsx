@@ -24,6 +24,7 @@ import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api'
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
 import { ChevronRightIcon, PropertiesIcon, NodeIcon } from '../core/icons';
+import { Checkbox } from '../core/Checkbox';
 import { addSelectionOption } from '@/api/properties';
 import type { PropertyType } from '@/types/api';
 
@@ -280,12 +281,11 @@ function PropertyValue({
   switch (property.type) {
     case 'boolean':
       return (
-        <input
-          type="checkbox"
+        <Checkbox
+          size="sm"
           checked={Boolean(value)}
           disabled={readOnly}
           onChange={(e) => onChange(e.target.checked)}
-          className="property-value-checkbox"
         />
       );
 
