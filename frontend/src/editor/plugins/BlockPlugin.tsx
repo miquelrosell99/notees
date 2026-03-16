@@ -489,7 +489,7 @@ export function BlockPlugin({
     syncProjection(getProjection());
 
     return unsubscribe;
-  }, [editor, editorId, rootBlockId, syncProjection, sliceBlockIds, sliceRecursiveLevel, sliceShowParent]);
+  }, [editor, editorId, rootBlockId, syncProjection, sliceBlockIds, sliceRecursiveLevel, sliceShowParent, maxDepth, includeRoot]);
 
   // ─── ZWS cleanup transform ────────────────────────────────
   // Empty blocks use a zero-width space (\u200B) so the cursor
