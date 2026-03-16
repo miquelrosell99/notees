@@ -175,6 +175,12 @@
   user-select: none;
 }
 
+/* Hide class pills container when it has no visible children
+   (e.g. all classes are inline and filtered out by the plugin) */
+.node-block-class-pills:empty {
+  display: none;
+}
+
 .node-block-class-pills-inner {
   display: flex;
   align-items: center;
