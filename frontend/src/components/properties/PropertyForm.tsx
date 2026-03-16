@@ -5,7 +5,7 @@
  * Provides a consistent interface for editing property settings.
  */
 import { useCallback } from 'react';
-import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
+import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan, mdiCheckboxMarkedOutline, mdiCheckboxBlankOutline, mdiMinus } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { EmojiPickerTrigger } from '../core/EmojiPicker';
@@ -330,52 +330,58 @@ export function PropertyForm({
       )}
       
       {/* Default Value */}
-      {showDefaultValue && propertyType !== 'selection' && propertyType !== 'node' && (
+      {showDefaultValue && propertyType !== 'node' && propertyType !== 'image' && (
         <div className="property-form__field">
           <label className="property-form__label">Default Value (Optional)</label>
           {propertyType === 'boolean' ? (
             <SelectionButton
               options={[
-                { value: '', icon: mdiNumeric1, label: 'None' },
-                { value: 'true', icon: mdiNumeric1, label: 'Checked' },
-                { value: 'false', icon: mdiNumeric1, label: 'Unchecked' },
+                { value: '', icon: mdiMinus, label: 'None' },
+                { value: 'true', icon: mdiCheckboxMarkedOutline, label: 'Checked' },
+                { value: 'false', icon: mdiCheckboxBlankOutline, label: 'Unchecked' },
               ]}
               value={defaultValue}
               onChange={onDefaultValueChange}
               size="md"
               disabled={readOnly}
             />
+          ) : propertyType === 'selection' && selectionOptions.length > 0 ? (
+            <select
+              value={defaultValue}
+              onChange={(e) => onDefaultValueChange(e.target.value)}
+              className="property-form__select"
+              disabled={readOnly}
+            >
+              <option value="">None</option>
+              {selectionOptions.map((opt) => (
+                <option key={opt.id} value={opt.name}>
+                  {opt.icon} {opt.name}
+                </option>
+              ))}
+            </select>
           ) : (
             <TextField
               value={defaultValue}
               onChange={(e) => onDefaultValueChange(e.target.value)}
-              placeholder={`Default ${typeOption?.label.toLowerCase() || 'value'}`}
-              type={propertyType === 'integer' || propertyType === 'float' ? 'number' : 'text'}
+              placeholder={
+                propertyType === 'date' ? 'YYYY-MM-DD' :
+                propertyType === 'url' ? 'https://example.com' :
+                propertyType === 'email' ? 'name@example.com' :
+                `Default ${typeOption?.label.toLowerCase() || 'value'}`
+              }
+              type={
+                propertyType === 'integer' || propertyType === 'float' ? 'number' :
+                propertyType === 'date' ? 'date' :
+                propertyType === 'url' ? 'url' :
+                propertyType === 'email' ? 'email' :
+                'text'
+              }
               disabled={readOnly}
             />
           )}
         </div>
       )}
       
-      {/* Selection Default Value */}
-      {showDefaultValue && propertyType === 'selection' && selectionOptions.length > 0 && (
-        <div className="property-form__field">
-          <label className="property-form__label">Default Value (Optional)</label>
-          <select
-            value={defaultValue}
-            onChange={(e) => onDefaultValueChange(e.target.value)}
-            className="property-form__select"
-            disabled={readOnly}
-          >
-            <option value="">None</option>
-            {selectionOptions.map((opt) => (
-              <option key={opt.id} value={opt.name}>
-                {opt.icon} {opt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }
