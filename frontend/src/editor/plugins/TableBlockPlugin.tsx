@@ -19,18 +19,20 @@
  * Follows the portal pattern of BlockClassPillsPlugin and AssetBlockPlugin.
  */
 
-import React, { useEffect, useState, useCallback, useMemo, type JSX } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { useNode } from '@/hooks';
+import { useContentSave } from '@/hooks/useContentSave';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import type { Node } from '@/types';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/components/nodes/NodeRef';
+import { BlockEditor } from '../BlockEditor';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import './TableBlockPlugin.css';
@@ -83,6 +85,72 @@ function CellContent({ name }: { name: string | null | undefined }): JSX.Element
   const inlines = ast.flatMap(block => ('children' in block ? block.children : []));
   const content = renderInlineNodes(inlines as ASTInlineNode[]);
   return <>{content.length > 0 ? content : '\u00A0'}</>;
+}
+
+// ─── Table cell: lazy-mounted editor ────────────────────────────
+
+interface TableCellProps {
+  cell: Node;
+  isHeader: boolean;
+}
+
+function TableCell({ cell, isHeader }: TableCellProps): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const containerRef = useRef<HTMLTableCellElement>(null);
+  const { handleContentChange: save, flushAll } = useContentSave();
+  const flushRef = useRef(flushAll);
+  flushRef.current = flushAll;
+
+  // Close editing: flush pending saves first
+  const closeEditing = useCallback(() => {
+    flushRef.current();
+    setEditing(false);
+  }, []);
+
+  // Click-outside → close editor
+  useEffect(() => {
+    if (!editing) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
+        closeEditing();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [editing, closeEditing]);
+
+  // Bridge: BlockEditor string blockId → numeric cell.id
+  const handleContentChangeBridge = useCallback((_blockId: string, content: string) => {
+    save(cell.id, content);
+  }, [cell.id, save]);
+
+  const CellTag = isHeader ? 'th' : 'td';
+
+  return (
+    <CellTag
+      ref={containerRef}
+      className={`table-block-cell${editing ? ' table-block-cell--editing' : ''}`}
+      onClick={!editing ? () => setEditing(true) : undefined}
+    >
+      {editing ? (
+        <BlockEditor
+          nodes={[cell]}
+          mode="document"
+          hideProperties={true}
+          draftMode={true}
+          onContentChange={handleContentChangeBridge}
+          canIndent={() => false}
+          canOutdent={() => false}
+          canMerge={() => false}
+          canDelete={() => false}
+          onEscape={closeEditing}
+          className="table-block-cell-editor"
+        />
+      ) : (
+        <CellContent name={cell.name} />
+      )}
+    </CellTag>
+  );
 }
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -161,21 +229,17 @@ function TableRow({ row, isHeader }: TableRowProps): JSX.Element {
     : [];
 
   if (cells.length === 0) {
-    const CellTag = isHeader ? 'th' : 'td';
     return (
       <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
-        <CellTag className="table-block-cell"><CellContent name={row.name} /></CellTag>
+        <TableCell cell={row} isHeader={isHeader} />
       </tr>
     );
   }
 
-  const CellTag = isHeader ? 'th' : 'td';
   return (
     <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
       {cells.map(cell => (
-        <CellTag key={cell.id} className="table-block-cell">
-          <CellContent name={cell.name} />
-        </CellTag>
+        <TableCell key={cell.id} cell={cell} isHeader={isHeader} />
       ))}
     </tr>
   );
