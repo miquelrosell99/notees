@@ -5,6 +5,7 @@
  * at the specified position. Uses the Card component for consistent styling.
  */
 import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
 import { Card } from './Card';
 import { Separator } from './Separator';
@@ -207,7 +208,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   // Track index in navigable items for focus
   let navigableIndex = -1;
 
-  return (
+  return createPortal(
     <Card
       ref={menuCallbackRef}
       className="context-menu"
@@ -274,7 +275,8 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
           {items.find(item => item.id === activeSubmenu)?.submenu}
         </div>
       )}
-    </Card>
+    </Card>,
+    document.body
   );
 }
 
