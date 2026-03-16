@@ -16,8 +16,22 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { getPropertySuggestions } from '@/api/properties';
-import { AddIcon } from '../core/icons';
+import { AddIcon, NodeIcon } from '../core/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
+
+/** Default MDI icons for each property type (used when no custom icon is set) */
+const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
+  text: 'mdiFormatText',
+  integer: 'mdiPound',
+  float: 'mdiDecimal',
+  boolean: 'mdiCheckboxMarkedOutline',
+  date: 'mdiCalendar',
+  selection: 'mdiFormatListBulleted',
+  node: 'mdiLink',
+  url: 'mdiLinkVariant',
+  email: 'mdiEmail',
+  image: 'mdiImage',
+};
 import './PropertySuggestionPopup.css';
 
 /** System property UUIDs that should be hidden from the "Add property" menu */
@@ -230,11 +244,9 @@ export function PropertySuggestionPopup({
                 onClick={() => handleSelect(property)}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                {property.icon && (
-                  <span className="property-suggestion-popup__option-icon">
-                    {property.icon}
-                  </span>
-                )}
+                <span className="property-suggestion-popup__option-icon">
+                  <NodeIcon icon={property.icon || PROPERTY_TYPE_ICONS[property.type]} size="xs" />
+                </span>
                 <span className="property-suggestion-popup__option-name">{property.name}</span>
                 {property.scope && property.scope !== 'global' && (
                   <span
