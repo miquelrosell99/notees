@@ -231,9 +231,9 @@ export function ContextMenuPlugin({
   const unlinkPillKeepText = useCallback(async (linkId: string) => {
     const { nodeUuid } = parseLinkId(linkId);
 
-    // Resolve the target node's name AST — try runtime first, then API
+    // Resolve the target node's name AST — try runtime first, then API.
+    // Only needed when the pill has no custom label.
     let nameAST: ASTDocument | null = null;
-    let fallbackLabel: string | null = null;
 
     if (nodeUuid) {
       const runtime = getNodeGraphRuntime();
@@ -257,7 +257,11 @@ export function ContextMenuPlugin({
           if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
             const replacements: LexicalNode[] = [];
 
-            if (nameAST && nameAST.length > 0) {
+            // Custom label takes priority over the target node's name AST.
+            const customLabel = child.getLabel();
+            if (customLabel) {
+              replacements.push($createTextNode(customLabel));
+            } else if (nameAST && nameAST.length > 0) {
               for (const para of nameAST) {
                 if ('children' in para) {
                   for (const inline of para.children) {
@@ -268,9 +272,8 @@ export function ContextMenuPlugin({
             }
 
             if (replacements.length === 0) {
-              // Fallback: use custom label captured before update, or uuid
-              const label = fallbackLabel ?? child.getLabel();
-              replacements.push($createTextNode(label || nodeUuid || linkId));
+              // Final fallback: uuid or raw link id
+              replacements.push($createTextNode(nodeUuid || linkId));
             }
 
             for (const node of replacements) {

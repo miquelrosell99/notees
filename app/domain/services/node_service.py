@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
 from ..validation import validate_node_create, validate_node_update
-from ..stringify_ast import parse_ast, serialize_ast, ParseMode
+from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import acquire_connection, get_workspace_uuid
 from ...logging_config import get_logger
@@ -905,22 +905,80 @@ class NodeService:
         link_class: str
     ) -> str:
         """Remove or replace a link in content with plain text.
-        
-        Links are stored as [[nodeId]] format, inline classes as {{classId}}.
-        Both are replaced with the node's name.
+
+        For AST JSON content (modern): walks the AST tree and replaces any
+        node_link node referencing the target with a plain-text node whose
+        text is the link's custom label (if set) or the target node's
+        plain-text name.
+
+        For legacy plain-text content: uses regex replacement.
         """
         import re
-        
+        import json as _json
+
+        # ── AST JSON path (modern content) ────────────────────────────────
+        try:
+            ast = _json.loads(content)
+            if isinstance(ast, list) and (not ast or isinstance(ast[0], dict)):
+                # Compute the target's plain-text name once (used when no custom label)
+                target_text = ''
+                if target_node.name:
+                    try:
+                        target_name_ast = parse_ast(target_node.name)
+                        target_text = stringify_ast(
+                            target_name_ast,
+                            StringifyOptions(mode=StringifyMode.TEXT_ONLY)
+                        )
+                    except Exception:
+                        target_text = ''
+
+                target_uuid = target_node.uuid or ''
+                target_id_str = str(target_node.id)
+
+                def _replace_in_nodes(nodes: list) -> tuple:
+                    """Return (new_nodes, changed_flag)."""
+                    result: list = []
+                    changed = False
+                    for node_item in nodes:
+                        if not isinstance(node_item, dict):
+                            result.append(node_item)
+                            continue
+
+                        if node_item.get('type') == 'node_link':
+                            link_id = str(node_item.get('link_id', ''))
+                            node_identifier = link_id.split(':', 1)[0]
+                            if node_identifier and (
+                                node_identifier == target_uuid
+                                or node_identifier == target_id_str
+                            ):
+                                changed = True
+                                label = node_item.get('label')
+                                replacement_text = label if label else target_text
+                                result.append({'type': 'text', 'text': replacement_text})
+                                continue
+
+                        if 'children' in node_item:
+                            new_children, child_changed = _replace_in_nodes(node_item['children'])
+                            if child_changed:
+                                changed = True
+                                node_item = {**node_item, 'children': new_children}
+
+                        result.append(node_item)
+                    return result, changed
+
+                new_ast, changed = _replace_in_nodes(ast)
+                if changed:
+                    return _json.dumps(new_ast)
+                return content
+        except (_json.JSONDecodeError, TypeError):
+            pass
+
+        # ── Legacy plain-text / regex path ────────────────────────────────
         result = content
-        
-        # Replace [[nodeId]] links with the node's name
         link_pattern = re.compile(r'\[\[' + str(target_node.id) + r'\]\]')
         result = link_pattern.sub(target_node.name or '', result)
-        
-        # Also replace {{nodeId}} inline class references with the node's name
         class_pattern = re.compile(r'\{\{' + str(target_node.id) + r'\}\}')
         result = class_pattern.sub(target_node.name or '', result)
-        
         return result
     
     async def _remove_node_from_class_tag_properties(self, node_id: int) -> None:
