@@ -265,6 +265,10 @@
   background-color: var(--color-hover-overlay);
 }
 
+.node-card__collapse-btn--has-children {
+  border: 1px solid var(--color-outline-variant);
+}
+
 
 .node-card__header:first-child {
   border-radius: var(--shape-medium) var(--shape-medium) 0 0;
