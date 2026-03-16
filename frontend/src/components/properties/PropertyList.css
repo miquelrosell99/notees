@@ -145,18 +145,4 @@
 
 /* ==================== Block Variant ==================== */
 
-.property-list--block .property-row {
-  grid-template-columns: minmax(60px, auto) 1fr;
-  padding: 2px 0;
-  min-height: 24px;
-  align-items: center;
-}
-
-/* Text property rows override block variant center alignment */
-.property-list--block .property-row:has(.text-property-block--has-content) {
-  align-items: flex-start;
-}
-
-.property-list--block .property-row__label {
-  font: var(--font-body-small);
-}
+/* Block variant: match page variant styling */
