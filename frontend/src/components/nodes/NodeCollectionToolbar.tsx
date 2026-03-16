@@ -108,7 +108,7 @@ export function NodeCollectionToolbar({
   availableViewModes = DEFAULT_VIEW_MODES_ORDER,
   onViewModeChange,
   showGroupBy = false,
-  groupBy = 'page',
+  groupBy = 'none',
   onGroupByChange,
   showAddButton = false,
   onAdd,
