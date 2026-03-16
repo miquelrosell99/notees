@@ -684,6 +684,7 @@ export interface RecentPage {
   create_date: string;
   write_date: string;
   open_date: string;
+  classes?: number[];
 }
 
 /**
