@@ -77,6 +77,7 @@ import './CardItem.css';
 // ─── Card Title Editor (BlockEditor wrapper) ────────────────────
 
 import { BlockEditor } from '@/editor/BlockEditor';
+import { PropertiesSection } from '@/components/properties/PropertiesSection';
 
 interface CardTitleEditorProps {
   blockId: string;
@@ -105,6 +106,7 @@ const CardTitleEditor = memo(function CardTitleEditor({
         includeRoot={true}
         maxDepth={0}
         placeholder="Untitled"
+        hideProperties={true}
         onContentChange={onContentChange}
         onNavigateToNode={onNavigateToNode}
         className="node-card__title-editor"
@@ -829,6 +831,20 @@ export const NodeCard = memo(function NodeCard({
           )}
         </div>
         )}
+
+        {/* Row: Properties */}
+        <div className="node-card__properties-row">
+          <PropertiesSection
+            nodeId={node.id}
+            inline={true}
+            readOnly={!editable}
+            showHiddenSection={false}
+            showAddProperty={editable}
+            isMainNode={true}
+            onNavigateToNode={(id) => openNode(id)}
+            onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+          />
+        </div>
 
         {/* Row: Tags — hidden when empty in read-only mode */}
         {(editable || tagDetails.length > 0) && (
