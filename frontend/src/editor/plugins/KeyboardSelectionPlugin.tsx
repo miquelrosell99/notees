@@ -19,8 +19,6 @@ import {
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
-  KEY_DELETE_COMMAND,
-  KEY_BACKSPACE_COMMAND,
   COMMAND_PRIORITY_HIGH,
 } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
@@ -440,21 +438,26 @@ export function KeyboardSelectionPlugin({
   }, [editor, readOnly, onSelectionChange]);
 
   // ─── Delete / Backspace: Delete all selected blocks ────────────
+  // Document-level handler since editor is blurred during block selection
 
   useEffect(() => {
     if (readOnly) return;
 
-    const handleDeleteSelected = (_event: KeyboardEvent) => {
-      if (selectedBlocks.current.size === 0) return false; // Not in selection mode
+    const handleDeleteKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (selectedBlocks.current.size === 0) return;
 
+      // If editor has focus, let Lexical/BlockPlugin handle it
       const rootEl = editor.getRootElement();
-      if (!rootEl) return true;
+      if (rootEl && rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
 
       // Collect all selected blockIds before clearing selection
       const blockIds = [...selectedBlocks.current];
 
       // Clear visual selection
-      clearBlockSelection(rootEl);
+      if (rootEl) clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
       onSelectionChange?.([]);
@@ -466,17 +469,10 @@ export function KeyboardSelectionPlugin({
         intents: blockIds.map(blockId => ({ type: 'delete_block' as const, blockId })),
       });
       runtime.flushEvents();
-
-      return true;
     };
 
-    const unsubDelete = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteSelected, COMMAND_PRIORITY_HIGH);
-    const unsubBackspace = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleDeleteSelected, COMMAND_PRIORITY_HIGH);
-
-    return () => {
-      unsubDelete();
-      unsubBackspace();
-    };
+    document.addEventListener('keydown', handleDeleteKey);
+    return () => document.removeEventListener('keydown', handleDeleteKey);
   }, [editor, readOnly, onSelectionChange]);
 
   // ─── Alt+Shift+Up/Down: Move selected blocks ────────────────────

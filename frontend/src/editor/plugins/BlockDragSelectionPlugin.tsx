@@ -13,6 +13,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $setSelection } from 'lexical';
 import { selectBlockWithChildren, clearBlockSelection } from '../utils/selectionUtils';
+import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 
 export interface BlockDragSelectionPluginProps {
   editorId: string;
@@ -121,6 +122,9 @@ export function BlockDragSelectionPlugin({
               $setSelection(null);
             });
 
+            // Blur editor so custom caret hides immediately
+            rootEl.blur();
+
             // Select the starting block with its children
             const startBlockId = dragStartBlock.current!.getAttribute('data-block-id');
             if (startBlockId) {
@@ -163,6 +167,8 @@ export function BlockDragSelectionPlugin({
         requestAnimationFrame(() => {
           justCompletedDrag.current = false;
         });
+        // Blur editor so custom caret hides and editing state is removed
+        rootEl.blur();
       }
 
       isDragging.current = false;
@@ -198,12 +204,37 @@ export function BlockDragSelectionPlugin({
       onSelectionChange?.([]);
     };
 
+    // Document-level Delete/Backspace to delete drag-selected blocks
+    const handleDeleteKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (selectedBlocks.current.size === 0) return;
+
+      // If editor has focus, let Lexical handle it
+      if (rootEl.contains(document.activeElement)) return;
+
+      e.preventDefault();
+      const blockIds = [...selectedBlocks.current];
+
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      onSelectionChange?.([]);
+
+      const runtime = getNodeGraphRuntime();
+      runtime.applyIntent({
+        type: 'batch',
+        intents: blockIds.map(blockId => ({ type: 'delete_block' as const, blockId })),
+      });
+      runtime.flushEvents();
+    };
+
+    document.addEventListener('keydown', handleDeleteKey);
     document.addEventListener('mousedown', handleDocumentMouseDown);
 
     return () => {
       rootEl.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('keydown', handleDeleteKey);
       document.removeEventListener('mousedown', handleDocumentMouseDown);
       if (dragRafId.current !== null) {
         cancelAnimationFrame(dragRafId.current);
