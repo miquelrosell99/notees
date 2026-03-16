@@ -374,19 +374,8 @@ async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[in
             result.append(node_response)
             continue
         
-        # Get all children (direct children only, they'll be nested by _build_children_response)
-        children = await service._node_repo.get_children(node_id)
-        
-        # Filter to only pages if we're dealing with pages
-        if hasattr(node_response, 'is_page') and node_response.is_page:
-            children = [c for c in children if c.is_page]
-        
         # Get all descendants for hierarchy building
         all_descendants = await _get_descendants(service._node_repo, node_id)
-        
-        # Filter to pages if needed
-        if hasattr(node_response, 'is_page') and node_response.is_page:
-            all_descendants = [d for d in all_descendants if d.is_page]
         
         # Build class_ids for descendants
         desc_ids = [d.id for d in all_descendants if d.id]

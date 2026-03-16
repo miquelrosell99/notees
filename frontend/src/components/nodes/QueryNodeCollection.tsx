@@ -446,6 +446,7 @@ export function QueryNodeCollection({
       current_node_name: nodeNameToText(nodeName),
     },
     includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || viewType === 'all_pages' || collectionViewMode === 'card',
+    includeAllChildren: collectionViewMode === 'card',
     includeProperties: true,
     enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
   });
