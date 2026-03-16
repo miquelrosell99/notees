@@ -513,6 +513,25 @@ export function useUpdateNode() {
           }
         }
       }
+
+      // Update nodeViews queryResults (flat Node[] arrays used by QueryNodeCollection table/list view)
+      const viewQueryQueries = queryCache.findAll({ queryKey: ['nodeViews', 'queryResults'] });
+      for (const query of viewQueryQueries) {
+        const oldData = query.state.data as Node[] | undefined;
+        if (oldData && Array.isArray(oldData)) {
+          let changed = false;
+          const newData = oldData.map(n => {
+            if (n.id === id) {
+              changed = true;
+              return { ...n, ...buildUpdate() };
+            }
+            return n;
+          });
+          if (changed) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
     },
     onSuccess: (updatedNode, variables) => {
       // Merge the updated node with existing cached data to preserve children and other fields
@@ -536,6 +555,16 @@ export function useUpdateNode() {
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(updatedNode.id) },
         mergeUpdate
+      );
+
+      // Also update nodeViews queryResults caches (flat Node[] arrays used by QueryNodeCollection)
+      // This ensures table cells reflect the new name immediately after inline editing closes.
+      queryClient.setQueriesData<Node[]>(
+        { queryKey: ['nodeViews', 'queryResults'] },
+        (oldData) => {
+          if (!oldData || !Array.isArray(oldData)) return oldData;
+          return oldData.map(n => n.id === updatedNode.id ? mergeUpdate(n) : n);
+        }
       );
 
       // Also update byUuid cache so editor InlineLink components reflect changes (e.g. color)
