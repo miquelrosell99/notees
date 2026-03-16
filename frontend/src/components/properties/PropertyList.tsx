@@ -14,7 +14,7 @@
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Property type)
  */
-import { useState, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
 import { useAppStore } from '@/stores';
 import { useNode } from '@/hooks';
@@ -254,6 +254,7 @@ function PropertyRow({
   hideLabel,
 }: PropertyRowProps) {
   const { property, source, value } = entry;
+  const rowRef = useRef<HTMLDivElement>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showNodeValueContextMenu, setShowNodeValueContextMenu] = useState(false);
@@ -276,7 +277,13 @@ function PropertyRow({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (readOnly || !getContextMenuItems) return;
     e.preventDefault();
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    const row = rowRef.current;
+    if (row) {
+      const rect = row.getBoundingClientRect();
+      setContextMenuPosition({ x: rect.left, y: rect.bottom });
+    } else {
+      setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    }
     setShowContextMenu(true);
     onPropertyContextMenu?.(property, e);
   }, [readOnly, property, onPropertyContextMenu, getContextMenuItems]);
@@ -321,7 +328,7 @@ function PropertyRow({
 
   return (
     <>
-      <div className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
+      <div ref={rowRef} className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
         <div className="property-row__label" onClick={handleNameClick}>
           {!hideLabel && (
             <>
