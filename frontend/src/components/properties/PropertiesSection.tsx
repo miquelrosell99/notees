@@ -172,7 +172,7 @@ function DatePropertyValue({
         ) : displayName ? (
           <span className="property-value-date-name">{displayName}</span>
         ) : (
-          <span className="property-placeholder">Pick a date…</span>
+          <span className="property-placeholder">—</span>
         )}
       </button>
       {!readOnly && value != null && (
@@ -291,35 +291,32 @@ function PropertyValue({
 
     case 'integer':
     case 'float':
-      if (isEditing) {
-        return (
-          <div>
-            <input
-              type="number"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitEdit();
-                if (e.key === 'Escape') setIsEditing(false);
-              }}
-              step={property.type === 'float' ? 'any' : 1}
-              autoFocus
-              className={`property-value-input property-value-number ${validationError ? 'property-value-input--error' : ''}`}
-            />
-            {validationError && <div className="property-validation-error">{validationError}</div>}
-          </div>
-        );
-      }
       return (
-        <Button
-          variant="ghost"
-          className="property-value-display"
-          onClick={startEditing}
-          disabled={readOnly}
-        >
-          {value != null ? String(value) : <span className="property-placeholder">—</span>}
-        </Button>
+        <div>
+          <input
+            type="text"
+            inputMode={property.type === 'float' ? 'decimal' : 'numeric'}
+            value={isEditing ? editValue : (value != null ? String(value) : '')}
+            placeholder="—"
+            disabled={readOnly}
+            onFocus={() => {
+              setEditValue(String(value ?? ''));
+              setValidationError(null);
+              setIsEditing(true);
+            }}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitEdit();
+              if (e.key === 'Escape') {
+                setIsEditing(false);
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            className={`property-value-inline-input ${validationError ? 'property-value-input--error' : ''}`}
+          />
+          {validationError && <div className="property-validation-error">{validationError}</div>}
+        </div>
       );
 
     case 'text':
@@ -356,7 +353,7 @@ function PropertyValue({
           multi={property.multi}
           searchMode="pages"
           classFilters={property.class_filters}
-          placeholder="Select node..."
+          placeholder="—"
           searchPlaceholder="Search pages..."
           readOnly={readOnly}
           onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.id) : undefined}
@@ -391,7 +388,7 @@ function PropertyValue({
             options={selectionOptions}
             values={Array.isArray(value) ? value.map(v => typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v) : []}
             onChangeMultiple={(newValues) => onChange(newValues)}
-            placeholder="Select options..."
+            placeholder="—"
             multiple
             searchable
             disabled={readOnly}
@@ -422,7 +419,7 @@ function PropertyValue({
             options={selectionOptions}
             value={typeof currentValue === 'number' ? currentValue : null}
             onChange={(newValue) => onChange(newValue)}
-            placeholder="Select an option..."
+            placeholder="—"
             searchable
             disabled={readOnly}
             size="sm"
@@ -513,7 +510,7 @@ function UrlPropertyValue({ value, readOnly, onChange, validationRules }: { valu
 
   return (
     <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setValidationError(null); setIsEditing(true); }} disabled={readOnly}>
-      <span className="property-placeholder">Add URL…</span>
+      <span className="property-placeholder">—</span>
     </Button>
   );
 }
@@ -576,7 +573,7 @@ function EmailPropertyValue({ value, readOnly, onChange, validationRules }: { va
 
   return (
     <Button variant="ghost" className="property-value-display" onClick={() => { setEditValue(''); setValidationError(null); setIsEditing(true); }} disabled={readOnly}>
-      <span className="property-placeholder">Add email…</span>
+      <span className="property-placeholder">—</span>
     </Button>
   );
 }
