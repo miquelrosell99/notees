@@ -5,12 +5,14 @@
  * directly from the + / @ / # trigger menus.
  */
 
-import { useCallback, type JSX } from 'react';
+import { useCallback, useMemo, type JSX } from 'react';
 import type { TriggerType } from './TriggerPlugin';
 import { SuggestionPopup, type SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
 import { useCreateNode } from '../../hooks/useNodes';
 import { usePageClass, useClassClass } from '../../hooks/usePageClass';
+import { useClasses } from '../../hooks';
+import { nodeNameToText } from '../../hooks/useStringifyAST';
 
 export interface TriggerSuggestionPopupProps {
   suggestionType: SuggestionType;
@@ -29,6 +31,12 @@ export interface TriggerSuggestionPopupProps {
   footerHintText?: string;
   /** Hide the "create new" option */
   hideCreate?: boolean;
+  /** True when the user is actively typing a @class query inside the link trigger */
+  isTypingClass?: boolean;
+  /** The text typed after @ for class filtering */
+  classQuery?: string;
+  /** Called when a class is selected from the class sub-picker */
+  onClassSelect?: (node: Node) => void;
 }
 
 export function TriggerSuggestionPopup({
@@ -44,10 +52,25 @@ export function TriggerSuggestionPopup({
   headerText,
   footerHintText,
   hideCreate,
+  isTypingClass = false,
+  classQuery = '',
+  onClassSelect,
 }: TriggerSuggestionPopupProps): JSX.Element {
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
+  const { data: allClasses = [] } = useClasses();
+
+  // Resolve class names for active class filters to show in header
+  const activeClassNames = useMemo(() => {
+    if (!classFilters || classFilters.length === 0) return '';
+    return classFilters
+      .map(id => allClasses.find(c => c.id === id))
+      .filter(Boolean)
+      .map(c => nodeNameToText(c!.name))
+      .filter(Boolean)
+      .join(', ');
+  }, [classFilters, allClasses]);
 
   const handleCreate = useCallback((name: string, addInline: boolean) => {
     if (!pageClassId) return;
@@ -65,6 +88,32 @@ export function TriggerSuggestionPopup({
     });
   }, [createNode, pageClassId, classClassId, triggerType, onSelect]);
 
+  // When typing @class inside link trigger: show class picker instead of link picker
+  const handleClassCreate = useCallback((name: string) => {
+    if (!pageClassId || !classClassId) return;
+    createNode.mutate({ name, classes: [pageClassId, classClassId] }, {
+      onSuccess: (newNode) => onClassSelect?.(newNode),
+    });
+  }, [createNode, pageClassId, classClassId, onClassSelect]);
+
+  if (isTypingClass && onClassSelect) {
+    return (
+      <SuggestionPopup
+        isOpen={true}
+        query={classQuery}
+        type="class"
+        position={position}
+        onSelect={(classNode) => onClassSelect(classNode)}
+        onClose={onClose}
+        onCreate={handleClassCreate}
+        headerText="Filter by class"
+      />
+    );
+  }
+
+  // Build header for link mode: show active class filters if any
+  const resolvedHeaderText = headerText ?? (activeClassNames ? `Insert link · ${activeClassNames}` : undefined);
+
   return (
     <SuggestionPopup
       isOpen={true}
@@ -78,7 +127,7 @@ export function TriggerSuggestionPopup({
       onSelectEmbed={onSelectEmbed}
       showInlineOption={suggestionType === 'class'}
       classFilters={classFilters}
-      headerText={headerText}
+      headerText={resolvedHeaderText}
       footerHintText={footerHintText}
     />
   );
