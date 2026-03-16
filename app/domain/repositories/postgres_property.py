@@ -633,6 +633,24 @@ class PostgresPropertyRepository(PropertyRepository):
         prop = await self.get_by_id(property_id)
         
         async with acquire_connection(self._pool) as conn:
+            # Check if this property belongs to any class assigned to the node
+            class_link = await conn.fetchrow(
+                """
+                SELECT cp.class_node_id FROM class_property cp
+                JOIN node n ON n.id = $1 AND cp.class_node_id = ANY(n.class_ids)
+                WHERE cp.property_id = $2
+                LIMIT 1
+                """,
+                node_id, property_id
+            )
+            if class_link:
+                logger.warning(
+                    "Rejected removal of property %d from node %d: "
+                    "property belongs to class %d",
+                    property_id, node_id, class_link['class_node_id']
+                )
+                return False
+
             if prop and prop.type in (PropertyType.TEXT, PropertyType.IMAGE):
                 # Delete target nodes for text/image types
                 rows = await conn.fetch(

@@ -695,6 +695,20 @@ export function PropertiesSection({
     return entries;
   }, [node, allProperties, classProperties1, classProperties2, classProperties3]);
 
+  // Track which property IDs come from classes (cannot be removed, only emptied)
+  const classPropertyIds = useMemo(() => {
+    const ids = new Set<number>();
+    const allClassProperties: ClassProperty[] = [
+      ...(classProperties1 ?? []),
+      ...(classProperties2 ?? []),
+      ...(classProperties3 ?? []),
+    ];
+    for (const cp of allClassProperties) {
+      ids.add(cp.property_id);
+    }
+    return ids;
+  }, [classProperties1, classProperties2, classProperties3]);
+
   const { error: notifyError } = useNotifications();
 
   const handlePropertyChange = useCallback((propertyId: number, value: unknown) => {
@@ -847,6 +861,7 @@ export function PropertiesSection({
   
   // Get context menu items for a property
   const getPropertyContextMenuItems = useCallback((property: Property): ContextMenuItem[] => {
+    const isClassProperty = classPropertyIds.has(property.id);
     return [
       {
         id: 'open-property',
@@ -866,12 +881,13 @@ export function PropertiesSection({
         id: 'remove-property',
         label: 'Remove from node',
         danger: true,
+        disabled: isClassProperty,
         onClick: () => {
           setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: null });
         },
       },
     ];
-  }, [openPropertyView, setPropertyMutation, nodeId]);
+  }, [openPropertyView, setPropertyMutation, nodeId, classPropertyIds]);
 
   if (nodeLoading) {
     return (
