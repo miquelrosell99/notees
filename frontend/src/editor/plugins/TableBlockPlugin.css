@@ -51,6 +51,29 @@
   font-weight: 600;
 }
 
+/* Editing state — editor sits flush inside the cell */
+.table-block-cell--editing {
+  padding: 0;
+  cursor: text;
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.table-block-cell--editing .notees-editor-wrapper {
+  margin: 0;
+}
+
+/* Strip extra chrome from BlockEditor when embedded in a cell */
+.table-block-cell--editing .notees-editor-content {
+  padding: 5px 10px;
+  min-height: 30px;
+}
+
+/* Hide the bullet gutter that document mode normally reserves */
+.table-block-cell--editing .block-row {
+  padding-left: 0 !important;
+}
+
 .table-block-empty {
   padding: 12px 16px;
   color: var(--color-on-surface-variant);
