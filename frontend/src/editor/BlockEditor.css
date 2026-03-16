@@ -321,6 +321,10 @@
   animation: slideCollapse var(--motion-duration-long) var(--motion-easing-collapse) forwards;
 }
 
+.node-block--collapsed > .node-block-properties-preview {
+  display: none !important;
+}
+
 /* ─── Selected state (block drag selection) ──────────────────────── */
 
 /* Real overlay element inserted by selectionUtils.ts */
