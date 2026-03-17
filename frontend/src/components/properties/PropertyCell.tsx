@@ -184,7 +184,7 @@ export function PropertyCell({
       if (value.length === 0) {
         return (
           <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-            <span className="property-cell__empty-label">Empty</span>
+            <span className="property-placeholder">Empty</span>
           </div>
         );
       }
@@ -199,7 +199,7 @@ export function PropertyCell({
     if (value === null || value === undefined || typeof value !== 'number') {
       return (
         <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          <span className="property-cell__empty-label">Empty</span>
+          <span className="property-placeholder">Empty</span>
         </div>
       );
     }
@@ -213,7 +213,7 @@ export function PropertyCell({
     if (!imageId) {
       return (
         <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
-          <span className="property-cell__empty-label">Empty</span>
+          <span className="property-placeholder">Empty</span>
         </div>
       );
     }
@@ -336,7 +336,7 @@ export function PropertyCell({
       onClick={handleClick}
       title={editable ? 'Click to edit' : undefined}
     >
-      {displayValue || <span className="property-cell__empty-label">Empty</span>}
+      {displayValue || <span className="property-placeholder">Empty</span>}
     </div>
   );
 }
@@ -646,7 +646,7 @@ function SelectionPropertyCell({
         onClick={() => editable && setIsPickerOpen(true)}
         title={editable ? 'Click to select' : undefined}
       >
-        <span className="property-cell__empty-label">Empty</span>
+        <span className="property-placeholder">Empty</span>
         {isPickerOpen && (
           <div className="property-cell__picker">
             {options.map(option => {
@@ -795,7 +795,7 @@ function UrlPropertyCell({
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={handleClick}
       >
-        <span className="property-cell__empty-label">Empty</span>
+        <span className="property-placeholder">Empty</span>
       </div>
     );
   }
@@ -890,7 +890,7 @@ function EmailPropertyCell({
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={handleClick}
       >
-        <span className="property-cell__empty-label">Empty</span>
+        <span className="property-placeholder">Empty</span>
       </div>
     );
   }
@@ -973,7 +973,7 @@ function DatePropertyCell({
           setIsPickerOpen(true);
         }}
       >
-        <span className="property-cell__empty-label">Empty</span>
+        <span className="property-placeholder">Empty</span>
         {isPickerOpen && (
           <DatePickerPopup
             value={undefined}

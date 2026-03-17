@@ -117,3 +117,11 @@ input:focus, textarea:focus, select:focus {
   background: var(--color-pressed-overlay);
   color: var(--color-on-surface);
 }
+
+/* Shared empty-value placeholder for property displays */
+.property-placeholder {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  opacity: 0.45;
+  font-size: 0.85em;
+}
