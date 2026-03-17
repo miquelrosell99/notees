@@ -355,6 +355,14 @@
   font: var(--font-body-small);
 }
 
+.text-property-block__empty-label {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+  opacity: 0.45;
+  font-size: 0.85em;
+  pointer-events: none;
+}
+
 .text-property-block__editor {
   flex: 1;
   min-width: 0;
