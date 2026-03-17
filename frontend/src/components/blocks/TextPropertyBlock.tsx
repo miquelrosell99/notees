@@ -295,7 +295,7 @@ export function TextPropertyBlock({
             size="xs"
             variant="ghost"
           >
-            {isCreating ? 'Creating…' : '—'}
+            {isCreating ? 'Creating…' : <span className="text-property-block__empty-label">Empty</span>}
           </Button>
         </div>
       );
@@ -346,7 +346,7 @@ export function TextPropertyBlock({
           size="xs"
           variant="ghost"
         >
-          {isCreating ? 'Creating…' : '—'}
+          {isCreating ? 'Creating…' : <span className="text-property-block__empty-label">Empty</span>}
         </Button>
       </div>
     );
