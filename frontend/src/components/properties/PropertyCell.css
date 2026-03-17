@@ -23,13 +23,6 @@
   font-style: italic;
 }
 
-.property-cell__empty-label {
-  color: var(--color-on-surface-variant);
-  font-style: italic;
-  opacity: 0.45;
-  font-size: 0.85em;
-  pointer-events: none;
-}
 
 .property-cell--node-multi {
   display: flex;

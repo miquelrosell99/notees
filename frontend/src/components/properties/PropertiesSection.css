@@ -51,13 +51,6 @@
   background: var(--color-surface-container);
 }
 
-/* Placeholder text */
-.property-placeholder {
-  color: var(--color-on-surface-variant);
-  font-style: normal;
-  opacity: 0.6;
-}
-
 /* Input fields */
 .property-value-input {
   padding: var(--spacing-2);
@@ -355,13 +348,7 @@
   font: var(--font-body-small);
 }
 
-.text-property-block__empty-label {
-  color: var(--color-on-surface-variant);
-  font-style: italic;
-  opacity: 0.45;
-  font-size: 0.85em;
-  pointer-events: none;
-}
+
 
 .text-property-block__editor {
   flex: 1;
