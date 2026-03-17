@@ -17,7 +17,7 @@ class TestNodeCreation:
     ):
         """Test creating a page node."""
         response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_node_data
         )
         assert response.status_code == 200
@@ -25,8 +25,8 @@ class TestNodeCreation:
         data = response.json()
         assert "id" in data
         assert "uuid" in data
-        # For pages, the name is derived from the input
-        assert data.get("name") == sample_node_data["name"]
+        # name is stored as AST JSON internally; the input text should appear in it
+        assert sample_node_data["name"] in data.get("name", "")
 
     @pytest.mark.asyncio
     async def test_create_block(
@@ -38,7 +38,7 @@ class TestNodeCreation:
         """Test creating a block under a page."""
         # First create a page
         page_response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_node_data
         )
         page = page_response.json()
@@ -46,7 +46,7 @@ class TestNodeCreation:
         # Then create a block under it
         sample_block_data["parent_id"] = page["id"]
         block_response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_block_data
         )
         assert block_response.status_code == 200
@@ -83,7 +83,7 @@ class TestNodeRetrieval:
         """Test retrieving a node by ID."""
         # Create a node
         create_response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_node_data
         )
         node = create_response.json()
@@ -109,15 +109,15 @@ class TestNodeRetrieval:
     ):
         """Test listing all nodes."""
         # Create a node first
-        await authenticated_client.post("/api/nodes", json=sample_node_data)
+        await authenticated_client.post("/api/nodes/", json=sample_node_data)
         
         # List nodes
-        response = await authenticated_client.get("/api/nodes")
+        response = await authenticated_client.get("/api/nodes/")
         assert response.status_code == 200
         
         data = response.json()
-        assert "nodes" in data
-        assert isinstance(data["nodes"], list)
+        assert "items" in data
+        assert isinstance(data["items"], list)
 
 
 class TestNodeUpdate:
@@ -132,7 +132,7 @@ class TestNodeUpdate:
         """Test updating a node's content."""
         # Create a node
         create_response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_node_data
         )
         node = create_response.json()
@@ -145,7 +145,8 @@ class TestNodeUpdate:
         assert update_response.status_code == 200
         
         updated = update_response.json()
-        assert updated.get("name") == "Updated content"
+        # name is stored as AST JSON; the input text should appear within it
+        assert "Updated content" in updated.get("name", "")
 
 
 class TestNodeDeletion:
@@ -160,7 +161,7 @@ class TestNodeDeletion:
         """Test deleting a node."""
         # Create a node
         create_response = await authenticated_client.post(
-            "/api/nodes",
+            "/api/nodes/",
             json=sample_node_data
         )
         node = create_response.json()
