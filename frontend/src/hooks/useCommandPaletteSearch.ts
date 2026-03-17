@@ -8,6 +8,22 @@
  * - Singleton worker per hook instance (created once, reused)
  * - Sequence IDs: stale responses are silently discarded
  * - useTransition: result state updates are low-priority — input is never blocked
+ *
+ * Architecture note — search hook hierarchy:
+ * 1. `useSearch(query, classFilters?)` in useNodeQueries.ts — raw TanStack Query
+ *    wrapper around the /api/search endpoint. Returns Node[].
+ * 2. `useNodeSearch(query, options)` in useNodeSearch.ts — the canonical
+ *    component-level hook. Handles debouncing, mode/class/excludeId filtering,
+ *    and inline categorization (pages vs blocks). Use this for NodePicker,
+ *    SuggestionPopup, and any place that needs categorized node results.
+ * 3. `useCommandPaletteSearch` (this file) — specialized hook for the command
+ *    palette only. Accepts pre-fetched Node[] and runs Worker-based
+ *    categorization off the main thread to keep the palette input responsive.
+ *    Also adds Property results, which useNodeSearch does not support.
+ *
+ * @deprecated Prefer useNodeSearch for new code. This hook remains because
+ * the command palette has unique requirements (Worker offloading + Properties)
+ * that haven't yet been merged into useNodeSearch.
  */
 
 import { useEffect, useRef, useTransition, useState, useCallback } from 'react';
