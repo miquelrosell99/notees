@@ -261,10 +261,12 @@ export function BlockEditor({
     const isFocusedBlock = nodes?.some(n => n.uuid === derivedRootId);
     if (pageId != null && derivedRootId && !isFocusedBlock) {
       const newBlockIds = new Set(graphNodes.map(n => n.blockId));
-      const currentChildren = runtime.getChildren(derivedRootId);
-      const staleIds = currentChildren
-        .filter(child => !newBlockIds.has(child.blockId) && child.serverId != null)
-        .map(child => child.blockId);
+      // Check ALL descendants (not just direct children) so that nested blocks
+      // deleted via the context menu are also cleaned up from the runtime.
+      const allDescendants = runtime.getDescendants(derivedRootId);
+      const staleIds = allDescendants
+        .filter(desc => !newBlockIds.has(desc.blockId) && desc.serverId != null)
+        .map(desc => desc.blockId);
       if (staleIds.length > 0) {
         runtime.removeNodes(staleIds);
       }

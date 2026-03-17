@@ -870,6 +870,21 @@ export function useDeleteNode() {
           }
         }
       }
+
+      // Immediately remove the block (and its descendants) from the NodeGraphRuntime so
+      // the Lexical editor reflects the deletion without waiting for a query refetch.
+      // We use removeNodes() rather than applyIntent('delete_block') to avoid emitting
+      // a block_deleted event that would cause useBlockPersist to issue a duplicate
+      // server-side delete call.
+      const runtime = getNodeGraphRuntime();
+      const graphNode = runtime.getNodeByServerId(deletedId);
+      if (graphNode) {
+        const descendants = runtime.getDescendants(graphNode.blockId);
+        runtime.removeNodes([
+          graphNode.blockId,
+          ...descendants.map(d => d.blockId),
+        ]);
+      }
     },
     onSuccess: async ({ deletedNode: _deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
