@@ -502,12 +502,6 @@
   min-width: 0;
 }
 
-.type-property-placeholder {
-  color: var(--color-on-surface-variant);
-  font: var(--font-body-medium);
-  font-style: italic;
-}
-
 .type-property-remove-btn {
   padding: var(--spacing-1);
   border: none;

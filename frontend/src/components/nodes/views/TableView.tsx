@@ -257,9 +257,9 @@ export const TableView = memo(function TableView({
   // Create date column renderer with action buttons
   const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node): ReactNode => {
     const dateStr = node[dateField];
-    if (!dateStr || dateStr === '') return '—';
+    if (!dateStr || dateStr === '') return '';
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '—';
+    if (isNaN(date.getTime())) return '';
     const formattedDate = formatDateWithFormat(date, dateFormat as any);
 
     return (
