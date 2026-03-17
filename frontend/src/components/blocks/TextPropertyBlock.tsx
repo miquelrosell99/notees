@@ -254,6 +254,11 @@ export function TextPropertyBlock({
       // treats it as a cancelled drag and runs cleanup (ghost, classes, etc.)
       coordinator.cancelDrag();
 
+      // Remove the block from the editor's in-memory tree (NodeGraphRuntime)
+      // so it doesn't remain visible at its old location. The block will now
+      // live exclusively as the text property's value, fetched via React Query.
+      runtime.applyIntent({ type: 'delete_block', blockId: payload.blockId });
+
       // Move the block to be a child of this node
       moveNode.mutate({ id: serverId, parentId: nodeId });
 
