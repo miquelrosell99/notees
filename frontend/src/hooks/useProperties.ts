@@ -334,8 +334,14 @@ export function useSetNodeProperty() {
 
         if (!data) continue;
 
-        const nodeEntry = data[String(nodeId)];
-        if (!nodeEntry) continue;
+        // Skip batch caches that don't include this nodeId in their query key.
+        // This handles both unrelated batches and ensures new nodes (not yet in
+        // the response data) get their first property written into the cache.
+        if (!queryKey.includes(nodeId)) continue;
+
+        // For new nodes with no properties yet, the API returns no entry for
+        // them, so nodeEntry will be undefined — treat it as an empty object.
+        const nodeEntry = data[String(nodeId)] ?? {};
 
         // Shallow-clone only the root object and the affected node entry.
         // Every other nodeId entry keeps its reference — no unnecessary work.
