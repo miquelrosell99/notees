@@ -43,14 +43,15 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                          FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").label') AS lbl
                          WHERE lbl #>> '{}' IS NOT NULL
                          UNION ALL
-                         -- Target node plain-text names for embedded links
+                         -- Target node plain-text names for embedded links.
+                         -- link_id is a compound "targetNodeUuid:linkInstanceUuid" string;
+                         -- split_part extracts the first segment (the target node UUID).
                          SELECT (CASE WHEN tn.name LIKE '[%' THEN
                              COALESCE((SELECT string_agg(tv #>> '{}', '') FROM jsonb_path_query(tn.name::jsonb, '$.**.text') AS tv), '')
                          ELSE COALESCE(tn.name, '') END) AS val
                          FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").link_id') AS link_uuid_j
-                         JOIN node_link nl ON nl.uuid = (link_uuid_j #>> '{}')::uuid
-                             AND nl.workspace_id = n.workspace_id
-                         JOIN node tn ON tn.id = nl.target_id
+                         JOIN node tn ON tn.uuid = split_part(link_uuid_j #>> '{}', ':', 1)::uuid
+                             AND tn.workspace_id = n.workspace_id
                              AND tn.active = TRUE AND tn.is_deleted = FALSE
                      ) combined
                      WHERE val IS NOT NULL AND val != ''),
