@@ -15,7 +15,7 @@ import { $isBlockNode } from '../nodes/BlockNode';
 import { QueryNodeCollection } from '@/components/nodes/QueryNodeCollection';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useQueryBlock } from '@/hooks/useQueryBlock';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -49,8 +49,8 @@ interface QueryPreviewProps {
  * and remount this component — losing modal state.
  */
 function QueryPreview({ blockId, serverId, toolbarContainer }: QueryPreviewProps): JSX.Element {
-  const openNode = useAppStore(state => state.openNode);
-  const openNodeInSidebar = useAppStore(state => state.openNodeInSidebar);
+  const openNode = useNavigationStore(state => state.openNode);
+  const openNodeInSidebar = useNavigationStore(state => state.openNodeInSidebar);
   const { queryAST, saveQueryAST } = useQueryBlock(serverId);
   const isolatorRef = useRef<HTMLDivElement>(null);
 

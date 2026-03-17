@@ -13,7 +13,7 @@ import { NodeSelector } from '../nodes/NodeSelector';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNode } from '@/hooks';
 import type { Node } from '@/types';
@@ -25,7 +25,7 @@ export interface MergePagesModalProps {
 }
 
 export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
-  const { currentNodeId, openNode } = useAppStore();
+  const { currentNodeId, openNode } = useNavigationStore();
   const { data: currentNode } = useNode(currentNodeId);
   const queryClient = useQueryClient();
 

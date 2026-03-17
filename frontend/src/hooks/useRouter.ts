@@ -19,7 +19,7 @@
  */
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAppStore, type MainViewType } from '@/stores';
+import { useNavigationStore, type MainViewType } from '@/stores';
 import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
@@ -198,7 +198,7 @@ export function useRouter() {
   const {
     setMainViewType,
     openNode,
-  } = useAppStore();
+  } = useNavigationStore();
   
   // Fetch workspaces to validate workspace in URLs
   const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
@@ -212,7 +212,7 @@ export function useRouter() {
     if (!dbData?.active) return;
     
     // Subscribe to store changes using Zustand's subscribe
-    const unsubscribe = useAppStore.subscribe(
+    const unsubscribe = useNavigationStore.subscribe(
       (state, prevState) => {
         // Skip if we're in the middle of navigation from URL
         if (isNavigatingRef.current) return;
@@ -257,7 +257,7 @@ export function useRouter() {
   const navigateHome = useCallback(() => {
     log.debug('Navigating to home');
     setMainViewType('node');
-    useAppStore.setState({ currentNodeId: null });
+    useNavigationStore.setState({ currentNodeId: null });
     window.history.replaceState(null, '', '/');
   }, [setMainViewType]);
   
@@ -271,7 +271,7 @@ export function useRouter() {
       if (route.type === 'home') {
         // Just update state, don't change URL (it's already /)
         setMainViewType('node');
-        useAppStore.setState({ currentNodeId: null });
+        useNavigationStore.setState({ currentNodeId: null });
         return;
       }
       
@@ -372,7 +372,7 @@ export function useRouter() {
  * Get the current node UUID (if known) for URL building
  */
 export function useCurrentNodeUuid(): string | null {
-  const { currentNodeId } = useAppStore();
+  const { currentNodeId } = useNavigationStore();
   const [uuid, setUuid] = useState<string | null>(null);
   
   // Using useLayoutEffect to sync state before paint

@@ -5,7 +5,7 @@
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
 import { useMemo, useEffect, useRef } from 'react';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,7 @@ import { PropertyViewFull } from '../../views/PropertyView';
 import { WhiteboardView } from '../nodes/views/WhiteboardView';
 
 export function MainContent() {
-  const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useAppStore();
+  const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNavigationStore();
   const queryClient = useQueryClient();
   const prevViewRef = useRef(mainViewType);
   const { systemClassIds } = useSystemClasses();

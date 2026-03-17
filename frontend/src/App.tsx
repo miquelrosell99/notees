@@ -21,7 +21,7 @@ import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './api/workspaces';
-import { useAuthStore, useAppStore, useFavoritesStore, useKeyboardStore } from './stores';
+import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore } from './stores';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
 import { clearScratchpad } from './api/nodes';
@@ -41,7 +41,7 @@ function GlobalKeyboardHandler() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useAppStore();
+  const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
   
   // Fetch workspaces when authenticated
   const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({

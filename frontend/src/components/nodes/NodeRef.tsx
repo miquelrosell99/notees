@@ -21,7 +21,7 @@ import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import './NodeRef.css';
 
@@ -151,8 +151,8 @@ function NodeRefInteractive({
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
   
   // Use selectors to avoid subscribing to full store — actions are stable refs
-  const openNode = useAppStore(s => s.openNode);
-  const addSidebarCard = useAppStore(s => s.addSidebarCard);
+  const openNode = useNavigationStore(s => s.openNode);
+  const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
   
   // Only batch-fetch when no node is provided (need to fetch by ID)
   const { data: fetchedNode } = useBatchedNode(providedNode ? null : (nodeId ?? null));

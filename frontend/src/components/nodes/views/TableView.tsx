@@ -17,7 +17,7 @@
 import React, { useMemo, useCallback, useState, memo, type ReactNode } from 'react';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
-import { useAppStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
 import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
@@ -131,7 +131,7 @@ export const TableView = memo(function TableView({
   customContextMenu,
 }: NodeTableViewProps) {
   // Get openNode and addSidebarCard from store for navigation
-  const { openNode, addSidebarCard } = useAppStore();
+  const { openNode, addSidebarCard } = useNavigationStore();
 
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);

@@ -19,7 +19,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
@@ -121,7 +121,7 @@ export function GraphView({
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   
   // View state
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);

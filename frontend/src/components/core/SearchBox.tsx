@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import { NodeIcon, SearchIcon } from './icons';
 import { SearchField } from './SearchField';
@@ -74,7 +74,7 @@ export function SearchBox<T = Node>({
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   
   // Debounce the query to avoid flashing results
   useEffect(() => {

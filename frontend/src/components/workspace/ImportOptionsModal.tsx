@@ -28,7 +28,7 @@ import {
   switchWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import { useAppStore } from '@/stores/appStore';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { useFavoritesStore } from '@/stores';
 import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
@@ -177,10 +177,10 @@ export function ImportOptionsModal({
     let cancelled = false;
     async function prepare() {
       workspaceUuidRef.current = workspace!.uuid;
-      useAppStore.getState().setShowWorkspaceManager(true);
+      useModalStore.getState().setShowWorkspaceManager(true);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       await switchWorkspace(workspace!.uuid);
-      useAppStore.setState({
+      useNavigationStore.setState({
         currentNodeId: null,
         activeNode: null,
         activeNodeId: null,

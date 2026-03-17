@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAppStore, type MainViewType } from '@/stores';
+import { useNavigationStore, type MainViewType } from '@/stores';
 import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
@@ -42,7 +42,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     setMainViewType,
     openNode,
     openPropertyView,
-  } = useAppStore();
+  } = useNavigationStore();
   
   // Fetch workspaces
   const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
@@ -56,7 +56,7 @@ export function RouterSync({ children }: RouterSyncProps) {
    */
   const goHome = useCallback(() => {
     log.debug('Going to home');
-    useAppStore.setState({ 
+    useNavigationStore.setState({ 
       currentNodeId: null,
       mainViewType: 'node',
     });
@@ -72,7 +72,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     try {
       if (route.type === 'home') {
         log.debug('Route: home');
-        useAppStore.setState({ 
+        useNavigationStore.setState({ 
           currentNodeId: null,
           mainViewType: 'node',
         });
@@ -93,7 +93,7 @@ export function RouterSync({ children }: RouterSyncProps) {
           openPropertyView(property.id);
         } catch (err) {
           log.warn('Property not found for UUID in URL, going home', { uuid: route.propertyUuid });
-          useAppStore.setState({ currentPropertyId: null });
+          useNavigationStore.setState({ currentPropertyId: null });
           goHome();
         }
         return;
@@ -108,7 +108,7 @@ export function RouterSync({ children }: RouterSyncProps) {
         } catch (err) {
           log.warn('Node not found for UUID in URL, going home', { uuid: route.nodeUuid });
           // Clear any potentially set node ID before going home
-          useAppStore.setState({ currentNodeId: null });
+          useNavigationStore.setState({ currentNodeId: null });
           goHome();
         }
       }
@@ -138,7 +138,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     if (route.type === 'home') {
       log.info('Processing home URL immediately', { path: currentPath });
       hasInitialized.current = true;
-      useAppStore.setState({ 
+      useNavigationStore.setState({ 
         currentNodeId: null,
         mainViewType: 'node',
       });

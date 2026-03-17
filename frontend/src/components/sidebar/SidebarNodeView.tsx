@@ -9,7 +9,7 @@
 import { useCallback } from 'react';
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { SidebarNodeType } from '@/stores';
 import { NodeViewContent } from '@/views/NodeView';
 import { NodeIcon } from '../core/icons';
@@ -25,7 +25,7 @@ interface SidebarNodeViewProps {
 
 export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: SidebarNodeViewProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
-  const { openNode, closeSidebarNode, viewMode } = useAppStore();
+  const { openNode, closeSidebarNode, viewMode } = useNavigationStore();
 
   const handleOpenFull = useCallback(() => {
     if (!node) return;

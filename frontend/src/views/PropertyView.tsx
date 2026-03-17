@@ -16,7 +16,7 @@ import { mdiDelete } from '@mdi/js';
 import type { Property, Node } from '@/types/api';
 import type { QueryAST } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { createEmptyQueryAST, createPropertyCondition, markAsSystemNode } from '@/types/queryAST';
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { QuerySection } from '../components/nodes/QuerySection';
@@ -81,7 +81,7 @@ export function PropertyView({
   }, []);
   
   // Get navigation function
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
   

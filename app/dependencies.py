@@ -31,6 +31,8 @@ from .domain.repositories import (
     PostgresPropertyRepository,
     PostgresLinkRepository,
     PostgresUserRepository,
+    PostgresActivityRepository,
+    PostgresSettingsRepository,
     NodeRepository,
     PropertyRepository,
     LinkRepository,
@@ -136,6 +138,22 @@ async def get_user_repository() -> AsyncGenerator[PostgresUserRepository, None]:
     """Get a UserRepository (not workspace-scoped)."""
     pool = await get_pool()
     yield PostgresUserRepository(pool)
+
+
+async def get_activity_repository(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[PostgresActivityRepository, None]:
+    """Get an ActivityRepository for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    yield PostgresActivityRepository(pool, workspace_id, user_id)
+
+
+async def get_settings_repository() -> AsyncGenerator[PostgresSettingsRepository, None]:
+    """Get a SettingsRepository (not workspace-scoped)."""
+    pool = await get_pool()
+    yield PostgresSettingsRepository(pool)
 
 
 class RepositoryBundle:

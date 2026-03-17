@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from '@mdi/react';
 import { mdiPlus, mdiDatabaseOutline, mdiViewDashboard } from '@mdi/js';
 import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
-import { useAppStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
 import { Button } from '../core/Button';
 import { Dropdown, type DropdownOption } from '../core/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -20,7 +20,7 @@ interface WorkspaceSwitcherProps {
 
 export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   const queryClient = useQueryClient();
-  const { setShowWorkspaceManager } = useAppStore();
+  const { setShowWorkspaceManager } = useModalStore();
 
   const { data } = useQuery({
     queryKey: ['workspaces'],
@@ -29,7 +29,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   });
 
   const clearCacheOnSwitch = useCallback(() => {
-    useAppStore.setState({
+    useNavigationStore.setState({
       currentNodeId: null,
       activeNode: null,
       activeNodeId: null,

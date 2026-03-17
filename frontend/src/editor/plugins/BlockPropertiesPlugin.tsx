@@ -22,7 +22,7 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useVirtualization } from './VirtualizationPlugin';
 import { useBatchPropertyValues } from '@/hooks';
 import { PropertiesSection } from '@/components/properties/PropertiesSection';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -37,8 +37,8 @@ interface BlockDOMInfo {
 // ─── Inline properties component (rendered per block via portal) ──
 
 function BlockInlineProperties({ nodeId, showAddProperty, isMainNode }: { nodeId: number; showAddProperty: boolean; isMainNode: boolean }) {
-  const openNode = useAppStore(state => state.openNode);
-  const addSidebarCard = useAppStore(state => state.addSidebarCard);
+  const openNode = useNavigationStore(state => state.openNode);
+  const addSidebarCard = useNavigationStore(state => state.addSidebarCard);
 
   return (
     <PropertiesSection

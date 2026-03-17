@@ -9,7 +9,7 @@ import { NodeCollection } from '../components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar';
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { ArchiveIcon } from '../components/core/icons';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import api from '@/api/client';
 import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
@@ -27,7 +27,7 @@ interface ArchivedPagesViewProps {
 }
 
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const queryClient = useQueryClient();

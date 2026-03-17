@@ -17,7 +17,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon } from '../core/icons';
 import { EmojiPicker } from '../core/EmojiPicker';
@@ -53,7 +53,7 @@ export function PageHeader({
   const { 
     addSidebarCard, 
     openNode,
-  } = useAppStore();
+  } = useNavigationStore();
   
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);

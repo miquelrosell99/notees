@@ -12,7 +12,7 @@ import { mdiTrashCanOutline } from '@mdi/js';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
 import { getNodeByUuid } from '@/api/nodes';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { Bullet } from '../blocks/Bullet';
 import './NodeActivityLogSection.css';
 
@@ -103,7 +103,7 @@ function formatActivityMessage(activity: NodeActivity): string {
  * that navigate to the target node by UUID.
  */
 function ActivityMessage({ activity }: { activity: NodeActivity }) {
-  const openNode = useAppStore(state => state.openNode);
+  const openNode = useNavigationStore(state => state.openNode);
   const message = formatActivityMessage(activity);
   const time = formatDate(activity.create_date);
   const segments = splitTextWithLinks(message);

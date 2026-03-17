@@ -7,7 +7,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useExistingDailyPages, useNode, useDailyNote } from '@/hooks';
 import './JournalsView.css';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { NodeViewContent } from './NodeView';
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
@@ -20,7 +20,7 @@ interface JournalEntryProps {
 }
 
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
-  const { viewMode } = useAppStore();
+  const { viewMode } = useNavigationStore();
   const { data: page } = useNode(dailyPageId);
   
   // Get border color if page has a color
@@ -64,7 +64,7 @@ interface JournalsViewProps {
 export function JournalsView({ className = '' }: JournalsViewProps) {
   const { data: dailyPages, isLoading, error, refetch } = useExistingDailyPages();
   const [visibleCount, setVisibleCount] = useState(10);
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   const { refetch: refetchToday } = useDailyNote(new Date());
 
   const handleOpenToday = useCallback(async () => {

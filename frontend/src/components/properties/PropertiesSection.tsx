@@ -17,7 +17,7 @@ import {
   useClassProperties,
   usePageClass,
 } from '@/hooks';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
@@ -792,8 +792,8 @@ export function PropertiesSection({
   }, []);
 
   // Get openPropertyView and openNode from store
-  const openPropertyView = useAppStore(state => state.openPropertyView);
-  const openNode = useAppStore(state => state.openNode);
+  const openPropertyView = useNavigationStore(state => state.openPropertyView);
+  const openNode = useNavigationStore(state => state.openNode);
 
   // Handler for text property bullet click - opens block in focused view with property context
   const handleTextPropertyBulletClick = useCallback((blockId: number, property: Property) => {
@@ -903,6 +903,8 @@ export function PropertiesSection({
 
   // If no properties at all, show empty message
   if (nodeProperties.length === 0) {
+    // In inline mode (block preview), nothing to show — keep the container hidden
+    if (inline) return null;
     return (
       <section className={`properties-view ${className}`}>
         {showAddProperty && !readOnly && (

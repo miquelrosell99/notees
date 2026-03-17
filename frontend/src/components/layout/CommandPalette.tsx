@@ -19,7 +19,7 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { listNodes, getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly, getRecentPages, getRecentlyCreatedPages, getRandomPages } from '@/api/nodes';
 import type { RecentPage } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
-import { useAppStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
+import { useNavigationStore, useModalStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
@@ -255,7 +255,7 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { openNode, openPropertyView } = useAppStore();
+  const { openNode, openPropertyView } = useNavigationStore();
   const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
   const { navigateToNode } = useNodeNavigation();
   const { error: notifyError, warning: notifyWarning, success: notifySuccess } = useNotifications();
@@ -667,31 +667,31 @@ export function CommandPalette({
       
       case 'command':
         if (item.commandId === 'import-logseq') {
-          useAppStore.getState().setImportLogseqModalOpen(true);
+          useModalStore.getState().setImportLogseqModalOpen(true);
         } else if (item.commandId === 'import-markdown') {
-          useAppStore.getState().setImportMarkdownModalOpen(true);
+          useModalStore.getState().setImportMarkdownModalOpen(true);
         } else if (item.commandId === 'export-page') {
-          const currentId = useAppStore.getState().currentNodeId;
+          const currentId = useNavigationStore.getState().currentNodeId;
           if (currentId) {
-            useAppStore.getState().setExportPageModalOpen(true);
+            useModalStore.getState().setExportPageModalOpen(true);
           }
         } else if (item.commandId === 'rebuild-links') {
-          useAppStore.getState().setRebuildLinksModalOpen(true);
+          useModalStore.getState().setRebuildLinksModalOpen(true);
         } else if (item.commandId === 'fix-raw-links') {
-          useAppStore.getState().setFixRawLinksModalOpen(true);
+          useModalStore.getState().setFixRawLinksModalOpen(true);
         } else if (item.commandId === 'merge-pages') {
-          useAppStore.getState().setMergePagesModalOpen(true);
+          useModalStore.getState().setMergePagesModalOpen(true);
           onClose();
           return;
         } else if (item.commandId === 'toggle-focus-mode') {
-          useAppStore.getState().toggleFocusMode();
+          useNavigationStore.getState().toggleFocusMode();
         } else if (item.commandId === 'create-page-with-uuid') {
           setCreateWithUuidModalOpen(true);
           // Keep palette open — modal takes over; close palette so it doesn't layer underneath
           onClose();
           return;
         } else if (item.commandId === 'reset-views') {
-          const currentId = useAppStore.getState().currentNodeId;
+          const currentId = useNavigationStore.getState().currentNodeId;
           if (currentId) {
             try {
               await resetNodeViews(currentId);
@@ -716,11 +716,11 @@ export function CommandPalette({
             notifyError('Failed to open random page', 'Please try again.');
           }
         } else if (item.commandId === 'toggle-minimap') {
-          useAppStore.getState().toggleMinimap();
+          useModalStore.getState().toggleMinimap();
         } else if (item.commandId === 'toggle-local-graph') {
-          const currentId = useAppStore.getState().currentNodeId;
+          const currentId = useNavigationStore.getState().currentNodeId;
           if (currentId) {
-            useAppStore.getState().openLocalGraph(currentId);
+            useNavigationStore.getState().openLocalGraph(currentId);
           }
         }
         onClose();

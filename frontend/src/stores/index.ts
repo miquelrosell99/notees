@@ -3,16 +3,18 @@
  * 
  * Store Categories:
  * - Auth: useAuthStore
- * - UI State: useAppStore, useSettingsStore, useFavoritesStore
+ * - UI State: useAppStore (display prefs), useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore
  * - Notifications: useNotificationStore
  * - Feature Flags: useFeatureFlagStore
  * - Keyboard: useKeyboardStore
- * 
+ *
  * ⚠️ PERFORMANCE WARNING:
  * Do NOT subscribe to node maps or collections directly.
- * Use selectors from './selectors' only. Direct subscriptions cause render cascades.
+ * Use selectors (e.g. useNavigationStore(s => s.openNode)) to avoid render cascades.
  */
 export { useAuthStore } from './authStore';
+export { useModalStore } from './modalStore';
+export { useNavigationStore } from './navigationStore';
 export { useAppStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './appStore';
 export { 
   useSettingsStore, 

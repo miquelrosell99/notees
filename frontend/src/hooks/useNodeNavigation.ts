@@ -24,7 +24,7 @@
  *   <NodeCollection onNodeClick={handleNodeClick} onNodeShiftClick={handleNodeShiftClick} />
  */
 import { useCallback } from 'react';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import type { SidebarCardType } from '@/stores';
 
@@ -45,8 +45,8 @@ export interface NavigationOptions {
  * and alias redirection.
  */
 export function useNodeNavigation() {
-  const openNode = useAppStore(state => state.openNode);
-  const addSidebarCard = useAppStore(state => state.addSidebarCard);
+  const openNode = useNavigationStore(state => state.openNode);
+  const addSidebarCard = useNavigationStore(state => state.addSidebarCard);
 
   /** Navigate to a node in the main view */
   const navigateToNode = useCallback((node: Node, options?: NavigationOptions) => {
