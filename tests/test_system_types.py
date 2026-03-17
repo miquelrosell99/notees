@@ -220,7 +220,7 @@ async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids
     assert node.is_class is False
     
     # Add 'class' type to the page
-    success = await service.add_class(page.id, type_type_id)
+    success = await service.add_class(page.id, class_type_id)
     assert success is True
     
     # Verify is_class is now True
