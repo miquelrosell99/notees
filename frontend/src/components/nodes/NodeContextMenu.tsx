@@ -488,7 +488,7 @@ export function NodeContextMenu({
       {menuVisible && createPortal(
         <div ref={menuCallbackRef} className="node-context-menu-wrapper">
           <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
-          <ContextMenu items={menuItems} position={{ x: 0, y: 0 }} onClose={onClose} containerRef={wrapperRef} />
+          <ContextMenu items={menuItems} position={{ x: 0, y: 0 }} onClose={onClose} containerRef={wrapperRef} inline />
         </div>,
         document.body
       )}
