@@ -63,10 +63,13 @@ export type StyleType =
   | 'strikethrough';
 
 /**
- * Property types for property filter conditions
+ * Property types for property filter conditions in query AST nodes.
  * Matches backend: PropertyType enum
+ *
+ * NOTE: Named QueryPropertyType (not PropertyType) to avoid ambiguity with
+ * the api.ts PropertyType union which covers the full set of property storage types.
  */
-export type PropertyType =
+export type QueryPropertyType =
   | 'text'
   | 'number'
   | 'date'
@@ -219,7 +222,7 @@ export interface PropertyCondition extends BaseConditionNode {
   property_name: string;
   property_uuid?: string;
   property_id?: number;
-  property_type: PropertyType;
+  property_type: QueryPropertyType;
   operator: PropertyOperator;
   value?: unknown;
   // Optional nested group for filtering node values (when property_type is 'node')
@@ -498,7 +501,7 @@ export function createPropertyCondition(
   propertyName: string,
   operator: PropertyOperator,
   value: unknown,
-  propertyType: PropertyType = 'text',
+  propertyType: QueryPropertyType = 'text',
   propertyUuid?: string,
 ): PropertyCondition {
   return {

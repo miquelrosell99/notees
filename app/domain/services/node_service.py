@@ -13,6 +13,14 @@ from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, 
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import acquire_connection, get_workspace_uuid
 from ...logging_config import get_logger
+from .class_management_service import (
+    ClassManagementService,
+    CLASS_UUID_TO_FLAG,
+    PROTECTED_DATE_CLASS_UUIDS,
+    BLOCK_ONLY_CLASS_UUIDS,
+    ALL_SYSTEM_CLASS_UUIDS,
+    CLASS_CLASS_UUID,
+)
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
@@ -24,38 +32,6 @@ logger = get_logger(__name__)
 # Maximum allowed hierarchy depth to prevent pathological trees
 MAX_HIERARCHY_DEPTH = 100
 
-
-# Date-related classes that are automatically assigned by the system (cannot be manually added/removed)
-PROTECTED_DATE_CLASS_UUIDS = {
-    SYSTEM_CLASS_UUIDS["year"],
-    SYSTEM_CLASS_UUIDS["month"],
-    SYSTEM_CLASS_UUIDS["day"],
-}
-
-# Block-only classes that cannot be assigned to pages
-BLOCK_ONLY_CLASS_UUIDS = {
-    SYSTEM_CLASS_UUIDS["query"],
-    SYSTEM_CLASS_UUIDS["comment"],
-    SYSTEM_CLASS_UUIDS["quote"],
-}
-
-# Set of all system class UUIDs for quick lookup
-ALL_SYSTEM_CLASS_UUIDS = set(SYSTEM_CLASS_UUIDS.values())
-
-# The 'class' class UUID - nodes with this UUID cannot have 'class' removed from them
-CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
-
-# Mapping from class UUID to the node flag field name
-CLASS_UUID_TO_FLAG = {
-    SYSTEM_CLASS_UUIDS["class"]: "is_class",
-    SYSTEM_CLASS_UUIDS["page"]: "is_page",
-    SYSTEM_CLASS_UUIDS["day"]: "is_day",
-    SYSTEM_CLASS_UUIDS["month"]: "is_month",
-    SYSTEM_CLASS_UUIDS["year"]: "is_year",
-    SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
-    SYSTEM_CLASS_UUIDS["template"]: "is_template",
-    SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
-}
 
 
 class NodeService:
@@ -81,36 +57,15 @@ class NodeService:
         self._page_class_id = page_class_id
         self._pool = pool
         self._workspace_id = workspace_id
-    
+        self._class_service = ClassManagementService(pool, workspace_id, node_repository, property_repository)
+
     async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
-        """Compute is_* flags based on the classes assigned to a node.
-        
-        Returns a dict with flag names as keys and boolean values.
-        Only includes flags for system classes that have corresponding flags.
-        """
-        flags = {}
-        
-        if class_ids:
-            class_nodes = await self._node_repo.get_by_ids(class_ids)
-            for class_node in class_nodes:
-                if class_node.uuid in CLASS_UUID_TO_FLAG:
-                    flag_name = CLASS_UUID_TO_FLAG[class_node.uuid]
-                    flags[flag_name] = True
-        
-        return flags
-    
+        """Delegate to ClassManagementService."""
+        return await self._class_service.compute_flags_from_classes(class_ids)
+
     async def _update_flags_from_classes(self, node_id: int, class_ids: List[int]) -> None:
-        """Update a node's is_* flags based on its current classes.
-        
-        This ensures flags are always in sync with the assigned classes.
-        """
-        # Compute all flags from the current classes
-        flags_to_set = await self._compute_flags_from_classes(class_ids)
-        
-        # Create update data with the computed flags
-        # We use the classes field to trigger flag recomputation in the repository
-        update_data = NodeUpdateData(classes=class_ids)
-        await self._node_repo.update(node_id, update_data)
+        """Delegate to ClassManagementService."""
+        await self._class_service.update_flags_from_classes(node_id, class_ids)
     
     async def _validate_page_name_uniqueness(
         self,
@@ -1335,194 +1290,20 @@ class NodeService:
         return await self._node_repo.search(query, limit)
     
     async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
-        """Add a class to a node using direct class_ids array.
-        
-        Validates page name uniqueness if this is a page.
-        
-        Args:
-            node_id: The node to add the class to
-            class_node_id: The class node ID to add
-            _system_call: Internal flag - if True, bypasses date class protection (for system endpoints)
-        
-        Raises:
-            SystemClassConstraintError: If trying to add a protected date class (day, month, year)
-            DuplicateNodeError: If adding this class would violate page name uniqueness
-        """
-        # Check if the class being added is a protected date class
-        class_node = await self._node_repo.get_by_id(class_node_id)
-        if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS and not _system_call:
-            raise SystemClassConstraintError(
-                f"Cannot manually add '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
-            )
-        
-        # Get current node and class_ids
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id
-            )
-            if not row:
-                return False
-            
-            # Check if trying to add 'class' class to a non-page node
-            if class_node and class_node.uuid == CLASS_CLASS_UUID:
-                if not row['is_page']:
-                    raise SystemClassConstraintError(
-                        "The 'class' class can only be assigned to pages, not blocks."
-                    )
-            
-            # Check if trying to add block-only classes to a page
-            if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
-                if row['is_page']:
-                    raise SystemClassConstraintError(
-                        f"The '{class_node.name}' class can only be assigned to blocks, not pages."
-                    )
-            
-            current_class_ids = list(row['class_ids'] or [])
-            if class_node_id in current_class_ids:
-                return False  # Already has this class
-            
-            # Validate page name uniqueness if this is a page
-            if row['is_page']:
-                new_classes = current_class_ids + [class_node_id]
-                await self._validate_page_name_uniqueness(
-                    name=row['name'],
-                    parent_id=row['parent_id'],
-                    classes=new_classes,
-                    exclude_node_id=node_id,
-                )
-            
-            # Add the class to class_ids array
-            new_class_ids = current_class_ids + [class_node_id]
-            await conn.execute(
-                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
-                new_class_ids, node_id
-            )
-            
-            # Recompute all flags from the updated classes list
-            await self._update_flags_from_classes(node_id, new_class_ids)
-        
-        # Apply Class properties with default values
-        from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
-        
-        class_properties = await self._property_repo.get_class_properties(class_node_id)
-        for cp in class_properties:
-            # Get the property to determine its type
-            prop = await self._property_repo.get_by_id(cp.property_id)
-            if not prop:
-                continue
-            
-            # Check if property already has a value - don't override existing values
-            existing_values = await self._property_repo.get_all_property_values(node_id)
-            if cp.property_id in existing_values and existing_values[cp.property_id].get('values'):
-                continue
-            
-            # Set default value based on property type
-            try:
-                if prop.type in SCALAR_TYPES:
-                    default = None
-                    if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
-                        default = cp.default_integer
-                    elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
-                        default = cp.default_float
-                    elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
-                        default = cp.default_boolean
-                    
-                    if default is not None:
-                        await self._property_repo.set_scalar_value(node_id, cp.property_id, default)
-                
-                elif prop.type in RELATION_TYPES:
-                    default = None
-                    if prop.type == PropertyType.NODE and cp.default_node_id is not None:
-                        default = cp.default_node_id
-                    elif prop.type == PropertyType.TEXT and cp.default_text is not None:
-                        default = cp.default_text
-                    # Image and Date don't have simple defaults
-                    
-                    if default is not None:
-                        if prop.type == PropertyType.NODE:
-                            await self._property_repo.set_relation_value(node_id, cp.property_id, default)
-                        else:
-                            # For TEXT - create a text node with the default value
-                            text_node = await self._node_repo.create(
-                                NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node_id),
-                                None  # user_id
-                            )
-                            await self._property_repo.set_relation_value(node_id, cp.property_id, text_node.id)
-                
-                elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
-                    await self._property_repo.set_selection_value(node_id, cp.property_id, cp.default_selection_id)
-            
-            except Exception as e:
-                # Log but don't fail if default value setting fails
-                logger.warning(f"Failed to set default value for property {cp.property_id} on node {node_id}: {e}")
-        
-        return True
-    
+        """Add a class to a node. Delegates to ClassManagementService."""
+        return await self._class_service.add_class(
+            node_id, class_node_id,
+            _system_call=_system_call,
+            _page_name_validator=self._validate_page_name_uniqueness,
+        )
+
     async def remove_class(self, node_id: int, class_node_id: int) -> bool:
-        """Remove a class from a node using direct class_ids array.
-        
-        Raises:
-            SystemClassConstraintError: If trying to remove a protected date class (day, month, year)
-                                       or 'class' from a system class node
-        """
-        # Check if the class being removed is a protected date class
-        class_node = await self._node_repo.get_by_id(class_node_id)
-        if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS:
-            raise SystemClassConstraintError(
-                f"Cannot remove '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
-            )
-        
-        # Check if trying to remove 'class' from a system class node
-        if class_node and class_node.uuid == CLASS_CLASS_UUID:
-            # Get the node we're removing the class from
-            node = await self._node_repo.get_by_id(node_id)
-            if node and node.uuid in ALL_SYSTEM_CLASS_UUIDS:
-                raise SystemClassConstraintError(
-                    f"Cannot remove 'class' from system class '{node.name}'. System classes must remain as classes."
-                )
-        
-        # Remove class from class_ids array
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id
-            )
-            if not row:
-                return False
-            
-            current_class_ids = list(row['class_ids'] or [])
-            if class_node_id not in current_class_ids:
-                return False  # Class was not assigned to this node
-            
-            # Remove the class
-            new_class_ids = [cid for cid in current_class_ids if cid != class_node_id]
-            await conn.execute(
-                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
-                new_class_ids, node_id
-            )
-            
-            # Recompute all flags from the updated classes list
-            await self._update_flags_from_classes(node_id, new_class_ids)
-        
-        return True
-    
+        """Remove a class from a node. Delegates to ClassManagementService."""
+        return await self._class_service.remove_class(node_id, class_node_id)
+
     async def get_node_classes(self, node_id: int) -> List[Node]:
-        """Get all classes applied to a node from class_ids array."""
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id
-            )
-            if not row or not row['class_ids']:
-                return []
-            
-            # Fetch all class nodes
-            rows = await conn.fetch(
-                "SELECT * FROM node WHERE id = ANY($1) AND workspace_id = $2",
-                row['class_ids'], self._workspace_id
-            )
-            return [self._node_repo.row_to_node(r) for r in rows]
+        """Get all classes applied to a node. Delegates to ClassManagementService."""
+        return await self._class_service.get_node_classes(node_id)
     
     async def merge_pages(
         self,

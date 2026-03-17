@@ -16,6 +16,22 @@ from .helpers import (
 router = APIRouter()
 
 
+async def _get_class_service(user: User):
+    """Return a :class:`ClassManagementService` wired to the user's workspace."""
+    from ...domain.services.class_management_service import ClassManagementService
+    from ...domain.repositories import PostgresNodeRepository, PostgresPropertyRepository
+    from ...db.connection import get_pool
+    from ...dependencies import _get_workspace_context_cached
+
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
+
+    node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
+    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
+    return ClassManagementService(pool, workspace_id, node_repo, property_repo)
+
+
 @router.get("/classes")
 async def list_classes(
     user: User = Depends(get_current_user),
@@ -27,23 +43,20 @@ async def list_classes(
     
     Returns nodes with class_ids populated (classes can themselves be classed).
     """
-    service = await _get_node_service(user)
-    
-    # Get all nodes where is_class=1 using PostgreSQL
-    async with acquire_connection(service._pool) as conn:
-        rows = await conn.fetch(
-            """SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name""",
-            service._workspace_id
-        )
-    
-    nodes = [service._node_repo.row_to_node(row) for row in rows]
-    
+    class_service = await _get_class_service(user)
+    nodes = await class_service.list_classes()
+
     # Batch fetch class_ids for all class nodes
+    from ...db.connection import get_pool
+    from ...dependencies import _get_workspace_context_cached
+    pool = class_service._pool
+    workspace_id = class_service._workspace_id
+
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
-    
+    class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
+
     return {"nodes": [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) 
+        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in nodes
     ]}
 
@@ -59,45 +72,19 @@ async def search_classes(
     Returns nodes with class_ids populated.
     Only returns nodes where is_class=TRUE.
     """
-    service = await _get_node_service(user)
+    class_service = await _get_class_service(user)
+    nodes = await class_service.search_classes(q, limit)
 
-    # SQL expression extracting plain text from AST-formatted name column
-    name_text = """(CASE
-        WHEN name IS NOT NULL AND name LIKE '[%' THEN
-            COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(name::jsonb, '$.**.text') AS t), '')
-        ELSE COALESCE(name, '')
-    END)"""
+    pool = class_service._pool
+    workspace_id = class_service._workspace_id
 
-    async with acquire_connection(service._pool) as conn:
-        # Search directly within is_class=TRUE nodes to avoid post-filtering misses
-        if len(q) >= 3:
-            rows = await conn.fetch(f"""
-                SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-                FROM node
-                WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
-                  AND is_class = TRUE AND parent_id IS NULL
-                  AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
-                ORDER BY
-                    (LOWER({name_text}) = LOWER($1)) DESC,
-                    (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
-                    rank DESC,
-                    write_date DESC
-                LIMIT $4
-            """, q, service._workspace_id, f'%{q}%', limit)
-        else:
-            rows = await conn.fetch(f"""
-                SELECT * FROM node
-                WHERE {name_text} ILIKE $1
-                  AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
-                  AND is_class = TRUE AND parent_id IS NULL
-                ORDER BY
-                    (LOWER({name_text}) = LOWER($4)) DESC,
-                    (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
-                    write_date DESC
-                LIMIT $3
-            """, f'%{q}%', service._workspace_id, limit, q)
+    node_ids = [n.id for n in nodes if n.id is not None]
+    class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
 
-    nodes = [service._node_repo.row_to_node(row) for row in rows]
+    return {"nodes": [
+        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
+        for n in nodes
+    ]}
 
     # Batch fetch class_ids
     node_ids = [n.id for n in nodes if n.id is not None]
@@ -120,34 +107,12 @@ async def get_nodes_with_class(
     Includes nodes that are classed with subclasses of this class (inheritance).
     Uses direct array queries with class_ids column for performance.
     """
-    from ...domain.services.class_extension_service import ClassExtensionService
-    from ...domain.repositories import PostgresPropertyRepository
-    
-    service = await _get_node_service(user)
-    
-    async with acquire_connection(service._pool) as conn:
-        # Get all subclasses (classes that extend this class)
-        property_repo = PostgresPropertyRepository(service._pool, service._workspace_id or 0, int(user.id))
-        extension_service = ClassExtensionService(service._pool, service._workspace_id or 0, property_repo)
-        
-        subclass_ids = await extension_service.get_all_subclasses(class_id)
-        all_class_ids = [class_id] + subclass_ids
-        
-        # Find all nodes that have this class or any of its subclasses using array overlap
-        rows = await conn.fetch("""
-            SELECT * FROM node
-            WHERE class_ids && $1::integer[]
-              AND workspace_id = $2
-              AND active = TRUE
-            ORDER BY write_date DESC
-        """, all_class_ids, service._workspace_id)
-    
-    nodes = [service._node_repo.row_to_node(row) for row in rows]
-    
-    # Batch fetch class_ids for all nodes (already included in row_to_node, but fetch for consistency)
+    class_service = await _get_class_service(user)
+    nodes = await class_service.get_nodes_with_class(class_id)
+
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
-    
+    class_ids_map = await _get_class_ids_batch(class_service._pool, class_service._workspace_id or 0, node_ids)
+
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
         for n in nodes
