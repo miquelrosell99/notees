@@ -194,7 +194,9 @@ export function ContextMenuPlugin({
         
         const blockInfo = findBlockNodeFromElement(target);
         if (blockInfo) {
-          handleContextMenu(blockInfo.blockId, event.clientX, event.clientY);
+          const bullet = target.closest('.bullet-wrapper') as HTMLElement;
+          const rect = bullet.getBoundingClientRect();
+          handleContextMenu(blockInfo.blockId, rect.left, rect.bottom + 4);
         }
       }
     };
