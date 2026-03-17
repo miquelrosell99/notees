@@ -14,7 +14,7 @@ import { useMemo, useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount, useTodayNote, usePages } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useAppStore, useFavoritesStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { Modal } from '../core/Modal';
@@ -266,7 +266,7 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
-  const { addSidebarCard, openLocalGraph } = useAppStore();
+  const { addSidebarCard, openLocalGraph } = useNavigationStore();
   const { showDevOptions } = useSettingsStore();
   const favorites = useFavoritesStore((state) => state.favorites);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);

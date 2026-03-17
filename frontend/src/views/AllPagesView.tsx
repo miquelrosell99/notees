@@ -8,7 +8,8 @@ import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/core/SearchBox';
 import { Button } from '../components/core/Button';
 import { PageIcon, AddIcon } from '../components/core/icons';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
+import { useModalStore } from '@/stores';
 import type { Node } from '@/types';
 import './AllPagesView.css';
 
@@ -17,7 +18,8 @@ interface AllPagesViewProps {
 }
 
 export function AllPagesView({ className = '' }: AllPagesViewProps) {
-  const { openNode, setCommandPaletteOpen } = useAppStore();
+  const { openNode } = useNavigationStore();
+  const { setCommandPaletteOpen } = useModalStore();
   
   // Special pseudo-node ID and UUID for all_pages view
   const PSEUDO_NODE_ID = 0;

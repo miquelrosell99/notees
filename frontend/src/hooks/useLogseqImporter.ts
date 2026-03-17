@@ -22,7 +22,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateNode, useUpdateNode, usePageClass, useClassClass, useCreateProperty } from '@/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
-import { useAppStore } from '@/stores/appStore';
+import { useNavigationStore } from '@/stores';
 import {
   getOrCreateDaily,
   listClasses,
@@ -1269,7 +1269,7 @@ export function useLogseqImporter() {
       // Standalone blocks
       if (parsed.standaloneBlocks && parsed.standaloneBlocks.length > 0) {
         let parentId: number | undefined;
-        const activeNodeId = useAppStore.getState().currentNodeId;
+        const activeNodeId = useNavigationStore.getState().currentNodeId;
         if (activeNodeId) {
           parentId = activeNodeId;
           setImportStatus('Adding block to current node…');

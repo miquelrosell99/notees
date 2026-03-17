@@ -8,7 +8,7 @@
  * - RECENTS section with recently accessed pages
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useAppStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useFavoritesStore } from '@/stores';
 import { useNode, useClasses } from '@/hooks';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
@@ -185,7 +185,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setMainViewType,
     openNode,
     currentNodeId,
-  } = useAppStore();
+  } = useNavigationStore();
   
   // Use individual selectors for data to ensure proper reactivity
   const favorites = useFavoritesStore((state) => state.favorites);

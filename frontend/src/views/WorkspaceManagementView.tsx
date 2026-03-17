@@ -15,7 +15,7 @@ import {
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import { useAuthStore, useAppStore, useFavoritesStore } from '@/stores';
+import { useAuthStore, useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
 import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
@@ -68,7 +68,7 @@ export function WorkspaceManagementView({
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const { logout, user } = useAuthStore();
-  const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useAppStore();
+  const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
 
   // Fetch workspaces
   const { data, isLoading } = useQuery({
@@ -82,7 +82,7 @@ export function WorkspaceManagementView({
     mutationFn: switchWorkspace,
     onSuccess: () => {
       // Reset node state to prevent showing stale data from previous database
-      useAppStore.setState({
+      useNavigationStore.setState({
         currentNodeId: null,
         activeNode: null,
         activeNodeId: null,
@@ -161,7 +161,7 @@ export function WorkspaceManagementView({
     if (type === 'markdown') {
       setIsImportOptionsOpen(false);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      useAppStore.getState().setImportMarkdownModalOpen(true);
+      useModalStore.getState().setImportMarkdownModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     } else {

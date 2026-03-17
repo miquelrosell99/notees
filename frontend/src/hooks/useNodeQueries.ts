@@ -100,11 +100,11 @@ export function useNode(
   // If we get a 404 for the currently viewed node, navigate to home
   // Note: We need to use dynamic import here to avoid circular dependency
   if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
-    import('@/stores').then(({ useAppStore }) => {
-      const currentNodeId = useAppStore.getState().currentNodeId;
+    import('@/stores').then(({ useNavigationStore }) => {
+      const currentNodeId = useNavigationStore.getState().currentNodeId;
       if (currentNodeId === id) {
         // Node was deleted, navigate away
-        useAppStore.setState({ 
+        useNavigationStore.setState({ 
           currentNodeId: null,
           mainViewType: 'node'
         });

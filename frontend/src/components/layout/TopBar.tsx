@@ -16,7 +16,7 @@ import {
   mdiNoteTextOutline,
   mdiCommentOutline
 } from '@mdi/js';
-import { useAppStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
@@ -30,16 +30,18 @@ import './TopBar.css';
 export function TopBar() {
   const { 
     toggleSidebar,
-    isCalendarOpen, 
-    toggleCalendar, 
-    setCalendarOpen,
     openNode,
     toggleRightSidebar,
     rightSidebarOpen,
+  } = useNavigationStore();
+  const {
+    isCalendarOpen, 
+    toggleCalendar, 
+    setCalendarOpen,
     isScratchpadOpen,
     toggleScratchpad,
     setScratchpadOpen,
-  } = useAppStore();
+  } = useModalStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
@@ -49,8 +51,8 @@ export function TopBar() {
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
 
-  const currentNodeId = useAppStore(s => s.currentNodeId);
-  const sidebarCards = useAppStore(s => s.sidebarCards);
+  const currentNodeId = useNavigationStore(s => s.currentNodeId);
+  const sidebarCards = useNavigationStore(s => s.sidebarCards);
   
   // Comment count for the active node
   const { data: commentCount } = useCommentCount(currentNodeId);

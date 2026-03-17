@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useNode } from '@/hooks';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { getAssetUrlAsync } from '@/api/assets';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
@@ -75,8 +75,8 @@ export function ImageNode({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: false });
-  const openNode = useAppStore(s => s.openNode);
-  const addSidebarCard = useAppStore(s => s.addSidebarCard);
+  const openNode = useNavigationStore(s => s.openNode);
+  const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {

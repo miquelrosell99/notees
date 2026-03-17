@@ -7,7 +7,7 @@
  * - Activity section: Shows activity log for the active node
  */
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useAppStore, useSettingsStore, formatDate } from '@/stores';
+import { useNavigationStore, useSettingsStore, formatDate } from '@/stores';
 import { useComments, useCreateComment, useNodeActivity, useNode, nodeNameToText } from '@/hooks';
 import { getNodeVersions, restoreNodeVersion } from '@/api/nodes';
 import type { NodeVersion } from '@/api/nodes';
@@ -53,7 +53,7 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
 }
 
 function CommentsList({ comments }: { comments: Node[] }) {
-  const openNode = useAppStore(s => s.openNode);
+  const openNode = useNavigationStore(s => s.openNode);
 
   const collapsedComments = useMemo(
     () => comments.map(c => ({ ...c, collapsed: !!(c.children && c.children.length > 0) })),
@@ -133,9 +133,9 @@ function QuickAddComment({ nodeId, onClose }: { nodeId: number; onClose: () => v
 }
 
 export function SidebarContextSections() {
-  const currentNodeId = useAppStore(state => state.currentNodeId);
-  const mainViewType = useAppStore(state => state.mainViewType);
-  const openNode = useAppStore(state => state.openNode);
+  const currentNodeId = useNavigationStore(state => state.currentNodeId);
+  const mainViewType = useNavigationStore(state => state.mainViewType);
+  const openNode = useNavigationStore(state => state.openNode);
   
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);

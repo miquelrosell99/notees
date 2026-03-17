@@ -16,7 +16,7 @@ import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -58,7 +58,7 @@ export function NodeContent({
   totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const addSidebarCard = useAppStore(s => s.addSidebarCard);
+  const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Lazy-load children of collapsed blocks when they are expanded

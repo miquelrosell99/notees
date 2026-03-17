@@ -31,7 +31,7 @@ import { NodeIcon } from '../core/icons';
 import { parseIconField } from '@/utils/iconDom';
 import { Button } from '../core/Button';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -384,7 +384,7 @@ function MultiNodePropertyCell({
   editable: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const openNode = useAppStore(s => s.openNode);
+  const openNode = useNavigationStore(s => s.openNode);
 
   // Fetch all nodes in parallel
   const nodeQueries = useQueries({
@@ -464,7 +464,7 @@ function NodePropertyCell({
   isAssetProperty: boolean;
 }) {
   const setPropertyMutation = useSetNodeProperty();
-  const openNode = useAppStore(s => s.openNode);
+  const openNode = useNavigationStore(s => s.openNode);
 
   // Parse node IDs from value
   const isMultiValue = property.is_multi || Array.isArray(value);

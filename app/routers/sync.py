@@ -9,12 +9,15 @@ Updated for workspace-based schema:
 NOTE: Sync functionality is currently a stub and needs to be redesigned
 for the shared workspace model.
 """
+import json
+
 from fastapi import APIRouter, HTTPException, Depends, Request
 
 from ..models import SyncRequest, SyncResponse, Node as NodeModel, User
 from ..domain import Node
 from .auth import get_current_user
-from ..db.connection import acquire_connection, get_pool
+from ..dependencies import get_settings_repository
+from ..domain.repositories import SettingsRepository
 from ..logging_config import logger
 from ..utils import utc_now
 
@@ -39,101 +42,62 @@ async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
 
 
 @router.get("/settings")
-async def get_settings(user: User = Depends(get_current_user)):
+async def get_settings(
+    user: User = Depends(get_current_user),
+    repo: SettingsRepository = Depends(get_settings_repository),
+):
     """Get all user settings."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            "SELECT key, value FROM setting_user WHERE user_id = $1",
-            user_id
-        )
-        settings = {row["key"]: row["value"] for row in rows}
-        return settings
+    return await repo.get_user_settings(int(user.id))
 
 
 @router.put("/settings/{key}")
-async def set_setting(key: str, request: Request, user: User = Depends(get_current_user)):
+async def set_setting(
+    key: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    repo: SettingsRepository = Depends(get_settings_repository),
+):
     """Set a user setting."""
-    import json
     data = await request.json()
     value = data.get("value")
-    
-    pool = await get_pool()
-    user_id = int(user.id)
-    
-    # Value is already a JSON-compatible Python value (string, number, list, dict, etc.)
-    # Serialize to JSON string for JSONB insertion
     json_value = json.dumps(value) if value is not None else 'null'
-    now = utc_now()
-    
-    async with acquire_connection(pool) as conn:
-        # Upsert the setting - the ::jsonb cast will parse the JSON string
-        await conn.execute("""
-            INSERT INTO setting_user (user_id, key, value, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, $3::jsonb, $4, $4, $1, $1)
-            ON CONFLICT (user_id, key) 
-            DO UPDATE SET value = $3::jsonb, write_date = $4, write_uid = $1
-        """, user_id, key, json_value, now)
-    
+    await repo.set_user_setting(int(user.id), key, json_value, utc_now())
     return {"status": "ok"}
 
 @router.get("/workspace-settings")
-async def get_workspace_settings(user: User = Depends(get_current_user)):
+async def get_workspace_settings(
+    user: User = Depends(get_current_user),
+    repo: SettingsRepository = Depends(get_settings_repository),
+):
     """Get all settings for the user's active workspace."""
     from ..database import get_active_workspace_id
-    pool = await get_pool()
-    user_id = int(user.id)
-    active_uuid = get_active_workspace_id(str(user_id))
+    active_uuid = get_active_workspace_id(str(int(user.id)))
     if not active_uuid:
         return {}
-    
-    async with acquire_connection(pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM workspace WHERE uuid::text = $1", active_uuid
-        )
-        if not row:
-            return {}
-        workspace_id = row["id"]
-        rows = await conn.fetch(
-            "SELECT key, value FROM setting_workspace WHERE workspace_id = $1",
-            workspace_id
-        )
-        settings = {r["key"]: r["value"] for r in rows}
-        return settings
+    workspace_id = await repo.get_workspace_id_by_uuid(active_uuid)
+    if workspace_id is None:
+        return {}
+    return await repo.get_workspace_settings(workspace_id)
 
 
 @router.put("/workspace-settings/{key}")
-async def set_workspace_setting(key: str, request: Request, user: User = Depends(get_current_user)):
+async def set_workspace_setting(
+    key: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    repo: SettingsRepository = Depends(get_settings_repository),
+):
     """Set a workspace setting."""
-    import json
     from ..database import get_active_workspace_id
     data = await request.json()
     value = data.get("value")
-    
-    pool = await get_pool()
     user_id = int(user.id)
     active_uuid = get_active_workspace_id(str(user_id))
     if not active_uuid:
         raise HTTPException(status_code=404, detail="No active workspace")
-    
+    workspace_id = await repo.get_workspace_id_by_uuid(active_uuid)
+    if workspace_id is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     json_value = json.dumps(value) if value is not None else 'null'
-    now = utc_now()
-    
-    async with acquire_connection(pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM workspace WHERE uuid::text = $1", active_uuid
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        workspace_id = row["id"]
-        
-        await conn.execute("""
-            INSERT INTO setting_workspace (workspace_id, key, value, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, $3::jsonb, $4, $4, $5, $5)
-            ON CONFLICT (workspace_id, key) 
-            DO UPDATE SET value = $3::jsonb, write_date = $4, write_uid = $5
-        """, workspace_id, key, json_value, now, user_id)
-    
+    await repo.set_workspace_setting(workspace_id, key, json_value, utc_now(), user_id)
     return {"status": "ok"}

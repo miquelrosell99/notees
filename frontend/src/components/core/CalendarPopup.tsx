@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
-import { useAppStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
 
@@ -47,7 +47,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     { popupWidth: 280, popupHeight: 350, fixed: true },
   );
   
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   const { firstDayOfWeek } = useSettingsStore();
 
   // Rotate weekday labels so the configured first day appears first

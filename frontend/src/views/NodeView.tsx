@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
-import { useAppStore, useSettingsStore, formatDate } from '@/stores';
+import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
@@ -325,7 +325,8 @@ export function NodeView({
   const { data: allNodes } = useNodes({ pages_only: true, page_size: 10000 });  // For fallback class/tag lookup
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode, contentDisplayMode } = useAppStore();
+  const { addSidebarCard, openNode } = useNavigationStore();
+  const { contentDisplayMode } = useAppStore();
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
