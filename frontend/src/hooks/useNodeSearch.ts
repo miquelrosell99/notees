@@ -14,7 +14,8 @@
  * - Hierarchical path support (e.g., "Page1/Page2" searches for Page2 child of Page1)
  * - "Create new" option detection
  */
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useDebouncedValue } from './useDebouncedValue';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, nodeKeys } from './useNodes';
 import * as nodesApi from '@/api/nodes';
@@ -74,18 +75,6 @@ export interface UseNodeSearchReturn {
  *   classFilters: property.class_filters 
  * });
  */
-// Debounce hook for search queries
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(handle);
-  }, [value, delayMs]);
-
-  return debounced;
-}
-
 export function useNodeSearch(
   query: string,
   filters: NodeSearchFilters = {}

@@ -43,10 +43,9 @@ from .helpers import (
     _node_to_response,
     _get_class_ids,
     _get_tag_ids,
-    _get_tag_ids_batch,
     _get_class_ids_batch,
     _get_alias_ids,
-    _get_alias_ids_batch,
+    _get_related_ids_batch,
     extract_properties_dict,
     _resolve_referenced_display_names,
 )
@@ -350,7 +349,7 @@ async def get_recent_pages(
         """, service._workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -403,7 +402,7 @@ async def get_random_pages(
         """, service._workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -451,7 +450,7 @@ async def get_recently_created_pages(
         """, service._workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_alias_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -712,7 +711,7 @@ async def batch_get_nodes(
     
     # Batch-fetch metadata for all nodes in parallel
     class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
-    tag_map = await _get_tag_ids_batch(pool, workspace_id, node_ids)
+    tag_map = await _get_related_ids_batch(pool, workspace_id, node_ids, 'tags')
     
     # Batch-fetch backlink counts
     backlink_counts: Dict[int, int] = {}
@@ -1203,7 +1202,7 @@ async def get_page_content(
     node_class_map = await _get_class_ids_batch(pool, service._workspace_id or 0, all_node_ids)
     
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_tag_ids_batch(pool, service._workspace_id or 0, all_node_ids)
+    node_tag_map = await _get_related_ids_batch(pool, service._workspace_id or 0, all_node_ids, 'tags')
     
     # Build tree structure from flat list
     block_map = {}
