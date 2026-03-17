@@ -17,55 +17,38 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         """Search nodes by name using full-text search.
 
         Extracts plain text from AST-formatted names for reliable ILIKE matching.
-        Also resolves embedded node_link labels and target node names so that nodes
-        containing inline links are findable by the linked node's display text.
+        Also finds nodes whose embedded node_link labels or target node names match,
+        using an indexed subquery on node_link rather than per-row AST traversal.
         """
-        # Simplified own-name text used for result ranking (prefix/exact ordering).
+        # Own-name plain text — used for ranking and own-name ILIKE matching.
         name_text = """(CASE
             WHEN n.name IS NOT NULL AND n.name LIKE '[%' THEN
                 COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(n.name::jsonb, '$.**.text') AS t), '')
             ELSE COALESCE(n.name, '')
         END)"""
 
-        # Extended text for WHERE filtering: own text leaves + node_link labels +
-        # resolved target node plain-text names (via the node_link join table).
-        full_text = """(CASE
-            WHEN n.name IS NOT NULL AND n.name LIKE '[%' THEN
-                COALESCE(
-                    (SELECT string_agg(val, ' ')
-                     FROM (
-                         -- Plain text leaves from own AST
-                         SELECT t #>> '{}' AS val
-                         FROM jsonb_path_query(n.name::jsonb, '$.**.text') AS t
-                         UNION ALL
-                         -- Custom labels on embedded node_link elements (inline AST label field)
-                         SELECT lbl #>> '{}' AS val
-                         FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").label') AS lbl
-                         WHERE lbl #>> '{}' IS NOT NULL
-                         UNION ALL
-                         -- Target node names + DB-stored custom labels via node_link table.
-                         -- link_id is "targetNodeUuid:node_link_uuid"; second part is node_link.uuid.
-                         SELECT unnest(ARRAY[
-                             nl.name,
-                             (CASE WHEN tn.name LIKE '[%' THEN
-                                 COALESCE((SELECT string_agg(tv #>> '{}', '') FROM jsonb_path_query(tn.name::jsonb, '$.**.text') AS tv), '')
-                             ELSE COALESCE(tn.name, '') END)
-                         ]) AS val
-                         FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").link_id') AS link_uuid_j
-                         JOIN node_link nl ON nl.uuid = NULLIF(split_part(link_uuid_j #>> '{}', ':', 2), '')::uuid
-                             AND nl.workspace_id = n.workspace_id
-                         JOIN node tn ON tn.id = nl.target_id
-                             AND tn.active = TRUE AND tn.is_deleted = FALSE
-                     ) combined
-                     WHERE val IS NOT NULL AND val != ''),
-                    ''
-                )
-            ELSE COALESCE(n.name, '')
-        END)"""
+        # Subquery: source node IDs whose outgoing links have a matching custom label
+        # (node_link.name) or whose target node name matches the query.
+        # Uses node_link indexes — far cheaper than per-row AST traversal.
+        link_match_subquery = """(
+            SELECT DISTINCT nl.source_id
+            FROM node_link nl
+            JOIN node tn ON tn.id = nl.target_id
+                AND tn.active = TRUE AND tn.is_deleted = FALSE
+            WHERE nl.workspace_id = $2
+            AND (
+                nl.name ILIKE $3
+                OR (CASE
+                    WHEN tn.name IS NOT NULL AND tn.name LIKE '[%' THEN
+                        COALESCE((SELECT string_agg(tv #>> '{}', '') FROM jsonb_path_query(tn.name::jsonb, '$.**.text') AS tv), '')
+                    ELSE COALESCE(tn.name, '')
+                END) ILIKE $3
+            )
+        )"""
 
         async with acquire_connection(self._pool) as conn:
             if not query:
-                # Empty query = list all; skip the expensive AST link resolution.
+                # Empty query = list all; skip search entirely.
                 rows = await conn.fetch(f"""
                     SELECT n.* FROM node n
                     WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
@@ -77,7 +60,11 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     SELECT n.*, ts_rank(n.search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node n
                     WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
-                    AND (n.search_vector @@ plainto_tsquery('english', $1) OR {full_text} ILIKE $3)
+                    AND (
+                        n.search_vector @@ plainto_tsquery('english', $1)
+                        OR {name_text} ILIKE $3
+                        OR n.id IN {link_match_subquery}
+                    )
                     ORDER BY
                         (LOWER({name_text}) = LOWER($1)) DESC,
                         (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
@@ -88,14 +75,17 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             else:
                 rows = await conn.fetch(f"""
                     SELECT n.* FROM node n
-                    WHERE {full_text} ILIKE $1
-                    AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    AND (
+                        {name_text} ILIKE $1
+                        OR n.id IN {link_match_subquery}
+                    )
                     ORDER BY
-                        (LOWER({name_text}) = LOWER($4)) DESC,
-                        (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
+                        (LOWER({name_text}) = LOWER($3)) DESC,
+                        (LOWER({name_text}) LIKE LOWER($3) || '%') DESC,
                         n.write_date DESC
-                    LIMIT $3
-                """, f'%{query}%', self._workspace_id, limit, query)
+                    LIMIT $4
+                """, f'%{query}%', self._workspace_id, query, limit)
             return [self._row_to_node(row) for row in rows]
 
     async def get_typed_with(self, type_node_id: int) -> List[object]:
