@@ -45,9 +45,11 @@ interface ContextMenuProps {
   activeItem?: string;
   /** Optional container ref - clicks inside this container won't close the menu */
   containerRef?: React.RefObject<HTMLElement | null>;
+  /** When true, render inline (no portal) — for use inside an already-portaled wrapper */
+  inline?: boolean;
 }
 
-export function ContextMenu({ items, position, onClose, title, activeItem, containerRef }: ContextMenuProps) {
+export function ContextMenu({ items, position, onClose, title, activeItem, containerRef, inline = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -208,7 +210,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   // Track index in navigable items for focus
   let navigableIndex = -1;
 
-  return createPortal(
+  const menu = (
     <Card
       ref={menuCallbackRef}
       className="context-menu"
@@ -275,9 +277,10 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
           {items.find(item => item.id === activeSubmenu)?.submenu}
         </div>
       )}
-    </Card>,
-    document.body
+    </Card>
   );
+
+  return inline ? menu : createPortal(menu, document.body);
 }
 
 export default ContextMenu;
