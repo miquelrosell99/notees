@@ -7,7 +7,7 @@
  */
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useAppStore } from '@/stores/appStore';
+import { useNavigationStore } from '@/stores';
 import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
@@ -24,7 +24,7 @@ interface SidebarCardNodeProps {
 
 export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodeProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
-  const { openNode } = useAppStore();
+  const { openNode } = useNavigationStore();
   
   // Pages show the name, blocks show breadcrumbs
   const title = cardType === 'page'

@@ -6,7 +6,7 @@
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuthStore, useAppStore } from '@/stores';
+import { useAuthStore, useModalStore } from '@/stores';
 import { mdiCog, mdiLogout, mdiDatabaseOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Card } from '../core/Card';
@@ -25,7 +25,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { setShowWorkspaceManager } = useAppStore();
+  const { setShowWorkspaceManager } = useModalStore();
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
   useEscapeKey(() => setIsOpen(false));

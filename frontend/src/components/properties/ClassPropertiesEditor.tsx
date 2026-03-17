@@ -25,7 +25,7 @@ import { NodeViewSection } from '../nodes/NodeViewSection';
 import { PropertiesIcon } from '../core/icons';
 import { ListSortable } from '../core/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { getMdiPath } from '@/utils/iconDom';
 import './PropertiesSection.css';
@@ -145,7 +145,7 @@ export function ClassPropertiesEditor({
   }, [classProperties, classNodeId, reorderMutation]);
 
   // Get openPropertyView from store
-  const openPropertyView = useAppStore(state => state.openPropertyView);
+  const openPropertyView = useNavigationStore(state => state.openPropertyView);
 
   // Context menu items for the open context menu
   const contextMenuItems = useMemo((): ContextMenuItem[] => {

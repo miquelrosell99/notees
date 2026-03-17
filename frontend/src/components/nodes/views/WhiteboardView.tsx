@@ -18,7 +18,7 @@ import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { WhiteboardMinimap } from './WhiteboardMinimap';
 import { useWhiteboard } from '@/hooks/useWhiteboard';
 import { useCreateNode, useDeleteNode } from '@/hooks/useNodes';
-import { useAppStore } from '@/stores/appStore';
+import { useNavigationStore } from '@/stores';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import { LinkEditModal, type LinkEditResult } from '@/editor/components/LinkEditModal';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
@@ -35,7 +35,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
   const wb = useWhiteboard(nodeId);
   const createNode = useCreateNode();
   const deleteNode = useDeleteNode();
-  const openNode = useAppStore(s => s.openNode);
+  const openNode = useNavigationStore(s => s.openNode);
   const { gridVisible, gridSize, minimapVisible } = useWhiteboardStore();
 
   // Context menu state

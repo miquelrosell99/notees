@@ -18,7 +18,7 @@ import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
 import { parseIconField } from '@/utils/iconDom';
 import { useUpdateProperty, useClasses } from '@/hooks';
-import { useAppStore } from '@/stores/appStore';
+import { useNavigationStore } from '@/stores';
 import { Button } from '../core/Button';
 import { Modal } from '../core/Modal';
 import { TextField } from '../core/TextField';
@@ -46,7 +46,7 @@ export function PropertyConfigSection({
   const [isMultiValue, setIsMultiValue] = useState(property.multi || false);
   const [showMultiValueConfirm, setShowMultiValueConfirm] = useState(false);
   const defaultValue = ''; // default_value not yet supported by backend
-  const openNode = useAppStore(state => state.openNode);
+  const openNode = useNavigationStore(state => state.openNode);
   const [newOptionName, setNewOptionName] = useState('');
   const [newOptionIcon, setNewOptionIcon] = useState('');
   const [showAddOption, setShowAddOption] = useState(false);

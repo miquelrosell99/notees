@@ -53,7 +53,7 @@ import {
 } from '@/hooks';
 import { useContentSave } from '@/hooks/useContentSave';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { Checkbox } from '@/components/core/Checkbox';
@@ -306,8 +306,8 @@ export const NodeCard = memo(function NodeCard({
   const createNode = useCreateNode();
 
   // Store actions (use selectors to avoid full-store re-renders)
-  const openNode = useAppStore(s => s.openNode);
-  const addSidebarCard = useAppStore(s => s.addSidebarCard);
+  const openNode = useNavigationStore(s => s.openNode);
+  const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
   // Content save hook
   const { handleContentChange: saveContent } = useContentSave();

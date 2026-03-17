@@ -13,7 +13,7 @@
  * - Drag the left edge of right sidebar to resize
  */
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { useAppStore, useSettingsStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode, useNode } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened } from '@/api/nodes';
@@ -38,31 +38,31 @@ import './Layout.css';
 
 export function Layout() {
   // Use granular selectors to avoid re-rendering on unrelated store changes
-  const isSidebarCollapsed = useAppStore(s => s.isSidebarCollapsed);
-  const rightSidebarOpen = useAppStore(s => s.rightSidebarOpen);
-  const currentNodeId = useAppStore(s => s.currentNodeId);
-  const mainViewType = useAppStore(s => s.mainViewType);
-  const viewMode = useAppStore(s => s.viewMode);
-  const isCommandPaletteOpen = useAppStore(s => s.isCommandPaletteOpen);
-  const setCommandPaletteOpen = useAppStore(s => s.setCommandPaletteOpen);
-  const isImportDataModalOpen = useAppStore(s => s.isImportDataModalOpen);
-  const setImportDataModalOpen = useAppStore(s => s.setImportDataModalOpen);
-  const isImportLogseqModalOpen = useAppStore(s => s.isImportLogseqModalOpen);
-  const setImportLogseqModalOpen = useAppStore(s => s.setImportLogseqModalOpen);
-  const isImportMarkdownModalOpen = useAppStore(s => s.isImportMarkdownModalOpen);
-  const setImportMarkdownModalOpen = useAppStore(s => s.setImportMarkdownModalOpen);
-  const isExportPageModalOpen = useAppStore(s => s.isExportPageModalOpen);
-  const setExportPageModalOpen = useAppStore(s => s.setExportPageModalOpen);
-  const isRebuildLinksModalOpen = useAppStore(s => s.isRebuildLinksModalOpen);
-  const setRebuildLinksModalOpen = useAppStore(s => s.setRebuildLinksModalOpen);
-  const isFixRawLinksModalOpen = useAppStore(s => s.isFixRawLinksModalOpen);
-  const setFixRawLinksModalOpen = useAppStore(s => s.setFixRawLinksModalOpen);
-  const isMergePagesModalOpen = useAppStore(s => s.isMergePagesModalOpen);
-  const setMergePagesModalOpen = useAppStore(s => s.setMergePagesModalOpen);
-  const isMinimapOpen = useAppStore(s => s.isMinimapOpen);
-  const setMinimapOpen = useAppStore(s => s.setMinimapOpen);
-  const setMainViewType = useAppStore(s => s.setMainViewType);
-  const openNode = useAppStore(s => s.openNode);
+  const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
+  const rightSidebarOpen = useNavigationStore(s => s.rightSidebarOpen);
+  const currentNodeId = useNavigationStore(s => s.currentNodeId);
+  const mainViewType = useNavigationStore(s => s.mainViewType);
+  const viewMode = useNavigationStore(s => s.viewMode);
+  const isCommandPaletteOpen = useModalStore(s => s.isCommandPaletteOpen);
+  const setCommandPaletteOpen = useModalStore(s => s.setCommandPaletteOpen);
+  const isImportDataModalOpen = useModalStore(s => s.isImportDataModalOpen);
+  const setImportDataModalOpen = useModalStore(s => s.setImportDataModalOpen);
+  const isImportLogseqModalOpen = useModalStore(s => s.isImportLogseqModalOpen);
+  const setImportLogseqModalOpen = useModalStore(s => s.setImportLogseqModalOpen);
+  const isImportMarkdownModalOpen = useModalStore(s => s.isImportMarkdownModalOpen);
+  const setImportMarkdownModalOpen = useModalStore(s => s.setImportMarkdownModalOpen);
+  const isExportPageModalOpen = useModalStore(s => s.isExportPageModalOpen);
+  const setExportPageModalOpen = useModalStore(s => s.setExportPageModalOpen);
+  const isRebuildLinksModalOpen = useModalStore(s => s.isRebuildLinksModalOpen);
+  const setRebuildLinksModalOpen = useModalStore(s => s.setRebuildLinksModalOpen);
+  const isFixRawLinksModalOpen = useModalStore(s => s.isFixRawLinksModalOpen);
+  const setFixRawLinksModalOpen = useModalStore(s => s.setFixRawLinksModalOpen);
+  const isMergePagesModalOpen = useModalStore(s => s.isMergePagesModalOpen);
+  const setMergePagesModalOpen = useModalStore(s => s.setMergePagesModalOpen);
+  const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
+  const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
+  const setMainViewType = useNavigationStore(s => s.setMainViewType);
+  const openNode = useNavigationStore(s => s.openNode);
   
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();

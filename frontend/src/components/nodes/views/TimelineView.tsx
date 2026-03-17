@@ -11,7 +11,7 @@ import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import { setSetting } from '@/api/workspaces';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import * as nodesApi from '@/api/nodes';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './timelineTypes';
 import { getDateLanePalette } from './viewTypes';
@@ -71,7 +71,7 @@ export const TimelineView = memo(function TimelineView({
   const manualZoomRef = useRef(false);
   const markersRef = useRef<Array<{ x: number; date: Date; interval: number }>>([]);
   
-  const { openNode, addSidebarCard } = useAppStore();
+  const { openNode, addSidebarCard } = useNavigationStore();
   
   const { data: serverSettings } = useSettingsQuery();
   

@@ -44,7 +44,7 @@ import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { useAppStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
 import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy, mdiRestore } from '@mdi/js';
 import './QueryNodeCollection.css';
 
@@ -271,7 +271,7 @@ export function QueryNodeCollection({
   const setNodeViewMode = useAppStore(state => state.setNodeViewMode);
   const getNodeGroupBy = useAppStore(state => state.getNodeGroupBy);
   const setNodeGroupBy = useAppStore(state => state.setNodeGroupBy);
-  const openNode = useAppStore(state => state.openNode);
+  const openNode = useNavigationStore(state => state.openNode);
   const persistedViewMode = getNodeViewMode(nodeId, viewType);
   
   // Default to 'table' for classed_nodes, 'list' for others

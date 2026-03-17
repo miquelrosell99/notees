@@ -17,7 +17,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue, memo } from 'react';
 import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
-import { useAppStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
@@ -80,7 +80,7 @@ export const TerrainView = memo(function TerrainView({
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
-  const { openNode, addSidebarCard } = useAppStore();
+  const { openNode, addSidebarCard } = useNavigationStore();
   
   // View state
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
