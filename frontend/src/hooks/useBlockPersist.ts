@@ -252,6 +252,24 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           }
         }
 
+        // Also remove from flat Node[] caches (list views, query sections)
+        const flatCacheKeys = [
+          ['nodeViews', 'queryResults'],
+          ['pseudo-node-query'],
+          ['inline-query'],
+        ] as const;
+        for (const keyPrefix of flatCacheKeys) {
+          for (const query of queryCache.findAll({ queryKey: keyPrefix })) {
+            const oldData = query.state.data as Node[] | undefined;
+            if (oldData && Array.isArray(oldData)) {
+              const newData = oldData.filter(n => n.id !== deletedServerId);
+              if (newData.length !== oldData.length) {
+                queryClient.setQueryData(query.queryKey, newData);
+              }
+            }
+          }
+        }
+
         // Block was deleted/merged in the editor — batch-persist to API
         pendingDeleteUuids.push(event.blockId);
         scheduleDeleteFlush();
