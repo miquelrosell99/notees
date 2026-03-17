@@ -38,20 +38,23 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                          SELECT t #>> '{}' AS val
                          FROM jsonb_path_query(n.name::jsonb, '$.**.text') AS t
                          UNION ALL
-                         -- Custom labels on embedded node_link elements
+                         -- Custom labels on embedded node_link elements (inline AST label field)
                          SELECT lbl #>> '{}' AS val
                          FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").label') AS lbl
                          WHERE lbl #>> '{}' IS NOT NULL
                          UNION ALL
-                         -- Target node plain-text names for embedded links.
-                         -- link_id is a compound "targetNodeUuid:linkInstanceUuid" string;
-                         -- split_part extracts the first segment (the target node UUID).
-                         SELECT (CASE WHEN tn.name LIKE '[%' THEN
-                             COALESCE((SELECT string_agg(tv #>> '{}', '') FROM jsonb_path_query(tn.name::jsonb, '$.**.text') AS tv), '')
-                         ELSE COALESCE(tn.name, '') END) AS val
+                         -- Target node names + DB-stored custom labels via node_link table.
+                         -- link_id is "targetNodeUuid:node_link_uuid"; second part is node_link.uuid.
+                         SELECT unnest(ARRAY[
+                             nl.name,
+                             (CASE WHEN tn.name LIKE '[%' THEN
+                                 COALESCE((SELECT string_agg(tv #>> '{}', '') FROM jsonb_path_query(tn.name::jsonb, '$.**.text') AS tv), '')
+                             ELSE COALESCE(tn.name, '') END)
+                         ]) AS val
                          FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").link_id') AS link_uuid_j
-                         JOIN node tn ON tn.uuid = split_part(link_uuid_j #>> '{}', ':', 1)::uuid
-                             AND tn.workspace_id = n.workspace_id
+                         JOIN node_link nl ON nl.uuid = split_part(link_uuid_j #>> '{}', ':', 2)::uuid
+                             AND nl.workspace_id = n.workspace_id
+                         JOIN node tn ON tn.id = nl.target_id
                              AND tn.active = TRUE AND tn.is_deleted = FALSE
                      ) combined
                      WHERE val IS NOT NULL AND val != ''),
