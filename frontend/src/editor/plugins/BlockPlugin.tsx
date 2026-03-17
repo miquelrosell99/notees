@@ -417,8 +417,12 @@ export function BlockPlugin({
         const block = existingBlockMap.get(projected.blockId);
         if (!block) continue;
         if (prevBlock) {
-          // Move block to be right after its predecessor (no-op if already there)
-          prevBlock.insertAfter(block);
+          // Only move if not already in position — insertAfter calls
+          // getWritable() which marks both nodes dirty, triggering
+          // unnecessary Lexical reconciliation that can displace the cursor.
+          if (prevBlock.getNextSibling() !== block) {
+            prevBlock.insertAfter(block);
+          }
         }
         prevBlock = block;
       }
