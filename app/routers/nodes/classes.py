@@ -3,13 +3,11 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from ..auth import get_current_user
 from ...models import User
-from ...db.connection import acquire_connection
 from .models import ClassRequest
 from .helpers import (
     _get_node_service,
     _node_to_response,
     _get_class_ids_batch,
-    _get_effective_class_ids_batch,
 )
 
 
@@ -46,12 +44,8 @@ async def list_classes(
     class_service = await _get_class_service(user)
     nodes = await class_service.list_classes()
 
-    # Batch fetch class_ids for all class nodes
-    from ...db.connection import get_pool
-    from ...dependencies import _get_workspace_context_cached
     pool = class_service._pool
     workspace_id = class_service._workspace_id
-
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
 
@@ -80,15 +74,6 @@ async def search_classes(
 
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
-
-    return {"nodes": [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
-        for n in nodes
-    ]}
-
-    # Batch fetch class_ids
-    node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
 
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
