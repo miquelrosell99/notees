@@ -20,13 +20,6 @@
   font-style: italic;
 }
 
-/* Placeholder text */
-.class-property-placeholder {
-  font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
-  font-style: italic;
-}
-
 /* Inline ⋮ options button on each property row */
 .class-property-menu-btn {
   display: flex;

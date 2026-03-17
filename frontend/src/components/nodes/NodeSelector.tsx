@@ -461,7 +461,7 @@ export function NodeSelector({
               ))}
             </div>
           ) : (
-            <span className="node-selector__placeholder">—</span>
+            <span className="node-selector__placeholder">Empty</span>
           )}
         </div>
       );
