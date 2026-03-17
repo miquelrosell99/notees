@@ -13,14 +13,7 @@ from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, 
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import acquire_connection, get_workspace_uuid
 from ...logging_config import get_logger
-from .class_management_service import (
-    ClassManagementService,
-    CLASS_UUID_TO_FLAG,
-    PROTECTED_DATE_CLASS_UUIDS,
-    BLOCK_ONLY_CLASS_UUIDS,
-    ALL_SYSTEM_CLASS_UUIDS,
-    CLASS_CLASS_UUID,
-)
+from .class_management_service import ClassManagementService
 
 if TYPE_CHECKING:
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
