@@ -4,6 +4,7 @@
  * API client for managing NodeViews - dynamic query tabs for nodes.
  */
 import api from './client';
+import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
 import type { Node } from '@/types/api';
 import type { 
   NodeView, 
@@ -142,14 +143,14 @@ export async function executeNodeViewQuery(
     enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
   }
 ): Promise<QueryExecuteResponse> {
-  const response = await api.post<QueryExecuteAPIResponse>(
-    `${BASE}/${viewId}/execute`,
-    options
+  const data = await nodeQueryWorkerClient.post<QueryExecuteAPIResponse>(
+    `/api/nodes/views/${viewId}/execute`,
+    options,
   );
   return {
-    nodes: response.data.nodes,
-    total_count: response.data.total_count,
-    metrics: response.data.metrics,
+    nodes: data.nodes,
+    total_count: data.total_count,
+    metrics: data.metrics,
   };
 }
 
@@ -158,11 +159,14 @@ export async function executeNodeViewQuery(
  * Returns full response with nodes, optional total_count, and metrics.
  */
 export async function executeQuery(request: QueryExecuteRequest): Promise<QueryExecuteResponse> {
-  const response = await api.post<QueryExecuteAPIResponse>(`${BASE}/execute`, request);
+  const data = await nodeQueryWorkerClient.post<QueryExecuteAPIResponse>(
+    `/api/nodes/views/execute`,
+    request,
+  );
   return {
-    nodes: response.data.nodes,
-    total_count: response.data.total_count,
-    metrics: response.data.metrics,
+    nodes: data.nodes,
+    total_count: data.total_count,
+    metrics: data.metrics,
   };
 }
 

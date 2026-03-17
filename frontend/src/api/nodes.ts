@@ -2,6 +2,7 @@
  * Nodes API functions
  */
 import api from './client';
+import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
 import type {
   Node,
   NodeCreate,
@@ -327,20 +328,20 @@ export async function getBacklinks(
   nodeId: number,
   includeInherited = true
 ): Promise<Backlink[]> {
-  const response = await api.get<BacklinksResponse>(`${BASE}/${nodeId}/backlinks`, {
-    params: { include_inherited: includeInherited },
-  });
-  return response.data.backlinks ?? [];
+  const data = await nodeQueryWorkerClient.get<BacklinksResponse>(
+    `/api/nodes/${nodeId}/backlinks?include_inherited=${includeInherited}`,
+  );
+  return data.backlinks ?? [];
 }
 
 /**
  * Get linked references to a node with context
  */
 export async function getLinkedReferences(nodeId: number): Promise<LinkedReference[]> {
-  const response = await api.get<LinkedReferencesResponse>(
-    `${BASE}/${nodeId}/linked-references`
+  const data = await nodeQueryWorkerClient.get<LinkedReferencesResponse>(
+    `/api/nodes/${nodeId}/linked-references`,
   );
-  return response.data.linked_references ?? [];
+  return data.linked_references ?? [];
 }
 
 /**
@@ -529,10 +530,10 @@ export interface PropertyBacklink {
  * Get property backlinks (pages that reference via date or node properties)
  */
 export async function getPropertyBacklinks(nodeId: number): Promise<PropertyBacklink[]> {
-  const response = await api.get<{ property_backlinks: PropertyBacklink[] }>(
-    `${BASE}/${nodeId}/property-backlinks`
+  const data = await nodeQueryWorkerClient.get<{ property_backlinks: PropertyBacklink[] }>(
+    `/api/nodes/${nodeId}/property-backlinks`,
   );
-  return response.data.property_backlinks ?? [];
+  return data.property_backlinks ?? [];
 }
 
 // ==================== Comments ====================
