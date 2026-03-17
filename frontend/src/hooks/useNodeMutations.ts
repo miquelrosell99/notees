@@ -852,6 +852,24 @@ export function useDeleteNode() {
           }
         }
       }
+
+      // Optimistically remove from flat Node[] caches (queryResults, pseudo-node-query, inline-query)
+      const flatCacheKeys = [
+        ['nodeViews', 'queryResults'],
+        ['pseudo-node-query'],
+        ['inline-query'],
+      ];
+      for (const keyPrefix of flatCacheKeys) {
+        for (const query of queryCache.findAll({ queryKey: keyPrefix })) {
+          const oldData = query.state.data as Node[] | undefined;
+          if (oldData && Array.isArray(oldData)) {
+            const newData = oldData.filter(n => n.id !== deletedId);
+            if (newData.length !== oldData.length) {
+              queryClient.setQueryData(query.queryKey, newData);
+            }
+          }
+        }
+      }
     },
     onSuccess: async ({ deletedNode: _deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
@@ -923,6 +941,11 @@ export function useDeleteNode() {
       // Invalidate pseudo-node queries (e.g., All Pages view)
       queryClient.invalidateQueries({ 
         queryKey: ['pseudo-node-query'],
+        refetchType: 'active',
+      });
+      // Invalidate inline query sections (embedded QuerySection within node pages)
+      queryClient.invalidateQueries({ 
+        queryKey: ['inline-query'],
         refetchType: 'active',
       });
       // Invalidate graph data since nodes/links changed
