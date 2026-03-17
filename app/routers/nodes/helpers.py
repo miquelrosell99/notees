@@ -219,70 +219,15 @@ async def _get_alias_ids(pool, workspace_id: int, node_id: int) -> List[int]:
         return [row['id'] for row in rows]
 
 
-async def _get_alias_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
-    """Efficiently fetch alias_ids for multiple nodes in a single query.
-    
-    Returns a dict mapping node_id -> list of alias node IDs.
-    """
-    if not node_ids:
-        return {}
-    
-    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
-    
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch("""
-            SELECT aliased_id, id
-            FROM node
-            WHERE aliased_id = ANY($1) AND workspace_id = $2
-              AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY aliased_id, name
-        """, node_ids, workspace_id)
-    
-        for row in rows:
-            aliased_id = row['aliased_id']
-            if aliased_id in result:
-                result[aliased_id].append(row['id'])
-    
-    return result
-
-
-async def _get_tag_ids_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
-    """Efficiently fetch tag_ids for multiple nodes in a single query.
-    
-    Returns a dict mapping node_id -> list of tag_ids.
-    """
-    if not node_ids:
-        return {}
-    
-    # Initialize result with empty lists for all requested nodes
-    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
-    
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch("""
-            SELECT source_id, target_id
-            FROM node_link 
-            WHERE source_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
-            ORDER BY source_id, position
-        """, node_ids)
-    
-        for row in rows:
-            source_id = row['source_id']
-            target_id = row['target_id']
-            if source_id in result and target_id:
-                result[source_id].append(target_id)
-    
-    return result
-
-
 async def _get_class_ids_batch(pool, workspace_id: int, node_ids: List[int], *, conn=None) -> Dict[int, List[int]]:
     """Efficiently fetch class_ids directly from node table.
-    
+
     Returns a dict mapping node_id -> list of class_ids.
     If conn is provided, uses that connection instead of acquiring from pool.
     """
     if not node_ids:
         return {}
-    
+
     async def _fetch(c):
         rows = await c.fetch("""
             SELECT id, class_ids
@@ -290,12 +235,83 @@ async def _get_class_ids_batch(pool, workspace_id: int, node_ids: List[int], *, 
             WHERE id = ANY($1) AND workspace_id = $2
         """, node_ids, workspace_id)
         return {row['id']: list(row['class_ids'] or []) for row in rows}
-    
+
     if conn is not None:
         return await _fetch(conn)
-    
+
     async with acquire_connection(pool) as c:
         return await _fetch(c)
+
+
+async def _get_related_ids_batch(
+    pool,
+    workspace_id: int,
+    node_ids: List[int],
+    relation_type: str,
+) -> Dict[int, List[int]]:
+    """Generic batch-fetch for IDs related to a set of source node IDs.
+
+    Args:
+        pool: asyncpg connection pool
+        workspace_id: Current workspace (used for alias lookups)
+        node_ids: Source node IDs to look up relations for
+        relation_type: One of 'tags', 'aliases', 'classes'
+
+    Returns:
+        Dict mapping source node_id -> list of related IDs.
+
+    Note:
+        'classes' uses a dedicated path because the data lives in an array
+        column rather than a join table, and supports an optional ``conn``
+        override.  Prefer calling ``_get_class_ids_batch`` directly when you
+        already hold a connection.
+    """
+    if not node_ids:
+        return {}
+
+    result: Dict[int, List[int]] = {nid: [] for nid in node_ids}
+
+    if relation_type == 'tags':
+        async with acquire_connection(pool) as conn:
+            rows = await conn.fetch("""
+                SELECT source_id, target_id
+                FROM node_link
+                WHERE source_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
+                ORDER BY source_id, position
+            """, node_ids)
+        for row in rows:
+            source_id = row['source_id']
+            if source_id in result and row['target_id']:
+                result[source_id].append(row['target_id'])
+
+    elif relation_type == 'aliases':
+        async with acquire_connection(pool) as conn:
+            rows = await conn.fetch("""
+                SELECT aliased_id, id
+                FROM node
+                WHERE aliased_id = ANY($1) AND workspace_id = $2
+                  AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY aliased_id, name
+            """, node_ids, workspace_id)
+        for row in rows:
+            aliased_id = row['aliased_id']
+            if aliased_id in result:
+                result[aliased_id].append(row['id'])
+
+    elif relation_type == 'classes':
+        async with acquire_connection(pool) as conn:
+            rows = await conn.fetch("""
+                SELECT id, class_ids
+                FROM node
+                WHERE id = ANY($1) AND workspace_id = $2
+            """, node_ids, workspace_id)
+        for row in rows:
+            result[row['id']] = list(row['class_ids'] or [])
+
+    else:
+        raise ValueError(f"Unknown relation_type: {relation_type!r}")
+
+    return result
 
 
 async def _get_effective_class_ids_batch(pool, workspace_id: int, node_ids: List[int], user_id: int) -> Dict[int, List[int]]:

@@ -57,7 +57,6 @@ from .helpers import (
     _get_class_ids,
     _get_class_ids_batch,
     _get_tag_ids,
-    _get_tag_ids_batch,
 )
 
 

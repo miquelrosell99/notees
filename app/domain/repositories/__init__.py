@@ -8,6 +8,7 @@ from .interfaces import (
     SettingsRepository,
 )
 from .postgres_node import PostgresNodeRepository
+
 from .postgres_property import PostgresPropertyRepository
 from .postgres_link import PostgresLinkRepository
 from .postgres_user import PostgresUserRepository
