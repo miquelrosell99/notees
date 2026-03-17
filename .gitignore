@@ -45,3 +45,4 @@ AGENTS.md
 .github/prompts/Base.prompt.md
 .github/copilot-instructions.md
 frontend/package-lock.json
+.coverage
