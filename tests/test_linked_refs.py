@@ -8,6 +8,7 @@ Key semantics:
 5. Breadcrumbs include property provenance: T → property_name → B → … → page
 6. Recursive child references: Links to children show on parent's linked references
 """
+import json
 import pytest
 from datetime import datetime, timezone
 
@@ -83,15 +84,18 @@ async def test_text_link_creates_backlink(link_service_fixtures):
     link_service = link_service_fixtures['link_service']
     
     # Create target page X
-    page_x = await node_repo.create(NodeCreateData(name='Page X', is_page=True))
+    page_x = await node_repo.create(NodeCreateData(name='Page X'))
     assert page_x.id is not None
     
     # Create source page with a block T that links to X
-    page_source = await node_repo.create(NodeCreateData(name='Source Page', is_page=True))
+    page_source = await node_repo.create(NodeCreateData(name='Source Page'))
     assert page_source.id is not None
     
     block_t = await node_repo.create(NodeCreateData(
-        name=f'Block linking to [[{page_x.uuid}]]',
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "Block linking to "},
+            {"type": "node_link", "ref_type": "node", "link_id": page_x.uuid}
+        ]}]),
         parent_id=page_source.id
     ))
     assert block_t.id is not None
@@ -119,11 +123,11 @@ async def test_classes_property_excluded_from_backlinks(db_pool, link_service_fi
     link_service = link_service_fixtures['link_service']
     
     # Create a class node
-    class_node = await node_repo.create(NodeCreateData(name='Task', is_class=True))
+    class_node = await node_repo.create(NodeCreateData(name='Task'))
     assert class_node.id is not None
     
     # Create a page that has this class
-    page = await node_repo.create(NodeCreateData(name='My Task', is_page=True))
+    page = await node_repo.create(NodeCreateData(name='My Task'))
     assert page.id is not None
     
     # Add class directly to class_ids column (no longer using property links)
@@ -152,13 +156,13 @@ async def test_classes_path_inheritance(db_pool, link_service_fixtures):
     workspace_id = link_service_fixtures['workspace_id']
     
     # Create two class nodes
-    class_task = await node_repo.create(NodeCreateData(name='Task', is_class=True))
-    class_meeting = await node_repo.create(NodeCreateData(name='Meeting', is_class=True))
+    class_task = await node_repo.create(NodeCreateData(name='Task'))
+    class_meeting = await node_repo.create(NodeCreateData(name='Meeting'))
     assert class_task.id is not None
     assert class_meeting.id is not None
     
     # Create a page with class Task
-    page = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
+    page = await node_repo.create(NodeCreateData(name='Parent Page'))
     assert page.id is not None
     
     # Set page class directly in class_ids column (no longer using property_value_relation)
@@ -189,18 +193,21 @@ async def test_backlinks_include_breadcrumb_path(link_service_fixtures):
     link_service = link_service_fixtures['link_service']
     
     # Create target page
-    target = await node_repo.create(NodeCreateData(name='Target', is_page=True))
+    target = await node_repo.create(NodeCreateData(name='Target'))
     assert target.id is not None
     
     # Create source page with nested blocks
-    source_page = await node_repo.create(NodeCreateData(name='Source Page', is_page=True))
+    source_page = await node_repo.create(NodeCreateData(name='Source Page'))
     assert source_page.id is not None
     
     block1 = await node_repo.create(NodeCreateData(name='Block 1', parent_id=source_page.id))
     assert block1.id is not None
     
     block2 = await node_repo.create(NodeCreateData(
-        name=f'Deep block linking to [[{target.uuid}]]', 
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "Deep block linking to "},
+            {"type": "node_link", "ref_type": "node", "link_id": target.uuid}
+        ]}]),
         parent_id=block1.id
     ))
     assert block2.id is not None
@@ -230,7 +237,7 @@ async def test_no_links_results_in_empty(link_service_fixtures):
     link_service = link_service_fixtures['link_service']
     
     # Create a page with no links
-    page = await node_repo.create(NodeCreateData(name='Page with no links', is_page=True))
+    page = await node_repo.create(NodeCreateData(name='Page with no links'))
     assert page.id is not None
     
     # Create a block with no links
@@ -269,24 +276,27 @@ async def test_recursive_child_references(link_service_fixtures):
     link_service = link_service_fixtures['link_service']
     
     # Create parent page
-    parent = await node_repo.create(NodeCreateData(name='Parent Page', is_page=True))
+    parent = await node_repo.create(NodeCreateData(name='Parent Page'))
     assert parent.id is not None
     
     # Create child page (child of parent)
-    child = await node_repo.create(NodeCreateData(name='Child Page', is_page=True, parent_id=parent.id))
+    child = await node_repo.create(NodeCreateData(name='Child Page', parent_id=parent.id))
     assert child.id is not None
     
     # Create grandchild page (child of child)
-    grandchild = await node_repo.create(NodeCreateData(name='Grandchild Page', is_page=True, parent_id=child.id))
+    grandchild = await node_repo.create(NodeCreateData(name='Grandchild Page', parent_id=child.id))
     assert grandchild.id is not None
     
     # Create another page that links to the grandchild
-    linking_page = await node_repo.create(NodeCreateData(name='Another Page', is_page=True))
+    linking_page = await node_repo.create(NodeCreateData(name='Another Page'))
     assert linking_page.id is not None
     
     # Create a block in the linking page that references the grandchild
     linking_block = await node_repo.create(NodeCreateData(
-        name=f'This links to [[{grandchild.uuid}]]',
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "This links to "},
+            {"type": "node_link", "ref_type": "node", "link_id": grandchild.uuid}
+        ]}]),
         parent_id=linking_page.id
     ))
     assert linking_block.id is not None
@@ -310,11 +320,14 @@ async def test_recursive_child_references(link_service_fixtures):
     assert parent_backlinks[0].source_node_id == linking_block.id
     
     # Test 4: Create another link to the child (not grandchild)
-    another_linking_page = await node_repo.create(NodeCreateData(name='Yet Another Page', is_page=True))
+    another_linking_page = await node_repo.create(NodeCreateData(name='Yet Another Page'))
     assert another_linking_page.id is not None
     
     another_linking_block = await node_repo.create(NodeCreateData(
-        name=f'This links to [[{child.uuid}]]',
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "This links to "},
+            {"type": "node_link", "ref_type": "node", "link_id": child.uuid}
+        ]}]),
         parent_id=another_linking_page.id
     ))
     assert another_linking_block.id is not None
