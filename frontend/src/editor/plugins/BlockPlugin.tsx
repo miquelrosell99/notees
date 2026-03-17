@@ -910,16 +910,26 @@ export function BlockPlugin({
 
         const blockId = blockNode.getBlockId();
 
-        // Calculate cursor offset by walking through block children
+        // Calculate cursor offset by walking through block children.
+        // ZWS-only TextNodes are skipped because extractBlockContent strips
+        // them from the runtime's contentAST — offsets must stay aligned.
         let cursorOffset = 0;
         const children = blockNode.getChildren();
         for (const child of children) {
           if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
-            cursorOffset += selection.anchor.offset;
+            // If the anchor is a ZWS placeholder, it doesn't exist in the
+            // runtime AST so its offset contributes nothing.
+            if (!($isTextNode(child) && child.getTextContent() === '\u200B')) {
+              cursorOffset += selection.anchor.offset;
+            }
             break;
           }
           if ($isTextNode(child)) {
-            cursorOffset += child.getTextContent().length;
+            const text = child.getTextContent();
+            // Skip ZWS-only nodes (they're stripped in extractBlockContent)
+            if (text !== '\u200B') {
+              cursorOffset += text.length;
+            }
           } else if ($isInlineLinkNode(child)) {
             cursorOffset += 1; // Pills count as 1 character
           } else {

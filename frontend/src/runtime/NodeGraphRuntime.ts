@@ -1262,6 +1262,14 @@ function splitContentASTAtOffset(
     charCount++; // paragraph break
   }
 
+  // Offset beyond content: split at end (everything stays in "before")
+  if (!found) {
+    return {
+      before: content.map(p => ({ ...p, children: [...p.children] })),
+      after: [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }],
+    };
+  }
+
   const before = content.slice(0, splitParaIndex);
   const after = content.slice(splitParaIndex + 1);
 
