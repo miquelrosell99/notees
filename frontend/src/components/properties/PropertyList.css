@@ -126,7 +126,9 @@
 .property-row__value .node-selector__placeholder,
 .property-row__value .dropdown-value--placeholder {
   color: var(--color-on-surface-variant);
-  opacity: 0.5;
+  font-style: italic;
+  opacity: 0.45;
+  font-size: 0.85em;
 }
 
 /* ==================== Multi-Value Row Group ==================== */
