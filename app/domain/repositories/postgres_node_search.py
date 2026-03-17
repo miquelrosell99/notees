@@ -52,7 +52,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                              ELSE COALESCE(tn.name, '') END)
                          ]) AS val
                          FROM jsonb_path_query(n.name::jsonb, '$.** ? (@.type == "node_link").link_id') AS link_uuid_j
-                         JOIN node_link nl ON nl.uuid = split_part(link_uuid_j #>> '{}', ':', 2)::uuid
+                         JOIN node_link nl ON nl.uuid = NULLIF(split_part(link_uuid_j #>> '{}', ':', 2), '')::uuid
                              AND nl.workspace_id = n.workspace_id
                          JOIN node tn ON tn.id = nl.target_id
                              AND tn.active = TRUE AND tn.is_deleted = FALSE
@@ -64,7 +64,15 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         END)"""
 
         async with acquire_connection(self._pool) as conn:
-            if len(query) >= 3:
+            if not query:
+                # Empty query = list all; skip the expensive AST link resolution.
+                rows = await conn.fetch(f"""
+                    SELECT n.* FROM node n
+                    WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
+                    ORDER BY n.write_date DESC NULLS LAST
+                    LIMIT $2
+                """, self._workspace_id, limit)
+            elif len(query) >= 3:
                 rows = await conn.fetch(f"""
                     SELECT n.*, ts_rank(n.search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node n
