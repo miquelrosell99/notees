@@ -367,7 +367,7 @@ export function CommandPalette({
   const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
 
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; commandDevOnly?: boolean; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
     const items: ItemEntry[] = [];
     
     // When no query, show browse sections
@@ -389,7 +389,7 @@ export function CommandPalette({
       const lowerSearch = searchTerm.toLowerCase();
       for (const cmd of commands) {
         if (cmd.label.toLowerCase().includes(lowerSearch)) {
-          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon });
+          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon, commandDevOnly: cmd.devOnly });
         }
       }
     }
@@ -978,6 +978,9 @@ export function CommandPalette({
                       <span className="command-palette__result-content">
                         <span className="command-palette__result-name">{item.label}</span>
                       </span>
+                      {item.commandDevOnly && (
+                        <span className="command-palette__result-dev-badge">DEV</span>
+                      )}
                     </div>
                   </button>
                 );
