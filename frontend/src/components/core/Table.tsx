@@ -16,6 +16,7 @@ import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } fr
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import { NodeInline } from '../blocks/NodeInline';
+import { NodeNameContent } from '../blocks/NodeNameContent';
 import { NodeCellEditable } from './NodeCellEditable';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
@@ -490,17 +491,10 @@ export function Table<T>({
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
                     {nodeEditable ? (
-                      <NodeCellEditable node={cellValue as unknown as Node} displayText={(cellValue as any)._resolvedText || (cellValue as any).display_name || undefined} />
+                      <NodeCellEditable node={cellValue as unknown as Node} />
                     ) : (
                       <span className="table-node-cell__name">
-                        <NodeInline
-                          name={cellValue.name}
-                          icon={cellValue.icon}
-                          isPage={cellValue.is_page}
-                          nodeId={cellValue.id}
-                          showIcon={false}
-                          displayText={(cellValue as any)._resolvedText || (cellValue as any).display_name || undefined}
-                        />
+                        <NodeNameContent name={(cellValue as unknown as Node).name} />
                       </span>
                     )}
                     <div className="table-node-cell__actions">

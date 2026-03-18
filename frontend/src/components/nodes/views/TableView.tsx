@@ -30,10 +30,6 @@ import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
-import { useQuery } from '@tanstack/react-query';
-import { parseAST, buildLinkId } from '@/lib/astBuilder';
-import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
-import { buildResolver } from '@/hooks/useStringifyAST';
 import './TableView.css';
 
 // Virtual column UUIDs (match PropertyColumnSelector)
@@ -68,7 +64,7 @@ function getDefaultColumns(): NodeTableColumn[] {
  * Convert NodeTableColumn to TableColumn<Node>
  * Adds sorting support for known column keys.
  */
-function convertColumns(nodeColumns: NodeTableColumn[], resolvedNames?: Map<number, string>): TableColumn<Node>[] {
+function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
   return nodeColumns.map(col => ({
     key: col.key,
     header: col.label,
@@ -77,15 +73,7 @@ function convertColumns(nodeColumns: NodeTableColumn[], resolvedNames?: Map<numb
     accessor: col.render
       ? col.render
       : col.key === 'name'
-        ? (node: Node) => {
-            // For name column, wrap node with resolved text if available
-            const resolvedText = resolvedNames?.get(node.id);
-            if (resolvedText) {
-              // Return a custom object that includes both node and resolved text
-              return { ...node, _resolvedText: resolvedText } as unknown as ReactNode;
-            }
-            return node as unknown as ReactNode;
-          }
+        ? (node: Node) => node as unknown as ReactNode
         : (node: Node) => String((node as unknown as Record<string, unknown>)[col.key] ?? ''),
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
@@ -149,104 +137,6 @@ export const TableView = memo(function TableView({
   // Context menu state
   const [contextMenuNode, setContextMenuNode] = useState<Node | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
-
-  // Collect all node IDs (including children) for batch text link fetching
-  const allNodeIds = useMemo(() => {
-    const collectIds = (nodes: Node[]): number[] => {
-      const ids: number[] = [];
-      for (const node of nodes) {
-        ids.push(node.id);
-        if (node.children) {
-          ids.push(...collectIds(node.children));
-        }
-      }
-      return ids;
-    };
-    return collectIds(nodes);
-  }, [nodes]);
-
-  // Fetch batch text links for all nodes
-  const { data: batchTextLinks = {} } = useQuery({
-    queryKey: ['batchTextLinks', allNodeIds],
-    queryFn: () => nodesApi.batchGetTextLinks(allNodeIds),
-    enabled: allNodeIds.length > 0,
-    staleTime: 30000,
-  });
-
-  // Build a lookup of source nodes from the nodes prop (already fetched)
-  const sourceNodeLookup = useMemo(() => {
-    const lookup = new Map<number, Node>();
-    const addNodes = (nodeList: Node[]) => {
-      for (const node of nodeList) {
-        lookup.set(node.id, node);
-        if (node.children) addNodes(node.children);
-      }
-    };
-    addNodes(nodes);
-    return lookup;
-  }, [nodes]);
-
-  // Collect unique target node IDs needed for link resolution
-  const targetNodeIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const links of Object.values(batchTextLinks)) {
-      for (const link of links) {
-        ids.add(link.target_node_id);
-      }
-    }
-    return Array.from(ids);
-  }, [batchTextLinks]);
-
-  // Fetch only the target nodes needed to resolve link labels
-  const { data: targetNodesResponse } = useQuery({
-    queryKey: ['batchNodes', targetNodeIds],
-    queryFn: () => nodesApi.batchGetNodes({ ids: targetNodeIds }),
-    enabled: targetNodeIds.length > 0,
-    staleTime: 60000,
-  });
-
-  // Build a map of node ID → resolved display text
-  const resolvedNames = useMemo(() => {
-    const nameMap = new Map<number, string>();
-
-    // Build a lookup of target nodes by numeric ID
-    const targetNodeLookup = new Map<number, Node>();
-    for (const node of Object.values(targetNodesResponse?.nodes ?? {})) {
-      targetNodeLookup.set(node.id, node);
-    }
-
-    // Resolve names for each source node that has text links
-    for (const [nodeIdStr, links] of Object.entries(batchTextLinks)) {
-      const nodeId = parseInt(nodeIdStr, 10);
-      const node = sourceNodeLookup.get(nodeId);
-      if (!node) continue;
-
-      // Build link map for this node's resolver
-      // Key must be compound "targetNodeUuid:linkUuid" to match the link_id stored in the AST.
-      const linkMap = new Map();
-      for (const link of links) {
-        const targetNode = targetNodeLookup.get(link.target_node_id);
-        if (targetNode && targetNode.uuid) {
-          linkMap.set(buildLinkId(targetNode.uuid, link.uuid), {
-            targetNode,
-            label: null, // Label lives in the AST, not in the DB
-          });
-        }
-      }
-
-      // If node has links, resolve its name
-      if (linkMap.size > 0) {
-        const resolver = buildResolver(linkMap);
-        const ast = parseAST(node.name);
-        const resolved = stringifyAST(ast, {
-          mode: StringifyMode.TEXT_ONLY,
-          resolveNodeLink: resolver,
-        });
-        nameMap.set(nodeId, resolved);
-      }
-    }
-    return nameMap;
-  }, [batchTextLinks, targetNodesResponse, sourceNodeLookup]);
 
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
@@ -424,7 +314,7 @@ export const TableView = memo(function TableView({
   }, [customColumns, dateColumnRenderer, propertyColumns]);
 
   // Convert NodeTableColumn to TableColumn<Node>
-  const tableColumns = useMemo(() => convertColumns(nodeColumns, resolvedNames), [nodeColumns, resolvedNames]);
+  const tableColumns = useMemo(() => convertColumns(nodeColumns), [nodeColumns]);
 
   // Default sort: write_date descending (most recently modified first)
   const defaultSort = useMemo<SortEntry[]>(() => {

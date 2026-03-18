@@ -775,61 +775,8 @@ th.node-block-table-cell {
   color: var(--color-on-surface);
 }
 
-/* ─── Inline link (dotted underline style) ──────────────────────── */
-
-.inline-link-wrapper {
-  display: inline;
-  cursor: pointer;
-  user-select: none;
-}
-
-.inline-link-wrapper .inline-link-inner {
-  display: inline;
-  color: var(--color-on-surface);
-  font-size: inherit;
-  line-height: inherit;
-  text-decoration: underline dotted;
-  text-decoration-color: var(--color-outline);
-  text-underline-offset: 3px;
-  text-decoration-thickness: 2px;
-  transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
-              text-decoration-style var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-/* Class pills — wavy underline, italic */
-.inline-link-wrapper .inline-link-inner[data-ref-type="class"] {
-  text-decoration-style: wavy;
-  text-decoration-thickness: 1px;
-  font-style: italic;
-}
-
-.inline-link-wrapper:hover .inline-link-inner {
-  text-decoration-style: solid;
-  text-decoration-color: var(--color-on-surface);
-  color: var(--color-primary);
-}
-
-.inline-link-wrapper:active .inline-link-inner {
-  opacity: 0.7;
-}
-
-/* Selected state (when inline link has keyboard/node selection) */
-.inline-link-wrapper.selected .inline-link-inner,
-.inline-link-wrapper--selected .inline-link-inner {
-  text-decoration-color: var(--color-primary);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  border-radius: 2px;
-  padding: 0 2px;
-  margin: 0 -2px;
-}
-
-.inline-link-wrapper .inline-link-icon {
-  font-size: 0.9em;
-  vertical-align: baseline;
-  margin-right: 2px;
-}
+/* Inline link styles — shared */
+@import '../styles/inline-link.css';
 
 /* ─── Ghost card (drag preview) ────────────────────────────────── */
 
