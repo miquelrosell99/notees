@@ -248,6 +248,17 @@
   color: var(--color-primary);
 }
 
+.command-palette__result-dev-badge {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .command-palette__highlight {
   background: color-mix(in srgb, var(--color-primary) 25%, transparent);
   color: inherit;
