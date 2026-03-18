@@ -27,7 +27,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import { updateNodeInTreeImmutable, removeNodeFromTreeImmutable, findNodeInRootTree } from '@/utils/nodeTree';
+import { updateNodeInTreeImmutable, findNodeInRootTree } from '@/utils/nodeTree';
 import { nodeKeys } from './queryKeys';
 import type { Node, NodeUpdate } from '@/types/api';
 
@@ -152,31 +152,23 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
 
         let updated = oldNode;
         for (const update of cacheUpdates) {
-          // Check if this node exists in the tree and whether its parent changed
+          // Check if this node exists in the tree
           const existing = findNodeInRootTree(updated, update.serverId);
           if (!existing) continue; // Not in this cache entry
 
-          const parentChanged = existing.parent_id !== update.parent_id;
-          if (parentChanged) {
-            // Cross-parent move: remove from old position entirely.
-            // The destination editor will display it from the runtime.
-            const newChildren = removeNodeFromTreeImmutable(
-              updated.children || [],
-              update.serverId,
-            );
-            if (newChildren !== updated.children) {
-              updated = { ...updated, children: newChildren };
-            }
-          } else {
-            // Same parent — just update sequence in-place
-            const newChildren = updateNodeInTreeImmutable(
-              updated.children || [],
-              update.serverId,
-              { parent_id: update.parent_id, sequence: update.sequence }
-            );
-            if (newChildren !== updated.children) {
-              updated = { ...updated, children: newChildren };
-            }
+          // Always update in-place — for both same-parent and cross-parent moves.
+          // Removing the node from the cache tree for cross-parent moves causes
+          // BlockEditor's stale-cleanup to incorrectly remove it from the runtime
+          // (because the node vanishes from the cache-derived nodes[] prop while
+          // it still exists in the runtime). The next API refetch will correct
+          // the tree structure in the cache.
+          const newChildren = updateNodeInTreeImmutable(
+            updated.children || [],
+            update.serverId,
+            { parent_id: update.parent_id, sequence: update.sequence }
+          );
+          if (newChildren !== updated.children) {
+            updated = { ...updated, children: newChildren };
           }
         }
 
