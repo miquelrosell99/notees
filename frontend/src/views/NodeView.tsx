@@ -116,10 +116,16 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
   // Debounced content save - batches rapid edits to reduce API calls
   const { handleContentChange } = useContentSave();
 
+  const addClass = useAddClass();
+
   // Handle shift+click (open in sidebar)
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
     onAddSidebarCard(clickedNode.id);
   }, [onAddSidebarCard]);
+
+  const handleAddClass = useCallback((blockId: number, classId: number) => {
+    addClass.mutate({ nodeId: blockId, classId });
+  }, [addClass]);
 
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
@@ -176,6 +182,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           pageId={node.id}
           pageUuid={node.uuid}
           maxDepth={0}
+          onAddClass={handleAddClass}
         />
         {/* Children shown as cards */}
         <NodeCollection
@@ -189,6 +196,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           showClasses={true}
           pageId={node.id}
           pageUuid={node.uuid}
+          onAddClass={handleAddClass}
         />
         <div className="focused-block-content-add">
           <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
@@ -213,6 +221,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
         showClasses={true}
         pageId={node.id}
         pageUuid={node.uuid}
+        onAddClass={handleAddClass}
       />
       <div className="focused-block-content-add">
         <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
