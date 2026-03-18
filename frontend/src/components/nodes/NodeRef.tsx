@@ -115,7 +115,7 @@ function NodeRefInline({
       data-ref-type={refType}
       style={color ? { textDecorationColor: color, color } : undefined}
     >
-      {effectiveIcon && (
+      {effectiveIcon && refType !== 'class' && (
         <span className="inline-link-icon">
           <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
         </span>
