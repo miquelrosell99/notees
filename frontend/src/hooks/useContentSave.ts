@@ -26,6 +26,16 @@ import { useCallback, useRef, useEffect } from 'react';
 import { useUpdateNode } from './useNodes';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 
+// ─── Global flush registry ──────────────────────────────────
+// Each useContentSave instance registers its flushAll so we can
+// flush ALL instances before navigation (prevents stale-data races).
+const flushRegistry = new Set<() => void>();
+
+/** Flush pending content saves across ALL active useContentSave instances. */
+export function flushAllContentSaves(): void {
+  for (const flush of flushRegistry) flush();
+}
+
 /** Pending change entry */
 interface PendingChange {
   blockId: number;
@@ -162,6 +172,12 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       pending.clear();
     };
   }, [saveBlock]);
+
+  // Register this instance's flushAll in the global registry
+  useEffect(() => {
+    flushRegistry.add(flushAll);
+    return () => { flushRegistry.delete(flushAll); };
+  }, [flushAll]);
   
   // Flush on beforeunload (page close/refresh)
   useEffect(() => {
