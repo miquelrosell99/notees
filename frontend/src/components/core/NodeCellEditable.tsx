@@ -1,14 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
-import { NodeInline } from '../blocks/NodeInline';
+import { NodeNameContent } from '../blocks/NodeNameContent';
 import { NodeCollection } from '../nodes/NodeCollection';
 import { useContentSave, useNodeNavigation } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 
 interface NodeCellEditableProps {
   node: Node;
-  /** Pre-resolved display text for nodes with inline links */
-  displayText?: string;
 }
 
 /**
@@ -16,7 +14,7 @@ interface NodeCellEditableProps {
  * Uses the same pattern as TextPropertyBlock for text properties.
  * Click outside or press Escape to close.
  */
-export function NodeCellEditable({ node, displayText }: NodeCellEditableProps) {
+export function NodeCellEditable({ node }: NodeCellEditableProps) {
   const [editing, setEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { handleContentChange, flushAll } = useContentSave();
@@ -80,14 +78,7 @@ export function NodeCellEditable({ node, displayText }: NodeCellEditableProps) {
         setEditing(true);
       }}
     >
-      <NodeInline
-        name={node.name}
-        icon={node.icon}
-        isPage={node.is_page}
-        nodeId={node.id}
-        showIcon={false}
-        displayText={displayText}
-      />
+      <NodeNameContent name={node.name} />
     </span>
   );
 }
