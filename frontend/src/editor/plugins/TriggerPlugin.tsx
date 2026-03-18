@@ -13,6 +13,8 @@ import {
   $getSelection,
   $isRangeSelection,
   $createTextNode,
+  $getNodeByKey,
+  $isTextNode,
   type LexicalEditor,
 } from 'lexical';
 import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
@@ -74,6 +76,10 @@ export function TriggerPlugin({
   const lastTextRef = useRef('');
   // Capture the host block ID when an embed trigger opens (so we can create sibling)
   const embedHostBlockIdRef = useRef<string | null>(null);
+  // Save the anchor text node key when the trigger opens so that handleSelect
+  // can recover the correct insertion point even if the Lexical selection
+  // drifted during an async operation (e.g. create-new-node mutation).
+  const triggerAnchorKeyRef = useRef<string | null>(null);
 
   // ─── Insert embed sibling: create a new block after the current block ─
 
@@ -199,8 +205,10 @@ export function TriggerPlugin({
             triggerOffset: match.triggerStart,
             position: coords,
           });
+          triggerAnchorKeyRef.current = anchorNode.getKey();
         } else if (trigger.isOpen) {
           setTrigger(prev => ({ ...prev, isOpen: false }));
+          triggerAnchorKeyRef.current = null;
         }
       });
     });
@@ -228,13 +236,49 @@ export function TriggerPlugin({
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
 
-      // Remove trigger text and insert the selected item
-      const anchorNode = selection.anchor.getNode();
+      let anchorNode = selection.anchor.getNode();
+
+      // For link/type/tag triggers, validate anchor and compute offset
+      // from trigger state.  During an async create-new-node flow the
+      // Lexical selection may have drifted (e.g. due to a concurrent
+      // refetch / syncProjection), so we fall back to the saved anchor
+      // key rather than trusting the current selection.
+      let cursorClean: number;
+      if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
+        const triggerChar =
+          trigger.type === 'link' ? '+' : trigger.type === 'type' ? '@' : '#';
+
+        const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): boolean => {
+          if (!node || !$isTextNode(node)) return false;
+          const t = node.getTextContent().replace(/\u200B/g, '');
+          return trigger.triggerOffset < t.length && t[trigger.triggerOffset] === triggerChar;
+        };
+
+        if (!isValidAnchor(anchorNode)) {
+          // Selection drifted — try the saved anchor from when the trigger opened
+          const saved = triggerAnchorKeyRef.current
+            ? $getNodeByKey(triggerAnchorKeyRef.current)
+            : null;
+          if (isValidAnchor(saved)) {
+            anchorNode = saved!;
+          } else {
+            // Trigger text is gone; bail out rather than corrupt a random block
+            return;
+          }
+        }
+
+        // Compute cursor from trigger state (reliable across async gaps)
+        cursorClean = trigger.triggerOffset + 1 + trigger.query.length;
+      } else {
+        // Slash commands: compute from selection offset (synchronous flow)
+        const rawText = anchorNode.getTextContent();
+        const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+        cursorClean = selection.anchor.offset - zwsBefore;
+      }
+
       const rawText = anchorNode.getTextContent();
       // Strip ZWS so that trigger offsets (computed from clean text) align
       const text = rawText.replace(/\u200B/g, '');
-      const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-      const cursorClean = selection.anchor.offset - zwsBefore;
 
       // Remove trigger text
       const beforeTrigger = text.slice(0, trigger.triggerOffset);
@@ -446,6 +490,25 @@ export function TriggerPlugin({
           }
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
+      } else if (trigger.type === 'type') {
+        // @ class trigger but onAddClass not provided — remove trigger text without inserting inline
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+          const anchorNode = selection.anchor.getNode();
+          const rawText = anchorNode.getTextContent();
+          const text = rawText.replace(/\u200B/g, '');
+          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+          const cursorClean = selection.anchor.offset - zwsBefore;
+          const beforeTrigger = text.slice(0, trigger.triggerOffset);
+          const afterCursor = text.slice(cursorClean);
+          const newText = beforeTrigger + afterCursor;
+          (anchorNode as any).setTextContent(newText || '\u200B');
+          const newOffset = beforeTrigger.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        });
+        setTrigger(prev => ({ ...prev, isOpen: false }));
       } else {
         // For # tag and + link triggers
         if (trigger.templateMode) {
