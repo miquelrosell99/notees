@@ -84,6 +84,33 @@ export function NodeLinkPlugin({
           return true;
         }
 
+        // If the click is near the right edge of the pill, place the cursor
+        // AFTER it instead of selecting. This gives a click-target for the
+        // trailing ZWS text node which otherwise has zero visual width.
+        const pillRect = pillWrapper.getBoundingClientRect();
+        const clickX = event.clientX;
+        const edgeThreshold = Math.min(8, pillRect.width * 0.15);
+        if (clickX >= pillRect.right - edgeThreshold) {
+          event.preventDefault();
+          editor.update(() => {
+            const root = $getRoot();
+            const findAndSelectAfter = (parent: ReturnType<typeof $getRoot>): boolean => {
+              for (const child of parent.getChildren()) {
+                if ($isInlineLinkNode(child) && child.getLinkId() === linkId) {
+                  child.selectNext();
+                  return true;
+                }
+                if ('getChildren' in child && typeof child.getChildren === 'function') {
+                  if (findAndSelectAfter(child as any)) return true;
+                }
+              }
+              return false;
+            };
+            findAndSelectAfter(root);
+          });
+          return true;
+        }
+
         // Single-click: select the pill via NodeSelection
         event.preventDefault();
         editor.update(() => {
