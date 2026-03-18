@@ -20,7 +20,7 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, flushAllContentSaves, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -833,6 +833,7 @@ export function NodeView({
   
   // Navigate to type/tag
   const handleNavigateToNode = useCallback((targetId: number) => {
+    flushAllContentSaves();
     openNode(targetId);
   }, [openNode]);
   

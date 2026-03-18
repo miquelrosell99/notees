@@ -486,6 +486,29 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       }
     }
 
+    // ─── Pill-adjacent ZWS position fix ───
+    // When the cursor sits in a zero-width-space text node next to a pill
+    // (contentEditable=false InlineLinkNode), getBoundingClientRect() returns
+    // an unreliable position (often inside the pill). Snap the caret to the
+    // pill's edge instead.
+    if (
+      startContainer.nodeType === Node.TEXT_NODE &&
+      startContainer.textContent === '\u200B' &&
+      textEl
+    ) {
+      const prevSib = textEl.previousElementSibling;
+      const nextSib = textEl.nextElementSibling;
+      if (prevSib?.classList?.contains('inline-link-wrapper')) {
+        // Cursor is in trailing ZWS after a pill → snap to pill's right edge
+        const pillRect = prevSib.getBoundingClientRect();
+        rect = new DOMRect(pillRect.right, rect.top, rect.width, rect.height);
+      } else if (nextSib?.classList?.contains('inline-link-wrapper')) {
+        // Cursor is in leading ZWS before a pill → snap to pill's left edge
+        const pillRect = nextSib.getBoundingClientRect();
+        rect = new DOMRect(pillRect.left, rect.top, rect.width, rect.height);
+      }
+    }
+
     const top = rect.top - editorRect.top;
     const left = rect.left - editorRect.left;
     

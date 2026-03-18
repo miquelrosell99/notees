@@ -25,6 +25,7 @@
  */
 import { useCallback } from 'react';
 import { useNavigationStore } from '@/stores';
+import { flushAllContentSaves } from '@/hooks/useContentSave';
 import type { Node } from '@/types';
 import type { SidebarCardType } from '@/stores';
 
@@ -50,6 +51,11 @@ export function useNodeNavigation() {
 
   /** Navigate to a node in the main view */
   const navigateToNode = useCallback((node: Node, options?: NavigationOptions) => {
+    // Flush pending content saves before navigation so the mutation's
+    // onMutate optimistic update runs while the current query cache is
+    // still active. Without this, navigating to a focused block view can
+    // show stale (blank) content because the save fires too late.
+    flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
     const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
       ? node.aliased_id 
@@ -68,6 +74,7 @@ export function useNodeNavigation() {
 
   /** Click handler: navigates to the node. Pass directly as onNodeClick. */
   const handleNodeClick = useCallback((node: Node, options?: NavigationOptions) => {
+    flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
     const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
       ? node.aliased_id 
