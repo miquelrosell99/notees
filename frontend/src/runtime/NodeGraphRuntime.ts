@@ -107,32 +107,39 @@ export class NodeGraphRuntime {
         changedBlockIds.push(node.blockId);
         this.nodes.set(node.blockId, node);
       } else {
-        // Existing node — update structural / metadata fields but
-        // PRESERVE contentAST: the runtime is the source of truth for
-        // content during editing.  API syncs (optimistic cache updates,
+        // Existing node — update metadata fields but PRESERVE:
+        //
+        // contentAST: the runtime is the source of truth for content
+        // during editing.  API syncs (optimistic cache updates,
         // refetches) may carry stale / debounced content that would
         // overwrite the user's latest edits if blindly applied.
-        // OPTIONALLY PRESERVE collapsed: collapse state is managed
-        // client-side via applyIntent.  During in-view API syncs (e.g.
-        // after a color change) we preserve it, but on initial view load
-        // we use the API value so a previous view's state doesn't leak.
+        //
+        // parentId / orderIndex: the runtime is the source of truth
+        // for structure during editing.  Indent, outdent, drag and
+        // reorder update these fields optimistically; a concurrent
+        // refetch may return pre-change values that would revert the
+        // user's action until the next server round-trip.
+        //
+        // collapsed: managed client-side via applyIntent.  During
+        // in-view API syncs (e.g. after a color change) we preserve
+        // it, but on initial view load we use the API value so a
+        // previous view's state doesn't leak.
         const merged: GraphNode = {
           ...node,
           contentAST: existing.contentAST,
+          parentId: existing.parentId,
+          orderIndex: existing.orderIndex,
           collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
         };
 
-        if (existing.parentId !== node.parentId) {
-          if (existing.parentId) changedParents.add(existing.parentId);
-          if (node.parentId) changedParents.add(node.parentId);
-          changedBlockIds.push(node.blockId);
-        } else if (
-          existing.orderIndex !== node.orderIndex ||
-          existing.name !== node.name ||
-          existing.icon !== node.icon ||
-          existing.color !== node.color ||
-          existing.isDeleted !== node.isDeleted ||
-          existing.classIds.join(',') !== node.classIds.join(',')
+        // Detect metadata-only changes (parentId / orderIndex are
+        // preserved so they never trigger structure_changed here).
+        if (
+          existing.name !== merged.name ||
+          existing.icon !== merged.icon ||
+          existing.color !== merged.color ||
+          existing.isDeleted !== merged.isDeleted ||
+          existing.classIds.join(',') !== merged.classIds.join(',')
         ) {
           changedBlockIds.push(node.blockId);
         }
