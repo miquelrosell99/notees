@@ -490,7 +490,7 @@ export function Table<T>({
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">
                     {nodeEditable ? (
-                      <NodeCellEditable node={cellValue as unknown as Node} />
+                      <NodeCellEditable node={cellValue as unknown as Node} displayText={(cellValue as any)._resolvedText || (cellValue as any).display_name || undefined} />
                     ) : (
                       <span className="table-node-cell__name">
                         <NodeInline
@@ -499,7 +499,7 @@ export function Table<T>({
                           isPage={cellValue.is_page}
                           nodeId={cellValue.id}
                           showIcon={false}
-                          displayText={(cellValue as any)._resolvedText}
+                          displayText={(cellValue as any)._resolvedText || (cellValue as any).display_name || undefined}
                         />
                       </span>
                     )}

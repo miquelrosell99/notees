@@ -7,6 +7,8 @@ import { useBlockPersist } from '@/hooks/useBlockPersist';
 
 interface NodeCellEditableProps {
   node: Node;
+  /** Pre-resolved display text for nodes with inline links */
+  displayText?: string;
 }
 
 /**
@@ -14,7 +16,7 @@ interface NodeCellEditableProps {
  * Uses the same pattern as TextPropertyBlock for text properties.
  * Click outside or press Escape to close.
  */
-export function NodeCellEditable({ node }: NodeCellEditableProps) {
+export function NodeCellEditable({ node, displayText }: NodeCellEditableProps) {
   const [editing, setEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { handleContentChange, flushAll } = useContentSave();
@@ -84,6 +86,7 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
         isPage={node.is_page}
         nodeId={node.id}
         showIcon={false}
+        displayText={displayText}
       />
     </span>
   );

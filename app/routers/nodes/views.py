@@ -15,7 +15,7 @@ from ...domain.services.query_ast_sql import generate_sql_from_ast
 from ..auth import get_current_user
 from ...models import User
 from ...logging_config import get_logger
-from .helpers import _get_node_service, extract_properties_dict
+from .helpers import _get_node_service, extract_properties_dict, _resolve_referenced_display_names
 
 
 logger = get_logger(__name__)
@@ -86,6 +86,46 @@ class NodeViewReorderRequest(BaseModel):
 
 
 # ==================== Helper Functions ====================
+
+async def _resolve_display_names_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Resolve display_name for nodes whose names contain inline node/class links.
+
+    Nodes with [[nodeLink]] or {{classRef}} in their names will have their
+    'display_name' field set to the resolved plain-text name.
+    """
+    if not results:
+        return results
+
+    service = await _get_node_service(user)
+
+    # Collect all nodes recursively (including children)
+    def _collect_all(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        all_nodes = []
+        for node in nodes:
+            all_nodes.append(node)
+            if node.get("children"):
+                all_nodes.extend(_collect_all(node["children"]))
+        return all_nodes
+
+    all_nodes = _collect_all(results)
+
+    # Only process nodes whose names contain link_id tokens
+    nodes_with_links = [n for n in all_nodes if n.get("name") and '"link_id"' in n["name"]]
+    if not nodes_with_links:
+        return results
+
+    resolved_map = await _resolve_referenced_display_names(
+        service._pool, service._workspace_id, nodes_with_links
+    )
+
+    # Set display_name on matching nodes
+    for node in nodes_with_links:
+        node_uuid = str(node.get("uuid", ""))
+        if node_uuid in resolved_map:
+            node["display_name"] = resolved_map[node_uuid]
+
+    return results
+
 
 async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
     """Get NodeView repository for the current user."""
@@ -682,6 +722,8 @@ async def execute_node_view_query(
     
     if should_include_properties:
         results = await _include_properties_for_results(user, results)
+
+    results = await _resolve_display_names_for_results(user, results)
     
     response: Dict[str, Any] = {"nodes": results}
     
@@ -736,9 +778,11 @@ async def execute_query(
     
     if should_include_classes:
         results = await _include_classes_for_results(user, results)
-    
+
     if should_include_properties:
         results = await _include_properties_for_results(user, results)
+
+    results = await _resolve_display_names_for_results(user, results)
     
     response: Dict[str, Any] = {"nodes": results}
     if "total_count" in exec_result:

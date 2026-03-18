@@ -173,34 +173,59 @@ export const TableView = memo(function TableView({
     staleTime: 30000,
   });
 
-  // Fetch all nodes that might be link targets (for resolving links)
-  const { data: allNodes = [] } = useQuery({
-    queryKey: ['nodes'],
-    queryFn: () => nodesApi.getNodes({ pages_only: false }),
+  // Build a lookup of source nodes from the nodes prop (already fetched)
+  const sourceNodeLookup = useMemo(() => {
+    const lookup = new Map<number, Node>();
+    const addNodes = (nodeList: Node[]) => {
+      for (const node of nodeList) {
+        lookup.set(node.id, node);
+        if (node.children) addNodes(node.children);
+      }
+    };
+    addNodes(nodes);
+    return lookup;
+  }, [nodes]);
+
+  // Collect unique target node IDs needed for link resolution
+  const targetNodeIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const links of Object.values(batchTextLinks)) {
+      for (const link of links) {
+        ids.add(link.target_node_id);
+      }
+    }
+    return Array.from(ids);
+  }, [batchTextLinks]);
+
+  // Fetch only the target nodes needed to resolve link labels
+  const { data: targetNodesResponse } = useQuery({
+    queryKey: ['batchNodes', targetNodeIds],
+    queryFn: () => nodesApi.batchGetNodes({ ids: targetNodeIds }),
+    enabled: targetNodeIds.length > 0,
     staleTime: 60000,
   });
 
   // Build a map of node ID → resolved display text
   const resolvedNames = useMemo(() => {
     const nameMap = new Map<number, string>();
-    
-    // Build a lookup map for quick node access
-    const nodeLookup = new Map<number, Node>();
-    for (const node of allNodes) {
-      nodeLookup.set(node.id, node);
+
+    // Build a lookup of target nodes by numeric ID
+    const targetNodeLookup = new Map<number, Node>();
+    for (const node of Object.values(targetNodesResponse?.nodes ?? {})) {
+      targetNodeLookup.set(node.id, node);
     }
-    
-    // Resolve names for each node that has text links
+
+    // Resolve names for each source node that has text links
     for (const [nodeIdStr, links] of Object.entries(batchTextLinks)) {
       const nodeId = parseInt(nodeIdStr, 10);
-      const node = nodeLookup.get(nodeId);
+      const node = sourceNodeLookup.get(nodeId);
       if (!node) continue;
-      
+
       // Build link map for this node's resolver
       // Key must be compound "targetNodeUuid:linkUuid" to match the link_id stored in the AST.
       const linkMap = new Map();
       for (const link of links) {
-        const targetNode = nodeLookup.get(link.target_node_id);
+        const targetNode = targetNodeLookup.get(link.target_node_id);
         if (targetNode && targetNode.uuid) {
           linkMap.set(buildLinkId(targetNode.uuid, link.uuid), {
             targetNode,
@@ -208,7 +233,7 @@ export const TableView = memo(function TableView({
           });
         }
       }
-      
+
       // If node has links, resolve its name
       if (linkMap.size > 0) {
         const resolver = buildResolver(linkMap);
@@ -220,9 +245,8 @@ export const TableView = memo(function TableView({
         nameMap.set(nodeId, resolved);
       }
     }
-    
     return nameMap;
-  }, [batchTextLinks, allNodes]);
+  }, [batchTextLinks, targetNodesResponse, sourceNodeLookup]);
 
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
