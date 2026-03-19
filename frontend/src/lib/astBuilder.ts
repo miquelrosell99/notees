@@ -67,11 +67,7 @@ export function code(codeText: string): ASTCode {
 }
 
 export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
-  const link: ASTNodeLink = { type: 'node_link', link_id: linkId, ref_type: refType };
-  if (label !== undefined && label !== null) {
-    (link as any).label = label;
-  }
-  return link;
+  return { type: 'node_link', link_id: linkId, ref_type: refType, label: label ?? undefined };
 }
 
 // ─── Link ID utilities ─────────────────────────────────────────────

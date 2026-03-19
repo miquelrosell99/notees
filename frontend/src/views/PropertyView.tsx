@@ -13,8 +13,8 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { mdiDelete } from '@mdi/js';
-import type { Property, Node } from '@/types/api';
-import type { QueryAST } from '@/types/queryAST';
+import type { Property, Node, PropertyType } from '@/types/api';
+import type { QueryAST, QueryPropertyType } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
 import { useNavigationStore } from '@/stores';
 import { createEmptyQueryAST, createPropertyCondition, markAsSystemNode } from '@/types/queryAST';
@@ -27,6 +27,17 @@ import { ConfirmationModal } from '../components/core/ConfirmationModal';
 import { ToggleSwitch } from '../components/core/ToggleSwitch';
 import { Button } from '../components/core/Button';
 import './PropertyView.css';
+
+/** Map api.ts PropertyType to queryAST.ts QueryPropertyType */
+function toQueryPropertyType(type: PropertyType): QueryPropertyType {
+  switch (type) {
+    case 'integer':
+    case 'float': return 'number';
+    case 'boolean': return 'checkbox';
+    case 'selection': return 'select';
+    default: return type as QueryPropertyType;
+  }
+}
 
 /** Property type display info */
 const PROPERTY_TYPES: Record<string, { label: string; icon: string; supportsMulti: boolean }> = {
@@ -91,7 +102,7 @@ export function PropertyView({
     const ast = createEmptyQueryAST();
     ast.scope.scope_type = 'entire_workspace';
     ast.root_group.children.push(
-      markAsSystemNode(createPropertyCondition(property.name, 'is_not_empty', undefined, property.type as any, property.uuid))
+      markAsSystemNode(createPropertyCondition(property.name, 'is_not_empty', undefined, toQueryPropertyType(property.type), property.uuid))
     );
     setPropertyQueryAST(ast);
   // eslint-disable-next-line react-hooks/exhaustive-deps

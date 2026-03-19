@@ -22,6 +22,7 @@ import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/us
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './api/workspaces';
 import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore } from './stores';
+import type { User } from './types/api';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
 import { clearScratchpad } from './api/nodes';
@@ -65,7 +66,7 @@ function AppContent() {
     // Fetch user settings to check enrollment status
     getSettings().then((settings) => {
       const completed = settings['enrollment_completed'];
-      setNeedsEnrollment(completed !== 'true' && completed !== true as any);
+      setNeedsEnrollment(completed !== 'true' && completed !== true);
       setEnrollmentChecked(true);
     }).catch(() => {
       // If settings fetch fails, skip enrollment
@@ -92,8 +93,9 @@ function AppContent() {
     const user = getUserData();
     
     if (token && user) {
-      log.debug('Found stored auth, restoring session', { username: (user as any).username });
-      useAuthStore.getState().setUser(user as any);
+      const typedUser = user as User;
+      log.debug('Found stored auth, restoring session', { username: typedUser.username });
+      useAuthStore.getState().setUser(typedUser);
     } else {
       log.debug('No valid stored auth found');
       // Clear any partial auth data
