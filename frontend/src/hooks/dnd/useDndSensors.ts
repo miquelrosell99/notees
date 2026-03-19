@@ -5,8 +5,6 @@
  * Handles mouse, touch, and keyboard interactions.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import {
   useSensor,
   useSensors,
@@ -15,6 +13,8 @@ import {
   TouchSensor,
   type SensorDescriptor,
   type SensorOptions,
+  type PointerActivationConstraint,
+  type DelayConstraint,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { DragSensorConfig } from '@/types/dnd';
@@ -65,13 +65,13 @@ export function useDndSensors(config: DragSensorConfig = {}): SensorDescriptor<S
   // Build sensors array based on config
   return useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: mergedConfig.pointer as any,
+      activationConstraint: mergedConfig.pointer as PointerActivationConstraint | undefined,
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
     useSensor(TouchSensor, {
-      activationConstraint: mergedConfig.touch as any,
+      activationConstraint: mergedConfig.touch as DelayConstraint | undefined,
     })
   );
 }

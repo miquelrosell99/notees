@@ -316,7 +316,7 @@ export function PropertyCell({
     return (
       <div className="property-cell property-cell--editing">
         <InputComponent
-          ref={inputRef as any}
+          ref={inputRef as React.RefCallback<HTMLInputElement & HTMLTextAreaElement>}
           className="property-cell__input"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}

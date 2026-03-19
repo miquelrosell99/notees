@@ -5,8 +5,6 @@
  * Collapsed by default, helps users understand the underlying query.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useState } from 'react';
 import { mdiChevronDown, mdiChevronRight, mdiCodeTags } from '@mdi/js';
 import Icon from '@mdi/react';
@@ -68,8 +66,8 @@ function generateScopeSQL(ast: QueryAST): string {
       
     default:
       // Handle specific_pages and linked_refs as unknown scope types
-      if ((scope as any).page_uuids) {
-        const pageList = (scope as any).page_uuids.map((uuid: string) => `'${uuid}'`).join(', ');
+      if ('page_uuids' in scope && Array.isArray((scope as { page_uuids?: unknown }).page_uuids)) {
+        const pageList = ((scope as { page_uuids: string[] }).page_uuids).map((uuid: string) => `'${uuid}'`).join(', ');
         return `ancestor_uuid IN (${pageList})`;
       }
       return '';
@@ -156,9 +154,9 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
       return `references('${condition.target_uuid}')`;
       
     case 'reference_path': {
-      const rpCond = condition as any;
-      if (rpCond.target_uuids?.length > 0) {
-        const uuids = rpCond.target_uuids.map((u: string) => `'${u}'`).join(', ');
+      const targetUuids = condition.target_uuids;
+      if (targetUuids && targetUuids.length > 0) {
+        const uuids = targetUuids.map((u: string) => `'${u}'`).join(', ');
         return `reference_path(${uuids})`;
       }
       return `reference_path(...)`;
