@@ -204,6 +204,14 @@
   color: inherit;
 }
 
+/* Suppress native selection highlight on non-content block UI */
+.block-ui ::selection,
+.block-ui--after-content ::selection,
+.node-block-class-pills ::selection {
+  background: transparent;
+  color: inherit;
+}
+
 /* Ensure the sole text span in empty blocks has minimum width for caret visibility.
    Only apply inline-block when the span is the only child — otherwise text spans
    must stay display:inline so that wrapped text flows from the container's left edge
