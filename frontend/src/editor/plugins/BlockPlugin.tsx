@@ -1457,7 +1457,8 @@ export function BlockPlugin({
       const children = root.getChildren();
       const blockIndex = children.indexOf(blockNode);
 
-      // Block arrow up on first block to prevent cursor from entering empty root space
+      // Block arrow up on first block to prevent cursor from entering empty root space.
+      // Always consume the event; optionally notify parent for sidebar navigation.
       if (blockIndex <= 0) {
         onNavigateUpFromTop?.();
         return true;
@@ -1481,7 +1482,7 @@ export function BlockPlugin({
       const children = root.getChildren();
       const blockIndex = children.indexOf(blockNode);
 
-      // Block arrow down on last block to prevent cursor from entering empty root space
+      // Block arrow down on last block to prevent cursor from entering empty root space.
       if (blockIndex >= children.length - 1) return true;
 
       // Let default arrow behavior handle vertical movement

@@ -150,9 +150,9 @@ export class InlineLinkNode extends DecoratorNode<JSX.Element> {
   }
 
   /**
-   * Not isolated - we handle navigation ourselves via NodeLinkPlugin.
-   * Setting this to true causes Lexical's default navigation to fail
-   * with "key is read-only" errors when trying to jump over the node.
+   * Not isolated — pills should be keyboard-selectable and deletable.
+   * `isIsolated=true` makes Lexical skip over the node entirely during
+   * navigation and deletion, which is wrong for inline link pills.
    */
   isIsolated(): boolean {
     return false;

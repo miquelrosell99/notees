@@ -225,7 +225,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
         return false;
       },
-      COMMAND_PRIORITY_CRITICAL,
+      COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly]);
 
@@ -636,20 +636,6 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     };
   }, [editor, scheduleCaretMicrotask, updateCaretPosition, updateActiveBlock]);
 
-  // ─── Mark active on any keypress ────────────────────────────
-
-  useEffect(() => {
-    if (readOnly) return;
-
-    return editor.registerCommand(
-      KEY_DOWN_COMMAND,
-      () => {
-        return false;
-      },
-      COMMAND_PRIORITY_HIGH,
-    );
-  }, [editor, readOnly]);
-
   // ─── Listen for focus/blur events ────────────────────────────
 
   useEffect(() => {
@@ -685,32 +671,6 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       rootElement.removeEventListener('blur', onBlur, true);
     };
   }, [editor, updateCaretPosition, updateActiveBlock]);
-
-  // ─── Listen for DOM mutations (indent/outdent, style changes) ───
-
-  useEffect(() => {
-    const rootElement = editor.getRootElement();
-    if (!rootElement) return;
-
-    // Watch for attribute changes (data-depth, style, class changes on blocks)
-    const observer = new MutationObserver(() => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateCaretPosition);
-    });
-
-    observer.observe(rootElement, {
-      attributes: true,
-      // Only watch style (indent transition) and data-depth — NOT class.
-      // Watching class would create a feedback loop: updateCaretPosition/
-      // updateActiveBlock mutate classes inside the editor root (node-block--editing,
-      // notees-text--cursor-inside) which would re-trigger the observer and
-      // force an extra getClientRects() layout per selection event.
-      attributeFilter: ['style', 'data-depth'],
-      subtree: true,
-    });
-
-    return () => observer.disconnect();
-  }, [editor, updateCaretPosition]);
 
   // ─── Listen for CSS transitions (indent/outdent) ──────────────
   // Track ongoing transitions and update caret continuously during them
