@@ -18,6 +18,7 @@ import {
   $isNodeSelection,
   $isRangeSelection,
   $isTextNode,
+  $isElementNode,
   $createNodeSelection,
   $setSelection,
   KEY_BACKSPACE_COMMAND,
@@ -363,7 +364,64 @@ export function NodeLinkPlugin({
   // ─── Backspace/Delete on selected pill ─────────────────────
 
   useEffect(() => {
-    const handleDelete = () => {
+    const handleBackspace = (event: KeyboardEvent) => {
+      const selection = $getSelection();
+
+      // Case 1: Pill already selected (NodeSelection) → delete it
+      if ($isNodeSelection(selection)) {
+        const nodes = selection.getNodes();
+        for (const node of nodes) {
+          if ($isInlineLinkNode(node)) {
+            onPillRemove?.(node.getLinkId());
+            node.remove();
+          }
+        }
+        return nodes.some(n => $isInlineLinkNode(n));
+      }
+
+      // Case 2: RangeSelection right after a pill → select the pill
+      // Prevents the caret from jumping to the start of the line when
+      // Lexical removes an empty text node adjacent to a DecoratorNode.
+      if ($isRangeSelection(selection) && selection.isCollapsed()) {
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
+
+        // Text anchor: cursor at offset 0 (or in ZWS-only node) with pill before
+        if ($isTextNode(anchorNode)) {
+          const text = anchorNode.getTextContent();
+          const isAtStart = anchor.offset === 0 || (text === '\u200B' && anchor.offset <= 1);
+
+          if (isAtStart) {
+            const prevSibling = anchorNode.getPreviousSibling();
+            if ($isInlineLinkNode(prevSibling)) {
+              event.preventDefault();
+              const nodeSelection = $createNodeSelection();
+              nodeSelection.add(prevSibling.getKey());
+              $setSelection(nodeSelection);
+              return true;
+            }
+          }
+        }
+
+        // Element anchor: text node was already removed, cursor sits on
+        // parentElement right after the pill
+        if (anchor.type === 'element' && $isElementNode(anchorNode)) {
+          const children = anchorNode.getChildren();
+          const childBefore = anchor.offset > 0 ? children[anchor.offset - 1] : null;
+          if (childBefore && $isInlineLinkNode(childBefore)) {
+            event.preventDefault();
+            const nodeSelection = $createNodeSelection();
+            nodeSelection.add(childBefore.getKey());
+            $setSelection(nodeSelection);
+            return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    const handleDeleteForward = () => {
       const selection = $getSelection();
       if (!$isNodeSelection(selection)) return false;
 
@@ -377,8 +435,8 @@ export function NodeLinkPlugin({
       return nodes.some(n => $isInlineLinkNode(n));
     };
 
-    const unsubBack = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleDelete, COMMAND_PRIORITY_HIGH);
-    const unsubDel = editor.registerCommand(KEY_DELETE_COMMAND, handleDelete, COMMAND_PRIORITY_HIGH);
+    const unsubBack = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleBackspace, COMMAND_PRIORITY_HIGH);
+    const unsubDel = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteForward, COMMAND_PRIORITY_HIGH);
 
     return () => {
       unsubBack();
