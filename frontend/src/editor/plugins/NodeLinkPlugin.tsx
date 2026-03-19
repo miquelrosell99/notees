@@ -20,6 +20,7 @@ import {
   $isTextNode,
   $isElementNode,
   $createNodeSelection,
+  $createTextNode,
   $setSelection,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
@@ -29,7 +30,7 @@ import {
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
-import { $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
+import { InlineLinkNode, $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
 
 /** Pending update to apply to an InlineLinkNode (from LinkEditModal). */
@@ -63,6 +64,24 @@ export function NodeLinkPlugin({
   onPillUpdateApplied,
 }: NodeLinkPluginProps): null {
   const [editor] = useLexicalComposerContext();
+
+  // ─── Structural invariant: every pill has adjacent text nodes ──
+  // Without text neighbors the browser cannot place a caret next to a
+  // contentEditable=false DecoratorNode.  This transform runs whenever
+  // an InlineLinkNode is created or updated, ensuring ZWS buffers.
+
+  useEffect(() => {
+    return editor.registerNodeTransform(InlineLinkNode, (node) => {
+      const prev = node.getPreviousSibling();
+      if (!prev || $isInlineLinkNode(prev)) {
+        node.insertBefore($createTextNode('\u200B'));
+      }
+      const next = node.getNextSibling();
+      if (!next) {
+        node.insertAfter($createTextNode('\u200B'));
+      }
+    });
+  }, [editor]);
 
   // ─── Click handling ────────────────────────────────────────
   // Single-click: select the pill (NodeSelection) for editing/deletion
@@ -101,8 +120,15 @@ export function NodeLinkPlugin({
             const pillRect = pillWrapper.getBoundingClientRect();
             const midX = pillRect.left + pillRect.width / 2;
             if (event.clientX >= midX) {
+              if (!alreadySelected.getNextSibling()) {
+                alreadySelected.insertAfter($createTextNode('\u200B'));
+              }
               alreadySelected.selectNext();
             } else {
+              const prev = alreadySelected.getPreviousSibling();
+              if (!prev || $isInlineLinkNode(prev)) {
+                alreadySelected.insertBefore($createTextNode('\u200B'));
+              }
               alreadySelected.selectPrevious();
             }
             return true;
@@ -252,6 +278,10 @@ export function NodeLinkPlugin({
         for (const node of nodes) {
           if ($isInlineLinkNode(node)) {
             event.preventDefault();
+            const prev = node.getPreviousSibling();
+            if (!prev || $isInlineLinkNode(prev)) {
+              node.insertBefore($createTextNode('\u200B'));
+            }
             node.selectPrevious();
             return true;
           }
@@ -301,6 +331,9 @@ export function NodeLinkPlugin({
         for (const node of nodes) {
           if ($isInlineLinkNode(node)) {
             event.preventDefault();
+            if (!node.getNextSibling()) {
+              node.insertAfter($createTextNode('\u200B'));
+            }
             node.selectNext();
             return true;
           }
@@ -403,6 +436,10 @@ export function NodeLinkPlugin({
       if (anchor.type === 'element' && $isElementNode(node)) {
         const child = anchor.offset > 0 ? node.getChildren()[anchor.offset - 1] : null;
         if (child && $isInlineLinkNode(child)) {
+          // Restore ZWS that was lost when the text node was deleted
+          if (!child.getNextSibling()) {
+            child.insertAfter($createTextNode('\u200B'));
+          }
           const ns = $createNodeSelection();
           ns.add(child.getKey());
           $setSelection(ns);
