@@ -108,3 +108,11 @@
 .node-result-item--create .node-result-item__name {
   color: var(--color-primary);
 }
+
+/* Convert-to-class variant */
+.node-result-item--convert .node-result-item__name::after {
+  content: ' → class';
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  margin-left: var(--spacing-1);
+}
