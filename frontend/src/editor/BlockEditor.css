@@ -101,8 +101,10 @@
 
 .block-ui {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-shrink: 0;
+  height: 1.6em;
+  line-height: 1.6;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -127,8 +129,6 @@
 /* Block bullet specific: right margin for spacing from content */
 .block-ui > .bullet-wrapper {
   margin-right: 6px;
-  /* Align bullet with text baseline on first line */
-  margin-top: 2px;
   cursor: grab;
 }
 
