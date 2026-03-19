@@ -7,8 +7,8 @@
  */
 import type { Node } from '@/types';
 import { NodeIcon, CheckIcon } from '../core/icons';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { NodeNameContent } from '../blocks/NodeNameContent';
 import './NodeResultItem.css';
 
 export interface NodeResultItemProps {
@@ -66,7 +66,7 @@ export function NodeResultItem({
           {iconOverride ?? <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node.icon} isPage={node.is_page} size="sm" />}
         </span>
         <span className="node-result-item__name">
-          {nodeNameToText(node.name) || 'Untitled'}
+          <NodeNameContent name={node.name} />
         </span>
         {displayClasses && displayClasses.length > 0 && (
           <span className="node-result-item__class-pills">
