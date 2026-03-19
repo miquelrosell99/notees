@@ -106,16 +106,17 @@ export function SuggestionPopup({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [displayLimit, setDisplayLimit] = useState(10);
   
   // Map SuggestionType to NodeSearchMode
   const searchMode: NodeSearchMode = (type === 'type' || type === 'class') ? 'classes' : type === 'tag' ? 'tags' : 'all';
   
   // Use shared search hook
-  const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(query, {
+  const { pageResults, blockResults, isLoading, showCreateOption, hasMore } = useNodeSearch(query, {
     mode: searchMode,
     excludeNodeId,
     classFilters,
-    maxResults: 10,
+    maxResults: displayLimit,
   });
   
   // Date parsing for link mode
@@ -206,12 +207,14 @@ export function SuggestionPopup({
   // Total selectable items (date suggestion + selected at top + results + possibly create option)
   const selectedCount = multiSelect ? selectedNodes.length : 0;
   const dateSuggestionCount = hasDateSuggestion ? 1 : 0;
-  const totalItems = dateSuggestionCount + selectedCount + allItems.length + (showCreateOption ? 1 : 0);
+  const showMoreOption = hasMore && !multiSelect;
+  const totalItems = dateSuggestionCount + selectedCount + allItems.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
   
-  // Reset selection when results change
+  // Reset selection and display limit when query changes
   useEffect(() => {
     setSelectedIndex(multiSelect ? selectedCount : 0);
-  }, [allItems.length, query, multiSelect, selectedCount]);
+    setDisplayLimit(10);
+  }, [query, multiSelect, selectedCount]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -273,6 +276,9 @@ export function SuggestionPopup({
         } else if (showCreateOption && onCreate) {
           // Create new item
           onCreate(query.trim(), addInline);
+        } else if (showMoreOption) {
+          // Expand results
+          setDisplayLimit(prev => prev + 20);
         }
         break;
         
@@ -288,7 +294,7 @@ export function SuggestionPopup({
         onClose();
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount, type, onSelectEmbed]);
+  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, showMoreOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount, type, onSelectEmbed]);
   
   // Handle date suggestion selection
   const handleDateSelect = useCallback(async () => {
@@ -663,6 +669,17 @@ export function SuggestionPopup({
                 className="node-result-item--create"
                 iconOverride={<AddIcon size="sm" />}
               />
+            )}
+
+            {/* Show more results option */}
+            {showMoreOption && (
+              <button
+                className={`suggestion-popup__show-more ${selectedIndex === totalItems - 1 ? 'suggestion-popup__show-more--selected' : ''}`}
+                onClick={() => setDisplayLimit(prev => prev + 20)}
+                onMouseEnter={() => setSelectedIndex(totalItems - 1)}
+              >
+                Show more results
+              </button>
             )}
           </>
         )}

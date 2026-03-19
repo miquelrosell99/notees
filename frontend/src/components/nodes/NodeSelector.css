@@ -243,6 +243,27 @@
   letter-spacing: 0.04em;
 }
 
+.node-selector__show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--color-primary);
+  opacity: 0.8;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__show-more:hover,
+.node-selector__show-more--highlighted {
+  background: var(--color-hover-overlay);
+}
+
 /* Pill-row mode (original) */
 
 .node-selector__add-wrapper {

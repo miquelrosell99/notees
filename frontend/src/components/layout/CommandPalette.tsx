@@ -93,10 +93,11 @@ function parseQueryWithClass(query: string): {
   return { searchTerm: query, className: null, isTypingClass: false, classQuery: '' };
 }
 
-// Max items shown per section — keeps render cost bounded
-const MAX_PAGES = 8;
-const MAX_BLOCKS = 8;
-const MAX_PROPERTIES = 5;
+// Initial items shown per section — expandable via "Show more"
+const INITIAL_MAX_PAGES = 8;
+const INITIAL_MAX_BLOCKS = 8;
+const INITIAL_MAX_PROPERTIES = 5;
+const EXPAND_INCREMENT = 20;
 
 /**
  * Highlights matching substrings in text
@@ -252,6 +253,9 @@ export function CommandPalette({
     parentId: number | null;
   }>({ isOpen: false, pageName: '', conflictingClasses: [], originalClasses: [], parentId: null });
   const [createWithUuidModalOpen, setCreateWithUuidModalOpen] = useState(false);
+  const [maxPages, setMaxPages] = useState(INITIAL_MAX_PAGES);
+  const [maxBlocks, setMaxBlocks] = useState(INITIAL_MAX_BLOCKS);
+  const [maxProperties, setMaxProperties] = useState(INITIAL_MAX_PROPERTIES);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -367,7 +371,7 @@ export function CommandPalette({
   const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
 
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; commandDevOnly?: boolean; browseSection?: 'recent-accessed' | 'recent-created' | 'random' };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; commandDevOnly?: boolean; browseSection?: 'recent-accessed' | 'recent-created' | 'random'; showMoreSection?: 'pages' | 'blocks' | 'properties'; showMoreCount?: number };
     const items: ItemEntry[] = [];
     
     // When no query, show browse sections
@@ -405,8 +409,8 @@ export function CommandPalette({
       }
     }
     
-    // Pages section — capped to MAX_PAGES
-    const displayedPages = rawPages.slice(0, MAX_PAGES);
+    // Pages section — capped to maxPages (expandable)
+    const displayedPages = rawPages.slice(0, maxPages);
     displayedPages.forEach(({ node }) => {
       // Build ancestor breadcrumb using allPages map (worker only has search results)
       let breadcrumb: string | undefined;
@@ -421,6 +425,9 @@ export function CommandPalette({
       }
       items.push({ type: 'page', result: { node, type: 'page', breadcrumb } });
     });
+    if (rawPages.length > maxPages) {
+      items.push({ type: 'show-more', showMoreSection: 'pages', showMoreCount: rawPages.length - maxPages });
+    }
     
     // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0 
@@ -434,17 +441,23 @@ export function CommandPalette({
       items.push({ type: 'add-page', label });
     }
     
-    // Blocks section — capped to MAX_BLOCKS
-    const displayedBlocks = rawBlocks.slice(0, MAX_BLOCKS);
+    // Blocks section — capped to maxBlocks (expandable)
+    const displayedBlocks = rawBlocks.slice(0, maxBlocks);
     displayedBlocks.forEach(({ node, breadcrumb }) =>
       items.push({ type: 'block', result: { node, type: 'block', breadcrumb } }),
     );
+    if (rawBlocks.length > maxBlocks) {
+      items.push({ type: 'show-more', showMoreSection: 'blocks', showMoreCount: rawBlocks.length - maxBlocks });
+    }
     
-    // Properties section — capped to MAX_PROPERTIES
-    const displayedProperties = rawProperties.slice(0, MAX_PROPERTIES);
+    // Properties section — capped to maxProperties (expandable)
+    const displayedProperties = rawProperties.slice(0, maxProperties);
     displayedProperties.forEach(prop =>
       items.push({ type: 'property', result: { property: prop, type: 'property' } }),
     );
+    if (rawProperties.length > maxProperties) {
+      items.push({ type: 'show-more', showMoreSection: 'properties', showMoreCount: rawProperties.length - maxProperties });
+    }
     
     // Quick add option
     if (searchTerm.trim()) {
@@ -452,14 +465,24 @@ export function CommandPalette({
     }
     
     return items;
-  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap, recentAccessedPages, recentCreatedPages, randomPages]);
+  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap, recentAccessedPages, recentCreatedPages, randomPages, maxPages, maxBlocks, maxProperties]);
   
+  // Reset section limits when search query changes
+  useEffect(() => {
+    setMaxPages(INITIAL_MAX_PAGES);
+    setMaxBlocks(INITIAL_MAX_BLOCKS);
+    setMaxProperties(INITIAL_MAX_PROPERTIES);
+  }, [debouncedSearchTerm]);
+
   // Focus input when opened; refresh caches that may have gone stale since last open
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedClasses([]);
       setClassPopupPosition(null);
+      setMaxPages(INITIAL_MAX_PAGES);
+      setMaxBlocks(INITIAL_MAX_BLOCKS);
+      setMaxProperties(INITIAL_MAX_PROPERTIES);
       inputRef.current?.focus();
       queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
@@ -725,6 +748,16 @@ export function CommandPalette({
         }
         onClose();
         break;
+      
+      case 'show-more':
+        if (item.showMoreSection === 'pages') {
+          setMaxPages(prev => prev + EXPAND_INCREMENT);
+        } else if (item.showMoreSection === 'blocks') {
+          setMaxBlocks(prev => prev + EXPAND_INCREMENT);
+        } else if (item.showMoreSection === 'properties') {
+          setMaxProperties(prev => prev + EXPAND_INCREMENT);
+        }
+        return; // Don't close the palette
     }
   }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose, queryClient]);
   
@@ -759,7 +792,7 @@ export function CommandPalette({
   }, [isTypingClass, listKeyDown, onClose, allItems, handleSelect]);
   
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
-  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap, extraPages, extraBlocks, extraProperties } = useMemo(() => {
+  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap } = useMemo(() => {
     const dateItems: typeof allItems = [];
     const pageItems: typeof allItems = [];
     const blockItems: typeof allItems = [];
@@ -781,6 +814,11 @@ export function CommandPalette({
         case 'property': propertyItems.push(item); break;
         case 'quick-add': quickAddItems.push(item); break;
         case 'command': commandItems.push(item); break;
+        case 'show-more':
+          if (item.showMoreSection === 'pages') pageItems.push(item);
+          else if (item.showMoreSection === 'blocks') blockItems.push(item);
+          else if (item.showMoreSection === 'properties') propertyItems.push(item);
+          break;
         case 'browse-page':
           if (item.browseSection === 'recent-accessed') browseRecentAccessed.push(item);
           else if (item.browseSection === 'recent-created') browseRecentCreated.push(item);
@@ -788,12 +826,8 @@ export function CommandPalette({
           break;
       }
     }
-    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap,
-      extraPages: Math.max(0, rawPages.length - MAX_PAGES),
-      extraBlocks: Math.max(0, rawBlocks.length - MAX_BLOCKS),
-      extraProperties: Math.max(0, rawProperties.length - MAX_PROPERTIES),
-    };
-  }, [allItems, rawPages.length, rawBlocks.length, rawProperties.length]);
+    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap };
+  }, [allItems]);
 
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -1018,10 +1052,21 @@ export function CommandPalette({
               {pageItems.length > 0 && !parsedDate && (
             <div className="command-palette__section">
               <div className="command-palette__section-header">
-                Pages{extraPages > 0 && <span className="command-palette__section-more"> +{extraPages} more</span>}
+                Pages
               </div>
               {pageItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
+                if (item.type === 'show-more') {
+                  return (
+                    <button
+                      key="show-more-pages"
+                      className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                      onClick={() => handleSelect(globalIndex)}
+                    >
+                      <span className="command-palette__show-more-label">Show {item.showMoreCount} more pages</span>
+                    </button>
+                  );
+                }
                 if (item.type === 'add-page') {
                   return (
                     <button
@@ -1060,10 +1105,21 @@ export function CommandPalette({
           {blockItems.length > 0 && (
             <div className="command-palette__section">
               <div className="command-palette__section-header">
-                Blocks{extraBlocks > 0 && <span className="command-palette__section-more"> +{extraBlocks} more</span>}
+                Blocks
               </div>
               {blockItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
+                if (item.type === 'show-more') {
+                  return (
+                    <button
+                      key="show-more-blocks"
+                      className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                      onClick={() => handleSelect(globalIndex)}
+                    >
+                      <span className="command-palette__show-more-label">Show {item.showMoreCount} more blocks</span>
+                    </button>
+                  );
+                }
                 return (
                   <ResultItem
                     key={item.result?.node?.id}
@@ -1084,10 +1140,21 @@ export function CommandPalette({
           {propertyItems.length > 0 && (
             <div className="command-palette__section">
               <div className="command-palette__section-header">
-                Properties{extraProperties > 0 && <span className="command-palette__section-more"> +{extraProperties} more</span>}
+                Properties
               </div>
               {propertyItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
+                if (item.type === 'show-more') {
+                  return (
+                    <button
+                      key="show-more-properties"
+                      className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                      onClick={() => handleSelect(globalIndex)}
+                    >
+                      <span className="command-palette__show-more-label">Show {item.showMoreCount} more properties</span>
+                    </button>
+                  );
+                }
                 return (
                   <ResultItem
                     key={item.result?.property?.id}

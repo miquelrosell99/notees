@@ -218,6 +218,27 @@
   color: var(--color-on-surface);
 }
 
+.suggestion-popup__show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--color-primary);
+  opacity: 0.8;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.suggestion-popup__show-more:hover,
+.suggestion-popup__show-more--selected {
+  background: var(--color-hover-overlay);
+}
+
 .suggestion-popup__footer {
   display: flex;
   align-items: center;
