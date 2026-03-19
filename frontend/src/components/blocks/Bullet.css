@@ -15,8 +15,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  /* Align bullet dot with text baseline */
-  margin-top: 1px;
+
   /* Prevent text selection when clicking/dragging */
   user-select: none;
   -webkit-user-select: none;
