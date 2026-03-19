@@ -5,8 +5,6 @@
  * Uses ConditionConfig to determine how to render each condition type.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { useState, useEffect } from 'react';
 import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@mdi/js';
 import { Dropdown } from '../core/Dropdown';
@@ -198,64 +196,64 @@ export function GenericConditionRenderer({
     
     if (mode === 'static') {
       // Switch to static mode - remove nested_group and clear placeholder
-      const updated = { ...condition };
-      delete (updated as any).nested_group;
+      const updated: Record<string, unknown> = { ...condition };
+      delete updated.nested_group;
       
       // Clear current node placeholder if present
       if (condition.condition_type === 'parent') {
-        delete (updated as any).parent_uuid;
-        delete (updated as any).parent_id;
+        delete updated.parent_uuid;
+        delete updated.parent_id;
       } else if (condition.condition_type === 'reference') {
-        delete (updated as any).target_uuid;
-        delete (updated as any).target_id;
+        delete updated.target_uuid;
+        delete updated.target_id;
       } else if (condition.condition_type === 'reference_path') {
-        (updated as any).target_uuids = [];
-        (updated as any).target_ids = [];
+        updated.target_uuids = [];
+        updated.target_ids = [];
       } else if (condition.condition_type === 'parent_path') {
-        (updated as any).ancestor_uuids = [];
-        (updated as any).ancestor_ids = [];
+        updated.ancestor_uuids = [];
+        updated.ancestor_ids = [];
       } else if (condition.condition_type === 'child_path') {
-        (updated as any).descendant_uuids = [];
-        (updated as any).descendant_ids = [];
+        updated.descendant_uuids = [];
+        updated.descendant_ids = [];
       } else if (condition.condition_type === 'property') {
-        (updated as any).value = '';
+        updated.value = '';
       }
       
-      onUpdate(updated);
+      onUpdate(updated as unknown as ConditionNode);
     } else if (mode === 'current') {
       // Switch to current node mode - remove nested_group and set to current node UUID
-      const updated = { ...condition };
-      delete (updated as any).nested_group;
+      const updated: Record<string, unknown> = { ...condition };
+      delete updated.nested_group;
       
       // Use actual UUID if available, otherwise use placeholder
       const targetUuid = currentNodeUuid || '{current_node_uuid}';
       
       if (condition.condition_type === 'parent') {
-        (updated as any).parent_uuid = targetUuid;
-        delete (updated as any).parent_id;
+        updated.parent_uuid = targetUuid;
+        delete updated.parent_id;
       } else if (condition.condition_type === 'reference') {
-        (updated as any).target_uuid = targetUuid;
-        delete (updated as any).target_id;
+        updated.target_uuid = targetUuid;
+        delete updated.target_id;
       } else if (condition.condition_type === 'reference_path') {
-        (updated as any).target_uuids = [targetUuid];
-        delete (updated as any).target_ids;
+        updated.target_uuids = [targetUuid];
+        delete updated.target_ids;
       } else if (condition.condition_type === 'parent_path') {
-        (updated as any).ancestor_uuids = [targetUuid];
-        delete (updated as any).ancestor_ids;
+        updated.ancestor_uuids = [targetUuid];
+        delete updated.ancestor_ids;
       } else if (condition.condition_type === 'child_path') {
-        (updated as any).descendant_uuids = [targetUuid];
-        delete (updated as any).descendant_ids;
+        updated.descendant_uuids = [targetUuid];
+        delete updated.descendant_ids;
       } else if (condition.condition_type === 'property') {
-        (updated as any).value = targetUuid;
+        updated.value = targetUuid;
       } else if (condition.condition_type === 'class') {
-        (updated as any).class_uuid = targetUuid;
-        delete (updated as any).class_id;
+        updated.class_uuid = targetUuid;
+        delete updated.class_id;
       } else if (condition.condition_type === 'extends') {
-        (updated as any).extends_class_uuid = targetUuid;
-        delete (updated as any).extends_class_id;
+        updated.extends_class_uuid = targetUuid;
+        delete updated.extends_class_id;
       }
       
-      onUpdate(updated as any);
+      onUpdate(updated as unknown as ConditionNode);
     } else {
       // Switch to dynamic mode - add nested_group
       onUpdate({
@@ -265,22 +263,22 @@ export function GenericConditionRenderer({
           logic: config.dynamicMode?.defaultLogic || 'AND',
           children: [],
         },
-      } as any);
+      } as unknown as ConditionNode);
     }
   };
   
   // Handler for value changes
-  const handleValueChange = (value: any) => {
+  const handleValueChange = (value: unknown) => {
     onUpdate({
       ...condition,
       ...(condition.condition_type === 'content' ? { value } : {}),
       ...(condition.condition_type === 'property' ? { value } : {}),
-    } as any);
+    } as unknown as ConditionNode);
   };
   
   // Handler for node selection
-  const handleNodeSelect = (nodeId: number | null, node?: any) => {
-    const updates: any = {};
+  const handleNodeSelect = (nodeId: number | null, node?: { id: number; uuid: string }) => {
+    const updates: Record<string, unknown> = {};
     
     if (condition.condition_type === 'class') {
       updates.class_id = nodeId ?? undefined;
@@ -290,10 +288,10 @@ export function GenericConditionRenderer({
       updates.target_uuid = node?.uuid ?? '';
     } else if (condition.condition_type === 'reference_path') {
       // Multi-select: append to target_uuids/target_ids arrays
-      const existing = condition as any;
+      const existing = condition as unknown as Record<string, unknown>;
       if (nodeId && node?.uuid) {
-        const currentUuids = existing.target_uuids || [];
-        const currentIds = existing.target_ids || [];
+        const currentUuids = (existing.target_uuids as string[]) || [];
+        const currentIds = (existing.target_ids as number[]) || [];
         if (!currentUuids.includes(node.uuid)) {
           updates.target_uuids = [...currentUuids, node.uuid];
           updates.target_ids = [...currentIds, nodeId];
@@ -305,10 +303,10 @@ export function GenericConditionRenderer({
       }
     } else if (condition.condition_type === 'parent_path') {
       // Multi-select: append to ancestor_uuids/ancestor_ids arrays
-      const existing = condition as any;
+      const existing = condition as unknown as Record<string, unknown>;
       if (nodeId && node?.uuid) {
-        const currentUuids = existing.ancestor_uuids || [];
-        const currentIds = existing.ancestor_ids || [];
+        const currentUuids = (existing.ancestor_uuids as string[]) || [];
+        const currentIds = (existing.ancestor_ids as number[]) || [];
         if (!currentUuids.includes(node.uuid)) {
           updates.ancestor_uuids = [...currentUuids, node.uuid];
           updates.ancestor_ids = [...currentIds, nodeId];
@@ -319,10 +317,10 @@ export function GenericConditionRenderer({
       }
     } else if (condition.condition_type === 'child_path') {
       // Multi-select: append to descendant_uuids/descendant_ids arrays
-      const existing = condition as any;
+      const existing = condition as unknown as Record<string, unknown>;
       if (nodeId && node?.uuid) {
-        const currentUuids = existing.descendant_uuids || [];
-        const currentIds = existing.descendant_ids || [];
+        const currentUuids = (existing.descendant_uuids as string[]) || [];
+        const currentIds = (existing.descendant_ids as number[]) || [];
         if (!currentUuids.includes(node.uuid)) {
           updates.descendant_uuids = [...currentUuids, node.uuid];
           updates.descendant_ids = [...currentIds, nodeId];
@@ -343,7 +341,7 @@ export function GenericConditionRenderer({
       ...condition,
       ...updates,
       nested_group: undefined, // Clear nested group when selecting static value
-    } as any);
+    } as unknown as ConditionNode);
   };
   
   // Render operator dropdown
@@ -394,7 +392,7 @@ export function GenericConditionRenderer({
     
     switch (config.staticMode.inputType) {
       case 'text': {
-        const value = (condition as any).value ?? '';
+        const value = (condition as unknown as Record<string, unknown>).value ?? '';
         const isEmpty = value === '' || value === null || value === undefined;
         const showError = isEmpty && config.staticMode.required && !readOnly;
         
@@ -417,10 +415,10 @@ export function GenericConditionRenderer({
         if (isPathCondition) {
           // Multi-select mode for path conditions
           const getPathIds = (): number[] => {
-            const c = condition as any;
-            if (condition.condition_type === 'reference_path') return c.target_ids || [];
-            if (condition.condition_type === 'parent_path') return c.ancestor_ids || [];
-            if (condition.condition_type === 'child_path') return c.descendant_ids || [];
+            const c = condition as unknown as Record<string, unknown>;
+            if (condition.condition_type === 'reference_path') return (c.target_ids as number[]) || [];
+            if (condition.condition_type === 'parent_path') return (c.ancestor_ids as number[]) || [];
+            if (condition.condition_type === 'child_path') return (c.descendant_ids as number[]) || [];
             return [];
           };
           const selectedIds = getPathIds();
@@ -433,33 +431,33 @@ export function GenericConditionRenderer({
               multi
               onAdd={(node) => handleNodeSelect(node.id, node)}
               onRemove={(node) => {
-                const c = condition as any;
+                const c = condition as unknown as Record<string, unknown>;
                 if (condition.condition_type === 'reference_path') {
-                  const idx = (c.target_ids || []).indexOf(node.id);
+                  const idx = ((c.target_ids as number[]) || []).indexOf(node.id);
                   if (idx >= 0) {
-                    const newIds = [...(c.target_ids || [])];
-                    const newUuids = [...(c.target_uuids || [])];
+                    const newIds = [...((c.target_ids as number[]) || [])];
+                    const newUuids = [...((c.target_uuids as string[]) || [])];
                     newIds.splice(idx, 1);
                     newUuids.splice(idx, 1);
-                    onUpdate({ ...condition, target_ids: newIds, target_uuids: newUuids, nested_group: undefined } as any);
+                    onUpdate({ ...condition, target_ids: newIds, target_uuids: newUuids, nested_group: undefined } as unknown as ConditionNode);
                   }
                 } else if (condition.condition_type === 'parent_path') {
-                  const idx = (c.ancestor_ids || []).indexOf(node.id);
+                  const idx = ((c.ancestor_ids as number[]) || []).indexOf(node.id);
                   if (idx >= 0) {
-                    const newIds = [...(c.ancestor_ids || [])];
-                    const newUuids = [...(c.ancestor_uuids || [])];
+                    const newIds = [...((c.ancestor_ids as number[]) || [])];
+                    const newUuids = [...((c.ancestor_uuids as string[]) || [])];
                     newIds.splice(idx, 1);
                     newUuids.splice(idx, 1);
-                    onUpdate({ ...condition, ancestor_ids: newIds, ancestor_uuids: newUuids, nested_group: undefined } as any);
+                    onUpdate({ ...condition, ancestor_ids: newIds, ancestor_uuids: newUuids, nested_group: undefined } as unknown as ConditionNode);
                   }
                 } else if (condition.condition_type === 'child_path') {
-                  const idx = (c.descendant_ids || []).indexOf(node.id);
+                  const idx = ((c.descendant_ids as number[]) || []).indexOf(node.id);
                   if (idx >= 0) {
-                    const newIds = [...(c.descendant_ids || [])];
-                    const newUuids = [...(c.descendant_uuids || [])];
+                    const newIds = [...((c.descendant_ids as number[]) || [])];
+                    const newUuids = [...((c.descendant_uuids as string[]) || [])];
                     newIds.splice(idx, 1);
                     newUuids.splice(idx, 1);
-                    onUpdate({ ...condition, descendant_ids: newIds, descendant_uuids: newUuids, nested_group: undefined } as any);
+                    onUpdate({ ...condition, descendant_ids: newIds, descendant_uuids: newUuids, nested_group: undefined } as unknown as ConditionNode);
                   }
                 }
               }}
@@ -470,7 +468,9 @@ export function GenericConditionRenderer({
         }
         
         // Single-select for non-path conditions (reference, parent, etc.)
-        const selectedId = (condition as any).target_id || (condition as any).parent_id || null;
+        const selectedId = (condition as unknown as Record<string, unknown>).target_id as number | null
+          || (condition as unknown as Record<string, unknown>).parent_id as number | null
+          || null;
         return (
           <NodeSelector
             trigger="select"
@@ -501,7 +501,7 @@ export function GenericConditionRenderer({
       case 'property-selector':
         // Special handling for property condition
         if (condition.condition_type === 'property') {
-          const propertyName = (condition as any).property_name || '';
+          const propertyName = condition.property_name || '';
           const builtInProps = [
             { value: 'uuid', label: 'uuid' },
             { value: 'id', label: 'id' },
@@ -518,7 +518,7 @@ export function GenericConditionRenderer({
                   ...condition,
                   property_name: value || '',
                   property_uuid: matched?.uuid ?? undefined,
-                } as any);
+                } as unknown as ConditionNode);
               }}
               options={allProps}
               placeholder="Select property"
@@ -564,7 +564,7 @@ export function GenericConditionRenderer({
   const renderPropertyName = () => {
     if (condition.condition_type !== 'property') return null;
     
-    const propertyName = (condition as any).property_name || '';
+    const propertyName = condition.property_name || '';
     const builtInProps = [
       { value: 'uuid', label: 'uuid' },
       { value: 'id', label: 'id' },
@@ -581,7 +581,7 @@ export function GenericConditionRenderer({
             ...condition,
             property_name: value || '',
             property_uuid: matched?.uuid ?? undefined,
-          } as any);
+          } as unknown as ConditionNode);
         }}
         options={allProps}
         placeholder="Select property"

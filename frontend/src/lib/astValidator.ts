@@ -167,8 +167,7 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
 
     // Nested conditions need groups OR static UUIDs
     case 'reference_path': {
-      const refPathCond = condition as any;
-      const hasStaticTargets = refPathCond.target_uuids?.length > 0;
+      const hasStaticTargets = (condition.target_uuids?.length ?? 0) > 0;
       if (!condition.nested_group && !hasStaticTargets) {
         errors.push({
           severity: 'error',
@@ -180,8 +179,7 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
       break;
     }
     case 'parent_path': {
-      const ppCond = condition as any;
-      const hasStaticAncestors = ppCond.ancestor_uuids?.length > 0;
+      const hasStaticAncestors = (condition.ancestor_uuids?.length ?? 0) > 0;
       if (!condition.nested_group && !hasStaticAncestors) {
         errors.push({
           severity: 'error',
@@ -193,8 +191,7 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
       break;
     }
     case 'child_path': {
-      const cpCond = condition as any;
-      const hasStaticDescendants = cpCond.descendant_uuids?.length > 0;
+      const hasStaticDescendants = (condition.descendant_uuids?.length ?? 0) > 0;
       if (!condition.nested_group && !hasStaticDescendants) {
         errors.push({
           severity: 'error',

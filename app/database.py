@@ -1068,9 +1068,13 @@ EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}
 EXPORT_DOCTYPES  = {"none", "article", "report", "book", "legal", "academic"}
 
 
+_export_css_cache: str | None = None
+
+
 def _get_export_css_single() -> str:
     """Read and concatenate layer CSS files from layers/ directory (cached after first call)."""
-    if not hasattr(_get_export_css_single, "_cache"):
+    global _export_css_cache
+    if _export_css_cache is None:
         layers_dir = _EXPORT_CSS_DIR / "layers"
         parts: list[str] = []
         for layer_path in sorted(layers_dir.glob("*.css")):
@@ -1080,8 +1084,8 @@ def _get_export_css_single() -> str:
                 logger.warning("Failed to read export CSS layer %s: %s", layer_path, exc)
         if not parts:
             logger.warning("No export CSS layers found in %s", layers_dir)
-        _get_export_css_single._cache = "\n\n".join(parts)
-    return _get_export_css_single._cache
+        _export_css_cache = "\n\n".join(parts)
+    return _export_css_cache
 
 
 def _build_body_class(

@@ -99,16 +99,13 @@ export interface DropResult {
 // ==================== Sensor Configuration ====================
 
 /**
- * Activation constraints for drag sensors
+ * Activation constraints for drag sensors.
+ * Matches @dnd-kit/core PointerActivationConstraint / DelayConstraint union.
  */
-export interface DragActivationConstraint {
-  /** Minimum distance before drag activates (px) */
-  distance?: number;
-  /** Delay before drag activates (ms) */
-  delay?: number;
-  /** Movement tolerance during delay (px) */
-  tolerance?: number;
-}
+export type DragActivationConstraint =
+  | { distance: number }
+  | { delay: number; tolerance: number }
+  | { distance: number; delay: number; tolerance: number };
 
 /**
  * Configuration for drag sensors

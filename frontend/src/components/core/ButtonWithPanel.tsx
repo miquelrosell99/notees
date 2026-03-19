@@ -350,7 +350,7 @@ export function ButtonWithPanel({
               ? { bottom: `${portalPosition.bottom}px` }
               : { top: `${portalPosition.top ?? 0}px` }),
             left: `${portalPosition.left}px`,
-            zIndex: '10001 !important' as any,
+            zIndex: 10001,
           }}
           role="dialog"
           aria-modal="true"

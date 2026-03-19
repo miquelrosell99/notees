@@ -24,9 +24,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 from pathlib import Path
+import mimetypes
+import time
+import traceback
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -117,7 +121,6 @@ async def limit_request_body_size(request: StarletteRequest, call_next):
     """Reject requests whose body exceeds MAX_REQUEST_BODY_SIZE to prevent memory exhaustion."""
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
-        from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=413,
             content={"detail": f"Request body too large. Maximum size is {MAX_REQUEST_BODY_SIZE // (1024 * 1024)} MB."},
@@ -137,8 +140,6 @@ if settings.cors_origins:
 
 
 # Exception handler for validation errors to log details
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -151,7 +152,6 @@ async def validation_exception_handler(request, exc):
 
 
 # Request logging middleware with per-request connection
-import time
 from .db.connection import request_connection
 
 @app.middleware("http")
@@ -162,7 +162,6 @@ async def log_requests(request, call_next):
     calls within the request share one pooled connection instead of each
     method call independently acquiring/releasing from the pool.
     """
-    import traceback
     start_time = time.perf_counter()
     
     # Skip logging for static assets
@@ -221,7 +220,6 @@ static_path.mkdir(exist_ok=True)
 dist_path = static_path / "dist"
 
 # Configure StaticFiles with proper MIME type handling
-import mimetypes
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/javascript", ".mjs")
 
