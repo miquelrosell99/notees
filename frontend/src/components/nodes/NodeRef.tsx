@@ -12,7 +12,7 @@
  * - `nodeId` (number): batch-fetched via useBatchedNode
  * - `nodeUuid` (string): resolved via ReferencedNodesContext → useNodeByUuid fallback
  */
-import { useState, useCallback, useMemo, useRef, memo } from 'react';
+import { useState, useCallback, useMemo, useRef, memo, createContext, useContext } from 'react';
 import { Pill } from '../core/Pill';
 import { NodeIcon, CloseIcon } from '../core/icons';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -22,8 +22,51 @@ import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useNavigationStore } from '@/stores';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import type { ASTInlineNode } from '@/types/ast';
 import type { Node } from '@/types';
 import './NodeRef.css';
+
+// Tracks nesting depth to prevent infinite recursion when a referenced node's
+// name itself contains node links (which in turn might contain more node links).
+const NodeRefDepth = createContext(0);
+
+// Renders AST inline nodes as React without click-handler wrappers.
+// Used by NodeRefInline to resolve inner node links in a referenced node's name.
+function renderNameInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
+  return nodes.map((node, i) => {
+    switch (node.type) {
+      case 'text':
+        return node.text || null;
+      case 'node_link': {
+        const { nodeUuid } = parseLinkId(node.link_id);
+        return (
+          <NodeRef
+            key={i}
+            variant="inline"
+            nodeUuid={nodeUuid}
+            refType={node.ref_type === 'class' ? 'class' : 'node'}
+            customName={node.label ?? undefined}
+          />
+        );
+      }
+      case 'strong':
+        return <strong key={i}>{renderNameInlineNodes(node.children)}</strong>;
+      case 'em':
+        return <em key={i}>{renderNameInlineNodes(node.children)}</em>;
+      case 'strikethrough':
+        return <s key={i}>{renderNameInlineNodes(node.children)}</s>;
+      case 'highlight':
+        return <mark key={i}>{renderNameInlineNodes(node.children)}</mark>;
+      case 'underline':
+        return <u key={i}>{renderNameInlineNodes(node.children)}</u>;
+      case 'hard_break':
+        return <br key={i} />;
+      default:
+        return null;
+    }
+  });
+}
 
 export interface NodeRefProps {
   /** The node to display (if provided, nodeId/nodeUuid are ignored) */
@@ -96,6 +139,8 @@ function NodeRefInline({
   refType = 'node',
   customName,
 }: NodeRefProps) {
+  const depth = useContext(NodeRefDepth);
+
   // Resolve node: provided > uuid context > uuid fetch > batched ID fetch
   const refNode = useReferencedNode(nodeUuid ?? null);
   const { data: uuidFallback } = useNodeByUuid(!providedNode && !refNode && nodeUuid ? nodeUuid : null);
@@ -108,6 +153,36 @@ function NodeRefInline({
   );
 
   const displayText = customName || nodeDisplayText;
+
+  // When at top depth and the node's name contains inner node links, render
+  // them as live NodeRef components (same approach as the table view's NodeNameContent)
+  // instead of plain text via nodeNameToText (which shows '...' for unresolved links).
+  const hasInnerLinks = depth === 0 && !customName && !!node?.name && node.name.includes('"link_id"');
+
+  if (hasInnerLinks && node?.name) {
+    const ast = parseAST(node.name);
+    const inlines = ast.flatMap(b => ('children' in b ? b.children : [])) as ASTInlineNode[];
+    const rendered = renderNameInlineNodes(inlines);
+    const hasContent = rendered.some(r => r !== null);
+    if (hasContent) {
+      return (
+        <NodeRefDepth.Provider value={1}>
+          <span
+            className="inline-link-inner"
+            data-ref-type={refType}
+            style={color ? { textDecorationColor: color, color } : undefined}
+          >
+            {effectiveIcon && refType !== 'class' && (
+              <span className="inline-link-icon">
+                <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" />
+              </span>
+            )}
+            <span className="inline-link-text">{rendered}</span>
+          </span>
+        </NodeRefDepth.Provider>
+      );
+    }
+  }
 
   return (
     <span
