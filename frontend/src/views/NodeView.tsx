@@ -414,6 +414,19 @@ export function NodeView({
     if (!node) return;
     removeClass.mutate({ nodeId: node.id, classId: classNode.id });
   }, [node, removeClass]);
+
+  // Handle converting an existing page to a class by adding the "class" class to it
+  const handleConvertToClass = useCallback((pageNode: Node) => {
+    if (!node) return;
+    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
+    if (!classClass) return;
+    // Add the "class" class to the target page, then add it to the current node
+    addClass.mutate({ nodeId: pageNode.id, classId: classClass.id }, {
+      onSuccess: () => {
+        addClass.mutate({ nodeId: node.id, classId: pageNode.id });
+      }
+    });
+  }, [node, addClass, allClasses]);
   
   // Handle adding a tag via NodeSelector
   const handleAddTag = useCallback((tagNode: Node) => {
@@ -1053,6 +1066,7 @@ export function NodeView({
                   onColorChange={handleNodeColorChange}
                   onAdd={handleAddClass}
                   onCreateNew={handleCreateClass}
+                  onConvertToClass={handleConvertToClass}
                   canRemove={(n) => !isNonRemovableClass(n.uuid)}
                   canAdd={(n) => !isBlockOnlyClass(n.uuid)}
                 />
