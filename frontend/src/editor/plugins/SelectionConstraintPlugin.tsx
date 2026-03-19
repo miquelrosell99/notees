@@ -25,7 +25,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
-import { findParentNodeBlock } from '../utils/selectionUtils';
+import { findParentNodeBlock, $trimSelectionWhitespace } from '../utils/selectionUtils';
 
 export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boolean }): null {
   const [editor] = useLexicalComposerContext();
@@ -124,6 +124,31 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
       },
       COMMAND_PRIORITY_HIGH,
     );
+  }, [editor, readOnly]);
+
+  // ─── Trim trailing space on double-click word selection ────────
+  // Browsers include the trailing space when double-clicking a word.
+  // We trim it so only the word itself is selected.
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
+
+    const handleDoubleClick = () => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+          $trimSelectionWhitespace(selection);
+        }
+      }, { tag: 'dblclick-trim' });
+    };
+
+    rootElement.addEventListener('dblclick', handleDoubleClick);
+    return () => {
+      rootElement.removeEventListener('dblclick', handleDoubleClick);
+    };
   }, [editor, readOnly]);
 
   return null;
