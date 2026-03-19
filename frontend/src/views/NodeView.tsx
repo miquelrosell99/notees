@@ -799,6 +799,11 @@ export function NodeView({
         const value = nodeProps[prop.id];
         if (typeof value === 'number') {
           blockIds.add(value);
+        } else if (Array.isArray(value)) {
+          // Multi-value text properties store an array of block IDs
+          for (const v of value) {
+            if (typeof v === 'number') blockIds.add(v);
+          }
         }
       }
     }

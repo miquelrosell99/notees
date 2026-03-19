@@ -943,6 +943,32 @@ async def get_node(
         """, node_id)
         all_descendants = [service._node_repo.row_to_node(row) for row in rows]
         
+        # ── Filter out text-property value blocks and their subtrees ──
+        # Text properties store their value as a child block linked via
+        # property_value_relation.  These blocks (and their descendants)
+        # are rendered inside PropertiesSection, not in the main content.
+        all_desc_ids = [d.id for d in all_descendants if d.id is not None]
+        if all_desc_ids:
+            tp_rows = await pool.fetch("""
+                SELECT DISTINCT pvr.target_id
+                FROM property_value_relation pvr
+                JOIN property p ON p.id = pvr.property_id
+                WHERE pvr.target_id = ANY($1)
+                  AND p.type = 'text'
+            """, all_desc_ids)
+            text_prop_ids = {r['target_id'] for r in tp_rows}
+            if text_prop_ids:
+                # Remove text-property blocks and their entire subtrees
+                excluded: set = set()
+                filtered = []
+                for d in all_descendants:
+                    if d.id in text_prop_ids or d.parent_id in excluded:
+                        if d.id is not None:
+                            excluded.add(d.id)
+                        continue
+                    filtered.append(d)
+                all_descendants = filtered
+        
         # ── Prune collapsed subtrees ──────────────────────────────
         # Build a set of IDs whose descendants should be excluded:
         # any node that is collapsed.  We keep the collapsed node itself
