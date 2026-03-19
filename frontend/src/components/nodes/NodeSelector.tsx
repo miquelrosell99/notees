@@ -25,7 +25,7 @@ import { Card } from '../core/Card';
 import { SelectTrigger, type SelectTriggerSize } from '../core/SelectTrigger';
 import { mdiPlus, mdiChevronDown } from '@mdi/js';
 import Icon from '@mdi/react';
-import { useNodeSearch, usePages, useClasses, type NodeSearchMode, nodeKeys } from '@/hooks';
+import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
@@ -63,8 +63,10 @@ interface NodeSelectorProps {
   onAdd?: (node: Node) => void;
   /** Callback when value changes (for 'select' mode with value prop) */
   onChange?: (value: number | number[] | null) => void;
-  /** Callback when creating a new node (if provided, shows create option) */
+  /** Callback when creating a new node (if provided, overrides built-in create) */
   onCreateNew?: (name: string) => void | Promise<Node>;
+  /** Whether to show the "Create" option when no match is found (default: true for page/class/tag modes) */
+  allowCreate?: boolean;
   /** Callback when converting an existing page to a class (if provided, shows convert option for non-class pages) */
   onConvertToClass?: (node: Node) => void;
   /** Callback when clearing all selections ('select' mode only) */
@@ -101,6 +103,7 @@ export function NodeSelector({
   onAdd,
   onChange,
   onCreateNew,
+  allowCreate,
   onConvertToClass,
   onClearAll,
   canRemove,
@@ -167,6 +170,30 @@ export function NodeSelector({
   const { data: allPages = [] } = usePages();
   const { data: allClasses = [] } = useClasses();
 
+  // Built-in create support — hooks must be called unconditionally
+  const createNodeMutation = useCreateNode();
+  const { pageClassId } = usePageClass();
+  const { classClassId } = useClassClass();
+
+  // Resolve whether create is enabled: default true for page/class/tag modes, false for blocks
+  const createEnabled = allowCreate ?? (searchMode !== 'blocks');
+
+  // Internal default create handler based on searchMode
+  const defaultCreateNew = useCallback(async (name: string): Promise<Node> => {
+    const classes: number[] = [];
+    if (pageClassId) classes.push(pageClassId);
+    if ((searchMode === 'classes') && classClassId) classes.push(classClassId);
+    return new Promise((resolve, reject) => {
+      createNodeMutation.mutate({ name, classes }, {
+        onSuccess: resolve,
+        onError: reject,
+      });
+    });
+  }, [createNodeMutation, pageClassId, classClassId, searchMode]);
+
+  // Effective create handler: external overrides internal
+  const effectiveCreateNew = onCreateNew ?? (createEnabled ? defaultCreateNew : undefined);
+
   // Convert search results to Node array
   const searchResults = useMemo(() => {
     return allResults.map(r => r.node);
@@ -189,8 +216,8 @@ export function NodeSelector({
       .filter(node => !canAdd || canAdd(node));
   }, [searchResults, assignedIds, canAdd]);
 
-  // Only show create option if onCreate is provided and there's a query
-  const showCreateOption = onCreateNew && searchShowCreate && searchQuery.trim().length > 0;
+  // Only show create option if a create handler is available and there's a query
+  const showCreateOption = effectiveCreateNew && searchShowCreate && searchQuery.trim().length > 0;
 
   // Non-class pages matching the search query, offered as "convert to class" candidates
   const convertCandidates = useMemo(() => {
@@ -359,8 +386,8 @@ export function NodeSelector({
   }, [assignedIds, handleAdd, handleRemove]);
 
   const handleCreateNew = useCallback(async () => {
-    if (!searchQuery.trim() || !onCreateNew) return;
-    const result = onCreateNew(searchQuery.trim());
+    if (!searchQuery.trim() || !effectiveCreateNew) return;
+    const result = effectiveCreateNew(searchQuery.trim());
     
     // If onCreate returns a promise (creates node), wait for it and add it
     if (result instanceof Promise) {
@@ -376,7 +403,7 @@ export function NodeSelector({
     
     setIsPickerOpen(false);
     setSearchQuery('');
-  }, [searchQuery, onCreateNew, handleAdd]);
+  }, [searchQuery, effectiveCreateNew, handleAdd]);
 
   const handleClearAll = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -581,7 +608,7 @@ export function NodeSelector({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={onCreateNew ? 'Search or Create' : searchPlaceholder}
+              placeholder={effectiveCreateNew ? 'Search or create...' : searchPlaceholder}
               className="node-selector__search-field"
             />
             <div className="node-selector__list">
@@ -801,7 +828,7 @@ export function NodeSelector({
                   })}
                 </>
               )}
-              {showCreateOption && onCreateNew && (
+              {showCreateOption && effectiveCreateNew && (
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}
