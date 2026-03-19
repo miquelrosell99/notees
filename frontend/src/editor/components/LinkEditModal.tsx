@@ -230,7 +230,7 @@ export function LinkEditModal({
                 value={effectiveNodeId}
                 searchMode="pages"
                 placeholder="Select a page..."
-                searchPlaceholder="Search pages..."
+                searchPlaceholder="Search or create page..."
                 initialSearchQuery={initialSearchQuery}
                 onAdd={handleNodeAdd}
                 onClearAll={handleNodeClear}
