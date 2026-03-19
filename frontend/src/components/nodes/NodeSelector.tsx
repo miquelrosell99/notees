@@ -116,6 +116,7 @@ export function NodeSelector({
 }: NodeSelectorProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -151,11 +152,11 @@ export function NodeSelector({
   const nodes = nodesProp ?? resolvedNodesFromValue;
 
   // Use shared search hook (same as SuggestionPopup)
-  const { allResults, isLoading, showCreateOption: searchShowCreate } = useNodeSearch(searchQuery, {
+  const { allResults, isLoading, showCreateOption: searchShowCreate, hasMore } = useNodeSearch(searchQuery, {
     mode: searchMode,
     classFilters,
     excludeNodeId,
-    maxResults: trigger === 'select' ? 15 : 10,
+    maxResults: displayLimit,
   });
 
   // Secondary search for page conversion candidates (always called to respect hooks rules;
@@ -240,10 +241,11 @@ export function NodeSelector({
     return [...assignedNotInSearch, ...selected, ...unselected];
   }, [multi, searchResults, assignedIds, canAdd, nodes]);
 
-  // Total selectable items
+  // Total selectable items (include "show more" row when results are truncated)
+  const showMoreOption = hasMore && !multi;
   const totalItems = multi
     ? multiDropdownItems.length + (showCreateOption ? 1 : 0)
-    : filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0);
+    : filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
 
   // Position menu for 'select' single mode with viewport flip
   const menuPosition = useViewportFlip(
@@ -415,6 +417,17 @@ export function NodeSelector({
     setIsPickerOpen(false);
   }, [onChange, onClearAll, multi]);
 
+  // Show more results handler
+  const handleShowMore = useCallback(() => {
+    setDisplayLimit(prev => prev + 20);
+  }, []);
+
+  // Reset display limit when search query changes  
+  const handleSearchChange = useCallback((newQuery: string) => {
+    setSearchQuery(newQuery);
+    setDisplayLimit(trigger === 'select' ? 15 : 10);
+  }, [trigger]);
+
   // Keyboard list navigation
   const handleSelectByIndex = useCallback((index: number) => {
     if (multi) {
@@ -431,11 +444,13 @@ export function NodeSelector({
         onConvertToClass?.(convertNode);
         setIsPickerOpen(false);
         setSearchQuery('');
+      } else if (showMoreOption && index === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0)) {
+        handleShowMore();
       } else if (showCreateOption) {
         handleCreateNew();
       }
     }
-  }, [multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, handleAdd, handleToggle, handleCreateNew, onConvertToClass]);
+  }, [multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass]);
 
   const handleClosePicker = useCallback(() => {
     setIsPickerOpen(false);
@@ -606,7 +621,7 @@ export function NodeSelector({
               ref={searchInputRef}
               icon={<AddIcon size="sm" />}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={effectiveCreateNew ? 'Search or create...' : searchPlaceholder}
               className="node-selector__search-field"
@@ -690,7 +705,7 @@ export function NodeSelector({
                 type="text"
                 className="node-selector__search"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={searchPlaceholder}
               />
@@ -753,6 +768,15 @@ export function NodeSelector({
                       iconOverride={<AddIcon size="sm" />}
                     />
                   )}
+                  {showMoreOption && (
+                    <button
+                      className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                      onClick={handleShowMore}
+                      onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                    >
+                      Show more results
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -782,7 +806,7 @@ export function NodeSelector({
           className="node-selector__search"
           placeholder={searchPlaceholder}
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
           autoFocus
         />
@@ -838,6 +862,15 @@ export function NodeSelector({
                   className="node-result-item--create"
                   iconOverride={<AddIcon size="sm" />}
                 />
+              )}
+              {showMoreOption && (
+                <button
+                  className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                  onClick={handleShowMore}
+                  onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                >
+                  Show more results
+                </button>
               )}
             </>
           )}
@@ -898,7 +931,7 @@ export function NodeSelector({
                 className="node-selector__search"
                 placeholder={searchPlaceholder}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
               <div className="node-selector__options">
@@ -953,6 +986,15 @@ export function NodeSelector({
                         className="node-result-item--create"
                         iconOverride={<AddIcon size="xs" />}
                       />
+                    )}
+                    {showMoreOption && (
+                      <button
+                        className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                        onClick={handleShowMore}
+                        onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                      >
+                        Show more results
+                      </button>
                     )}
                   </>
                 )}

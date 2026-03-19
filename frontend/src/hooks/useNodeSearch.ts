@@ -52,6 +52,8 @@ export interface UseNodeSearchReturn {
   isLoading: boolean;
   /** Whether to show "Create new" option */
   showCreateOption: boolean;
+  /** Whether more results were available but truncated by maxResults */
+  hasMore: boolean;
 }
 
 /**
@@ -116,7 +118,7 @@ export function useNodeSearch(
   const isLoading = isSearchLoading || isClassSearchLoading || debouncedQuery !== query;
 
   // Filter and organize results
-  const { pageResults, blockResults } = useMemo(() => {
+  const { pageResults, blockResults, truncated } = useMemo(() => {
     // Helper to check if a node is a class definition (has is_class flag)
     const isClassDef = (node: Node) => node.is_class === true;
     
@@ -135,12 +137,14 @@ export function useNodeSearch(
         results = filterNodesByHierarchy(query, results, allPages);
       }
 
+      const truncatedClasses = results.length > maxResults;
       return {
-        pageResults: results.map(node => ({
+        pageResults: results.slice(0, maxResults).map(node => ({
           node,
           section: 'class' as const,
         })),
         blockResults: [],
+        truncated: truncatedClasses,
       };
     }
 
@@ -167,6 +171,7 @@ export function useNodeSearch(
         });
       }
       
+      const truncatedTags = results.length > maxResults;
       results = results.slice(0, maxResults);
 
       return {
@@ -175,6 +180,7 @@ export function useNodeSearch(
           section: 'page' as const,
         })),
         blockResults: [],
+        truncated: truncatedTags,
       };
     }
 
@@ -191,6 +197,7 @@ export function useNodeSearch(
         results = filterNodesByHierarchy(query, results, allPages);
       }
       
+      const truncatedAliases = results.length > maxResults;
       results = results.slice(0, maxResults);
 
       return {
@@ -199,6 +206,7 @@ export function useNodeSearch(
           section: 'page' as const,
         })),
         blockResults: [],
+        truncated: truncatedAliases,
       };
     }
 
@@ -231,6 +239,7 @@ export function useNodeSearch(
           section: 'page' as const,
         })),
         blockResults: [],
+        truncated: results.length > maxResults,
       };
     }
 
@@ -246,6 +255,7 @@ export function useNodeSearch(
           node,
           section: 'block' as const,
         })),
+        truncated: results.length > maxResults,
       };
     }
 
@@ -304,7 +314,10 @@ export function useNodeSearch(
       }
     }
 
-    return { pageResults: pages, blockResults: blocks };
+    // Check if we had to truncate either section
+    const totalAvailable = baseResults.length;
+    const totalShown = pages.length + blocks.length;
+    return { pageResults: pages, blockResults: blocks, truncated: totalAvailable > totalShown };
   }, [
     mode,
     debouncedQuery,
@@ -366,6 +379,7 @@ export function useNodeSearch(
     allResults,
     isLoading,
     showCreateOption,
+    hasMore: truncated,
   };
 }
 
