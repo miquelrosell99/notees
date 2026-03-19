@@ -25,7 +25,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
-import { findParentNodeBlock, $trimSelectionWhitespace } from '../utils/selectionUtils';
+import { findParentNodeBlock } from '../utils/selectionUtils';
 
 export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boolean }): null {
   const [editor] = useLexicalComposerContext();
@@ -126,9 +126,14 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
     );
   }, [editor, readOnly]);
 
-  // ─── Trim trailing space on double-click word selection ────────
-  // Browsers include the trailing space when double-clicking a word.
-  // We trim it so only the word itself is selected.
+  // ─── Fix double-click / triple-click / Ctrl+A selection ─────────
+  // Operates on the native DOM selection directly so the custom caret
+  // overlay (which reads window.getSelection()) updates immediately.
+  //
+  // Double-click: intercept at mousedown to prevent the browser's
+  // default word+trailing-space selection, then select just the word.
+  // Triple-click / Ctrl+A: constrain selection to the block's
+  // .node-block-content element.
 
   useEffect(() => {
     if (readOnly) return;
@@ -136,18 +141,87 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
-    const handleDoubleClick = () => {
-      editor.update(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection) && !selection.isCollapsed()) {
-          $trimSelectionWhitespace(selection);
-        }
-      }, { tag: 'dblclick-trim' });
+    // Select all content within the active block's .node-block-content
+    const selectBlockContent = (target: HTMLElement | null) => {
+      const blockContent = target?.closest('.node-block-content');
+      if (!blockContent) return;
+
+      const range = document.createRange();
+      range.selectNodeContents(blockContent);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
     };
 
-    rootElement.addEventListener('dblclick', handleDoubleClick);
+    // Intercept mousedown for double-click and triple-click
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.detail === 2) {
+        // Double-click: prevent default word+space selection,
+        // then select just the word under the cursor.
+        e.preventDefault();
+
+        const caretPos = document.caretRangeFromPoint?.(e.clientX, e.clientY)
+                      ?? (document as any).caretPositionFromPoint?.(e.clientX, e.clientY);
+        if (!caretPos) return;
+
+        // caretRangeFromPoint returns a Range, caretPositionFromPoint returns { offsetNode, offset }
+        const node = ('startContainer' in caretPos) ? caretPos.startContainer : caretPos.offsetNode;
+        const offset = ('startOffset' in caretPos) ? caretPos.startOffset : caretPos.offset;
+
+        if (node?.nodeType !== Node.TEXT_NODE) return;
+        const text = node.textContent || '';
+
+        // Find word boundaries (letters, numbers, unicode word chars)
+        let wordStart = offset;
+        let wordEnd = offset;
+
+        // Expand left to find start of word
+        while (wordStart > 0 && !/[\s\u200B]/.test(text[wordStart - 1])) {
+          wordStart--;
+        }
+        // Expand right to find end of word (exclude trailing whitespace)
+        while (wordEnd < text.length && !/[\s\u200B]/.test(text[wordEnd])) {
+          wordEnd++;
+        }
+
+        if (wordStart === wordEnd) return;
+
+        const range = document.createRange();
+        range.setStart(node, wordStart);
+        range.setEnd(node, wordEnd);
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } else if (e.detail >= 3) {
+        // Triple-click: prevent browser paragraph selection, select block content
+        e.preventDefault();
+        selectBlockContent(e.target as HTMLElement);
+      }
+    };
+
+    // Ctrl+A: select block content instead of entire editor
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const anchor = sel.anchorNode.nodeType === Node.TEXT_NODE
+            ? sel.anchorNode.parentElement
+            : sel.anchorNode as HTMLElement;
+          selectBlockContent(anchor);
+        }
+      }
+    };
+
+    rootElement.addEventListener('mousedown', handleMouseDown);
+    rootElement.addEventListener('keydown', handleKeyDown);
     return () => {
-      rootElement.removeEventListener('dblclick', handleDoubleClick);
+      rootElement.removeEventListener('mousedown', handleMouseDown);
+      rootElement.removeEventListener('keydown', handleKeyDown);
     };
   }, [editor, readOnly]);
 
