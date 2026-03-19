@@ -18,7 +18,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import {
   $getSelection,
   $isRangeSelection,
-  COMMAND_PRIORITY_CRITICAL,
+  COMMAND_PRIORITY_HIGH,
   COPY_COMMAND,
   CUT_COMMAND,
   $getRoot,
@@ -62,7 +62,7 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
 
         return false;
       },
-      COMMAND_PRIORITY_CRITICAL,
+      COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly]);
 
@@ -91,7 +91,7 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
 
         return true;
       },
-      COMMAND_PRIORITY_CRITICAL,
+      COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly]);
 
@@ -122,7 +122,7 @@ export function SelectionConstraintPlugin({ readOnly = false }: { readOnly?: boo
 
         return true;
       },
-      COMMAND_PRIORITY_CRITICAL,
+      COMMAND_PRIORITY_HIGH,
     );
   }, [editor, readOnly]);
 

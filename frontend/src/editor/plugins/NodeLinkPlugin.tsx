@@ -1,11 +1,17 @@
 /**
- * NodeLinkPlugin — Lexical plugin for rendering inline link decorator nodes.
+ * NodeLinkPlugin — Lexical plugin for inline link decorator nodes (pills).
  *
  * Handles:
- * - Rendering InlineLinkNode as React components
- * - Click-to-navigate behavior
- * - Context menu for link editing
- * - Keyboard navigation around inline links
+ * - Structural invariant: ZWS text buffers around pills (browser limitation)
+ * - Click-to-select and double-click-to-navigate behavior
+ * - Pill update/replace from LinkEditModal
+ * - Selection visual feedback (CSS class toggling)
+ * - onPillRemove callback before Lexical deletes a pill
+ * - Post-backspace pill selection (two-press UX: select → delete)
+ * - Enter on selected pill → navigate
+ *
+ * Arrow key navigation and backspace/delete of decorator nodes are handled
+ * natively by Lexical's RichTextPlugin via isKeyboardSelectable + NodeSelection.
  */
 
 import { useEffect } from 'react';
@@ -13,6 +19,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import {
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
+  COMMAND_PRIORITY_NORMAL,
   $getSelection,
   $getRoot,
   $isNodeSelection,
@@ -24,8 +31,6 @@ import {
   $setSelection,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
-  KEY_ARROW_LEFT_COMMAND,
-  KEY_ARROW_RIGHT_COMMAND,
   KEY_DOWN_COMMAND,
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
@@ -264,165 +269,136 @@ export function NodeLinkPlugin({
     );
   }, [editor]);
 
-  // ─── Arrow key navigation (handle cursor movement around pills) ─
-  // We must handle ALL navigation to prevent Lexical's default handler from
-  // crashing on isolated decorator nodes like InlineLinkNode.
+  // ─── Arrow key navigation ───────────────────────────────────
+  // Lexical's RichTextPlugin (COMMAND_PRIORITY_EDITOR) natively handles:
+  //   - NodeSelection + ArrowLeft/Right → selectPrevious()/selectNext()
+  //   - RangeSelection + move → $moveCaretSelection with isKeyboardSelectable
+  // The node transform ensures ZWS buffers always exist, so the native
+  // handlers have text nodes to land on. No override needed.
 
-  useEffect(() => {
-    const handleArrowLeft = (event: KeyboardEvent) => {
-      const selection = $getSelection();
-      
-      // Case 1: A pill is currently selected - move cursor to before it
-      if ($isNodeSelection(selection)) {
-        const nodes = selection.getNodes();
-        for (const node of nodes) {
-          if ($isInlineLinkNode(node)) {
-            event.preventDefault();
-            const prev = node.getPreviousSibling();
-            if (!prev || $isInlineLinkNode(prev)) {
-              node.insertBefore($createTextNode('\u200B'));
-            }
-            node.selectPrevious();
-            return true;
-          }
-        }
-      }
-
-      // Case 2: Cursor is in text, check if there's a pill to the left
-      if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        const anchor = selection.anchor;
-        const anchorNode = anchor.getNode();
-        
-        if ($isTextNode(anchorNode)) {
-          const text = anchorNode.getTextContent();
-          // Consider ZWS-only text node or position 0 as "at start"
-          const isAtStart = anchor.offset === 0 || (text === '\u200B' && anchor.offset <= 1);
-          
-          if (isAtStart) {
-            const prevSibling = anchorNode.getPreviousSibling();
-            if ($isInlineLinkNode(prevSibling)) {
-              // If this ZWS node sits between two pills, don't skip over it
-              // so the user can position the cursor here and type a space
-              const nextSibling = anchorNode.getNextSibling();
-              if (text === '\u200B' && $isInlineLinkNode(nextSibling)) {
-                return false;
-              }
-              // Select the pill instead of letting Lexical try to navigate
-              event.preventDefault();
-              const nodeSelection = $createNodeSelection();
-              nodeSelection.add(prevSibling.getKey());
-              $setSelection(nodeSelection);
-              return true;
-            }
-          }
-        }
-      }
-
-      // Let default Lexical behavior handle non-pill cases
-      return false;
-    };
-
-    const handleArrowRight = (event: KeyboardEvent) => {
-      const selection = $getSelection();
-      
-      // Case 1: A pill is currently selected - move cursor to after it
-      if ($isNodeSelection(selection)) {
-        const nodes = selection.getNodes();
-        for (const node of nodes) {
-          if ($isInlineLinkNode(node)) {
-            event.preventDefault();
-            if (!node.getNextSibling()) {
-              node.insertAfter($createTextNode('\u200B'));
-            }
-            node.selectNext();
-            return true;
-          }
-        }
-      }
-
-      // Case 2: Cursor is in text, check if there's a pill to the right
-      if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        const anchor = selection.anchor;
-        const anchorNode = anchor.getNode();
-        
-        if ($isTextNode(anchorNode)) {
-          const text = anchorNode.getTextContent();
-          const textLength = text.length;
-          // Consider at end of text or ZWS-only node as "at end"
-          const isAtEnd = anchor.offset >= textLength || text === '\u200B';
-          
-          if (isAtEnd) {
-            const nextSibling = anchorNode.getNextSibling();
-            if ($isInlineLinkNode(nextSibling)) {
-              // If this ZWS node sits between two pills, don't skip over it
-              // so the user can position the cursor here and type a space
-              const prevSibling = anchorNode.getPreviousSibling();
-              if (text === '\u200B' && $isInlineLinkNode(prevSibling)) {
-                return false;
-              }
-              // Select the pill instead of letting Lexical try to navigate
-              event.preventDefault();
-              const nodeSelection = $createNodeSelection();
-              nodeSelection.add(nextSibling.getKey());
-              $setSelection(nodeSelection);
-              return true;
-            }
-          }
-        }
-      }
-
-      // Let default Lexical behavior handle non-pill cases
-      return false;
-    };
-
-    // Use COMMAND_PRIORITY_HIGH so we intercept before default Lexical handling
-    const unsubLeft = editor.registerCommand(
-      KEY_ARROW_LEFT_COMMAND,
-      handleArrowLeft,
-      COMMAND_PRIORITY_HIGH,
-    );
-
-    const unsubRight = editor.registerCommand(
-      KEY_ARROW_RIGHT_COMMAND,
-      handleArrowRight,
-      COMMAND_PRIORITY_HIGH,
-    );
-
-    return () => {
-      unsubLeft();
-      unsubRight();
-    };
-  }, [editor]);
-
-  // ─── Backspace/Delete handling around pills ─────────────────
+  // ─── Backspace/Delete: fire onPillRemove callback ──────────
+  // Lexical's RichTextPlugin natively handles deletion of decorator nodes
+  // via NodeSelection + DELETE_CHARACTER_COMMAND. We only intercept to:
+  // 1. Fire the onPillRemove callback before Lexical deletes the pill
+  // 2. After a normal text backspace, convert to NodeSelection if cursor
+  //    lands adjacent to a pill (two-press UX: select → delete)
 
   useEffect(() => {
     /**
      * If the current collapsed selection sits right next to an
-     * InlineLinkNode, convert it to a NodeSelection on that pill
-     * and return true.  Handles both text-anchor and element-anchor
-     * positions, walking through empty / ZWS-only text nodes.
+     * InlineLinkNode, convert it to a NodeSelection on that pill.
+     * Walks through empty / ZWS-only text nodes.
      */
-    const $selectAdjacentPill = (): boolean => {
+    const $selectAdjacentPill = (backward: boolean): boolean => {
       const sel = $getSelection();
       if (!$isRangeSelection(sel) || !sel.isCollapsed()) return false;
 
       const { anchor } = sel;
       const node = anchor.getNode();
 
-      // Text anchor — check backwards from current position
+      if (backward) {
+        // Text anchor — check backwards from current position
+        if ($isTextNode(node)) {
+          const text = node.getTextContent();
+          const atStart = anchor.offset === 0 || (text === '\u200B' && anchor.offset <= 1);
+          if (atStart) {
+            let prev = node.getPreviousSibling();
+            while (prev) {
+              if ($isInlineLinkNode(prev)) {
+                const ns = $createNodeSelection();
+                ns.add(prev.getKey());
+                $setSelection(ns);
+                return true;
+              }
+              if ($isTextNode(prev) && prev.getTextContent().replace(/\u200B/g, '') === '') {
+                prev = prev.getPreviousSibling();
+                continue;
+              }
+              break;
+            }
+          }
+        }
+
+        // Element anchor — cursor is directly on the parent element
+        if (anchor.type === 'element' && $isElementNode(node)) {
+          const child = anchor.offset > 0 ? node.getChildren()[anchor.offset - 1] : null;
+          if (child && $isInlineLinkNode(child)) {
+            const ns = $createNodeSelection();
+            ns.add(child.getKey());
+            $setSelection(ns);
+            return true;
+          }
+        }
+      } else {
+        // Forward: check next sibling
+        if ($isTextNode(node)) {
+          const text = node.getTextContent();
+          const atEnd = anchor.offset >= text.length || text === '\u200B';
+          if (atEnd) {
+            let next = node.getNextSibling();
+            while (next) {
+              if ($isInlineLinkNode(next)) {
+                const ns = $createNodeSelection();
+                ns.add(next.getKey());
+                $setSelection(ns);
+                return true;
+              }
+              if ($isTextNode(next) && next.getTextContent().replace(/\u200B/g, '') === '') {
+                next = next.getNextSibling();
+                continue;
+              }
+              break;
+            }
+          }
+        }
+
+        if (anchor.type === 'element' && $isElementNode(node)) {
+          const child = node.getChildren()[anchor.offset] ?? null;
+          if (child && $isInlineLinkNode(child)) {
+            const ns = $createNodeSelection();
+            ns.add(child.getKey());
+            $setSelection(ns);
+            return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    // Fire onPillRemove before Lexical deletes the pill, then let Lexical
+    // handle the actual node removal. Return false so RichTextPlugin proceeds.
+    const handlePillDeletion = () => {
+      const selection = $getSelection();
+      if (!$isNodeSelection(selection)) return false;
+      for (const node of selection.getNodes()) {
+        if ($isInlineLinkNode(node)) {
+          onPillRemove?.(node.getLinkId());
+        }
+      }
+      return false; // Let Lexical handle the deletion
+    };
+
+    // Post-backspace fixup: if cursor landed next to a pill, select it.
+    // Runs at NORMAL priority (after BlockPlugin at HIGH, before RichTextPlugin at EDITOR).
+    const handleBackspaceFixup = (event: KeyboardEvent) => {
+      const selection = $getSelection();
+      if ($isNodeSelection(selection)) return false; // handled above
+      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
+
+      // Check if cursor is already adjacent to a pill BEFORE deletion
+      // If so, do the deletion ourselves and then check post-deletion
+      const { anchor } = selection;
+      const node = anchor.getNode();
+      let nearPill = false;
+
       if ($isTextNode(node)) {
         const text = node.getTextContent();
-        const atStart = anchor.offset === 0 || (text === '\u200B' && anchor.offset <= 1);
+        const atStart = anchor.offset === 0 || (anchor.offset === 1 && text === '\u200B');
         if (atStart) {
           let prev = node.getPreviousSibling();
           while (prev) {
-            if ($isInlineLinkNode(prev)) {
-              const ns = $createNodeSelection();
-              ns.add(prev.getKey());
-              $setSelection(ns);
-              return true;
-            }
+            if ($isInlineLinkNode(prev)) { nearPill = true; break; }
             if ($isTextNode(prev) && prev.getTextContent().replace(/\u200B/g, '') === '') {
               prev = prev.getPreviousSibling();
               continue;
@@ -432,75 +408,62 @@ export function NodeLinkPlugin({
         }
       }
 
-      // Element anchor — cursor is directly on the parent element
-      if (anchor.type === 'element' && $isElementNode(node)) {
-        const child = anchor.offset > 0 ? node.getChildren()[anchor.offset - 1] : null;
-        if (child && $isInlineLinkNode(child)) {
-          // Restore ZWS that was lost when the text node was deleted
-          if (!child.getNextSibling()) {
-            child.insertAfter($createTextNode('\u200B'));
-          }
-          const ns = $createNodeSelection();
-          ns.add(child.getKey());
-          $setSelection(ns);
-          return true;
-        }
-      }
+      if (!nearPill) return false; // Not near a pill — let Lexical handle everything
 
-      return false;
-    };
-
-    const handleBackspace = (event: KeyboardEvent) => {
-      const selection = $getSelection();
-
-      // Pill already selected (NodeSelection) → delete it
-      if ($isNodeSelection(selection)) {
-        const nodes = selection.getNodes();
-        for (const node of nodes) {
-          if ($isInlineLinkNode(node)) {
-            onPillRemove?.(node.getLinkId());
-            node.remove();
-          }
-        }
-        return nodes.some(n => $isInlineLinkNode(n));
-      }
-
-      // Normal text cursor — perform the deletion ourselves so we can
-      // inspect the resulting cursor position.  If it ends up adjacent
-      // to a pill, convert to NodeSelection (next backspace deletes it).
-      // This is strictly equivalent to what Lexical's RichText handler
-      // does, with the added post-deletion fixup.
-      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
-
+      // Near a pill: perform deletion and post-fixup
       event.preventDefault();
       selection.deleteCharacter(true);
-      $selectAdjacentPill();
+      $selectAdjacentPill(true);
       return true;
     };
 
-    const handleDeleteForward = (event: KeyboardEvent) => {
+    // Post-delete-forward fixup
+    const handleDeleteFixup = (event: KeyboardEvent) => {
       const selection = $getSelection();
+      if ($isNodeSelection(selection)) return false;
+      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
 
-      if ($isNodeSelection(selection)) {
-        const nodes = selection.getNodes();
-        for (const node of nodes) {
-          if ($isInlineLinkNode(node)) {
-            onPillRemove?.(node.getLinkId());
-            node.remove();
+      const { anchor } = selection;
+      const node = anchor.getNode();
+      let nearPill = false;
+
+      if ($isTextNode(node)) {
+        const text = node.getTextContent();
+        const atEnd = anchor.offset >= text.length || text === '\u200B';
+        if (atEnd) {
+          let next = node.getNextSibling();
+          while (next) {
+            if ($isInlineLinkNode(next)) { nearPill = true; break; }
+            if ($isTextNode(next) && next.getTextContent().replace(/\u200B/g, '') === '') {
+              next = next.getNextSibling();
+              continue;
+            }
+            break;
           }
         }
-        return nodes.some(n => $isInlineLinkNode(n));
       }
 
-      return false;
+      if (!nearPill) return false;
+
+      event.preventDefault();
+      selection.deleteCharacter(false);
+      $selectAdjacentPill(false);
+      return true;
     };
 
-    const unsubBack = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleBackspace, COMMAND_PRIORITY_HIGH);
-    const unsubDel = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteForward, COMMAND_PRIORITY_HIGH);
+    // HIGH priority: fire callback before deletion (doesn't consume the event)
+    const unsubBackHigh = editor.registerCommand(KEY_BACKSPACE_COMMAND, handlePillDeletion, COMMAND_PRIORITY_HIGH);
+    const unsubDelHigh = editor.registerCommand(KEY_DELETE_COMMAND, handlePillDeletion, COMMAND_PRIORITY_HIGH);
+
+    // NORMAL priority: post-deletion fixup near pills
+    const unsubBackNormal = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleBackspaceFixup, COMMAND_PRIORITY_NORMAL);
+    const unsubDelNormal = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteFixup, COMMAND_PRIORITY_NORMAL);
 
     return () => {
-      unsubBack();
-      unsubDel();
+      unsubBackHigh();
+      unsubDelHigh();
+      unsubBackNormal();
+      unsubDelNormal();
     };
   }, [editor, onPillRemove]);
 
