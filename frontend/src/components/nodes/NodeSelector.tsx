@@ -65,6 +65,8 @@ interface NodeSelectorProps {
   onChange?: (value: number | number[] | null) => void;
   /** Callback when creating a new node (if provided, shows create option) */
   onCreateNew?: (name: string) => void | Promise<Node>;
+  /** Callback when converting an existing page to a class (if provided, shows convert option for non-class pages) */
+  onConvertToClass?: (node: Node) => void;
   /** Callback when clearing all selections ('select' mode only) */
   onClearAll?: () => void;
   /** Function to determine if a node can be removed (default: all can be removed) */
@@ -99,6 +101,7 @@ export function NodeSelector({
   onAdd,
   onChange,
   onCreateNew,
+  onConvertToClass,
   onClearAll,
   canRemove,
   canAdd,
@@ -152,6 +155,14 @@ export function NodeSelector({
     maxResults: trigger === 'select' ? 15 : 10,
   });
 
+  // Secondary search for page conversion candidates (always called to respect hooks rules;
+  // results only used when onConvertToClass is provided and there's an active query)
+  const { allResults: pageConvertResults } = useNodeSearch(searchQuery, {
+    mode: 'pages',
+    maxResults: 5,
+    excludeNodeId,
+  });
+
   // For parent hierarchy display on page items
   const { data: allPages = [] } = usePages();
   const { data: allClasses = [] } = useClasses();
@@ -180,7 +191,15 @@ export function NodeSelector({
 
   // Only show create option if onCreate is provided and there's a query
   const showCreateOption = onCreateNew && searchShowCreate && searchQuery.trim().length > 0;
-  
+
+  // Non-class pages matching the search query, offered as "convert to class" candidates
+  const convertCandidates = useMemo(() => {
+    if (!onConvertToClass || !searchQuery.trim()) return [];
+    return pageConvertResults
+      .map(r => r.node)
+      .filter(n => !n.is_class && !assignedIds.has(n.id));
+  }, [onConvertToClass, searchQuery, pageConvertResults, assignedIds]);
+
   // For multi-select dropdown: selected nodes first, then unselected search results
   const multiDropdownItems = useMemo(() => {
     if (!multi) return [];
@@ -197,7 +216,7 @@ export function NodeSelector({
   // Total selectable items
   const totalItems = multi
     ? multiDropdownItems.length + (showCreateOption ? 1 : 0)
-    : filteredResults.length + (showCreateOption ? 1 : 0);
+    : filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0);
 
   // Position menu for 'select' single mode with viewport flip
   const menuPosition = useViewportFlip(
@@ -380,11 +399,16 @@ export function NodeSelector({
     } else {
       if (index < filteredResults.length) {
         handleAdd(filteredResults[index]);
+      } else if (index < filteredResults.length + convertCandidates.length) {
+        const convertNode = convertCandidates[index - filteredResults.length];
+        onConvertToClass?.(convertNode);
+        setIsPickerOpen(false);
+        setSearchQuery('');
       } else if (showCreateOption) {
         handleCreateNew();
       }
     }
-  }, [multi, multiDropdownItems, filteredResults, showCreateOption, handleAdd, handleToggle, handleCreateNew]);
+  }, [multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, handleAdd, handleToggle, handleCreateNew, onConvertToClass]);
 
   const handleClosePicker = useCallback(() => {
     setIsPickerOpen(false);
@@ -649,7 +673,7 @@ export function NodeSelector({
             <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
                 <div className="node-selector__loading">Searching...</div>
-              ) : filteredResults.length === 0 && !showCreateOption ? (
+              ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
                 <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
                 </div>
@@ -669,13 +693,35 @@ export function NodeSelector({
                     />
                   ))}
 
+                  {convertCandidates.length > 0 && (
+                    <>
+                      <div className="node-selector__section-label">Convert to class</div>
+                      {convertCandidates.map((node, index) => {
+                        const idx = filteredResults.length + index;
+                        return (
+                          <NodeResultItem
+                            key={`convert-${node.id}`}
+                            node={node}
+                            parentPath={buildParentPath(node)}
+                            displayClasses={getDisplayClasses(node)}
+                            isHighlighted={idx === selectedIndex}
+                            onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                            onMouseEnter={() => setSelectedIndex(idx)}
+                            allClasses={allClasses}
+                            className="node-result-item--convert"
+                          />
+                        );
+                      })}
+                    </>
+                  )}
+
                   {showCreateOption && (
                     <NodeResultItem
                       key="__create"
                       node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                      isHighlighted={selectedIndex === filteredResults.length}
+                      isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
                       onClick={handleCreateNew}
-                      onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                      onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
                       className="node-result-item--create"
                       iconOverride={<AddIcon size="sm" />}
                     />
@@ -716,7 +762,7 @@ export function NodeSelector({
         <div className="node-selector__options">
           {isLoading && searchQuery.length > 0 ? (
             <div className="node-selector__loading">Searching...</div>
-          ) : filteredResults.length === 0 && !showCreateOption ? (
+          ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
             <div className="node-selector__no-results">
               {searchQuery ? 'No matches found' : 'Start typing to search'}
             </div>
@@ -734,13 +780,34 @@ export function NodeSelector({
                   allClasses={allClasses}
                 />
               ))}
+              {convertCandidates.length > 0 && (
+                <>
+                  <div className="node-selector__section-label">Convert to class</div>
+                  {convertCandidates.map((node, index) => {
+                    const idx = filteredResults.length + index;
+                    return (
+                      <NodeResultItem
+                        key={`convert-${node.id}`}
+                        node={node}
+                        parentPath={buildParentPath(node)}
+                        displayClasses={getDisplayClasses(node)}
+                        isHighlighted={idx === selectedIndex}
+                        onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        allClasses={allClasses}
+                        className="node-result-item--convert"
+                      />
+                    );
+                  })}
+                </>
+              )}
               {showCreateOption && onCreateNew && (
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                  isHighlighted={selectedIndex === filteredResults.length}
+                  isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
                   onClick={handleCreateNew}
-                  onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                  onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
                   className="node-result-item--create"
                   iconOverride={<AddIcon size="sm" />}
                 />
@@ -810,7 +877,7 @@ export function NodeSelector({
               <div className="node-selector__options">
                 {isLoading && searchQuery.length > 0 ? (
                   <div className="node-selector__loading">Searching...</div>
-                ) : filteredResults.length === 0 && !showCreateOption ? (
+                ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
                   <div className="node-selector__no-results">
                     {searchQuery ? 'No matches found' : 'Start typing to search'}
                   </div>
@@ -828,13 +895,34 @@ export function NodeSelector({
                         allClasses={allClasses}
                       />
                     ))}
+                    {convertCandidates.length > 0 && (
+                      <>
+                        <div className="node-selector__section-label">Convert to class</div>
+                        {convertCandidates.map((node, index) => {
+                          const idx = filteredResults.length + index;
+                          return (
+                            <NodeResultItem
+                              key={`convert-${node.id}`}
+                              node={node}
+                              parentPath={buildParentPath(node)}
+                              displayClasses={getDisplayClasses(node)}
+                              isHighlighted={idx === selectedIndex}
+                              onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                              onMouseEnter={() => setSelectedIndex(idx)}
+                              allClasses={allClasses}
+                              className="node-result-item--convert"
+                            />
+                          );
+                        })}
+                      </>
+                    )}
                     {showCreateOption && (
                       <NodeResultItem
                         key="__create"
                         node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                        isHighlighted={selectedIndex === filteredResults.length}
+                        isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
                         onClick={handleCreateNew}
-                        onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                        onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
                         className="node-result-item--create"
                         iconOverride={<AddIcon size="xs" />}
                       />

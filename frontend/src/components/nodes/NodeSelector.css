@@ -233,6 +233,16 @@
   color: var(--color-on-surface-variant);
 }
 
+.node-selector__section-label {
+  padding: var(--spacing-1) var(--spacing-3);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  border-top: 1px solid var(--color-outline-variant);
+  margin-top: var(--spacing-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Pill-row mode (original) */
 
 .node-selector__add-wrapper {
