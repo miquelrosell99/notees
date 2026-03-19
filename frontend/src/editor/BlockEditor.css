@@ -204,8 +204,11 @@
   color: inherit;
 }
 
-/* Ensure text spans have minimum width for caret visibility in empty blocks */
-.node-block-content > span[data-lexical-text="true"] {
+/* Ensure the sole text span in empty blocks has minimum width for caret visibility.
+   Only apply inline-block when the span is the only child — otherwise text spans
+   must stay display:inline so that wrapped text flows from the container's left edge
+   rather than the span's left edge (inline-block wraps inside itself). */
+.node-block-content > span[data-lexical-text="true"]:only-child {
   display: inline-block;
   min-width: 1px;
 }
