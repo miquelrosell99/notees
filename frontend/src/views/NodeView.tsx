@@ -924,6 +924,7 @@ export function NodeView({
           onNavigate={(id) => openNode(id)}
           propertyContext={undefined}
           parentLocked={node.parent_locked}
+          editable
           className="node-view-breadcrumbs"
         />
       }
