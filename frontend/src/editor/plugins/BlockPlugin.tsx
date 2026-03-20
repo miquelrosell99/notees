@@ -139,6 +139,8 @@ export interface BlockPluginProps {
   onEnterAtRoot?: () => void;
   /** Called when UP arrow is pressed at the very first block (escape upward from embed) */
   onNavigateUpFromTop?: () => void;
+  /** Whether to skip page nodes in projection (default: true) */
+  skipPages?: boolean;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -163,6 +165,7 @@ export function BlockPlugin({
   sliceShowParent,
   onEnterAtRoot,
   onNavigateUpFromTop,
+  skipPages,
 }: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -462,6 +465,7 @@ export function BlockPlugin({
         rootBlockId,
         maxDepth,
         includeRoot,
+        skipPages,
       });
     };
 

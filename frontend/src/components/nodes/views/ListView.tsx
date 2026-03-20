@@ -135,6 +135,7 @@ export const ListView = memo(function ListView({
     const result: Node[] = [];
     const collect = (n: Node) => {
       if (pagesOnly && !n.is_page) return;
+      if (!pagesOnly && n.is_page) return;
       result.push(n);
       if (n.children) {
         for (const child of n.children) {
@@ -491,6 +492,7 @@ export const ListView = memo(function ListView({
         onEnterAtRoot={onEnterAtRoot}
         hideProperties={hideProperties}
         maxDepth={maxDepth}
+        skipPages={!pagesOnly}
       />
     </div>
   );

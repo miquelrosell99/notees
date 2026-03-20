@@ -927,6 +927,7 @@ export class NodeGraphRuntime {
 
     for (const child of children) {
       if (child.isDeleted) continue;
+      if (query.skipPages !== false && child.isPage) continue;
       if (query.nodeTypeFilter && !query.nodeTypeFilter.includes(child.nodeType)) continue;
 
       const projected = this.toProjectedNode(child, depth);
