@@ -204,33 +204,25 @@
 /* ─── Edit-parent affordance (chevron-down on hover) ────────────────────────── */
 
 .node-breadcrumb-edit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  width: 0;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
   overflow: hidden;
   opacity: 0;
   transition:
     opacity 0.15s ease,
     width 0.15s ease;
-  background: none;
-  border: none;
-  cursor: pointer;
   color: var(--color-on-surface-variant);
-  padding: 0 2px;
-  border-radius: var(--shape-extra-small);
   flex-shrink: 0;
 }
 
 .node-breadcrumb-item:hover .node-breadcrumb-edit-btn {
   opacity: 1;
-  width: 16px;
+  width: 18px !important;
 }
 
 .node-breadcrumb-edit-btn:hover {
   color: var(--color-on-surface);
-  background: var(--color-surface-container-high);
 }
 
 /* ─── "+ Add parent" button ──────────────────────────────────────────────────── */
