@@ -63,7 +63,21 @@ async def _repair_page_ids(conn: asyncpg.Connection) -> None:
     Uses the closure table (node_path) to find the nearest page ancestor
     for each block and sets page_id accordingly. Only updates rows that
     actually need fixing, so this is fast when the data is already correct.
+    
+    Also clears page_id on pages that should never have it set.
     """
+    # Clear page_id on pages - pages should never have page_id
+    clear_result = await conn.execute("""
+        UPDATE node
+        SET page_id = NULL
+        WHERE is_page = TRUE AND page_id IS NOT NULL AND active = TRUE
+    """)
+    clear_count = int(clear_result.split()[-1]) if clear_result else 0
+    if clear_count > 0:
+        from ...logging_config import get_logger
+        logger = get_logger(__name__)
+        logger.info(f"Cleared erroneous page_id from {clear_count} pages")
+
     result = await conn.execute("""
         UPDATE node n
         SET page_id = nearest_page.id

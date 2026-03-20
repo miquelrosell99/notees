@@ -40,7 +40,10 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                 effective_parent_id = new_parent_id if new_parent_id is not None else old_parent_id
                 effective_sequence = new_sequence if new_sequence is not None else old_sequence
 
-                if effective_parent_id is not None and await self._is_page(effective_parent_id):
+                # Pages never have page_id - only blocks do
+                if node.is_page:
+                    new_page_id = None
+                elif effective_parent_id is not None and await self._is_page(effective_parent_id):
                     new_page_id = effective_parent_id
                 else:
                     new_page_id = await self._compute_page_id(effective_parent_id) if effective_parent_id else None
