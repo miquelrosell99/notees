@@ -352,30 +352,7 @@ export const CardView = memo(function CardView({
           customContextMenu={customContextMenu}
         />
       ))}
-      {editable && onAdd && (
-        <Card
-          className="node-card-add"
-          padding={false}
-          elevation="none"
-          variant="default"
-          onClick={onAdd}
-        >
-          <div className="node-card-add__content">
-            <Button
-              variant="ghost"
-              size="lg"
-              icon={mdiPlus}
-              className="node-card-add__button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAdd();
-              }}
-            >
-              Add card
-            </Button>
-          </div>
-        </Card>
-      )}
+
     </div>
   );
 });
