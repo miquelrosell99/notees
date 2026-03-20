@@ -225,6 +225,8 @@ interface NodeBreadcrumbsProps {
   className?: string;
   /** Whether the current node's parent is locked (disables parent editing) */
   parentLocked?: boolean;
+  /** Whether parent-chain editing (add/change/remove parent) is enabled. Only the node view top bar should set this to true. */
+  editable?: boolean;
 }
 
 /** How many items to keep visible at each end when collapsing */
@@ -240,6 +242,7 @@ export function NodeBreadcrumbs({
   stopAtPageLevel = false,
   className = '',
   parentLocked = false,
+  editable = false,
 }: NodeBreadcrumbsProps) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
@@ -420,7 +423,7 @@ export function NodeBreadcrumbs({
     : [];
 
   // ─── "+ Add parent" affordance (pages only, when no ancestors) ───────
-  if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked) {
+  if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked && editable) {
     return (
       <>
         <Button
@@ -469,8 +472,8 @@ export function NodeBreadcrumbs({
             item={item}
             onClick={handleClick}
             showSeparator={needsCollapse || index < startItems.length - 1}
-            onEditParent={nodeType === 'page' ? handleEditParent : undefined}
-            onContextMenu={nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
+            onEditParent={editable && nodeType === 'page' ? handleEditParent : undefined}
+            onContextMenu={editable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
           />
         ))}
 
@@ -509,8 +512,8 @@ export function NodeBreadcrumbs({
               item={item}
               onClick={handleClick}
               showSeparator={index < endItems.length - 1}
-              onEditParent={nodeType === 'page' ? handleEditParent : undefined}
-              onContextMenu={nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
+              onEditParent={editable && nodeType === 'page' ? handleEditParent : undefined}
+              onContextMenu={editable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
             />
           ))}
       </nav>
