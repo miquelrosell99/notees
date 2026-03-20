@@ -965,7 +965,7 @@ export function QueryNodeCollection({
             can_create={can_create}
             can_edit={can_edit}
             can_delete={can_delete}
-            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages'}
+            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by'}
             showClasses={showClasses}
             pageId={viewType === 'child_pages' ? nodeId : undefined}
             pageUuid={viewType === 'child_pages' ? nodeUuid : undefined}
