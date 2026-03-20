@@ -525,6 +525,7 @@ export function NodeBreadcrumbs({
           onClose={() => setPickerState(null)}
           searchMode="pages"
           excludeNodeId={pickerState.targetNodeId}
+          value={pickerState.currentParentId}
           searchPlaceholder="Search pages..."
           onChange={handlePickerSelect}
           allowCreate={false}
