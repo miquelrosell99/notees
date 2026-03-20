@@ -164,22 +164,23 @@
 }
 
 /* Checkbox column */
-.table-cell--checkbox {
-  width: 28px;
-  min-width: 28px;
-  max-width: 28px;
+.table-cell--checkbox.table-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
   text-align: center;
   position: sticky;
   left: 0;
   z-index: 5;
   background: var(--color-surface);
   box-shadow: 1px 0 0 0 var(--color-outline-variant);
-  padding: 0;
+  padding: 0 var(--spacing-2);
 }
 
-.table-header .table-cell--checkbox {
+.table-header .table-cell--checkbox.table-cell {
   z-index: 15;
   background: var(--color-surface-variant);
+  padding: 0 var(--spacing-2);
 }
 
 .table-cell--checkbox .checkbox-container {
