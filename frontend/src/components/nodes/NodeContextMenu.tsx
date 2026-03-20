@@ -17,7 +17,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
-import { Modal } from '../core/Modal';
+
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
@@ -161,16 +161,15 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
 // A separator is inserted before these actions (when they are visible and there are preceding items)
 const SEP_BEFORE = new Set<ActionName>(['copy-uuid', 'archive']);
 
-// ==================== Move To Modal ====================
+// ==================== Move To Submenu ====================
 
-interface MoveToModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface MoveToSubmenuProps {
   node: Node;
+  onClose: () => void;
   onParentChange?: (parentId: number | null) => void;
 }
 
-function MoveToModal({ isOpen, onClose, node, onParentChange }: MoveToModalProps) {
+function MoveToSubmenu({ node, onClose, onParentChange }: MoveToSubmenuProps) {
   const updateNode = useUpdateNode();
   const { data: parentNode } = useNode(node.parent_id ?? null);
   const { quickAddDestination } = useSettingsStore();
@@ -202,11 +201,11 @@ function MoveToModal({ isOpen, onClose, node, onParentChange }: MoveToModalProps
   const quickAddDestLabel = quickAddDestination === 'today' ? "Today's page" : 'Inbox';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Move to..." size="sm" contentClassName="set-parent-modal__content">
+    <div className="move-to-submenu">
       {node.parent_id && parentNode && (
         <div className="set-parent-current">
           <span className="set-parent-current__name">{nodeNameToText(parentNode.name) || 'Untitled'}</span>
-          <button className="set-parent-current__remove" onClick={handleRemove}>Remove parent</button>
+          <button className="set-parent-current__remove" onClick={handleRemove} title="Remove parent">✕</button>
         </div>
       )}
       {!node.is_page && quickAddTarget && (
@@ -223,7 +222,7 @@ function MoveToModal({ isOpen, onClose, node, onParentChange }: MoveToModalProps
         onChange={handleSelect}
         searchPlaceholder={node.is_page ? 'Search pages...' : 'Search pages & blocks...'}
       />
-    </Modal>
+    </div>
   );
 }
 
@@ -259,7 +258,6 @@ export function NodeContextMenu({
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [showParentModal, setShowParentModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const deleteNode = useDeleteNode();
@@ -333,8 +331,7 @@ export function NodeContextMenu({
           items.push({
             id: 'move-to',
             label: 'Move to…',
-            keepOpen: true,
-            onClick: () => setShowParentModal(true),
+            submenu: <MoveToSubmenu node={node} onClose={onClose} onParentChange={onParentChange} />,
           });
           break;
 
@@ -477,7 +474,7 @@ export function NodeContextMenu({
     updateNode.mutate({ id: node.id, data: { color } as NodeUpdate });
   }, [node.id, updateNode]);
 
-  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showParentModal;
+  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
     adjustMenuPosition(el, position);
@@ -528,12 +525,7 @@ export function NodeContextMenu({
         onClose={() => { setShowExportModal(false); onClose(); }}
         nodeUuid={node.uuid}
       />
-      <MoveToModal
-        isOpen={showParentModal}
-        onClose={() => { setShowParentModal(false); onClose(); }}
-        node={node}
-        onParentChange={onParentChange}
-      />
+
     </>
   );
 }
