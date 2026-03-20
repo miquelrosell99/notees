@@ -487,3 +487,17 @@ export function useTextLinks(nodeId: number | null) {
     staleTime: 30000,
   });
 }
+
+/**
+ * Hook to fetch suggested pages for node pickers.
+ * Returns recently created (last 15 min) then most recently linked pages.
+ */
+export function useSuggestions(classFilters?: string, enabled = true) {
+  return useQuery({
+    queryKey: nodeKeys.suggestions(classFilters),
+    queryFn: () => nodesApi.getSuggestions(20, classFilters),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 1000 * 30,
+  });
+}

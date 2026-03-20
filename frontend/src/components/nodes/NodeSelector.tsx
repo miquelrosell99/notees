@@ -162,12 +162,25 @@ export function NodeSelector({
   // Use either nodes prop or resolved nodes from value
   const nodes = nodesProp ?? resolvedNodesFromValue;
 
+  // Track pinned node ID for single-value pickers:
+  // - Current value if set
+  // - Last non-null value if cleared during the same picker session
+  const currentSingleValue = !multi && typeof value === 'number' ? value : null;
+  const [lastNonNullValue, setLastNonNullValue] = useState<number | null>(currentSingleValue);
+  useEffect(() => {
+    if (currentSingleValue !== null) {
+      setLastNonNullValue(currentSingleValue);
+    }
+  }, [currentSingleValue]);
+  const pinnedNodeId = !multi ? (currentSingleValue ?? lastNonNullValue) : null;
+
   // Use shared search hook (same as SuggestionPopup)
   const { allResults, isLoading, showCreateOption: searchShowCreate, hasMore } = useNodeSearch(searchQuery, {
     mode: searchMode,
     classFilters,
     excludeNodeId,
     maxResults: displayLimit,
+    pinnedNodeId: pinnedNodeId ?? undefined,
   });
 
   // Secondary search for page conversion candidates (always called to respect hooks rules;
