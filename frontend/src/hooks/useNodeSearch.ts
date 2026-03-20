@@ -17,7 +17,7 @@
 import { useMemo } from 'react';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useSearch, usePages, useNodes, useClasses, useSearchClasses, nodeKeys } from './useNodes';
+import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions, nodeKeys } from './useNodes';
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
@@ -34,6 +34,8 @@ export interface NodeSearchFilters {
   excludeNodeId?: number;
   /** Maximum number of results per section */
   maxResults?: number;
+  /** Node ID to pin at the top of results (current value in single-select pickers) */
+  pinnedNodeId?: number | null;
 }
 
 export interface NodeSearchItem {
@@ -86,6 +88,7 @@ export function useNodeSearch(
     classFilters = [],
     excludeNodeId,
     maxResults = 10,
+    pinnedNodeId,
   } = filters;
 
   // Debounce the search query to avoid firing API on every keystroke
@@ -97,6 +100,12 @@ export function useNodeSearch(
   // Core search queries - pass class_filters to backend for server-side filtering
   const { data: searchResults, isLoading: isSearchLoading } = useSearch(debouncedQuery, classFiltersParam);
   const { data: allPages } = usePages();
+  // Suggestions for empty-query state: recently created + recently linked
+  const useSuggestionsForEmpty = mode === 'pages' || mode === 'all';
+  const { data: suggestions } = useSuggestions(
+    classFiltersParam,
+    useSuggestionsForEmpty,
+  );
   // Filtered pages query for when class_filters are present (empty-query case)
   const { data: filteredPages } = useQuery({
     queryKey: ['nodes', 'filtered-pages', classFiltersParam],
@@ -216,6 +225,9 @@ export function useNodeSearch(
       if (searchQuery.length > 0) {
         // Search results are already filtered by class_filters on the backend
         results = (searchResults ?? []).filter(n => n.is_page || n.parent_id === null);
+      } else if (suggestions && suggestions.length > 0) {
+        // Use smart suggestions: recently created (15 min) + recently linked
+        results = suggestions;
       } else if (classFilters.length > 0) {
         // Use backend-filtered pages when class filters are active
         results = (filteredPages ?? []).slice(0, maxResults * 3);
@@ -231,6 +243,18 @@ export function useNodeSearch(
       // Apply exclusion filter
       if (excludeNodeId !== undefined) {
         results = results.filter(n => n.id !== excludeNodeId);
+      }
+
+      // Pin current value at top when no active search
+      if (pinnedNodeId && searchQuery.length === 0) {
+        const pinnedIdx = results.findIndex(n => n.id === pinnedNodeId);
+        if (pinnedIdx > 0) {
+          const [pinned] = results.splice(pinnedIdx, 1);
+          results.unshift(pinned);
+        } else if (pinnedIdx === -1 && allPages) {
+          const pinnedNode = allPages.find(n => n.id === pinnedNodeId);
+          if (pinnedNode) results.unshift(pinnedNode);
+        }
       }
 
       return {
@@ -262,10 +286,15 @@ export function useNodeSearch(
     // 'all' mode - pages first, then blocks
     let baseResults = searchQuery.length > 0
       ? (searchResults ?? [])
-      : [
-          ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
-        ];
+      : suggestions && suggestions.length > 0
+        ? [
+            ...suggestions.slice(0, Math.floor(maxResults / 2)),
+            ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
+          ]
+        : [
+            ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
+            ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
+          ];
     
     // Apply hierarchical filtering if needed (only for pages)
     if (parsed.isHierarchical && allPages) {
@@ -290,6 +319,18 @@ export function useNodeSearch(
     // Apply exclusion filter
     if (excludeNodeId !== undefined) {
       baseResults = baseResults.filter(n => n.id !== excludeNodeId);
+    }
+
+    // Pin current value at top when no active search
+    if (pinnedNodeId && searchQuery.length === 0) {
+      const pinnedIdx = baseResults.findIndex(n => n.id === pinnedNodeId);
+      if (pinnedIdx > 0) {
+        const [pinned] = baseResults.splice(pinnedIdx, 1);
+        baseResults.unshift(pinned);
+      } else if (pinnedIdx === -1 && allPages) {
+        const pinnedNode = allPages.find(n => n.id === pinnedNodeId);
+        if (pinnedNode) baseResults.unshift(pinnedNode);
+      }
     }
 
     // Separate into pages and blocks
@@ -323,6 +364,7 @@ export function useNodeSearch(
     debouncedQuery,
     searchResults,
     allPages,
+    suggestions,
     filteredPages,
     allNodes,
     allClassNodes,
@@ -330,6 +372,7 @@ export function useNodeSearch(
     classFilters,
     excludeNodeId,
     maxResults,
+    pinnedNodeId,
   ]);
 
   // Combined results for easy iteration
