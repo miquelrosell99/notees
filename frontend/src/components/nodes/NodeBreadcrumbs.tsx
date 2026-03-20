@@ -29,7 +29,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
-import { mdiPlus } from '@mdi/js';
+import { mdiPlus, mdiChevronDown } from '@mdi/js';
 import { ChevronRightIcon } from '../core/icons';
 import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
@@ -103,17 +103,15 @@ function NodeBreadcrumbsElement({
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />
       {onEditParent && !item.isProperty && (
-        <button
+        <Button
+          icon={mdiChevronDown}
+          variant="ghost"
+          size="xs"
           className="node-breadcrumb-edit-btn"
           onClick={handleEditClick}
           aria-label={`Change parent of ${nodeNameToText(item.name) || 'Untitled'}`}
           title="Change parent"
-          tabIndex={0}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
-            <path d="M5 7L1 3h8L5 7z" />
-          </svg>
-        </button>
+        />
       )}
       {showSeparator && (
         <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
@@ -380,6 +378,7 @@ export function NodeBreadcrumbs({
       {
         id: 'remove-parent',
         label: 'Remove parent',
+        danger: true,
         onClick: () => {
           setContextMenuState(null);
           updateNode.mutate(
