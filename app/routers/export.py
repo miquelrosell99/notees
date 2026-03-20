@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ..models import ExportRequest, ExportFormat, User
 from .auth import get_current_user
 
-from ..node_export import export_nodes
+from ..node_export import export_nodes as _run_export
 
 router = APIRouter(prefix="/api/export", tags=["Export"])
 
@@ -23,7 +23,7 @@ class RenderPdfRequest(BaseModel):
 async def export_nodes(request: ExportRequest, user: User = Depends(get_current_user)):
     """Export nodes to Markdown, HTML, or PDF."""
     try:
-        content, filename, mime_type = await export_nodes(
+        content, filename, mime_type = await _run_export(
             user.id,
             node_ids=request.node_ids,
             format=request.format,
@@ -83,7 +83,7 @@ async def export_single_node(
         raise HTTPException(status_code=400, detail=f"Invalid doctype: {doctype}")
 
     try:
-        content, filename, mime_type = await export_nodes(
+        content, filename, mime_type = await _run_export(
             user.id,
             node_ids=[node_uuid],
             format=export_format,
