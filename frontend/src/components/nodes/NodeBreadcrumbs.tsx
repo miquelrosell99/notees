@@ -1,22 +1,41 @@
 /**
  * NodeBreadcrumbs Components
- * 
+ *
  * Three-component architecture for breadcrumb navigation:
- * - NodeBreadcrumbsElement: Individual breadcrumb item
+ * - NodeBreadcrumbsElement: Individual breadcrumb item (navigate + edit affordance)
  * - NodeBreadcrumbsList: Renders a list of breadcrumb elements (also used as popup)
  * - NodeBreadcrumbs: Main container with overflow detection and collapse
- * 
+ *
  * Shows the FULL ancestor chain. When items don't fit, collapses to:
  * [first] [second] [...] [second-to-last] [last]
  * Clicking "..." opens a popup with the hidden items.
+ *
+ * Editing:
+ * - Hovering a breadcrumb item reveals a chevron-down affordance.
+ * - Clicking the affordance opens a NodeSelector popover so the user can
+ *   reassign that ancestor's parent.
+ * - Right-clicking a breadcrumb item opens a context menu with "Edit parent"
+ *   and "Remove parent" actions.
+ * - When the current node has no ancestors, an "+ Add parent" button is shown.
+ *
+ * Cache invalidation:
+ * - Changing any ancestor's parent_id may affect ALL descendants, so we
+ *   broadly invalidate all breadcrumb caches after any parent change.
  */
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useBreadcrumbs } from '@/hooks';
+import { useState, useRef, useCallback, useMemo, useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
+import { useBreadcrumbs, useUpdateNode } from '@/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
+import { mdiPlus } from '@mdi/js';
 import { ChevronRightIcon } from '../core/icons';
+import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
+import { NodeSelector } from './NodeSelector';
+import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import './NodeBreadcrumbs.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +52,66 @@ export interface BreadcrumbItem {
   propertyId?: number;
 }
 
+// ─── Inline NodePicker popover ────────────────────────────────────────────────
+
+interface BreadcrumbPickerProps {
+  /** Node ID whose parent we're editing */
+  targetNodeId: number;
+  /** Current parent ID (pre-selects in picker) */
+  currentParentId?: number | null;
+  /** Anchor element for positioning */
+  anchorEl: HTMLElement;
+  onClose: () => void;
+  onSelect: (newParentId: number | null) => void;
+}
+
+function BreadcrumbPicker({ targetNodeId, currentParentId, anchorEl, onClose, onSelect }: BreadcrumbPickerProps) {
+  const popoverId = useId();
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Position below the anchor element
+  const style = useMemo(() => {
+    const rect = anchorEl.getBoundingClientRect();
+    const left = Math.min(rect.left, window.innerWidth - 280 - 8);
+    const top = rect.bottom + 4;
+    return { left, top };
+  }, [anchorEl]);
+
+  useClickOutside([popoverRef], onClose, true);
+
+  // Keyboard: Escape closes
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={popoverRef}
+      id={popoverId}
+      className="breadcrumb-picker-popover"
+      style={{ left: style.left, top: style.top }}
+      role="dialog"
+      aria-label="Change parent"
+      aria-modal="true"
+    >
+      <NodeSelector
+        trigger="inline"
+        value={currentParentId ?? null}
+        searchMode="pages"
+        excludeNodeId={targetNodeId}
+        placeholder="Search pages..."
+        onChange={(val) => {
+          onSelect(typeof val === 'number' ? val : null);
+        }}
+        allowCreate={false}
+      />
+    </div>,
+    document.body,
+  );
+}
+
 // ─── NodeBreadcrumbsElement ───────────────────────────────────────────────────
 
 interface NodeBreadcrumbsElementProps {
@@ -40,14 +119,41 @@ interface NodeBreadcrumbsElementProps {
   onClick: (item: BreadcrumbItem) => void;
   /** Whether to show the separator chevron after this element */
   showSeparator?: boolean;
+  /** Called when the edit-parent affordance (dropdown arrow) is clicked */
+  onEditParent?: (item: BreadcrumbItem, anchorEl: HTMLElement) => void;
+  /** Called when the element is right-clicked */
+  onContextMenu?: (item: BreadcrumbItem, x: number, y: number) => void;
 }
 
 /**
  * Individual breadcrumb element — renders a single clickable breadcrumb.
+ * On hover, reveals a chevron-down affordance for editing the parent of this node.
  */
-function NodeBreadcrumbsElement({ item, onClick, showSeparator = true }: NodeBreadcrumbsElementProps) {
+function NodeBreadcrumbsElement({
+  item,
+  onClick,
+  showSeparator = true,
+  onEditParent,
+  onContextMenu,
+}: NodeBreadcrumbsElementProps) {
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+
+  const handleEditClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const anchor = wrapperRef.current;
+    if (anchor && onEditParent) onEditParent(item, anchor);
+  }, [item, onEditParent]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!onContextMenu) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu(item, e.clientX, e.clientY);
+  }, [item, onContextMenu]);
+
   return (
-    <span className="node-breadcrumb-item">
+    <span ref={wrapperRef} className="node-breadcrumb-item" onContextMenu={handleContextMenu}>
       <NodeInline
         name={item.name}
         displayText={item.displayName}
@@ -57,6 +163,19 @@ function NodeBreadcrumbsElement({ item, onClick, showSeparator = true }: NodeBre
         onClick={() => onClick(item)}
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />
+      {onEditParent && !item.isProperty && (
+        <button
+          className="node-breadcrumb-edit-btn"
+          onClick={handleEditClick}
+          aria-label={`Change parent of ${nodeNameToText(item.name) || 'Untitled'}`}
+          title="Change parent"
+          tabIndex={0}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+            <path d="M5 7L1 3h8L5 7z" />
+          </svg>
+        </button>
+      )}
       {showSeparator && (
         <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
       )}
@@ -71,6 +190,8 @@ interface NodeBreadcrumbsListProps {
   onClick: (item: BreadcrumbItem) => void;
   /** Render as a dropdown popup */
   variant?: 'inline' | 'popup';
+  onEditParent?: (item: BreadcrumbItem, anchorEl: HTMLElement) => void;
+  onContextMenu?: (item: BreadcrumbItem, x: number, y: number) => void;
 }
 
 /**
@@ -78,7 +199,7 @@ interface NodeBreadcrumbsListProps {
  * In 'popup' variant, renders as a floating dropdown card.
  * In 'inline' variant, renders items inline (used within main breadcrumbs).
  */
-function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcrumbsListProps) {
+function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent, onContextMenu }: NodeBreadcrumbsListProps) {
   if (variant === 'popup') {
     return (
       <div className="node-breadcrumbs-popup">
@@ -104,6 +225,8 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline' }: NodeBreadcr
           item={item}
           onClick={onClick}
           showSeparator={index < items.length - 1}
+          onEditParent={onEditParent}
+          onContextMenu={onContextMenu}
         />
       ))}
     </>
@@ -178,6 +301,22 @@ export function NodeBreadcrumbs({
   const containerRef = useRef<HTMLElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const ellipsisRef = useRef<HTMLButtonElement>(null);
+  const addParentRef = useRef<HTMLButtonElement>(null);
+
+  // ─── Parent editing state ─────────────────────────────────────────────
+  const [pickerState, setPickerState] = useState<{
+    targetNodeId: number;
+    currentParentId: number | null;
+    anchorEl: HTMLElement;
+  } | null>(null);
+  const [contextMenuState, setContextMenuState] = useState<{
+    item: BreadcrumbItem;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const updateNode = useUpdateNode();
+  const queryClient = useQueryClient();
 
   // Walk the full ancestor chain (stops at page for blocks)
   const ancestorBreadcrumbs = useAncestorChain(nodeId, nodeType);
@@ -248,8 +387,69 @@ export function NodeBreadcrumbs({
     [onNavigate, onNavigateToProperty],
   );
 
-  // Don't render if no breadcrumbs
-  if (breadcrumbs.length === 0) return null;
+  // ─── Parent editing handlers ──────────────────────────────────────────
+  /** Broad breadcrumb cache invalidation — all ancestors of any node may be stale */
+  const invalidateBreadcrumbs = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'breadcrumbs'], refetchType: 'active' });
+  }, [queryClient]);
+
+  /**
+   * Opens the picker to change the parent of `item` (an ancestor breadcrumb).
+   * The current parent of `item` is the breadcrumb that precedes it in the chain.
+   */
+  const handleEditParent = useCallback((item: BreadcrumbItem, anchorEl: HTMLElement) => {
+    if (item.isProperty) return;
+    const idx = breadcrumbs.findIndex((b) => b.id === item.id);
+    const currentParentId = idx > 0 ? breadcrumbs[idx - 1].id : null;
+    setPickerState({ targetNodeId: item.id, currentParentId, anchorEl });
+  }, [breadcrumbs]);
+
+  /** Called when the user selects a new parent in the picker */
+  const handlePickerSelect = useCallback((newParentId: number | null) => {
+    if (!pickerState) return;
+    const { targetNodeId } = pickerState;
+    setPickerState(null);
+    updateNode.mutate(
+      { id: targetNodeId, data: { parent_id: newParentId } },
+      { onSuccess: invalidateBreadcrumbs },
+    );
+  }, [pickerState, updateNode, invalidateBreadcrumbs]);
+
+  /** Right-click on a breadcrumb element */
+  const handleBreadcrumbContextMenu = useCallback((item: BreadcrumbItem, x: number, y: number) => {
+    if (item.isProperty) return;
+    setContextMenuState({ item, x, y });
+  }, []);
+
+  /** Context menu items for editing/removing a breadcrumb's parent */
+  const contextMenuItems = useMemo((): ContextMenuItem[] => {
+    if (!contextMenuState) return [];
+    const { item } = contextMenuState;
+    return [
+      {
+        id: 'edit-parent',
+        label: 'Edit parent…',
+        onClick: () => {
+          const anchorEl =
+            (document.elementFromPoint(contextMenuState.x, contextMenuState.y) as HTMLElement | null) ??
+            document.body;
+          setContextMenuState(null);
+          handleEditParent(item, anchorEl);
+        },
+      },
+      {
+        id: 'remove-parent',
+        label: 'Remove parent',
+        onClick: () => {
+          setContextMenuState(null);
+          updateNode.mutate(
+            { id: item.id, data: { parent_id: null } },
+            { onSuccess: invalidateBreadcrumbs },
+          );
+        },
+      },
+    ];
+  }, [contextMenuState, handleEditParent, updateNode, invalidateBreadcrumbs]);
 
   // ─── Splitting for overflow ──────────────────────────────────────────
   const needsCollapse = isOverflowing && breadcrumbs.length > VISIBLE_START + VISIBLE_END;
@@ -261,60 +461,120 @@ export function NodeBreadcrumbs({
     ? breadcrumbs.slice(breadcrumbs.length - VISIBLE_END)
     : [];
 
-  return (
-    <nav
-      ref={containerRef}
-      className={`node-breadcrumbs ${className}`}
-      aria-label={nodeType === 'page' ? 'Page hierarchy' : 'Block path'}
-    >
-      {/* Start items (always visible) */}
-      {startItems.map((item, index) => (
-        <NodeBreadcrumbsElement
-          key={item.isProperty ? `prop-${item.id}` : item.id}
-          item={item}
-          onClick={handleClick}
-          showSeparator={needsCollapse || index < startItems.length - 1}
+  // ─── "+ Add parent" affordance (pages only, when no ancestors) ───────
+  if (breadcrumbs.length === 0 && nodeType === 'page') {
+    return (
+      <>
+        <Button
+          ref={addParentRef}
+          icon={mdiPlus}
+          variant="ghost"
+          size="xs"
+          className="node-breadcrumb-add-parent"
+          title="Add parent"
+          onClick={() => {
+            if (addParentRef.current) {
+              setPickerState({ targetNodeId: nodeId, currentParentId: null, anchorEl: addParentRef.current });
+            }
+          }}
+          aria-label="Add parent page"
         />
-      ))}
+        {pickerState && (
+          <BreadcrumbPicker
+            targetNodeId={pickerState.targetNodeId}
+            currentParentId={pickerState.currentParentId}
+            anchorEl={pickerState.anchorEl}
+            onClose={() => setPickerState(null)}
+            onSelect={handlePickerSelect}
+          />
+        )}
+      </>
+    );
+  }
 
-      {/* Ellipsis button for collapsed items */}
-      {needsCollapse && (
-        <span className="node-breadcrumb-item node-breadcrumb-ellipsis-container">
-          <button
-            ref={ellipsisRef}
-            className="node-breadcrumb-link node-breadcrumb-ellipsis"
-            onClick={() => setPopupOpen((v) => !v)}
-            aria-label={`Show ${hiddenItems.length} more breadcrumbs`}
-            aria-expanded={popupOpen}
-          >
-            …
-          </button>
-          <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
+  // Don't render if no breadcrumbs (non-page or block)
+  if (breadcrumbs.length === 0) return null;
 
-          {/* Popup with hidden items */}
-          {popupOpen && (
-            <div ref={popupRef} className="node-breadcrumb-popup-anchor">
-              <NodeBreadcrumbsList
-                items={hiddenItems}
-                onClick={handleClick}
-                variant="popup"
-              />
-            </div>
-          )}
-        </span>
-      )}
-
-      {/* End items (always visible when collapsed) */}
-      {needsCollapse &&
-        endItems.map((item, index) => (
+  return (
+    <>
+      <nav
+        ref={containerRef}
+        className={`node-breadcrumbs ${className}`}
+        aria-label={nodeType === 'page' ? 'Page hierarchy' : 'Block path'}
+      >
+        {/* Start items (always visible) */}
+        {startItems.map((item, index) => (
           <NodeBreadcrumbsElement
             key={item.isProperty ? `prop-${item.id}` : item.id}
             item={item}
             onClick={handleClick}
-            showSeparator={index < endItems.length - 1}
+            showSeparator={needsCollapse || index < startItems.length - 1}
+            onEditParent={nodeType === 'page' ? handleEditParent : undefined}
+            onContextMenu={nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
           />
         ))}
-    </nav>
+
+        {/* Ellipsis button for collapsed items */}
+        {needsCollapse && (
+          <span className="node-breadcrumb-item node-breadcrumb-ellipsis-container">
+            <button
+              ref={ellipsisRef}
+              className="node-breadcrumb-link node-breadcrumb-ellipsis"
+              onClick={() => setPopupOpen((v) => !v)}
+              aria-label={`Show ${hiddenItems.length} more breadcrumbs`}
+              aria-expanded={popupOpen}
+            >
+              …
+            </button>
+            <ChevronRightIcon size="xs" className="node-breadcrumb-separator" />
+
+            {/* Popup with hidden items */}
+            {popupOpen && (
+              <div ref={popupRef} className="node-breadcrumb-popup-anchor">
+                <NodeBreadcrumbsList
+                  items={hiddenItems}
+                  onClick={handleClick}
+                  variant="popup"
+                />
+              </div>
+            )}
+          </span>
+        )}
+
+        {/* End items (always visible when collapsed) */}
+        {needsCollapse &&
+          endItems.map((item, index) => (
+            <NodeBreadcrumbsElement
+              key={item.isProperty ? `prop-${item.id}` : item.id}
+              item={item}
+              onClick={handleClick}
+              showSeparator={index < endItems.length - 1}
+              onEditParent={nodeType === 'page' ? handleEditParent : undefined}
+              onContextMenu={nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
+            />
+          ))}
+      </nav>
+
+      {/* BreadcrumbPicker portal */}
+      {pickerState && (
+        <BreadcrumbPicker
+          targetNodeId={pickerState.targetNodeId}
+          currentParentId={pickerState.currentParentId}
+          anchorEl={pickerState.anchorEl}
+          onClose={() => setPickerState(null)}
+          onSelect={handlePickerSelect}
+        />
+      )}
+
+      {/* Breadcrumb context menu */}
+      {contextMenuState && (
+        <ContextMenu
+          items={contextMenuItems}
+          position={{ x: contextMenuState.x, y: contextMenuState.y }}
+          onClose={() => setContextMenuState(null)}
+        />
+      )}
+    </>
   );
 }
 
