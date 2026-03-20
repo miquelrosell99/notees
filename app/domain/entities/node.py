@@ -82,6 +82,9 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False   # Comment block
     
+    # Parent lock - prevents parent_id from being changed
+    parent_locked: bool = False
+    
     # Alias support - if set, this node is an alias of the node with this ID
     aliased_id: Optional[int] = None  # The main node this page aliases
     

@@ -53,6 +53,7 @@ export interface Node {
   is_monthly?: boolean; // Whether this is a monthly note
   is_yearly?: boolean; // Whether this is a yearly note
   is_comment?: boolean; // Whether this node is a comment
+  parent_locked?: boolean; // Whether this node's parent is locked
   
   // For tree responses
   children?: Node[];
@@ -267,6 +268,7 @@ export interface BreadcrumbItemResponse {
   display_name: string;
   icon: string | null;
   is_page: boolean;
+  parent_locked: boolean;
 }
 
 /**
