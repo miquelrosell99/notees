@@ -64,8 +64,7 @@
 
 /* Move-to submenu panel */
 .move-to-submenu {
-  min-width: 260px;
-  max-width: 320px;
+  padding: var(--spacing-2) var(--spacing-1);
 }
 
 
