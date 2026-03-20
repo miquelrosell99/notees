@@ -21,14 +21,16 @@ import {
   COMMAND_PRIORITY_NORMAL,
   $getSelection,
   $isRangeSelection,
+  $isTextNode,
   $createTextNode,
   $createLineBreakNode,
 } from 'lexical';
 import { $isBlockNode, type BlockNode } from '../nodes/BlockNode';
+import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { analyzeClipboard, flattenBlocks } from '../../utils/clipboardManager';
-import { searchNodes, createPage } from '../../api/nodes';
+import { searchNodes, createPage, getNodeByUuid } from '../../api/nodes';
 import { buildLinkId, paragraph, text as astText, nodeLink } from '../../lib/astBuilder';
 import type { ASTInlineNode, ASTDocument } from '../../types/ast';
 import type { HashtagPasteMode } from '../../stores/settingsStore';
@@ -46,6 +48,29 @@ interface ResolvedNode {
 const resolveCache = new Map<string, ResolvedNode>();
 
 // ─── Helpers ──────────────────────────────────────────────────────
+
+/** UUID v4 format check */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve a link name to an existing node.
+ * If the name is a UUID (e.g. from "Copy link"), fetches the node directly.
+ * Otherwise, searches by name and creates a new page if not found.
+ * Results are cached for the duration of a paste operation.
+ */
+async function resolveLink(name: string): Promise<ResolvedNode> {
+  const cacheKey = name.toLowerCase().trim();
+  if (resolveCache.has(cacheKey)) return resolveCache.get(cacheKey)!;
+
+  if (UUID_RE.test(name.trim())) {
+    const node = await getNodeByUuid(name.trim());
+    const resolved: ResolvedNode = { uuid: node.uuid, id: node.id };
+    resolveCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  return resolveOrCreatePage(name);
+}
 
 /**
  * Resolve a page name to an existing node or create a new page.
@@ -177,7 +202,9 @@ async function parseContentToAST(
     .filter(t => t.type === 'link' || t.type === 'hashtag')
     .map(async t => {
       try {
-        const resolved = await resolveOrCreatePage(t.name!);
+        const resolved = t.type === 'link'
+          ? await resolveLink(t.name!)
+          : await resolveOrCreatePage(t.name!);
         return { token: t, resolved };
       } catch (err) {
         console.error(`[PasteBlocksPlugin] Failed to resolve "${t.name}":`, err);
@@ -273,15 +300,54 @@ export function PasteBlocksPlugin({ onContentChange }: PasteBlocksPluginProps): 
 
         const analysis = analyzeClipboard(clipboardData);
 
-        // Only intercept multi-block pastes
+        // ── Single-line [[link]] paste ───────────────────────────
+        // Intercept plain-text pastes containing [[...]] patterns so they
+        // resolve to inline link pills instead of being pasted as raw text.
+        // This handles "Copy link" which writes [[uuid]] to the clipboard.
         if (
           analysis.type !== 'plain-multiline' &&
           analysis.type !== 'html-list' &&
           analysis.type !== 'html-text'
         ) {
+          const plain = clipboardData.getData('text/plain');
+          if (plain && /\[\[/.test(plain)) {
+            // Capture block state synchronously inside the command handler,
+            // before any await that would lose the editor's synchronous context.
+            let pasteBlockId: string | null = null;
+            let pasteCursorOffset = 0;
+            const captureSel = $getSelection();
+            if ($isRangeSelection(captureSel)) {
+              const blockNode = findParentNodeBlock(captureSel.anchor.getNode());
+              if (blockNode) {
+                pasteBlockId = blockNode.getBlockId();
+                // Calculate cursor offset (mirrors BlockPlugin logic)
+                for (const child of blockNode.getChildren()) {
+                  if (child === captureSel.anchor.getNode() || child.getKey() === captureSel.anchor.key) break;
+                  if ($isTextNode(child)) {
+                    const t = child.getTextContent();
+                    if (t !== '\u200B') pasteCursorOffset += t.length;
+                  } else if ($isInlineLinkNode(child)) {
+                    pasteCursorOffset += 1;
+                  }
+                }
+                // Add offset within the anchor text node
+                const anchorNode = captureSel.anchor.getNode();
+                if ($isTextNode(anchorNode)) {
+                  pasteCursorOffset += captureSel.anchor.offset;
+                }
+              }
+            }
+            if (!pasteBlockId) return false;
+            event.preventDefault();
+            processSingleLineLinkPasteAsync(pasteBlockId, pasteCursorOffset, plain, onContentChange).catch(err => {
+              console.error('[PasteBlocksPlugin] Single-line link paste error:', err);
+            });
+            return true;
+          }
           return false;
         }
 
+        // Only intercept multi-block pastes
         if (!analysis.blocks || analysis.blocks.length <= 1) {
           return false;
         }
@@ -448,4 +514,115 @@ async function processPasteAsync(
     runtime.requestFocus(blockIds[blockIds.length - 1]);
     runtime.flushEvents();
   }
+}
+
+// ─── Single-line [[link]] paste ───────────────────────────────────
+
+/**
+ * Handle a single-line paste that contains [[...]] link patterns.
+ *
+ * Rather than inserting Lexical nodes directly (which breaks after async awaits
+ * due to node-registry mismatches), this builds a merged ContentAST and writes
+ * it via update_content + onContentChange so BlockPlugin's sync loop does the
+ * Lexical tree update safely inside its own editor context.
+ */
+async function processSingleLineLinkPasteAsync(
+  currentBlockId: string,
+  cursorOffset: number,
+  pastedText: string,
+  onContentChange?: (blockId: string, contentAST: ASTDocument) => void,
+): Promise<void> {
+  interface Token {
+    start: number;
+    end: number;
+    value: string;
+    name: string;
+  }
+
+  const tokens: Token[] = [];
+  const linkRe = new RegExp(LINK_PATTERN.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = linkRe.exec(pastedText)) !== null) {
+    tokens.push({ start: m.index, end: m.index + m[0].length, value: m[0], name: m[1] });
+  }
+  if (tokens.length === 0) return;
+
+  resolveCache.clear();
+
+  // Resolve all links in parallel
+  const resolved = await Promise.all(
+    tokens.map(async t => {
+      try { return await resolveLink(t.name); }
+      catch { return null; }
+    }),
+  );
+
+  // Build pasted inline nodes from the resolved text/links
+  const pastedInlines: ASTInlineNode[] = [];
+  let pos = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.start > pos) pastedInlines.push(astText(pastedText.slice(pos, token.start)));
+    const r = resolved[i];
+    if (r) {
+      pastedInlines.push(nodeLink(buildLinkId(r.uuid, crypto.randomUUID()), 'node'));
+    } else {
+      pastedInlines.push(astText(token.value));
+    }
+    pos = token.end;
+  }
+  if (pos < pastedText.length) pastedInlines.push(astText(pastedText.slice(pos)));
+
+  // Merge into the current block's contentAST at the cursor position
+  const runtime = getNodeGraphRuntime();
+  const graphNode = runtime.getNode(currentBlockId);
+  if (!graphNode) return;
+
+  const existing = graphNode.contentAST ?? [paragraph(astText(''))];
+  // Flatten all inlines from the existing block (single-paragraph assumed for editable blocks)
+  const existingInlines: ASTInlineNode[] = existing.flatMap(p => ('children' in p ? p.children : []));
+
+  // Split existing inlines at the cursor offset
+  let remaining = cursorOffset;
+  let splitIdx = existingInlines.length; // default: paste at end
+  let splitTextOffset = 0;
+  for (let i = 0; i < existingInlines.length; i++) {
+    const node = existingInlines[i];
+    const len = node.type === 'text' ? node.text.length
+      : node.type === 'node_link' || node.type === 'external_link' ? 1
+      : 0;
+    if (remaining <= len) {
+      splitIdx = i;
+      splitTextOffset = remaining;
+      break;
+    }
+    remaining -= len;
+  }
+
+  // Build before/after arrays
+  const before: ASTInlineNode[] = [];
+  const after: ASTInlineNode[] = [];
+  for (let i = 0; i < existingInlines.length; i++) {
+    if (i < splitIdx) {
+      before.push(existingInlines[i]);
+    } else if (i === splitIdx && splitTextOffset > 0 && existingInlines[i].type === 'text') {
+      const t = existingInlines[i] as { type: 'text'; text: string };
+      before.push(astText(t.text.slice(0, splitTextOffset)));
+      after.push(astText(t.text.slice(splitTextOffset)));
+    } else {
+      after.push(existingInlines[i]);
+    }
+  }
+
+  const mergedInlines = [...before, ...pastedInlines, ...after];
+  const newContentAST: ASTDocument = [paragraph(...mergedInlines)];
+
+  runtime.applyIntent({ type: 'update_content', blockId: currentBlockId, contentAST: newContentAST });
+  onContentChange?.(currentBlockId, newContentAST);
+
+  // Ask the runtime to move the cursor after the inserted content
+  const newCursorOffset = cursorOffset + pastedInlines.reduce((acc, n) =>
+    acc + (n.type === 'text' ? n.text.length : 1), 0);
+  runtime.requestFocus(currentBlockId, newCursorOffset);
+  runtime.flushEvents();
 }
