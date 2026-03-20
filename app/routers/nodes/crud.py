@@ -477,6 +477,125 @@ async def get_recently_created_pages(
     return {"nodes": nodes}
 
 
+@router.get("/suggestions")
+async def get_node_suggestions(
+    limit: int = 20,
+    class_filters: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    """Get suggested pages for node pickers (empty-query state).
+    
+    Returns pages in two priority tiers:
+    1. Pages created in the last 15 minutes (by create_date DESC)
+    2. Pages by most recently linked (by latest node_link.create_date DESC)
+    
+    Optionally filtered by class IDs (comma-separated).
+    """
+    service = await _get_node_service(user)
+    
+    # Parse class filters
+    class_filter_ids = []
+    if class_filters:
+        class_filter_ids = [int(c.strip()) for c in class_filters.split(",") if c.strip().isdigit()]
+    
+    class_filter_clause = ""
+    if class_filter_ids:
+        class_filter_clause = " AND n.class_ids && $3::int[]"
+    
+    async with acquire_connection(service.pool) as conn:
+        # Tier 1: Recently created pages (last 15 minutes)
+        params_recent: list = [service.workspace_id, limit]
+        if class_filter_ids:
+            params_recent.append(class_filter_ids)
+        
+        recent_rows = await conn.fetch(f"""
+            SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.page_id,
+                   n.is_page, n.is_class, n.is_day, n.is_month, n.is_year,
+                   n.create_date, n.write_date, n.class_ids, n.aliased_id,
+                   1 AS tier
+            FROM node n
+            WHERE n.is_page = true AND n.active = true 
+                  AND (n.is_deleted = false OR n.is_deleted IS NULL)
+                  AND n.workspace_id = $1
+                  AND n.create_date > NOW() - INTERVAL '15 minutes'
+                  {class_filter_clause}
+            ORDER BY n.create_date DESC
+            LIMIT $2
+        """, *params_recent)
+        
+        recent_ids = {row['id'] for row in recent_rows}
+        
+        # Tier 2: Pages by most recently linked (target of a link)
+        remaining = limit - len(recent_rows)
+        linked_rows = []
+        if remaining > 0:
+            # Build exclusion clause for already-included IDs
+            exclude_clause = ""
+            params_linked: list = [service.workspace_id, remaining]
+            param_idx = 3
+            
+            if recent_ids:
+                exclude_clause = f" AND n.id != ALL(${param_idx}::int[])"
+                params_linked.append(list(recent_ids))
+                param_idx += 1
+            
+            if class_filter_ids:
+                class_filter_clause_linked = f" AND n.class_ids && ${param_idx}::int[]"
+                params_linked.append(class_filter_ids)
+            else:
+                class_filter_clause_linked = ""
+            
+            linked_rows = await conn.fetch(f"""
+                SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.page_id,
+                       n.is_page, n.is_class, n.is_day, n.is_month, n.is_year,
+                       n.create_date, n.write_date, n.class_ids, n.aliased_id,
+                       2 AS tier
+                FROM node n
+                INNER JOIN (
+                    SELECT target_id, MAX(create_date) AS last_linked
+                    FROM node_link
+                    WHERE workspace_id = $1
+                    GROUP BY target_id
+                ) nl ON nl.target_id = n.id
+                WHERE n.is_page = true AND n.active = true
+                      AND (n.is_deleted = false OR n.is_deleted IS NULL)
+                      AND n.workspace_id = $1
+                      {exclude_clause}
+                      {class_filter_clause_linked}
+                ORDER BY nl.last_linked DESC
+                LIMIT $2
+            """, *params_linked)
+        
+        all_rows = list(recent_rows) + list(linked_rows)
+    
+    node_ids = [row['id'] for row in all_rows]
+    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, 'aliases')
+    
+    nodes = []
+    for row in all_rows:
+        nodes.append({
+            "id": row['id'],
+            "uuid": str(row['uuid']),
+            "name": row['name'],
+            "icon": row['icon'],
+            "color": row['color'],
+            "parent_id": row['parent_id'],
+            "page_id": row['page_id'],
+            "is_page": row['is_page'],
+            "is_class": row['is_class'],
+            "is_daily": row['is_day'],
+            "is_monthly": row['is_month'],
+            "is_yearly": row['is_year'],
+            "create_date": row['create_date'].isoformat() if row['create_date'] else None,
+            "write_date": row['write_date'].isoformat() if row['write_date'] else None,
+            "classes": list(row['class_ids'] or []),
+            "aliased_id": row['aliased_id'],
+            "aliases": alias_ids_map.get(row['id'], []),
+        })
+    
+    return {"nodes": nodes}
+
+
 @router.get("/archived")
 async def get_archived_pages(
     user: User = Depends(get_current_user),

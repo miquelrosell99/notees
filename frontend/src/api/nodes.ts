@@ -714,6 +714,20 @@ export async function getRecentlyCreatedPages(limit: number = 5): Promise<Recent
   return response.data.nodes ?? [];
 }
 
+/**
+ * Get suggested pages for node pickers (empty-query state).
+ * Returns recently created pages (last 15 min) then most recently linked pages.
+ * 
+ * @param limit - Maximum number of suggestions
+ * @param class_filters - Optional comma-separated class IDs to filter results
+ */
+export async function getSuggestions(limit: number = 20, class_filters?: string): Promise<Node[]> {
+  const response = await api.get<{ nodes: Node[] }>(`${BASE}/suggestions`, {
+    params: { limit, class_filters },
+  });
+  return response.data.nodes ?? [];
+}
+
 // ============== Version History ==============
 
 export interface NodeVersion {

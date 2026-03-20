@@ -51,6 +51,7 @@ export {
   useArchivedPages,
   useNodesWithClass,
   useTextLinks,
+  useSuggestions,
 } from './useNodeQueries';
 
 // ==================== Node Mutations ====================
