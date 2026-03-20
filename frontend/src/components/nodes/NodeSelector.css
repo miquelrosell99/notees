@@ -285,7 +285,7 @@
   z-index: 10002;
   min-width: 200px;
   max-width: 280px;
-  background: var(--color-surface-container);
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
@@ -409,6 +409,8 @@
   flex-direction: column;
   align-items: stretch;
   width: 100%;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
 }
 
 .node-selector--inline .node-selector__options {
