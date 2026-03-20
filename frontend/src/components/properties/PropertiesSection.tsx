@@ -338,7 +338,7 @@ function PropertyValue({
       );
 
     case 'node':
-      // For node references - use NodeSelector with trigger='select'
+      // For node references
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
         const newPage = await onCreatePage?.(name, property.class_filters);
@@ -346,11 +346,35 @@ function PropertyValue({
         return newPage;
       }, [onCreatePage, property.class_filters]);
       
+      if (property.multi) {
+        // Multi-value: pill-row mode with add/remove (same as classes/tags)
+        return (
+          <NodeSelector
+            value={value as number[] | null}
+            searchMode="pages"
+            classFilters={property.class_filters}
+            emptyText="Add"
+            searchPlaceholder="Search pages..."
+            readOnly={readOnly}
+            onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.id) : undefined}
+            onAdd={readOnly ? undefined : (selectedNode) => {
+              const currentValue = Array.isArray(value) ? value : (value ? [value] : []);
+              onChange([...currentValue, selectedNode.id]);
+            }}
+            onRemove={readOnly ? undefined : (selectedNode) => {
+              const currentValue = Array.isArray(value) ? value : [];
+              onChange(currentValue.filter((id: number) => id !== selectedNode.id));
+            }}
+            onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
+          />
+        );
+      }
+
+      // Single-value: dropdown select mode
       return (
         <NodeSelector
           trigger="select"
-          value={value as number | number[] | null}
-          multi={property.multi}
+          value={value as number | null}
           searchMode="pages"
           classFilters={property.class_filters}
           placeholder="Empty"
