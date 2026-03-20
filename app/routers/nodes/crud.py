@@ -826,6 +826,7 @@ async def get_node_breadcrumbs(
             display_name=display or 'Untitled',
             icon=node.icon,
             is_page=node.is_page,
+            parent_locked=node.parent_locked,
         ))
     
     return BreadcrumbsResponse(breadcrumbs=items)
@@ -1440,6 +1441,8 @@ async def update_node(
         raise HTTPException(409, str(e))
     except SystemClassConstraintError as e:
         raise HTTPException(422, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 @router.put("/{node_id}/move")
@@ -1466,7 +1469,10 @@ async def move_node(
     # Default position to 0 if not specified
     position = request.position if request.position is not None else 0
     
-    node = await service.move_node(node_id, request.parent_id, position)
+    try:
+        node = await service.move_node(node_id, request.parent_id, position)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     if not node:
         raise HTTPException(404, "Node not found")
     

@@ -494,6 +494,10 @@ class NodeService:
         
         old_parent_id = old_node.parent_id
         
+        # Prevent moving parent-locked nodes
+        if old_node.parent_locked:
+            raise ValueError("Cannot move a parent-locked node")
+        
         # Check for circular reference: prevent moving node to its own descendant
         if new_parent_id is not None:
             await self._check_circular_reference(node_id, new_parent_id)
@@ -611,6 +615,10 @@ class NodeService:
             return None
         
         old_parent_id = old_node.parent_id
+        
+        # Prevent changing parent of parent-locked nodes
+        if (data.parent_id is not None or data.clear_parent) and old_node.parent_locked:
+            raise ValueError("Cannot change the parent of a parent-locked node")
         
         # Validate page name uniqueness if it's a page and name/parent/classes changed
         if old_node.is_page and (data.name is not None or data.parent_id is not None):
