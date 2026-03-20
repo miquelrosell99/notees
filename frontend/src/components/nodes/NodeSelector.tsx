@@ -479,9 +479,13 @@ export function NodeSelector({
   }, [multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass]);
 
   const handleClosePicker = useCallback(() => {
-    setIsPickerOpen(false);
-    setSearchQuery('');
-  }, []);
+    if (isAnchored) {
+      onClose?.();
+    } else {
+      setIsPickerOpen(false);
+      setSearchQuery('');
+    }
+  }, [isAnchored, onClose]);
 
   // Build parent page path (e.g. "Root / Parent /") for a page node
   const buildParentPath = useCallback((node: Node): string => {
@@ -947,6 +951,17 @@ export function NodeSelector({
                   allClasses={allClasses}
                 />
               ))}
+              {showCreateOption && effectiveCreateNew && (
+                <NodeResultItem
+                  key="__create"
+                  node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+                  isHighlighted={selectedIndex === filteredResults.length}
+                  onClick={handleCreateNew}
+                  onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                  className="node-result-item--create"
+                  iconOverride={<AddIcon size="sm" />}
+                />
+              )}
               {showMoreOption && (
                 <button
                   className={`node-selector__show-more ${selectedIndex === filteredResults.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
