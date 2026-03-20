@@ -286,8 +286,8 @@ export function QueryNodeCollection({
     setNodeViewMode(nodeId, viewType, mode);
   };
   
-  // Default to 'none' — user can enable grouping via the toolbar
-  const defaultGroupBy: NodeCollectionGroupBy = 'none';
+  // Default to 'page' — group by page automatically in list view
+  const defaultGroupBy: NodeCollectionGroupBy = 'page';
   const [groupBy, setGroupByState] = useState<NodeCollectionGroupBy>(
     getNodeGroupBy(nodeId, viewType) ?? defaultGroupBy
   );
