@@ -39,3 +39,10 @@ export function clearActiveEditor(editor: LexicalEditor): void {
 export function isOtherEditorActive(editor: LexicalEditor): boolean {
   return activeEditor !== null && activeEditor !== editor;
 }
+
+/**
+ * Returns the currently focused editor, or null if no editor is active.
+ */
+export function getActiveEditor(): LexicalEditor | null {
+  return activeEditor;
+}
