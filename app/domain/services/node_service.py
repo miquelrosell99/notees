@@ -52,6 +52,99 @@ class NodeService:
         self._workspace_id = workspace_id
         self._class_service = ClassManagementService(pool, workspace_id, node_repository, property_repository)
 
+    # ── Public properties ──────────────────────────────────────────────────
+
+    @property
+    def pool(self):
+        """Connection pool for direct query access."""
+        return self._pool
+
+    @property
+    def workspace_id(self) -> Optional[int]:
+        """Workspace ID for this service instance."""
+        return self._workspace_id
+
+    @property
+    def page_class_id(self) -> Optional[int]:
+        """Page class node ID."""
+        return self._page_class_id
+
+    @property
+    def property_repo(self):
+        """Property repository (used by property routers that need repo-level CRUD)."""
+        return self._property_repo
+
+    # ── Public delegation methods ──────────────────────────────────────────
+
+    async def get_node_children(self, node_id: int) -> List[Node]:
+        """Get direct children of a node."""
+        return await self._node_repo.get_children(node_id)
+
+    async def get_node_descendants(self, node_id: int) -> List[Node]:
+        """Get all descendants of a node (flat list, ordered by depth then sequence)."""
+        if hasattr(self._node_repo, 'get_descendants'):
+            descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
+            if descendant_ids:
+                return await self._node_repo.get_by_ids(descendant_ids)
+            return []
+        # Fallback: BFS traversal
+        result: List[Node] = []
+        to_process = [node_id]
+        while to_process:
+            current_id = to_process.pop(0)
+            children = await self._node_repo.get_children(current_id)
+            result.extend(children)
+            to_process.extend(c.id for c in children if c.id is not None)
+        return result
+
+    async def get_nodes_typed_with(self, class_id: int) -> List[Node]:
+        """Get all nodes that have this class assigned."""
+        return await self._node_repo.get_typed_with(class_id)
+
+    async def get_nodes_by_ids(self, ids: List[int]) -> List[Node]:
+        """Get multiple nodes by ID list."""
+        return await self._node_repo.get_by_ids(ids)
+
+    async def get_node_breadcrumbs(self, node_id: int) -> List[Node]:
+        """Get ancestor chain from root to node's immediate parent."""
+        return await self._node_repo.get_breadcrumbs(node_id)
+
+    async def get_node_properties(self, node_id: int):
+        """Get all property values for a node."""
+        return await self._property_repo.get_all_property_values(node_id)
+
+    async def get_nodes_properties_batch(self, node_ids: List[int]):
+        """Get property values for multiple nodes in a single batch."""
+        return await self._property_repo.get_all_property_values_batch(node_ids)
+
+    async def get_backlinks(self, node_id: int):
+        """Get all backlinks pointing to this node."""
+        return await self._link_service.get_backlinks(node_id)
+
+    async def get_inline_classes_for_node(self, node_id: int):
+        """Get all inline class references parsed from this node's content."""
+        return await self._link_service.get_inline_classes_for_node(node_id)
+
+    async def update_node_links(self, node_id: int, content: str):
+        """Parse and sync [[link]] references in content for this node."""
+        return await self._link_service.update_node_links(node_id, content)
+
+    async def update_inline_classes(self, node_id: int, content: str):
+        """Parse and sync {{class}} inline type references in content for this node."""
+        return await self._link_service.update_inline_classes(node_id, content)
+
+    def row_to_node(self, row) -> Node:
+        """Convert a raw DB row to a Node entity."""
+        return self._node_repo.row_to_node(row)
+
+    async def create_raw_node(self, data: NodeCreateData, uuid: Optional[str] = None) -> Node:
+        """Create a node directly via repository, bypassing link parsing.
+
+        Used for system-managed nodes (date pages, assets) where the UUID is
+        predetermined and normal validation / link-parsing is not needed.
+        """
+        return await self._node_repo.create(data, uuid=uuid)
+
     async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
         """Delegate to ClassManagementService."""
         return await self._class_service.compute_flags_from_classes(class_ids)

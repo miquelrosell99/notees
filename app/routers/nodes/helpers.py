@@ -391,12 +391,12 @@ async def _build_children_tree(service, nodes: List[Any], class_ids_map: Dict[in
             continue
         
         # Get all descendants for hierarchy building
-        all_descendants = await _get_descendants(service._node_repo, node_id)
+        all_descendants = await service.get_node_descendants(node_id)
         
         # Build class_ids for descendants
         desc_ids = [d.id for d in all_descendants if d.id]
         if desc_ids:
-            desc_class_ids = await _get_class_ids_batch(service._pool, service._workspace_id or 0, desc_ids)
+            desc_class_ids = await _get_class_ids_batch(service.pool, service.workspace_id or 0, desc_ids)
             class_ids_map.update(desc_class_ids)
         
         # Build children response with hierarchy (pass class_ids_map for classes)

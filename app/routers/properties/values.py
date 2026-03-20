@@ -71,14 +71,14 @@ async def _handle_closed_date_automation(
 
         today = date.today()
         day_uuid = generate_day_uuid(today)
-        day_node = await node_service._node_repo.get_by_uuid(day_uuid)
+        day_node = await node_service.get_node_by_uuid(day_uuid)
         if not day_node:
-            day_type = await node_service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            classes = [node_service._page_class_id]
+            day_type = await node_service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
+            classes = [node_service.page_class_id]
             if day_type and day_type.id:
                 classes.append(day_type.id)
             iso_name = serialize_ast(parse_ast(today.strftime("%Y-%m-%d"), ParseMode.PLAIN))
-            day_node = await node_service._node_repo.create(
+            day_node = await node_service.create_raw_node(
                 NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid
             )
         if day_node and day_node.id:
@@ -173,14 +173,14 @@ async def _handle_recurrence_automation(
     async def _get_day_node(target_date: date) -> int | None:
         """Get or create a day page node for the given date."""
         day_uuid = generate_day_uuid(target_date)
-        day_node = await node_service._node_repo.get_by_uuid(day_uuid)
+        day_node = await node_service.get_node_by_uuid(day_uuid)
         if not day_node:
-            day_type = await node_service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            classes = [node_service._page_class_id]
+            day_type = await node_service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
+            classes = [node_service.page_class_id]
             if day_type and day_type.id:
                 classes.append(day_type.id)
             iso_name = serialize_ast(parse_ast(target_date.strftime("%Y-%m-%d"), ParseMode.PLAIN))
-            day_node = await node_service._node_repo.create(
+            day_node = await node_service.create_raw_node(
                 NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid
             )
         return day_node.id if day_node else None
@@ -212,7 +212,7 @@ async def _handle_recurrence_automation(
         if not target_id:
             continue
 
-        target_node = await node_service._node_repo.get_by_id(int(target_id))
+        target_node = await node_service.get_node(int(target_id))
         if not target_node or not target_node.uuid:
             continue
 
