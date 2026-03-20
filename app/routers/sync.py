@@ -19,6 +19,7 @@ from .auth import get_current_user
 from ..dependencies import get_settings_repository
 from ..domain.repositories import SettingsRepository
 from ..logging_config import logger
+from ..workspace_manager import get_active_workspace_id
 from ..utils import utc_now
 
 
@@ -70,7 +71,6 @@ async def get_workspace_settings(
     repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Get all settings for the user's active workspace."""
-    from ..database import get_active_workspace_id
     active_uuid = get_active_workspace_id(str(int(user.id)))
     if not active_uuid:
         return {}
@@ -88,7 +88,6 @@ async def set_workspace_setting(
     repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Set a workspace setting."""
-    from ..database import get_active_workspace_id
     data = await request.json()
     value = data.get("value")
     user_id = int(user.id)

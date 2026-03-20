@@ -18,6 +18,7 @@ import asyncpg
 
 from .db.connection import get_connection, DATA_DIR
 from .logging_config import get_logger
+from .workspace_manager import _get_numeric_user_id, _active_workspaces
 
 logger = get_logger(__name__)
 
@@ -980,8 +981,6 @@ async def import_dump_to_new_workspace(
     Returns:
         Dict with workspace info and import stats
     """
-    from .database import _get_numeric_user_id, _active_workspaces
-
     numeric_user_id = await _get_numeric_user_id(user_id_str)
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id_str}")
@@ -1055,8 +1054,6 @@ async def restore_workspace_from_dump(
     Returns:
         Dict with restore stats
     """
-    from .database import _get_numeric_user_id
-
     numeric_user_id = await _get_numeric_user_id(user_id_str)
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id_str}")
@@ -1152,8 +1149,6 @@ async def export_workspace_to_file(
     Returns:
         Path to the exported JSON file
     """
-    from .database import _get_numeric_user_id
-
     numeric_user_id = await _get_numeric_user_id(user_id_str)
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id_str}")
@@ -1207,8 +1202,6 @@ async def export_workspace_by_uuid(
     Returns:
         Path to the exported JSON file
     """
-    from .database import _get_numeric_user_id
-
     numeric_user_id = await _get_numeric_user_id(user_id_str)
     if not numeric_user_id:
         raise ValueError(f"User not found: {user_id_str}")
