@@ -109,6 +109,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     description: 'Insert content from a template',
     icon: <PageIcon size="sm" />,
   },
+  {
+    id: 'move',
+    label: 'Move to page',
+    description: 'Move this block under a different page',
+    icon: <PageIcon size="sm" />,
+  },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────
