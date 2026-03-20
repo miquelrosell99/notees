@@ -51,6 +51,8 @@ export interface BreadcrumbItem {
   propertyId?: number;
   /** Whether this node's parent is locked */
   parentLocked?: boolean;
+  /** Whether the child node's parent is locked (computed — controls edit affordance) */
+  childParentLocked?: boolean;
 }
 
 // ─── NodeBreadcrumbsElement ───────────────────────────────────────────────────
@@ -104,14 +106,14 @@ function NodeBreadcrumbsElement({
         onClick={() => onClick(item)}
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />
-      {onEditParent && !item.isProperty && !item.parentLocked && (
+      {onEditParent && !item.isProperty && !item.childParentLocked && (
         <Button
           icon={mdiChevronDown}
           variant="ghost"
           size="xs"
           className="node-breadcrumb-edit-btn"
           onClick={handleEditClick}
-          aria-label={`Change parent of ${nodeNameToText(item.name) || 'Untitled'}`}
+          aria-label="Change parent"
           title="Change parent"
         />
       )}
@@ -295,8 +297,16 @@ export function NodeBreadcrumbs({
       });
     }
 
+    // Compute childParentLocked for each item: whether the child in the chain has a locked parent.
+    // The child of items[i] is items[i+1], except for the last item whose child is nodeId.
+    for (let i = 0; i < items.length; i++) {
+      items[i].childParentLocked = i < items.length - 1
+        ? items[i + 1].parentLocked
+        : parentLocked;
+    }
+
     return items;
-  }, [ancestorBreadcrumbs, propertyContext, nodeType, stopAtPageLevel]);
+  }, [ancestorBreadcrumbs, propertyContext, nodeType, stopAtPageLevel, parentLocked]);
 
   // ─── Overflow detection ──────────────────────────────────────────────
   useEffect(() => {
@@ -337,15 +347,16 @@ export function NodeBreadcrumbs({
   }, [queryClient]);
 
   /**
-   * Opens the picker to change the parent of `item` (an ancestor breadcrumb).
-   * The current parent of `item` is the breadcrumb that precedes it in the chain.
+   * Opens the picker to change the parent of the CHILD of `item`.
+   * The child is the next breadcrumb in the chain, or nodeId for the last breadcrumb.
+   * The current parent of the child IS `item` itself.
    */
   const handleEditParent = useCallback((item: BreadcrumbItem, anchorEl: HTMLElement) => {
-    if (item.isProperty || item.parentLocked) return;
+    if (item.isProperty || item.childParentLocked) return;
     const idx = breadcrumbs.findIndex((b) => b.id === item.id);
-    const currentParentId = idx > 0 ? breadcrumbs[idx - 1].id : null;
-    setPickerState({ targetNodeId: item.id, currentParentId, anchorEl });
-  }, [breadcrumbs]);
+    const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
+    setPickerState({ targetNodeId: childNodeId, currentParentId: item.id, anchorEl });
+  }, [breadcrumbs, nodeId]);
 
   /** Called when the picker selects a new parent (or null to remove) */
   const handlePickerSelect = useCallback((val: number | number[] | null) => {
@@ -361,7 +372,7 @@ export function NodeBreadcrumbs({
 
   /** Right-click on a breadcrumb element */
   const handleBreadcrumbContextMenu = useCallback((item: BreadcrumbItem, x: number, y: number) => {
-    if (item.isProperty || item.parentLocked) return;
+    if (item.isProperty || item.childParentLocked) return;
     setContextMenuState({ item, x, y });
   }, []);
 
@@ -387,8 +398,10 @@ export function NodeBreadcrumbs({
         danger: true,
         onClick: () => {
           setContextMenuState(null);
+          const idx = breadcrumbs.findIndex((b) => b.id === item.id);
+          const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
           updateNode.mutate(
-            { id: item.id, data: { parent_id: null } },
+            { id: childNodeId, data: { parent_id: null } },
             { onSuccess: invalidateBreadcrumbs },
           );
         },
