@@ -149,6 +149,8 @@ export interface BlockEditorProps {
   hideProperties?: boolean;
   /** Draft mode: disables auto-persistence to the server. Blocks stay local in the runtime. */
   draftMode?: boolean;
+  /** Whether to skip page nodes in projection (default: true) */
+  skipPages?: boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -188,6 +190,7 @@ export function BlockEditor({
   onNavigateUpFromTop,
   hideProperties = false,
   draftMode = false,
+  skipPages,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -588,6 +591,7 @@ export function BlockEditor({
           sliceShowParent={sliceShowParent}
           onEnterAtRoot={onEnterAtRoot}
           onNavigateUpFromTop={onNavigateUpFromTop}
+          skipPages={skipPages}
         />
 
         {/* Pill plugin */}
