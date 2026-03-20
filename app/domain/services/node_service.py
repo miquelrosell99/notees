@@ -633,6 +633,10 @@ class NodeService:
                     exclude_node_id=node_id,
                 )
         
+        # Guard against circular references when parent_id changes
+        if data.parent_id is not None and data.parent_id != old_parent_id:
+            await self._check_circular_reference(node_id, data.parent_id)
+
         node = await self._node_repo.update(node_id, data, user_id, expected_version=expected_version)
         if not node:
             return None

@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses } from '@/hooks';
+import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { useNavigationStore } from '@/stores';
@@ -24,6 +24,8 @@ import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '../assets/AssetUploadModal';
 import { Button } from '../core/Button';
+import { Modal } from '../core/Modal';
+import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
@@ -119,6 +121,10 @@ export function NodeContent({
   // Table creation modal state
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
+
+  // Move-to-page modal state (/move slash command)
+  const [moveTargetBlockId, setMoveTargetBlockId] = useState<number | null>(null);
+  const updateNode = useUpdateNode();
 
   // Handle template instantiation from the inline /template picker
   const handleTemplateInstantiate = useCallback(async (templateNodeId: number, blockServerId: number | undefined) => {
@@ -261,6 +267,11 @@ export function NodeContent({
         setConvertToAsset(true);
         setAssetTypeFilter(undefined);
         setIsAssetUploadOpen(true);
+        break;
+      case 'move':
+        if (blockServerId != null) {
+          setMoveTargetBlockId(blockServerId);
+        }
         break;
     }
   }, [systemClassMap, addClass, node.id]);
@@ -480,6 +491,30 @@ export function NodeContent({
         onAdaptExisting={handleTableAdaptExisting}
         onCancel={handleTableCancel}
       />
+
+      {/* Move-to-page Modal (/move slash command) */}
+      <Modal
+        isOpen={moveTargetBlockId != null}
+        onClose={() => setMoveTargetBlockId(null)}
+        title="Move to page"
+        size="sm"
+      >
+        <NodeSelector
+          trigger="inline"
+          value={null}
+          searchMode="pages"
+          excludeNodeId={moveTargetBlockId ?? undefined}
+          placeholder="Search pages..."
+          onChange={(val) => {
+            if (typeof val === 'number' && moveTargetBlockId != null) {
+              updateNode.mutate({ id: moveTargetBlockId, data: { parent_id: val } });
+              setMoveTargetBlockId(null);
+            }
+          }}
+          allowCreate={false}
+          autoFocus
+        />
+      </Modal>
 
 
     </div>

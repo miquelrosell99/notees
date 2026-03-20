@@ -200,3 +200,60 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ─── Edit-parent affordance (chevron-down on hover) ────────────────────────── */
+
+.node-breadcrumb-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    width 0.15s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  padding: 0 2px;
+  border-radius: var(--shape-extra-small);
+  flex-shrink: 0;
+}
+
+.node-breadcrumb-item:hover .node-breadcrumb-edit-btn {
+  opacity: 1;
+  width: 16px;
+}
+
+.node-breadcrumb-edit-btn:hover {
+  color: var(--color-on-surface);
+  background: var(--color-surface-container-high);
+}
+
+/* ─── BreadcrumbPicker popover ───────────────────────────────────────────────── */
+
+.breadcrumb-picker-popover {
+  position: fixed;
+  z-index: 1000;
+  min-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-3);
+}
+
+/* ─── "+ Add parent" button ──────────────────────────────────────────────────── */
+
+.node-breadcrumb-add-parent {
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+.node-breadcrumb-add-parent:hover {
+  opacity: 1;
+}
