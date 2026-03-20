@@ -124,6 +124,7 @@ class _PostgresNodeBase:
             is_asset=row.get('is_asset', False),
             is_template=row.get('is_template', False),
             is_comment=row.get('is_comment', False),
+            parent_locked=row.get('parent_locked', False),
             open_date=open_date,
             create_date=create_date,
             write_date=write_date,

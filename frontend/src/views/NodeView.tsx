@@ -923,6 +923,7 @@ export function NodeView({
           nodeType={resolvedType}
           onNavigate={(id) => openNode(id)}
           propertyContext={undefined}
+          parentLocked={node.parent_locked}
           className="node-view-breadcrumbs"
         />
       }

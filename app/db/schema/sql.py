@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS node (
     is_asset BOOLEAN DEFAULT FALSE,
     is_template BOOLEAN DEFAULT FALSE,
     is_comment BOOLEAN DEFAULT FALSE,
+    -- Parent lock flag
+    parent_locked BOOLEAN DEFAULT FALSE,
     -- Class IDs stored directly on the node
     class_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
@@ -837,6 +839,17 @@ BEGIN
         WHERE table_name = 'node_property' AND column_name = 'hidden'
     ) THEN
         ALTER TABLE node_property ADD COLUMN hidden BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: Add parent_locked column to node table
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'parent_locked'
+    ) THEN
+        ALTER TABLE node ADD COLUMN parent_locked BOOLEAN DEFAULT FALSE;
     END IF;
 END $$;
 

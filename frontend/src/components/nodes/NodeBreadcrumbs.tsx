@@ -49,6 +49,8 @@ export interface BreadcrumbItem {
   isProperty?: boolean;
   /** Property ID for property items */
   propertyId?: number;
+  /** Whether this node's parent is locked */
+  parentLocked?: boolean;
 }
 
 // ─── NodeBreadcrumbsElement ───────────────────────────────────────────────────
@@ -102,7 +104,7 @@ function NodeBreadcrumbsElement({
         onClick={() => onClick(item)}
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />
-      {onEditParent && !item.isProperty && (
+      {onEditParent && !item.isProperty && !item.parentLocked && (
         <Button
           icon={mdiChevronDown}
           variant="ghost"
@@ -194,6 +196,7 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
         displayName: item.display_name || undefined,
         icon: item.icon,
         isPage: item.is_page,
+        parentLocked: item.parent_locked,
       });
     }
 
@@ -218,6 +221,8 @@ interface NodeBreadcrumbsProps {
   stopAtPageLevel?: boolean;
   /** Additional CSS class */
   className?: string;
+  /** Whether the current node's parent is locked (disables parent editing) */
+  parentLocked?: boolean;
 }
 
 /** How many items to keep visible at each end when collapsing */
@@ -232,6 +237,7 @@ export function NodeBreadcrumbs({
   propertyContext,
   stopAtPageLevel = false,
   className = '',
+  parentLocked = false,
 }: NodeBreadcrumbsProps) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
@@ -335,7 +341,7 @@ export function NodeBreadcrumbs({
    * The current parent of `item` is the breadcrumb that precedes it in the chain.
    */
   const handleEditParent = useCallback((item: BreadcrumbItem, anchorEl: HTMLElement) => {
-    if (item.isProperty) return;
+    if (item.isProperty || item.parentLocked) return;
     const idx = breadcrumbs.findIndex((b) => b.id === item.id);
     const currentParentId = idx > 0 ? breadcrumbs[idx - 1].id : null;
     setPickerState({ targetNodeId: item.id, currentParentId, anchorEl });
@@ -355,7 +361,7 @@ export function NodeBreadcrumbs({
 
   /** Right-click on a breadcrumb element */
   const handleBreadcrumbContextMenu = useCallback((item: BreadcrumbItem, x: number, y: number) => {
-    if (item.isProperty) return;
+    if (item.isProperty || item.parentLocked) return;
     setContextMenuState({ item, x, y });
   }, []);
 
@@ -401,7 +407,7 @@ export function NodeBreadcrumbs({
     : [];
 
   // ─── "+ Add parent" affordance (pages only, when no ancestors) ───────
-  if (breadcrumbs.length === 0 && nodeType === 'page') {
+  if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked) {
     return (
       <>
         <Button

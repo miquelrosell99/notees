@@ -21,6 +21,7 @@ class NodeResponse(BaseModel):
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
     is_comment: bool = False  # Whether this node is a comment
+    parent_locked: bool = False  # Whether this node's parent is locked
     create_date: str
     write_date: str
     open_date: Optional[str] = None  # When the page was last opened/viewed
@@ -221,6 +222,7 @@ class BreadcrumbItem(BaseModel):
     display_name: str = ""
     icon: Optional[str] = None
     is_page: bool = False
+    parent_locked: bool = False
 
 
 class BreadcrumbsResponse(BaseModel):
