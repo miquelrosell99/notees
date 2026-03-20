@@ -29,7 +29,7 @@ async def get_workspace_data_endpoint(
     """
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # System type UUIDs to exclude from workspace view
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
@@ -46,13 +46,13 @@ async def get_workspace_data_endpoint(
               AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
             """,
-            service._workspace_id,
+            service.workspace_id,
             excluded_uuids
         )
         
         # Get types for each page
         page_ids = [row['id'] for row in page_rows]
-        class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
+        class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, page_ids, conn=conn) if page_ids else {}
         
         # Get block counts per page (recursive, excludes child pages and their hierarchies)
         block_count_map = {}
@@ -64,7 +64,7 @@ async def get_workspace_data_endpoint(
                 WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
                 GROUP BY page_id
                 """,
-                service._workspace_id
+                service.workspace_id
             )
             block_count_map = {row['page_id']: row['block_count'] for row in block_count_rows}
         
@@ -98,7 +98,7 @@ async def get_workspace_data_endpoint(
               AND source.active = TRUE
               AND target.active = TRUE
             """,
-            service._workspace_id
+            service.workspace_id
         )
         
         # Build reference links - source is the page containing the block that links
@@ -146,7 +146,7 @@ async def get_workspace_data_endpoint(
               AND child.active = TRUE
               AND parent.active = TRUE
             """,
-            service._workspace_id
+            service.workspace_id
         )
         
         for row in parent_rows:
@@ -185,7 +185,7 @@ async def get_workspace_data_endpoint(
               AND child.active = TRUE
               AND parent.active = TRUE
             """,
-            service._workspace_id
+            service.workspace_id
         )
         
         for row in class_extends_rows:
@@ -212,7 +212,7 @@ async def get_workspace_data_endpoint(
               AND source.active = TRUE
               AND target.active = TRUE
             """,
-            service._workspace_id
+            service.workspace_id
         )
         
         for row in property_link_rows:
@@ -249,7 +249,7 @@ async def get_workspace_nodes_endpoint(
     """
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         excluded_uuids = [
             SYSTEM_CLASS_UUIDS["page"],
             SYSTEM_CLASS_UUIDS["class"],
@@ -264,12 +264,12 @@ async def get_workspace_nodes_endpoint(
               AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
             """,
-            service._workspace_id,
+            service.workspace_id,
             excluded_uuids
         )
         
         page_ids = [row['id'] for row in page_rows]
-        class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, page_ids, conn=conn) if page_ids else {}
+        class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, page_ids, conn=conn) if page_ids else {}
         
         # Get block counts per page (recursive, excludes child pages and their hierarchies)
         block_count_map = {}
@@ -281,7 +281,7 @@ async def get_workspace_nodes_endpoint(
                 WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
                 GROUP BY page_id
                 """,
-                service._workspace_id
+                service.workspace_id
             )
             block_count_map = {row['page_id']: row['block_count'] for row in block_count_rows}
         
@@ -330,7 +330,7 @@ async def get_links_for_nodes(
     
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         node_id_set = set(node_ids)
         require_both = scope == "between"
         links = []
@@ -349,7 +349,7 @@ async def get_links_for_nodes(
               AND target.active = TRUE
               AND (nl.source_id = ANY($2::int[]) OR nl.target_id = ANY($2::int[]))
             """,
-            service._workspace_id,
+            service.workspace_id,
             node_ids,
         )
         
@@ -393,7 +393,7 @@ async def get_links_for_nodes(
                   AND child.id = ANY($2::int[])
                   AND parent.id = ANY($2::int[])
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         else:
@@ -409,14 +409,14 @@ async def get_links_for_nodes(
                   AND parent.active = TRUE
                   AND (child.id = ANY($2::int[]) OR parent.id = ANY($2::int[]))
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         for row in parent_rows:
             links.append({"source": row['parent_id'], "target": row['child_id'], "type": "parent"})
         
         # 3. Class relationships
-        class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids, conn=conn)
+        class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids, conn=conn)
         for nid in node_ids:
             for class_id in class_ids_map.get(nid, []):
                 if not require_both or class_id in node_id_set:
@@ -437,7 +437,7 @@ async def get_links_for_nodes(
                   AND ce.target_id = ANY($2::int[])
                   AND ce.source_id = ANY($2::int[])
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         else:
@@ -453,7 +453,7 @@ async def get_links_for_nodes(
                   AND parent.active = TRUE
                   AND (ce.target_id = ANY($2::int[]) OR ce.source_id = ANY($2::int[]))
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         for row in class_extends_rows:
@@ -476,7 +476,7 @@ async def get_links_for_nodes(
                   AND pvr.node_id = ANY($2::int[])
                   AND pvr.target_id = ANY($2::int[])
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         else:
@@ -494,7 +494,7 @@ async def get_links_for_nodes(
                   AND target.active = TRUE
                   AND (pvr.node_id = ANY($2::int[]) OR pvr.target_id = ANY($2::int[]))
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
         for row in property_link_rows:
@@ -516,7 +516,7 @@ async def get_links_for_nodes(
                   AND block.page_id = ANY($2::int[])
                   AND nl.target_id = ANY($2::int[])
                 """,
-                service._workspace_id,
+                service.workspace_id,
                 node_ids,
             )
             # Group targets by block; for each block with 2+ unique targets emit pairs
@@ -621,9 +621,9 @@ async def list_nodes(
     service = await _get_node_service(user)
     
     if parent_id:
-        nodes = await service._node_repo.get_children(parent_id)
+        nodes = await service.get_node_children(parent_id)
     elif type_id:
-        nodes = await service._node_repo.get_typed_with(type_id)
+        nodes = await service.get_nodes_typed_with(type_id)
     elif pages_only:
         nodes = await service.get_all_pages()
     else:
@@ -639,7 +639,7 @@ async def list_nodes(
     
     # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids)
     
     # Filter to root nodes if requested
     if root_only:

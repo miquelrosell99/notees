@@ -186,7 +186,7 @@ async def batch_update_nodes(
         
         # If no id provided, try to resolve from uuid
         if node_id is None and item.uuid:
-            resolved = await service._node_repo.get_by_uuid(item.uuid)
+            resolved = await service.get_node_by_uuid(item.uuid)
             if resolved:
                 node_id = resolved.id
             else:
@@ -336,7 +336,7 @@ async def get_recent_pages(
     """
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
@@ -346,10 +346,10 @@ async def get_recent_pages(
                   AND open_date IS NOT NULL AND workspace_id = $1
             ORDER BY open_date DESC
             LIMIT $2
-        """, service._workspace_id, limit)
+        """, service.workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
+    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -388,7 +388,7 @@ async def get_random_pages(
     """
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
@@ -399,10 +399,10 @@ async def get_random_pages(
                   AND workspace_id = $1
             ORDER BY RANDOM()
             LIMIT $2
-        """, service._workspace_id, limit)
+        """, service.workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
+    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -437,7 +437,7 @@ async def get_recently_created_pages(
     """Get recently created pages, ordered by create_date DESC."""
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, name, icon, color, parent_id, page_id, 
                    is_page, is_class, is_day, is_month, is_year,
@@ -447,10 +447,10 @@ async def get_recently_created_pages(
                   AND workspace_id = $1
             ORDER BY create_date DESC
             LIMIT $2
-        """, service._workspace_id, limit)
+        """, service.workspace_id, limit)
     
     node_ids = [row['id'] for row in rows]
-    alias_ids_map = await _get_related_ids_batch(service._pool, service._workspace_id or 0, node_ids, 'aliases')
+    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, 'aliases')
 
     nodes = []
     for row in rows:
@@ -504,8 +504,8 @@ async def list_templates(
     service = await _get_node_service(user)
     templates = await service.list_templates()
 
-    pool = service._node_repo.get_connection()
-    workspace_id = service._workspace_id or 0
+    pool = service.pool
+    workspace_id = service.workspace_id or 0
 
     result = []
     for t in templates:
@@ -613,14 +613,14 @@ async def clear_scratchpad(
     from ...db.schema.constants import SYSTEM_PAGE_UUIDS
     
     service = await _get_node_service(user)
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     
     scratchpad_uuid = SYSTEM_PAGE_UUIDS["scratchpad"]
     
     # Find the scratchpad page
     scratchpad = await pool.fetchrow(
         "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-        scratchpad_uuid, service._workspace_id
+        scratchpad_uuid, service.workspace_id
     )
     
     if not scratchpad:
@@ -634,7 +634,7 @@ async def clear_scratchpad(
             VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
             ON CONFLICT (workspace_id, uuid) DO NOTHING
             RETURNING id
-        """, scratchpad_uuid, service._workspace_id,
+        """, scratchpad_uuid, service.workspace_id,
             serialize_ast(parse_ast('Scratchpad', ParseMode.PLAIN)),
             now, int(user.id))
         
@@ -656,7 +656,7 @@ async def clear_scratchpad(
     # Hard-delete all children (scratchpad content is ephemeral)
     deleted = await pool.execute("""
         DELETE FROM node WHERE id = ANY($1) AND workspace_id = $2
-    """, child_ids, service._workspace_id)
+    """, child_ids, service.workspace_id)
     
     deleted_count = int(deleted.split()[-1]) if deleted else 0
     
@@ -698,11 +698,11 @@ async def batch_get_nodes(
     especially for pages with many inline links or NodePill components.
     """
     service = await _get_node_service(user)
-    pool = service._node_repo.get_connection()
-    workspace_id = service._workspace_id or 0
+    pool = service.pool
+    workspace_id = service.workspace_id or 0
     
     # Fetch all nodes in a single query
-    nodes = await service._node_repo.get_by_ids(request.ids)
+    nodes = await service.get_nodes_by_ids(request.ids)
     
     if not nodes:
         return BatchGetNodesResponse(nodes={})
@@ -729,7 +729,7 @@ async def batch_get_nodes(
     # Batch-fetch properties if requested (3 queries total, not N)
     node_properties_map: Dict[int, Dict[str, any]] = {}
     if request.include_properties and node_ids:
-        batch_result = await service._property_repo.get_all_property_values_batch(node_ids)
+        batch_result = await service.get_nodes_properties_batch(node_ids)
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
     
@@ -771,7 +771,7 @@ async def get_node_breadcrumbs(
     service = await _get_node_service(user)
     
     # Use the repository's get_breadcrumbs which queries the closure table
-    breadcrumb_nodes = await service._node_repo.get_breadcrumbs(node_id)
+    breadcrumb_nodes = await service.get_node_breadcrumbs(node_id)
     
     # Collect all node link references from breadcrumb names to resolve them
     import re
@@ -788,13 +788,12 @@ async def get_node_breadcrumbs(
     # Resolve link targets in a single batch query
     link_target_map: dict[str, list] = {}
     if link_node_uuids:
-        pool = service._node_repo._pool
-        async with acquire_connection(pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             uuid_list = list(link_node_uuids)
             placeholders = ', '.join(f'${i+2}' for i in range(len(uuid_list)))
             rows = await conn.fetch(
                 f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
-                service._node_repo._workspace_id, *uuid_list
+                service.workspace_id, *uuid_list
             )
             for row in rows:
                 link_target_map[str(row['uuid'])] = parse_ast(row['name'])
@@ -920,15 +919,15 @@ async def get_node(
     class_ids = await _get_class_ids(service, node_id)
     
     # Get tags for the node (from node_link with is_tag=1)
-    tag_ids = await _get_tag_ids(service._pool, service._workspace_id or 0, node_id)
+    tag_ids = await _get_tag_ids(service.pool, service.workspace_id or 0, node_id)
     
     # Get aliases for the node (nodes that have aliased_id pointing to this node)
-    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, node_id)
     
     response = _node_to_response(node, tags=tag_ids, classes=class_ids, aliases=alias_ids)
     
     if include_children:
-        pool = service._node_repo.get_connection()
+        pool = service.pool
         
         # Get ALL descendants using closure table (node_path)
         rows = await pool.fetch("""
@@ -941,7 +940,7 @@ async def get_node(
               AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
             ORDER BY np.depth, n.sequence
         """, node_id)
-        all_descendants = [service._node_repo.row_to_node(row) for row in rows]
+        all_descendants = [service.row_to_node(row) for row in rows]
         
         # ── Filter out text-property value blocks and their subtrees ──
         # Text properties store their value as a child block linked via
@@ -1018,13 +1017,13 @@ async def get_node(
                 backlink_counts[row['target_id']] = row['count']
         
         # Get classes for all descendants in one batch using node.class_ids
-        node_class_map = await _get_class_ids_batch(pool, service._workspace_id or 0, descendant_ids)
+        node_class_map = await _get_class_ids_batch(pool, service.workspace_id or 0, descendant_ids)
         
         # Get properties for all descendants if include_properties is requested
         node_properties_map: Dict[int, Dict[str, any]] = {}
         if include_properties and descendant_ids:
             # Use batch fetch (3 queries total) instead of N individual queries
-            batch_result = await service._property_repo.get_all_property_values_batch(descendant_ids)
+            batch_result = await service.get_nodes_properties_batch(descendant_ids)
             for nid, prop_data in batch_result.items():
                 node_properties_map[nid] = extract_properties_dict(prop_data)
         
@@ -1078,7 +1077,7 @@ async def get_node(
                   AND n.is_deleted = FALSE
             """, all_source_ids)
             
-            display_names = await _resolve_referenced_display_names(pool, service._workspace_id or 0, target_rows)
+            display_names = await _resolve_referenced_display_names(pool, service.workspace_id or 0, target_rows)
             referenced_nodes: Dict[str, NodeResponse] = {}
             for row in target_rows:
                 uuid_str = str(row['uuid'])
@@ -1102,7 +1101,7 @@ async def get_node(
             response.referenced_nodes = referenced_nodes
 
     if include_backlinks:
-        backlink_infos = await service._link_service.get_backlinks(node_id)
+        backlink_infos = await service.get_backlinks(node_id)
         response.backlinks = []
         for info in backlink_infos:
             # Convert breadcrumb tuples to BreadcrumbSegment objects
@@ -1131,7 +1130,7 @@ async def get_node(
             ))
     
     if include_properties:
-        all_prop_values = await service._property_repo.get_all_property_values(node_id)
+        all_prop_values = await service.get_node_properties(node_id)
         response.properties = extract_properties_dict(all_prop_values)
     
     return response
@@ -1154,11 +1153,11 @@ async def get_node_by_uuid(
     response = _node_to_response(node)
     
     if include_children and node.id:
-        children = await service._node_repo.get_children(node.id)
+        children = await service.get_node_children(node.id)
         response.children = [_node_to_response(c) for c in children]
     
     if include_backlinks and node.id:
-        backlink_infos = await service._link_service.get_backlinks(node.id)
+        backlink_infos = await service.get_backlinks(node.id)
         response.backlinks = []
         for info in backlink_infos:
             breadcrumb_segments = [
@@ -1206,7 +1205,7 @@ async def get_page_content(
     backlinks = content["backlinks"]
     
     # Get connection early to avoid unbound variable
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     
     # Get block IDs for batch queries
     block_ids = [b.id for b in blocks if b.id is not None]
@@ -1225,10 +1224,10 @@ async def get_page_content(
     
     # Get classes for all nodes in one batch (from node.class_ids column)
     all_node_ids = [page_id] + block_ids
-    node_class_map = await _get_class_ids_batch(pool, service._workspace_id or 0, all_node_ids)
+    node_class_map = await _get_class_ids_batch(pool, service.workspace_id or 0, all_node_ids)
     
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_related_ids_batch(pool, service._workspace_id or 0, all_node_ids, 'tags')
+    node_tag_map = await _get_related_ids_batch(pool, service.workspace_id or 0, all_node_ids, 'tags')
     
     # Build tree structure from flat list
     block_map = {}
@@ -1259,26 +1258,26 @@ async def get_page_content(
     page_tag_ids = node_tag_map.get(page_id, [])
     
     # Get aliases for the page
-    page_alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, page_id)
+    page_alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, page_id)
     
     page_response = _node_to_response(page, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids)
     page_response.children = root_children
     
     # Add properties - get the full property values
-    all_prop_values = await service._property_repo.get_all_property_values(page_id)
+    all_prop_values = await service.get_node_properties(page_id)
     logger.info(f"Page {page_id} properties: {list(all_prop_values.keys())}")
     page_response.properties = extract_properties_dict(all_prop_values)
     
     # Add backlinks with context
     page_response.linked_references = []
     for link in backlinks:
-        source = await service._node_repo.get_by_id(link.source_node_id)
+        source = await service.get_node(link.source_node_id)
         if not source:
             continue
         
         source_page = None
         if source.page_id:
-            source_page = await service._node_repo.get_by_id(source.page_id)
+            source_page = await service.get_node(source.page_id)
         
         # Extract context around the link
         context = source.name
@@ -1312,7 +1311,7 @@ async def get_page_content(
               AND n.is_deleted = FALSE
         """, all_source_ids)
         
-        display_names = await _resolve_referenced_display_names(pool, service._workspace_id or 0, target_rows)
+        display_names = await _resolve_referenced_display_names(pool, service.workspace_id or 0, target_rows)
         referenced_nodes: Dict[str, NodeResponse] = {}
         for row in target_rows:
             uuid_str = str(row['uuid'])
@@ -1347,10 +1346,10 @@ async def _apply_node_extras(service, node_id: int, classes, properties) -> None
       the same dispatch logic as the ``POST /{node_id}/properties`` endpoint.
     """
     if classes is not None:
-        async with acquire_connection(service._pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             row = await conn.fetchrow(
                 "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, service._workspace_id,
+                node_id, service.workspace_id,
             )
         current = set(row["class_ids"] or []) if row else set()
         want = set(classes)
@@ -1361,7 +1360,7 @@ async def _apply_node_extras(service, node_id: int, classes, properties) -> None
 
     if properties:
         from ...domain.entities.property import SCALAR_TYPES, RELATION_TYPES
-        repo = service._property_repo
+        repo = service.property_repo
         for prop_id, value in properties.items():
             prop = await repo.get_by_id(prop_id)
             if not prop:
@@ -1512,26 +1511,26 @@ async def delete_node(
         HTTPException 404: If node not found
     """
     service = await _get_node_service(user)
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     
     # Get the node including archived ones (for UUID and asset cleanup)
     row = await pool.fetchrow(
         "SELECT uuid FROM node WHERE id = $1 AND workspace_id = $2",
-        node_id, service._workspace_id
+        node_id, service.workspace_id
     )
     if not row:
         # Debug: check if node exists at all
         debug_row = await pool.fetchrow("SELECT id, workspace_id, active FROM node WHERE id = $1", node_id)
         if debug_row:
-            raise HTTPException(404, f"Node {node_id} exists in workspace {debug_row['workspace_id']} (active={debug_row['active']}), but current user workspace is {service._workspace_id}")
+            raise HTTPException(404, f"Node {node_id} exists in workspace {debug_row['workspace_id']} (active={debug_row['active']}), but current user workspace is {service.workspace_id}")
         raise HTTPException(404, f"Node {node_id} not found in any workspace")
     
     node_uuid = row['uuid']
     
     # Try to delete any associated asset file
-    if node_uuid and service._workspace_id is not None:
+    if node_uuid and service.workspace_id is not None:
         # Get workspace UUID for asset storage
-        workspace_uuid = await get_workspace_uuid(service._workspace_id)
+        workspace_uuid = await get_workspace_uuid(service.workspace_id)
         if workspace_uuid:
             assets_dir = get_workspace_assets_dir(workspace_uuid)
             # Check for asset files with any extension
@@ -1620,11 +1619,11 @@ async def mark_page_opened(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # Verify it's a page and exists
         row = await conn.fetchrow(
             "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
-            node_id, service._workspace_id
+            node_id, service.workspace_id
         )
         
         if not row:
@@ -1655,7 +1654,7 @@ async def get_node_versions(
     """Get version history for a node, ordered by most recent first."""
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT nv.id, nv.name, nv.created_at, nv.user_id,
                    u.username
@@ -1664,7 +1663,7 @@ async def get_node_versions(
             WHERE nv.node_id = $1 AND nv.workspace_id = $2
             ORDER BY nv.created_at DESC
             LIMIT $3
-        """, node_id, service._workspace_id, limit)
+        """, node_id, service.workspace_id, limit)
     
     versions = []
     for row in rows:
@@ -1687,14 +1686,14 @@ async def get_node_version(
     """Get a specific version of a node."""
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         row = await conn.fetchrow("""
             SELECT nv.id, nv.name, nv.created_at, nv.user_id,
                    u.username
             FROM node_version nv
             LEFT JOIN "user" u ON u.id = nv.user_id
             WHERE nv.id = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
-        """, version_id, node_id, service._workspace_id)
+        """, version_id, node_id, service.workspace_id)
     
     if not row:
         raise HTTPException(404, "Version not found")
@@ -1716,12 +1715,12 @@ async def restore_node_version(
     """Restore a node to a previous version's content."""
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # Get the version content
         row = await conn.fetchrow("""
             SELECT name FROM node_version
             WHERE id = $1 AND node_id = $2 AND workspace_id = $3
-        """, version_id, node_id, service._workspace_id)
+        """, version_id, node_id, service.workspace_id)
         
         if not row:
             raise HTTPException(404, "Version not found")

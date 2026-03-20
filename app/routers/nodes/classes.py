@@ -44,8 +44,8 @@ async def list_classes(
     class_service = await _get_class_service(user)
     nodes = await class_service.list_classes()
 
-    pool = class_service._pool
-    workspace_id = class_service._workspace_id
+    pool = class_service.pool
+    workspace_id = class_service.workspace_id
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
 
@@ -69,8 +69,8 @@ async def search_classes(
     class_service = await _get_class_service(user)
     nodes = await class_service.search_classes(q, limit)
 
-    pool = class_service._pool
-    workspace_id = class_service._workspace_id
+    pool = class_service.pool
+    workspace_id = class_service.workspace_id
 
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
@@ -96,7 +96,7 @@ async def get_nodes_with_class(
     nodes = await class_service.get_nodes_with_class(class_id)
 
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(class_service._pool, class_service._workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(class_service.pool, class_service.workspace_id or 0, node_ids)
 
     return {"nodes": [
         _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
@@ -128,9 +128,9 @@ async def add_node_class(
     # Special handling for query class: create a main_content NodeView
     added_class_node = await service.get_node(request.class_node_id)
     if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
-        if service._workspace_id:
+        if service.workspace_id:
             view_repo = PostgresNodeViewRepository(
-                service._pool, service._workspace_id, str(user.id)
+                service.pool, service.workspace_id, str(user.id)
             )
             # Check if main_content view already exists for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
@@ -168,9 +168,9 @@ async def remove_node_class_endpoint(
     # Special handling for query class: delete the main_content NodeView before removing the class
     removed_class_node = await service.get_node(class_id)
     if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
-        if service._workspace_id:
+        if service.workspace_id:
             view_repo = PostgresNodeViewRepository(
-                service._pool, service._workspace_id, str(user.id)
+                service.pool, service.workspace_id, str(user.id)
             )
             # Delete all main_content views for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")

@@ -115,7 +115,7 @@ async def _resolve_display_names_for_results(user: User, results: List[Dict[str,
         return results
 
     resolved_map = await _resolve_referenced_display_names(
-        service._pool, service._workspace_id, nodes_with_links
+        service.pool, service.workspace_id, nodes_with_links
     )
 
     # Set display_name on matching nodes
@@ -130,11 +130,11 @@ async def _resolve_display_names_for_results(user: User, results: List[Dict[str,
 async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
     """Get NodeView repository for the current user."""
     service = await _get_node_service(user)
-    if service._workspace_id is None:
+    if service.workspace_id is None:
         raise HTTPException(status_code=500, detail="Workspace ID not set")
     return PostgresNodeViewRepository(
-        pool=service._pool,
-        workspace_id=service._workspace_id,
+        pool=service.pool,
+        workspace_id=service.workspace_id,
         user_id=user.id,
     )
 
@@ -142,11 +142,11 @@ async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
 async def _get_query_executor(user: User) -> QueryExecutor:
     """Get query executor for the current user."""
     service = await _get_node_service(user)
-    if service._workspace_id is None:
+    if service.workspace_id is None:
         raise HTTPException(status_code=500, detail="Workspace ID not set")
     return QueryExecutor(
-        pool=service._pool,
-        workspace_id=service._workspace_id,
+        pool=service.pool,
+        workspace_id=service.workspace_id,
         user_id=user.id,
     )
 
@@ -154,7 +154,7 @@ async def _get_query_executor(user: User) -> QueryExecutor:
 async def _get_property_repo(user: User):
     """Get property repository for the current user."""
     service = await _get_node_service(user)
-    return service._property_repo
+    return service.property_repo
 
 
 async def _include_classes_for_results(user: User, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -178,8 +178,8 @@ async def _include_classes_for_results(user: User, results: List[Dict[str, Any]]
         # Fetch classes for all nodes in batch
         from app.routers.nodes.helpers import _get_class_ids_batch
         classes_map = await _get_class_ids_batch(
-            service._pool,
-            service._workspace_id,
+            service.pool,
+            service.workspace_id,
             node_ids
         )
         
@@ -231,7 +231,7 @@ async def _include_children_for_results(user: User, results: List[Dict[str, Any]
     
     async def fetch_children_recursive(parent_id: int, depth: int = 0):
         """Recursively fetch children and convert to dict format."""
-        children = await service._node_repo.get_children(parent_id)
+        children = await service.get_node_children(parent_id)
         logger.info(f"[_include_children_for_results] Parent {parent_id} (depth {depth}) has {len(children)} direct children")
         child_dicts = []
         for child in children:
@@ -841,7 +841,7 @@ async def ensure_default_views(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    if service._workspace_id is None:
+    if service.workspace_id is None:
         raise HTTPException(status_code=500, detail="Workspace ID not set")
     
     repo = await _get_node_view_repo(user)
@@ -857,7 +857,7 @@ async def ensure_default_views(
     
     # Create missing views
     if types_needed:
-        view_service = NodeViewService(service._pool, service._workspace_id, user.id)
+        view_service = NodeViewService(service.pool, service.workspace_id, user.id)
         await view_service.create_default_views(node_id, types_needed)
     
     # Return all views
@@ -889,7 +889,7 @@ async def reset_node_views(
     from ...domain.services.node_view_service import NodeViewService
     
     service = await _get_node_service(user)
-    if service._workspace_id is None:
+    if service.workspace_id is None:
         raise HTTPException(status_code=500, detail="Workspace ID not set")
     
     repo = await _get_node_view_repo(user)
@@ -908,8 +908,8 @@ async def reset_node_views(
     
     # Create new default views for all standard view types
     from ...db.schema.constants import DEFAULT_VIEW_CLASSES
-    logger.info(f"service._workspace_id={service._workspace_id}, user.id={user.id}")
-    view_service = NodeViewService(service._pool, service._workspace_id, user.id)
+    logger.info(f"service.workspace_id={service.workspace_id}, user.id={user.id}")
+    view_service = NodeViewService(service.pool, service.workspace_id, user.id)
     logger.info(f"Creating default views for node {node_id}, types: {DEFAULT_VIEW_CLASSES}")
     created_views = await view_service.create_default_views(node_id, DEFAULT_VIEW_CLASSES)
     logger.info(f"create_default_views returned {len(created_views)} views")

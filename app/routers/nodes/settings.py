@@ -34,7 +34,7 @@ async def update_date_format(
     pattern = request.new_format
     
     # Also save the user's date format preference
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         await conn.execute("""
             INSERT INTO setting_user (user_id, key, value) 
             VALUES ($1, 'date_format', $2)
@@ -45,7 +45,7 @@ async def update_date_format(
     errors = []
     
     # Get all nodes
-    all_nodes = await service._node_repo.get_all_pages()
+    all_nodes = await service.get_all_pages()
     
     for node in all_nodes:
         if not node.id or not node.uuid:

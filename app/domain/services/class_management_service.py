@@ -81,6 +81,14 @@ class ClassManagementService:
         self._node_repo = node_repo
         self._property_repo = property_repo
 
+    @property
+    def pool(self):
+        return self._pool
+
+    @property
+    def workspace_id(self) -> Optional[int]:
+        return self._workspace_id
+
     # ------------------------------------------------------------------
     # Flag computation
     # ------------------------------------------------------------------
