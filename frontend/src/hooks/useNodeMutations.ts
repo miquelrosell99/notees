@@ -805,6 +805,9 @@ export function useDeleteNode() {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
       await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      await queryClient.cancelQueries({ queryKey: ['nodeViews', 'queryResults'] });
+      await queryClient.cancelQueries({ queryKey: ['pseudo-node-query'] });
+      await queryClient.cancelQueries({ queryKey: ['inline-query'] });
       
       // Helper to remove node from tree
       // IMPORTANT: Only returns new object reference if something was actually removed
