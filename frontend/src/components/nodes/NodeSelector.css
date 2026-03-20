@@ -298,6 +298,7 @@
   padding: var(--spacing-2);
   border: none;
   border-bottom: 1px solid var(--color-outline-variant);
+  border-radius: 0;
   background: transparent;
   font: var(--font-body-small);
   color: var(--color-on-surface);
