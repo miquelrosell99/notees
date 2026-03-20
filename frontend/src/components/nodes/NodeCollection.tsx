@@ -175,8 +175,8 @@ export function NodeCollection({
   const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' = 
     (rawCardLayout === 'cover-bottom' ? 'no-cover' : rawCardLayout);
   
-  // Default groupBy: 'none' — user must explicitly select a groupBy option
-  const defaultGroupBy: NodeCollectionGroupBy = 'none';
+  // Default groupBy: 'page' — group by page automatically in list view
+  const defaultGroupBy: NodeCollectionGroupBy = 'page';
   
   // Internal groupBy state (controlled or uncontrolled)
   const [internalGroupBy, setInternalGroupBy] = useState<NodeCollectionGroupBy>(groupByProp ?? defaultGroupBy);
