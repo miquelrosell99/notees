@@ -148,10 +148,8 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['convert-to-page', 'block'],
   ['move-to',         'both'],
   ['toggle-header',   'block'],
-  ['copy-uuid',       'both'],
   ['copy-link',       'both'],
   ['open-sidebar',    'both'],
-  ['local-graph',     'both'],
   ['export',          'both'],
   ['view-ast',        'both'],
   ['archive',         'both'],
@@ -159,7 +157,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
 ];
 
 // A separator is inserted before these actions (when they are visible and there are preceding items)
-const SEP_BEFORE = new Set<ActionName>(['copy-uuid', 'archive']);
+const SEP_BEFORE = new Set<ActionName>(['archive']);
 
 // ==================== Move To Submenu ====================
 
@@ -395,6 +393,7 @@ export function NodeContextMenu({
           items.push({
             id: 'view-ast',
             label: 'View AST',
+            badge: 'DEV',
             keepOpen: true,
             onClick: () => setShowASTModal(true),
           });
