@@ -22,8 +22,7 @@
  * - Changing any ancestor's parent_id may affect ALL descendants, so we
  *   broadly invalidate all breadcrumb caches after any parent change.
  */
-import { useState, useRef, useCallback, useMemo, useEffect, useId } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useBreadcrumbs, useUpdateNode } from '@/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -50,66 +49,6 @@ export interface BreadcrumbItem {
   isProperty?: boolean;
   /** Property ID for property items */
   propertyId?: number;
-}
-
-// ─── Inline NodePicker popover ────────────────────────────────────────────────
-
-interface BreadcrumbPickerProps {
-  /** Node ID whose parent we're editing */
-  targetNodeId: number;
-  /** Current parent ID (pre-selects in picker) */
-  currentParentId?: number | null;
-  /** Anchor element for positioning */
-  anchorEl: HTMLElement;
-  onClose: () => void;
-  onSelect: (newParentId: number | null) => void;
-}
-
-function BreadcrumbPicker({ targetNodeId, currentParentId, anchorEl, onClose, onSelect }: BreadcrumbPickerProps) {
-  const popoverId = useId();
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // Position below the anchor element
-  const style = useMemo(() => {
-    const rect = anchorEl.getBoundingClientRect();
-    const left = Math.min(rect.left, window.innerWidth - 280 - 8);
-    const top = rect.bottom + 4;
-    return { left, top };
-  }, [anchorEl]);
-
-  useClickOutside([popoverRef], onClose, true);
-
-  // Keyboard: Escape closes
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      ref={popoverRef}
-      id={popoverId}
-      className="breadcrumb-picker-popover"
-      style={{ left: style.left, top: style.top }}
-      role="dialog"
-      aria-label="Change parent"
-      aria-modal="true"
-    >
-      <NodeSelector
-        trigger="inline"
-        value={currentParentId ?? null}
-        searchMode="pages"
-        excludeNodeId={targetNodeId}
-        placeholder="Search pages..."
-        onChange={(val) => {
-          onSelect(typeof val === 'number' ? val : null);
-        }}
-        allowCreate={false}
-      />
-    </div>,
-    document.body,
-  );
 }
 
 // ─── NodeBreadcrumbsElement ───────────────────────────────────────────────────
@@ -404,9 +343,10 @@ export function NodeBreadcrumbs({
     setPickerState({ targetNodeId: item.id, currentParentId, anchorEl });
   }, [breadcrumbs]);
 
-  /** Called when the user selects a new parent in the picker */
-  const handlePickerSelect = useCallback((newParentId: number | null) => {
+  /** Called when the picker selects a new parent (or null to remove) */
+  const handlePickerSelect = useCallback((val: number | number[] | null) => {
     if (!pickerState) return;
+    const newParentId = typeof val === 'number' ? val : null;
     const { targetNodeId } = pickerState;
     setPickerState(null);
     updateNode.mutate(
@@ -479,13 +419,15 @@ export function NodeBreadcrumbs({
           }}
           aria-label="Add parent page"
         />
-        {pickerState && (
-          <BreadcrumbPicker
-            targetNodeId={pickerState.targetNodeId}
-            currentParentId={pickerState.currentParentId}
+        {pickerState && pickerState.targetNodeId === nodeId && (
+          <NodeSelector
             anchorEl={pickerState.anchorEl}
             onClose={() => setPickerState(null)}
-            onSelect={handlePickerSelect}
+            searchMode="pages"
+            excludeNodeId={pickerState.targetNodeId}
+            searchPlaceholder="Search pages..."
+            onChange={handlePickerSelect}
+            allowCreate={false}
           />
         )}
       </>
@@ -555,14 +497,16 @@ export function NodeBreadcrumbs({
           ))}
       </nav>
 
-      {/* BreadcrumbPicker portal */}
+      {/* NodeSelector picker portal */}
       {pickerState && (
-        <BreadcrumbPicker
-          targetNodeId={pickerState.targetNodeId}
-          currentParentId={pickerState.currentParentId}
+        <NodeSelector
           anchorEl={pickerState.anchorEl}
           onClose={() => setPickerState(null)}
-          onSelect={handlePickerSelect}
+          searchMode="pages"
+          excludeNodeId={pickerState.targetNodeId}
+          searchPlaceholder="Search pages..."
+          onChange={handlePickerSelect}
+          allowCreate={false}
         />
       )}
 

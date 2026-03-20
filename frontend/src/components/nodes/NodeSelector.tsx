@@ -85,6 +85,14 @@ interface NodeSelectorProps {
   size?: SelectTriggerSize;
   /** Additional CSS class */
   className?: string;
+  /**
+   * When provided, renders the picker panel as a portal anchored to this element
+   * (no trigger is rendered — the panel is always open and positioned below the element).
+   * Use with `onClose` to handle dismissal.
+   */
+  anchorEl?: HTMLElement | null;
+  /** Called when the anchored panel should close (Escape / click-outside) */
+  onClose?: () => void;
 }
 
 export function NodeSelector({
@@ -113,8 +121,11 @@ export function NodeSelector({
   initialSearchQuery = '',
   size,
   className = '',
+  anchorEl,
+  onClose,
 }: NodeSelectorProps) {
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const isAnchored = anchorEl != null;
+  const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
@@ -292,13 +303,17 @@ export function NodeSelector({
 
   // Position for 'pill-row' mode (simple fixed positioning)
   useEffect(() => {
-    if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
+    if (isAnchored && anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      const left = Math.min(rect.left, window.innerWidth - 280 - 8);
+      setPickerPos({ top: rect.bottom + 4, left });
+    } else if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPickerPos({ top: rect.bottom + 4, left: rect.left });
     } else if (!isPickerOpen) {
       setPickerPos(null);
     }
-  }, [isPickerOpen, trigger]);
+  }, [isPickerOpen, trigger, isAnchored, anchorEl]);
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -308,6 +323,13 @@ export function NodeSelector({
       const target = e.target as HTMLElement;
       const pickerElement = trigger === 'select' ? menuRef.current : pickerRef.current;
       const triggerElement = trigger === 'select' ? containerRef.current : buttonRef.current;
+      
+      if (isAnchored) {
+        if (pickerElement && !pickerElement.contains(target) && !anchorEl?.contains(target)) {
+          onClose?.();
+        }
+        return;
+      }
       
       if (
         pickerElement && !pickerElement.contains(target) &&
@@ -320,8 +342,12 @@ export function NodeSelector({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsPickerOpen(false);
-        setSearchQuery('');
+        if (isAnchored) {
+          onClose?.();
+        } else {
+          setIsPickerOpen(false);
+          setSearchQuery('');
+        }
       }
     };
     
@@ -331,7 +357,7 @@ export function NodeSelector({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isPickerOpen, trigger]);
+  }, [isPickerOpen, trigger, isAnchored, onClose]);
 
   // Focus search input when picker opens
   // Include pickerPos in deps because in pill-row mode the picker only renders
@@ -881,6 +907,62 @@ export function NodeSelector({
 
   // 'pill-row' mode: original behavior
   const showAddButton = !!onAdd;
+
+  // Anchored mode: render only the picker panel portal, no trigger UI
+  if (isAnchored) {
+    return pickerPos ? createPortal(
+      <div
+        className="node-selector__picker"
+        ref={pickerRef}
+        style={{ top: pickerPos.top, left: pickerPos.left }}
+      >
+        <input
+          ref={searchInputRef}
+          type="text"
+          className="node-selector__search"
+          placeholder={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+        <div className="node-selector__options">
+          {isLoading && searchQuery.length > 0 ? (
+            <div className="node-selector__loading">Searching...</div>
+          ) : filteredResults.length === 0 && !showCreateOption ? (
+            <div className="node-selector__no-results">
+              {searchQuery ? 'No matches found' : 'Start typing to search'}
+            </div>
+          ) : (
+            <>
+              {filteredResults.map((node, index) => (
+                <NodeResultItem
+                  key={node.id}
+                  node={node}
+                  parentPath={node.is_page ? buildParentPath(node) : ''}
+                  displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                  isHighlighted={index === selectedIndex}
+                  onClick={() => handleAdd(node)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  allClasses={allClasses}
+                />
+              ))}
+              {showMoreOption && (
+                <button
+                  className={`node-selector__show-more ${selectedIndex === filteredResults.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                  onClick={handleShowMore}
+                  onMouseEnter={() => setSelectedIndex(filteredResults.length + (showCreateOption ? 1 : 0))}
+                >
+                  Show more results
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>,
+      document.body,
+    ) : null;
+  }
 
   return (
     <div className={`node-selector ${className}`}>
