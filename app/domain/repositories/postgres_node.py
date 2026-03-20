@@ -99,6 +99,10 @@ class PostgresNodeRepository(
                     elif flag_name == "is_comment":
                         is_comment = True
 
+        # Pages never have page_id - only blocks do
+        if is_page:
+            page_id = None
+
         async with acquire_connection(self._pool) as conn:
             async with conn.transaction():
                 if data.parent_id is not None and data.sequence is not None:
@@ -252,7 +256,21 @@ class PostgresNodeRepository(
             set_clauses.append(f"parent_id = ${param_idx}")
             params.append(data.parent_id)
             param_idx += 1
-            if await self._is_page(data.parent_id):
+            # Check if this node is (or will be) a page - pages never have page_id
+            current_node = await self.get_by_id(node_id)
+            node_is_page = current_node.is_page if current_node else False
+            if data.classes is not None:
+                from ...db.schema.constants import SYSTEM_CLASS_UUIDS as _sc
+                page_class_uuid = _sc["page"]
+                node_is_page = False
+                for cid in data.classes:
+                    cn = await self.get_by_id(cid)
+                    if cn and cn.uuid == page_class_uuid:
+                        node_is_page = True
+                        break
+            if node_is_page:
+                page_id = None
+            elif await self._is_page(data.parent_id):
                 page_id = data.parent_id
             else:
                 page_id = await self._compute_page_id(data.parent_id)
