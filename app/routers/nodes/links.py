@@ -44,7 +44,7 @@ async def get_text_links(
     including whether each link is a tag (displayed with #) or a regular link.
     """
     service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, source_id, target_id, is_tag, position, name
             FROM node_link
@@ -89,7 +89,7 @@ async def get_batch_text_links(
         raise HTTPException(status_code=400, detail="Too many node IDs (max 5000)")
     
     service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         rows = await conn.fetch("""
             SELECT id, uuid, source_id, target_id, is_tag, position, name
             FROM node_link
@@ -130,11 +130,11 @@ async def add_tag_link(
     displayed with a # instead of a page/block icon.
     """
     service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # Verify source node exists
         row = await conn.fetchrow(
             "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id, service._workspace_id
+            node_id, service.workspace_id
         )
         if not row:
             raise HTTPException(404, "Source node not found")
@@ -142,7 +142,7 @@ async def add_tag_link(
         # Verify target node exists and is a page
         target_row = await conn.fetchrow(
             "SELECT id, is_page, parent_id FROM node WHERE id = $1 AND workspace_id = $2",
-            request.target_node_id, service._workspace_id
+            request.target_node_id, service.workspace_id
         )
         if not target_row:
             raise HTTPException(404, "Target node not found")
@@ -153,7 +153,7 @@ async def add_tag_link(
         row = await conn.fetchrow("""
             SELECT id, uuid FROM node_link 
             WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND workspace_id = $3
-        """, node_id, request.target_node_id, service._workspace_id)
+        """, node_id, request.target_node_id, service.workspace_id)
         
         now = datetime.now(timezone.utc)
         
@@ -177,7 +177,7 @@ async def add_tag_link(
                 INSERT INTO node_link (source_id, target_id, position, property_id, is_tag, create_date, workspace_id)
                 VALUES ($1, $2, 0, NULL, TRUE, $3, $4)
                 RETURNING id, uuid
-            """, node_id, request.target_node_id, now, service._workspace_id)
+            """, node_id, request.target_node_id, now, service.workspace_id)
             return NodeLinkResponse(
                 id=new_row['id'],
                 uuid=str(new_row['uuid']),
@@ -196,11 +196,11 @@ async def remove_tag_link(
 ):
     """Remove a tag from a link (converts back to regular link)."""
     service = await _get_node_service(user)
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         result = await conn.execute("""
             UPDATE node_link SET is_tag = FALSE 
             WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3
-        """, node_id, target_id, service._workspace_id)
+        """, node_id, target_id, service.workspace_id)
     
     return {"removed": result == "UPDATE 1"}
 
@@ -215,24 +215,24 @@ async def set_property(
     service = await _get_node_service(user)
     
     # Get property to determine its type
-    prop = await service._property_repo.get_by_id(request.property_id)
+    prop = await service.property_repo.get_by_id(request.property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
     
     # Set value based on property type
     from ...domain.entities import SCALAR_TYPES, RELATION_TYPES, PropertyType
     if prop.type in SCALAR_TYPES:
-        await service._property_repo.set_scalar_value(
+        await service.property_repo.set_scalar_value(
             node_id, request.property_id, request.value
         )
     elif prop.type in RELATION_TYPES:
         # For relation types, value should be a target_node_id
-        await service._property_repo.set_relation_value(
+        await service.property_repo.set_relation_value(
             node_id, request.property_id, request.value
         )
     elif prop.type == PropertyType.SELECTION:
         # For selection types, value should be a selection_line_id
-        await service._property_repo.set_selection_value(
+        await service.property_repo.set_selection_value(
             node_id, request.property_id, request.value
         )
     
@@ -251,7 +251,7 @@ async def remove_property(
     """Remove a property value from a node."""
     service = await _get_node_service(user)
     
-    await service._property_repo.remove_property_from_node(node_id, property_id)
+    await service.property_repo.remove_property_from_node(node_id, property_id)
     
     node = await service.get_node(node_id)
     if not node:
@@ -269,15 +269,15 @@ async def get_backlinks(
     service = await _get_node_service(user)
     
     # Note: include_inherited parameter is not yet implemented in the service
-    backlinks = await service._link_service.get_backlinks(node_id)
+    backlinks = await service.get_backlinks(node_id)
     
     # Batch-fetch all source nodes in one query
     source_ids = [link.source_node_id for link in backlinks]
-    source_nodes = {n.id: n for n in await service._node_repo.get_by_ids(source_ids)} if source_ids else {}
+    source_nodes = {n.id: n for n in await service.get_nodes_by_ids(source_ids)} if source_ids else {}
     
     # Batch-fetch all page nodes in one query
     page_ids = list({n.page_id for n in source_nodes.values() if n.page_id})
-    page_nodes = {n.id: n for n in await service._node_repo.get_by_ids(page_ids)} if page_ids else {}
+    page_nodes = {n.id: n for n in await service.get_nodes_by_ids(page_ids)} if page_ids else {}
     
     result = []
     for link in backlinks:
@@ -305,35 +305,35 @@ async def get_linked_references(
     """Get linked references to a node with context, including children hierarchy."""
     service = await _get_node_service(user)
     
-    backlinks = await service._link_service.get_backlinks(node_id)
+    backlinks = await service.get_backlinks(node_id)
     
     # Collect all source node IDs for batch type fetching
     source_node_ids = []
     sources_data = []  # Store (source, children, source_page, link) tuples
     
     for link in backlinks:
-        source = await service._node_repo.get_by_id(link.source_node_id)
+        source = await service.get_node(link.source_node_id)
         if not source:
             continue
         
         # Get all descendants of the source node recursively
-        children = await _get_descendants(service._node_repo, source.id) if source.id else []
+        children = await service.get_node_descendants(source.id) if source.id else []
         
         source_page = None
         if source.page_id:
-            source_page = await service._node_repo.get_by_id(source.page_id)
+            source_page = await service.get_node(source.page_id)
         
         if source.id:
             source_node_ids.append(source.id)
         sources_data.append((source, children, source_page, link))
     
     # Batch fetch class_ids for all source nodes
-    class_ids_map = await _get_class_ids_batch(service._pool, service._workspace_id or 0, source_node_ids)
+    class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, source_node_ids)
     
     # Batch fetch properties for all source nodes
     node_properties_map = {}
     if source_node_ids:
-        batch_result = await service._property_repo.get_all_property_values_batch(source_node_ids)
+        batch_result = await service.property_repo.get_all_property_values_batch(source_node_ids)
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
     
@@ -392,11 +392,11 @@ async def get_inline_classes(
     """
     service = await _get_node_service(user)
     
-    inline_classes = await service._link_service.get_inline_classes_for_node(node_id)
+    inline_classes = await service.get_inline_classes_for_node(node_id)
     
     result = []
     for inline_link in inline_classes:
-        class_node = await service._node_repo.get_by_id(inline_link.target_id)
+        class_node = await service.get_node(inline_link.target_id)
         if not class_node:
             continue
         
@@ -423,7 +423,7 @@ async def get_property_backlinks(
     service = await _get_node_service(user)
     
     # Get the target node
-    target = await service._node_repo.get_by_id(node_id)
+    target = await service.get_node(node_id)
     if not target:
         raise HTTPException(status_code=404, detail="Node not found")
     
@@ -436,7 +436,7 @@ async def get_property_backlinks(
     if date_info and date_info.get("type") == "day":
         # Find all date property values that reference this day page
         # Date properties are stored in property_value_relation (not scalar)
-        pool = service._node_repo.get_connection()
+        pool = service.pool
         rows = await pool.fetch("""
             SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
             FROM property_value_relation pvr
@@ -446,14 +446,14 @@ async def get_property_backlinks(
         
         for row in rows:
             # Get the page for this node
-            node = await service._node_repo.get_by_id(row['node_id'])
+            node = await service.get_node(row['node_id'])
             if not node:
                 continue
             
             # Get the page this node belongs to (or itself if it's a page)
             page = node
             if node.page_id:
-                page = await service._node_repo.get_by_id(node.page_id)
+                page = await service.get_node(node.page_id)
                 if not page:
                     page = node
             
@@ -463,7 +463,7 @@ async def get_property_backlinks(
     
     # Also check for node-class properties pointing to this node
     # Classes are now in class_ids column, not a property
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     rows = await pool.fetch("""
         SELECT DISTINCT pvr.node_id, pvr.property_id, p.name as property_name
         FROM property_value_relation pvr
@@ -472,13 +472,13 @@ async def get_property_backlinks(
     """, node_id)
     
     for row in rows:
-        node = await service._node_repo.get_by_id(row['node_id'])
+        node = await service.get_node(row['node_id'])
         if not node:
             continue
         
         page = node
         if node.page_id:
-            page = await service._node_repo.get_by_id(node.page_id)
+            page = await service.get_node(node.page_id)
             if not page:
                 page = node
         
@@ -489,7 +489,7 @@ async def get_property_backlinks(
     # Batch fetch properties for all pages
     node_properties_map = {}
     if page_ids:
-        batch_result = await service._property_repo.get_all_property_values_batch(page_ids)
+        batch_result = await service.property_repo.get_all_property_values_batch(page_ids)
         for page_id, prop_data in batch_result.items():
             node_properties_map[page_id] = extract_properties_dict(prop_data)
     
@@ -521,12 +521,12 @@ async def get_aliases(
     """Get all aliases for a node (pages that are aliases of this node)."""
     service = await _get_node_service(user)
     
-    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, node_id)
     
     # Fetch full node data for each alias
     aliases = []
     for alias_id in alias_ids:
-        alias_node = await service._node_repo.get_by_id(alias_id)
+        alias_node = await service.get_node(alias_id)
         if alias_node:
             aliases.append(_node_to_response(alias_node))
     
@@ -549,11 +549,11 @@ async def add_alias(
     """
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # Verify target node exists
         target = await conn.fetchrow(
             "SELECT id, is_page, aliased_id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
-            node_id, service._workspace_id
+            node_id, service.workspace_id
         )
         if not target:
             raise HTTPException(404, "Target node not found")
@@ -565,7 +565,7 @@ async def add_alias(
         # Verify alias node exists and is eligible
         alias_node = await conn.fetchrow(
             "SELECT id, is_page, aliased_id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
-            request.alias_node_id, service._workspace_id
+            request.alias_node_id, service.workspace_id
         )
         if not alias_node:
             raise HTTPException(404, "Alias node not found")
@@ -579,7 +579,7 @@ async def add_alias(
         # Check that the alias candidate doesn't have aliases itself (no chaining)
         existing_aliases = await conn.fetchval(
             "SELECT COUNT(*) FROM node WHERE aliased_id = $1 AND workspace_id = $2 AND active = TRUE",
-            request.alias_node_id, service._workspace_id
+            request.alias_node_id, service.workspace_id
         )
         if existing_aliases > 0:
             raise HTTPException(400, "Cannot use a node that has aliases as an alias itself. Remove its aliases first.")
@@ -592,7 +592,7 @@ async def add_alias(
     
     # Return updated target node with aliases
     node = await service.get_node(node_id)
-    alias_ids = await _get_alias_ids(service._pool, service._workspace_id or 0, node_id)
+    alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, node_id)
     return _node_to_response(node, aliases=alias_ids)
 
 
@@ -605,11 +605,11 @@ async def remove_alias(
     """Remove an alias from a node (clears aliased_id on the alias node)."""
     service = await _get_node_service(user)
     
-    async with acquire_connection(service._pool) as conn:
+    async with acquire_connection(service.pool) as conn:
         # Verify the alias relationship exists
         result = await conn.execute(
             "UPDATE node SET aliased_id = NULL WHERE id = $1 AND aliased_id = $2 AND workspace_id = $3",
-            alias_id, node_id, service._workspace_id
+            alias_id, node_id, service.workspace_id
         )
     
     if result == "UPDATE 0":
@@ -644,23 +644,23 @@ async def rebuild_all_links(
     
     try:
         # Step 1: Delete existing text links and inline classes (preserve tags)
-        async with acquire_connection(service._pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             delete_result = await conn.execute("""
                 DELETE FROM node_link 
                 WHERE workspace_id = $1 
                   AND property_id IS NULL 
                   AND is_tag = FALSE
-            """, service._workspace_id)
-            logger.info(f"[REBUILD_LINKS] Deleted existing text links and inline classes for workspace {service._workspace_id}")
+            """, service.workspace_id)
+            logger.info(f"[REBUILD_LINKS] Deleted existing text links and inline classes for workspace {service.workspace_id}")
         
         # Step 2: Get all nodes in the workspace
-        async with acquire_connection(service._pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             nodes = await conn.fetch("""
                 SELECT id, name 
                 FROM node 
                 WHERE workspace_id = $1 AND active = TRUE
                 ORDER BY id
-            """, service._workspace_id)
+            """, service.workspace_id)
         
         logger.info(f"[REBUILD_LINKS] Processing {len(nodes)} nodes")
         
@@ -675,11 +675,11 @@ async def rebuild_all_links(
             
             try:
                 # Rebuild text links
-                created_links = await service._link_service.update_node_links(node_id, content)
+                created_links = await service.update_node_links(node_id, content)
                 links_created += len(created_links)
                 
                 # Rebuild inline classes
-                created_classes = await service._link_service.update_inline_classes(node_id, content)
+                created_classes = await service.update_inline_classes(node_id, content)
                 inline_classes_created += len(created_classes)
                 
                 nodes_processed += 1
@@ -829,13 +829,13 @@ async def fix_raw_uuid_links(
     
     try:
         # Step 1: Get all active nodes
-        async with acquire_connection(service._pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             all_nodes = await conn.fetch("""
                 SELECT id, name 
                 FROM node 
                 WHERE workspace_id = $1 AND active = TRUE
                 ORDER BY id
-            """, service._workspace_id)
+            """, service.workspace_id)
         
         logger.info(f"[FIX_RAW_UUID_LINKS] Processing {len(all_nodes)} nodes")
         
@@ -886,11 +886,11 @@ async def fix_raw_uuid_links(
         
         # Step 3: Resolve all referenced UUIDs to nodes (batch lookup)
         uuid_to_node = {}
-        async with acquire_connection(service._pool) as conn:
+        async with acquire_connection(service.pool) as conn:
             for ref_uuid in all_referenced_uuids:
                 row = await conn.fetchrow(
                     "SELECT id, uuid FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE",
-                    ref_uuid, service._workspace_id
+                    ref_uuid, service.workspace_id
                 )
                 if row:
                     uuid_to_node[ref_uuid] = {'id': row['id'], 'uuid': row['uuid']}
@@ -921,15 +921,15 @@ async def fix_raw_uuid_links(
                 if converted > 0:
                     # Save updated AST
                     new_content = json.dumps(new_ast, ensure_ascii=False)
-                    async with acquire_connection(service._pool) as conn:
+                    async with acquire_connection(service.pool) as conn:
                         await conn.execute(
                             "UPDATE node SET name = $1, write_date = $2 WHERE id = $3 AND workspace_id = $4",
-                            new_content, datetime.now(timezone.utc), node_id, service._workspace_id
+                            new_content, datetime.now(timezone.utc), node_id, service.workspace_id
                         )
                     
                     # Rebuild links for this node
-                    await service._link_service.update_node_links(node_id, new_content)
-                    await service._link_service.update_inline_classes(node_id, new_content)
+                    await service.update_node_links(node_id, new_content)
+                    await service.update_inline_classes(node_id, new_content)
                     
                     nodes_fixed += 1
                     links_converted += converted

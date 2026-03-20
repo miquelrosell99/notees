@@ -27,12 +27,12 @@ async def get_comments(
     service = await _get_node_service(user)
     
     # Verify node exists
-    node = await service._node_repo.get_by_id(node_id)
+    node = await service.get_node(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
     
     # Get comment child nodes for this node
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     rows = await pool.fetch("""
         SELECT id FROM node
         WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
@@ -47,23 +47,23 @@ async def get_comments(
     # Fetch all comment nodes and their descendants
     all_nodes = []
     for cid in comment_ids:
-        comment_node = await service._node_repo.get_by_id(cid)
+        comment_node = await service.get_node(cid)
         if comment_node and comment_node.id is not None:
             all_nodes.append(comment_node)
-            children = await service._node_repo.get_children(comment_node.id)
+            children = await service.get_node_children(comment_node.id)
             if children:
                 all_nodes.extend(children)
     
     # Batch-fetch class IDs for all nodes
     all_ids = [n.id for n in all_nodes if n.id]
-    class_ids_map = await _get_class_ids_batch(pool, service._workspace_id or 0, all_ids) if all_ids else {}
+    class_ids_map = await _get_class_ids_batch(pool, service.workspace_id or 0, all_ids) if all_ids else {}
     
     # Build top-level comment responses with nested children
     comments = []
     for cid in comment_ids:
-        comment_node = await service._node_repo.get_by_id(cid)
+        comment_node = await service.get_node(cid)
         if comment_node and comment_node.id is not None:
-            children = await service._node_repo.get_children(comment_node.id)
+            children = await service.get_node_children(comment_node.id)
             classes = class_ids_map.get(comment_node.id, [])
             resp = _node_to_response(comment_node, classes=classes)
             resp.children = _build_children_response(children, class_ids_map) if children else []
@@ -85,25 +85,25 @@ async def create_comment(
     service = await _get_node_service(user)
     
     # Verify target node exists
-    target_node = await service._node_repo.get_by_id(node_id)
+    target_node = await service.get_node(node_id)
     if not target_node:
         raise HTTPException(404, "Node not found")
     
     # Get the Comment class
-    comment_class = await service._node_repo.get_by_uuid(SYSTEM_CLASS_UUIDS["comment"])
+    comment_class = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["comment"])
     if not comment_class:
         raise HTTPException(500, "Comment class not found")
     
     # Determine the actual parent (target node or parent comment for replies)
     actual_parent_id = node_id
     if request.parent_comment_id:
-        parent_comment = await service._node_repo.get_by_id(request.parent_comment_id)
+        parent_comment = await service.get_node(request.parent_comment_id)
         if not parent_comment or not parent_comment.is_comment:
             raise HTTPException(404, "Parent comment not found")
         actual_parent_id = request.parent_comment_id
     
     # Get the next sequence number for comments under the parent
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     seq_row = await pool.fetchrow("""
         SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
         FROM node WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
@@ -125,8 +125,8 @@ async def create_comment(
         raise HTTPException(500, "Failed to create comment node")
     
     classes = await _get_class_ids_batch(
-        service._node_repo.get_connection(),
-        service._workspace_id or 0,
+        service.pool,
+        service.workspace_id or 0,
         [comment_node.id],
     )
     return _node_to_response(comment_node, classes=classes.get(comment_node.id, []))
@@ -145,7 +145,7 @@ async def delete_comment(
     service = await _get_node_service(user)
     
     # Verify the comment exists and belongs to this node
-    comment_node = await service._node_repo.get_by_id(comment_id)
+    comment_node = await service.get_node(comment_id)
     if not comment_node:
         raise HTTPException(404, "Comment not found")
     
@@ -169,7 +169,7 @@ async def get_comment_count(
     """
     service = await _get_node_service(user)
     
-    pool = service._node_repo.get_connection()
+    pool = service.pool
     row = await pool.fetchrow("""
         SELECT COUNT(*) as count FROM node 
         WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
