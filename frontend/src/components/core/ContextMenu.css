@@ -119,12 +119,36 @@ button.context-menu-item:hover:not(.disabled) {
   position: relative;
 }
 
-.context-menu-submenu {
-  position: fixed;
-  z-index: var(--z-modal);
-  min-width: 220px;
-  max-width: 320px;
-  animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+/* Inline submenu — expands inside the menu below the trigger item */
+.context-menu-submenu-inline {
+  border-top: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
+  overflow: hidden;
+  animation: submenu-expand var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.context-menu-submenu-inline--closing {
+  animation: submenu-collapse var(--motion-duration-short) var(--motion-easing-standard) forwards;
+}
+
+/* Arrow chevron rotates when submenu is open */
+.context-menu-arrow {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+  display: inline-block;
+}
+
+.context-menu-arrow--open {
+  transform: rotate(90deg);
+}
+
+@keyframes submenu-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes submenu-collapse {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
 }
 
 /* Custom content row — renders arbitrary React content inline in the menu */

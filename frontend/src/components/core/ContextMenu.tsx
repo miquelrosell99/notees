@@ -4,7 +4,7 @@
  * A reusable context menu component that displays a list of actions
  * at the specified position. Uses the Card component for consistent styling.
  */
-import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
+import React, { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@mdi/react';
 import { Card } from './Card';
@@ -51,11 +51,13 @@ interface ContextMenuProps {
 
 export function ContextMenu({ items, position, onClose, title, activeItem, containerRef, inline = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const submenuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
-  const [submenuPosition, setSubmenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [submenuInitialPos, setSubmenuInitialPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [closingSubmenu, setClosingSubmenu] = useState(false);
+
+  const closeSubmenuAnimated = useCallback(() => {
+    setClosingSubmenu(true);
+  }, []);
 
   // Get non-separator items for keyboard navigation
   const navigableItems = items.filter(item => !item.separator && !item.disabled);
@@ -63,10 +65,11 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Don't close if clicking inside submenu
-      const submenuEl = document.querySelector('.context-menu-submenu');
-      if (submenuEl && submenuEl.contains(e.target as Node)) {
-        return;
+      // Don't close if clicking inside a portal opened from submenu content
+      // (e.g. NodeSelector's dropdown portal which renders outside the menu Card)
+      const floatingPortals = document.querySelectorAll('.node-selector__dropdown--portal');
+      for (const portal of Array.from(floatingPortals)) {
+        if (portal.contains(e.target as Node)) return;
       }
       // Don't close if clicking inside container (e.g., color picker row)
       if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
@@ -143,60 +146,16 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     el.style.top = `${y}px`;
   }, [position]);
 
-  // Adjust submenu position to stay within viewport
-  useEffect(() => {
-    if (!activeSubmenu || !submenuRef.current) return;
-
-    const submenuRect = submenuRef.current.getBoundingClientRect();
-    const padding = 8;
-    
-    let x = submenuInitialPos.x;
-    let y = submenuInitialPos.y;
-
-    // Check right edge - if submenu goes off screen, show it on the left side instead
-    if (x + submenuRect.width > window.innerWidth) {
-      // Position to the left of the parent menu
-      if (menuRef.current) {
-        const menuRect = menuRef.current.getBoundingClientRect();
-        x = menuRect.left - submenuRect.width - 4;
-      }
-    }
-    // Check bottom edge
-    if (y + submenuRect.height > window.innerHeight) {
-      y = window.innerHeight - submenuRect.height - padding;
-    }
-    // Check left edge
-    if (x < padding) {
-      x = padding;
-    }
-    // Check top edge
-    if (y < padding) {
-      y = padding;
-    }
-
-    setSubmenuPosition({ x, y });
-  }, [activeSubmenu, submenuInitialPos]);
-
-  const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent<HTMLButtonElement>) => {
+  const handleItemClick = (item: ContextMenuItem) => {
     if (item.disabled || item.separator) return;
     
     // If item has submenu, toggle it
     if (item.submenu) {
       if (activeSubmenu === item.id) {
-        setActiveSubmenu(null);
+        closeSubmenuAnimated();
       } else {
-        // Calculate submenu position next to this item
-        const buttonEl = event?.currentTarget;
-        if (buttonEl) {
-          const rect = buttonEl.getBoundingClientRect();
-          const initialPos = { 
-            x: rect.right + 4, 
-            y: rect.top 
-          };
-          setSubmenuInitialPos(initialPos);
-          setSubmenuPosition(initialPos);
-        }
         setActiveSubmenu(item.id);
+        setClosingSubmenu(false);
       }
       return;
     }
@@ -245,40 +204,43 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
         const isActive = activeItem === item.id;
 
         return (
-          <button
-            key={item.id}
-            className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu ? 'has-submenu' : ''}`}
-            onClick={(e) => handleItemClick(item, e)}
-            disabled={item.disabled}
-            role="menuitem"
-            tabIndex={isFocused ? 0 : -1}
-          >
-            <span className="context-menu-icon-wrapper">
-              {item.icon && (
-                <Icon path={item.icon} size={0.7} className="context-menu-icon" />
+          <React.Fragment key={item.id}>
+            <button
+              className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu ? 'has-submenu' : ''}`}
+              onClick={() => handleItemClick(item)}
+              disabled={item.disabled}
+              role="menuitem"
+              tabIndex={isFocused ? 0 : -1}
+            >
+              <span className="context-menu-icon-wrapper">
+                {item.icon && (
+                  <Icon path={item.icon} size={0.7} className="context-menu-icon" />
+                )}
+              </span>
+              <span className="context-menu-label">{item.label}</span>
+              {item.shortcut && (
+                <span className="context-menu-shortcut">{item.shortcut}</span>
               )}
-            </span>
-            <span className="context-menu-label">{item.label}</span>
-            {item.shortcut && (
-              <span className="context-menu-shortcut">{item.shortcut}</span>
+              {item.submenu && (
+                <span className={`context-menu-arrow${activeSubmenu === item.id ? ' context-menu-arrow--open' : ''}`}>›</span>
+              )}
+            </button>
+            {item.submenu && activeSubmenu === item.id && (
+              <div
+                className={`context-menu-submenu-inline${closingSubmenu ? ' context-menu-submenu-inline--closing' : ''}`}
+                onAnimationEnd={() => {
+                  if (closingSubmenu) {
+                    setActiveSubmenu(null);
+                    setClosingSubmenu(false);
+                  }
+                }}
+              >
+                {item.submenu}
+              </div>
             )}
-            {item.submenu && (
-              <span className="context-menu-arrow">›</span>
-            )}
-          </button>
+          </React.Fragment>
         );
       })}
-      {activeSubmenu && (
-        <Card
-          ref={submenuRef}
-          className="context-menu-submenu"
-          elevation="high"
-          padding={false}
-          style={{ left: submenuPosition.x, top: submenuPosition.y }}
-        >
-          {items.find(item => item.id === activeSubmenu)?.submenu}
-        </Card>
-      )}
     </Card>
   );
 

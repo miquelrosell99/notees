@@ -12,7 +12,7 @@
  */
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useNode, useLinkedReferencesCount, useTodayNote, usePages } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
@@ -171,12 +171,6 @@ interface MoveToSubmenuProps {
 
 function MoveToSubmenu({ node, onClose, onParentChange }: MoveToSubmenuProps) {
   const updateNode = useUpdateNode();
-  const { data: parentNode } = useNode(node.parent_id ?? null);
-  const { quickAddDestination } = useSettingsStore();
-  const { data: todayNote } = useTodayNote();
-  const { data: allPages } = usePages();
-  const inboxPage = allPages?.find((p: Node) => p.name === 'Inbox');
-  const quickAddTarget = quickAddDestination === 'today' ? todayNote : inboxPage;
 
   const handleSelect = useCallback((val: number | number[] | null) => {
     const parentId = typeof val === 'number' ? val : null;
@@ -185,44 +179,18 @@ function MoveToSubmenu({ node, onClose, onParentChange }: MoveToSubmenuProps) {
     onClose();
   }, [node.id, updateNode, onParentChange, onClose]);
 
-  const handleRemove = useCallback(() => {
-    updateNode.mutate({ id: node.id, data: { parent_id: null } });
-    onParentChange?.(null);
-    onClose();
-  }, [node.id, updateNode, onParentChange, onClose]);
-
-  const handleSendToQuickAddDest = useCallback(() => {
-    if (!quickAddTarget) return;
-    updateNode.mutate({ id: node.id, data: { parent_id: quickAddTarget.id } });
-    onParentChange?.(quickAddTarget.id);
-    onClose();
-  }, [node.id, quickAddTarget, updateNode, onParentChange, onClose]);
-
-  const quickAddDestLabel = quickAddDestination === 'today' ? "Today's page" : 'Inbox';
-
   return (
-    <div className="move-to-submenu">
-      {node.parent_id && parentNode && (
-        <div className="set-parent-current">
-          <span className="set-parent-current__name">{nodeNameToText(parentNode.name) || 'Untitled'}</span>
-          <button className="set-parent-current__remove" onClick={handleRemove} title="Remove parent">✕</button>
-        </div>
-      )}
-      {!node.is_page && quickAddTarget && (
-        <div className="move-to-quick-action">
-          <button className="move-to-quick-btn" onClick={handleSendToQuickAddDest}>
-            → Send to {quickAddDestLabel}
-          </button>
-        </div>
-      )}
-      <NodeSelector
-        trigger="inline"
-        searchMode={node.is_page ? 'pages' : 'all'}
-        excludeNodeId={node.id}
-        onChange={handleSelect}
-        searchPlaceholder={node.is_page ? 'Search pages...' : 'Search pages & blocks...'}
-      />
-    </div>
+    <NodeSelector
+      trigger="select"
+      value={node.parent_id ?? null}
+      searchMode={node.is_page ? 'pages' : 'all'}
+      excludeNodeId={node.id}
+      placeholder={node.is_page ? 'Search pages...' : 'Search pages & blocks...'}
+      onChange={handleSelect}
+      allowCreate={false}
+      size="sm"
+      className="move-to-submenu"
+    />
   );
 }
 
