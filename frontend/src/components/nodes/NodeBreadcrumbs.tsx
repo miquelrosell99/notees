@@ -426,7 +426,7 @@ export function NodeBreadcrumbs({
             excludeNodeId={pickerState.targetNodeId}
             searchPlaceholder="Search pages..."
             onChange={handlePickerSelect}
-            allowCreate={false}
+            allowCreate
           />
         )}
       </>
