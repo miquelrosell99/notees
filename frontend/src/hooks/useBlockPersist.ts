@@ -30,6 +30,7 @@ import type { NodeCreate, Node } from '@/types/api';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { nodeKeys } from './queryKeys';
 import { removeNodeFromTreeImmutable } from '@/utils/nodeTree';
+import { queryClient as sharedQueryClient } from '@/lib/queryClient';
 
 // ─── Singleton state ──────────────────────────────────────────────
 
@@ -73,17 +74,14 @@ function scheduleDeleteFlush(): void {
     const uuids = pendingDeleteUuids;
     pendingDeleteUuids = [];
     if (uuids.length === 0) return;
-    if (uuids.length === 1) {
-      // Single delete — use the simpler endpoint (identified by server id not available here,
-      // so use batch with single uuid)
-      batchDeleteNodesApi({ uuids }).catch((error) => {
-        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
-      });
-    } else {
-      batchDeleteNodesApi({ uuids }).catch((error) => {
-        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
-      });
-    }
+    batchDeleteNodesApi({ uuids }).then(() => {
+      // Invalidate query result caches so views reflect the deletion
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['pseudo-node-query'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['inline-query'], refetchType: 'active' });
+    }).catch((error) => {
+      console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
+    });
   });
 }
 
