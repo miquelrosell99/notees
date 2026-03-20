@@ -165,13 +165,16 @@
 
 /* Checkbox column */
 .table-cell--checkbox {
-  width: 40px;
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
   text-align: center;
   position: sticky;
   left: 0;
   z-index: 5;
   background: var(--color-surface);
   box-shadow: 1px 0 0 0 var(--color-outline-variant);
+  padding: 0;
 }
 
 .table-header .table-cell--checkbox {
