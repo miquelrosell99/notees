@@ -184,6 +184,8 @@ export interface ProjectionQuery {
   includeRoot: boolean;
   /** Filter by node types */
   nodeTypeFilter?: GraphNodeType[];
+  /** Skip page nodes in projection (default: true) */
+  skipPages?: boolean;
   /** Sort order */
   sortBy?: 'orderIndex' | 'createdAt' | 'updatedAt' | 'name';
   sortDirection?: 'asc' | 'desc';

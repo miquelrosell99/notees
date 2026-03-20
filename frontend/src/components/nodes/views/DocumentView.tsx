@@ -42,6 +42,7 @@ export const DocumentView = memo(function DocumentView({
   const allNodes = useMemo(() => {
     const result: Node[] = [];
     const collect = (n: Node, depth: number) => {
+      if (n.is_page) return;
       result.push(n);
       if (depth < maxDepth && n.children) {
         for (const child of n.children) {
