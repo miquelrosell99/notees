@@ -62,6 +62,12 @@
   background: var(--color-primary-container);
 }
 
+/* Move-to submenu panel */
+.move-to-submenu {
+  min-width: 260px;
+  max-width: 320px;
+}
+
 
 /* ==================== Color Picker Row ==================== */
 
