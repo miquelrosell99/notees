@@ -269,13 +269,15 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
         );
       })}
       {activeSubmenu && (
-        <div 
+        <Card
           ref={submenuRef}
           className="context-menu-submenu"
+          elevation="high"
+          padding={false}
           style={{ left: submenuPosition.x, top: submenuPosition.y }}
         >
           {items.find(item => item.id === activeSubmenu)?.submenu}
-        </div>
+        </Card>
       )}
     </Card>
   );
