@@ -25,7 +25,7 @@ from .models import User
 from .db.connection import get_pool, acquire_connection
 from .db.schema.constants import SYSTEM_CLASS_UUIDS
 from .db.schema import get_or_create_user_workspace
-from .database import get_active_workspace_id
+from .workspace_manager import get_active_workspace_id
 from .domain.repositories import (
     PostgresNodeRepository,
     PostgresPropertyRepository,

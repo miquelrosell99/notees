@@ -438,10 +438,7 @@ async def _get_node_service(user: User) -> NodeService:
         pool=pool,
         workspace_id=workspace_id
     )
-    
-    # Store user_id for use in helper functions
-    node_service._user_id = user_id
-    
+
     return node_service
 
 

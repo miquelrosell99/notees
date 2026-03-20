@@ -15,7 +15,7 @@ from ..domain import WorkspaceNotFoundError, DuplicateWorkspaceError
 from ..dependencies import invalidate_workspace_cache
 from .auth import get_current_user
 
-from .. import database as db
+from .. import workspace_manager as wm
 from ..workspace_io import (
     import_dump_to_new_workspace,
     restore_workspace_from_dump,
@@ -39,15 +39,15 @@ def _workspace_error_to_http(error: Exception) -> HTTPException:
 @router.get("")
 async def list_workspaces(user: User = Depends(get_current_user)):
     """List all available workspaces for current user."""
-    workspaces = await db.list_workspaces(user.id)
-    active_uuid = db.get_active_workspace_id(user.id)
+    workspaces = await wm.list_workspaces(user.id)
+    active_uuid = wm.get_active_workspace_id(user.id)
     return {"workspaces": workspaces, "active": active_uuid}
 
 
 @router.get("/check-name/{name}")
 async def check_workspace_name(name: str, user: User = Depends(get_current_user)):
     """Check if a workspace name is available."""
-    workspaces = await db.list_workspaces(user.id)
+    workspaces = await wm.list_workspaces(user.id)
     exists = any(w['name'] == name for w in workspaces)
     return {"available": not exists, "name": name}
 
@@ -56,7 +56,7 @@ async def check_workspace_name(name: str, user: User = Depends(get_current_user)
 async def create_workspace(data: WorkspaceCreate, user: User = Depends(get_current_user)):
     """Create a new workspace."""
     try:
-        workspace = await db.create_workspace(user.id, data.name)
+        workspace = await wm.create_workspace(user.id, data.name)
         invalidate_workspace_cache(int(user.id))
         return workspace
     except ValueError as e:
@@ -66,7 +66,7 @@ async def create_workspace(data: WorkspaceCreate, user: User = Depends(get_curre
 @router.post("/{workspace_id}/switch")
 async def switch_workspace(workspace_id: str, user: User = Depends(get_current_user)):
     """Switch to a different workspace by UUID."""
-    success = await db.switch_workspace(user.id, workspace_id)
+    success = await wm.switch_workspace(user.id, workspace_id)
     if not success:
         raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
     invalidate_workspace_cache(int(user.id))
@@ -77,7 +77,7 @@ async def switch_workspace(workspace_id: str, user: User = Depends(get_current_u
 async def rename_workspace(name: str, data: WorkspaceCreate, user: User = Depends(get_current_user)):
     """Rename a workspace."""
     try:
-        workspace = await db.rename_workspace(user.id, name, data.name)
+        workspace = await wm.rename_workspace(user.id, name, data.name)
         return workspace
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -87,7 +87,7 @@ async def rename_workspace(name: str, data: WorkspaceCreate, user: User = Depend
 async def delete_workspace(uuid: str, user: User = Depends(get_current_user)):
     """Delete a workspace by UUID."""
     try:
-        success = await db.delete_workspace(user.id, uuid)
+        success = await wm.delete_workspace(user.id, uuid)
         if not success:
             raise HTTPException(status_code=404, detail=f"Workspace '{uuid}' not found")
         return {"status": "ok"}
