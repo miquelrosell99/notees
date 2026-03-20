@@ -8,8 +8,11 @@
  * - RECENTS section with recently accessed pages
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useFavoritesStore } from '@/stores';
 import { useNode, useClasses } from '@/hooks';
+import { nodeKeys } from '@/hooks/useNodes';
+import { emptyTrash } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
@@ -19,6 +22,8 @@ import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { NodeInline } from '../blocks/NodeInline';
 import { PageContextMenu } from '../nodes/NodeContextMenu';
+import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { ConfirmationModal } from '../core/ConfirmationModal';
 import { 
   StarIcon,
   ClockIcon,
@@ -166,6 +171,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [recentsExpanded, setRecentsExpanded] = useState(true);
   const [contextMenuNode, setContextMenuNode] = useState<number | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const [trashContextMenuPos, setTrashContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
+  const queryClient = useQueryClient();
   
   // Drag state for favorites reordering
   const [dragState, setDragState] = useState<{
@@ -402,6 +410,35 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setContextMenuNode(null);
   }, []);
 
+  // Trash context menu
+  const handleTrashContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTrashContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const emptyTrashMutation = useMutation({
+    mutationFn: emptyTrash,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      setShowEmptyTrashConfirm(false);
+    },
+  });
+
+  const trashContextMenuItems: ContextMenuItem[] = useMemo(() => [
+    {
+      id: 'empty-trash',
+      label: 'Empty Trash',
+      icon: mdiTrashCanOutline,
+      danger: true,
+      onClick: () => {
+        setTrashContextMenuPos(null);
+        setShowEmptyTrashConfirm(true);
+      },
+    },
+  ], []);
+
   return (
     <>
       <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
@@ -567,6 +604,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             icon={mdiTrashCanOutline}
             fullWidth
             onClick={() => setMainViewType('trash')}
+            onContextMenu={handleTrashContextMenu}
             active={mainViewType === 'trash'}
             title="Trash"
           >
@@ -604,6 +642,26 @@ export function Sidebar({ collapsed }: SidebarProps) {
           onClose={handleCloseContextMenu}
         />
       )}
+
+      {/* Trash context menu */}
+      {trashContextMenuPos && (
+        <ContextMenu
+          items={trashContextMenuItems}
+          position={trashContextMenuPos}
+          onClose={() => setTrashContextMenuPos(null)}
+        />
+      )}
+
+      {/* Empty trash confirmation */}
+      <ConfirmationModal
+        isOpen={showEmptyTrashConfirm}
+        onCancel={() => setShowEmptyTrashConfirm(false)}
+        onConfirm={() => emptyTrashMutation.mutate()}
+        title="Empty Trash"
+        message="This will permanently delete all items in the trash. This action cannot be undone."
+        confirmLabel="Empty Trash"
+        variant="danger"
+      />
     </>
   );
 }
