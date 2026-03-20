@@ -16,6 +16,7 @@ export interface ContextMenuItem {
   label: string;
   icon?: string;
   shortcut?: string;
+  badge?: string;
   danger?: boolean;
   disabled?: boolean;
   separator?: boolean;
@@ -218,6 +219,9 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
                 )}
               </span>
               <span className="context-menu-label">{item.label}</span>
+              {item.badge && (
+                <span className="context-menu-badge">{item.badge}</span>
+              )}
               {item.shortcut && (
                 <span className="context-menu-shortcut">{item.shortcut}</span>
               )}

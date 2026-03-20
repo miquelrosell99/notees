@@ -103,6 +103,18 @@ button.context-menu-item:hover:not(.disabled) {
   flex: 1;
 }
 
+.context-menu-badge {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .context-menu-shortcut {
   font-size: var(--font-size-xs);
   color: var(--color-outline);
