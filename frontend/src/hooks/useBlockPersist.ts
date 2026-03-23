@@ -147,8 +147,13 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           // Without this, the project() call uses the server UUID as root
           // but the runtime still stores the node under the old client UUID,
           // resulting in an empty projection (blank focused view).
+          //
+          // IMPORTANT: Set serverId BEFORE remapBlockId. remapBlockId emits
+          // a synchronous structure_changed event which triggers persistAll().
+          // If serverId isn't set yet, the block appears unpersisted under
+          // its new UUID and gets created a second time.
+          runtime.setServerId(blockId, createdNode.id);
           runtime.remapBlockId(blockId, createdNode.uuid);
-          runtime.setServerId(createdNode.uuid, createdNode.id);
 
           const newBlockId = createdNode.uuid;
           onPersisted?.(newBlockId, createdNode.id);
