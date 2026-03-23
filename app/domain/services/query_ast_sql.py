@@ -66,10 +66,11 @@ class QueryASTToSQL:
         # Generate WHERE clause from scope and conditions
         where_clauses = []
         
-        # Always filter by workspace_id, active, and not deleted
+        # Always filter by workspace_id, active, not deleted, and exclude aliases
         where_clauses.append("n.workspace_id = %(workspace_id)s")
         where_clauses.append("n.active = TRUE")
         where_clauses.append("(n.is_deleted = FALSE OR n.is_deleted IS NULL)")
+        where_clauses.append("n.aliased_id IS NULL")
         
         # Add scope filtering
         scope_clause = self._generate_scope_sql(ast.scope)
