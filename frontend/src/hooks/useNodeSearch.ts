@@ -146,6 +146,10 @@ export function useNodeSearch(
         results = filterNodesByHierarchy(query, results, allPages);
       }
 
+      if (excludeNodeId !== undefined) {
+        results = results.filter(n => n.id !== excludeNodeId);
+      }
+
       const truncatedClasses = results.length > maxResults;
       return {
         pageResults: results.slice(0, maxResults).map(node => ({
@@ -180,6 +184,10 @@ export function useNodeSearch(
         });
       }
       
+      if (excludeNodeId !== undefined) {
+        results = results.filter(n => n.id !== excludeNodeId);
+      }
+
       const truncatedTags = results.length > maxResults;
       results = results.slice(0, maxResults);
 
@@ -204,6 +212,10 @@ export function useNodeSearch(
       // Apply hierarchical filtering if needed
       if (parsed.isHierarchical && allPages) {
         results = filterNodesByHierarchy(query, results, allPages);
+      }
+
+      if (excludeNodeId !== undefined) {
+        results = results.filter(n => n.id !== excludeNodeId);
       }
       
       const truncatedAliases = results.length > maxResults;
