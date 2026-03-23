@@ -10,6 +10,7 @@ from .properties import router as properties_router
 from .sync import router as sync_router
 from .export import router as export_router
 from .assets import router as assets_router
+from .undo import router as undo_router
 
 __all__ = [
     "auth_router",
@@ -19,5 +20,6 @@ __all__ = [
     "sync_router",
     "export_router",
     "assets_router",
+    "undo_router",
     "get_current_user",
 ]

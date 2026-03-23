@@ -4,6 +4,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { useUndoStore } from '@/stores/undoStore';
 
 /**
  * Extract user-friendly error message from various error types
@@ -53,6 +54,10 @@ export const queryClient = new QueryClient({
     mutations: {
       retry: 0,
       onError: onMutationError,
+      onSuccess: () => {
+        // Refresh undo stack after any mutation so buttons stay in sync
+        useUndoStore.getState().refreshStack();
+      },
     },
   },
 });

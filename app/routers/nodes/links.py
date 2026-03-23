@@ -20,6 +20,7 @@ from .models import (
 )
 from .helpers import (
     _get_node_service,
+    _get_undo_service,
     _node_to_response,
     _get_descendants,
     _build_children_response,
@@ -219,8 +220,23 @@ async def set_property(
     if not prop:
         raise HTTPException(404, "Property not found")
     
-    # Set value based on property type
+    # Snapshot existing property value before setting
     from ...domain.entities import SCALAR_TYPES, RELATION_TYPES, PropertyType
+    old_value = None
+    try:
+        if prop.type in SCALAR_TYPES:
+            vals = await service.property_repo.get_scalar_values(node_id, request.property_id)
+            old_value = vals[0].value if vals else None
+        elif prop.type in RELATION_TYPES:
+            vals = await service.property_repo.get_relation_values(node_id, request.property_id)
+            old_value = vals[0].target_node_id if vals else None
+        elif prop.type == PropertyType.SELECTION:
+            vals = await service.property_repo.get_scalar_values(node_id, request.property_id)
+            old_value = vals[0].value if vals else None
+    except Exception:
+        pass
+    
+    # Set value based on property type
     if prop.type in SCALAR_TYPES:
         await service.property_repo.set_scalar_value(
             node_id, request.property_id, request.value
@@ -235,6 +251,27 @@ async def set_property(
         await service.property_repo.set_selection_value(
             node_id, request.property_id, request.value
         )
+    
+    # Record for undo
+    try:
+        undo = await _get_undo_service(user)
+        await undo.record(
+            "set_property", "node", node_id,
+            before_state={
+                "property_id": request.property_id,
+                "property_type": prop.type.value if hasattr(prop.type, 'value') else str(prop.type),
+                "had_value": old_value is not None,
+                "value": old_value,
+            },
+            after_state={
+                "property_id": request.property_id,
+                "property_type": prop.type.value if hasattr(prop.type, 'value') else str(prop.type),
+                "value": request.value,
+            },
+            description=f"Set property {prop.name} on node {node_id}",
+        )
+    except Exception:
+        pass
     
     node = await service.get_node(node_id)
     if not node:
@@ -251,7 +288,43 @@ async def remove_property(
     """Remove a property value from a node."""
     service = await _get_node_service(user)
     
+    # Snapshot existing property value before removal
+    from ...domain.entities import SCALAR_TYPES, RELATION_TYPES, PropertyType
+    old_value = None
+    prop = None
+    try:
+        prop = await service.property_repo.get_by_id(property_id)
+        if prop:
+            if prop.type in SCALAR_TYPES:
+                vals = await service.property_repo.get_scalar_values(node_id, property_id)
+                old_value = vals[0].value if vals else None
+            elif prop.type in RELATION_TYPES:
+                vals = await service.property_repo.get_relation_values(node_id, property_id)
+                old_value = vals[0].target_node_id if vals else None
+            elif prop.type == PropertyType.SELECTION:
+                vals = await service.property_repo.get_scalar_values(node_id, property_id)
+                old_value = vals[0].value if vals else None
+    except Exception:
+        pass
+    
     await service.property_repo.remove_property_from_node(node_id, property_id)
+    
+    # Record for undo
+    try:
+        undo = await _get_undo_service(user)
+        await undo.record(
+            "remove_property", "node", node_id,
+            before_state={
+                "property_id": property_id,
+                "property_type": prop.type.value if prop and hasattr(prop.type, 'value') else str(prop.type) if prop else None,
+                "had_value": old_value is not None,
+                "value": old_value,
+            },
+            after_state={"property_id": property_id, "removed": True},
+            description=f"Removed property {prop.name if prop else property_id} from node {node_id}",
+        )
+    except Exception:
+        pass
     
     node = await service.get_node(node_id)
     if not node:
