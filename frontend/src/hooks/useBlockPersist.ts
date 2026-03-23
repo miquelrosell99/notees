@@ -141,10 +141,17 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
         onSuccess: (createdNode) => {
           inFlightBlocks.delete(blockId);
 
-          // Write serverId back to runtime
-          runtime.setServerId(blockId, createdNode.id);
+          // Remap the runtime block from the client-generated UUID to the
+          // server's UUID so that focused-view navigation (which resolves
+          // rootBlockId from node.uuid) finds the correct runtime node.
+          // Without this, the project() call uses the server UUID as root
+          // but the runtime still stores the node under the old client UUID,
+          // resulting in an empty projection (blank focused view).
+          runtime.remapBlockId(blockId, createdNode.uuid);
+          runtime.setServerId(createdNode.uuid, createdNode.id);
 
-          onPersisted?.(blockId, createdNode.id);
+          const newBlockId = createdNode.uuid;
+          onPersisted?.(newBlockId, createdNode.id);
 
           // Flush any queued content save for this block BEFORE invalidating
           // caches. This ensures that when the parent cache refetches, the
@@ -173,7 +180,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           }
 
           // Now check if any children were waiting on this parent
-          const children = runtime.getChildren(blockId);
+          const children = runtime.getChildren(newBlockId);
           for (const child of children) {
             if (child.serverId == null) {
               persistBlock(child.blockId);
