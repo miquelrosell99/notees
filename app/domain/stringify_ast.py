@@ -112,6 +112,8 @@ class StringifyOptions:
     # When True (HTML export), node_link nodes emit [text](#target-uuid) so
     # _markdown_inline_to_html converts them to clickable <a> elements.
     html_anchors: bool = False
+    # When True, node links render as plain display text (no [[uuid]] or #anchor).
+    strip_link_syntax: bool = False
 
     # Internal — callers should NOT set this.
     _visited: frozenset[str] = frozenset()
@@ -320,6 +322,8 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
                     return ast_label
                 return f"[{ast_label}]([[{link_id}]])"
             if opts.mode is StringifyMode.PLAIN_MARKDOWN:
+                if opts.strip_link_syntax:
+                    return ast_label
                 colon = link_id.find(':')
                 target_uuid = link_id[:colon] if colon > 0 else link_id
                 return f"[{ast_label}]([[{target_uuid}]])"
@@ -334,6 +338,8 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
                     return ast_label
                 return f"[{ast_label}]([[{link_id}]])"
             if opts.mode is StringifyMode.PLAIN_MARKDOWN:
+                if opts.strip_link_syntax:
+                    return ast_label
                 colon = link_id.find(':')
                 target_uuid = link_id[:colon] if colon > 0 else link_id
                 return f"[{ast_label}]([[{target_uuid}]])"
@@ -355,6 +361,7 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         max_length=opts.max_length,
         resolve_node_link=opts.resolve_node_link,
         html_anchors=opts.html_anchors,
+        strip_link_syntax=opts.strip_link_syntax,
         _visited=opts._visited | {target_id},
     )
 
@@ -370,6 +377,8 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
 
     # PLAIN_MARKDOWN / TEXT_ONLY
     display = label if label else resolved_text
+    if opts.strip_link_syntax:
+        return display
     if opts.html_anchors and opts.mode is StringifyMode.PLAIN_MARKDOWN:
         # Extract target node UUID from link_id (format: "targetUUID:linkUUID")
         colon = link_id.find(':')

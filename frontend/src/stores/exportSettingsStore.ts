@@ -15,6 +15,7 @@ export type ExportDensity = 'comfortable' | 'compact';
 export type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
 export type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
 export type ExportDoctype = 'none' | 'article' | 'report' | 'book' | 'legal' | 'academic';
+export type ExportLinkStyle = 'raw' | 'text';
 
 interface ExportSettingsState {
   format: ExportFormat;
@@ -28,6 +29,7 @@ interface ExportSettingsState {
   sectionBreak: boolean;
   formatting: boolean;
   showUuid: boolean;
+  linkStyle: ExportLinkStyle;
   cssOverrides: string;
 
   setFormat: (format: ExportFormat) => void;
@@ -41,6 +43,7 @@ interface ExportSettingsState {
   setSectionBreak: (sectionBreak: boolean) => void;
   setFormatting: (formatting: boolean) => void;
   setShowUuid: (showUuid: boolean) => void;
+  setLinkStyle: (linkStyle: ExportLinkStyle) => void;
   setCssOverrides: (cssOverrides: string) => void;
 }
 
@@ -58,6 +61,7 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       sectionBreak: false,
       formatting: true,
       showUuid: false,
+      linkStyle: 'raw',
       cssOverrides: '',
 
       setFormat: (format) => set({ format }),
@@ -71,6 +75,7 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       setSectionBreak: (sectionBreak) => set({ sectionBreak }),
       setFormatting: (formatting) => set({ formatting }),
       setShowUuid: (showUuid) => set({ showUuid }),
+      setLinkStyle: (linkStyle) => set({ linkStyle }),
       setCssOverrides: (cssOverrides) => set({ cssOverrides }),
     }),
     {
