@@ -64,7 +64,7 @@ import { useBlockPersist } from '../hooks/useBlockPersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 import { parseLinkId, buildLinkId } from '../lib/astBuilder';
-import { useAddClass, useRemoveClass, useClassClass } from '@/hooks';
+import { useAddClass, useRemoveClass, useClassClass, useProperties } from '@/hooks';
 
 import './BlockEditor.css';
 // Ensure shared Bullet styles (collapse arrow dimensions, positioning) are
@@ -216,25 +216,53 @@ export function BlockEditor({
   // ─── Sync nodes to runtime ─────────────────────────────────
   // If nodes[] provided, sync them to runtime with a virtual root.
   // This happens synchronously before render so Lexical has data.
+
+  // When properties are shown, filter out text property blocks from children
+  // to avoid showing them both as child blocks and in the properties table.
+  const { data: allProperties } = useProperties();
+  const filteredNodes = useMemo(() => {
+    if (!nodes || hideProperties || !allProperties) return nodes;
+
+    // Collect block IDs referenced by text properties across all nodes
+    const textPropBlockIds = new Set<number>();
+    for (const node of nodes) {
+      if (!node.properties) continue;
+      const nodeProps = node.properties as Record<number, unknown>;
+      for (const prop of allProperties) {
+        if (prop.type !== 'text') continue;
+        const value = nodeProps[prop.id];
+        if (typeof value === 'number') {
+          textPropBlockIds.add(value);
+        } else if (Array.isArray(value)) {
+          for (const v of value) {
+            if (typeof v === 'number') textPropBlockIds.add(v);
+          }
+        }
+      }
+    }
+
+    if (textPropBlockIds.size === 0) return nodes;
+    return nodes.filter(n => !textPropBlockIds.has(n.id));
+  }, [nodes, hideProperties, allProperties]);
   
   const resolvedRootBlockId = useMemo(() => {
-    if (nodes && nodes.length > 0) {
+    if (filteredNodes && filteredNodes.length > 0) {
       const { rootBlockId: derivedRootId } = apiNodesToGraphNodes(
-        nodes, pageId, pageUuid,
+        filteredNodes, pageId, pageUuid,
       );
       return derivedRootId;
     }
     return externalRootBlockId || '';
-  }, [nodes, externalRootBlockId, pageId, pageUuid]);
+  }, [filteredNodes, externalRootBlockId, pageId, pageUuid]);
 
   // Sync runtime state imperatively — runs once per dependency change,
   // synchronously before paint so Lexical has data on first render.
   useLayoutEffect(() => {
-    if (!nodes || nodes.length === 0) return;
+    if (!filteredNodes || filteredNodes.length === 0) return;
 
     const runtime = getNodeGraphRuntime();
     const { graphNodes, rootBlockId: derivedRootId } = apiNodesToGraphNodes(
-      nodes, pageId, pageUuid,
+      filteredNodes, pageId, pageUuid,
     );
 
     // Register parent serverId so useBlockPersist can resolve it for new blocks
@@ -261,7 +289,7 @@ export function BlockEditor({
     // - Displaying a focused block (includeRoot is true, the block itself is in nodes)
     // - Displaying shared content (sidebar without pageId)
     // This prevents one editor from removing nodes that another editor is displaying.
-    const isFocusedBlock = nodes?.some(n => n.uuid === derivedRootId);
+    const isFocusedBlock = filteredNodes?.some(n => n.uuid === derivedRootId);
     if (pageId != null && derivedRootId && !isFocusedBlock) {
       const newBlockIds = new Set(graphNodes.map(n => n.blockId));
       // Check ALL descendants (not just direct children) so that nested blocks
@@ -274,16 +302,16 @@ export function BlockEditor({
         runtime.removeNodes(staleIds);
       }
     }
-  }, [nodes, pageId, pageUuid]);
+  }, [filteredNodes, pageId, pageUuid]);
 
   // Auto-detect includeRoot: if the rootBlockId corresponds to a node
   // in the nodes array, the root IS a displayed node (e.g. focused block).
   // If it's NOT in the array, it's a structural parent (e.g. page) that shouldn't render.
   const effectiveIncludeRoot = useMemo(() => {
     if (includeRoot !== undefined) return includeRoot;
-    if (!nodes || !resolvedRootBlockId) return false;
-    return nodes.some(n => n.uuid === resolvedRootBlockId);
-  }, [includeRoot, nodes, resolvedRootBlockId]);
+    if (!filteredNodes || !resolvedRootBlockId) return false;
+    return filteredNodes.some(n => n.uuid === resolvedRootBlockId);
+  }, [includeRoot, filteredNodes, resolvedRootBlockId]);
 
   // ─── Lexical config ────────────────────────────────────────
 
