@@ -889,8 +889,14 @@ async def get_node_breadcrumbs(
 
     service = await _get_node_service(user)
     
+    # If this node is an alias, return the aliased node's breadcrumbs instead
+    breadcrumb_target_id = node_id
+    node = await service.get_node(node_id)
+    if node and node.aliased_id:
+        breadcrumb_target_id = node.aliased_id
+    
     # Use the repository's get_breadcrumbs which queries the closure table
-    breadcrumb_nodes = await service.get_node_breadcrumbs(node_id)
+    breadcrumb_nodes = await service.get_node_breadcrumbs(breadcrumb_target_id)
     
     # Collect all node link references from breadcrumb names to resolve them
     import re
@@ -932,10 +938,10 @@ async def get_node_breadcrumbs(
         resolve_node_link=_resolve_link if link_target_map else None,
     )
 
-    # The breadcrumbs include the node itself at the end — exclude it
+    # The breadcrumbs include the target node itself at the end — exclude it
     items = []
     for node in breadcrumb_nodes:
-        if node.id == node_id:
+        if node.id == breadcrumb_target_id:
             continue
         raw_name = node.name or ''
         display = stringify_ast(parse_ast(raw_name), opts)
