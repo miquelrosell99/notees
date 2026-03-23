@@ -1086,6 +1086,7 @@ export function NodeView({
                   searchMode="tags"
                   emptyText="Add tag"
                   searchPlaceholder="Search tags..."
+                  excludeNodeId={node.id}
                   onNodeClick={(n) => handleNavigateToNode(n.id)}
                   onRemove={handleRemoveTag}
                   onColorChange={handleNodeColorChange}
@@ -1121,6 +1122,7 @@ export function NodeView({
                   searchMode="classes"
                   emptyText="Add extend"
                   searchPlaceholder="Search classes to extend..."
+                  excludeNodeId={node.id}
                   onNodeClick={(n) => handleNavigateToNode(n.id)}
                   onRemove={handleRemoveExtends}
                   onColorChange={handleNodeColorChange}
