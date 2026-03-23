@@ -567,6 +567,16 @@ export function useUpdateNode() {
         }
       );
 
+      // Also update node list caches so alias/tag pills derived from allNodes update immediately
+      const updateNodeList = (oldData: Node[] | undefined) => {
+        if (!oldData || !Array.isArray(oldData)) return oldData;
+        return oldData.map(n => n.id === updatedNode.id ? mergeUpdate(n) : n);
+      };
+      queryClient.setQueriesData<Node[]>(
+        { queryKey: nodeKeys.lists() },
+        updateNodeList
+      );
+
       // Also update byUuid cache so editor InlineLink components reflect changes (e.g. color)
       if (updatedNode.uuid) {
         queryClient.setQueryData<Node>(
