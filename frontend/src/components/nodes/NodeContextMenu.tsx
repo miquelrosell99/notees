@@ -21,6 +21,7 @@ import { ConfirmationModal } from '../core/ConfirmationModal';
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
+import api from '@/api/client';
 import type { Node, NodeUpdate } from '@/types';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -133,6 +134,7 @@ export type ActionName =
   | 'open-sidebar'
   | 'local-graph'
   | 'export'
+  | 'copy-text'
   | 'view-ast'
   | 'archive'
   | 'delete';
@@ -151,6 +153,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['copy-link',       'both'],
   ['open-sidebar',    'both'],
   ['export',          'both'],
+  ['copy-text',       'both'],
   ['view-ast',        'both'],
   ['archive',         'both'],
   ['delete',          'both'],
@@ -385,6 +388,33 @@ export function NodeContextMenu({
             label: 'Export…',
             keepOpen: true,
             onClick: () => setShowExportModal(true),
+          });
+          break;
+
+        case 'copy-text':
+          items.push({
+            id: 'copy-text',
+            label: 'Copy as text',
+            shortcut: '⇧ flat',
+            onClick: (event?) => {
+              const flat = event?.shiftKey ?? false;
+              api
+                .get(`/export/${node.uuid}`, {
+                  params: {
+                    format: 'markdown',
+                    include_children: true,
+                    formatting: false,
+                    link_style: 'text',
+                    layout: flat ? 'flat' : 'outline',
+                    properties: 'none',
+                  },
+                  responseType: 'text',
+                })
+                .then((response) => {
+                  navigator.clipboard.writeText(response.data as string);
+                });
+              onClose();
+            },
           });
           break;
 

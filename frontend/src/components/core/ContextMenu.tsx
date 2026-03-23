@@ -26,7 +26,7 @@ export interface ContextMenuItem {
   submenu?: ReactNode;
   /** If provided, renders custom content directly in the menu row instead of a button */
   content?: ReactNode;
-  onClick?: () => void;
+  onClick?: (event?: React.MouseEvent) => void;
 }
 
 export interface ContextMenuAnchor {
@@ -147,7 +147,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     el.style.top = `${y}px`;
   }, [position]);
 
-  const handleItemClick = (item: ContextMenuItem) => {
+  const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent) => {
     if (item.disabled || item.separator) return;
     
     // If item has submenu, toggle it
@@ -161,7 +161,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       return;
     }
     
-    item.onClick?.();
+    item.onClick?.(event);
     if (!item.keepOpen) {
       onClose();
     }
@@ -208,7 +208,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
           <React.Fragment key={item.id}>
             <button
               className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu ? 'has-submenu' : ''}`}
-              onClick={() => handleItemClick(item)}
+              onClick={(e) => handleItemClick(item, e)}
               disabled={item.disabled}
               role="menuitem"
               tabIndex={isFocused ? 0 : -1}
