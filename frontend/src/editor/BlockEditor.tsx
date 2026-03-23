@@ -61,6 +61,7 @@ import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
+import { useCollapsePersist } from '../hooks/useCollapsePersist';
 import type { ContentAST } from '../runtime/types';
 import type { Node } from '../types/api';
 import { parseLinkId, buildLinkId } from '../lib/astBuilder';
@@ -208,6 +209,9 @@ export function BlockEditor({
   // Listens to runtime structure_changed events (indent, outdent, reorder)
   // and persists parent_id and sequence to the backend
   useStructureSync({ enabled: !draftMode });
+
+  // ─── Persist collapse state to database ─────────────────────
+  useCollapsePersist({ enabled: !draftMode });
 
   // ─── Persist new blocks to database ────────────────────────
   // Watches for runtime nodes without serverId and creates them via API

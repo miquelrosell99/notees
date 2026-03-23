@@ -143,6 +143,7 @@ export type RuntimeEvent =
   | { type: 'nodes_changed'; blockIds: string[] }
   | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' }
   | { type: 'block_deleted'; blockId: string; serverId?: number }
+  | { type: 'collapse_changed'; blockId: string; serverId?: number; collapsed: boolean }
   | { type: 'projection_invalidated'; projectionId: string }
   | { type: 'expand_children_needed'; blockId: string; serverId?: number }
   | { type: 'undo'; entry: UndoEntry }

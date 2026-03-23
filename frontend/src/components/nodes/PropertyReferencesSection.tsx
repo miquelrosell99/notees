@@ -55,12 +55,13 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
   const processedChildren = node.children.map(child => {
     const childDepth = currentDepth + 1;
     const hasChildren = !!(child.children && child.children.length > 0);
-    const shouldCollapse = hasChildren && childDepth >= collapseLevel;
+    const autoCollapse = hasChildren && childDepth >= collapseLevel;
     
     return applyCollapseLevelToChildren(
       {
         ...child,
-        collapsed: shouldCollapse,
+        // Auto-collapse forces true; otherwise preserve DB/manual state
+        collapsed: autoCollapse || child.collapsed,
       },
       collapseLevel,
       childDepth
