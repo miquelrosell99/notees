@@ -896,7 +896,7 @@ export function NodeView({
       header: <MainContentTopbar />,
       content: (
         <article className={`node-view node-view--loading ${viewMode}`}>
-          <div className="loading-state">Loading...</div>
+          <div className="loading-state"><div className="loading-state__spinner" /></div>
         </article>
       )
     };

@@ -343,6 +343,16 @@
   background: var(--color-primary-container);
 }
 
+/* Loading skeleton for sidebar items */
+.sidebar-item-skeleton {
+  height: 28px;
+  border-radius: var(--shape-small);
+  background: linear-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  width: 100%;
+}
+
 /* ==================== Context Menu ==================== */
 /* Uses Panel component for base styling */
 .sidebar-context-menu {

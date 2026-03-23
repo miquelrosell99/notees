@@ -916,7 +916,10 @@ export function PropertiesSection({
   if (nodeLoading) {
     return (
       <div className={`properties-view loading ${className}`}>
-        <div className="properties-skeleton">Loading properties...</div>
+        <div className="properties-skeleton">
+          <div className="properties-skeleton__row" />
+          <div className="properties-skeleton__row" />
+        </div>
       </div>
     );
   }
