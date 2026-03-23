@@ -26,6 +26,7 @@ import { Card } from '@/components/core/Card';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
+import { useCollapsePersist } from '@/hooks/useCollapsePersist';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
@@ -106,6 +107,9 @@ export const CardView = memo(function CardView({
 
   // ─── Sync structural changes to database ───────────────────
   useStructureSync();
+
+  // ─── Persist collapse state to database ─────────────────────
+  useCollapsePersist();
 
   // ─── Persist new blocks to database ────────────────────────
   useBlockPersist();

@@ -826,6 +826,7 @@ export class NodeGraphRuntime {
     if (!node) return;
     node.collapsed = !node.collapsed;
     this.scheduleEmit(blockId, null);
+    this.emit({ type: 'collapse_changed', blockId, serverId: node.serverId, collapsed: node.collapsed });
     // If expanding and children haven't been loaded yet, request them
     if (!node.collapsed && node.hasServerChildren && this.getChildren(blockId).length === 0) {
       this.emit({ type: 'expand_children_needed', blockId, serverId: node.serverId });
@@ -837,6 +838,7 @@ export class NodeGraphRuntime {
     if (!node) return;
     node.collapsed = collapsed;
     this.scheduleEmit(blockId, null);
+    this.emit({ type: 'collapse_changed', blockId, serverId: node.serverId, collapsed });
     // If expanding and children haven't been loaded yet, request them
     if (!collapsed && node.hasServerChildren && this.getChildren(blockId).length === 0) {
       this.emit({ type: 'expand_children_needed', blockId, serverId: node.serverId });
