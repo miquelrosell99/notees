@@ -8,7 +8,7 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useExportSettingsStore } from '@/stores';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiFormatPageBreak } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiFormatPageBreak, mdiLinkVariant, mdiLinkOff } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { SelectionButton } from '../core/SelectionButton';
@@ -17,7 +17,7 @@ import { BooleanToggle } from '../core/BooleanToggle';
 import api from '@/api/client';
 import './ExportPageModal.css';
 
-import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype } from '@/stores';
+import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle } from '@/stores';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -51,6 +51,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     sectionBreak, setSectionBreak,
     formatting, setFormatting,
     showUuid, setShowUuid,
+    linkStyle, setLinkStyle,
     cssOverrides, setCssOverrides,
   } = useExportSettingsStore();
 
@@ -77,7 +78,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
 
     api
       .get(`/export/${nodeUuid}`, {
-        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
+        params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid, link_style: linkStyle },
         responseType: 'text',
       })
       .then((response) => {
@@ -94,7 +95,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, nodeUuid]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, nodeUuid]);
 
   // For the HTML tab, show only the <body> inner content (no doctype/head/style)
   const displayContent = useMemo(() => {
@@ -119,7 +120,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       if (format === 'pdf') {
         // Fetch HTML, inject CSS overrides, then render to PDF on the server
         const htmlResponse = await api.get(`/export/${nodeUuid}`, {
-          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
+          params: { format: 'html', include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid, link_style: linkStyle },
           responseType: 'text',
         });
         let html = htmlResponse.data as string;
@@ -138,7 +139,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
         triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
       } else {
         const response = await api.get(`/export/${nodeUuid}`, {
-          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid },
+          params: { format, include_children: true, layout, formatting, style, properties, density, numbering, measure, doctype, section_break: sectionBreak, show_uuid: showUuid, link_style: linkStyle },
           responseType: 'blob',
         });
         const disposition = response.headers['content-disposition'] as string | undefined;
@@ -154,7 +155,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, nodeUuid, cssOverrides]);
+  }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, nodeUuid, cssOverrides]);
 
   return (
     <Modal
@@ -327,6 +328,20 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   labelPosition="left"
                   checked={showUuid}
                   onChange={(e) => setShowUuid(e.target.checked)}
+                />
+              </div>
+              <div className="visibility-option">
+                <SelectionButton
+                  size="sm"
+                  label="Links"
+                  description="Show raw UUIDs in links or only the display text"
+                  labelPosition="left"
+                  options={[
+                    { value: 'raw', icon: mdiLinkVariant, label: 'Raw' },
+                    { value: 'text', icon: mdiLinkOff, label: 'Text only' },
+                  ]}
+                  value={linkStyle}
+                  onChange={(v) => setLinkStyle(v as ExportLinkStyle)}
                 />
               </div>
             </div>
