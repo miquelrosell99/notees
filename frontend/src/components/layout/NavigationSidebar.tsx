@@ -93,6 +93,8 @@ function SortableFavoriteItem({
   onContextMenu,
 }: SortableFavoriteItemProps) {
   const { data: node } = useNode(nodeId);
+  const { data: allClasses } = useClasses();
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
   const handleClick = useCallback((e: React.MouseEvent) => {
     // Don't navigate if clicking drag handle or remove button
@@ -144,7 +146,7 @@ function SortableFavoriteItem({
       <div className="sidebar-favorite-block">
         <NodeInline
           name={node.name}
-          icon={node.icon}
+          icon={effectiveIcon}
           isPage={node.is_page}
           nodeId={node.id}
           showBullet={true}
