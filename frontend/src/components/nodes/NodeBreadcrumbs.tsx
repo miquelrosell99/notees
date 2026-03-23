@@ -184,10 +184,10 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
  * For blocks: stops at the containing page.
  * Uses the closure table for O(1) lookup — a single API call regardless of depth.
  */
-function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): BreadcrumbItem[] {
-  const { data: breadcrumbs } = useBreadcrumbs(nodeId);
+function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): { items: BreadcrumbItem[]; isPending: boolean } {
+  const { data: breadcrumbs, isPending } = useBreadcrumbs(nodeId);
 
-  return useMemo(() => {
+  const items = useMemo(() => {
     if (!breadcrumbs || breadcrumbs.length === 0) return [];
 
     const chain: BreadcrumbItem[] = [];
@@ -204,6 +204,8 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): Br
 
     return chain;
   }, [breadcrumbs, nodeType]);
+
+  return { items, isPending: isPending && !!nodeId };
 }
 
 // ─── NodeBreadcrumbs (main) ──────────────────────────────────────────────────
@@ -267,7 +269,7 @@ export function NodeBreadcrumbs({
   const queryClient = useQueryClient();
 
   // Walk the full ancestor chain (stops at page for blocks)
-  const ancestorBreadcrumbs = useAncestorChain(nodeId, nodeType);
+  const { items: ancestorBreadcrumbs, isPending: breadcrumbsPending } = useAncestorChain(nodeId, nodeType);
 
   // Build final breadcrumbs including property context
   const breadcrumbs = useMemo(() => {
@@ -423,6 +425,11 @@ export function NodeBreadcrumbs({
     : [];
 
   // ─── "+ Add parent" affordance (pages only, when no ancestors) ───────
+  // Show a small spinner while breadcrumbs are loading to avoid flashing the "Add parent" button
+  if (breadcrumbsPending) {
+    return <span className="node-breadcrumb-spinner" />;
+  }
+
   if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked && editable) {
     return (
       <>

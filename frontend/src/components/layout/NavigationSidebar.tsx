@@ -49,8 +49,8 @@ function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProp
   const { data: allClasses } = useClasses();
   const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
   
-  // Don't render if node not yet loaded
-  if (!node) return null;
+  // Show skeleton placeholder while loading
+  if (!node) return <div className="sidebar-item-skeleton" />;
   
   return (
     <div onContextMenu={onContextMenu}>
@@ -118,7 +118,11 @@ function SortableFavoriteItem({
     onDragStart(index, e);
   }, [index, onDragStart]);
   
-  if (!node) return null;
+  if (!node) return (
+    <div className={`sidebar-favorite-item ${isDragging ? 'dragging' : ''}`} style={style}>
+      <div className="sidebar-item-skeleton" />
+    </div>
+  );
   
   return (
     <div

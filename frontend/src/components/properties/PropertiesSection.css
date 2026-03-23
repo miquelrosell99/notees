@@ -16,6 +16,27 @@
   padding: var(--spacing-2) 0;
 }
 
+/* Skeleton loading state */
+.properties-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+}
+
+.properties-skeleton__row {
+  height: 20px;
+  border-radius: var(--shape-extra-small);
+  background: linear-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  width: 60%;
+}
+
+.properties-skeleton__row:nth-child(2) {
+  width: 40%;
+}
+
 /* ==================== Property Value Types ==================== */
 
 /* Checkbox (boolean) */
