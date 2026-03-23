@@ -49,6 +49,7 @@ async def export_nodes(
     doctype: str = "none",   # "none" | "article" | "report" | "book" | "legal" | "academic"
     section_break: bool = False,
     show_uuid: bool = False,
+    link_style: str = "raw",  # "raw" | "text"
 ) -> tuple:
     """Export nodes to Markdown, HTML, or PDF.
 
@@ -422,16 +423,18 @@ async def export_nodes(
                 existing = properties_data.get(uuid_val, [])
                 properties_data[uuid_val] = [uuid_prop] + [p for p in existing if p['name'] != 'uuid']
 
+    strip_links = link_style == "text"
+
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data, strip_link_syntax=strip_links)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -478,10 +481,10 @@ def _is_heading_node(node_data: Dict) -> bool:
     return bool(ast and isinstance(ast, list) and ast[0].get('type') == 'heading')
 
 
-def _stringify_node(node_data: Dict, mode: StringifyMode, resolver, html_anchors: bool = False) -> str:
+def _stringify_node(node_data: Dict, mode: StringifyMode, resolver, html_anchors: bool = False, strip_link_syntax: bool = False) -> str:
     """Stringify a single node's AST to text."""
     ast = node_data.get('_ast') or parse_ast(node_data.get('name', ''))
-    opts = StringifyOptions(mode=mode, resolve_node_link=resolver, html_anchors=html_anchors)
+    opts = StringifyOptions(mode=mode, resolve_node_link=resolver, html_anchors=html_anchors, strip_link_syntax=strip_link_syntax)
     return stringify_ast(ast, opts)
 
 
@@ -594,6 +597,7 @@ def _export_to_markdown(
     layout: str = "outline",
     formatting: bool = True,
     properties_data: Dict[str, list] | None = None,
+    strip_link_syntax: bool = False,
 ) -> str:
     """Convert nodes to Markdown format."""
     if not nodes:
@@ -602,7 +606,7 @@ def _export_to_markdown(
     _props = properties_data or {}
     lines = []
     for node in nodes:
-        text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver)
+        text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
         depth = node.get('depth', 0)
         is_page = node.get('is_page', False)
 
@@ -617,7 +621,7 @@ def _export_to_markdown(
                 if p.get('subtree'):
                     lines.append(f"{p['name']}::")
                     for sub_nd in p['subtree']:
-                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
                         if formatting and sub_nd.get('color'):
                             sub_text = f"=={sub_text}=="
                         sub_depth = sub_nd.get('depth', 0)
@@ -639,7 +643,7 @@ def _export_to_markdown(
                 if p.get('subtree'):
                     lines.append(f"{p['name']}::")
                     for sub_nd in p['subtree']:
-                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
                         if formatting and sub_nd.get('color'):
                             sub_text = f"=={sub_text}=="
                         sub_depth = sub_nd.get('depth', 0)
@@ -664,7 +668,7 @@ def _export_to_markdown(
                 if p.get('subtree'):
                     lines.append(f"{indent}  {p['name']}::")
                     for sub_nd in p['subtree']:
-                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver)
+                        sub_text = _stringify_node(sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
                         if formatting and sub_nd.get('color'):
                             sub_text = f"=={sub_text}=="
                         sub_depth = sub_nd.get('depth', 0)
@@ -690,6 +694,7 @@ def _export_to_html(
     measure: str = "full",
     doctype: str = "none",
     section_break: bool = False,
+    strip_link_syntax: bool = False,
 ) -> str:
     """Convert nodes to HTML format."""
     import html as html_mod
@@ -702,7 +707,7 @@ def _export_to_html(
 
     def _render(node: Dict) -> str:
         if formatting:
-            return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, html_anchors=True))
+            return _markdown_inline_to_html(_stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, html_anchors=not strip_link_syntax, strip_link_syntax=strip_link_syntax))
         return html_mod.escape(_stringify_node(node, StringifyMode.TEXT_ONLY, resolver))
 
     def _title(node: Dict) -> str:

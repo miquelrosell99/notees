@@ -56,6 +56,7 @@ async def export_single_node(
     doctype: str = "none",
     section_break: bool = False,
     show_uuid: bool = False,
+    link_style: str = "raw",
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -82,6 +83,9 @@ async def export_single_node(
     if doctype not in ("none", "article", "report", "book", "legal", "academic"):
         raise HTTPException(status_code=400, detail=f"Invalid doctype: {doctype}")
 
+    if link_style not in ("raw", "text"):
+        raise HTTPException(status_code=400, detail=f"Invalid link_style: {link_style}")
+
     try:
         content, filename, mime_type = await _run_export(
             user.id,
@@ -98,6 +102,7 @@ async def export_single_node(
             doctype=doctype,
             section_break=section_break,
             show_uuid=show_uuid,
+            link_style=link_style,
         )
         
         return Response(
