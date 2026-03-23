@@ -8,7 +8,7 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useState, useMemo, useCallback } from 'react';
+import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
@@ -20,7 +20,8 @@ import {
   mdiArrowLeft,
   mdiArrowRight,
 } from '@mdi/js';
-import { useNavigationStore, useModalStore, useNavigationHistoryStore } from '@/stores';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
@@ -57,6 +58,17 @@ export function TopBar() {
   const canGoForward = useNavigationHistoryStore(s => s.canGoForward);
   const goBack = useNavigationHistoryStore(s => s.goBack);
   const goForward = useNavigationHistoryStore(s => s.goForward);
+
+  // Global undo/redo
+  const queryClient = useQueryClient();
+  const canUndo = useUndoStore(s => s.canUndo);
+  const canRedo = useUndoStore(s => s.canRedo);
+  const performUndo = useUndoStore(s => s.performUndo);
+  const performRedo = useUndoStore(s => s.performRedo);
+  const refreshStack = useUndoStore(s => s.refreshStack);
+  
+  // Refresh undo stack on mount
+  useEffect(() => { refreshStack(); }, [refreshStack]);
 
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -136,8 +148,9 @@ export function TopBar() {
           icon={mdiUndo}
           variant="ghost"
           size="sm"
+          disabled={!canUndo}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => document.execCommand('undo')}
+          onClick={() => performUndo(queryClient)}
           aria-label="Undo"
           title="Undo (Ctrl+Z)"
           className="toolbar-btn"
@@ -148,8 +161,9 @@ export function TopBar() {
           icon={mdiRedo}
           variant="ghost"
           size="sm"
+          disabled={!canRedo}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => document.execCommand('redo')}
+          onClick={() => performRedo(queryClient)}
           aria-label="Redo"
           title="Redo (Ctrl+Y)"
           className="toolbar-btn"

@@ -40,6 +40,8 @@ from .models import (
 )
 from .helpers import (
     _get_node_service,
+    _get_undo_service,
+    _node_snapshot,
     _node_to_response,
     _get_class_ids,
     _get_tag_ids,
@@ -89,6 +91,19 @@ async def create_node(
                 "conflicting_classes": e.conflicting_classes,
             },
         )
+
+    # Record for undo
+    try:
+        undo = await _get_undo_service(user)
+        await undo.record(
+            "create_node", "node", node.id,
+            before_state=None,
+            after_state=_node_snapshot(node),
+            description=f"Created '{node.name[:60]}'",
+        )
+    except Exception:
+        pass  # Never fail the mutation because of undo logging
+
     return _node_to_response(node, classes=list(body.classes))
 
 
@@ -1546,6 +1561,10 @@ async def update_node(
     
     logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")
     
+    # Snapshot before state for undo
+    old_node = await service.get_node(node_id)
+    before = _node_snapshot(old_node) if old_node else None
+    
     try:
         node = await service.update_node(
             node_id, 
@@ -1560,6 +1579,27 @@ async def update_node(
         # Apply class reconciliation and property values if provided
         if body.classes is not None or body.properties:
             await _apply_node_extras(service, node_id, body.classes, body.properties)
+
+        # Record for undo
+        if before:
+            try:
+                undo = await _get_undo_service(user)
+                after = _node_snapshot(node)
+                # Only record if something actually changed
+                if before != after:
+                    old_name = before.get('name', '')[:30]
+                    new_name = after.get('name', '')[:30]
+                    if before.get('name') != after.get('name'):
+                        desc = f"Renamed '{old_name}' → '{new_name}'"
+                    else:
+                        desc = f"Updated '{old_name}'"
+                    await undo.record(
+                        "update_node", "node", node_id,
+                        before_state=before, after_state=after,
+                        description=desc,
+                    )
+            except Exception:
+                pass
 
         return _node_to_response(node)
     except OptimisticLockError as e:
@@ -1594,12 +1634,30 @@ async def move_node(
     # Default position to 0 if not specified
     position = request.position if request.position is not None else 0
     
+    # Snapshot before state for undo
+    old_node = await service.get_node(node_id)
+    before = _node_snapshot(old_node) if old_node else None
+    
     try:
         node = await service.move_node(node_id, request.parent_id, position)
     except ValueError as e:
         raise HTTPException(422, str(e))
     if not node:
         raise HTTPException(404, "Node not found")
+    
+    # Record for undo
+    if before:
+        try:
+            undo = await _get_undo_service(user)
+            after = _node_snapshot(node)
+            name = (node.name or '')[:30]
+            await undo.record(
+                "move_node", "node", node_id,
+                before_state=before, after_state=after,
+                description=f"Moved '{name}'",
+            )
+        except Exception:
+            pass
     
     return _node_to_response(node)
 
@@ -1644,6 +1702,24 @@ async def delete_node(
     service = await _get_node_service(user)
     pool = service.pool
     
+    # Snapshot before state for undo (node name + descendants list)
+    undo_before = None
+    try:
+        old_node = await service.get_node(node_id)
+        if old_node:
+            # Get descendant IDs for undo (needed to restore them too)
+            desc_rows = await pool.fetch(
+                "SELECT descendant_id FROM node_path WHERE ancestor_id = $1 AND depth > 0",
+                node_id,
+            )
+            desc_ids = [r['descendant_id'] for r in desc_rows]
+            undo_before = {
+                **_node_snapshot(old_node),
+                "deleted_ids": [node_id] + desc_ids,
+            }
+    except Exception:
+        pass
+    
     # Get the node including archived ones (for UUID and asset cleanup)
     row = await pool.fetchrow(
         "SELECT uuid FROM node WHERE id = $1 AND workspace_id = $2",
@@ -1680,6 +1756,19 @@ async def delete_node(
     if not success:
         raise HTTPException(404, "Node not found")
     
+    # Record for undo
+    if undo_before:
+        try:
+            undo = await _get_undo_service(user)
+            name = undo_before.get('name', '')[:30]
+            await undo.record(
+                "delete_node", "node", node_id,
+                before_state=undo_before, after_state=None,
+                description=f"Deleted '{name}'",
+            )
+        except Exception:
+            pass
+    
     return {"status": "ok"}
 
 
@@ -1691,9 +1780,22 @@ async def archive_node(
     """Archive a node (set active to false)."""
     service = await _get_node_service(user)
     
-    node = await service.archive_node(node_id, None)  # user_id not used for now
+    node = await service.archive_node(node_id, None)
     if not node:
         raise HTTPException(404, "Node not found")
+    
+    # Record for undo
+    try:
+        undo = await _get_undo_service(user)
+        name = (node.name or '')[:30]
+        await undo.record(
+            "archive_node", "node", node_id,
+            before_state={"active": True},
+            after_state={"active": False},
+            description=f"Archived '{name}'",
+        )
+    except Exception:
+        pass
     
     types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
@@ -1726,9 +1828,22 @@ async def unarchive_node(
     """Unarchive a node (set active to true)."""
     service = await _get_node_service(user)
     
-    node = await service.unarchive_node(node_id, None)  # user_id not used for now
+    node = await service.unarchive_node(node_id, None)
     if not node:
         raise HTTPException(404, "Node not found")
+    
+    # Record for undo
+    try:
+        undo = await _get_undo_service(user)
+        name = (node.name or '')[:30]
+        await undo.record(
+            "unarchive_node", "node", node_id,
+            before_state={"active": False},
+            after_state={"active": True},
+            description=f"Unarchived '{name}'",
+        )
+    except Exception:
+        pass
     
     types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])

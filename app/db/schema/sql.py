@@ -1225,4 +1225,30 @@ CREATE TRIGGER node_update_workspace_write_date
 --     SELECT 1 FROM node_path 
 --     WHERE ancestor_id = A AND descendant_id = B
 --   );
+
+-- ============================================================
+-- UNDO / REDO LOG
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS undo_log (
+    id          BIGSERIAL PRIMARY KEY,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL,
+    operation   TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id   INTEGER NOT NULL,
+    before_state JSONB,
+    after_state  JSONB,
+    description  TEXT,
+    is_undone    BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_undo_log_stack
+    ON undo_log (workspace_id, user_id, created_at DESC)
+    WHERE is_undone = FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_undo_log_redo
+    ON undo_log (workspace_id, user_id, created_at DESC)
+    WHERE is_undone = TRUE;
 """

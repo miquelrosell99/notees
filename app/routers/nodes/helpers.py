@@ -443,6 +443,29 @@ async def _get_node_service(user: User) -> NodeService:
     return node_service
 
 
+async def _get_undo_service(user: User):
+    """Get an UndoService for the current user's workspace."""
+    from ...dependencies import _get_workspace_context_cached
+    from ...domain.services.undo_service import UndoService
+
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    return UndoService(pool, workspace_id, user_id)
+
+
+def _node_snapshot(node) -> dict:
+    """Capture the columns needed for undo/redo of a node."""
+    return {
+        "name": node.name,
+        "icon": node.icon,
+        "color": node.color,
+        "parent_id": node.parent_id,
+        "sequence": node.sequence,
+        "collapsed": node.collapsed,
+    }
+
+
 async def _resolve_referenced_display_names(pool, workspace_id: int, target_rows) -> Dict[str, str]:
     """Resolve node links embedded in names and return uuid → resolved plain-text map.
 

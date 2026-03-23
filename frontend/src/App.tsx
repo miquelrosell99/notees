@@ -21,7 +21,8 @@ import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './api/workspaces';
-import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore } from './stores';
+import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore, useUndoStore } from './stores';
+import { SHORTCUT_IDS } from './stores/keyboardStore';
 import type { User } from './types/api';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
@@ -37,6 +38,37 @@ const log = getLogger('App');
  */
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
+  
+  // Register global undo/redo shortcut handlers
+  useEffect(() => {
+    const { registerHandler } = useKeyboardStore.getState();
+    
+    const unregisterUndo = registerHandler(SHORTCUT_IDS.UNDO, () => {
+      // If a Lexical editor is focused, let it handle its own undo
+      const active = document.activeElement;
+      if (active?.closest('[data-lexical-editor]')) return false;
+      useUndoStore.getState().performUndo(queryClient);
+    }, 0);
+    
+    const unregisterRedo = registerHandler(SHORTCUT_IDS.REDO, () => {
+      const active = document.activeElement;
+      if (active?.closest('[data-lexical-editor]')) return false;
+      useUndoStore.getState().performRedo(queryClient);
+    }, 0);
+    
+    const unregisterRedoAlt = registerHandler(SHORTCUT_IDS.REDO_ALT, () => {
+      const active = document.activeElement;
+      if (active?.closest('[data-lexical-editor]')) return false;
+      useUndoStore.getState().performRedo(queryClient);
+    }, 0);
+    
+    return () => {
+      unregisterUndo();
+      unregisterRedo();
+      unregisterRedoAlt();
+    };
+  }, []);
+  
   return null;
 }
 
