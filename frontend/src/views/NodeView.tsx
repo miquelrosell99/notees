@@ -364,7 +364,14 @@ export function NodeView({
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
-  const pageClassDetails = useResolvedClassDetails(node?.classes);
+  // For aliases, inherit classes from the aliased (main) node
+  const isAlias = !!node?.aliased_id;
+  const aliasedNode = useMemo(() => {
+    if (!isAlias || !node?.aliased_id) return null;
+    return allNodes?.find(n => n.id === node.aliased_id) ?? null;
+  }, [isAlias, node?.aliased_id, allNodes]);
+  const effectiveClasses = isAlias ? (aliasedNode?.classes ?? []) : node?.classes;
+  const pageClassDetails = useResolvedClassDetails(effectiveClasses);
   
   // Resolve page tag details from IDs (excluding class definitions)
   const pageTagDetails = useMemo(() => {
@@ -924,7 +931,7 @@ export function NodeView({
           onNavigate={(id) => openNode(id)}
           propertyContext={undefined}
           parentLocked={node.parent_locked}
-          editable
+          editable={!isAlias}
           className="node-view-breadcrumbs"
         />
       }
@@ -1062,20 +1069,20 @@ export function NodeView({
             {/* Row 2: Classes and Tags stacked */}
             <div className="page-header-section__types-and-tags">
               <div className="page-header-section__types">
-                <div className="section-label">Classes:</div>
+                <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
                 <NodeSelector
                   nodes={pageClassDetails}
                   searchMode="classes"
-                  emptyText="Add class"
+                  emptyText={isAlias ? '' : 'Add class'}
                   searchPlaceholder="Search classes..."
                   onNodeClick={(n) => handleNavigateToNode(n.id)}
-                  onRemove={handleRemoveClass}
-                  onColorChange={handleNodeColorChange}
-                  onAdd={handleAddClass}
-                  onCreateNew={handleCreateClass}
-                  onConvertToClass={handleConvertToClass}
-                  canRemove={(n) => !isNonRemovableClass(n.uuid)}
-                  canAdd={(n) => !isBlockOnlyClass(n.uuid)}
+                  onRemove={isAlias ? undefined : handleRemoveClass}
+                  onColorChange={isAlias ? undefined : handleNodeColorChange}
+                  onAdd={isAlias ? undefined : handleAddClass}
+                  onCreateNew={isAlias ? undefined : handleCreateClass}
+                  onConvertToClass={isAlias ? undefined : handleConvertToClass}
+                  canRemove={isAlias ? () => false : (n) => !isNonRemovableClass(n.uuid)}
+                  canAdd={isAlias ? () => false : (n) => !isBlockOnlyClass(n.uuid)}
                 />
               </div>
               

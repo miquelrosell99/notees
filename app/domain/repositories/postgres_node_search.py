@@ -142,6 +142,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 SELECT * FROM node
                 WHERE is_page = true AND active = true AND is_deleted = false AND workspace_id = $1
                   AND uuid NOT IN (SELECT unnest($2::uuid[]))
+                  AND aliased_id IS NULL
                 ORDER BY write_date DESC NULLS LAST
             """
             excluded_uuids = list(SYSTEM_PAGE_UUIDS.values())
