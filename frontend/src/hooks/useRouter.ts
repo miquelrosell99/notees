@@ -20,6 +20,7 @@
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
+import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
@@ -158,7 +159,8 @@ export function pushUrl(params: {
   
   if (url !== currentPath) {
     log.debug('Pushing URL', { from: currentPath, to: url });
-    window.history.pushState(null, '', url);
+    const newIndex = useNavigationHistoryStore.getState().push();
+    window.history.pushState({ navIndex: newIndex }, '', url);
   }
 }
 
@@ -175,7 +177,8 @@ export function replaceUrl(params: {
   
   if (url !== currentPath) {
     log.debug('Replacing URL', { from: currentPath, to: url });
-    window.history.replaceState(null, '', url);
+    const currentIndex = useNavigationHistoryStore.getState().currentIndex;
+    window.history.replaceState({ navIndex: currentIndex }, '', url);
   }
 }
 

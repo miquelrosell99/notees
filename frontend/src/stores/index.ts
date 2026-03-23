@@ -15,6 +15,7 @@
 export { useAuthStore } from './authStore';
 export { useModalStore } from './modalStore';
 export { useNavigationStore } from './navigationStore';
+export { useNavigationHistoryStore } from './navigationHistoryStore';
 export { useAppStore, type ViewMode, type MainViewType, type NodeViewType, type SidebarNodeType, type RightSidebarContent, type ContentDisplayMode, type CardLayoutMode, type SidebarCard, type SidebarCardType } from './appStore';
 export { 
   useSettingsStore, 

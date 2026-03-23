@@ -14,9 +14,13 @@ import {
   mdiCalendar, 
   mdiDockRight,
   mdiNoteTextOutline,
-  mdiCommentOutline
+  mdiCommentOutline,
+  mdiUndo,
+  mdiRedo,
+  mdiArrowLeft,
+  mdiArrowRight,
 } from '@mdi/js';
-import { useNavigationStore, useModalStore } from '@/stores';
+import { useNavigationStore, useModalStore, useNavigationHistoryStore } from '@/stores';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
@@ -47,6 +51,12 @@ export function TopBar() {
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
   const [goToTodaySignal, setGoToTodaySignal] = useState(0);
+
+  // Navigation history for back/forward buttons
+  const canGoBack = useNavigationHistoryStore(s => s.canGoBack);
+  const canGoForward = useNavigationHistoryStore(s => s.canGoForward);
+  const goBack = useNavigationHistoryStore(s => s.goBack);
+  const goForward = useNavigationHistoryStore(s => s.goForward);
 
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -91,6 +101,28 @@ export function TopBar() {
             className="menu-toggle"
           />
         
+          {/* Back / Forward navigation */}
+          <Button
+            icon={mdiArrowLeft}
+            variant="ghost"
+            size="sm"
+            onClick={goBack}
+            disabled={!canGoBack}
+            aria-label="Go back"
+            title="Go back"
+            className="toolbar-btn"
+          />
+          <Button
+            icon={mdiArrowRight}
+            variant="ghost"
+            size="sm"
+            onClick={goForward}
+            disabled={!canGoForward}
+            aria-label="Go forward"
+            title="Go forward"
+            className="toolbar-btn"
+          />
+
           <h1 className="app-title">Notees</h1>
         </div>
       
@@ -99,6 +131,32 @@ export function TopBar() {
         </div>
       
         <div className="top-bar-right">
+        {/* Undo button */}
+        <Button
+          icon={mdiUndo}
+          variant="ghost"
+          size="sm"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => document.execCommand('undo')}
+          aria-label="Undo"
+          title="Undo (Ctrl+Z)"
+          className="toolbar-btn"
+        />
+
+        {/* Redo button */}
+        <Button
+          icon={mdiRedo}
+          variant="ghost"
+          size="sm"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => document.execCommand('redo')}
+          aria-label="Redo"
+          title="Redo (Ctrl+Y)"
+          className="toolbar-btn"
+        />
+
+        <div className="toolbar-separator" />
+
         {/* Scratchpad button */}
         <Button
           ref={scratchpadBtnRef}
