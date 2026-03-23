@@ -49,6 +49,7 @@ from .routers import (
     sync_router,
     export_router,
     assets_router,
+    undo_router,
 )
 from .routers.activity import router as activity_router
 
@@ -240,6 +241,7 @@ app.include_router(sync_router)
 app.include_router(export_router)
 app.include_router(assets_router)
 app.include_router(activity_router)
+app.include_router(undo_router)
 
 
 # ============ Static Routes ============

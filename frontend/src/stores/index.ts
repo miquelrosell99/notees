@@ -75,4 +75,4 @@ export {
   type ShortcutContext,
   type ShortcutDefinition,
   type ModifierKeys,
-} from './keyboardStore';export { useWhiteboardStore } from './whiteboardStore';
+} from './keyboardStore';export { useWhiteboardStore } from './whiteboardStore';export { useUndoStore } from './undoStore';

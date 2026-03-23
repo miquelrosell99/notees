@@ -6,6 +6,7 @@ from ...models import User
 from .models import ClassRequest
 from .helpers import (
     _get_node_service,
+    _get_undo_service,
     _node_to_response,
     _get_class_ids_batch,
 )
@@ -118,12 +119,37 @@ async def add_node_class(
     
     service = await _get_node_service(user)
     
+    # Snapshot class_ids before add
+    pool = service.pool
+    before_row = await pool.fetchrow(
+        "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+        node_id, service.workspace_id,
+    )
+    before_class_ids = list(before_row['class_ids'] or []) if before_row else []
+    
     try:
         success = await service.add_class(node_id, request.class_node_id)
         if not success:
             raise HTTPException(400, "Class already present or node not found")
     except SystemClassConstraintError as e:
         raise HTTPException(400, e.message)
+    
+    # Record for undo
+    try:
+        after_row = await pool.fetchrow(
+            "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, service.workspace_id,
+        )
+        after_class_ids = list(after_row['class_ids'] or []) if after_row else []
+        undo = await _get_undo_service(user)
+        await undo.record(
+            "add_class", "node", node_id,
+            before_state={"class_ids": before_class_ids},
+            after_state={"class_ids": after_class_ids},
+            description=f"Added class to node {node_id}",
+        )
+    except Exception:
+        pass
     
     # Special handling for query class: create a main_content NodeView
     added_class_node = await service.get_node(request.class_node_id)
@@ -165,6 +191,14 @@ async def remove_node_class_endpoint(
     
     service = await _get_node_service(user)
     
+    # Snapshot class_ids before removal
+    pool = service.pool
+    before_row = await pool.fetchrow(
+        "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+        node_id, service.workspace_id,
+    )
+    before_class_ids = list(before_row['class_ids'] or []) if before_row else []
+    
     # Special handling for query class: delete the main_content NodeView before removing the class
     removed_class_node = await service.get_node(class_id)
     if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
@@ -185,6 +219,24 @@ async def remove_node_class_endpoint(
     node = await service.get_node(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
+    
+    # Record for undo
+    try:
+        after_row = await pool.fetchrow(
+            "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
+            node_id, service.workspace_id,
+        )
+        after_class_ids = list(after_row['class_ids'] or []) if after_row else []
+        undo = await _get_undo_service(user)
+        await undo.record(
+            "remove_class", "node", node_id,
+            before_state={"class_ids": before_class_ids},
+            after_state={"class_ids": after_class_ids},
+            description=f"Removed class from node {node_id}",
+        )
+    except Exception:
+        pass
+    
     classes = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
 
