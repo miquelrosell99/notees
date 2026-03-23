@@ -9,12 +9,12 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useFavoritesStore, useModalStore } from '@/stores';
 import { useNode, useClasses } from '@/hooks';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog, mdiMagnify } from '@mdi/js';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
@@ -456,6 +456,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {/* Main Navigation */}
         <div className="sidebar-content">
           <nav className="sidebar-nav">
+            <Button 
+              className="sidebar-nav-item"
+              variant="ghost"
+              size="sm"
+              icon={mdiMagnify}
+              fullWidth
+              onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
+            >
+              Search
+            </Button>
+            
             <Button 
               className="sidebar-nav-item"
               variant="ghost"

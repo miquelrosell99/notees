@@ -12,6 +12,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
+import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
@@ -122,6 +123,11 @@ export function RouterSync({ children }: RouterSyncProps) {
    */
   useEffect(() => {
     if (hasInitialized.current) return;
+    
+    // Set initial history state so popstate events include navIndex
+    if (!window.history.state?.navIndex) {
+      window.history.replaceState({ navIndex: 0 }, '', window.location.pathname);
+    }
     
     const currentPath = window.location.pathname;
     const route = parseUrl(currentPath);
@@ -247,9 +253,11 @@ export function RouterSync({ children }: RouterSyncProps) {
    * Handle browser back/forward navigation
    */
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
+      const navIndex = event.state?.navIndex ?? 0;
+      useNavigationHistoryStore.getState().handlePopState(navIndex);
       const route = parseUrl(window.location.pathname);
-      log.debug('Popstate event', { path: window.location.pathname, route });
+      log.debug('Popstate event', { path: window.location.pathname, route, navIndex });
       processRoute(route);
     };
     
