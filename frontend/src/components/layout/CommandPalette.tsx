@@ -7,8 +7,8 @@
  * - Blocks section  
  * - Auto-select first result for quick navigation
  * - Quick add section
- * - @classname syntax for filtering and creating pages with specific class
- * - @ triggers class suggestion popup for easy class selection
+ * - Filter prefix system: class:, uuid:, is_page:, is_class:, is_daily:
+ * - class: triggers class suggestion popup for easy class selection
  */
 import './CommandPalette.css';
 import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
@@ -24,7 +24,7 @@ import type { Node, Property } from '@/types';
 import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
 import Icon from '@mdi/react';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle, mdiMap, mdiGraphOutline } from '@mdi/js';
+import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle, mdiMap, mdiGraphOutline, mdiFilter } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import { SuggestionPopup } from '../nodes/SuggestionPopup';
 import { NodeRef } from '../nodes/NodeRef';
@@ -55,42 +55,141 @@ interface SearchResult {
 
 
 /**
- * Parse query for @classname syntax
- * Returns the search term, optional class filter, and whether user is typing a class
- * Example: "Pokemon @creature" -> { searchTerm: "Pokemon", className: "creature", isTypingClass: false }
- * Example: "Pokemon @crea" -> { searchTerm: "Pokemon", className: null, isTypingClass: true, classQuery: "crea" }
+ * Filter prefix configuration for the command palette.
+ * Supports: class dropdown, text input (uuid), and boolean dropdowns.
  */
-function parseQueryWithClass(query: string): { 
-  searchTerm: string; 
-  className: string | null;
-  isTypingClass: boolean;
-  classQuery: string;
-} {
-  // Check if user is actively typing after @ (no space after the class name yet)
-  const typingMatch = query.match(/^(.*)@(\S*)$/);
-  if (typingMatch) {
-    const classQuery = typingMatch[2];
-    // If there's a complete word after @ followed by nothing (user is still typing)
-    return {
-      searchTerm: typingMatch[1].trim(),
-      className: null,
-      isTypingClass: true,
-      classQuery,
-    };
+interface FilterPrefixConfig {
+  prefix: string;
+  label: string;
+  description: string;
+  type: 'class' | 'text' | 'boolean';
+  options?: string[]; // For boolean type
+}
+
+const FILTER_PREFIXES: FilterPrefixConfig[] = [
+  { prefix: 'uuid', label: 'UUID', description: 'Find node by UUID', type: 'text' },
+  { prefix: 'class', label: 'Class', description: 'Filter by class', type: 'class' },
+  { prefix: 'is_page', label: 'Is Page', description: 'Filter pages or blocks', type: 'boolean', options: ['true', 'false'] },
+  { prefix: 'is_class', label: 'Is Class', description: 'Filter class definitions', type: 'boolean', options: ['true', 'false'] },
+  { prefix: 'is_daily', label: 'Is Daily', description: 'Filter daily notes', type: 'boolean', options: ['true', 'false'] },
+];
+
+/** An applied filter (shown as a pill below the input) */
+type AppliedFilter = 
+  | { type: 'class'; classNode: Node }
+  | { type: 'boolean'; prefix: string; label: string; value: boolean };
+
+interface ParsedFilters {
+  /** Remaining search text after removing filter syntax */
+  searchTerm: string;
+  /** Active filter being typed (prefix:value in progress) */
+  activeFilter: { prefix: string; value: string; config: FilterPrefixConfig } | null;
+  /** Whether user is actively typing a filter value */
+  isTypingFilter: boolean;
+  /** Matching prefix suggestions (when user types partial prefix without colon) */
+  suggestedPrefixes: FilterPrefixConfig[];
+  /** UUID being searched for (when query is uuid:value) */
+  uuidSearch: string | null;
+}
+
+/**
+ * Parse query for filter prefix syntax (prefix:value).
+ * Replaces the old @classname system with a general property:value approach.
+ * 
+ * Examples:
+ *   "Pokemon class:crea" -> typing class filter, classQuery="crea"
+ *   "uuid:abc-123" -> UUID search
+ *   "is_page:true" -> boolean filter applied
+ *   "hello cla" -> suggests "class:" prefix
+ */
+function parseQueryWithFilters(query: string, appliedFilters: AppliedFilter[]): ParsedFilters {
+  // Check for active filter being typed: "text prefix:value" at end of query
+  const filterMatch = query.match(/^(.*?)(\S+):(\S*)$/);
+  if (filterMatch) {
+    const beforeFilter = filterMatch[1].trim();
+    const prefix = filterMatch[2].toLowerCase();
+    const value = filterMatch[3];
+    const config = FILTER_PREFIXES.find(f => f.prefix === prefix);
+    
+    if (config) {
+      // UUID is a direct search, not a filter pill
+      if (config.type === 'text') {
+        return {
+          searchTerm: beforeFilter,
+          activeFilter: { prefix, value, config },
+          isTypingFilter: true,
+          suggestedPrefixes: [],
+          uuidSearch: prefix === 'uuid' && value ? value : null,
+        };
+      }
+      
+      // Boolean filter: check if value is complete
+      if (config.type === 'boolean') {
+        const boolVal = value.toLowerCase();
+        if (boolVal === 'true' || boolVal === 'false') {
+          // Value is complete — but only auto-apply when user adds a space after
+          // (leave it as "typing" until the space triggers completion in the component)
+        }
+        return {
+          searchTerm: beforeFilter,
+          activeFilter: { prefix, value, config },
+          isTypingFilter: true,
+          suggestedPrefixes: [],
+          uuidSearch: null,
+        };
+      }
+      
+      // Class filter: show dropdown
+      return {
+        searchTerm: beforeFilter,
+        activeFilter: { prefix, value, config },
+        isTypingFilter: true,
+        suggestedPrefixes: [],
+        uuidSearch: null,
+      };
+    }
   }
   
-  // Check for completed @classname (has space after or is at end with complete word)
-  const completedMatch = query.match(/^(.*)@(\S+)\s+$/);
-  if (completedMatch) {
-    return {
-      searchTerm: completedMatch[1].trim(),
-      className: completedMatch[2],
-      isTypingClass: false,
-      classQuery: '',
-    };
+  // Also support the "prefix:" with no value yet (user just typed the colon)
+  const colonMatch = query.match(/^(.*?)(\S+):$/);
+  if (colonMatch) {
+    const prefix = colonMatch[2].toLowerCase();
+    const config = FILTER_PREFIXES.find(f => f.prefix === prefix);
+    if (config) {
+      return {
+        searchTerm: colonMatch[1].trim(),
+        activeFilter: { prefix, value: '', config },
+        isTypingFilter: true,
+        suggestedPrefixes: [],
+        uuidSearch: null,
+      };
+    }
   }
   
-  return { searchTerm: query, className: null, isTypingClass: false, classQuery: '' };
+  // Check for partial prefix match (user might be starting to type a filter)
+  const lastWord = query.match(/(\S+)$/);
+  if (lastWord && !lastWord[1].includes(':')) {
+    const partial = lastWord[1].toLowerCase();
+    // Only suggest if at least 2 chars to avoid noise
+    if (partial.length >= 2) {
+      // Don't suggest prefixes that are already applied as filters
+      const appliedPrefixes = new Set(appliedFilters.filter(f => f.type === 'boolean').map(f => (f as { prefix: string }).prefix));
+      const matching = FILTER_PREFIXES.filter(f => 
+        f.prefix.startsWith(partial) && !appliedPrefixes.has(f.prefix)
+      );
+      if (matching.length > 0) {
+        return {
+          searchTerm: query,
+          activeFilter: null,
+          isTypingFilter: false,
+          suggestedPrefixes: matching,
+          uuidSearch: null,
+        };
+      }
+    }
+  }
+  
+  return { searchTerm: query, activeFilter: null, isTypingFilter: false, suggestedPrefixes: [], uuidSearch: null };
 }
 
 // Initial items shown per section — expandable via "Show more"
@@ -243,7 +342,7 @@ export function CommandPalette({
   onSelect,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
-  const [selectedClasses, setSelectedClasses] = useState<Node[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [duplicateModal, setDuplicateModal] = useState<{
     isOpen: boolean;
@@ -271,21 +370,56 @@ export function CommandPalette({
   // Fetch all properties for search
   const { data: allProperties = [] } = useProperties();
   
-  // Parse query for @classname syntax
-  const { searchTerm, isTypingClass, classQuery } = useMemo(() => parseQueryWithClass(query), [query]);
+  // Derive selected classes from appliedFilters for backward compatibility
+  const selectedClasses = useMemo(() => 
+    appliedFilters.filter((f): f is AppliedFilter & { type: 'class' } => f.type === 'class').map(f => f.classNode),
+    [appliedFilters]
+  );
+  
+  // Parse query for filter prefix syntax (class:, uuid:, is_page:, etc.)
+  const { searchTerm, isTypingFilter, activeFilter, suggestedPrefixes, uuidSearch } = useMemo(
+    () => parseQueryWithFilters(query, appliedFilters), [query, appliedFilters]
+  );
+  
+  // For class filter: extract the class query from activeFilter
+  const isTypingClass = isTypingFilter && activeFilter?.config.type === 'class';
+  const classQuery = isTypingClass ? (activeFilter?.value ?? '') : '';
+  
+  // For boolean filter: check if typing a boolean option
+  const isTypingBoolean = isTypingFilter && activeFilter?.config.type === 'boolean';
+  const booleanOptions = isTypingBoolean && activeFilter?.config.options 
+    ? activeFilter.config.options.filter(opt => opt.startsWith(activeFilter.value.toLowerCase()))
+    : [];
   
   // Debounce the search term to avoid firing API calls on every keystroke
-  const debouncedSearchTerm = useDeferredValue(isTypingClass ? '' : searchTerm);
+  const debouncedSearchTerm = useDeferredValue(isTypingFilter ? '' : searchTerm);
   
-  // Build class filter for search from selected classes
+  // Build class filter for search from applied class filters
   const classFilter = selectedClasses.length > 0 
     ? selectedClasses.map(c => c.id).join(',')
     : undefined;
   
-  // Search with optional class filter (debounced to avoid per-keystroke API calls)
+  // Build boolean filters from applied filters
+  const booleanFilters = useMemo(() => {
+    const filters: { isPage?: boolean; isClass?: boolean; isDaily?: boolean } = {};
+    for (const f of appliedFilters) {
+      if (f.type === 'boolean') {
+        if (f.prefix === 'is_page') filters.isPage = f.value;
+        else if (f.prefix === 'is_class') filters.isClass = f.value;
+        else if (f.prefix === 'is_daily') filters.isDaily = f.value;
+      }
+    }
+    return filters;
+  }, [appliedFilters]);
+  
+  // Search with filters (debounced to avoid per-keystroke API calls)
   const { data: searchResults, isLoading: isSearchLoading } = useSearch(
     debouncedSearchTerm, 
-    classFilter
+    {
+      classFilters: classFilter,
+      uuid: uuidSearch ?? undefined,
+      ...booleanFilters,
+    }
   );
   
   // Categorize results off the main thread via Web Worker
@@ -371,11 +505,11 @@ export function CommandPalette({
   const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
 
   const allItems = useMemo(() => {
-      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; commandDevOnly?: boolean; browseSection?: 'recent-accessed' | 'recent-created' | 'random'; showMoreSection?: 'pages' | 'blocks' | 'properties'; showMoreCount?: number };
+      type ItemEntry = { type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more' | 'filter-prefix' | 'boolean-option'; result?: SearchResult; label?: string; parsedDate?: ParsedDate; existingNode?: Node; commandId?: string; commandIcon?: 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph'; commandDevOnly?: boolean; browseSection?: 'recent-accessed' | 'recent-created' | 'random'; showMoreSection?: 'pages' | 'blocks' | 'properties'; showMoreCount?: number; filterPrefix?: FilterPrefixConfig; booleanValue?: boolean };
     const items: ItemEntry[] = [];
     
-    // When no query, show browse sections
-    if (!searchTerm.trim()) {
+    // When no query and no filters, show browse sections
+    if (!searchTerm.trim() && !uuidSearch && appliedFilters.length === 0) {
       for (const page of recentAccessedPages) {
         items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'recent-accessed' });
       }
@@ -388,8 +522,23 @@ export function CommandPalette({
       return items;
     }
 
+    // Boolean option dropdown — when typing a boolean filter like is_page:
+    if (isTypingBoolean && booleanOptions.length > 0) {
+      for (const opt of booleanOptions) {
+        items.push({ type: 'boolean-option', label: `${activeFilter!.prefix}:${opt}`, booleanValue: opt === 'true' });
+      }
+      return items;
+    }
+
+    // Filter prefix suggestions — when typing partial prefix
+    if (suggestedPrefixes.length > 0) {
+      for (const fp of suggestedPrefixes) {
+        items.push({ type: 'filter-prefix', label: `${fp.prefix}: — ${fp.description}`, filterPrefix: fp });
+      }
+    }
+
     // Commands section — show first when user is searching
-    if (searchTerm.trim()) {
+    if (searchTerm.trim() && !uuidSearch) {
       const lowerSearch = searchTerm.toLowerCase();
       for (const cmd of commands) {
         if (cmd.label.toLowerCase().includes(lowerSearch)) {
@@ -465,7 +614,7 @@ export function CommandPalette({
     }
     
     return items;
-  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap, recentAccessedPages, recentCreatedPages, randomPages, maxPages, maxBlocks, maxProperties]);
+  }, [rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses, parsedDate, existingDateNode, commands, formatParsedDateLabel, pageMap, recentAccessedPages, recentCreatedPages, randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean, booleanOptions, suggestedPrefixes, activeFilter]);
   
   // Reset section limits when search query changes
   useEffect(() => {
@@ -478,7 +627,7 @@ export function CommandPalette({
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-      setSelectedClasses([]);
+      setAppliedFilters([]);
       setClassPopupPosition(null);
       setMaxPages(INITIAL_MAX_PAGES);
       setMaxBlocks(INITIAL_MAX_BLOCKS);
@@ -493,7 +642,7 @@ export function CommandPalette({
     }
   }, [isOpen, queryClient]);
   
-  // Calculate class popup position when typing @
+  // Calculate class popup position when typing class: filter
   useEffect(() => {
     if (isTypingClass && inputRef.current) {
       const inputRect = inputRef.current.getBoundingClientRect();
@@ -510,21 +659,53 @@ export function CommandPalette({
   
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
-    // Add class to selected classes if not already there
+    // Add class to applied filters if not already there
     if (!selectedClasses.find(c => c.id === classNode.id)) {
-      setSelectedClasses(prev => [...prev, classNode]);
+      setAppliedFilters(prev => [...prev, { type: 'class', classNode }]);
     }
-    // Remove the @ text from query
-    const beforeAt = query.substring(0, query.lastIndexOf('@'));
-    setQuery(beforeAt.trim());
+    // Remove the class: text from query
+    const beforeFilter = query.replace(/\S+:\S*$/, '').trim();
+    setQuery(beforeFilter);
     // Keep focus on input
     inputRef.current?.focus();
   }, [query, selectedClasses]);
   
-  // Handle removing a class pill
-  const handleRemoveClass = useCallback((classId: number) => {
-    setSelectedClasses(prev => prev.filter(c => c.id !== classId));
+  // Handle removing a filter pill
+  const handleRemoveFilter = useCallback((index: number) => {
+    setAppliedFilters(prev => prev.filter((_, i) => i !== index));
   }, []);
+  
+  // Handle selecting a boolean filter option
+  const handleBooleanSelect = useCallback((value: boolean) => {
+    if (!activeFilter || activeFilter.config.type !== 'boolean') return;
+    // Check if this boolean filter is already applied
+    const existing = appliedFilters.findIndex(
+      f => f.type === 'boolean' && f.prefix === activeFilter.prefix
+    );
+    const newFilter: AppliedFilter = {
+      type: 'boolean',
+      prefix: activeFilter.prefix,
+      label: activeFilter.config.label,
+      value,
+    };
+    if (existing >= 0) {
+      setAppliedFilters(prev => prev.map((f, i) => i === existing ? newFilter : f));
+    } else {
+      setAppliedFilters(prev => [...prev, newFilter]);
+    }
+    // Remove the filter text from query
+    const beforeFilter = query.replace(/\S+:\S*$/, '').trim();
+    setQuery(beforeFilter);
+    inputRef.current?.focus();
+  }, [activeFilter, appliedFilters, query]);
+  
+  // Handle selecting a suggested prefix (auto-complete it)
+  const handlePrefixSelect = useCallback((prefix: string) => {
+    // Replace the partial text at end of query with the full prefix:
+    const beforePartial = query.replace(/\S+$/, '');
+    setQuery(beforePartial + prefix + ':');
+    inputRef.current?.focus();
+  }, [query]);
   
   // Handle creating a new class from popup
   const handleClassCreate = useCallback(async (name: string) => {
@@ -534,11 +715,11 @@ export function CommandPalette({
         name,
         classes: [classClassId, pageClassId],
       });
-      // Add the new class to selected classes
-      setSelectedClasses(prev => [...prev, newClass]);
-      // Remove the @ text from query
-      const beforeAt = query.substring(0, query.lastIndexOf('@'));
-      setQuery(beforeAt.trim());
+      // Add the new class to applied filters
+      setAppliedFilters(prev => [...prev, { type: 'class', classNode: newClass }]);
+      // Remove the class: text from query
+      const beforeFilter = query.replace(/\S+:\S*$/, '').trim();
+      setQuery(beforeFilter);
       inputRef.current?.focus();
     } catch (error) {
       notifyError('Failed to create class', 'Please try again.');
@@ -758,8 +939,20 @@ export function CommandPalette({
           setMaxProperties(prev => prev + EXPAND_INCREMENT);
         }
         return; // Don't close the palette
+      
+      case 'filter-prefix':
+        if (item.filterPrefix) {
+          handlePrefixSelect(item.filterPrefix.prefix);
+        }
+        return; // Don't close the palette
+      
+      case 'boolean-option':
+        if (item.booleanValue !== undefined) {
+          handleBooleanSelect(item.booleanValue);
+        }
+        return; // Don't close the palette
     }
-  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose, queryClient]);
+  }, [allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId, destinationPage, onSelect, openNode, openPropertyView, createNodeMutation, onClose, queryClient, handlePrefixSelect, handleBooleanSelect]);
   
   // Keyboard list navigation
   const { selectedIndex, handleKeyDown: listKeyDown } = useKeyboardListNav({
@@ -792,13 +985,15 @@ export function CommandPalette({
   }, [isTypingClass, listKeyDown, onClose, allItems, handleSelect]);
   
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
-  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap } = useMemo(() => {
+  const { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, filterPrefixItems, booleanOptionItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap } = useMemo(() => {
     const dateItems: typeof allItems = [];
     const pageItems: typeof allItems = [];
     const blockItems: typeof allItems = [];
     const propertyItems: typeof allItems = [];
     const quickAddItems: typeof allItems = [];
     const commandItems: typeof allItems = [];
+    const filterPrefixItems: typeof allItems = [];
+    const booleanOptionItems: typeof allItems = [];
     const browseRecentAccessed: typeof allItems = [];
     const browseRecentCreated: typeof allItems = [];
     const browseRandom: typeof allItems = [];
@@ -814,6 +1009,8 @@ export function CommandPalette({
         case 'property': propertyItems.push(item); break;
         case 'quick-add': quickAddItems.push(item); break;
         case 'command': commandItems.push(item); break;
+        case 'filter-prefix': filterPrefixItems.push(item); break;
+        case 'boolean-option': booleanOptionItems.push(item); break;
         case 'show-more':
           if (item.showMoreSection === 'pages') pageItems.push(item);
           else if (item.showMoreSection === 'blocks') blockItems.push(item);
@@ -826,7 +1023,7 @@ export function CommandPalette({
           break;
       }
     }
-    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap };
+    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, filterPrefixItems, booleanOptionItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap };
   }, [allItems]);
 
   // Close on backdrop click
@@ -848,18 +1045,29 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages, blocks, and properties..."
+            placeholder={appliedFilters.length > 0 ? "Search with active filters..." : "Search pages, blocks, properties... (try class: uuid: is_page:)"}
           />
-          {/* Class pills */}
-          {selectedClasses.length > 0 && (
+          {/* Filter pills — classes + boolean filters */}
+          {appliedFilters.length > 0 && (
             <div className="command-palette__class-pills">
-              {selectedClasses.map(classNode => (
-                <NodeRef
-                  key={classNode.id}
-                  node={classNode}
-                  onRemove={() => handleRemoveClass(classNode.id)}
-                  readOnly={false}
-                />
+              {appliedFilters.map((filter, idx) => (
+                filter.type === 'class' ? (
+                  <NodeRef
+                    key={`class-${filter.classNode.id}`}
+                    node={filter.classNode}
+                    onRemove={() => handleRemoveFilter(idx)}
+                    readOnly={false}
+                  />
+                ) : (
+                  <span key={`bool-${filter.prefix}`} className="command-palette__filter-pill">
+                    <span className="command-palette__filter-pill-text">{filter.prefix}:{String(filter.value)}</span>
+                    <button 
+                      className="command-palette__filter-pill-remove" 
+                      onClick={() => handleRemoveFilter(idx)}
+                      aria-label={`Remove ${filter.label} filter`}
+                    >×</button>
+                  </span>
+                )
               ))}
             </div>
           )}
@@ -867,7 +1075,7 @@ export function CommandPalette({
           <kbd className="command-palette__shortcut">Esc</kbd>
         </div>
         
-        {/* Class suggestion popup when typing @ */}
+        {/* Class suggestion popup when typing class: filter */}
         {isTypingClass && classPopupPosition && (
           <SuggestionPopup
             isOpen={true}
@@ -876,9 +1084,9 @@ export function CommandPalette({
             position={classPopupPosition}
             onSelect={(node) => handleClassSelect(node)}
             onClose={() => {
-              // Remove the @ when closing
-              const beforeAt = query.substring(0, query.lastIndexOf('@'));
-              setQuery(beforeAt);
+              // Remove the class: filter text when closing
+              const beforeFilter = query.replace(/\S+:\S*$/, '').trim();
+              setQuery(beforeFilter);
             }}
             onCreate={handleClassCreate}
           />
@@ -909,11 +1117,64 @@ export function CommandPalette({
             </div>
           ) : (
             <>
-              {query && allItems.length === 0 && !isLoading && (
+              {query && allItems.length === 0 && !isLoading && !isTypingFilter && (
                 <div className="command-palette__empty">No results found</div>
               )}
               
-              {!query && (
+              {/* Boolean option dropdown */}
+              {booleanOptionItems.length > 0 && (
+                <div className="command-palette__section">
+                  <div className="command-palette__section-header">Select Value</div>
+                  {booleanOptionItems.map((item) => {
+                    const globalIndex = indexMap.get(item)!;
+                    return (
+                      <button
+                        key={item.label}
+                        className={`command-palette__result ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                        onClick={() => handleSelect(globalIndex)}
+                      >
+                        <div className="command-palette__result-row">
+                          <span className="command-palette__result-icon">
+                            <Icon path={mdiFilter} size={0.7} />
+                          </span>
+                          <span className="command-palette__result-content">
+                            <span className="command-palette__result-name">{item.label}</span>
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Filter prefix suggestions */}
+              {filterPrefixItems.length > 0 && (
+                <div className="command-palette__section">
+                  <div className="command-palette__section-header">Filters</div>
+                  {filterPrefixItems.map((item) => {
+                    const globalIndex = indexMap.get(item)!;
+                    return (
+                      <button
+                        key={item.filterPrefix?.prefix}
+                        className={`command-palette__result ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                        onClick={() => handleSelect(globalIndex)}
+                      >
+                        <div className="command-palette__result-row">
+                          <span className="command-palette__result-icon">
+                            <Icon path={mdiFilter} size={0.7} />
+                          </span>
+                          <span className="command-palette__result-content">
+                            <span className="command-palette__result-name">{item.filterPrefix?.prefix}:</span>
+                            <span className="command-palette__result-description">{item.filterPrefix?.description}</span>
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {!query && appliedFilters.length === 0 && (
                 <>
                   {browseRecentAccessed.length > 0 && (
                     <div className="command-palette__section">
