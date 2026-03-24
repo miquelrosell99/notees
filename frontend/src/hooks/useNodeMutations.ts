@@ -1683,6 +1683,11 @@ export function useAddAlias() {
         queryKey: nodeKeys.pages(),
         refetchType: 'active'
       });
+      // Invalidate aliases query so the UI list updates
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.aliases(nodeId),
+        refetchType: 'active'
+      });
     },
   });
 }
@@ -1717,6 +1722,11 @@ export function useRemoveAlias() {
       // Invalidate pages list (aliased_id cleared on the alias node)
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.pages(),
+        refetchType: 'active'
+      });
+      // Invalidate aliases query so the UI list updates
+      queryClient.invalidateQueries({ 
+        queryKey: nodeKeys.aliases(nodeId),
         refetchType: 'active'
       });
     },
