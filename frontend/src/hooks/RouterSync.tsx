@@ -8,12 +8,14 @@
  * - Handle initial URL navigation on page load
  * - Update URL when navigation state changes (via store)
  * - Handle browser back/forward navigation (popstate)
+ * - Auto-switch workspace when URL targets a different workspace
  */
 import { useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
-import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
+import { useFavoritesStore } from '@/stores/favoritesStore';
+import { listWorkspaces, switchWorkspace, type WorkspaceListResponse } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
@@ -45,12 +47,63 @@ export function RouterSync({ children }: RouterSyncProps) {
     openPropertyView,
   } = useNavigationStore();
   
+  const queryClient = useQueryClient();
+  
   // Fetch workspaces
   const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
     queryKey: ['workspaces'],
     queryFn: listWorkspaces,
     staleTime: 30000,
   });
+  
+  /**
+   * Switch to a different workspace, clear caches, update query data.
+   * Returns true if switch was performed, false if already on that workspace.
+   */
+  const ensureWorkspace = useCallback(async (targetWsUuid: string): Promise<boolean> => {
+    if (!dbData) return false;
+    
+    // Already on the right workspace
+    if (dbData.active === targetWsUuid) return false;
+    
+    // Check the user actually has access to this workspace
+    const ws = dbData.workspaces.find(w => w.uuid === targetWsUuid);
+    if (!ws) {
+      log.warn('Workspace not found or no access', { targetWsUuid });
+      return false;
+    }
+    
+    log.info('Auto-switching workspace for URL', { from: dbData.active, to: targetWsUuid });
+    
+    // Perform the switch
+    await switchWorkspace(targetWsUuid);
+    
+    // Reset navigation state
+    useNavigationStore.setState({
+      currentNodeId: null,
+      activeNode: null,
+      activeNodeId: null,
+      sidebarNode: null,
+      localGraphNodeId: null,
+      mainViewType: 'node',
+    });
+    
+    // Clear favorites
+    useFavoritesStore.getState().clear();
+    
+    // Clear ALL cached data to prevent stale data from previous workspace
+    queryClient.clear();
+    
+    // Refetch workspaces so dbData.active is updated
+    await queryClient.fetchQuery({
+      queryKey: ['workspaces'],
+      queryFn: listWorkspaces,
+    });
+    
+    useFavoritesStore.getState().refresh();
+    
+    return true;
+  }, [dbData, queryClient]);
   
   /**
    * Navigate to home (clears node, shows welcome)
@@ -65,12 +118,21 @@ export function RouterSync({ children }: RouterSyncProps) {
   }, []);
   
   /**
-   * Process a parsed route and update app state
+   * Process a parsed route and update app state.
+   * If the route targets a different workspace, switch first.
    */
   const processRoute = useCallback(async (route: ParsedRoute) => {
     isProcessingUrl.current = true;
     
     try {
+      // Handle workspace switch if needed
+      if (route.workspaceUuid) {
+        const switched = await ensureWorkspace(route.workspaceUuid);
+        if (switched) {
+          log.debug('Workspace switch completed, continuing route processing');
+        }
+      }
+      
       if (route.type === 'home') {
         log.debug('Route: home');
         useNavigationStore.setState({ 
@@ -86,37 +148,34 @@ export function RouterSync({ children }: RouterSyncProps) {
         return;
       }
       
-      if (route.type === 'property' && route.propertyUuid) {
-        // Open property view by UUID
+      if (route.type === 'entity' && route.entityUuid) {
+        const uuid = route.entityUuid;
+        
+        // Try property first (lower volume, faster to rule out)
         try {
-          const property = await getPropertyByUuid(route.propertyUuid);
-          log.debug('Found property from URL', { uuid: route.propertyUuid, id: property.id });
+          const property = await getPropertyByUuid(uuid);
+          log.debug('UUID resolved to property', { uuid, id: property.id });
           openPropertyView(property.id);
-        } catch (err) {
-          log.warn('Property not found for UUID in URL, going home', { uuid: route.propertyUuid });
-          useNavigationStore.setState({ currentPropertyId: null });
-          goHome();
+          return;
+        } catch {
+          // Not a property — fall through to node lookup
         }
-        return;
-      }
-      
-      if (route.type === 'node' && route.nodeUuid) {
-        // Open the node by UUID
+        
+        // Try node
         try {
-          const node = await getNodeByUuid(route.nodeUuid);
-          log.debug('Found node from URL', { uuid: route.nodeUuid, id: node.id, is_page: node.is_page });
+          const node = await getNodeByUuid(uuid);
+          log.debug('UUID resolved to node', { uuid, id: node.id, is_page: node.is_page });
           openNode(node.id);
-        } catch (err) {
-          log.warn('Node not found for UUID in URL, going home', { uuid: route.nodeUuid });
-          // Clear any potentially set node ID before going home
-          useNavigationStore.setState({ currentNodeId: null });
+        } catch {
+          log.warn('UUID not found as property or node, going home', { uuid });
+          useNavigationStore.setState({ currentNodeId: null, currentPropertyId: null });
           goHome();
         }
       }
     } finally {
       isProcessingUrl.current = false;
     }
-  }, [goHome, openNode, openPropertyView, setMainViewType]);
+  }, [goHome, openNode, openPropertyView, setMainViewType, ensureWorkspace]);
   
   /**
    * Handle special view routes immediately on mount
@@ -132,30 +191,25 @@ export function RouterSync({ children }: RouterSyncProps) {
     const currentPath = window.location.pathname;
     const route = parseUrl(currentPath);
     
-    // Handle special views immediately - they don't need database data
-    if (route.type === 'special-view' && route.viewType) {
+    // Handle special views immediately (with workspace UUID) - they don't need database data
+    if (route.type === 'special-view' && route.viewType && route.workspaceUuid) {
       log.info('Processing special view URL immediately', { path: currentPath, viewType: route.viewType });
       hasInitialized.current = true;
       setMainViewType(route.viewType);
       return;
     }
     
-    // Home route also doesn't need db data
-    if (route.type === 'home') {
-      log.info('Processing home URL immediately', { path: currentPath });
-      hasInitialized.current = true;
-      useNavigationStore.setState({ 
-        currentNodeId: null,
-        mainViewType: 'node',
-      });
+    // Home route also doesn't need db data (bare / with no workspace)
+    if (route.type === 'home' && !route.workspaceUuid) {
+      // Don't mark initialized yet — wait for db data so we can redirect to /{workspace_uuid}
       return;
     }
     
-    // Node routes will be handled by the db-dependent effect below
+    // Node/property/workspace-home routes will be handled by the db-dependent effect below
   }, [setMainViewType]);
   
   /**
-   * Handle routes that require database data (node and property routes)
+   * Handle routes that require database data
    */
   useEffect(() => {
     if (hasInitialized.current || isLoadingDbs || !dbData) return;
@@ -163,15 +217,32 @@ export function RouterSync({ children }: RouterSyncProps) {
     const currentPath = window.location.pathname;
     const route = parseUrl(currentPath);
     
-    // Only handle node and property routes here (they need the database to be ready)
-    if (route.type !== 'node' && route.type !== 'property') return;
-    
     log.info('Processing URL', { path: currentPath, route });
     hasInitialized.current = true;
     
-    // Process the route
+    // Bare / with no workspace -> redirect to active workspace home
+    if (route.type === 'home' && !route.workspaceUuid) {
+      if (dbData.active) {
+        useNavigationStore.setState({ currentNodeId: null, mainViewType: 'node' });
+        window.history.replaceState({ navIndex: 0 }, '', `/${dbData.active}`);
+      } else {
+        useNavigationStore.setState({ currentNodeId: null, mainViewType: 'node' });
+      }
+      return;
+    }
+    
+    // Legacy: special view without workspace prefix (e.g. /graph) -> redirect
+    if (route.type === 'special-view' && !route.workspaceUuid && dbData.active) {
+      setMainViewType(route.viewType!);
+      const viewPath = route.viewType === 'all-pages' ? 'pages' : 
+                       route.viewType === 'journals' ? 'journal' : route.viewType;
+      window.history.replaceState({ navIndex: 0 }, '', `/${dbData.active}/${viewPath}`);
+      return;
+    }
+    
+    // Process the route (handles workspace switching, node loading, etc.)
     processRoute(route);
-  }, [dbData, isLoadingDbs, processRoute]);
+  }, [dbData, isLoadingDbs, processRoute, setMainViewType]);
   
   /**
    * Update URL when navigation state changes
