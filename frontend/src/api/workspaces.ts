@@ -101,10 +101,29 @@ export async function restoreWorkspace(uuid: string, file: File): Promise<{ uuid
 }
 
 /**
- * Get export URL for a workspace
+ * Get export URL for a workspace (JSON only, no assets)
  */
 export function getWorkspaceExportUrl(name: string): string {
   return `/api/workspaces/${encodeURIComponent(name)}/export`;
+}
+
+/**
+ * Export a workspace as a ZIP file (database + assets).
+ * Downloads the file via the authenticated API client.
+ */
+export async function exportWorkspaceZip(uuid: string, name: string): Promise<void> {
+  const response = await api.get(`/workspaces/${encodeURIComponent(uuid)}/export-zip`, {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}_full.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /**

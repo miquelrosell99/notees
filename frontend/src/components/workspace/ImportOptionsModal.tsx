@@ -527,10 +527,10 @@ export function ImportOptionsModal({
             <span className="import-unified__section-label">Notees export file</span>
             <FileDropZone
               file={jsonFile}
-              accept=".json"
+              accept=".json,.zip"
               onSelect={setJsonFile}
               onClear={() => setJsonFile(null)}
-              placeholder="Drop the export here"
+              placeholder="Drop the export here (.json or .zip)"
               disabled={isPending}
             />
           </div>
