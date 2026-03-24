@@ -53,6 +53,7 @@ export const nodeKeys = {
   batchGet: (ids: number[]) => [...nodeKeys.all, 'batch-get', ...ids.sort()] as const,
   batchProperties: (ids: number[]) => [...nodeKeys.all, 'batch-properties', ...ids.sort()] as const,
   suggestions: (classFilters?: string) => [...nodeKeys.all, 'suggestions', classFilters ?? ''] as const,
+  aliases: (id: number) => [...nodeKeys.all, 'aliases', id] as const,
 };
 
 // ==================== Property Query Keys ====================
