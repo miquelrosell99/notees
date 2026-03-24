@@ -20,7 +20,10 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, flushAllContentSaves, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { nodeKeys } from '@/hooks/queryKeys';
+import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -462,13 +465,12 @@ export function NodeView({
   const addAlias = useAddAlias();
   const removeAlias = useRemoveAlias();
   
-  // Resolve alias details from IDs
-  const pageAliasDetails = useMemo(() => {
-    if (!node?.aliases || node.aliases.length === 0) return [];
-    return node.aliases
-      .map(aliasId => allNodes?.find(n => n.id === aliasId))
-      .filter((n): n is Node => n !== undefined);
-  }, [node?.aliases, allNodes]);
+  // Fetch alias nodes directly (allNodes excludes aliased pages)
+  const { data: pageAliasDetails = [] } = useQuery({
+    queryKey: nodeKeys.aliases(nodeId ?? 0),
+    queryFn: () => nodesApi.getAliases(nodeId!),
+    enabled: !!nodeId && !!node?.aliases && node.aliases.length > 0,
+  });
   
   // Handle adding an alias via NodeSelector
   const handleAddAlias = useCallback((aliasNode: Node) => {
