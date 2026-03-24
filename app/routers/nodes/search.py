@@ -548,22 +548,61 @@ async def get_links_for_nodes(
 
 @router.get("/search")
 async def search_nodes(
-    q: str,
+    q: str = "",
     limit: int = 50,
     class_filters: Optional[str] = None,  # Comma-separated class IDs to filter by
+    uuid: Optional[str] = None,  # Direct UUID lookup (prefix match)
+    is_page: Optional[bool] = None,  # Filter by is_page flag
+    is_class: Optional[bool] = None,  # Filter by is_class flag
+    is_daily: Optional[bool] = None,  # Filter by is_day flag
     user: User = Depends(get_current_user),
 ):
-    """Search nodes by name.
+    """Search nodes by name, UUID, or filtered by properties.
     
     Args:
-        q: Search query
+        q: Search query (name search)
         limit: Maximum number of results (capped at 5000)
         class_filters: Optional comma-separated list of class IDs to filter results
+        uuid: Optional UUID prefix to search by (exact or prefix match)
+        is_page: Optional boolean to filter pages vs blocks
+        is_class: Optional boolean to filter class definitions
+        is_daily: Optional boolean to filter daily notes
     
     Returns nodes with class_ids populated for reliable filtering.
     """
     limit = min(limit, 5000)  # prevent runaway queries
     service = await _get_node_service(user)
+    
+    # UUID search: direct lookup by UUID (exact match first, then prefix)
+    if uuid:
+        uuid = uuid.strip()
+        if uuid:
+            # Try exact match first
+            node = await service.get_node_by_uuid(uuid)
+            if node and node.id is not None:
+                node_class_ids = node.class_ids or []
+                return {"nodes": [_node_to_response(node, classes=node_class_ids)]}
+            
+            # Fall back to prefix match (uuid starts with the search term)
+            if len(uuid) >= 4:  # Require at least 4 chars for prefix search
+                async with acquire_connection(service.pool) as conn:
+                    rows = await conn.fetch(
+                        """SELECT n.* FROM node n
+                        WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
+                          AND n.uuid::text LIKE $2
+                        ORDER BY n.write_date DESC NULLS LAST
+                        LIMIT $3""",
+                        service.workspace_id, uuid + '%', min(limit, 20),
+                    )
+                    result = []
+                    for row in rows:
+                        node_obj = service.row_to_node(row)
+                        node_class_ids = node_obj.class_ids or []
+                        result.append(_node_to_response(node_obj, classes=node_class_ids))
+                    return {"nodes": result}
+            
+            return {"nodes": []}
+    
     nodes = await service.search(q, limit)
     
     # Parse class filters if provided
@@ -574,8 +613,7 @@ async def search_nodes(
         except ValueError:
             pass
     
-    # Build response - use class_ids already on node entities (no extra DB query needed)
-    # Only do the batch lookup when class_filters require it and nodes lack class_ids
+    # Build response with filters applied
     result = []
     for n in nodes:
         if n.id is None:
@@ -586,6 +624,14 @@ async def search_nodes(
         if filter_class_ids:
             if not filter_class_ids.intersection(node_class_ids):
                 continue
+        
+        # Apply boolean filters
+        if is_page is not None and n.is_page != is_page:
+            continue
+        if is_class is not None and n.is_class != is_class:
+            continue
+        if is_daily is not None and n.is_day != is_daily:
+            continue
         
         result.append(_node_to_response(n, classes=node_class_ids))
     

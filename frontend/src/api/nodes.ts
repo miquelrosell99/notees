@@ -363,12 +363,22 @@ export async function moveNode(
  * Search nodes by name
  * 
  * @param query - Search query string
- * @param class_filters - Optional comma-separated class IDs to filter results
+ * @param options - Optional search filters
  */
-export async function searchNodes(query: string, class_filters?: string): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/search`, {
-    params: { q: query, class_filters },
-  });
+export async function searchNodes(query: string, options?: {
+  class_filters?: string;
+  uuid?: string;
+  is_page?: boolean;
+  is_class?: boolean;
+  is_daily?: boolean;
+}): Promise<Node[]> {
+  const params: Record<string, string | boolean> = { q: query };
+  if (options?.class_filters) params.class_filters = options.class_filters;
+  if (options?.uuid) params.uuid = options.uuid;
+  if (options?.is_page !== undefined) params.is_page = options.is_page;
+  if (options?.is_class !== undefined) params.is_class = options.is_class;
+  if (options?.is_daily !== undefined) params.is_daily = options.is_daily;
+  const response = await api.get<NodesResponse>(`${BASE}/search`, { params });
   return response.data.nodes ?? [];
 }
 

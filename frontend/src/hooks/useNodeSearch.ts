@@ -98,7 +98,7 @@ export function useNodeSearch(
   const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
 
   // Core search queries - pass class_filters to backend for server-side filtering
-  const { data: searchResults, isLoading: isSearchLoading } = useSearch(debouncedQuery, classFiltersParam);
+  const { data: searchResults, isLoading: isSearchLoading } = useSearch(debouncedQuery, classFiltersParam ? { classFilters: classFiltersParam } : undefined);
   const { data: allPages } = usePages();
   // Suggestions for empty-query state: recently created + recently linked
   const useSuggestionsForEmpty = mode === 'pages' || mode === 'all';

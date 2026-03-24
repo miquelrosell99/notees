@@ -35,7 +35,7 @@ export const nodeKeys = {
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
   monthly: (year: number, month: number) => [...nodeKeys.all, 'monthly', year, month] as const,
   yearly: (year: number) => [...nodeKeys.all, 'yearly', year] as const,
-  search: (query: string, classFilters?: string) => [...nodeKeys.all, 'search', query, classFilters ?? ''] as const,
+  search: (query: string, filters?: Record<string, string | boolean | undefined>) => [...nodeKeys.all, 'search', query, filters ?? {}] as const,
   pages: (options?: { includeChildren?: boolean; rootOnly?: boolean }) => 
     [...nodeKeys.all, 'pages', options ?? {}] as const,
   tags: () => [...nodeKeys.all, 'tags'] as const,
