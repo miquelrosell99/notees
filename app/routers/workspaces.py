@@ -21,6 +21,8 @@ from ..workspace_io import (
     restore_workspace_from_dump,
     export_workspace_to_file,
     export_workspace_by_uuid,
+    export_workspace_zip,
+    import_workspace_from_zip,
 )
 
 router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
@@ -129,33 +131,72 @@ async def export_workspace_by_id(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/{workspace_id}/export-zip")
+async def export_workspace_zip_endpoint(
+    workspace_id: str, user: User = Depends(get_current_user)
+):
+    """Export a workspace as a ZIP containing the JSON dump and all asset files.
+
+    The ZIP includes:
+    - dump.json: Full workspace data dump
+    - assets/{uuid}/main.{ext}: All asset source files
+    - assets/{uuid}/thumbnail.webp: Asset thumbnails
+    """
+    try:
+        zip_path = await export_workspace_zip(user.id, workspace_id)
+        return FileResponse(
+            zip_path,
+            filename=zip_path.name,
+            media_type="application/zip"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/import")
 async def import_workspace(
     file: UploadFile = File(...),
     name: str = Form(...),
     user: User = Depends(get_current_user)
 ):
-    """Import a workspace from a dump file into a new workspace.
+    """Import a workspace from a dump file (JSON) or full export (ZIP).
 
-    Creates a brand new workspace with the specified name. All UUIDs in the
-    dump are remapped to new unique values so the imported workspace is
-    completely independent from the source.
+    Creates a brand new workspace with the specified name.
+    - JSON import: UUIDs are remapped to new unique values (safe for same-instance copies)
+    - ZIP import: Original UUIDs are preserved (for cross-instance migration)
 
-    The dump file should be a JSON file produced by the export endpoint.
+    Accepts either:
+    - A JSON dump file produced by the JSON export endpoint
+    - A ZIP file produced by the full export endpoint (includes assets)
     """
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
+    # Determine file type by extension or content type
+    filename = file.filename or ""
+    is_zip = filename.lower().endswith(".zip") or file.content_type == "application/zip"
+
+    suffix = ".zip" if is_zip else ".json"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)
 
     try:
-        with open(tmp_path, 'r', encoding='utf-8') as f:
-            dump_data = json.load(f)
+        if is_zip:
+            result = await import_workspace_from_zip(
+                user_id_str=user.id,
+                zip_path=tmp_path,
+                workspace_name=name,
+            )
+        else:
+            with open(tmp_path, 'r', encoding='utf-8') as f:
+                dump_data = json.load(f)
 
-        result = await import_dump_to_new_workspace(
-            user_id_str=user.id,
-            dump_data=dump_data,
-            workspace_name=name,
-        )
+            result = await import_dump_to_new_workspace(
+                user_id_str=user.id,
+                dump_data=dump_data,
+                workspace_name=name,
+            )
+            # Remove uuid_map from response (internal detail)
+            result.pop("uuid_map", None)
+
         invalidate_workspace_cache(int(user.id))
         return result
     except json.JSONDecodeError:

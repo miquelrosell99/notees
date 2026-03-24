@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import uuid as uuid_module
 from datetime import datetime, timezone
 from pathlib import Path
@@ -956,7 +957,7 @@ async def _import_dump_core(
     await conn.execute("SELECT rebuild_node_path()")
 
     logger.info(f"Import complete: {stats}")
-    return stats
+    return stats, uuid_map
 
 
 # ============================================================
@@ -967,11 +968,13 @@ async def import_dump_to_new_workspace(
     user_id_str: str,
     dump_data: dict,
     workspace_name: str,
+    remap_uuids: bool = True,
 ) -> Dict[str, Any]:
-    """Import a dump file into a brand new workspace with remapped UUIDs.
+    """Import a dump file into a brand new workspace.
 
-    Creates a new workspace (without default seeding), generates new UUIDs
-    for every entity, and writes all data with the new identity.
+    Creates a new workspace (without default seeding) and writes all data.
+    When remap_uuids is True (default), generates new UUIDs for every entity.
+    When False, preserves original UUIDs (for cross-instance migration).
 
     Args:
         user_id_str: User ID string
@@ -1013,10 +1016,10 @@ async def import_dump_to_new_workspace(
                 f"uuid={workspace_uuid}) for import"
             )
 
-            # Run the core import with UUID remapping
-            stats = await _import_dump_core(
+            # Run the core import
+            stats, uuid_map = await _import_dump_core(
                 conn, dump_data, workspace_id, numeric_user_id,
-                remap_uuids=True,
+                remap_uuids=remap_uuids,
             )
 
         # Activate the new workspace
@@ -1027,6 +1030,7 @@ async def import_dump_to_new_workspace(
             "name": workspace_name,
             "created_at": ws_row['create_date'].isoformat() if ws_row['create_date'] else None,
             "stats": stats,
+            "uuid_map": uuid_map,
         }
 
 
@@ -1120,7 +1124,7 @@ async def restore_workspace_from_dump(
             logger.info("Existing data deleted, importing from dump")
 
             # Import dump data (keeping original UUIDs)
-            stats = await _import_dump_core(
+            stats, _ = await _import_dump_core(
                 conn, dump_data, workspace_id, numeric_user_id,
                 remap_uuids=False,
             )
@@ -1130,6 +1134,155 @@ async def restore_workspace_from_dump(
             "name": ws_row['name'],
             "stats": stats,
         }
+
+
+# ============================================================
+# ZIP EXPORT (database + assets)
+# ============================================================
+
+async def export_workspace_zip(
+    user_id_str: str,
+    workspace_uuid: str,
+) -> Path:
+    """Export a workspace as a ZIP containing the JSON dump and all asset files.
+
+    ZIP structure:
+        dump.json
+        assets/{asset_uuid}/main.{ext}
+        assets/{asset_uuid}/thumbnail.webp
+
+    Args:
+        user_id_str: User ID string
+        workspace_uuid: UUID of the workspace to export
+
+    Returns:
+        Path to the generated ZIP file
+    """
+    import zipfile
+
+    numeric_user_id = await _get_numeric_user_id(user_id_str)
+    if not numeric_user_id:
+        raise ValueError(f"User not found: {user_id_str}")
+
+    async with get_connection() as conn:
+        workspace = await conn.fetchrow("""
+            SELECT g.id, g.uuid, g.name
+            FROM workspace g
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
+            WHERE g.uuid::text = $2 AND g.active = TRUE
+              AND (g.create_uid = $1 OR gs.user_id = $1)
+        """, numeric_user_id, workspace_uuid)
+
+        if not workspace:
+            raise ValueError(f"Workspace '{workspace_uuid}' not found")
+
+        workspace_id = workspace['id']
+        ws_name = workspace['name']
+        ws_uuid = str(workspace['uuid'])
+
+        dump_data = await export_workspace_full(conn, workspace_id)
+
+    # Build ZIP
+    export_dir = DATA_DIR / "workspaces" / ws_uuid / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = export_dir / f"{ws_name}_full.zip"
+
+    assets_dir = DATA_DIR / "workspaces" / ws_uuid / "assets"
+
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Add JSON dump
+        dump_json = json.dumps(dump_data, default=str, indent=2)
+        zf.writestr("dump.json", dump_json)
+
+        # Add all asset files
+        if assets_dir.exists():
+            for asset_folder in assets_dir.iterdir():
+                if asset_folder.is_dir():
+                    for asset_file in asset_folder.iterdir():
+                        if asset_file.is_file():
+                            arcname = f"assets/{asset_folder.name}/{asset_file.name}"
+                            zf.write(asset_file, arcname)
+
+    file_size_mb = zip_path.stat().st_size / (1024 * 1024)
+    logger.info(
+        f"Exported workspace '{ws_name}' as ZIP to {zip_path} "
+        f"({file_size_mb:.2f} MB)"
+    )
+
+    return zip_path
+
+
+# ============================================================
+# ZIP IMPORT (database + assets)
+# ============================================================
+
+async def import_workspace_from_zip(
+    user_id_str: str,
+    zip_path: Path,
+    workspace_name: str,
+) -> Dict[str, Any]:
+    """Import a workspace from a ZIP file containing dump.json and assets.
+
+    Creates a new workspace preserving original UUIDs and copies asset files
+    into the new workspace's assets directory.
+
+    Args:
+        user_id_str: User ID string
+        zip_path: Path to the ZIP file
+        workspace_name: Name for the new workspace
+
+    Returns:
+        Dict with workspace info and import stats
+    """
+    import zipfile
+    import tempfile as _tempfile
+
+    if not zipfile.is_zipfile(zip_path):
+        raise ValueError("Invalid ZIP file")
+
+    with _tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Extract ZIP
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            # Security: validate all paths to prevent zip-slip
+            for info in zf.infolist():
+                target = (tmpdir_path / info.filename).resolve()
+                if not str(target).startswith(str(tmpdir_path.resolve())):
+                    raise ValueError("ZIP contains unsafe path entries")
+            zf.extractall(tmpdir_path)
+
+        # Read dump.json
+        dump_json_path = tmpdir_path / "dump.json"
+        if not dump_json_path.exists():
+            raise ValueError("ZIP file does not contain dump.json")
+
+        with open(dump_json_path, 'r', encoding='utf-8') as f:
+            dump_data = json.load(f)
+
+        # Import the workspace preserving original UUIDs
+        result = await import_dump_to_new_workspace(
+            user_id_str=user_id_str,
+            dump_data=dump_data,
+            workspace_name=workspace_name,
+            remap_uuids=False,
+        )
+
+        new_workspace_uuid = result["uuid"]
+        result.pop("uuid_map", None)
+
+        # Copy assets into new workspace directory (UUIDs are preserved)
+        extracted_assets = tmpdir_path / "assets"
+        if extracted_assets.exists() and extracted_assets.is_dir():
+            new_assets_dir = DATA_DIR / "workspaces" / new_workspace_uuid / "assets"
+            shutil.copytree(extracted_assets, new_assets_dir, dirs_exist_ok=True)
+
+            logger.info(
+                f"Copied assets for workspace '{workspace_name}' "
+                f"to {new_assets_dir}"
+            )
+
+    return result
 
 
 # ============================================================
