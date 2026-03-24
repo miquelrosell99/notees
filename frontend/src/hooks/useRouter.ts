@@ -4,18 +4,19 @@
  * Handles URL-based navigation for the app.
  * 
  * URL patterns:
- * - /                     -> Home (default view based on settings)
- * - /graph                -> Graph view
- * - /terrain              -> Terrain view
- * - /pages                -> All pages view
- * - /journal              -> Journals view
- * - /archived             -> Archived pages view
- * - /trash                -> Trash view
- * - /assets               -> Assets view
- * - /{uuid}               -> Node view (UUID format: 8-4-4-4-12 hex chars)
- * - /property/{uuid}      -> Property view (property UUID)
+ * - /                                    -> Redirect to active workspace home
+ * - /{workspace_uuid}                    -> Workspace home
+ * - /{workspace_uuid}/graph              -> Graph view
+ * - /{workspace_uuid}/terrain            -> Terrain view
+ * - /{workspace_uuid}/pages              -> All pages view
+ * - /{workspace_uuid}/journal            -> Journals view
+ * - /{workspace_uuid}/archived           -> Archived pages view
+ * - /{workspace_uuid}/trash              -> Trash view
+ * - /{workspace_uuid}/assets             -> Assets view
+ * - /{workspace_uuid}/{uuid}             -> Node or property view (auto-detected)
+ * - /auth                                -> Auth view
  * 
- * The database is determined by the active database in the user's session.
+ * Bookmarking any URL will restore the correct workspace + view.
  */
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -64,10 +65,11 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
 };
 
 export interface ParsedRoute {
-  type: 'home' | 'special-view' | 'node' | 'property' | 'auth';
+  type: 'home' | 'special-view' | 'entity' | 'auth';
   viewType?: MainViewType;
-  nodeUuid?: string;
-  propertyUuid?: string;
+  /** UUID of a node or property — resolved at navigation time */
+  entityUuid?: string;
+  workspaceUuid?: string;
 }
 
 /**
@@ -81,31 +83,77 @@ export function parseUrl(pathname: string): ParsedRoute {
     return { type: 'home' };
   }
   
-  // Check if first part is a special view or auth
+  // Auth is always at root level (no workspace prefix)
   const firstPart = parts[0].toLowerCase();
   if (firstPart === 'auth') {
     return { type: 'auth' };
   }
-  if (SPECIAL_VIEWS[firstPart] && SPECIAL_VIEWS[firstPart] !== 'auth') {
+
+  // Legacy support: bare special view at root (no workspace uuid)
+  // e.g. /graph -> redirect will be handled by RouterSync
+  if (SPECIAL_VIEWS[firstPart] && SPECIAL_VIEWS[firstPart] !== 'auth' && !isUuid(parts[0])) {
     return { 
       type: 'special-view', 
-      viewType: SPECIAL_VIEWS[firstPart] as MainViewType
+      viewType: SPECIAL_VIEWS[firstPart] as MainViewType,
     };
   }
   
-  // Check for property route: /property/{uuid}
+  // Legacy support: bare node UUID at root (no workspace prefix)
+  // e.g. /{node_uuid} -> will be handled with active workspace
+  if (parts.length === 1 && isUuid(parts[0]) ) {
+    // Could be workspace home OR legacy node URL — we treat single UUID
+    // as workspace home. Legacy node URLs without workspace prefix
+    // are no longer generated.
+    return {
+      type: 'home',
+      workspaceUuid: parts[0],
+    };
+  }
+  
+  // New format: /{workspace_uuid}/...
+  if (isUuid(parts[0])) {
+    const workspaceUuid = parts[0];
+    
+    // /{workspace_uuid} only -> workspace home
+    if (parts.length === 1) {
+      return { type: 'home', workspaceUuid };
+    }
+    
+    const secondPart = parts[1].toLowerCase();
+    
+    // /{workspace_uuid}/{special_view}
+    if (SPECIAL_VIEWS[secondPart] && SPECIAL_VIEWS[secondPart] !== 'auth') {
+      return {
+        type: 'special-view',
+        viewType: SPECIAL_VIEWS[secondPart] as MainViewType,
+        workspaceUuid,
+      };
+    }
+    
+    // /{workspace_uuid}/{entity_uuid} — could be node or property
+    if (isUuid(parts[1])) {
+      return {
+        type: 'entity',
+        entityUuid: parts[1],
+        workspaceUuid,
+      };
+    }
+    
+    // Legacy: /{workspace_uuid}/property/{uuid} -> treat as entity
+    if (secondPart === 'property' && parts.length === 3 && isUuid(parts[2])) {
+      return {
+        type: 'entity',
+        entityUuid: parts[2],
+        workspaceUuid,
+      };
+    }
+  }
+  
+  // Legacy: /property/{uuid} (no workspace prefix)
   if (firstPart === 'property' && parts.length === 2 && isUuid(parts[1])) {
     return {
-      type: 'property',
-      propertyUuid: parts[1],
-    };
-  }
-  
-  // Check if it's a UUID (node route)
-  if (isUuid(parts[0])) {
-    return {
-      type: 'node',
-      nodeUuid: parts[0],
+      type: 'entity',
+      entityUuid: parts[1],
     };
   }
   
@@ -121,29 +169,53 @@ export function buildUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
   propertyUuid?: string | null;
+  workspaceUuid?: string | null;
 }): string {
-  const { viewType, nodeUuid, propertyUuid } = params;
+  const { viewType, nodeUuid, propertyUuid, workspaceUuid } = params;
   
-  // Get the view path
-  const viewPath = VIEW_TO_PATH[viewType];
+  // Without workspace UUID, fall back to root
+  if (!workspaceUuid) {
+    return '/';
+  }
   
-  // Property view with UUID
+  const base = `/${workspaceUuid}`;
+  
+  // Property view with UUID — same format as node: /{ws}/{uuid}
   if (viewType === 'property' && propertyUuid) {
-    return `/property/${propertyUuid}`;
+    return `${base}/${propertyUuid}`;
   }
   
   // Node view with UUID
   if (viewType === 'node' && nodeUuid) {
-    return `/${nodeUuid}`;
+    return `${base}/${nodeUuid}`;
   }
   
   // Special view
+  const viewPath = VIEW_TO_PATH[viewType];
   if (viewPath) {
-    return `/${viewPath}`;
+    return `${base}/${viewPath}`;
   }
   
-  // Home (node view without UUID, or property view without UUID)
-  return '/';
+  // Workspace home
+  return `${base}`;
+}
+
+/**
+ * Get the active workspace UUID from the workspaces query cache
+ */
+function getActiveWorkspaceUuid(): string | null {
+  // Access the TanStack Query cache directly to get the active workspace
+  // This avoids needing to pass it through every call site
+  try {
+    const queryClient = (window as any).__queryClient;
+    if (queryClient) {
+      const data = queryClient.getQueryData(['workspaces']) as WorkspaceListResponse | undefined;
+      return data?.active ?? null;
+    }
+  } catch {
+    // fallback
+  }
+  return null;
 }
 
 /**
@@ -153,8 +225,10 @@ export function pushUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
   propertyUuid?: string | null;
+  workspaceUuid?: string | null;
 }) {
-  const url = buildUrl(params);
+  const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
+  const url = buildUrl({ ...params, workspaceUuid: wsUuid });
   const currentPath = window.location.pathname;
   
   if (url !== currentPath) {
@@ -171,8 +245,10 @@ export function replaceUrl(params: {
   viewType: MainViewType;
   nodeUuid?: string | null;
   propertyUuid?: string | null;
+  workspaceUuid?: string | null;
 }) {
-  const url = buildUrl(params);
+  const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
+  const url = buildUrl({ ...params, workspaceUuid: wsUuid });
   const currentPath = window.location.pathname;
   
   if (url !== currentPath) {
@@ -261,8 +337,10 @@ export function useRouter() {
     log.debug('Navigating to home');
     setMainViewType('node');
     useNavigationStore.setState({ currentNodeId: null });
-    window.history.replaceState(null, '', '/');
-  }, [setMainViewType]);
+    const wsUuid = dbData?.active;
+    const homePath = wsUuid ? `/${wsUuid}` : '/';
+    window.history.replaceState(null, '', homePath);
+  }, [setMainViewType, dbData?.active]);
   
   /**
    * Process a route and navigate accordingly
@@ -284,15 +362,15 @@ export function useRouter() {
         return;
       }
       
-      if (route.type === 'node' && route.nodeUuid) {
-        // Open the node by UUID
+      if (route.type === 'entity' && route.entityUuid) {
+        // Open the node by UUID (property resolution happens in RouterSync)
         try {
-          const node = await getNodeByUuid(route.nodeUuid);
-          log.debug('Found node from UUID', { uuid: route.nodeUuid, nodeId: node.id, is_page: node.is_page });
+          const node = await getNodeByUuid(route.entityUuid);
+          log.debug('Found node from UUID', { uuid: route.entityUuid, nodeId: node.id, is_page: node.is_page });
           currentNodeUuidRef.current = node.uuid;
           openNode(node.id);
         } catch (err) {
-          log.warn('Node not found for UUID, navigating to home', { uuid: route.nodeUuid });
+          log.warn('Entity not found for UUID, navigating to home', { uuid: route.entityUuid });
           navigateHome();
         }
       }

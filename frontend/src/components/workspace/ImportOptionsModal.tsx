@@ -190,7 +190,7 @@ export function ImportOptionsModal({
       });
       useFavoritesStore.getState().clear();
       queryClient.clear();
-      window.history.replaceState(null, '', '/');
+      window.history.replaceState(null, '', `/${workspace!.uuid}`);
       if (!cancelled) setPhase('importing');
     }
     prepare().catch(() => { if (!cancelled) setPhase('form'); });

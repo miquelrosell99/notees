@@ -61,3 +61,6 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Expose globally so non-React code (e.g. URL helpers) can read the cache
+(window as any).__queryClient = queryClient;

@@ -80,7 +80,7 @@ export function WorkspaceManagementView({
   // Switch database mutation
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
-    onSuccess: () => {
+    onSuccess: (_data, switchedUuid) => {
       // Reset node state to prevent showing stale data from previous database
       useNavigationStore.setState({
         currentNodeId: null,
@@ -95,8 +95,8 @@ export function WorkspaceManagementView({
       useFavoritesStore.getState().clear();
       useFavoritesStore.getState().refresh();
       
-      // Navigate to home page
-      window.history.replaceState(null, '', '/');
+      // Navigate to new workspace home
+      window.history.replaceState(null, '', `/${switchedUuid}`);
       
       // Clear ALL cached data to prevent any stale data from previous workspace
       queryClient.clear();
