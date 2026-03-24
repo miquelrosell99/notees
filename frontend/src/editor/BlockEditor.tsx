@@ -293,20 +293,28 @@ export function BlockEditor({
     // - Displaying a focused block (includeRoot is true, the block itself is in nodes)
     // - Displaying shared content (sidebar without pageId)
     // This prevents one editor from removing nodes that another editor is displaying.
+    //
+    // Also respect skipPages: when true (default for block editors), do NOT
+    // remove page nodes from the runtime — they belong to another editor
+    // (e.g. the child_pages QuerySection). Without this guard, the block
+    // editor's cleanup races with the child_pages editor's cleanup,
+    // causing each to remove the other's nodes from the shared runtime.
     const isFocusedBlock = filteredNodes?.some(n => n.uuid === derivedRootId);
     if (pageId != null && derivedRootId && !isFocusedBlock) {
       const newBlockIds = new Set(graphNodes.map(n => n.blockId));
       // Check ALL descendants (not just direct children) so that nested blocks
       // deleted via the context menu are also cleaned up from the runtime.
       const allDescendants = runtime.getDescendants(derivedRootId);
+      const effectiveSkipPages = skipPages ?? true;
       const staleIds = allDescendants
-        .filter(desc => !newBlockIds.has(desc.blockId) && desc.serverId != null)
+        .filter(desc => !newBlockIds.has(desc.blockId) && desc.serverId != null
+          && !(effectiveSkipPages && desc.isPage))
         .map(desc => desc.blockId);
       if (staleIds.length > 0) {
         runtime.removeNodes(staleIds);
       }
     }
-  }, [filteredNodes, pageId, pageUuid]);
+  }, [filteredNodes, pageId, pageUuid, skipPages]);
 
   // Auto-detect includeRoot: if the rootBlockId corresponds to a node
   // in the nodes array, the root IS a displayed node (e.g. focused block).
