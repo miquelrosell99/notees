@@ -11,7 +11,7 @@ import {
   switchWorkspace,
   deleteWorkspace,
   renameWorkspace,
-  getWorkspaceExportUrl,
+  exportWorkspaceZip,
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
@@ -200,8 +200,12 @@ export function WorkspaceManagementView({
     }
   };
 
-  const handleExport = (name: string) => {
-    window.open(getWorkspaceExportUrl(name), '_blank');
+  const handleExport = async (workspace: WorkspaceInfo) => {
+    try {
+      await exportWorkspaceZip(workspace.uuid, workspace.name);
+    } catch (err) {
+      console.error('Failed to export workspace:', err);
+    }
   };
 
   // Handle restore: open file picker for a specific workspace
@@ -341,7 +345,7 @@ export function WorkspaceManagementView({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleExport(workspace.name)}
+                        onClick={() => handleExport(workspace)}
                         title="Export"
                       >
                         <Icon path={mdiExport} size={0.7} />
