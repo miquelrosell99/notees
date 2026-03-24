@@ -149,6 +149,16 @@
   align-items: center;
 }
 
+.alias-of-link {
+  font: var(--font-title-medium);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.alias-of-link:hover {
+  text-decoration: underline;
+}
+
 .page-header-section__extends {
   grid-column: 1;
   grid-row: 3;
