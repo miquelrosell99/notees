@@ -28,7 +28,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     staleTime: 30000,
   });
 
-  const clearCacheOnSwitch = useCallback(() => {
+  const clearCacheOnSwitch = useCallback((switchedUuid: string) => {
     useNavigationStore.setState({
       currentNodeId: null,
       activeNode: null,
@@ -40,8 +40,8 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     useFavoritesStore.getState().clear();
     useFavoritesStore.getState().refresh();
     
-    // Navigate to home page
-    window.history.replaceState(null, '', '/');
+    // Navigate to new workspace home
+    window.history.replaceState(null, '', `/${switchedUuid}`);
     
     // Clear ALL cached data to prevent any stale data from previous workspace
     queryClient.clear();
@@ -49,8 +49,8 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
 
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
-    onSuccess: () => {
-      clearCacheOnSwitch();
+    onSuccess: (_data, switchedUuid) => {
+      clearCacheOnSwitch(switchedUuid);
     },
   });
 

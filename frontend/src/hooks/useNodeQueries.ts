@@ -108,7 +108,9 @@ export function useNode(
           currentNodeId: null,
           mainViewType: 'node'
         });
-        window.history.replaceState(null, '', '/');
+        // Navigate to workspace home (extract workspace UUID from current path)
+        const wsMatch = window.location.pathname.match(/^\/([0-9a-f-]{36})/);
+        window.history.replaceState(null, '', wsMatch ? `/${wsMatch[1]}` : '/');
       }
     });
   }
