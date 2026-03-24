@@ -1106,7 +1106,7 @@ export function NodeView({
             </div>
 
             {/* Row 3: Aliases (only for pages) */}
-            {node.is_page && (
+            {node.is_page && !isAlias && (
               <div className="page-header-section__aliases">
                 <div className="section-label">Aliases:</div>
                 <NodeSelector
@@ -1119,6 +1119,18 @@ export function NodeView({
                   onRemove={handleRemoveAlias}
                   onAdd={handleAddAlias}
                 />
+              </div>
+            )}
+            {node.is_page && isAlias && aliasedNode && (
+              <div className="page-header-section__aliases">
+                <div className="section-label">Alias of:</div>
+                <span
+                  className="alias-of-link"
+                  onClick={() => openNode(aliasedNode.id)}
+                  title={nodeNameToText(aliasedNode.name) || 'Untitled'}
+                >
+                  {nodeNameToText(aliasedNode.name) || 'Untitled'}
+                </span>
               </div>
             )}
             

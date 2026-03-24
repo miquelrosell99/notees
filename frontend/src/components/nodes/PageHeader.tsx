@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass, useNode } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -84,10 +84,7 @@ export function PageHeader({
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
   
-  // Get aliased node if this page is an alias
-  const { data: aliasedNode } = useNode(page.aliased_id ?? 0, { 
-    enabled: !!page.aliased_id 
-  });
+
   
   // Get effective icon (page's icon or first class's icon)
   const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses), [page, allClasses]);
@@ -458,11 +455,7 @@ export function PageHeader({
             {page.active === false && (
               <span className="archived-badge">Archived</span>
             )}
-            {page.aliased_id && aliasedNode && (
-              <span className="aliased-badge" title={`This page is an alias of "${nodeNameToText(aliasedNode.name) || 'Untitled'}"`}>
-                Alias of: {nodeNameToText(aliasedNode.name) || 'Untitled'}
-              </span>
-            )}
+
           </div>
         </div>
       </header>
