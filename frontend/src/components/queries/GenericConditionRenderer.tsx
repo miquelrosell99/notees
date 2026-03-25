@@ -95,6 +95,9 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'extends') {
       const uuid = (condition as unknown as Record<string, unknown>).extends_class_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+    } else if (condition.condition_type === 'page') {
+      const uuid = (condition as unknown as Record<string, unknown>).page_uuid;
+      return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
     }
     return false;
   })();
@@ -135,6 +138,9 @@ export function GenericConditionRenderer({
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       } else if (condition.condition_type === 'extends') {
         const uuid = (condition as unknown as Record<string, unknown>).extends_class_uuid;
+        return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+      } else if (condition.condition_type === 'page') {
+        const uuid = (condition as unknown as Record<string, unknown>).page_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
       }
       return false;
@@ -181,6 +187,11 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'child') {
         delete updated.child_uuids;
         delete updated.child_ids;
+      } else if (condition.condition_type === 'page') {
+        delete updated.page_uuid;
+        delete updated.page_uuids;
+        delete updated.page_id;
+        delete updated.page_ids;
       }
       
       // Reset to static mode
@@ -217,6 +228,9 @@ export function GenericConditionRenderer({
         updated.descendant_ids = [];
       } else if (condition.condition_type === 'property') {
         updated.value = '';
+      } else if (condition.condition_type === 'page') {
+        delete updated.page_uuid;
+        delete updated.page_id;
       }
       
       onUpdate(updated as unknown as ConditionNode);
@@ -251,6 +265,9 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'extends') {
         updated.extends_class_uuid = targetUuid;
         delete updated.extends_class_id;
+      } else if (condition.condition_type === 'page') {
+        updated.page_uuid = targetUuid;
+        delete updated.page_id;
       }
       
       onUpdate(updated as unknown as ConditionNode);
@@ -335,6 +352,9 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'extends') {
       updates.extends_class_id = nodeId ?? undefined;
       updates.extends_class_uuid = node?.uuid ?? '';
+    } else if (condition.condition_type === 'page') {
+      updates.page_id = nodeId ?? undefined;
+      updates.page_uuid = node?.uuid ?? '';
     }
     
     onUpdate({
@@ -467,9 +487,10 @@ export function GenericConditionRenderer({
           );
         }
         
-        // Single-select for non-path conditions (reference, parent, etc.)
+        // Single-select for non-path conditions (reference, parent, page, etc.)
         const selectedId = (condition as unknown as Record<string, unknown>).target_id as number | null
           || (condition as unknown as Record<string, unknown>).parent_id as number | null
+          || (condition as unknown as Record<string, unknown>).page_id as number | null
           || null;
         return (
           <NodeSelector
