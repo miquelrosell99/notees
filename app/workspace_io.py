@@ -89,6 +89,20 @@ def _remap_uuids_in_jsonb(data: Any, uuid_map: Dict[str, str]) -> Any:
     return json.loads(text)
 
 
+def _ensure_list(value: Any) -> list:
+    """Ensure a value is a list, parsing JSON strings if needed."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return [] if value is None else []
+
+
 def _remap_int_list(values: Any, id_map: Dict[int, int]) -> List[int]:
     """Remap a list of integer IDs using a mapping."""
     if not values:
@@ -434,7 +448,7 @@ async def _import_dump_core(
             _to_bool(node_data.get("is_asset", False)),
             _to_bool(node_data.get("is_template", False)),
             _to_bool(node_data.get("is_comment", False)),
-            json.dumps(node_data.get("classes_path", []), default=str),
+            json.dumps(_ensure_list(node_data.get("classes_path", []))),
             _parse_datetime(node_data.get("open_date")),
             _parse_datetime(node_data.get("create_date")) or now,
             _parse_datetime(node_data.get("write_date")) or now,
@@ -489,7 +503,7 @@ async def _import_dump_core(
             """,
                 parent_id, page_id, aliased_id,
                 class_ids if class_ids else [],
-                json.dumps(classes_path if classes_path else []),
+                json.dumps(_ensure_list(classes_path)),
                 new_id,
             )
 
