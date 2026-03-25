@@ -70,7 +70,10 @@ export interface Node {
   // Alias support
   aliased_id?: number | null;  // If set, this node is an alias of the node with this ID
   aliases?: number[];  // IDs of nodes that are aliases of this node
-  
+
+  // Class extension (Extends chain) - parent class IDs in order
+  extends?: number[];
+
   // Referenced nodes map — uuid → node data for outgoing link targets.
   // Populated by page content endpoint so inline links resolve without N+1 queries.
   referenced_nodes?: Record<string, Node>;

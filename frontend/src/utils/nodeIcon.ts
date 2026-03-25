@@ -1,11 +1,57 @@
 /**
- * Node Icon Utilities
+ * Node Icon & Color Utilities
  * 
- * Functions for determining the effective icon to display for a node.
- * Nodes can inherit icons from their assigned classes.
+ * Functions for determining the effective icon and color to display for a node.
+ * Nodes can inherit icons and colors from their assigned classes, and classes
+ * can inherit from their Extends chain.
  */
 import type { Node } from '@/types';
 import { parseIconField, formatIconField } from './iconDom';
+
+/**
+ * Walk the Extends chain for a class to find the first inherited value of a field.
+ * Uses depth-first traversal with cycle detection.
+ */
+function resolveFromExtendsChain(
+  classNode: Node,
+  allClasses: Node[],
+  getter: (n: Node) => string | null | undefined,
+): string | null | undefined {
+  const visited = new Set<number>();
+  const stack = [...(classNode.extends ?? [])];
+  while (stack.length > 0) {
+    const parentId = stack.shift()!;
+    if (visited.has(parentId)) continue;
+    visited.add(parentId);
+    const parent = allClasses.find(c => c.id === parentId);
+    if (!parent) continue;
+    const val = getter(parent);
+    if (val) return val;
+    // Continue up the chain
+    if (parent.extends) {
+      for (const grandparentId of parent.extends) {
+        if (!visited.has(grandparentId)) stack.push(grandparentId);
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the effective icon for a class node, walking the Extends chain if needed.
+ */
+function resolveClassIcon(classNode: Node, allClasses: Node[]): string | null | undefined {
+  if (classNode.icon) return classNode.icon;
+  return resolveFromExtendsChain(classNode, allClasses, n => n.icon);
+}
+
+/**
+ * Resolve the effective color for a class node, walking the Extends chain if needed.
+ */
+function resolveClassColor(classNode: Node, allClasses: Node[]): string | null | undefined {
+  if (classNode.color) return classNode.color;
+  return resolveFromExtendsChain(classNode, allClasses, n => n.color);
+}
 
 /**
  * Get the effective icon for a node.
@@ -38,9 +84,11 @@ export function getEffectiveIcon(
       if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
         for (const classId of classIds) {
           const classNode = allClasses.find(c => c.id === classId);
-          if (classNode?.icon) {
-            const { icon: inheritedIcon } = parseIconField(classNode.icon);
-            return formatIconField(inheritedIcon || classNode.icon, color);
+          if (!classNode) continue;
+          const classIcon = resolveClassIcon(classNode, allClasses);
+          if (classIcon) {
+            const { icon: inheritedIcon } = parseIconField(classIcon);
+            return formatIconField(inheritedIcon || classIcon, color);
           }
         }
       }
@@ -53,8 +101,10 @@ export function getEffectiveIcon(
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
     for (const classId of classIds) {
       const classNode = allClasses.find(c => c.id === classId);
-      if (classNode?.icon) {
-        return classNode.icon;
+      if (!classNode) continue;
+      const classIcon = resolveClassIcon(classNode, allClasses);
+      if (classIcon) {
+        return classIcon;
       }
     }
   }
@@ -68,13 +118,16 @@ export function getEffectiveIcon(
  * 
  * @param node - The node to get the icon for
  * @param nodeClasses - The resolved class nodes for this node (in order)
+ * @param allClasses - All classes (needed for Extends chain resolution)
  * @returns The effective icon string or undefined
  */
 export function getEffectiveIconFromClasses(
   node: Node | null | undefined,
-  nodeClasses?: Node[] | null
+  nodeClasses?: Node[] | null,
+  allClasses?: Node[] | null,
 ): string | null | undefined {
   if (!node) return undefined;
+  const classes = allClasses ?? nodeClasses ?? [];
 
   if (node.icon) {
     const { icon: iconName, color } = parseIconField(node.icon);
@@ -82,9 +135,10 @@ export function getEffectiveIconFromClasses(
     if (color) {
       if (nodeClasses && nodeClasses.length > 0) {
         for (const classNode of nodeClasses) {
-          if (classNode?.icon) {
-            const { icon: inheritedIcon } = parseIconField(classNode.icon);
-            return formatIconField(inheritedIcon || classNode.icon, color);
+          const classIcon = resolveClassIcon(classNode, classes);
+          if (classIcon) {
+            const { icon: inheritedIcon } = parseIconField(classIcon);
+            return formatIconField(inheritedIcon || classIcon, color);
           }
         }
       }
@@ -92,15 +146,45 @@ export function getEffectiveIconFromClasses(
     }
   }
 
-  // Find the first class with an icon
+  // Find the first class with an icon (including via Extends chain)
   if (nodeClasses && nodeClasses.length > 0) {
     for (const classNode of nodeClasses) {
-      if (classNode?.icon) {
-        return classNode.icon;
+      const classIcon = resolveClassIcon(classNode, classes);
+      if (classIcon) {
+        return classIcon;
       }
     }
   }
 
   // No icon found - return undefined to allow default behavior
+  return undefined;
+}
+
+/**
+ * Get the effective color for a node.
+ * 
+ * Priority:
+ * 1. Node's own color (if set) - overrides everything
+ * 2. First class's color (including Extends chain inheritance)
+ * 3. undefined (no color)
+ */
+export function getEffectiveColor(
+  node: Node | null | undefined,
+  allClasses?: Node[] | null,
+  effectiveClassIds?: number[],
+): string | null | undefined {
+  if (!node) return undefined;
+  if (node.color) return node.color;
+
+  const classIds = effectiveClassIds ?? node.classes;
+  if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
+    for (const classId of classIds) {
+      const classNode = allClasses.find(c => c.id === classId);
+      if (!classNode) continue;
+      const classColor = resolveClassColor(classNode, allClasses);
+      if (classColor) return classColor;
+    }
+  }
+
   return undefined;
 }

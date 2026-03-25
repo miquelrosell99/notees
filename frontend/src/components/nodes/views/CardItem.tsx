@@ -40,6 +40,7 @@ import type { ContentAST } from '@/runtime/types';
 
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
+import { getEffectiveColor } from '@/utils/nodeIcon';
 import {
   useNodes,
   useTags,
@@ -675,15 +676,20 @@ export const NodeCard = memo(function NodeCard({
 
   // ─── Style & className ─────────────────────────────────────
 
+  const effectiveColor = useMemo(
+    () => getEffectiveColor(node, _propsAllClasses),
+    [node, _propsAllClasses],
+  );
+
   const cardStyle = useMemo(() => {
-    if (!node.color) return undefined;
-    return getNodeColorStylesAuto(node.color);
-  }, [node.color]);
+    if (!effectiveColor) return undefined;
+    return getNodeColorStylesAuto(effectiveColor);
+  }, [effectiveColor]);
 
   const cardClassName = [
     'node-card',
     `node-card--${layout}`,
-    node.color && 'node-card--colored',
+    effectiveColor && 'node-card--colored',
     isDragging && 'node-card--dragging',
     isDropTarget && 'node-card--drop-target',
     isSelected && 'node-card--selected',
