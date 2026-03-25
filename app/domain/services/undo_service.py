@@ -181,20 +181,94 @@ class UndoService:
     # ------------------------------------------------------------------
 
     async def get_stack_info(self) -> dict:
-        """Return counts of undo and redo entries."""
+        """Return counts and entry summaries for undo and redo stacks."""
         async with acquire_connection(self._pool) as conn:
-            undo_row = await conn.fetchrow(
-                "SELECT count(*) as cnt FROM undo_log WHERE workspace_id=$1 AND user_id=$2 AND is_undone=FALSE",
+            undo_rows = await conn.fetch(
+                "SELECT id, operation, entity_type, entity_id, description, created_at "
+                "FROM undo_log WHERE workspace_id=$1 AND user_id=$2 AND is_undone=FALSE "
+                "ORDER BY created_at DESC LIMIT 50",
                 self._workspace_id, self._user_id,
             )
-            redo_row = await conn.fetchrow(
-                "SELECT count(*) as cnt FROM undo_log WHERE workspace_id=$1 AND user_id=$2 AND is_undone=TRUE",
+            redo_rows = await conn.fetch(
+                "SELECT id, operation, entity_type, entity_id, description, created_at "
+                "FROM undo_log WHERE workspace_id=$1 AND user_id=$2 AND is_undone=TRUE "
+                "ORDER BY created_at ASC LIMIT 50",
                 self._workspace_id, self._user_id,
             )
+
+        def _entry(row):
+            return {
+                "id": row["id"],
+                "operation": row["operation"],
+                "entity_type": row["entity_type"],
+                "entity_id": row["entity_id"],
+                "description": row["description"] or row["operation"].replace("_", " ").title(),
+            }
+
         return {
-            "undo_count": undo_row["cnt"] if undo_row else 0,
-            "redo_count": redo_row["cnt"] if redo_row else 0,
+            "undo_count": len(undo_rows),
+            "redo_count": len(redo_rows),
+            "undo_entries": [_entry(r) for r in undo_rows],
+            "redo_entries": [_entry(r) for r in redo_rows],
         }
+
+    async def undo_to(self, entry_id: int) -> list[dict]:
+        """Undo all operations from the top of the stack down to (and including) entry_id.
+
+        Returns a list of undone entry summaries.
+        """
+        results: list[dict] = []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM undo_log "
+                "WHERE workspace_id=$1 AND user_id=$2 AND is_undone=FALSE "
+                "ORDER BY created_at DESC",
+                self._workspace_id, self._user_id,
+            )
+            for row in rows:
+                entry = dict(row)
+                before_state = json.loads(entry["before_state"]) if entry["before_state"] else None
+                after_state = json.loads(entry["after_state"]) if entry["after_state"] else None
+                await self._apply_undo(conn, entry["operation"], entry["entity_id"], before_state, after_state)
+                await conn.execute("UPDATE undo_log SET is_undone = TRUE WHERE id = $1", entry["id"])
+                results.append({
+                    "operation": entry["operation"],
+                    "entity_type": entry["entity_type"],
+                    "entity_id": entry["entity_id"],
+                    "description": entry["description"],
+                })
+                if entry["id"] == entry_id:
+                    break
+        return results
+
+    async def redo_to(self, entry_id: int) -> list[dict]:
+        """Redo all operations from the oldest undone up to (and including) entry_id.
+
+        Returns a list of redone entry summaries.
+        """
+        results: list[dict] = []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM undo_log "
+                "WHERE workspace_id=$1 AND user_id=$2 AND is_undone=TRUE "
+                "ORDER BY created_at ASC",
+                self._workspace_id, self._user_id,
+            )
+            for row in rows:
+                entry = dict(row)
+                before_state = json.loads(entry["before_state"]) if entry["before_state"] else None
+                after_state = json.loads(entry["after_state"]) if entry["after_state"] else None
+                await self._apply_redo(conn, entry["operation"], entry["entity_id"], before_state, after_state)
+                await conn.execute("UPDATE undo_log SET is_undone = FALSE WHERE id = $1", entry["id"])
+                results.append({
+                    "operation": entry["operation"],
+                    "entity_type": entry["entity_type"],
+                    "entity_id": entry["entity_id"],
+                    "description": entry["description"],
+                })
+                if entry["id"] == entry_id:
+                    break
+        return results
 
     # ------------------------------------------------------------------
     # Apply helpers

@@ -27,6 +27,8 @@ import { Button } from '../core/Button';
 import type { ButtonBadge } from '../core/Button';
 import { CalendarPopup } from '../core/CalendarPopup';
 import { Card } from '../core/Card';
+import { ContextMenu } from '../core/ContextMenu';
+import type { ContextMenuItem } from '../core/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal } from './UserSettingsModal';
@@ -63,12 +65,51 @@ export function TopBar() {
   const queryClient = useQueryClient();
   const canUndo = useUndoStore(s => s.canUndo);
   const canRedo = useUndoStore(s => s.canRedo);
+  const undoEntries = useUndoStore(s => s.undoEntries);
+  const redoEntries = useUndoStore(s => s.redoEntries);
   const performUndo = useUndoStore(s => s.performUndo);
   const performRedo = useUndoStore(s => s.performRedo);
+  const performUndoTo = useUndoStore(s => s.performUndoTo);
+  const performRedoTo = useUndoStore(s => s.performRedoTo);
   const refreshStack = useUndoStore(s => s.refreshStack);
+  const [undoMenuPos, setUndoMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [redoMenuPos, setRedoMenuPos] = useState<{ x: number; y: number } | null>(null);
   
   // Refresh undo stack on mount
   useEffect(() => { refreshStack(); }, [refreshStack]);
+
+  // Build tooltip with description of next action
+  const undoTitle = canUndo && undoEntries.length > 0
+    ? `Undo: ${undoEntries[0].description} (Ctrl+Z)`
+    : 'Undo (Ctrl+Z)';
+  const redoTitle = canRedo && redoEntries.length > 0
+    ? `Redo: ${redoEntries[0].description} (Ctrl+Y)`
+    : 'Redo (Ctrl+Y)';
+
+  // Build context menu items for undo/redo history
+  const undoMenuItems: ContextMenuItem[] = useMemo(() =>
+    undoEntries.map((entry, i) => ({
+      id: String(entry.id),
+      label: `${i + 1}. ${entry.description}`,
+      onClick: () => {
+        performUndoTo(queryClient, entry.id);
+        setUndoMenuPos(null);
+      },
+    })),
+    [undoEntries, performUndoTo, queryClient],
+  );
+
+  const redoMenuItems: ContextMenuItem[] = useMemo(() =>
+    redoEntries.map((entry, i) => ({
+      id: String(entry.id),
+      label: `${i + 1}. ${entry.description}`,
+      onClick: () => {
+        performRedoTo(queryClient, entry.id);
+        setRedoMenuPos(null);
+      },
+    })),
+    [redoEntries, performRedoTo, queryClient],
+  );
 
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -155,8 +196,12 @@ export function TopBar() {
           disabled={!canUndo}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => performUndo(queryClient)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (undoEntries.length > 0) setUndoMenuPos({ x: e.clientX, y: e.clientY });
+          }}
           aria-label="Undo"
-          title="Undo (Ctrl+Z)"
+          title={undoTitle}
           className="toolbar-btn"
         />
 
@@ -168,10 +213,34 @@ export function TopBar() {
           disabled={!canRedo}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => performRedo(queryClient)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (redoEntries.length > 0) setRedoMenuPos({ x: e.clientX, y: e.clientY });
+          }}
           aria-label="Redo"
-          title="Redo (Ctrl+Y)"
+          title={redoTitle}
           className="toolbar-btn"
         />
+
+        {/* Undo history dropdown */}
+        {undoMenuPos && undoMenuItems.length > 0 && (
+          <ContextMenu
+            items={undoMenuItems}
+            position={undoMenuPos}
+            onClose={() => setUndoMenuPos(null)}
+            title="Undo history"
+          />
+        )}
+
+        {/* Redo history dropdown */}
+        {redoMenuPos && redoMenuItems.length > 0 && (
+          <ContextMenu
+            items={redoMenuItems}
+            position={redoMenuPos}
+            onClose={() => setRedoMenuPos(null)}
+            title="Redo history"
+          />
+        )}
 
         <div className="toolbar-separator" />
 

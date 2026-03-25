@@ -1,24 +1,36 @@
 import { create } from 'zustand';
 import { type QueryClient } from '@tanstack/react-query';
 import * as undoApi from '@/api/undo';
+import type { UndoStackEntry } from '@/api/undo';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 
 interface UndoState {
   canUndo: boolean;
   canRedo: boolean;
+  undoEntries: UndoStackEntry[];
+  redoEntries: UndoStackEntry[];
   refreshStack: (queryClient?: QueryClient) => Promise<void>;
   performUndo: (queryClient: QueryClient) => Promise<void>;
   performRedo: (queryClient: QueryClient) => Promise<void>;
+  performUndoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
+  performRedoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
 }
 
 export const useUndoStore = create<UndoState>()((set, get) => ({
   canUndo: false,
   canRedo: false,
+  undoEntries: [],
+  redoEntries: [],
 
   refreshStack: async () => {
     try {
       const stack = await undoApi.getUndoStack();
-      set({ canUndo: stack.undo_count > 0, canRedo: stack.redo_count > 0 });
+      set({
+        canUndo: stack.undo_count > 0,
+        canRedo: stack.redo_count > 0,
+        undoEntries: stack.undo_entries,
+        redoEntries: stack.redo_entries,
+      });
     } catch {
       // Ignore errors (e.g. not authenticated)
     }
@@ -42,6 +54,30 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       await get().refreshStack();
     } catch {
       // 404 = nothing to redo
+      await get().refreshStack();
+    }
+  },
+
+  performUndoTo: async (queryClient: QueryClient, entryId: number) => {
+    try {
+      const results = await undoApi.undoTo(entryId);
+      for (const r of results) {
+        await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
+      }
+      await get().refreshStack();
+    } catch {
+      await get().refreshStack();
+    }
+  },
+
+  performRedoTo: async (queryClient: QueryClient, entryId: number) => {
+    try {
+      const results = await undoApi.redoTo(entryId);
+      for (const r of results) {
+        await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
+      }
+      await get().refreshStack();
+    } catch {
       await get().refreshStack();
     }
   },
