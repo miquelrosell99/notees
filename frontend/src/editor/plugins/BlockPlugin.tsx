@@ -232,6 +232,30 @@ export function BlockPlugin({
       const visibleIds = getVisibleBlockIds();
       const virtEnabled = isVirtualizationEnabled();
 
+      // ── Handle block ID remaps (e.g. client UUID → server UUID) ──
+      // When remapBlockId fires, the projection switches to the new ID.
+      // Instead of removing the old Lexical node and creating a new one
+      // (which would displace the cursor), update the existing node's
+      // blockId in-place and re-key the tracking maps.
+      const remaps = runtime.consumePendingRemaps();
+      if (remaps.size > 0) {
+        for (const [oldId, newId] of remaps) {
+          const existing = existingBlockMap.get(oldId);
+          if (existing && !existingBlockMap.has(newId) && newBlockIds.has(newId)) {
+            existing.setBlockId(newId);
+            blockIdToKeyMap.current.delete(oldId);
+            blockIdToKeyMap.current.set(newId, existing.getKey());
+            existingBlockMap.delete(oldId);
+            existingBlockMap.set(newId, existing);
+            // Migrate population tracking
+            if (isBlockPopulated(oldId)) {
+              markDepopulated(oldId);
+              markPopulated(newId);
+            }
+          }
+        }
+      }
+
       // Remove nodes no longer in projection and clean up tracking
       for (const [blockId, node] of existingBlockMap) {
         if (!newBlockIds.has(blockId)) {
