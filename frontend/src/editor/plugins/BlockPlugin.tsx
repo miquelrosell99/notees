@@ -192,7 +192,24 @@ export function BlockPlugin({
     // Check if runtime is requesting focus on a specific block
     const runtime = getNodeGraphRuntime();
     const pendingFocus = runtime.getPendingFocus();
-    
+
+    // Pre-focus: when the runtime requests focus (e.g. "Add block" button
+    // was clicked), the contentEditable may not be the active element.
+    // Lexical skips the DOM selection update during reconciliation when
+    // the editor isn't focused, so calling editor.focus() *after* the
+    // update causes its focusin handler to read the stale DOM selection
+    // and overwrite the correct one.  Moving DOM focus here, before the
+    // update, ensures Lexical applies the new selection during
+    // reconciliation in the same pass.  The focusin handler will fire
+    // and read the old DOM selection, but PASS 4 inside the update
+    // overwrites it with the correct target.
+    if (pendingFocus && !isOtherEditorActive(editor)) {
+      const rootEl = editor.getRootElement();
+      if (rootEl && rootEl !== document.activeElement && !rootEl.contains(document.activeElement)) {
+        rootEl.focus({ preventScroll: true });
+      }
+    }
+
     editor.update(() => {
       const root = $getRoot();
       const existingNodes = root.getChildren();
