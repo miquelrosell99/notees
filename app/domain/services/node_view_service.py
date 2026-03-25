@@ -11,7 +11,7 @@ from ..entities import NodeView, generate_uuid
 from ..entities.query_ast import (
     QueryAST, ScopeNode, ScopeType, GroupNode, LogicType,
     ReferenceCondition, ParentPathCondition, ParentCondition, ClassCondition, ExtendsCondition, FlagCondition,
-    PropertyCondition, PropertyOperator,
+    PropertyCondition, PropertyOperator, PageCondition,
     ContentCondition, ContentOperator
 )
 from ..repositories import PostgresNodeViewRepository
@@ -77,10 +77,9 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
                 logic=LogicType.AND,
                 children=[
                     ReferenceCondition(target_uuid="{current_node_uuid}"),
-                    PropertyCondition(
-                        property_name="page_uuid",
-                        operator=PropertyOperator.NOT_EQUALS,
-                        value="{current_node_uuid}",
+                    PageCondition(
+                        page_uuid="{current_node_uuid}",
+                        operator="is_not_page",
                     ),
                 ]
             ),

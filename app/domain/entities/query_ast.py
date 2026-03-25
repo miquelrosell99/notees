@@ -94,6 +94,7 @@ class ConditionType(str, Enum):
     CHILD = "child"
     CHILD_PATH = "child_path"
     FLAG = "flag"
+    PAGE = "page"
 
 
 class PropertyOperator(str, Enum):
@@ -286,6 +287,20 @@ class FlagCondition(BaseConditionNode):
 
 
 @dataclass
+class PageCondition(BaseConditionNode):
+    """Page condition - filter by containing page (via page_id)."""
+    condition_type: Literal[ConditionType.PAGE] = ConditionType.PAGE
+    # Static mode: specific page(s)
+    page_uuid: Optional[str] = None
+    page_uuids: Optional[List[str]] = None
+    page_id: Optional[int] = None
+    page_ids: Optional[List[int]] = None
+    # Dynamic mode: page matching criteria
+    nested_group: Optional["GroupNode"] = None
+    operator: Optional[str] = None  # 'is_page' | 'is_not_page' | 'has_no_page' | 'has_any_page'
+
+
+@dataclass
 class ChildCondition(BaseConditionNode):
     """Child condition - filter by direct child nodes matching criteria."""
     condition_type: Literal[ConditionType.CHILD] = ConditionType.CHILD
@@ -320,6 +335,7 @@ ConditionNode = Union[
     ChildCondition,
     ChildPathCondition,
     FlagCondition,
+    PageCondition,
 ]
 
 
@@ -546,6 +562,18 @@ def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
             nested_group=nested_group,
             max_depth=data.get("max_depth"),
             operator=data.get("operator", "has_descendant"),
+        )
+    elif condition_type == ConditionType.PAGE:
+        nested_group = None
+        if "nested_group" in data and data["nested_group"]:
+            nested_group = GroupNode.from_dict(data["nested_group"])
+        return PageCondition(
+            page_uuid=data.get("page_uuid"),
+            page_uuids=data.get("page_uuids"),
+            page_id=data.get("page_id"),
+            page_ids=data.get("page_ids"),
+            nested_group=nested_group,
+            operator=data.get("operator", "is_page"),
         )
     else:
         # Default to content condition

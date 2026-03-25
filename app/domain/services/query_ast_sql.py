@@ -24,6 +24,7 @@ from app.domain.entities.query_ast import (
     ChildCondition,
     ChildPathCondition,
     FlagCondition,
+    PageCondition,
     LogicType,
     ScopeType,
     PropertyType,
@@ -215,6 +216,8 @@ class QueryASTToSQL:
             return self._generate_child_condition(condition)
         elif isinstance(condition, ChildPathCondition):
             return self._generate_child_path_condition(condition)
+        elif isinstance(condition, PageCondition):
+            return self._generate_page_condition(condition)
         
         return None
     
@@ -884,7 +887,71 @@ class QueryASTToSQL:
                 WHERE parent_n.workspace_id = %(workspace_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
             )"""
-    
+
+    def _generate_page_condition(self, condition: PageCondition) -> Optional[str]:
+        """Generate SQL for page condition - filter by containing page (page_id).
+        
+        Operators:
+        - is_page: node's containing page matches
+        - is_not_page: node's containing page does NOT match
+        - has_no_page: node has no page (i.e., IS a page itself)
+        - has_any_page: node has a page (i.e., is a block)
+        """
+        operator = getattr(condition, 'operator', 'is_page')
+
+        # Static mode: specific page UUID(s)
+        if condition.page_uuids or condition.page_uuid:
+            page_uuids = condition.page_uuids or ([condition.page_uuid] if condition.page_uuid else [])
+
+            # Resolve {current_node_uuid} placeholder
+            resolved = []
+            for uuid in page_uuids:
+                if uuid == '{current_node_uuid}' and self.current_node_uuid:
+                    resolved.append(self.current_node_uuid)
+                else:
+                    resolved.append(uuid)
+
+            param_names = [self._add_param(uuid) for uuid in resolved]
+            param_refs = ', '.join([f'%({p})s' for p in param_names])
+
+            if operator == 'is_not_page':
+                return f"(n.page_id IS NULL OR n.page_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s AND active = TRUE))"
+            else:  # is_page (default)
+                return f"n.page_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s AND active = TRUE)"
+
+        # No static value and no nested group
+        if not condition.nested_group:
+            if operator == 'has_no_page':
+                return "n.page_id IS NULL"
+            elif operator == 'has_any_page':
+                return "n.page_id IS NOT NULL"
+            return None
+
+        # Dynamic mode: page matching criteria via nested group
+        nested_sql = self._generate_group_sql(condition.nested_group)
+        if not nested_sql:
+            return None
+
+        import re
+        page_sql = re.sub(r'\bn\.', 'page_n.', nested_sql)
+
+        if operator == 'is_not_page':
+            return f"""(n.page_id IS NULL OR n.page_id NOT IN (
+                SELECT page_n.id FROM node page_n
+                WHERE page_n.workspace_id = %(workspace_id)s AND page_n.active = TRUE
+                AND ({page_sql})
+            ))"""
+        elif operator == 'has_no_page':
+            return "n.page_id IS NULL"
+        elif operator == 'has_any_page':
+            return "n.page_id IS NOT NULL"
+        else:  # is_page (default)
+            return f"""n.page_id IN (
+                SELECT page_n.id FROM node page_n
+                WHERE page_n.workspace_id = %(workspace_id)s AND page_n.active = TRUE
+                AND ({page_sql})
+            )"""
+
     def _generate_child_condition(self, condition: ChildCondition) -> Optional[str]:
         """Generate SQL for child condition - direct children match.
         

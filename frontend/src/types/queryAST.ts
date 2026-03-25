@@ -181,7 +181,8 @@ export type ConditionType =
   | 'parent_path'
   | 'child'
   | 'child_path'
-  | 'class_path';
+  | 'class_path'
+  | 'page';
 
 /**
  * Base condition node
@@ -343,6 +344,21 @@ export interface ClassPathCondition extends BaseConditionNode {
 }
 
 /**
+ * Page condition - filter by containing page (via page_id)
+ */
+export interface PageCondition extends BaseConditionNode {
+  condition_type: 'page';
+  // Static mode: specific page(s)
+  page_uuid?: string;
+  page_uuids?: string[];
+  page_id?: number;
+  page_ids?: number[];
+  // Dynamic mode: page matching criteria
+  nested_group?: GroupNode;
+  operator?: 'is_page' | 'is_not_page' | 'has_no_page' | 'has_any_page';
+}
+
+/**
  * Union type for all conditions
  */
 export type ConditionNode =
@@ -357,7 +373,8 @@ export type ConditionNode =
   | ParentPathCondition
   | ChildCondition
   | ChildPathCondition
-  | ClassPathCondition;
+  | ClassPathCondition
+  | PageCondition;
 
 // ==================== Group Node ====================
 

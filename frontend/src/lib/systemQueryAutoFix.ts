@@ -11,7 +11,7 @@
  * - classed_nodes: MUST have class condition (for "Nodes classed as X" views)
  */
 
-import type { QueryAST, ConditionNode, GroupNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, ScopeNode } from '@/types/queryAST';
+import type { QueryAST, ConditionNode, GroupNode, ReferenceCondition, ClassCondition, ParentCondition, ExtendsCondition, ContentCondition, PropertyCondition, PageCondition, ScopeNode } from '@/types/queryAST';
 import { markAsSystemNode, markAsHiddenSystemNode, isSystemNode } from '@/types/queryAST';
 import type { NodeViewType } from '@/types/nodeView';
 
@@ -39,6 +39,10 @@ function isContentCondition(node: ConditionNode): node is ContentCondition {
 
 function isPropertyCondition(node: ConditionNode): node is PropertyCondition {
   return node.condition_type === 'property';
+}
+
+function isPageCondition(node: ConditionNode): node is PageCondition {
+  return node.condition_type === 'page';
 }
 
 // ==================== System Section Definitions ====================
@@ -83,23 +87,21 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
   {
     viewType: 'linked_references',
     requiresCondition: (_ast, _context) => {
-      return markAsHiddenSystemNode({
+      return markAsSystemNode({
         type: 'condition',
-        condition_type: 'property',
-        property_name: 'page_uuid',
-        property_type: 'text',
-        operator: 'not_equals',
-        value: '{current_node_uuid}',
-      } as PropertyCondition);
+        condition_type: 'page',
+        page_uuid: '{current_node_uuid}',
+        operator: 'is_not_page',
+      } as PageCondition);
     },
     hasRequiredCondition: (ast, _context) => {
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          isPropertyCondition(child as ConditionNode) &&
-          (child as PropertyCondition).property_name === 'page_uuid' &&
-          (child as PropertyCondition).operator === 'not_equals' &&
-          (child as PropertyCondition).value === '{current_node_uuid}'
+          isPageCondition(child as ConditionNode) &&
+          (child as PageCondition).operator === 'is_not_page' &&
+          ((child as PageCondition).page_uuid === '{current_node_uuid}' ||
+           (child as PageCondition).page_uuid === _context.nodeUuid)
       );
     },
   },
@@ -341,6 +343,13 @@ export function autoFixSystemQuery(
             if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') {
               return markAsSystemNode(child);
             }
+          } else if (viewType === 'linked_references' && isPageCondition(child as ConditionNode)) {
+            const pageCond = child as PageCondition;
+            if (pageCond.operator === 'is_not_page' && (
+              pageCond.page_uuid === '{current_node_uuid}' || pageCond.page_uuid === context.nodeUuid
+            )) {
+              return markAsSystemNode(child);
+            }
           } else if (viewType === 'classed_nodes' && isClassCondition(child as ConditionNode)) {
             const classCond = child as ClassCondition;
             if (classCond.class_uuid === context.nodeUuid || classCond.class_uuid === '{current_node_uuid}') {
@@ -414,6 +423,15 @@ export function autoFixSystemQuery(
           if (viewType === 'linked_references' && isReferenceCondition(child as ConditionNode)) {
             const refCond = child as ReferenceCondition;
             if (refCond.target_uuid === context.nodeUuid || refCond.target_uuid === '{current_node_uuid}') return false;
+          } else if (viewType === 'linked_references' && isPageCondition(child as ConditionNode)) {
+            const pageCond = child as PageCondition;
+            if (pageCond.operator === 'is_not_page' && (
+              pageCond.page_uuid === '{current_node_uuid}' || pageCond.page_uuid === context.nodeUuid
+            )) return false;
+          } else if (viewType === 'linked_references' && isPropertyCondition(child as ConditionNode)) {
+            // Migration: remove old property-based page_uuid filter
+            const propCond = child as PropertyCondition;
+            if (propCond.property_name === 'page_uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') return false;
           } else if (viewType === 'child_pages' && isParentCondition(child as ConditionNode)) {
             const parentCond = child as ParentCondition;
             if (parentCond.parent_uuid && (

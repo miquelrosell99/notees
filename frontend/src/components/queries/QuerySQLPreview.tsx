@@ -164,6 +164,15 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
       
     case 'parent_path':
       return `inside_page(...)`;
+
+    case 'page': {
+      const pageOp = (condition as import('@/types/queryAST').PageCondition).operator;
+      const pageUuid = (condition as import('@/types/queryAST').PageCondition).page_uuid;
+      if (pageOp === 'is_not_page') return `page != '${pageUuid}'`;
+      if (pageOp === 'has_no_page') return 'page IS NULL';
+      if (pageOp === 'has_any_page') return 'page IS NOT NULL';
+      return `page = '${pageUuid}'`;
+    }
       
     default:
       return '';

@@ -199,6 +199,15 @@ export function QueryBlockList({
     onChange([...blocks, newCondition]);
   }, [blocks, onChange]);
 
+  const handleAddPage = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'page',
+      page_uuid: '',
+    };
+    onChange([...blocks, newCondition]);
+  }, [blocks, onChange]);
+
 
 
   // State for context menu
@@ -258,6 +267,11 @@ export function QueryBlockList({
       id: 'child_path',
       label: 'CHILD PATH',
       onClick: () => { handleAddChildPath(); setMenuPosition(null); },
+    },
+    {
+      id: 'page',
+      label: 'PAGE',
+      onClick: () => { handleAddPage(); setMenuPosition(null); },
     },
     { id: 'sep-4', label: '', separator: true },
     {
