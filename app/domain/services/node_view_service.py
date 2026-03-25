@@ -76,7 +76,12 @@ DEFAULT_VIEW_CONFIGS: Dict[str, Dict[str, Any]] = {
             root_group=GroupNode(
                 logic=LogicType.AND,
                 children=[
-                    ReferenceCondition(target_uuid="{current_node_uuid}")
+                    ReferenceCondition(target_uuid="{current_node_uuid}"),
+                    PropertyCondition(
+                        property_name="page_uuid",
+                        operator=PropertyOperator.NOT_EQUALS,
+                        value="{current_node_uuid}",
+                    ),
                 ]
             ),
             is_system=True

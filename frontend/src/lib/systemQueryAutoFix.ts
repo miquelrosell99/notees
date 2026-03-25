@@ -78,6 +78,31 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
       );
     },
   },
+
+  // Linked References - exclude self-references (blocks on the current page linking back to it)
+  {
+    viewType: 'linked_references',
+    requiresCondition: (_ast, _context) => {
+      return markAsHiddenSystemNode({
+        type: 'condition',
+        condition_type: 'property',
+        property_name: 'page_uuid',
+        property_type: 'text',
+        operator: 'not_equals',
+        value: '{current_node_uuid}',
+      } as PropertyCondition);
+    },
+    hasRequiredCondition: (ast, _context) => {
+      return ast.root_group.children.some(
+        (child) =>
+          child.type === 'condition' &&
+          isPropertyCondition(child as ConditionNode) &&
+          (child as PropertyCondition).property_name === 'page_uuid' &&
+          (child as PropertyCondition).operator === 'not_equals' &&
+          (child as PropertyCondition).value === '{current_node_uuid}'
+      );
+    },
+  },
   
   // Child Pages section - requires parent condition with current node UUID
   {
