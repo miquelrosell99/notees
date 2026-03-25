@@ -50,6 +50,7 @@ from .helpers import (
     _get_related_ids_batch,
     extract_properties_dict,
     _resolve_referenced_display_names,
+    _name_text,
 )
 
 limiter = Limiter(key_func=get_remote_address)
@@ -99,7 +100,7 @@ async def create_node(
             "create_node", "node", node.id,
             before_state=None,
             after_state=_node_snapshot(node),
-            description=f"Created '{node.name[:60]}'",
+            description=f"Created '{_name_text(node.name)}'",
         )
     except Exception:
         pass  # Never fail the mutation because of undo logging
@@ -1589,8 +1590,8 @@ async def update_node(
                 after = _node_snapshot(node)
                 # Only record if something actually changed
                 if before != after:
-                    old_name = before.get('name', '')[:30]
-                    new_name = after.get('name', '')[:30]
+                    old_name = _name_text(before.get('name', ''), 30)
+                    new_name = _name_text(after.get('name', ''), 30)
                     if before.get('name') != after.get('name'):
                         desc = f"Renamed '{old_name}' → '{new_name}'"
                     else:
@@ -1652,7 +1653,7 @@ async def move_node(
         try:
             undo = await _get_undo_service(user)
             after = _node_snapshot(node)
-            name = (node.name or '')[:30]
+            name = _name_text(node.name, 30)
             await undo.record(
                 "move_node", "node", node_id,
                 before_state=before, after_state=after,
@@ -1762,7 +1763,7 @@ async def delete_node(
     if undo_before:
         try:
             undo = await _get_undo_service(user)
-            name = undo_before.get('name', '')[:30]
+            name = _name_text(undo_before.get('name', ''), 30)
             await undo.record(
                 "delete_node", "node", node_id,
                 before_state=undo_before, after_state=None,
@@ -1789,7 +1790,7 @@ async def archive_node(
     # Record for undo
     try:
         undo = await _get_undo_service(user)
-        name = (node.name or '')[:30]
+        name = _name_text(node.name, 30)
         await undo.record(
             "archive_node", "node", node_id,
             before_state={"active": True},
@@ -1837,7 +1838,7 @@ async def unarchive_node(
     # Record for undo
     try:
         undo = await _get_undo_service(user)
-        name = (node.name or '')[:30]
+        name = _name_text(node.name, 30)
         await undo.record(
             "unarchive_node", "node", node_id,
             before_state={"active": False},

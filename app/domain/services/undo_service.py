@@ -196,13 +196,29 @@ class UndoService:
                 self._workspace_id, self._user_id,
             )
 
+        def _clean_description(desc: str) -> str:
+            """If a stored description contains raw AST JSON, convert to plain text."""
+            if not desc:
+                return desc
+            if desc.startswith('[{"') or desc.startswith('{"'):
+                # Likely raw AST — shouldn't happen for new entries but handle old data
+                try:
+                    from ..stringify_ast import parse_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
+                    ast = parse_ast(desc, ParseMode.JSON)
+                    if ast:
+                        return stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)) or desc
+                except Exception:
+                    pass
+            return desc
+
         def _entry(row):
+            raw_desc = row["description"] or row["operation"].replace("_", " ").title()
             return {
                 "id": row["id"],
                 "operation": row["operation"],
                 "entity_type": row["entity_type"],
                 "entity_id": row["entity_id"],
-                "description": row["description"] or row["operation"].replace("_", " ").title(),
+                "description": _clean_description(raw_desc),
             }
 
         return {
