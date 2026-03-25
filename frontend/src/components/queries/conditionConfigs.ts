@@ -17,6 +17,7 @@ import {
   CHILD_PATH_OPERATORS,
   FLAG_OPERATORS,
   STYLE_OPERATORS,
+  PAGE_OPERATORS,
   type OperatorDefinition,
 } from './operators';
 
@@ -274,6 +275,23 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       placeholder: '',
       required: false,
     },
+  },
+  
+  page: {
+    label: 'PAGE',
+    operators: PAGE_OPERATORS,
+    defaultOperator: 'is_page',
+    hasStaticDynamicToggle: true,
+    staticMode: {
+      inputType: 'node-selector',
+      placeholder: 'Select page...',
+      required: true,
+    },
+    dynamicMode: {
+      whereLabel: 'where',
+      defaultLogic: 'AND',
+    },
+    noValueOperators: ['has_no_page', 'has_any_page'],
   },
 };
 

@@ -141,6 +141,18 @@ export const FLAG_OPERATORS: OperatorDefinition[] = [
   { value: 'is_false', label: 'is false' },
 ];
 
+// ==================== Page Operators ====================
+
+/**
+ * Operators for page (containing page) conditions
+ */
+export const PAGE_OPERATORS: OperatorDefinition[] = [
+  { value: 'is_page', label: 'is any of' },
+  { value: 'is_not_page', label: 'is not any of' },
+  { value: 'has_any_page', label: 'is set' },
+  { value: 'has_no_page', label: 'is not set' },
+];
+
 // ==================== Style Operators ====================
 
 /**
@@ -168,6 +180,7 @@ export const OPERATOR_MAP = new Map<string, OperatorDefinition>(
     ...CHILD_OPERATORS,
     ...FLAG_OPERATORS,
     ...STYLE_OPERATORS,
+    ...PAGE_OPERATORS,
   ].map(op => [op.value, op])
 );
 
