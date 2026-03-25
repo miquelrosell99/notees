@@ -39,6 +39,26 @@ async def redo(user: User = Depends(get_current_user)):
 
 @router.get("/stack")
 async def get_stack(user: User = Depends(get_current_user)):
-    """Get the current undo/redo stack counts."""
+    """Get the current undo/redo stack counts and entries."""
     service = await _get_undo_service(user)
     return await service.get_stack_info()
+
+
+@router.post("/undo-to/{entry_id}")
+async def undo_to(entry_id: int, user: User = Depends(get_current_user)):
+    """Undo all operations down to (and including) the given entry."""
+    service = await _get_undo_service(user)
+    results = await service.undo_to(entry_id)
+    if not results:
+        raise HTTPException(status_code=404, detail="Nothing to undo")
+    return results
+
+
+@router.post("/redo-to/{entry_id}")
+async def redo_to(entry_id: int, user: User = Depends(get_current_user)):
+    """Redo all operations up to (and including) the given entry."""
+    service = await _get_undo_service(user)
+    results = await service.redo_to(entry_id)
+    if not results:
+        raise HTTPException(status_code=404, detail="Nothing to redo")
+    return results
