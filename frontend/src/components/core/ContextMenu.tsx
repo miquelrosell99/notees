@@ -48,9 +48,11 @@ interface ContextMenuProps {
   containerRef?: React.RefObject<HTMLElement | null>;
   /** When true, render inline (no portal) — for use inside an already-portaled wrapper */
   inline?: boolean;
+  /** When true, position.x is the right edge — menu expands leftward */
+  alignRight?: boolean;
 }
 
-export function ContextMenu({ items, position, onClose, title, activeItem, containerRef, inline = false }: ContextMenuProps) {
+export function ContextMenu({ items, position, onClose, title, activeItem, containerRef, inline = false, alignRight = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -127,14 +129,19 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     menuRef.current = el;
     if (!el) return;
-    // Set initial position
-    el.style.left = `${position.x}px`;
-    el.style.top = `${position.y}px`;
-    // Measure and adjust
     const menuRect = el.getBoundingClientRect();
     const padding = 8;
-    let x = position.x;
+    let x: number;
     let y = position.y;
+
+    if (alignRight) {
+      // position.x is the right edge — expand leftward
+      x = position.x - menuRect.width;
+    } else {
+      x = position.x;
+    }
+
+    // Keep within viewport
     if (x + menuRect.width > window.innerWidth) {
       x = window.innerWidth - menuRect.width - padding;
     }
@@ -145,7 +152,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     if (y < padding) y = padding;
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
-  }, [position]);
+  }, [position, alignRight]);
 
   const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent) => {
     if (item.disabled || item.separator) return;
