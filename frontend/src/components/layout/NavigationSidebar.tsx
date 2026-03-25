@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useFavoritesStore, useModalStore } from '@/stores';
-import { useNode, useClasses } from '@/hooks';
+import { useNode, useClasses, useBatchedNode } from '@/hooks';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -47,7 +47,9 @@ function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProp
   // Fetch the node directly using useNode for real-time updates
   const { data: node } = useNode(nodeId);
   const { data: allClasses } = useClasses();
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
+  const aliasedId = (!node?.icon && (!node?.classes || node.classes.length === 0) && node?.aliased_id) ? node.aliased_id : null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses, aliasedNode), [node, allClasses, aliasedNode]);
   
   // Show skeleton placeholder while loading
   if (!node) return <div className="sidebar-item-skeleton" />;
@@ -94,7 +96,9 @@ function SortableFavoriteItem({
 }: SortableFavoriteItemProps) {
   const { data: node } = useNode(nodeId);
   const { data: allClasses } = useClasses();
-  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses), [node, allClasses]);
+  const aliasedId = (!node?.icon && (!node?.classes || node.classes.length === 0) && node?.aliased_id) ? node.aliased_id : null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
+  const effectiveIcon = useMemo(() => getEffectiveIcon(node, allClasses, aliasedNode), [node, allClasses, aliasedNode]);
   
   const handleClick = useCallback((e: React.MouseEvent) => {
     // Don't navigate if clicking drag handle or remove button
