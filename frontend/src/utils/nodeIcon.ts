@@ -12,21 +12,22 @@ import { parseIconField, formatIconField } from './iconDom';
  * 
  * Priority:
  * 1. Node's own icon (if set) - overrides everything
- * 2. First class's icon (if the node has classes and the class has an icon)
- * 3. Aliased node's icon / class icon (if the node is an alias)
- * 4. undefined (fallback to default icon based on node type)
+ * 2. First class's icon (from effectiveClassIds or node.classes)
+ * 3. undefined (fallback to default icon based on node type)
  * 
  * @param node - The node to get the icon for
  * @param allClasses - All available class nodes (to resolve class icons)
- * @param aliasedNode - The node this node is an alias of (for icon inheritance)
+ * @param effectiveClassIds - Override class IDs (e.g. inherited from aliased node)
  * @returns The effective icon string or undefined
  */
 export function getEffectiveIcon(
   node: Node | null | undefined,
   allClasses?: Node[] | null,
-  aliasedNode?: Node | null,
+  effectiveClassIds?: number[],
 ): string | null | undefined {
   if (!node) return undefined;
+
+  const classIds = effectiveClassIds ?? node.classes;
 
   if (node.icon) {
     const { icon: iconName, color } = parseIconField(node.icon);
@@ -34,7 +35,6 @@ export function getEffectiveIcon(
     if (iconName) return node.icon;
     // Color-only: find inherited icon and re-encode with node's color
     if (color) {
-      const classIds = node.classes;
       if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
         for (const classId of classIds) {
           const classNode = allClasses.find(c => c.id === classId);
@@ -50,7 +50,6 @@ export function getEffectiveIcon(
   }
 
   // If the node has classes and we have class data, try to inherit icon from first class with an icon
-  const classIds = node.classes;
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
     for (const classId of classIds) {
       const classNode = allClasses.find(c => c.id === classId);
@@ -58,11 +57,6 @@ export function getEffectiveIcon(
         return classNode.icon;
       }
     }
-  }
-
-  // For alias nodes, inherit icon from the aliased node
-  if (node.aliased_id && aliasedNode) {
-    return getEffectiveIcon(aliasedNode, allClasses);
   }
 
   // No icon found - return undefined to allow default behavior

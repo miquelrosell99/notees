@@ -16,6 +16,14 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
 
+/** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
+function useEffectiveClassIds(node: Node | null | undefined) {
+  const hasOwnClasses = !!node?.classes?.length;
+  const aliasedId = (!hasOwnClasses && node?.aliased_id) ? node.aliased_id : null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
+  return hasOwnClasses ? node!.classes : aliasedNode?.classes;
+}
+
 export interface NodeDisplayData {
   /** Resolved icon string (own or inherited from class), or undefined */
   effectiveIcon: string | null | undefined;
@@ -38,14 +46,11 @@ export function useNodeDisplay(
   fallbackText = '',
 ): NodeDisplayData {
   const { data: allClasses } = useClasses();
-
-  // For alias nodes with no classes/icon, fetch the aliased node to inherit its icon
-  const aliasedId = (!node?.icon && (!node?.classes || node.classes.length === 0) && node?.aliased_id) ? node.aliased_id : null;
-  const { data: aliasedNode } = useBatchedNode(aliasedId);
+  const effectiveClassIds = useEffectiveClassIds(node);
 
   const effectiveIcon = useMemo(
-    () => getEffectiveIcon(node, allClasses, aliasedNode),
-    [node, allClasses, aliasedNode],
+    () => getEffectiveIcon(node, allClasses, effectiveClassIds),
+    [node, allClasses, effectiveClassIds],
   );
 
   const displayText = useMemo(() => {
