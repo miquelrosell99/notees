@@ -1,4 +1,5 @@
 """Helper functions for the Nodes API."""
+import json
 from typing import cast, Optional, List, Dict, Any
 
 import asyncpg
@@ -114,7 +115,7 @@ def _node_to_response(
         classes=classes or [],
         comment_count=comment_count,
         backlink_count=backlink_count,
-        classes_path=node.classes_path or [],
+        classes_path=json.loads(node.classes_path) if isinstance(node.classes_path, str) else (node.classes_path or []),
         aliased_id=node.aliased_id,
         aliases=aliases or [],
         has_children=has_children,
