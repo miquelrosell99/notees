@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass, useBatchedNode } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -29,6 +29,8 @@ import './PageHeader.css';
 interface PageHeaderProps {
   /** The page node to display */
   page: Node;
+  /** Effective class IDs (may include inherited classes from aliased node) */
+  effectiveClasses?: number[];
   /** Callback when right-clicking the header (for context menu) */
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Custom handler for name changes (overrides default node update) */
@@ -39,6 +41,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ 
   page, 
+  effectiveClasses,
   onContextMenu,
   onNameChange,
   onIconChange,
@@ -84,13 +87,8 @@ export function PageHeader({
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
   
-  // For alias nodes, inherit icon from the aliased node
-  const aliasedId = (!page?.icon && (!page?.classes || page.classes.length === 0) && page?.aliased_id) ? page.aliased_id : null;
-  const { data: aliasedNode } = useBatchedNode(aliasedId);
-
-  
-  // Get effective icon (page's icon or first class's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses, aliasedNode), [page, allClasses, aliasedNode]);
+  // Get effective icon (page's icon or first class's icon, using inherited classes for aliases)
+  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses, effectiveClasses), [page, allClasses, effectiveClasses]);
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);

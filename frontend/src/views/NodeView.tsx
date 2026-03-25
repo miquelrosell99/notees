@@ -1064,6 +1064,7 @@ export function NodeView({
             <div className="page-header-section__header">
               <PageHeader
                 page={node}
+                effectiveClasses={effectiveClasses}
                 onContextMenu={handleContextMenu}
               />
             </div>
