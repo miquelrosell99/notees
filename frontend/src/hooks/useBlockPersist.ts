@@ -158,6 +158,56 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           const newBlockId = createdNode.uuid;
           onPersisted?.(newBlockId, createdNode.id);
 
+          // ── Optimistic cache insertion ──
+          // Insert the created block into parent detail query caches now.
+          // Without this, a concurrent mutation (e.g. useUpdateNode's
+          // debounced content save) can cancel the invalidation refetch
+          // via cancelQueries while its setQueryData writes cache data
+          // that omits the new block.  BlockEditor's useLayoutEffect
+          // cleanup then removes the block from the runtime (it has a
+          // serverId but isn't in the cache), making it vanish until
+          // page reload.
+          if (parentServerId != null) {
+            const insertCreatedBlock = (node: Node | undefined): Node | undefined => {
+              if (!node) return node;
+              if (node.id === parentServerId) {
+                const existing = node.children || [];
+                if (existing.some(c => c.id === createdNode.id)) return node;
+                const insertIdx = existing.findIndex(c => (c.sequence ?? 0) >= (createdNode.sequence ?? 0));
+                const newChildren = insertIdx === -1
+                  ? [...existing, { ...createdNode, children: [] }]
+                  : [...existing.slice(0, insertIdx), { ...createdNode, children: [] }, ...existing.slice(insertIdx)];
+                return { ...node, children: newChildren };
+              }
+              if (node.children && node.children.length > 0) {
+                let changed = false;
+                const newChildren = node.children.map(child => {
+                  const updated = insertCreatedBlock(child);
+                  if (updated !== child) changed = true;
+                  return updated!;
+                });
+                if (changed) return { ...node, children: newChildren };
+              }
+              return node;
+            };
+
+            const qCache = queryClient.getQueryCache();
+            for (const query of qCache.findAll({ queryKey: nodeKeys.details() })) {
+              const oldData = query.state.data as Node | undefined;
+              if (oldData) {
+                const newData = insertCreatedBlock(oldData);
+                if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+              }
+            }
+            for (const query of qCache.findAll({ queryKey: ['nodes', 'page-content'] })) {
+              const oldData = query.state.data as Node | undefined;
+              if (oldData) {
+                const newData = insertCreatedBlock(oldData);
+                if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+              }
+            }
+          }
+
           // Flush any queued content save for this block BEFORE invalidating
           // caches. This ensures that when the parent cache refetches, the
           // block's content is already saved to the server.
