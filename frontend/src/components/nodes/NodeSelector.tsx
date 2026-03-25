@@ -524,6 +524,18 @@ export function NodeSelector({
     return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
   }, [allPages]);
 
+  // Build breadcrumb path for a block node using its page_id
+  const buildBlockParentPath = useCallback((node: Node): string => {
+    if (!node.page_id) return '';
+    const page = allPages.find(p => p.id === node.page_id);
+    if (!page) return '';
+    const pageName = nodeNameToText(page.name) || 'Untitled';
+    const ancestors = buildParentPath(page);
+    // buildParentPath returns "Parent /" format; strip trailing " /" to combine cleanly
+    const trimmed = ancestors.replace(/ \/$/, '');
+    return trimmed ? `${trimmed} / ${pageName}` : pageName;
+  }, [allPages, buildParentPath]);
+
   // Get display classes for a node, excluding the system "page" class
   const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
     if (!node.classes || node.classes.length === 0) return [];
@@ -684,8 +696,8 @@ export function NodeSelector({
                       <NodeResultItem
                         key={node.id}
                         node={node}
-                        parentPath={node.is_page ? buildParentPath(node) : ''}
-                        displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                        parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                        displayClasses={getDisplayClasses(node)}
                         isHighlighted={index === selectedIndex}
                         onClick={() => handleToggle(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
@@ -768,8 +780,8 @@ export function NodeSelector({
                     <NodeResultItem
                       key={node.id}
                       node={node}
-                      parentPath={node.is_page ? buildParentPath(node) : ''}
-                      displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                      parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                      displayClasses={getDisplayClasses(node)}
                       isHighlighted={index === selectedIndex}
                       isSelected={assignedIds.has(node.id)}
                       onClick={() => handleAdd(node)}
@@ -866,8 +878,8 @@ export function NodeSelector({
                 <NodeResultItem
                   key={node.id}
                   node={node}
-                  parentPath={node.is_page ? buildParentPath(node) : ''}
-                  displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                  parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                  displayClasses={getDisplayClasses(node)}
                   isHighlighted={index === selectedIndex}
                   onClick={() => handleAdd(node)}
                   onMouseEnter={() => setSelectedIndex(index)}
@@ -956,8 +968,8 @@ export function NodeSelector({
                 <NodeResultItem
                   key={node.id}
                   node={node}
-                  parentPath={node.is_page ? buildParentPath(node) : ''}
-                  displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                  parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                  displayClasses={getDisplayClasses(node)}
                   isHighlighted={index === selectedIndex}
                   onClick={() => handleAdd(node)}
                   onMouseEnter={() => setSelectedIndex(index)}
@@ -1057,8 +1069,8 @@ export function NodeSelector({
                       <NodeResultItem
                         key={node.id}
                         node={node}
-                        parentPath={node.is_page ? buildParentPath(node) : ''}
-                        displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                        parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                        displayClasses={getDisplayClasses(node)}
                         isHighlighted={index === selectedIndex}
                         onClick={() => handleAdd(node)}
                         onMouseEnter={() => setSelectedIndex(index)}
