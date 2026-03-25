@@ -170,7 +170,7 @@ function NodeRefInline({
           <span
             className="inline-link-inner"
             data-ref-type={refType}
-            style={color ? { textDecorationColor: color, color } : undefined}
+            style={color ? { textDecorationColor: color } : undefined}
           >
             {effectiveIcon && refType !== 'class' && (
               <span className="inline-link-icon">
@@ -188,7 +188,7 @@ function NodeRefInline({
     <span
       className="inline-link-inner"
       data-ref-type={refType}
-      style={color ? { textDecorationColor: color, color } : undefined}
+      style={color ? { textDecorationColor: color } : undefined}
     >
       {effectiveIcon && refType !== 'class' && (
         <span className="inline-link-icon">
