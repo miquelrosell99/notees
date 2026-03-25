@@ -32,6 +32,7 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { analyzeClipboard, flattenBlocks } from '../../utils/clipboardManager';
 import { searchNodes, createPage, getNodeByUuid } from '../../api/nodes';
 import { buildLinkId, paragraph, text as astText, nodeLink } from '../../lib/astBuilder';
+import { generateUUID } from '../../utils/uuid';
 import type { ASTInlineNode, ASTDocument } from '../../types/ast';
 import type { HashtagPasteMode } from '../../stores/settingsStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -229,7 +230,7 @@ async function parseContentToAST(
 
     const resolved = resolvedMap.get(token);
     if (resolved) {
-      const linkUuid = crypto.randomUUID();
+      const linkUuid = generateUUID();
       const linkId = buildLinkId(resolved.uuid, linkUuid);
       const refType = token.type === 'hashtag' && hashtagMode === 'inline-class'
         ? 'class' as const
@@ -484,7 +485,7 @@ async function processPasteAsync(
       }
     }
 
-    const newBlockId = crypto.randomUUID();
+    const newBlockId = generateUUID();
     blockIds.push(newBlockId);
 
     runtime.applyIntent({
@@ -565,7 +566,7 @@ async function processSingleLineLinkPasteAsync(
     if (token.start > pos) pastedInlines.push(astText(pastedText.slice(pos, token.start)));
     const r = resolved[i];
     if (r) {
-      pastedInlines.push(nodeLink(buildLinkId(r.uuid, crypto.randomUUID()), 'node'));
+      pastedInlines.push(nodeLink(buildLinkId(r.uuid, generateUUID()), 'node'));
     } else {
       pastedInlines.push(astText(token.value));
     }

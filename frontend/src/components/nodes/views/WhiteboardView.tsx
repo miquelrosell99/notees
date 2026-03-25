@@ -24,6 +24,7 @@ import { LinkEditModal, type LinkEditResult } from '@/editor/components/LinkEdit
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { createElementId } from '@/types/whiteboard';
 import { inlineDoc, nodeLink, buildLinkId } from '@/lib/astBuilder';
+import { generateUUID } from '@/utils/uuid';
 import './WhiteboardView.css';
 
 interface WhiteboardViewProps {
@@ -137,7 +138,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     const selectedNode = result.targetNode;
     // Create a hidden child block whose name is a proper AST node_link to the selected node.
     // The card itself displays the referenced node (selectedNode), not this block.
-    const linkUuid = crypto.randomUUID();
+    const linkUuid = generateUUID();
     const ast = inlineDoc(nodeLink(buildLinkId(selectedNode.uuid, linkUuid)));
     const linkName = JSON.stringify(ast);
     createNode.mutate(

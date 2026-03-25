@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
 import Icon from '@mdi/react';
+import { generateUUID } from '@/utils/uuid';
 import { mdiCubeOutline } from '@mdi/js';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useContentSave } from '@/hooks/useContentSave';
@@ -73,7 +74,7 @@ export function EmbedBlock({
     const runtime = getNodeGraphRuntime();
     const hostNode = runtime.getNode(hostBlockId);
     if (!hostNode?.parentId) return;
-    const newBlockId = crypto.randomUUID();
+    const newBlockId = generateUUID();
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',

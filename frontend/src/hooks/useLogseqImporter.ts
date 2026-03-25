@@ -48,6 +48,7 @@ import type { PropertyType, Property, Node, BatchNodeUpdateItem } from '@/types/
 import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import type { QueryClient } from '@tanstack/react-query';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import { generateUUID } from '@/utils/uuid';
 import type { TaskReportData, TaskPhaseResult } from '@/components/core/TaskReport';
 
 // ── Public types ──────────────────────────────────────────────
@@ -181,7 +182,7 @@ function textSegmentToNodes(
     if (noteesUuid) {
       const target = uuidMap.get(noteesUuid);
       if (target) {
-        const linkInstanceUuid = crypto.randomUUID();
+        const linkInstanceUuid = generateUUID();
         nodes.push(nodeLink(buildLinkId(target.uuid, linkInstanceUuid), 'node', label));
       } else {
         nodes.push(externalLink(url, astText(label)));
@@ -221,7 +222,7 @@ export function buildAstFromLogseqText(
     if (inlineClassUuid) {
       const target = uuidMap.get(inlineClassUuid);
       if (target) {
-        const linkInstanceUuid = crypto.randomUUID();
+        const linkInstanceUuid = generateUUID();
         children.push(nodeLink(buildLinkId(target.uuid, linkInstanceUuid), 'class'));
       } else {
         children.push(astText(match[0]));
@@ -234,7 +235,7 @@ export function buildAstFromLogseqText(
         target = titleToNodeInfo.get(linkName);
       }
       if (target) {
-        const linkInstanceUuid = crypto.randomUUID();
+        const linkInstanceUuid = generateUUID();
         const linkId = buildLinkId(target.uuid, linkInstanceUuid);
         const label = labeledLink_label ?? null;
         children.push(nodeLink(linkId, 'node', label));

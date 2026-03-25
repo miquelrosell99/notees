@@ -14,6 +14,7 @@
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/hooks';
+import { generateUUID } from '@/utils/uuid';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { useNavigationStore } from '@/stores';
@@ -334,7 +335,7 @@ export function NodeContent({
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
-    const newBlockId = crypto.randomUUID();
+    const newBlockId = generateUUID();
 
     // Register the parent's serverId so useBlockPersist can resolve it
     runtime.registerParentServerId(node.uuid, node.id);
