@@ -9,6 +9,7 @@ from .helpers import (
     _get_undo_service,
     _node_to_response,
     _get_class_ids_batch,
+    _get_extends_batch,
 )
 
 
@@ -49,9 +50,14 @@ async def list_classes(
     workspace_id = class_service.workspace_id
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
+    extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
 
     return {"nodes": [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(
+            n,
+            classes=class_ids_map.get(n.id, []) if n.id else [],
+            extends=extends_map.get(n.id, []) if n.id else [],
+        )
         for n in nodes
     ]}
 
@@ -75,9 +81,14 @@ async def search_classes(
 
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
+    extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
 
     return {"nodes": [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
+        _node_to_response(
+            n,
+            classes=class_ids_map.get(n.id, []) if n.id else [],
+            extends=extends_map.get(n.id, []) if n.id else [],
+        )
         for n in nodes
     ]}
 
