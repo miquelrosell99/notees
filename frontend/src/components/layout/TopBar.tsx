@@ -236,9 +236,10 @@ export function TopBar() {
           return (
             <ContextMenu
               items={undoMenuItems}
-              position={{ x: rect.left, y: rect.bottom + 4 }}
+              position={{ x: rect.right, y: rect.bottom + 4 }}
               onClose={() => setUndoMenuOpen(false)}
               title="Undo history"
+              alignRight
             />
           );
         })()}
@@ -249,9 +250,10 @@ export function TopBar() {
           return (
             <ContextMenu
               items={redoMenuItems}
-              position={{ x: rect.left, y: rect.bottom + 4 }}
+              position={{ x: rect.right, y: rect.bottom + 4 }}
               onClose={() => setRedoMenuOpen(false)}
               title="Redo history"
+              alignRight
             />
           );
         })()}
