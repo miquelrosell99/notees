@@ -75,6 +75,14 @@ export function PageHeader({
     setInputValue(nodeNameToText(page.name) || '');
   }, [page.name]);
   
+  // Adaptive font size based on title length
+  const titleFontSize = useMemo(() => {
+    const len = inputValue.length;
+    if (len > 60) return '1.25rem';
+    if (len > 40) return '1.5rem';
+    return '2rem';
+  }, [inputValue]);
+
   // Auto-resize textarea to fit content
   useEffect(() => {
     const textarea = titleRef.current;
@@ -82,7 +90,7 @@ export function PageHeader({
       textarea.style.height = 'auto';
       textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [inputValue]);
+  }, [inputValue, titleFontSize]);
   
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
@@ -428,7 +436,7 @@ export function PageHeader({
             )}
           </button>
           
-          <div className="page-title-container">
+          <div className="page-title-container" style={{ '--page-title-size': titleFontSize } as React.CSSProperties}>
             <textarea
               ref={titleRef}
               className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}

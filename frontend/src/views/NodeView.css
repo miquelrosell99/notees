@@ -431,3 +431,34 @@
 .focused-block-content:hover .focused-block-content-add {
   opacity: 1;
 }
+
+/* ==================== Responsive Breakpoints ==================== */
+
+/* Tablet: reduce padding */
+@media (max-width: 768px) {
+  .node-view {
+    padding: 0 var(--spacing-3) var(--spacing-4);
+  }
+
+  .page-header-section {
+    grid-template-columns: 1fr;
+  }
+
+  .node-view__cover {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* Mobile: tighter spacing */
+@media (max-width: 480px) {
+  .node-view {
+    padding: 0 var(--spacing-2) var(--spacing-3);
+  }
+
+  .node-view-footer {
+    flex-direction: column;
+    gap: var(--spacing-2);
+    align-items: flex-start;
+  }
+}

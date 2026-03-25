@@ -38,6 +38,8 @@ export interface NodeInlineProps {
   suppressColor?: boolean;
   /** Pre-resolved display text (bypasses nodeNameToText, used when links need resolution) */
   displayText?: string;
+  /** Tooltip title text (shown on hover) */
+  title?: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export function NodeInline({
   propertyName,
   suppressColor: _suppressColor = false,
   displayText: providedDisplayText,
+  title,
 }: NodeInlineProps) {
   const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
 
@@ -75,6 +78,7 @@ export function NodeInline({
       onClick={handleClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
+      title={title ?? displayText}
     >
       {showBullet && (
         <Bullet

@@ -92,7 +92,7 @@
   min-width: 150px;
   max-width: 100%;
   width: 100%;
-  font-size: 2rem;
+  font-size: var(--page-title-size, 2rem);
   font-weight: 700;
   line-height: 1.2;
   border: none;
@@ -117,6 +117,30 @@
   margin-left: var(--spacing-2);
   white-space: nowrap;
   opacity: 0.6;
+}
+
+/* ==================== Responsive Breakpoints ==================== */
+
+/* Mobile: reduce icon size and title padding */
+@media (max-width: 480px) {
+  .page-icon-btn {
+    width: var(--height-xl);
+    height: var(--height-xl);
+  }
+
+  .page-icon-btn .page-icon-large {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .page-icon-btn .page-icon-large svg {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .page-title-container {
+    min-width: 100px;
+  }
 }
 
 .page-title-input:focus {
