@@ -266,3 +266,30 @@
 .sidebar-resize-handle--right {
   left: -4px;
 }
+
+/* ==================== Responsive Breakpoints ==================== */
+
+/* Tablet: stack layout, remove right sidebar */
+@media (max-width: 768px) {
+  .right-container--expanded,
+  .right-sidebar--expanded {
+    display: none;
+  }
+
+  .main-container {
+    border-radius: var(--shape-medium);
+  }
+}
+
+/* Mobile: full-width content, no container radius */
+@media (max-width: 480px) {
+  .main-container {
+    border-radius: 0;
+  }
+
+  .main-content .node-view-header-content,
+  .main-content-wrapper .node-view-header-content,
+  .main-content-header .node-view-header-content {
+    padding: var(--spacing-1) var(--spacing-2);
+  }
+}

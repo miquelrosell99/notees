@@ -50,3 +50,35 @@ svg.mdi-icon,
   padding: var(--container-gap);
   gap: var(--container-gap);
 }
+
+/* ==================== Responsive Breakpoints ==================== */
+
+/* Tablet: reduce gaps, narrow sidebar */
+@media (max-width: 768px) {
+  .app-workspace {
+    padding: var(--spacing-1);
+    gap: var(--spacing-1);
+  }
+
+  /* Auto-collapse left sidebar on tablet */
+  .sidebar-wrapper:not(.sidebar-wrapper--right) {
+    display: none;
+  }
+
+  /* Hide right sidebar on tablet */
+  .sidebar-wrapper--right {
+    display: none;
+  }
+}
+
+/* Mobile: minimal padding */
+@media (max-width: 480px) {
+  .app-workspace {
+    padding: 0;
+    gap: 0;
+  }
+
+  .app-workspace > .card {
+    border-radius: 0;
+  }
+}
