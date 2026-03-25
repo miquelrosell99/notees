@@ -29,8 +29,6 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: notees-backend-dev
-    ports:
-      - "${PORT:-8000}:8000"
     volumes:
       # Mount source code for hot reload
       - ./app:/app/app:ro
@@ -42,7 +40,6 @@ services:
     environment:
       - RELOAD=true
       - HOST=0.0.0.0
-      - PORT=8001
       - DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees
     depends_on:
       postgres:
@@ -61,8 +58,8 @@ services:
       - /app/node_modules  # Anonymous volume for node_modules
     command: sh -c "rm -f package-lock.json && npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
     environment:
-      - VITE_API_URL=http://localhost:8001
-      - VITE_API_PROXY_TARGET=http://backend:8001
+      - VITE_API_URL=http://localhost:8000
+      - VITE_API_PROXY_TARGET=http://backend:8000
     depends_on:
       - backend
 
