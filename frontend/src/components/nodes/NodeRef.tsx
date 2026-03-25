@@ -240,7 +240,7 @@ function NodeRefInteractive({
   const node = providedNode ?? fetchedNode ?? refNode ?? uuidFallback;
   
   // Shared display data (icon, text, color) — deduplicated with InlineLink
-  const { effectiveIcon, displayText: actualNodeName, isPage: _isPage } = useNodeDisplay(
+  const { effectiveIcon, displayText: actualNodeName, isPage: _isPage, color: effectiveColor } = useNodeDisplay(
     node,
     nodeId ? '[Loading...]' : '[Missing]',
   );
@@ -424,7 +424,7 @@ function NodeRefInteractive({
               : undefined
           }
           onRightIconClick={(!readOnly && onRemove && !isLink) ? onRemove : undefined}
-          color={node?.color || undefined}
+          color={effectiveColor}
         />
         {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
       </div>
