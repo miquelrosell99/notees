@@ -227,9 +227,11 @@ export function BlockPlugin({
       // Prune stale population tracking to prevent memory leaks
       prunePopulatedState(newBlockIds);
 
-      // Two-pass approach: update existing nodes first, then create new ones
-      // This ensures focus-setting on new blocks happens after all content updates
+      // Multi-pass approach: update existing, create new, reorder, then focus.
+      // Focus is deferred to after reordering so insertAfter doesn't displace it.
       const visibleNodes = projectedNodes.filter(n => n.visible);
+      let deferredFocusBlockId: string | null = null;
+      let deferredFocusOffset: number | undefined = undefined;
 
       // Detect stale visible IDs: if virtualization is active but none
       // of the current visible IDs match the new projection (e.g. page
@@ -291,6 +293,7 @@ export function BlockPlugin({
           // the target block is existing but needs cursor at merge offset).
           // Ensure content is populated before setting cursor — a focus target
           // may be off-screen and still have only a ZWS placeholder.
+          // Focus is deferred to after PASS 3 reordering to avoid displacement.
           if (pendingFocus && projected.blockId === pendingFocus.blockId) {
             runtime.clearPendingFocus();
 
@@ -302,39 +305,8 @@ export function BlockPlugin({
               markPopulated(projected.blockId);
             }
 
-            if (pendingFocus.offset != null) {
-              // Walk children to find the right cursor position at the given character offset
-              let remaining = pendingFocus.offset;
-              const blockChildren = existing.getChildren();
-              let focused = false;
-              for (const child of blockChildren) {
-                if ($isTextNode(child)) {
-                  const len = child.getTextContentSize();
-                  if (remaining <= len) {
-                    child.select(remaining, remaining);
-                    focused = true;
-                    break;
-                  }
-                  remaining -= len;
-                } else {
-                  // InlineLinkNode or other: counts as 1 character
-                  if (remaining <= 0) {
-                    child.selectPrevious();
-                    focused = true;
-                    break;
-                  }
-                  remaining -= 1;
-                }
-              }
-              if (!focused) {
-                // Offset beyond content — place at end
-                const last = existing.getLastDescendant();
-                if (last) last.selectEnd();
-                else existing.selectEnd();
-              }
-            } else {
-              existing.selectStart();
-            }
+            deferredFocusBlockId = projected.blockId;
+            deferredFocusOffset = pendingFocus.offset != null ? pendingFocus.offset : undefined;
           }
         }
       }
@@ -388,25 +360,12 @@ export function BlockPlugin({
           blockIdToKeyMap.current.set(projected.blockId, newBlock.getKey());
           existingBlockMap.set(projected.blockId, newBlock);
           
-          // If this is the block runtime requested to focus, focus it directly
+          // If this is the block runtime requested to focus, defer it to after
+          // PASS 3 reordering so insertAfter doesn't displace the cursor.
           if (pendingFocus && projected.blockId === pendingFocus.blockId) {
             runtime.clearPendingFocus();
-            const firstChild = newBlock.getFirstChild();
-            if (firstChild) {
-              if (pendingFocus.offset != null && $isTextNode(firstChild)) {
-                firstChild.select(pendingFocus.offset, pendingFocus.offset);
-              } else if ($isTextNode(firstChild)) {
-                firstChild.selectStart();
-              } else {
-                newBlock.selectStart();
-              }
-            } else {
-              newBlock.selectStart();
-            }
-            // Clear Lexical's carry-over selection format so the new block
-            // always starts with plain formatting (no bold, italic, code, etc.).
-            const freshSel = $getSelection();
-            if ($isRangeSelection(freshSel)) freshSel.format = 0;
+            deferredFocusBlockId = projected.blockId;
+            deferredFocusOffset = pendingFocus.offset != null ? pendingFocus.offset : undefined;
           }
         }
       }
@@ -429,6 +388,57 @@ export function BlockPlugin({
           }
         }
         prevBlock = block;
+      }
+
+      // PASS 4: Apply deferred focus AFTER reordering.
+      // Focus must happen after PASS 3 so that insertAfter's node-dirtying
+      // doesn't displace the cursor we just placed.
+      if (deferredFocusBlockId) {
+        const targetBlock = existingBlockMap.get(deferredFocusBlockId);
+        if (targetBlock) {
+          if (deferredFocusOffset != null) {
+            // Walk children to find the right cursor position at the given character offset
+            let remaining = deferredFocusOffset;
+            const blockChildren = targetBlock.getChildren();
+            let focused = false;
+            for (const child of blockChildren) {
+              if ($isTextNode(child)) {
+                const len = child.getTextContentSize();
+                if (remaining <= len) {
+                  child.select(remaining, remaining);
+                  focused = true;
+                  break;
+                }
+                remaining -= len;
+              } else {
+                // InlineLinkNode or other: counts as 1 character
+                if (remaining <= 0) {
+                  child.selectPrevious();
+                  focused = true;
+                  break;
+                }
+                remaining -= 1;
+              }
+            }
+            if (!focused) {
+              // Offset beyond content — place at end
+              const last = targetBlock.getLastDescendant();
+              if (last) last.selectEnd();
+              else targetBlock.selectEnd();
+            }
+          } else {
+            const firstChild = targetBlock.getFirstChild();
+            if (firstChild && $isTextNode(firstChild)) {
+              firstChild.selectStart();
+            } else {
+              targetBlock.selectStart();
+            }
+          }
+          // Clear Lexical's carry-over selection format so the new block
+          // always starts with plain formatting (no bold, italic, code, etc.).
+          const freshSel = $getSelection();
+          if ($isRangeSelection(freshSel)) freshSel.format = 0;
+        }
       }
     }, { tag: 'runtime-sync' });
 
