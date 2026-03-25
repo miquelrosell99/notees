@@ -50,9 +50,8 @@
   color: var(--color-on-surface-variant);
 }
 
-/* When pill has a custom color, adjust text color for contrast */
+/* When pill has a custom color, the Pill component sets text color for contrast */
 .node-pill--link .pill[style*="background"] {
-  color: var(--color-on-surface);
   border-radius: var(--shape-small);
   padding: 0 3px;
 }

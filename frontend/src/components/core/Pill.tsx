@@ -1,4 +1,5 @@
 import React from 'react';
+import { isColorLight } from '@/utils/color';
 import './Pill.css';
 
 interface PillProps {
@@ -23,10 +24,14 @@ export const Pill: React.FC<PillProps> = ({
     onRightIconClick?.();
   };
 
+  const pillStyle = color
+    ? { backgroundColor: color, color: isColorLight(color) ? '#000' : '#fff' }
+    : undefined;
+
   return (
     <div 
       className={`pill ${className}`}
-      style={color ? { backgroundColor: color } : undefined}
+      style={pillStyle}
     >
       {leftIcon && (
         <span className="pill__left-icon">
