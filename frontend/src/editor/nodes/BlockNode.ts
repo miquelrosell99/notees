@@ -119,6 +119,12 @@ export class BlockNode extends ElementNode {
     return this.__blockId;
   }
 
+  setBlockId(blockId: string): this {
+    const writable = this.getWritable();
+    writable.__blockId = blockId;
+    return this;
+  }
+
   getDepth(): number {
     return this.getLatest().__depth;
   }
@@ -431,6 +437,13 @@ export class BlockNode extends ElementNode {
     // Each check mutates the existing DOM in-place. We never recreate
     // the wrapper, preserving referential equality for child nodes,
     // IntersectionObserver entries, and React portal mount points.
+
+    // Block ID (data attribute on wrapper + bullet)
+    if (prevNode.__blockId !== this.__blockId) {
+      dom.dataset.blockId = this.__blockId;
+      const bullet = dom.querySelector('.bullet-wrapper');
+      if (bullet) (bullet as HTMLElement).dataset.blockId = this.__blockId;
+    }
 
     // Depth (CSS custom property + data attribute)
     if (prevNode.__depth !== this.__depth) {

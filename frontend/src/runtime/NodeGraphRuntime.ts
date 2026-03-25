@@ -52,6 +52,11 @@ export class NodeGraphRuntime {
   /** Block ID and optional offset to focus after next sync (used by editors) */
   private pendingFocus: { blockId: string; offset?: number } | null = null;
 
+  /** Pending block ID remaps (old → new) from remapBlockId calls.
+   *  Consumed by editors during sync to update existing Lexical nodes
+   *  in-place instead of removing + recreating them. */
+  private pendingRemaps = new Map<string, string>();
+
   /**
    * Parent serverId mapping for nodes that aren't full GraphNodes.
    * Used when the parent (e.g. a page) isn't loaded into the runtime
@@ -265,6 +270,9 @@ export class NodeGraphRuntime {
       this.pendingFocus.blockId = newBlockId;
     }
 
+    // Track the remap so editors can update in-place instead of remove+create
+    this.pendingRemaps.set(oldBlockId, newBlockId);
+
     // Emit structure_changed so Lexical editors replace the old
     // optimistic BlockNode with one carrying the real blockId.
     if (parentId) {
@@ -306,6 +314,17 @@ export class NodeGraphRuntime {
    */
   clearPendingFocus(): void {
     this.pendingFocus = null;
+  }
+
+  /**
+   * Get and clear all pending block ID remaps.
+   * Used by editors to update existing nodes in-place during sync.
+   */
+  consumePendingRemaps(): Map<string, string> {
+    if (this.pendingRemaps.size === 0) return this.pendingRemaps;
+    const remaps = this.pendingRemaps;
+    this.pendingRemaps = new Map();
+    return remaps;
   }
 
   /**
