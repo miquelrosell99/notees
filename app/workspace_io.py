@@ -923,6 +923,18 @@ async def _import_dump_core(
                 $9::jsonb, $10,
                 $11, $12, $13, $13
             )
+            ON CONFLICT (uuid) DO UPDATE SET
+                node_id = EXCLUDED.node_id,
+                name = EXCLUDED.name,
+                query_json = EXCLUDED.query_json,
+                view_type = EXCLUDED.view_type,
+                order_index = EXCLUDED.order_index,
+                is_default = EXCLUDED.is_default,
+                active = EXCLUDED.active,
+                shown_properties = EXCLUDED.shown_properties,
+                group_by = EXCLUDED.group_by,
+                write_date = EXCLUDED.write_date,
+                write_uid = EXCLUDED.write_uid
         """,
             nv_uuid,
             nv_node_id,
