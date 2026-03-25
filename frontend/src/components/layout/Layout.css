@@ -187,13 +187,10 @@
   transform: translateX(16px);
   pointer-events: none;
   visibility: hidden;
-  /* Negative margin to compensate for parent gap */
-  margin-left: calc(-1 * var(--container-gap));
   transition: 
     width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
     min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
     max-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    margin-left var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
     opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
     transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
     visibility 0s var(--motion-duration-medium);
@@ -236,10 +233,20 @@
   position: relative;
   display: flex;
   flex-shrink: 0;
+  transition: margin var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-wrapper--right {
   flex-direction: row-reverse;
+}
+
+/* Compensate for the parent gap when the sidebar inside is collapsed */
+.sidebar-wrapper:not(.sidebar-wrapper--right).sidebar-wrapper--collapsed {
+  margin-right: calc(-1 * var(--container-gap));
+}
+
+.sidebar-wrapper--right.sidebar-wrapper--collapsed {
+  margin-left: calc(-1 * var(--container-gap));
 }
 
 /* ==================== Sidebar Resize Handles ==================== */
