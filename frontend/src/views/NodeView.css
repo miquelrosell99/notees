@@ -151,12 +151,18 @@
 
 .alias-of-link {
   font: var(--font-title-medium);
-  color: var(--color-primary);
+  color: var(--color-on-surface);
   cursor: pointer;
+  text-decoration: underline dotted var(--color-outline);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
+              text-decoration-style var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .alias-of-link:hover {
-  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-on-surface-variant);
 }
 
 .page-header-section__extends {

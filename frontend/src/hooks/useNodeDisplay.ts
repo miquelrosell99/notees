@@ -10,6 +10,7 @@
  * (read-only decorator inside Lexical).
  */
 import { useMemo } from 'react';
+import { useBatchedNode } from '@/hooks/useBatchedNode';
 import { useClasses } from '@/hooks/useNodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -38,9 +39,13 @@ export function useNodeDisplay(
 ): NodeDisplayData {
   const { data: allClasses } = useClasses();
 
+  // For alias nodes with no classes/icon, fetch the aliased node to inherit its icon
+  const aliasedId = (!node?.icon && (!node?.classes || node.classes.length === 0) && node?.aliased_id) ? node.aliased_id : null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
+
   const effectiveIcon = useMemo(
-    () => getEffectiveIcon(node, allClasses),
-    [node, allClasses],
+    () => getEffectiveIcon(node, allClasses, aliasedNode),
+    [node, allClasses, aliasedNode],
   );
 
   const displayText = useMemo(() => {

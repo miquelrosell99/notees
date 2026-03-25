@@ -12,7 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass, useBatchedNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -84,10 +84,13 @@ export function PageHeader({
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
   
+  // For alias nodes, inherit icon from the aliased node
+  const aliasedId = (!page?.icon && (!page?.classes || page.classes.length === 0) && page?.aliased_id) ? page.aliased_id : null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
 
   
   // Get effective icon (page's icon or first class's icon)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses), [page, allClasses]);
+  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses, aliasedNode), [page, allClasses, aliasedNode]);
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);
