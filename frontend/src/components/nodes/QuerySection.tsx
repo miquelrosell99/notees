@@ -8,6 +8,7 @@ import { useState, useCallback } from 'react';
 import { QueryNodeCollection } from './QueryNodeCollection';
 import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
 import { Button } from '../core/Button';
+import { LoadingSkeleton } from '../core/LoadingSkeleton';
 import type { NodeViewType } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import './NodeViewSection.css';
@@ -74,6 +75,28 @@ export function QuerySection({
     setIsExpanded(prev => !prev);
   }, []);
 
+  const renderHeader = (count?: number) => (
+    <div className="node-view-section__header-content" onClick={handleToggle}>
+      <Button 
+        variant="ghost"
+        size="xs"
+        className="node-view-section__toggle"
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+      >
+        {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+      </Button>
+      
+      <div className="node-view-section__title-area">
+        {icon && <span className="node-view-section__icon">{icon}</span>}
+        <h3 className="node-view-section__title">{title}</h3>
+        {count !== undefined && (
+          <span className="node-view-section__count">({count})</span>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <QueryNodeCollection
       nodeId={nodeId}
@@ -90,32 +113,22 @@ export function QuerySection({
       showClasses={showClasses}
       queryAST={queryAST}
       onQueryASTChange={onQueryASTChange}
-      leftElement={(count) => (
-        <div className="node-view-section__header-content" onClick={handleToggle}>
-          <Button 
-            variant="ghost"
-            size="xs"
-            className="node-view-section__toggle"
-            aria-expanded={isExpanded}
-            aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
-          >
-            {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-          </Button>
-          
-          <div className="node-view-section__title-area">
-            {icon && <span className="node-view-section__icon">{icon}</span>}
-            <h3 className="node-view-section__title">{title}</h3>
-            {count !== undefined && (
-              <span className="node-view-section__count">({count})</span>
-            )}
-          </div>
-        </div>
-      )}
+      leftElement={renderHeader}
     >
       {({ results, count, isLoading }) => {
         // Hide section if empty and hideWhenEmpty is true
         if (hideWhenEmpty && !isLoading && count === 0) {
           return null;
+        }
+
+        // Show header + skeleton while views/query are initializing (results not yet available)
+        if (isLoading && !results) {
+          return (
+            <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}>
+              {renderHeader()}
+              <LoadingSkeleton rows={2} className="query-section__skeleton" />
+            </section>
+          );
         }
 
         return (
