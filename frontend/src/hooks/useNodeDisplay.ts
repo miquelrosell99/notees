@@ -65,9 +65,6 @@ export function useNodeDisplay(
     if (!text || text.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
-    if (!node.is_page && text.length > 50) {
-      return text.slice(0, 50) + '…';
-    }
     return text;
   }, [node, fallbackText]);
 
