@@ -46,3 +46,7 @@ export async function redoTo(entryId: number): Promise<UndoResult[]> {
   const response = await api.post<UndoResult[]>(`/undo/redo-to/${entryId}`);
   return response.data;
 }
+
+export async function clearHistory(): Promise<void> {
+  await api.delete('/undo/history');
+}

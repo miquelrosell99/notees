@@ -286,6 +286,14 @@ class UndoService:
                     break
         return results
 
+    async def clear_history(self) -> None:
+        """Delete all undo/redo entries for the current user+workspace."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "DELETE FROM undo_log WHERE workspace_id = $1 AND user_id = $2",
+                self._workspace_id, self._user_id,
+            )
+
     # ------------------------------------------------------------------
     # Apply helpers
     # ------------------------------------------------------------------
