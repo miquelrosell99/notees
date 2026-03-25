@@ -116,26 +116,28 @@ export function TopBar() {
           <h1 className="app-title">Notees</h1>
 
           {/* Back / Forward navigation */}
-          <Button
-            icon={mdiArrowLeft}
-            variant="ghost"
-            size="sm"
-            onClick={goBack}
-            disabled={!canGoBack}
-            aria-label="Go back"
-            title="Go back"
-            className="toolbar-btn"
-          />
-          <Button
-            icon={mdiArrowRight}
-            variant="ghost"
-            size="sm"
-            onClick={goForward}
-            disabled={!canGoForward}
-            aria-label="Go forward"
-            title="Go forward"
-            className="toolbar-btn"
-          />
+          <div className="nav-arrows">
+            <Button
+              icon={mdiArrowLeft}
+              variant="ghost"
+              size="sm"
+              onClick={goBack}
+              disabled={!canGoBack}
+              aria-label="Go back"
+              title="Go back"
+              className="toolbar-btn"
+            />
+            <Button
+              icon={mdiArrowRight}
+              variant="ghost"
+              size="sm"
+              onClick={goForward}
+              disabled={!canGoForward}
+              aria-label="Go forward"
+              title="Go forward"
+              className="toolbar-btn"
+            />
+          </div>
         </div>
       
         <div className="top-bar-center">
