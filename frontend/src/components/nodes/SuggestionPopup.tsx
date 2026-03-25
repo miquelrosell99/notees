@@ -181,6 +181,16 @@ export function SuggestionPopup({
     return segments.join(' / ');
   }, [allPagesForDate, pageById]);
 
+  // Helper to build breadcrumb path for a block node using its page_id
+  const buildBlockParentPath = useCallback((node: Node): string => {
+    if (!node.page_id || !allPagesForDate) return '';
+    const page = pageById.get(node.page_id);
+    if (!page) return '';
+    const pageName = nodeNameToText(page.name) || 'Untitled';
+    const ancestors = buildParentPath(page);
+    return ancestors ? `${ancestors} / ${pageName}` : pageName;
+  }, [allPagesForDate, pageById, buildParentPath]);
+
   // Helper to get display classes for a node, excluding the system "page" class
   const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
     if (!node.classes || node.classes.length === 0) return [];
@@ -501,8 +511,8 @@ export function SuggestionPopup({
                     <NodeResultItem
                       key={`selected-${node.id}`}
                       node={node}
-                      parentPath={node.is_page ? buildParentPath(node) : ''}
-                      displayClasses={node.is_page ? getDisplayClasses(node) : []}
+                      parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                      displayClasses={getDisplayClasses(node)}
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => handleItemClick(node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -577,6 +587,7 @@ export function SuggestionPopup({
                     <NodeResultItem
                       key={`block-${item.node.id}`}
                       node={item.node}
+                      parentPath={buildBlockParentPath(item.node)}
                       displayClasses={getDisplayClasses(item.node)}
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
@@ -616,8 +627,8 @@ export function SuggestionPopup({
                     <NodeResultItem
                       key={`result-${item.node.id}`}
                       node={item.node}
-                      parentPath={item.node.is_page ? buildParentPath(item.node) : ''}
-                      displayClasses={item.node.is_page ? getDisplayClasses(item.node) : []}
+                      parentPath={item.node.is_page ? buildParentPath(item.node) : buildBlockParentPath(item.node)}
+                      displayClasses={getDisplayClasses(item.node)}
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => handleItemClick(item.node)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
