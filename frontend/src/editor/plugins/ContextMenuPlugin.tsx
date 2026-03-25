@@ -19,6 +19,7 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { serializeContentAST } from '../editorConfig';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
 import { parseLinkId, buildLinkId, parseAST } from '../../lib/astBuilder';
+import { generateUUID } from '../../utils/uuid';
 import type { ASTInlineNode, ASTDocument } from '../../types/ast';
 import { getNodeByUuid } from '../../api/nodes';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
@@ -445,7 +446,7 @@ function collectInlineReplacements(
     case 'node_link': {
       const { nodeUuid: targetUuid } = parseLinkId(inline.link_id);
       if (targetUuid) {
-        const newLinkId = buildLinkId(targetUuid, crypto.randomUUID());
+        const newLinkId = buildLinkId(targetUuid, generateUUID());
         out.push($createInlineLinkNode(newLinkId, inline.ref_type, undefined, inline.label ?? undefined));
       }
       break;

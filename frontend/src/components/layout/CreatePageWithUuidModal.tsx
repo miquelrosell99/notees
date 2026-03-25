@@ -10,6 +10,7 @@ import { Button } from '../core/Button';
 import { useCreateNode, usePageClass } from '@/hooks';
 import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 import './CreatePageWithUuidModal.css';
 
 export interface CreatePageWithUuidModalProps {
@@ -38,7 +39,7 @@ export function CreatePageWithUuidModal({
   useEffect(() => {
     if (isOpen) {
       setPageName('');
-      setUuid(crypto.randomUUID());
+      setUuid(generateUUID());
       setError(null);
       setIsCreating(false);
       setTimeout(() => nameRef.current?.focus(), 100);
@@ -182,7 +183,7 @@ export function CreatePageWithUuidModal({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setUuid(crypto.randomUUID()); setError(null); }}
+              onClick={() => { setUuid(generateUUID()); setError(null); }}
               title="Generate a new random UUID"
             >
               ↺

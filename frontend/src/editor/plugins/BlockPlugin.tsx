@@ -45,6 +45,7 @@ import {
 import { $createInlineLinkNode, $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
+import { generateUUID } from '../../utils/uuid';
 import { isOtherEditorActive } from '../activeEditorRegistry';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
@@ -948,7 +949,7 @@ export function BlockPlugin({
         event?.preventDefault();
 
         const runtime = getNodeGraphRuntime();
-        const newBlockId = crypto.randomUUID();
+        const newBlockId = generateUUID();
 
         // Special case: Enter at offset 0 should create a new empty block BEFORE current
         // (keeping current block unchanged with its UUID, content, links, etc.)

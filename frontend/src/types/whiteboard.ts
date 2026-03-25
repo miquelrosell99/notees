@@ -14,6 +14,8 @@
  *   - Images
  */
 
+import { generateUUID } from '@/utils/uuid';
+
 // ─── Common types ──────────────────────────────────────────────────
 
 export interface Point {
@@ -414,7 +416,7 @@ export const DEFAULT_WHITEBOARD_SETTINGS: WhiteboardSettings = {
 // ─── Helpers ───────────────────────────────────────────────────────
 
 export function createElementId(): string {
-  return crypto.randomUUID();
+  return generateUUID();
 }
 
 export function getBounds(elements: WhiteboardElement[]): Bounds | null {
