@@ -28,6 +28,7 @@ import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@
 import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
+import { generateUUID } from '@/utils/uuid';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -140,7 +141,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
-    const newBlockId = crypto.randomUUID();
+    const newBlockId = generateUUID();
 
     // Register the parent's serverId so useBlockPersist can resolve it
     runtime.registerParentServerId(node.uuid, node.id);

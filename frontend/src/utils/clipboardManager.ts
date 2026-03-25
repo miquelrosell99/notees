@@ -14,6 +14,7 @@
  */
 
 import type { Node } from '@/types';
+import { generateUUID } from '@/utils/uuid';
 
 // ==================== Internal Copy Format ====================
 
@@ -720,7 +721,7 @@ export function flattenBlocks(blocks: ParsedBlock[]): ParsedBlock[] {
  * Generate a new link UUID
  */
 export function generateLinkUuid(): string {
-  return crypto.randomUUID();
+  return generateUUID();
 }
 
 /**

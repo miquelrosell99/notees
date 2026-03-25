@@ -22,6 +22,7 @@ import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
 import { SlashCommandMenu } from './SlashCommandMenu';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { generateUUID } from '../../utils/uuid';
 import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
 
@@ -92,7 +93,7 @@ export function TriggerPlugin({
     const hostNode = runtime.getNode(hostBlockId);
     if (!hostNode?.parentId) return;
 
-    const newBlockId = crypto.randomUUID();
+    const newBlockId = generateUUID();
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',
