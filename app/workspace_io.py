@@ -395,47 +395,27 @@ async def _import_dump_core(
         "settings": 0,
     }
 
-    # ── Phase 1: Insert nodes WITHOUT self-referencing FKs ──
+    # ── Phase 1: Batch insert nodes ─────────────────────────
     nodes_data = dump_data.get("nodes", [])
-    logger.info(f"Importing {len(nodes_data)} nodes (phase 1: insert)")
+    logger.info(f"Importing {len(nodes_data)} nodes (phase 1: batch insert)")
+
+    node_records = []
+    node_uuid_to_old_id: Dict[str, int] = {}
 
     for node_data in nodes_data:
         old_id = node_data.get("id")
         if old_id is None:
-            # v2 format: no integer id, we need to track by uuid
             continue
 
         node_uuid = map_uuid(node_data.get("uuid"))
         node_name = str(node_data.get("name", ""))
-
-        # Remap UUIDs in node name (AST JSON with link_id references)
         if remap_uuids:
             node_name = _remap_uuids_in_text(node_name, uuid_map)
 
-        row = await conn.fetchrow("""
-            INSERT INTO node (
-                uuid, workspace_id, name, icon, color,
-                sequence, collapsed, active, version,
-                is_class, is_page, is_day, is_month, is_year,
-                is_asset, is_template, is_comment,
-                classes_path, open_date, create_date, write_date,
-                is_deleted, deleted_at,
-                create_uid, write_uid
-            ) VALUES (
-                $1::uuid, $2, $3, $4, $5,
-                $6, $7, $8, $9,
-                $10, $11, $12, $13, $14,
-                $15, $16, $17,
-                $18::jsonb, $19, $20, $21,
-                $22, $23,
-                $24, $24
-            ) RETURNING id
-        """,
-            node_uuid,
-            workspace_id,
-            node_name,
-            node_data.get("icon"),
-            node_data.get("color"),
+        node_uuid_to_old_id[node_uuid.lower()] = old_id
+        node_records.append((
+            node_uuid, workspace_id, node_name,
+            node_data.get("icon"), node_data.get("color"),
             _to_int(node_data.get("sequence", 0)),
             _to_bool(node_data.get("collapsed", False)),
             _to_bool(node_data.get("active", True)),
@@ -455,61 +435,81 @@ async def _import_dump_core(
             _to_bool(node_data.get("is_deleted", False)),
             _parse_datetime(node_data.get("deleted_at")),
             user_id,
+        ))
+
+    if node_records:
+        await conn.executemany("""
+            INSERT INTO node (
+                uuid, workspace_id, name, icon, color,
+                sequence, collapsed, active, version,
+                is_class, is_page, is_day, is_month, is_year,
+                is_asset, is_template, is_comment,
+                classes_path, open_date, create_date, write_date,
+                is_deleted, deleted_at,
+                create_uid, write_uid
+            ) VALUES (
+                $1::uuid, $2, $3, $4, $5,
+                $6, $7, $8, $9,
+                $10, $11, $12, $13, $14,
+                $15, $16, $17,
+                $18::jsonb, $19, $20, $21,
+                $22, $23,
+                $24, $24
+            )
+        """, node_records)
+
+        # Batch fetch ID mappings
+        rows = await conn.fetch(
+            "SELECT id, uuid::text AS uuid_str FROM node WHERE workspace_id = $1",
+            workspace_id,
         )
+        for row in rows:
+            old_id = node_uuid_to_old_id.get(row['uuid_str'])
+            if old_id is not None:
+                node_id_map[old_id] = row['id']
 
-        if row:
-            node_id_map[old_id] = row['id']
-            stats["nodes"] += 1
+    stats["nodes"] = len(node_id_map)
 
-    # ── Phase 2: Update nodes with self-referencing FKs ─────
-    logger.info(f"Importing nodes (phase 2: update references)")
+    # ── Phase 2: Batch update node references ───────────────
+    logger.info("Importing nodes (phase 2: batch update references)")
 
+    update_records = []
     for node_data in nodes_data:
         old_id = node_data.get("id")
         if old_id is None or old_id not in node_id_map:
             continue
 
         new_id = node_id_map[old_id]
-
-        parent_id = None
-        if node_data.get("parent_id") is not None:
-            parent_id = node_id_map.get(int(node_data["parent_id"]))
-
-        page_id = None
-        if node_data.get("page_id") is not None:
-            page_id = node_id_map.get(int(node_data["page_id"]))
-
-        aliased_id = None
-        if node_data.get("aliased_id") is not None:
-            aliased_id = node_id_map.get(int(node_data["aliased_id"]))
-
-        # Remap class_ids (integer array of class node IDs)
-        class_ids = _remap_int_list(
-            node_data.get("class_ids", []), node_id_map
-        )
-
-        # Remap classes_path JSONB (may contain integer IDs)
+        parent_id = node_id_map.get(int(node_data["parent_id"])) if node_data.get("parent_id") is not None else None
+        page_id = node_id_map.get(int(node_data["page_id"])) if node_data.get("page_id") is not None else None
+        aliased_id = node_id_map.get(int(node_data["aliased_id"])) if node_data.get("aliased_id") is not None else None
+        class_ids = _remap_int_list(node_data.get("class_ids", []), node_id_map)
         classes_path = node_data.get("classes_path", [])
         if isinstance(classes_path, list):
             classes_path = _remap_int_list(classes_path, node_id_map)
 
-        # Only update if there's something to set
         if parent_id or page_id or aliased_id or class_ids:
-            await conn.execute("""
-                UPDATE node
-                SET parent_id = $1, page_id = $2, aliased_id = $3,
-                    class_ids = $4, classes_path = $5::jsonb
-                WHERE id = $6
-            """,
+            update_records.append((
                 parent_id, page_id, aliased_id,
                 class_ids if class_ids else [],
                 json.dumps(_ensure_list(classes_path)),
                 new_id,
-            )
+            ))
 
-    # ── Phase 3: Insert properties ──────────────────────────
+    if update_records:
+        await conn.executemany("""
+            UPDATE node
+            SET parent_id = $1, page_id = $2, aliased_id = $3,
+                class_ids = $4, classes_path = $5::jsonb
+            WHERE id = $6
+        """, update_records)
+
+    # ── Phase 3: Batch insert properties ────────────────────
     properties_data = dump_data.get("properties", [])
     logger.info(f"Importing {len(properties_data)} properties")
+
+    prop_records = []
+    prop_uuid_to_old_id: Dict[str, int] = {}
 
     for prop_data in properties_data:
         old_id = prop_data.get("id")
@@ -517,25 +517,13 @@ async def _import_dump_core(
             continue
 
         prop_uuid = map_uuid(prop_data.get("uuid"))
-
-        # Local properties reference a node
         prop_node_id = None
         if prop_data.get("node_id") is not None:
             prop_node_id = node_id_map.get(int(prop_data["node_id"]))
 
-        row = await conn.fetchrow("""
-            INSERT INTO property (
-                uuid, workspace_id, name, icon, type, is_multi, is_system,
-                is_local, node_id, icon_visibility, active,
-                create_date, write_date, create_uid, write_uid
-            ) VALUES (
-                $1::uuid, $2, $3, $4, $5, $6, $7,
-                $8, $9, $10, $11,
-                $12, $13, $14, $14
-            ) RETURNING id
-        """,
-            prop_uuid,
-            workspace_id,
+        prop_uuid_to_old_id[prop_uuid.lower()] = old_id
+        prop_records.append((
+            prop_uuid, workspace_id,
             str(prop_data.get("name", "")),
             prop_data.get("icon"),
             str(prop_data.get("type", "text")),
@@ -548,15 +536,38 @@ async def _import_dump_core(
             _parse_datetime(prop_data.get("create_date")) or now,
             _parse_datetime(prop_data.get("write_date")) or now,
             user_id,
+        ))
+
+    if prop_records:
+        await conn.executemany("""
+            INSERT INTO property (
+                uuid, workspace_id, name, icon, type, is_multi, is_system,
+                is_local, node_id, icon_visibility, active,
+                create_date, write_date, create_uid, write_uid
+            ) VALUES (
+                $1::uuid, $2, $3, $4, $5, $6, $7,
+                $8, $9, $10, $11,
+                $12, $13, $14, $14
+            )
+        """, prop_records)
+
+        rows = await conn.fetch(
+            "SELECT id, uuid::text AS uuid_str FROM property WHERE workspace_id = $1",
+            workspace_id,
         )
+        for row in rows:
+            old_id = prop_uuid_to_old_id.get(row['uuid_str'])
+            if old_id is not None:
+                property_id_map[old_id] = row['id']
 
-        if row:
-            property_id_map[old_id] = row['id']
-            stats["properties"] += 1
+    stats["properties"] = len(property_id_map)
 
-    # ── Phase 4: Insert property selection lines ────────────
+    # ── Phase 4: Batch insert property selection lines ──────
     sel_lines_data = dump_data.get("property_selection_lines", [])
     logger.info(f"Importing {len(sel_lines_data)} property selection lines")
+
+    sl_records = []
+    sl_uuid_to_old_id: Dict[str, int] = {}
 
     for sl_data in sel_lines_data:
         old_id = sl_data.get("id")
@@ -572,32 +583,44 @@ async def _import_dump_core(
             continue
 
         sl_uuid = map_uuid(sl_data.get("uuid"))
-
-        row = await conn.fetchrow("""
-            INSERT INTO property_selection_line (
-                uuid, property_id, name, icon, create_date, write_date,
-                create_uid, write_uid
-            ) VALUES (
-                $1::uuid, $2, $3, $4, $5, $6, $7, $7
-            ) RETURNING id
-        """,
-            sl_uuid,
-            prop_id,
+        sl_uuid_to_old_id[sl_uuid.lower()] = old_id
+        sl_records.append((
+            sl_uuid, prop_id,
             str(sl_data.get("name", "")),
             sl_data.get("icon"),
             _parse_datetime(sl_data.get("create_date")) or now,
             _parse_datetime(sl_data.get("write_date")) or now,
             user_id,
-        )
+        ))
 
-        if row:
-            selection_line_id_map[old_id] = row['id']
-            stats["property_selection_lines"] += 1
+    if sl_records:
+        await conn.executemany("""
+            INSERT INTO property_selection_line (
+                uuid, property_id, name, icon, create_date, write_date,
+                create_uid, write_uid
+            ) VALUES (
+                $1::uuid, $2, $3, $4, $5, $6, $7, $7
+            )
+        """, sl_records)
 
-    # ── Phase 5: Insert property class filters ──────────────
+        rows = await conn.fetch("""
+            SELECT psl.id, psl.uuid::text AS uuid_str
+            FROM property_selection_line psl
+            JOIN property p ON psl.property_id = p.id
+            WHERE p.workspace_id = $1
+        """, workspace_id)
+        for row in rows:
+            old_id = sl_uuid_to_old_id.get(row['uuid_str'])
+            if old_id is not None:
+                selection_line_id_map[old_id] = row['id']
+
+    stats["property_selection_lines"] = len(selection_line_id_map)
+
+    # ── Phase 5: Batch insert property class filters ────────
     pcf_data = dump_data.get("property_class_filters", [])
     logger.info(f"Importing {len(pcf_data)} property class filters")
 
+    pcf_records = []
     for pcf in pcf_data:
         prop_id = property_id_map.get(int(pcf["property_id"]))
         class_node_id = node_id_map.get(int(pcf["class_node_id"]))
@@ -609,17 +632,23 @@ async def _import_dump_core(
             )
             continue
 
-        await conn.execute("""
+        pcf_records.append((prop_id, class_node_id))
+
+    if pcf_records:
+        await conn.executemany("""
             INSERT INTO property_class_filter (property_id, class_node_id)
             VALUES ($1, $2)
             ON CONFLICT (property_id, class_node_id) DO NOTHING
-        """, prop_id, class_node_id)
+        """, pcf_records)
 
-        stats["property_class_filters"] += 1
+    stats["property_class_filters"] = len(pcf_records)
 
-    # ── Phase 6: Insert node properties ─────────────────────
+    # ── Phase 6: Batch insert node properties ───────────────
     np_data = dump_data.get("node_properties", [])
     logger.info(f"Importing {len(np_data)} node properties")
+
+    np_records = []
+    np_uuid_to_old_id: Dict[str, int] = {}
 
     for np_item in np_data:
         old_id = np_item.get("id")
@@ -637,31 +666,42 @@ async def _import_dump_core(
             continue
 
         np_uuid = map_uuid(np_item.get("uuid"))
+        np_uuid_to_old_id[np_uuid.lower()] = old_id
+        np_records.append((
+            np_uuid, n_id, p_id,
+            _parse_datetime(np_item.get("create_date")) or now,
+            _parse_datetime(np_item.get("write_date")) or now,
+            user_id,
+        ))
 
-        row = await conn.fetchrow("""
+    if np_records:
+        await conn.executemany("""
             INSERT INTO node_property (
                 uuid, node_id, property_id, create_date, write_date,
                 create_uid, write_uid
             ) VALUES (
                 $1::uuid, $2, $3, $4, $5, $6, $6
-            ) RETURNING id
-        """,
-            np_uuid,
-            n_id,
-            p_id,
-            _parse_datetime(np_item.get("create_date")) or now,
-            _parse_datetime(np_item.get("write_date")) or now,
-            user_id,
-        )
+            )
+        """, np_records)
 
-        if row:
-            node_property_id_map[old_id] = row['id']
-            stats["node_properties"] += 1
+        rows = await conn.fetch("""
+            SELECT np.id, np.uuid::text AS uuid_str
+            FROM node_property np
+            JOIN node n ON np.node_id = n.id
+            WHERE n.workspace_id = $1
+        """, workspace_id)
+        for row in rows:
+            old_id = np_uuid_to_old_id.get(row['uuid_str'])
+            if old_id is not None:
+                node_property_id_map[old_id] = row['id']
 
-    # ── Phase 7: Insert property value scalars ──────────────
+    stats["node_properties"] = len(node_property_id_map)
+
+    # ── Phase 7: Batch insert property value scalars ────────
     pvs_data = dump_data.get("property_value_scalars", [])
     logger.info(f"Importing {len(pvs_data)} property value scalars")
 
+    pvs_records = []
     for pvs in pvs_data:
         np_id = node_property_id_map.get(int(pvs["node_property_id"]))
         p_id = property_id_map.get(int(pvs["property_id"]))
@@ -672,13 +712,23 @@ async def _import_dump_core(
             continue
 
         pvs_uuid = map_uuid(pvs.get("uuid"))
-
-        # Remap UUIDs in value_text if applicable
         value_text = pvs.get("value_text")
         if remap_uuids and value_text:
             value_text = _remap_uuids_in_text(str(value_text), uuid_map)
 
-        await conn.execute("""
+        pvs_records.append((
+            pvs_uuid, np_id, p_id, n_id,
+            value_text,
+            _to_bool(pvs.get("value_boolean")),
+            float(pvs["value_float"]) if pvs.get("value_float") is not None else None,
+            _to_int(pvs.get("value_integer")),
+            _parse_datetime(pvs.get("create_date")) or now,
+            _parse_datetime(pvs.get("write_date")) or now,
+            user_id,
+        ))
+
+    if pvs_records:
+        await conn.executemany("""
             INSERT INTO property_value_scalar (
                 uuid, node_property_id, property_id, node_id,
                 value_text, value_boolean, value_float, value_integer,
@@ -688,23 +738,15 @@ async def _import_dump_core(
                 $5, $6, $7, $8,
                 $9, $10, $11, $11
             )
-        """,
-            pvs_uuid,
-            np_id, p_id, n_id,
-            value_text,
-            _to_bool(pvs.get("value_boolean")),
-            float(pvs["value_float"]) if pvs.get("value_float") is not None else None,
-            _to_int(pvs.get("value_integer")),
-            _parse_datetime(pvs.get("create_date")) or now,
-            _parse_datetime(pvs.get("write_date")) or now,
-            user_id,
-        )
-        stats["property_values"] += 1
+        """, pvs_records)
 
-    # ── Phase 8: Insert property value relations ────────────
+    stats["property_values"] = len(pvs_records)
+
+    # ── Phase 8: Batch insert property value relations ──────
     pvr_data = dump_data.get("property_value_relations", [])
     logger.info(f"Importing {len(pvr_data)} property value relations")
 
+    pvr_records = []
     for pvr in pvr_data:
         np_id = node_property_id_map.get(int(pvr["node_property_id"]))
         p_id = property_id_map.get(int(pvr["property_id"]))
@@ -716,8 +758,16 @@ async def _import_dump_core(
             continue
 
         pvr_uuid = map_uuid(pvr.get("uuid"))
+        pvr_records.append((
+            pvr_uuid, np_id, p_id, n_id, t_id,
+            _to_int(pvr.get("order", 0)),
+            _parse_datetime(pvr.get("create_date")) or now,
+            _parse_datetime(pvr.get("write_date")) or now,
+            user_id,
+        ))
 
-        await conn.execute("""
+    if pvr_records:
+        await conn.executemany("""
             INSERT INTO property_value_relation (
                 uuid, node_property_id, property_id, node_id, target_id,
                 "order", create_date, write_date, create_uid, write_uid
@@ -725,20 +775,15 @@ async def _import_dump_core(
                 $1::uuid, $2, $3, $4, $5,
                 $6, $7, $8, $9, $9
             )
-        """,
-            pvr_uuid,
-            np_id, p_id, n_id, t_id,
-            _to_int(pvr.get("order", 0)),
-            _parse_datetime(pvr.get("create_date")) or now,
-            _parse_datetime(pvr.get("write_date")) or now,
-            user_id,
-        )
-        stats["property_values"] += 1
+        """, pvr_records)
 
-    # ── Phase 9: Insert property value selections ───────────
+    stats["property_values"] += len(pvr_records)
+
+    # ── Phase 9: Batch insert property value selections ─────
     pvsel_data = dump_data.get("property_value_selections", [])
     logger.info(f"Importing {len(pvsel_data)} property value selections")
 
+    pvsel_records = []
     for pvsel in pvsel_data:
         np_id = node_property_id_map.get(int(pvsel["node_property_id"]))
         p_id = property_id_map.get(int(pvsel["property_id"]))
@@ -750,8 +795,15 @@ async def _import_dump_core(
             continue
 
         pvsel_uuid = map_uuid(pvsel.get("uuid"))
+        pvsel_records.append((
+            pvsel_uuid, np_id, p_id, n_id, sl_id,
+            _parse_datetime(pvsel.get("create_date")) or now,
+            _parse_datetime(pvsel.get("write_date")) or now,
+            user_id,
+        ))
 
-        await conn.execute("""
+    if pvsel_records:
+        await conn.executemany("""
             INSERT INTO property_value_selection (
                 uuid, node_property_id, property_id, node_id,
                 selection_line_id, create_date, write_date,
@@ -761,20 +813,15 @@ async def _import_dump_core(
                 $5, $6, $7,
                 $8, $8
             )
-        """,
-            pvsel_uuid,
-            np_id, p_id, n_id,
-            sl_id,
-            _parse_datetime(pvsel.get("create_date")) or now,
-            _parse_datetime(pvsel.get("write_date")) or now,
-            user_id,
-        )
-        stats["property_values"] += 1
+        """, pvsel_records)
 
-    # ── Phase 10: Insert class extends ──────────────────────
+    stats["property_values"] += len(pvsel_records)
+
+    # ── Phase 10: Batch insert class extends ────────────────
     ce_data = dump_data.get("class_extends", [])
     logger.info(f"Importing {len(ce_data)} class extends")
 
+    ce_records = []
     for ce in ce_data:
         target = node_id_map.get(int(ce["target_id"]))
         source = node_id_map.get(int(ce["source_id"]))
@@ -783,18 +830,22 @@ async def _import_dump_core(
             logger.warning(f"Skipping class_extend: missing node mapping")
             continue
 
-        await conn.execute("""
+        ce_records.append((target, source, _to_int(ce.get("sequence", 0))))
+
+    if ce_records:
+        await conn.executemany("""
             INSERT INTO class_extend (target_id, source_id, sequence)
             VALUES ($1, $2, $3)
             ON CONFLICT (target_id, source_id) DO NOTHING
-        """, target, source, _to_int(ce.get("sequence", 0)))
+        """, ce_records)
 
-        stats["class_extends"] += 1
+    stats["class_extends"] = len(ce_records)
 
-    # ── Phase 11: Insert class properties ───────────────────
+    # ── Phase 11: Batch insert class properties ─────────────
     cp_data = dump_data.get("class_properties", [])
     logger.info(f"Importing {len(cp_data)} class properties")
 
+    cp_records = []
     for cp in cp_data:
         class_n_id = node_id_map.get(int(cp["class_node_id"]))
         p_id = property_id_map.get(int(cp["property_id"]))
@@ -813,7 +864,20 @@ async def _import_dump_core(
                 int(cp["default_selection_id"])
             )
 
-        await conn.execute("""
+        cp_records.append((
+            class_n_id, p_id,
+            _to_int(cp.get("sequence", 0)),
+            _to_bool(cp.get("hidden", False)),
+            _to_int(cp.get("default_integer")),
+            float(cp["default_float"]) if cp.get("default_float") is not None else None,
+            cp.get("default_text"),
+            _to_bool(cp.get("default_boolean")),
+            default_node_id,
+            default_sel_id,
+        ))
+
+    if cp_records:
+        await conn.executemany("""
             INSERT INTO class_property (
                 class_node_id, property_id, sequence, hidden,
                 default_integer, default_float, default_text,
@@ -824,24 +888,15 @@ async def _import_dump_core(
                 $8, $9, $10
             )
             ON CONFLICT (class_node_id, property_id) DO NOTHING
-        """,
-            class_n_id, p_id,
-            _to_int(cp.get("sequence", 0)),
-            _to_bool(cp.get("hidden", False)),
-            _to_int(cp.get("default_integer")),
-            float(cp["default_float"]) if cp.get("default_float") is not None else None,
-            cp.get("default_text"),
-            _to_bool(cp.get("default_boolean")),
-            default_node_id,
-            default_sel_id,
-        )
+        """, cp_records)
 
-        stats["class_properties"] += 1
+    stats["class_properties"] = len(cp_records)
 
-    # ── Phase 12: Insert node links ─────────────────────────
+    # ── Phase 12: Batch insert node links ───────────────────
     links_data = dump_data.get("links", [])
     logger.info(f"Importing {len(links_data)} node links")
 
+    link_records = []
     for link_data in links_data:
         source = node_id_map.get(int(link_data["source_id"]))
         target = node_id_map.get(int(link_data["target_id"]))
@@ -854,18 +909,26 @@ async def _import_dump_core(
             continue
 
         link_uuid = map_uuid(link_data.get("uuid"))
-
-        # Optional property reference
         link_property_id = None
         if link_data.get("property_id") is not None:
             link_property_id = property_id_map.get(int(link_data["property_id"]))
 
-        # Remap UUIDs in link name if present
         link_name = link_data.get("name")
         if remap_uuids and link_name:
             link_name = _remap_uuids_in_text(str(link_name), uuid_map)
 
-        await conn.execute("""
+        link_records.append((
+            link_uuid, source, target, workspace_id, link_property_id,
+            _to_int(link_data.get("position", 0)),
+            _to_bool(link_data.get("is_tag", False)),
+            _to_bool(link_data.get("is_inline_class", False)),
+            link_name,
+            _parse_datetime(link_data.get("create_date")) or now,
+            user_id,
+        ))
+
+    if link_records:
+        await conn.executemany("""
             INSERT INTO node_link (
                 uuid, source_id, target_id, workspace_id, property_id,
                 position, is_tag, is_inline_class, name, create_date,
@@ -875,23 +938,15 @@ async def _import_dump_core(
                 $6, $7, $8, $9, $10,
                 $11
             )
-        """,
-            link_uuid,
-            source, target, workspace_id, link_property_id,
-            _to_int(link_data.get("position", 0)),
-            _to_bool(link_data.get("is_tag", False)),
-            _to_bool(link_data.get("is_inline_class", False)),
-            link_name,
-            _parse_datetime(link_data.get("create_date")) or now,
-            user_id,
-        )
+        """, link_records)
 
-        stats["links"] += 1
+    stats["links"] = len(link_records)
 
-    # ── Phase 13: Insert node views ─────────────────────────
+    # ── Phase 13: Batch insert node views ───────────────────
     nv_data = dump_data.get("node_views", [])
     logger.info(f"Importing {len(nv_data)} node views")
 
+    nv_records = []
     for nv in nv_data:
         nv_node_id = node_id_map.get(int(nv["node_id"]))
         if nv_node_id is None:
@@ -899,8 +954,6 @@ async def _import_dump_core(
             continue
 
         nv_uuid = map_uuid(nv.get("uuid"))
-
-        # Remap UUIDs in query_json and shown_properties
         query_json = nv.get("query_json", {})
         shown_properties = nv.get("shown_properties", [])
         group_by = nv.get("group_by")
@@ -911,7 +964,23 @@ async def _import_dump_core(
             if group_by and UUID_PATTERN.match(group_by):
                 group_by = uuid_map.get(group_by.lower(), group_by)
 
-        await conn.execute("""
+        nv_records.append((
+            nv_uuid, nv_node_id,
+            str(nv.get("name", "")),
+            json.dumps(query_json, default=str),
+            str(nv.get("view_type", "")),
+            _to_int(nv.get("order_index", 0)),
+            _to_bool(nv.get("is_default", False)),
+            _to_bool(nv.get("active", True)),
+            json.dumps(shown_properties, default=str),
+            group_by,
+            _parse_datetime(nv.get("create_date")) or now,
+            _parse_datetime(nv.get("write_date")) or now,
+            user_id,
+        ))
+
+    if nv_records:
+        await conn.executemany("""
             INSERT INTO node_view (
                 uuid, node_id, name, query_json, view_type,
                 order_index, is_default, active,
@@ -935,48 +1004,39 @@ async def _import_dump_core(
                 group_by = EXCLUDED.group_by,
                 write_date = EXCLUDED.write_date,
                 write_uid = EXCLUDED.write_uid
-        """,
-            nv_uuid,
-            nv_node_id,
-            str(nv.get("name", "")),
-            json.dumps(query_json, default=str),
-            str(nv.get("view_type", "")),
-            _to_int(nv.get("order_index", 0)),
-            _to_bool(nv.get("is_default", False)),
-            _to_bool(nv.get("active", True)),
-            json.dumps(shown_properties, default=str),
-            group_by,
-            _parse_datetime(nv.get("create_date")) or now,
-            _parse_datetime(nv.get("write_date")) or now,
-            user_id,
-        )
+        """, nv_records)
 
-        stats["node_views"] += 1
+    stats["node_views"] = len(nv_records)
 
-    # ── Phase 14: Insert workspace settings ─────────────────
+    # ── Phase 14: Batch insert workspace settings ───────────
     settings_data = dump_data.get("settings", [])
     logger.info(f"Importing {len(settings_data)} workspace settings")
 
+    settings_records = []
     for setting in settings_data:
         setting_value = setting.get("value")
         if remap_uuids and setting_value:
             setting_value = _remap_uuids_in_jsonb(setting_value, uuid_map)
 
-        await conn.execute("""
+        settings_records.append((
+            workspace_id,
+            str(setting["key"]),
+            json.dumps(setting_value, default=str) if setting_value is not None else None,
+            now,
+            user_id,
+        ))
+
+    if settings_records:
+        await conn.executemany("""
             INSERT INTO setting_workspace (workspace_id, key, value,
                                            create_date, write_date,
                                            create_uid, write_uid)
             VALUES ($1, $2, $3::jsonb, $4, $4, $5, $5)
             ON CONFLICT (workspace_id, key) DO UPDATE
                 SET value = EXCLUDED.value, write_date = EXCLUDED.write_date
-        """,
-            workspace_id,
-            str(setting["key"]),
-            json.dumps(setting_value, default=str) if setting_value is not None else None,
-            now,
-            user_id,
-        )
-        stats["settings"] += 1
+        """, settings_records)
+
+    stats["settings"] = len(settings_records)
 
     # ── Phase 15: Rebuild node_path closure table ───────────
     logger.info("Rebuilding node_path closure table")
