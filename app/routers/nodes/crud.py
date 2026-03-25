@@ -1207,7 +1207,7 @@ async def get_node(
             target_rows = await pool.fetch("""
                 SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
                        n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
-                       n.collapsed, n.active
+                       n.collapsed, n.active, n.class_ids
                 FROM node_link nl
                 JOIN node n ON n.id = nl.target_id
                 WHERE nl.source_id = ANY($1)
@@ -1238,6 +1238,7 @@ async def get_node(
                     collapsed=row['collapsed'],
                     active=row['active'],
                     display_name=display_names.get(uuid_str),
+                    classes=list(row['class_ids'] or []),
                 )
             response.referenced_nodes = referenced_nodes
 
@@ -1441,7 +1442,7 @@ async def get_page_content(
         target_rows = await pool.fetch("""
             SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
                    n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
-                   n.collapsed, n.active
+                   n.collapsed, n.active, n.class_ids
             FROM node_link nl
             JOIN node n ON n.id = nl.target_id
             WHERE nl.source_id = ANY($1)
@@ -1472,6 +1473,7 @@ async def get_page_content(
                 collapsed=row['collapsed'],
                 active=row['active'],
                 display_name=display_names.get(uuid_str),
+                classes=list(row['class_ids'] or []),
             )
         page_response.referenced_nodes = referenced_nodes
     
