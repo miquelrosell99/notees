@@ -81,6 +81,7 @@ def _node_to_response(
     backlink_count: int = 0,
     aliases: Optional[List[int]] = None,
     has_children: bool = False,
+    extends: Optional[List[int]] = None,
 ) -> NodeResponse:
     """Convert domain Node to API response.
     
@@ -117,6 +118,7 @@ def _node_to_response(
         aliased_id=node.aliased_id,
         aliases=aliases or [],
         has_children=has_children,
+        extends=extends or [],
     )
 
 
@@ -242,6 +244,32 @@ async def _get_class_ids_batch(pool, workspace_id: int, node_ids: List[int], *, 
 
     async with acquire_connection(pool) as c:
         return await _fetch(c)
+
+
+async def _get_extends_batch(pool, workspace_id: int, node_ids: List[int]) -> Dict[int, List[int]]:
+    """Batch-fetch class extends (parent class IDs) for a set of class nodes.
+
+    Returns a dict mapping target_id (child class) -> list of source_ids (parent classes)
+    in sequence order.
+    """
+    if not node_ids:
+        return {}
+
+    async with acquire_connection(pool) as conn:
+        rows = await conn.fetch("""
+            SELECT ce.target_id, ce.source_id
+            FROM class_extend ce
+            JOIN node n ON n.id = ce.source_id
+            WHERE ce.target_id = ANY($1)
+              AND n.workspace_id = $2
+              AND n.active = TRUE
+            ORDER BY ce.target_id, ce.sequence, ce.id
+        """, node_ids, workspace_id)
+
+        result: Dict[int, List[int]] = {}
+        for row in rows:
+            result.setdefault(row['target_id'], []).append(row['source_id'])
+        return result
 
 
 async def _get_related_ids_batch(
