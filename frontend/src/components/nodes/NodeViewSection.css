@@ -19,6 +19,14 @@
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+.node-view-section__header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
 .node-view-section__header:hover {
   background: var(--color-surface-container);
 }
