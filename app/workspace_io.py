@@ -395,6 +395,25 @@ async def _import_dump_core(
         "settings": 0,
     }
 
+    # ── Disable triggers for bulk import performance ───────
+    # These triggers fire per-row and cause timeouts on large imports.
+    # We rebuild node_path and search vectors at the end instead.
+    logger.info("Disabling node triggers for bulk import")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_search_update")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_after_insert")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_after_update")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_before_delete")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_write_date")
+    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_update_workspace_write_date")
+    # Disable version capture trigger if it exists
+    await conn.execute("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_node_version_capture') THEN
+                ALTER TABLE node DISABLE TRIGGER trg_node_version_capture;
+            END IF;
+        END $$;
+    """)
+
     # ── Phase 1: Batch insert nodes ─────────────────────────
     nodes_data = dump_data.get("nodes", [])
     logger.info(f"Importing {len(nodes_data)} nodes (phase 1: batch insert)")
@@ -456,7 +475,7 @@ async def _import_dump_core(
                 $22, $23,
                 $24, $24
             )
-        """, node_records)
+        """, node_records, timeout=None)
 
         # Batch fetch ID mappings
         rows = await conn.fetch(
@@ -502,7 +521,7 @@ async def _import_dump_core(
             SET parent_id = $1, page_id = $2, aliased_id = $3,
                 class_ids = $4, classes_path = $5::jsonb
             WHERE id = $6
-        """, update_records)
+        """, update_records, timeout=None)
 
     # ── Phase 3: Batch insert properties ────────────────────
     properties_data = dump_data.get("properties", [])
@@ -549,7 +568,7 @@ async def _import_dump_core(
                 $8, $9, $10, $11,
                 $12, $13, $14, $14
             )
-        """, prop_records)
+        """, prop_records, timeout=None)
 
         rows = await conn.fetch(
             "SELECT id, uuid::text AS uuid_str FROM property WHERE workspace_id = $1",
@@ -601,7 +620,7 @@ async def _import_dump_core(
             ) VALUES (
                 $1::uuid, $2, $3, $4, $5, $6, $7, $7
             )
-        """, sl_records)
+        """, sl_records, timeout=None)
 
         rows = await conn.fetch("""
             SELECT psl.id, psl.uuid::text AS uuid_str
@@ -639,7 +658,7 @@ async def _import_dump_core(
             INSERT INTO property_class_filter (property_id, class_node_id)
             VALUES ($1, $2)
             ON CONFLICT (property_id, class_node_id) DO NOTHING
-        """, pcf_records)
+        """, pcf_records, timeout=None)
 
     stats["property_class_filters"] = len(pcf_records)
 
@@ -682,7 +701,7 @@ async def _import_dump_core(
             ) VALUES (
                 $1::uuid, $2, $3, $4, $5, $6, $6
             )
-        """, np_records)
+        """, np_records, timeout=None)
 
         rows = await conn.fetch("""
             SELECT np.id, np.uuid::text AS uuid_str
@@ -738,7 +757,7 @@ async def _import_dump_core(
                 $5, $6, $7, $8,
                 $9, $10, $11, $11
             )
-        """, pvs_records)
+        """, pvs_records, timeout=None)
 
     stats["property_values"] = len(pvs_records)
 
@@ -775,7 +794,7 @@ async def _import_dump_core(
                 $1::uuid, $2, $3, $4, $5,
                 $6, $7, $8, $9, $9
             )
-        """, pvr_records)
+        """, pvr_records, timeout=None)
 
     stats["property_values"] += len(pvr_records)
 
@@ -813,7 +832,7 @@ async def _import_dump_core(
                 $5, $6, $7,
                 $8, $8
             )
-        """, pvsel_records)
+        """, pvsel_records, timeout=None)
 
     stats["property_values"] += len(pvsel_records)
 
@@ -837,7 +856,7 @@ async def _import_dump_core(
             INSERT INTO class_extend (target_id, source_id, sequence)
             VALUES ($1, $2, $3)
             ON CONFLICT (target_id, source_id) DO NOTHING
-        """, ce_records)
+        """, ce_records, timeout=None)
 
     stats["class_extends"] = len(ce_records)
 
@@ -888,7 +907,7 @@ async def _import_dump_core(
                 $8, $9, $10
             )
             ON CONFLICT (class_node_id, property_id) DO NOTHING
-        """, cp_records)
+        """, cp_records, timeout=None)
 
     stats["class_properties"] = len(cp_records)
 
@@ -938,7 +957,7 @@ async def _import_dump_core(
                 $6, $7, $8, $9, $10,
                 $11
             )
-        """, link_records)
+        """, link_records, timeout=None)
 
     stats["links"] = len(link_records)
 
@@ -1004,7 +1023,7 @@ async def _import_dump_core(
                 group_by = EXCLUDED.group_by,
                 write_date = EXCLUDED.write_date,
                 write_uid = EXCLUDED.write_uid
-        """, nv_records)
+        """, nv_records, timeout=None)
 
     stats["node_views"] = len(nv_records)
 
@@ -1034,13 +1053,38 @@ async def _import_dump_core(
             VALUES ($1, $2, $3::jsonb, $4, $4, $5, $5)
             ON CONFLICT (workspace_id, key) DO UPDATE
                 SET value = EXCLUDED.value, write_date = EXCLUDED.write_date
-        """, settings_records)
+        """, settings_records, timeout=None)
 
     stats["settings"] = len(settings_records)
 
-    # ── Phase 15: Rebuild node_path closure table ───────────
+    # ── Phase 15: Re-enable triggers and rebuild ────────────
+    logger.info("Re-enabling node triggers")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_search_update")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_after_insert")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_after_update")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_before_delete")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_write_date")
+    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_update_workspace_write_date")
+    await conn.execute("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_node_version_capture') THEN
+                ALTER TABLE node ENABLE TRIGGER trg_node_version_capture;
+            END IF;
+        END $$;
+    """)
+
+    # Rebuild node_path closure table (replaces disabled insert/update triggers)
     logger.info("Rebuilding node_path closure table")
-    await conn.execute("SELECT rebuild_node_path()")
+    await conn.execute("SELECT rebuild_node_path()", timeout=None)
+
+    # Rebuild search vectors for imported nodes
+    logger.info("Rebuilding search vectors for imported nodes")
+    await conn.execute("""
+        UPDATE node SET search_vector = to_tsvector(
+            COALESCE(search_language, 'english')::regconfig,
+            COALESCE(name, '')
+        ) WHERE workspace_id = $1
+    """, workspace_id, timeout=None)
 
     logger.info(f"Import complete: {stats}")
     return stats, uuid_map
