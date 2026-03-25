@@ -330,7 +330,7 @@ class QueryASTToSQL:
             return None
         
         # Built-in node columns that should be queried directly
-        BUILTIN_COLUMNS = {'uuid', 'name', 'id', 'parent_id', 'is_page', 'is_favorite'}
+        BUILTIN_COLUMNS = {'uuid', 'name', 'id', 'parent_id', 'is_page', 'is_favorite', 'page_uuid'}
         
         # Check if this is a built-in column
         if condition.property_name in BUILTIN_COLUMNS:
@@ -354,6 +354,15 @@ class QueryASTToSQL:
                     return f"n.{column_name}::text = %({value_param})s"
                 elif condition.operator == 'not_equals':
                     return f"n.{column_name}::text != %({value_param})s"
+            
+            # Special handling for page_uuid - filters by the uuid of the containing page
+            # Uses the LEFT JOINed 'page' alias (page ON page.id = n.page_id)
+            # NULL page_id means the node IS a page (no container), so keep it when excluding a page
+            if column_name == 'page_uuid':
+                if condition.operator == 'equals':
+                    return f"(n.page_id IS NOT NULL AND page.uuid::text = %({value_param})s)"
+                elif condition.operator == 'not_equals':
+                    return f"(n.page_id IS NULL OR page.uuid::text != %({value_param})s)"
             
             # Special handling for name column - extract text from JSON AST
             if column_name == 'name':
