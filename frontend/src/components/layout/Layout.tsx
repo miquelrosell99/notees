@@ -222,7 +222,7 @@ export function Layout() {
         {/* Main content area with floating containers */}
         <div className="app-workspace">
           {/* Left Sidebar - part of canvas, completely hidden when collapsed */}
-          <div className="sidebar-wrapper" style={leftSidebarStyle}>
+          <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
             <Sidebar collapsed={isSidebarCollapsed} />
             {/* Left sidebar resize handle */}
             {!isSidebarCollapsed && (
@@ -239,7 +239,7 @@ export function Layout() {
           </Card>
           
           {/* Floating Right Sidebar - uses Card component with panel of cards */}
-          <div className="sidebar-wrapper sidebar-wrapper--right" style={rightSidebarStyle}>
+          <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle}>
             {/* Right sidebar resize handle */}
             {showSidebar && (
               <div 
