@@ -14,6 +14,7 @@ interface UndoState {
   performRedo: (queryClient: QueryClient) => Promise<void>;
   performUndoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
   performRedoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
+  clearHistory: () => Promise<void>;
 }
 
 export const useUndoStore = create<UndoState>()((set, get) => ({
@@ -79,6 +80,15 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       await get().refreshStack();
     } catch {
       await get().refreshStack();
+    }
+  },
+
+  clearHistory: async () => {
+    try {
+      await undoApi.clearHistory();
+      set({ canUndo: false, canRedo: false, undoEntries: [], redoEntries: [] });
+    } catch {
+      // ignore
     }
   },
 }));

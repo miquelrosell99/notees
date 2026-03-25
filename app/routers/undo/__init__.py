@@ -62,3 +62,11 @@ async def redo_to(entry_id: int, user: User = Depends(get_current_user)):
     if not results:
         raise HTTPException(status_code=404, detail="Nothing to redo")
     return results
+
+
+@router.delete("/history")
+async def clear_history(user: User = Depends(get_current_user)):
+    """Clear all undo/redo history."""
+    service = await _get_undo_service(user)
+    await service.clear_history()
+    return {"status": "ok"}
