@@ -18,10 +18,6 @@ export function EditablePlugin({ readOnly = false }: EditablePluginProps): null 
 
   useEffect(() => {
     editor.setEditable(!readOnly);
-    const rootElement = editor.getRootElement();
-    if (rootElement) {
-      rootElement.spellcheck = !readOnly;
-    }
   }, [editor, readOnly]);
 
   return null;

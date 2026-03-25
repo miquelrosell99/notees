@@ -34,8 +34,14 @@ export function BlurOnClickOutsidePlugin({
     const rootElement = editor.getRootElement();
     if (!rootElement) return;
 
-    const onFocus = () => setActiveEditor(editor);
-    const onBlur = () => clearActiveEditor(editor);
+    const onFocus = () => {
+      setActiveEditor(editor);
+      rootElement.spellcheck = true;
+    };
+    const onBlur = () => {
+      clearActiveEditor(editor);
+      rootElement.spellcheck = false;
+    };
 
     rootElement.addEventListener('focus', onFocus, true);
     rootElement.addEventListener('blur', onBlur, true);
