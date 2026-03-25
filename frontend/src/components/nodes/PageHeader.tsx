@@ -447,6 +447,7 @@ export function PageHeader({
               placeholder="Untitled"
               onClick={(e) => e.stopPropagation()}
               readOnly={!isNameEditable}
+              spellCheck={false}
               title={!isNameEditable ? 'System page names cannot be edited' : undefined}
               rows={1}
             />
