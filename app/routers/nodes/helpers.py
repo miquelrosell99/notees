@@ -495,6 +495,21 @@ def _node_snapshot(node) -> dict:
     }
 
 
+def _name_text(name: Optional[str], max_len: int = 60) -> str:
+    """Convert a node name (possibly AST JSON) to plain text for display in undo descriptions."""
+    if not name:
+        return ""
+    try:
+        from ...domain.stringify_ast import parse_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
+        ast = parse_ast(name, ParseMode.JSON)
+        if ast:
+            text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+            return text[:max_len] if text else ""
+    except Exception:
+        pass
+    return name[:max_len]
+
+
 async def _resolve_referenced_display_names(pool, workspace_id: int, target_rows) -> Dict[str, str]:
     """Resolve node links embedded in names and return uuid → resolved plain-text map.
 
