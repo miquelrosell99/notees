@@ -58,8 +58,9 @@ function resolveClassColor(classNode: Node, allClasses: Node[]): string | null |
  * 
  * Priority:
  * 1. Node's own icon (if set) - overrides everything
- * 2. First class's icon (from effectiveClassIds or node.classes)
- * 3. undefined (fallback to default icon based on node type)
+ * 2. Node's own Extends chain (if the node is a class)
+ * 3. First assigned class's icon (from effectiveClassIds or node.classes)
+ * 4. undefined (fallback to default icon based on node type)
  * 
  * @param node - The node to get the icon for
  * @param allClasses - All available class nodes (to resolve class icons)
@@ -81,6 +82,14 @@ export function getEffectiveIcon(
     if (iconName) return node.icon;
     // Color-only: find inherited icon and re-encode with node's color
     if (color) {
+      // Check own extends chain first (for class nodes)
+      if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+        const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
+        if (extendsIcon) {
+          const { icon: inheritedIcon } = parseIconField(extendsIcon);
+          return formatIconField(inheritedIcon || extendsIcon, color);
+        }
+      }
       if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
         for (const classId of classIds) {
           const classNode = allClasses.find(c => c.id === classId);
@@ -95,6 +104,12 @@ export function getEffectiveIcon(
       // No inherited icon — keep the color-only field so NodeIcon can tint the default
       return node.icon;
     }
+  }
+
+  // Check own extends chain first (for class nodes)
+  if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+    const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
+    if (extendsIcon) return extendsIcon;
   }
 
   // If the node has classes and we have class data, try to inherit icon from first class with an icon
@@ -133,6 +148,14 @@ export function getEffectiveIconFromClasses(
     const { icon: iconName, color } = parseIconField(node.icon);
     if (iconName) return node.icon;
     if (color) {
+      // Check own extends chain first (for class nodes)
+      if (node.extends && node.extends.length > 0 && classes.length > 0) {
+        const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
+        if (extendsIcon) {
+          const { icon: inheritedIcon } = parseIconField(extendsIcon);
+          return formatIconField(inheritedIcon || extendsIcon, color);
+        }
+      }
       if (nodeClasses && nodeClasses.length > 0) {
         for (const classNode of nodeClasses) {
           const classIcon = resolveClassIcon(classNode, classes);
@@ -144,6 +167,12 @@ export function getEffectiveIconFromClasses(
       }
       return node.icon;
     }
+  }
+
+  // Check own extends chain first (for class nodes)
+  if (node.extends && node.extends.length > 0 && classes.length > 0) {
+    const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
+    if (extendsIcon) return extendsIcon;
   }
 
   // Find the first class with an icon (including via Extends chain)
@@ -165,8 +194,9 @@ export function getEffectiveIconFromClasses(
  * 
  * Priority:
  * 1. Node's own color (if set) - overrides everything
- * 2. First class's color (including Extends chain inheritance)
- * 3. undefined (no color)
+ * 2. Node's own Extends chain (if the node is a class)
+ * 3. First assigned class's color (including Extends chain inheritance)
+ * 4. undefined (no color)
  */
 export function getEffectiveColor(
   node: Node | null | undefined,
@@ -175,6 +205,12 @@ export function getEffectiveColor(
 ): string | null | undefined {
   if (!node) return undefined;
   if (node.color) return node.color;
+
+  // Check own extends chain first (for class nodes)
+  if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+    const extendsColor = resolveFromExtendsChain(node, allClasses, n => n.color);
+    if (extendsColor) return extendsColor;
+  }
 
   const classIds = effectiveClassIds ?? node.classes;
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
