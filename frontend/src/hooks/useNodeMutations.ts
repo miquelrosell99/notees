@@ -607,9 +607,18 @@ export function useUpdateNode() {
           queryKey: nodeKeys.graphNodes(),
           refetchType: 'none',
         });
-        // If this node is a class, invalidate the classes cache so pages
-        // that inherit their icon from this class update immediately
+        // If this node is a class, synchronously update the classes cache so
+        // components using getEffectiveColor/getEffectiveIcon (e.g. MainContent
+        // color ribbon, class pills) see the change immediately, then invalidate
+        // for a full refetch to ensure consistency.
         if (updatedNode.is_class) {
+          queryClient.setQueryData<Node[]>(
+            nodeKeys.classes(),
+            (oldData) => {
+              if (!oldData || !Array.isArray(oldData)) return oldData;
+              return oldData.map(n => n.id === updatedNode.id ? mergeUpdate(n) : n);
+            }
+          );
           queryClient.invalidateQueries({
             queryKey: nodeKeys.classes(),
           });
@@ -669,9 +678,16 @@ export function useUpdateNode() {
           refetch: false, // No active refetch - too expensive
         });
 
-        // If this node is a class, invalidate the classes cache so class pills
-        // update immediately with the new name
+        // If this node is a class, synchronously update + invalidate the classes
+        // cache so class pills update immediately with the new name
         if (updatedNode.is_class) {
+          queryClient.setQueryData<Node[]>(
+            nodeKeys.classes(),
+            (oldData) => {
+              if (!oldData || !Array.isArray(oldData)) return oldData;
+              return oldData.map(n => n.id === updatedNode.id ? mergeUpdate(n) : n);
+            }
+          );
           queryClient.invalidateQueries({
             queryKey: nodeKeys.classes(),
           });
