@@ -113,6 +113,8 @@ export function TopBar() {
             className="menu-toggle"
           />
         
+          <h1 className="app-title">Notees</h1>
+
           {/* Back / Forward navigation */}
           <Button
             icon={mdiArrowLeft}
@@ -134,8 +136,6 @@ export function TopBar() {
             title="Go forward"
             className="toolbar-btn"
           />
-
-          <h1 className="app-title">Notees</h1>
         </div>
       
         <div className="top-bar-center">
