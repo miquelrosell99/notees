@@ -47,6 +47,11 @@
   font-size: 0.875rem;
 }
 
+.query-section__skeleton {
+  padding: var(--spacing-2) 0;
+  padding-left: calc(20px + var(--spacing-2));
+}
+
 /* ==================== Linked References ==================== */
 
 /* PAGES section header in linked references list view */
