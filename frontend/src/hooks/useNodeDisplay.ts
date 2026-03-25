@@ -13,7 +13,7 @@ import { useMemo } from 'react';
 import { useBatchedNode } from '@/hooks/useBatchedNode';
 import { useClasses } from '@/hooks/useNodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
@@ -53,6 +53,11 @@ export function useNodeDisplay(
     [node, allClasses, effectiveClassIds],
   );
 
+  const effectiveColor = useMemo(
+    () => getEffectiveColor(node, allClasses, effectiveClassIds),
+    [node, allClasses, effectiveClassIds],
+  );
+
   const displayText = useMemo(() => {
     if (!node) return fallbackText;
     // Use display_name when it has been pre-resolved server-side (i.e. it
@@ -72,6 +77,6 @@ export function useNodeDisplay(
     effectiveIcon,
     displayText,
     isPage: node?.is_page ?? true,
-    color: node?.color || undefined,
+    color: effectiveColor || undefined,
   };
 }

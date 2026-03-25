@@ -6,11 +6,12 @@
  */
 import { useMemo, useEffect, useRef } from 'react';
 import { useNavigationStore } from '@/stores';
-import { useNode } from '@/hooks';
+import { useNode, useClasses } from '@/hooks';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
+import { getEffectiveColor } from '@/utils/nodeIcon';
 import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
 import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
@@ -45,16 +46,18 @@ export function MainContent() {
   
   // Fetch current node to get color (for pages and focused blocks)
   const { data: currentNode } = useNode(currentNodeId ?? null);
+  const { data: allClasses } = useClasses();
   
   // Compute border color for colored nodes (thick border, no background)
   const nodeColorStyle = useMemo(() => {
-    if (!currentNode || !currentNode.color) {
+    const color = getEffectiveColor(currentNode, allClasses);
+    if (!color) {
       return undefined;
     }
     return {
-      '--node-border-color': currentNode.color,
+      '--node-border-color': color,
     } as React.CSSProperties;
-  }, [currentNode]);
+  }, [currentNode, allClasses]);
   
   // Render different views based on mainViewType
   if (mainViewType === 'all-pages') {
