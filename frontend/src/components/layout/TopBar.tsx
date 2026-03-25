@@ -19,6 +19,7 @@ import {
   mdiRedo,
   mdiArrowLeft,
   mdiArrowRight,
+  mdiDeleteOutline,
 } from '@mdi/js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
@@ -51,6 +52,8 @@ export function TopBar() {
   } = useModalStore();
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
+  const undoBtnRef = useRef<HTMLButtonElement>(null);
+  const redoBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
   const [goToTodaySignal, setGoToTodaySignal] = useState(0);
@@ -72,8 +75,9 @@ export function TopBar() {
   const performUndoTo = useUndoStore(s => s.performUndoTo);
   const performRedoTo = useUndoStore(s => s.performRedoTo);
   const refreshStack = useUndoStore(s => s.refreshStack);
-  const [undoMenuPos, setUndoMenuPos] = useState<{ x: number; y: number } | null>(null);
-  const [redoMenuPos, setRedoMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const clearHistory = useUndoStore(s => s.clearHistory);
+  const [undoMenuOpen, setUndoMenuOpen] = useState(false);
+  const [redoMenuOpen, setRedoMenuOpen] = useState(false);
   
   // Refresh undo stack on mount
   useEffect(() => { refreshStack(); }, [refreshStack]);
@@ -87,29 +91,31 @@ export function TopBar() {
     : 'Redo (Ctrl+Y)';
 
   // Build context menu items for undo/redo history
-  const undoMenuItems: ContextMenuItem[] = useMemo(() =>
-    undoEntries.map((entry, i) => ({
+  const undoMenuItems: ContextMenuItem[] = useMemo(() => [
+    ...undoEntries.map((entry, i) => ({
       id: String(entry.id),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
         performUndoTo(queryClient, entry.id);
-        setUndoMenuPos(null);
+        setUndoMenuOpen(false);
       },
     })),
-    [undoEntries, performUndoTo, queryClient],
-  );
+    { id: 'sep', label: '', separator: true },
+    { id: 'clear', label: 'Clear history', icon: mdiDeleteOutline, danger: true, onClick: () => { clearHistory(); setUndoMenuOpen(false); } },
+  ], [undoEntries, performUndoTo, queryClient, clearHistory]);
 
-  const redoMenuItems: ContextMenuItem[] = useMemo(() =>
-    redoEntries.map((entry, i) => ({
+  const redoMenuItems: ContextMenuItem[] = useMemo(() => [
+    ...redoEntries.map((entry, i) => ({
       id: String(entry.id),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
         performRedoTo(queryClient, entry.id);
-        setRedoMenuPos(null);
+        setRedoMenuOpen(false);
       },
     })),
-    [redoEntries, performRedoTo, queryClient],
-  );
+    { id: 'sep', label: '', separator: true },
+    { id: 'clear', label: 'Clear history', icon: mdiDeleteOutline, danger: true, onClick: () => { clearHistory(); setRedoMenuOpen(false); } },
+  ], [redoEntries, performRedoTo, queryClient, clearHistory]);
 
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
@@ -190,6 +196,7 @@ export function TopBar() {
 
         {/* Undo button */}
         <Button
+          ref={undoBtnRef}
           icon={mdiUndo}
           variant="ghost"
           size="sm"
@@ -198,7 +205,7 @@ export function TopBar() {
           onClick={() => performUndo(queryClient)}
           onContextMenu={(e) => {
             e.preventDefault();
-            if (undoEntries.length > 0) setUndoMenuPos({ x: e.clientX, y: e.clientY });
+            if (undoEntries.length > 0) setUndoMenuOpen(true);
           }}
           aria-label="Undo"
           title={undoTitle}
@@ -207,6 +214,7 @@ export function TopBar() {
 
         {/* Redo button */}
         <Button
+          ref={redoBtnRef}
           icon={mdiRedo}
           variant="ghost"
           size="sm"
@@ -215,7 +223,7 @@ export function TopBar() {
           onClick={() => performRedo(queryClient)}
           onContextMenu={(e) => {
             e.preventDefault();
-            if (redoEntries.length > 0) setRedoMenuPos({ x: e.clientX, y: e.clientY });
+            if (redoEntries.length > 0) setRedoMenuOpen(true);
           }}
           aria-label="Redo"
           title={redoTitle}
@@ -223,24 +231,30 @@ export function TopBar() {
         />
 
         {/* Undo history dropdown */}
-        {undoMenuPos && undoMenuItems.length > 0 && (
-          <ContextMenu
-            items={undoMenuItems}
-            position={undoMenuPos}
-            onClose={() => setUndoMenuPos(null)}
-            title="Undo history"
-          />
-        )}
+        {undoMenuOpen && undoMenuItems.length > 0 && undoBtnRef.current && (() => {
+          const rect = undoBtnRef.current!.getBoundingClientRect();
+          return (
+            <ContextMenu
+              items={undoMenuItems}
+              position={{ x: rect.left, y: rect.bottom + 4 }}
+              onClose={() => setUndoMenuOpen(false)}
+              title="Undo history"
+            />
+          );
+        })()}
 
         {/* Redo history dropdown */}
-        {redoMenuPos && redoMenuItems.length > 0 && (
-          <ContextMenu
-            items={redoMenuItems}
-            position={redoMenuPos}
-            onClose={() => setRedoMenuPos(null)}
-            title="Redo history"
-          />
-        )}
+        {redoMenuOpen && redoMenuItems.length > 0 && redoBtnRef.current && (() => {
+          const rect = redoBtnRef.current!.getBoundingClientRect();
+          return (
+            <ContextMenu
+              items={redoMenuItems}
+              position={{ x: rect.left, y: rect.bottom + 4 }}
+              onClose={() => setRedoMenuOpen(false)}
+              title="Redo history"
+            />
+          );
+        })()}
 
         <div className="toolbar-separator" />
 
