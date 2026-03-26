@@ -1,4 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="64" fill="#4263eb"/>
-  <text x="256" y="340" text-anchor="middle" font-size="256" fill="white">📝</text>
+  <!-- Notepad body -->
+  <rect x="128" y="96" width="256" height="320" rx="20" fill="white"/>
+  <!-- Lines -->
+  <line x1="170" y1="181" x2="342" y2="181" stroke="#4263eb" stroke-width="13" stroke-linecap="round"/>
+  <line x1="170" y1="235" x2="342" y2="235" stroke="#4263eb" stroke-width="13" stroke-linecap="round"/>
+  <line x1="170" y1="289" x2="278" y2="289" stroke="#4263eb" stroke-width="13" stroke-linecap="round"/>
+  <!-- Pencil -->
+  <polygon points="330,267 373,310 358,325 315,282" fill="#4263eb"/>
+  <polygon points="315,282 304,325 358,325" fill="#2b4acb"/>
 </svg>
