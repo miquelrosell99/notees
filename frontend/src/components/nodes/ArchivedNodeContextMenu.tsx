@@ -10,6 +10,7 @@ import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import './NodeContextMenu.css';
 
 interface ArchivedNodeContextMenuProps {
@@ -73,7 +74,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       id: 'copy-uuid',
       label: 'Copy UUID',
       onClick: () => {
-        navigator.clipboard.writeText(node.uuid);
+        copyToClipboard(node.uuid);
         onClose();
       }
     },
@@ -82,7 +83,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       label: 'Copy link',
       onClick: () => {
         const link = `[[${node.uuid}]]`;
-        navigator.clipboard.writeText(link);
+        copyToClipboard(link);
         onClose();
       }
     },

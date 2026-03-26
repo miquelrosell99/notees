@@ -660,6 +660,24 @@ function nodeToBlockData(node: Node): BlockData {
 }
 
 /**
+ * Safely copy text to clipboard, with fallback for non-secure contexts (HTTP).
+ */
+export async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  // Fallback for insecure contexts where navigator.clipboard is undefined
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
+
+/**
  * Copy blocks to clipboard in internal format
  */
 export async function copyBlocksToClipboard(nodes: Node[]): Promise<void> {
@@ -667,7 +685,7 @@ export async function copyBlocksToClipboard(nodes: Node[]): Promise<void> {
   const json = JSON.stringify(data, null, 2);
   
   // Try to use ClipboardItem for rich clipboard support
-  if (typeof ClipboardItem !== 'undefined') {
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
     try {
       const item = new ClipboardItem({
         'text/plain': new Blob([json], { type: 'text/plain' }),
@@ -680,7 +698,7 @@ export async function copyBlocksToClipboard(nodes: Node[]): Promise<void> {
   }
   
   // Fallback: copy JSON as plain text
-  await navigator.clipboard.writeText(json);
+  await copyToClipboard(json);
 }
 
 /**
@@ -688,7 +706,7 @@ export async function copyBlocksToClipboard(nodes: Node[]): Promise<void> {
  */
 export async function copyBlocksAsText(nodes: Node[]): Promise<void> {
   const text = nodes.map(n => n.name).join('\n');
-  await navigator.clipboard.writeText(text);
+  await copyToClipboard(text);
 }
 
 // ==================== Flatten Blocks ====================
