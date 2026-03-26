@@ -17,11 +17,16 @@ import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
-function useEffectiveClassIds(node: Node | null | undefined) {
+function useEffectiveClassIds(node: Node | null | undefined, aliasedNode: Node | null | undefined) {
   const hasOwnClasses = !!node?.classes?.length;
-  const aliasedId = (!hasOwnClasses && node?.aliased_id) ? node.aliased_id : null;
-  const { data: aliasedNode } = useBatchedNode(aliasedId);
   return hasOwnClasses ? node!.classes : aliasedNode?.classes;
+}
+
+/** Fetch the aliased (main) node for an alias, or null. */
+function useAliasedNode(node: Node | null | undefined) {
+  const aliasedId = node?.aliased_id ?? null;
+  const { data: aliasedNode } = useBatchedNode(aliasedId);
+  return aliasedNode ?? null;
 }
 
 export interface NodeDisplayData {
@@ -46,16 +51,17 @@ export function useNodeDisplay(
   fallbackText = '',
 ): NodeDisplayData {
   const { data: allClasses } = useClasses();
-  const effectiveClassIds = useEffectiveClassIds(node);
+  const aliasedNode = useAliasedNode(node);
+  const effectiveClassIds = useEffectiveClassIds(node, aliasedNode);
 
   const effectiveIcon = useMemo(
-    () => getEffectiveIcon(node, allClasses, effectiveClassIds),
-    [node, allClasses, effectiveClassIds],
+    () => getEffectiveIcon(node, allClasses, effectiveClassIds, aliasedNode),
+    [node, allClasses, effectiveClassIds, aliasedNode],
   );
 
   const effectiveColor = useMemo(
-    () => getEffectiveColor(node, allClasses, effectiveClassIds),
-    [node, allClasses, effectiveClassIds],
+    () => getEffectiveColor(node, allClasses, effectiveClassIds, aliasedNode),
+    [node, allClasses, effectiveClassIds, aliasedNode],
   );
 
   const displayText = useMemo(() => {

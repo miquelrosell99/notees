@@ -1066,6 +1066,7 @@ export function NodeView({
               <PageHeader
                 page={node}
                 effectiveClasses={effectiveClasses}
+                aliasedNode={aliasedNode}
                 onContextMenu={handleContextMenu}
               />
             </div>
