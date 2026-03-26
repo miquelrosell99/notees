@@ -10,10 +10,12 @@ services:
     container_name: notees-postgres-dev
     restart: unless-stopped
     environment:
-      POSTGRES_USER: notees
-      POSTGRES_PASSWORD: change_me_dev_password
-      POSTGRES_DB: notees
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    # NOTE: fsync/synchronous_commit/full_page_writes are OFF for dev speed.
+    # Data WILL be lost on unclean shutdown. Never use these settings in production.
     command: >
       postgres
       -c fsync=off
@@ -43,16 +45,22 @@ services:
     environment:
       RELOAD: "true"
       HOST: 0.0.0.0
-      PYTHONUNBUFFERED: "1"
-      PYTHONDONTWRITEBYTECODE: "1"
-      DATABASE_URL: postgresql://notees:change_me_dev_password@postgres:5432/notees
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy
 
   # Frontend with Vite dev server
   frontend:
-    image: node:20-alpine
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     container_name: notees-frontend-dev
     restart: unless-stopped
     working_dir: /app
@@ -60,14 +68,12 @@ services:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-      - node_modules:/app/node_modules
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+      - /app/node_modules
     environment:
-      VITE_API_URL: http://localhost:8000
       VITE_API_PROXY_TARGET: http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_dev_data:
-  node_modules:

@@ -140,6 +140,11 @@ if settings.cors_origins:
     logger.info(f"CORS enabled for origins: {settings.cors_origins}")
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 # Exception handler for validation errors to log details
 
 @app.exception_handler(RequestValidationError)
