@@ -11,6 +11,7 @@ import { nodeKeys } from '@/hooks/useNodes';
 import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
 import { ConfirmationModal } from '../core/ConfirmationModal';
 import type { Node } from '@/types';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import './NodeContextMenu.css';
 
 interface TrashNodeContextMenuProps {
@@ -88,7 +89,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       id: 'copy-uuid',
       label: 'Copy UUID',
       onClick: () => {
-        navigator.clipboard.writeText(node.uuid);
+        copyToClipboard(node.uuid);
         onClose();
       }
     },

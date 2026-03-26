@@ -12,6 +12,7 @@
  * Local graph button has been moved to the main header bar.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { listNodes } from '@/api/nodes';
@@ -392,7 +393,7 @@ export function PageHeader({
       if (!hasSelection && page.name) {
         e.preventDefault();
         const pageLink = `[[${page.uuid}]]`;
-        navigator.clipboard.writeText(pageLink);
+        copyToClipboard(pageLink);
       }
     }
     // Prevent Enter from creating newlines - treat as blur instead

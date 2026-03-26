@@ -5,6 +5,7 @@
  * and all its child blocks. Useful for debugging and understanding the internal structure.
  */
 import { Modal } from '../core/Modal';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Node } from '@/types';
@@ -119,7 +120,7 @@ export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
             <span>This Node</span>
             <button 
               className="ast-viewer-copy-btn"
-              onClick={() => navigator.clipboard.writeText(displayNode.name || '')}
+              onClick={() => copyToClipboard(displayNode.name || '')}
               title="Copy to clipboard"
             >
               Copy
