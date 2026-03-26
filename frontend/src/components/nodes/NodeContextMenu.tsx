@@ -11,6 +11,7 @@
  * PageContextMenu / BlockContextMenu are backward-compatible aliases.
  */
 import { useMemo, useCallback, useState, useRef } from 'react';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -352,7 +353,7 @@ export function NodeContextMenu({
           items.push({
             id: 'copy-uuid',
             label: 'Copy UUID',
-            onClick: () => { navigator.clipboard.writeText(node.uuid); onClose(); },
+            onClick: () => { copyToClipboard(node.uuid); onClose(); },
           });
           break;
 
@@ -361,7 +362,7 @@ export function NodeContextMenu({
             id: 'copy-link',
             label: 'Copy link',
             shortcut: '⌘C',
-            onClick: () => { navigator.clipboard.writeText(`[[${node.uuid}]]`); onClose(); },
+            onClick: () => { copyToClipboard(`[[${node.uuid}]]`); onClose(); },
           });
           break;
 
@@ -411,7 +412,7 @@ export function NodeContextMenu({
                   responseType: 'text',
                 })
                 .then((response) => {
-                  navigator.clipboard.writeText(response.data as string);
+                  copyToClipboard(response.data as string);
                 });
               onClose();
             },

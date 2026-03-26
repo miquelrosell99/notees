@@ -9,6 +9,7 @@
  * - Page sections (wrapped in NodeViewSection)
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import { 
   useNodeViews, 
   useNodeViewQuery,
@@ -256,7 +257,7 @@ export function QueryNodeCollection({
   const handleCopyAST = useCallback(() => {
     if (editAST) {
       const astJson = JSON.stringify(editAST, null, 2);
-      navigator.clipboard.writeText(astJson);
+      copyToClipboard(astJson);
     }
   }, [editAST]);
 

@@ -13,6 +13,7 @@ import { useNavigationStore } from '@/stores';
 import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { useState, useCallback, useMemo } from 'react';
@@ -132,7 +133,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         id: 'copy-uuid',
         label: 'Copy UUID',
         onClick: () => {
-          navigator.clipboard.writeText(node.uuid);
+          copyToClipboard(node.uuid);
           closeMenu();
         }
       },
