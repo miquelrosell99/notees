@@ -34,8 +34,6 @@ services:
       dockerfile: Dockerfile.dev
     container_name: notees-backend-dev
     restart: unless-stopped
-    ports:
-      - "8001:8000"
     volumes:
       - ./app:/app/app
       - ./data:/app/data
