@@ -35,7 +35,7 @@ services:
     container_name: notees-backend-dev
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./app:/app/app
       - ./data:/app/data
