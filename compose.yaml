@@ -8,20 +8,24 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: notees-postgres-dev
+    restart: unless-stopped
     environment:
       POSTGRES_USER: notees
       POSTGRES_PASSWORD: change_me_dev_password
       POSTGRES_DB: notees
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U notees -d notees"]
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
 
   # Backend API with hot reload
   backend:
@@ -29,40 +33,42 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: notees-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
     volumes:
-      # Mount source code for hot reload
-      - ./app:/app/app:ro
-      # Persist data (for assets)
+      - ./app:/app/app
       - ./data:/app/data
       - ./logs:/app/logs
     env_file:
       - .env
     environment:
-      - RELOAD=true
-      - HOST=0.0.0.0
-      - DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees
+      RELOAD: "true"
+      HOST: 0.0.0.0
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      DATABASE_URL: postgresql://notees:change_me_dev_password@postgres:5432/notees
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
 
   # Frontend with Vite dev server
   frontend:
     image: node:20-alpine
     container_name: notees-frontend-dev
+    restart: unless-stopped
     working_dir: /app
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-      - /app/node_modules  # Anonymous volume for node_modules
-    command: sh -c "rm -f package-lock.json && npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
+      - node_modules:/app/node_modules
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
     environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_API_PROXY_TARGET=http://backend:8000
+      VITE_API_URL: http://localhost:8000
+      VITE_API_PROXY_TARGET: http://backend:8000
     depends_on:
       - backend
-    restart: unless-stopped
 
 volumes:
   postgres_dev_data:
