@@ -72,3 +72,4 @@ services:
 
 volumes:
   postgres_dev_data:
+  node_modules:
