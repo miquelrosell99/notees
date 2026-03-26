@@ -32,6 +32,8 @@ interface PageHeaderProps {
   page: Node;
   /** Effective class IDs (may include inherited classes from aliased node) */
   effectiveClasses?: number[];
+  /** The aliased (main) node, if this page is an alias */
+  aliasedNode?: Node | null;
   /** Callback when right-clicking the header (for context menu) */
   onContextMenu?: (e: React.MouseEvent) => void;
   /** Custom handler for name changes (overrides default node update) */
@@ -43,6 +45,7 @@ interface PageHeaderProps {
 export function PageHeader({ 
   page, 
   effectiveClasses,
+  aliasedNode,
   onContextMenu,
   onNameChange,
   onIconChange,
@@ -97,7 +100,7 @@ export function PageHeader({
   const { data: allClasses } = useClasses();
   
   // Get effective icon (page's icon or first class's icon, using inherited classes for aliases)
-  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses, effectiveClasses), [page, allClasses, effectiveClasses]);
+  const effectiveIcon = useMemo(() => getEffectiveIcon(page, allClasses, effectiveClasses, aliasedNode), [page, allClasses, effectiveClasses, aliasedNode]);
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);

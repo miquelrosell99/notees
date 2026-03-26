@@ -59,18 +59,21 @@ function resolveClassColor(classNode: Node, allClasses: Node[]): string | null |
  * Priority:
  * 1. Node's own icon (if set) - overrides everything
  * 2. Node's own Extends chain (if the node is a class)
- * 3. First assigned class's icon (from effectiveClassIds or node.classes)
- * 4. undefined (fallback to default icon based on node type)
+ * 3. Aliased node's effective icon (for alias nodes)
+ * 4. First assigned class's icon (from effectiveClassIds or node.classes)
+ * 5. undefined (fallback to default icon based on node type)
  * 
  * @param node - The node to get the icon for
  * @param allClasses - All available class nodes (to resolve class icons)
  * @param effectiveClassIds - Override class IDs (e.g. inherited from aliased node)
+ * @param aliasedNode - The aliased (main) node, if this node is an alias
  * @returns The effective icon string or undefined
  */
 export function getEffectiveIcon(
   node: Node | null | undefined,
   allClasses?: Node[] | null,
   effectiveClassIds?: number[],
+  aliasedNode?: Node | null,
 ): string | null | undefined {
   if (!node) return undefined;
 
@@ -110,6 +113,12 @@ export function getEffectiveIcon(
   if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
     const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
     if (extendsIcon) return extendsIcon;
+  }
+
+  // For aliases, resolve from the aliased (main) node
+  if (aliasedNode) {
+    const aliasedIcon = getEffectiveIcon(aliasedNode, allClasses);
+    if (aliasedIcon) return aliasedIcon;
   }
 
   // If the node has classes and we have class data, try to inherit icon from first class with an icon
@@ -195,13 +204,15 @@ export function getEffectiveIconFromClasses(
  * Priority:
  * 1. Node's own color (if set) - overrides everything
  * 2. Node's own Extends chain (if the node is a class)
- * 3. First assigned class's color (including Extends chain inheritance)
- * 4. undefined (no color)
+ * 3. Aliased node's effective color (for alias nodes)
+ * 4. First assigned class's color (including Extends chain inheritance)
+ * 5. undefined (no color)
  */
 export function getEffectiveColor(
   node: Node | null | undefined,
   allClasses?: Node[] | null,
   effectiveClassIds?: number[],
+  aliasedNode?: Node | null,
 ): string | null | undefined {
   if (!node) return undefined;
   if (node.color) return node.color;
@@ -210,6 +221,12 @@ export function getEffectiveColor(
   if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
     const extendsColor = resolveFromExtendsChain(node, allClasses, n => n.color);
     if (extendsColor) return extendsColor;
+  }
+
+  // For aliases, resolve from the aliased (main) node
+  if (aliasedNode) {
+    const aliasedColor = getEffectiveColor(aliasedNode, allClasses);
+    if (aliasedColor) return aliasedColor;
   }
 
   const classIds = effectiveClassIds ?? node.classes;
