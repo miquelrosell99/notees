@@ -7,6 +7,10 @@ A self-hosted, privacy-first note-taking application with bidirectional linking 
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178c6.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 
+## AI-Assisted Development
+
+This project was developed with the assistance of AI tools (GitHub Copilot). AI was used throughout the development process to help design architecture, write code, and solve problems.
+
 ## Features
 
 - **Bidirectional Linking** — Create connections between notes with `[[wiki-style]]` links. Backlinks are tracked automatically.
