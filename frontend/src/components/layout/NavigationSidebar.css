@@ -85,19 +85,6 @@
 }
 
 /* ==================== Navigation Items ==================== */
-/* Sidebar nav items use Button component with ghost variant */
-.sidebar-nav-item {
-  font-size: var(--font-size-base);
-  height: 30px;
-  border-radius: var(--shape-medium);
-  padding: 0 var(--spacing-2);
-  gap: var(--spacing-2);
-}
-
-.sidebar-nav-item .btn__text {
-  text-align: left;
-  justify-self: start;
-}
 
 .sidebar-item-icon {
   display: flex;

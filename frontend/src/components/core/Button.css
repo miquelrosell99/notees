@@ -89,8 +89,8 @@
 
 .btn--icon-text .btn__text {
   grid-column: 2;
-  text-align: center;
-  justify-self: center;
+  text-align: left;
+  justify-self: start;
 }
 
 .btn--icon-only.btn--xs {

@@ -455,9 +455,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
         <div className="sidebar-content">
           <nav className="sidebar-nav">
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiMagnify}
               fullWidth
               onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
@@ -466,9 +465,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiNotebookOutline}
               fullWidth
               active={mainViewType === 'journals'}
@@ -478,9 +476,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiBookOpenPageVariant}
               fullWidth
               active={mainViewType === 'all-pages'}
@@ -490,9 +487,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiGraphOutline}
               fullWidth
               active={mainViewType === 'graph'}
@@ -502,9 +498,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiTerrain}
               fullWidth
               active={mainViewType === 'terrain'}
@@ -514,9 +509,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             </Button>
             
             <Button 
-              className="sidebar-nav-item"
               variant="ghost"
-              size="sm"
+              size="md"
               icon={mdiTimelineClockOutline}
               fullWidth
               active={mainViewType === 'timeline'}
@@ -601,9 +595,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {/* Footer - Archived, Trash, Settings & Account */}
         <div className="sidebar-footer">
           <Button 
-            className="sidebar-nav-item"
             variant="ghost"
-            size="sm"
+            size="md"
             icon={mdiArchive}
             fullWidth
             onClick={() => setMainViewType('archived')}
@@ -613,9 +606,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             Archived
           </Button>
           <Button 
-            className="sidebar-nav-item"
             variant="ghost"
-            size="sm"
+            size="md"
             icon={mdiTrashCanOutline}
             fullWidth
             onClick={() => setMainViewType('trash')}
@@ -626,9 +618,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
             Trash
           </Button>
           <Button 
-            className="sidebar-nav-item"
             variant="ghost"
-            size="sm"
+            size="md"
             icon={mdiCog}
             fullWidth
             onClick={() => setIsSettingsModalOpen(true)}
