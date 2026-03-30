@@ -94,6 +94,10 @@
   padding: var(--spacing-2) var(--spacing-3);
 }
 
+.property-row:has(.text-property-block) .property-row__value {
+  padding-left: 0;
+}
+
 /* --- Normalize child components to flush-left alignment --- */
 
 /* All buttons inside value cell: strip horizontal padding (cell handles it) */
