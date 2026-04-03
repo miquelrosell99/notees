@@ -43,6 +43,8 @@ export function Layout() {
   const currentNodeId = useNavigationStore(s => s.currentNodeId);
   const mainViewType = useNavigationStore(s => s.mainViewType);
   const viewMode = useNavigationStore(s => s.viewMode);
+  const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
+  const toggleRightSidebar = useNavigationStore(s => s.toggleRightSidebar);
   const isCommandPaletteOpen = useModalStore(s => s.isCommandPaletteOpen);
   const setCommandPaletteOpen = useModalStore(s => s.setCommandPaletteOpen);
   const isImportDataModalOpen = useModalStore(s => s.isImportDataModalOpen);
@@ -79,6 +81,64 @@ export function Layout() {
   const [rightSidebarWidth, setRightSidebarWidth] = useState<number | null>(null); // null = use CSS default
   const isResizingLeftRef = useRef(false);
   const isResizingRightRef = useRef(false);
+
+  // ── Mobile: Obsidian-style off-canvas overlay drawers ──────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+
+  // Update isMobile when viewport changes
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  // Close left drawer when the user navigates to a node on mobile (mirrors Obsidian behaviour)
+  const prevNodeIdRef = useRef(currentNodeId);
+  useEffect(() => {
+    if (isMobile && currentNodeId !== prevNodeIdRef.current && !isSidebarCollapsed) {
+      toggleSidebar();
+    }
+    prevNodeIdRef.current = currentNodeId;
+  }, [currentNodeId, isMobile, isSidebarCollapsed, toggleSidebar]);
+
+  // Right-edge swipe to open the right sidebar on mobile.
+  // (Left-edge swipe is skipped: Android system gestures own that edge.)
+  useEffect(() => {
+    if (!isMobile) return;
+    let startX = 0;
+    let startY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const dx = endX - startX;
+      const dy = endY - startY;
+      // Must be a mostly-horizontal swipe
+      if (Math.abs(dy) > Math.abs(dx) * 0.8) return;
+      // Swipe left from the right edge → open right sidebar
+      if (startX > window.innerWidth - 28 && dx < -50 && !rightSidebarOpen) {
+        toggleRightSidebar();
+      }
+      // Swipe right when right sidebar is open → close it
+      if (rightSidebarOpen && dx > 80 && startX > window.innerWidth - 320) {
+        toggleRightSidebar();
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile, rightSidebarOpen, toggleRightSidebar]);
+  // ───────────────────────────────────────────────────────────────────────────
   
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
@@ -259,6 +319,18 @@ export function Layout() {
           </div>
         </div>
         
+        {/* Mobile: scrim backdrop that closes whichever drawer is open */}
+        {isMobile && (!isSidebarCollapsed || rightSidebarOpen) && (
+          <div
+            className="mobile-drawer-backdrop"
+            onClick={() => {
+              if (!isSidebarCollapsed) toggleSidebar();
+              if (rightSidebarOpen) toggleRightSidebar();
+            }}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Command Palette Modal (Ctrl+K) */}
         <CommandPalette
           isOpen={isCommandPaletteOpen}
