@@ -38,6 +38,7 @@ interface MobileLayoutProps {
 export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
+  const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const drawerOpen = !isSidebarCollapsed;
 
   // Register window.noteesBridge so Android can control the web app
@@ -129,6 +130,19 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
           onClick={toggleSidebar}
           aria-hidden="true"
         />
+      )}
+
+      {/* ── FAB: quick note ── */}
+      {!drawerOpen && (
+        <button
+          className="mobile-fab"
+          onClick={() => setMainViewType('journals')}
+          aria-label="Quick note"
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+          </svg>
+        </button>
       )}
     </div>
   );

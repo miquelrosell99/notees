@@ -161,9 +161,12 @@
     padding: var(--spacing-2) var(--spacing-3);
   }
 
-  /* Hide navigationarrows, undo, redo and their separators */
+  /* Hide navigation arrows, undo, redo, scratchpad, and their separators */
   .nav-arrows,
-  .toolbar-separator {
+  .toolbar-separator,
+  .toolbar-btn[aria-label="Undo"],
+  .toolbar-btn[aria-label="Redo"],
+  .toolbar-btn[aria-label="Open scratchpad"] {
     display: none;
   }
 
