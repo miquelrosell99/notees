@@ -26,6 +26,7 @@ interface AndroidNativeApi {
   isDrawerOpen(): boolean;
   shareText(text: string): void;
   openUrl(url: string): void;
+  showServerSettings(): void;
 }
 
 /** Methods the Android layer calls into the web app (window.noteesBridge). */

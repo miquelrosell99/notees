@@ -7,12 +7,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore, useModalStore } from '@/stores';
-import { mdiCog, mdiLogout, mdiDatabaseOutline } from '@mdi/js';
+import { mdiCog, mdiLogout, mdiDatabaseOutline, mdiServerNetwork } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Card } from '../core/Card';
 import { Button } from '../core/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { isAndroidApp } from '@/hooks/useAndroidBridge';
 import './AccountMenu.css';
 
 interface AccountMenuProps {
@@ -61,6 +62,11 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
     logout();
   };
 
+  const handleChangeServer = () => {
+    setIsOpen(false);
+    window.Android?.showServerSettings();
+  };
+
   const initial = user?.username?.charAt(0).toUpperCase() || '?';
 
   return (
@@ -106,6 +112,15 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
             <Icon path={mdiLogout} size={0.7} />
             <span>Log out</span>
           </button>
+          {isAndroidApp() && (
+            <>
+              <div className="account-menu__divider" />
+              <button className="account-menu__item" onClick={handleChangeServer}>
+                <Icon path={mdiServerNetwork} size={0.7} />
+                <span>Change server</span>
+              </button>
+            </>
+          )}
         </Card>,
         document.body
       )}
