@@ -1,0 +1,98 @@
+/**
+ * MobileLayout Styles
+ *
+ * Design goals:
+ *  - Full-viewport, no sidebars in the normal flow
+ *  - Left sidebar as an off-canvas drawer that slides over the content
+ *  - Content fills 100% width with generous touch padding
+ *  - Safe-area insets honoured for notch / home-bar devices
+ */
+
+/* ── Canvas ──────────────────────────────────────────────────── */
+.mobile-canvas {
+  display: flex;
+  flex-direction: column;
+  /* Use dvh so the layout doesn't jump when the browser chrome shows/hides */
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--color-background);
+  /* Push content below the status bar on Android/iOS */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* ── Top bar ─────────────────────────────────────────────────── */
+/* TopBar already has its own height; just make it shrink-proof */
+.mobile-canvas > .top-bar-card {
+  flex-shrink: 0;
+}
+
+/* ── Main content ────────────────────────────────────────────── */
+.mobile-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Reserve space for the Android nav bar */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Cards inside the content area: full-bleed, no border-radius */
+.mobile-content .card {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ── Off-canvas drawer ───────────────────────────────────────── */
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* Full height, including under status bar */
+  height: 100dvh;
+  width: min(80vw, 300px);
+  z-index: var(--z-modal);
+  /* Slide off-screen by default */
+  transform: translateX(-100%);
+  transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
+  /* Safe area on the left for devices with a curved left edge */
+  padding-left: env(safe-area-inset-left);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-drawer--open {
+  transform: translateX(0);
+}
+
+/* Force the inner Sidebar to fill the drawer completely */
+.mobile-drawer .sidebar {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  visibility: visible !important;
+  flex: 1;
+  /* The drawer itself handles the transition — kill inner animation */
+  transition: none !important;
+  /* Provide a background so it isn't transparent */
+  background: var(--color-surface);
+  border-radius: 0 var(--shape-large) var(--shape-large) 0;
+  box-shadow: var(--elevation-3);
+}
+
+/* ── Scrim backdrop ──────────────────────────────────────────── */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: var(--z-modal-backdrop);
+  animation: mobile-backdrop-in var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+@keyframes mobile-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

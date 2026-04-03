@@ -14,13 +14,14 @@
  */
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore } from '@/stores';
-import { useTodayNote, RouterSync, useCreateNode, useNode } from '@/hooks';
+import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
+import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '../sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
@@ -31,9 +32,7 @@ import { ExportPageModal } from '../workspace/ExportPageModal';
 import { RebuildLinksModal } from '../maintenance/RebuildLinksModal';
 import { FixRawLinksModal } from '../maintenance/FixRawLinksModal';
 import { MergePagesModal } from './MergePagesModal';
-import { mdiClose } from '@mdi/js';
 import { Card } from '../core/Card';
-import { Button } from '../core/Button';
 import './Layout.css';
 
 export function Layout() {
@@ -43,7 +42,6 @@ export function Layout() {
   const currentNodeId = useNavigationStore(s => s.currentNodeId);
   const mainViewType = useNavigationStore(s => s.mainViewType);
   const viewMode = useNavigationStore(s => s.viewMode);
-  const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
   const toggleRightSidebar = useNavigationStore(s => s.toggleRightSidebar);
   const isCommandPaletteOpen = useModalStore(s => s.isCommandPaletteOpen);
   const setCommandPaletteOpen = useModalStore(s => s.setCommandPaletteOpen);
@@ -76,70 +74,15 @@ export function Layout() {
   // useSettingsQuery() is used here only so components downstream can read cached data.
   useSettingsQuery();
   
-  // Sidebar resize state
-  const [leftSidebarWidth, setLeftSidebarWidth] = useState<number | null>(null); // null = use CSS default
-  const [rightSidebarWidth, setRightSidebarWidth] = useState<number | null>(null); // null = use CSS default
+  // Responsive: true on phones/small tablets
+  const isMobile = useIsMobile();
+
+  // Sidebar resize state (desktop only)
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState<number | null>(null);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number | null>(null);
   const isResizingLeftRef = useRef(false);
   const isResizingRightRef = useRef(false);
 
-  // ── Mobile: Obsidian-style off-canvas overlay drawers ──────────────────────
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
-
-  // Update isMobile when viewport changes
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 768px)');
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
-
-  // Close left drawer when the user navigates to a node on mobile (mirrors Obsidian behaviour)
-  const prevNodeIdRef = useRef(currentNodeId);
-  useEffect(() => {
-    if (isMobile && currentNodeId !== prevNodeIdRef.current && !isSidebarCollapsed) {
-      toggleSidebar();
-    }
-    prevNodeIdRef.current = currentNodeId;
-  }, [currentNodeId, isMobile, isSidebarCollapsed, toggleSidebar]);
-
-  // Right-edge swipe to open the right sidebar on mobile.
-  // (Left-edge swipe is skipped: Android system gestures own that edge.)
-  useEffect(() => {
-    if (!isMobile) return;
-    let startX = 0;
-    let startY = 0;
-
-    const onTouchStart = (e: TouchEvent) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      const endX = e.changedTouches[0].clientX;
-      const endY = e.changedTouches[0].clientY;
-      const dx = endX - startX;
-      const dy = endY - startY;
-      // Must be a mostly-horizontal swipe
-      if (Math.abs(dy) > Math.abs(dx) * 0.8) return;
-      // Swipe left from the right edge → open right sidebar
-      if (startX > window.innerWidth - 28 && dx < -50 && !rightSidebarOpen) {
-        toggleRightSidebar();
-      }
-      // Swipe right when right sidebar is open → close it
-      if (rightSidebarOpen && dx > 80 && startX > window.innerWidth - 320) {
-        toggleRightSidebar();
-      }
-    };
-
-    document.addEventListener('touchstart', onTouchStart, { passive: true });
-    document.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => {
-      document.removeEventListener('touchstart', onTouchStart);
-      document.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [isMobile, rightSidebarOpen, toggleRightSidebar]);
-  // ───────────────────────────────────────────────────────────────────────────
-  
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
   
@@ -275,61 +218,48 @@ export function Layout() {
 
   return (
     <RouterSync>
-      <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}`}>
-        {/* Top Bar - part of canvas */}
-        <TopBar />
-        
-        {/* Main content area with floating containers */}
-        <div className="app-workspace">
-          {/* Left Sidebar - part of canvas, completely hidden when collapsed */}
-          <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
-            <Sidebar collapsed={isSidebarCollapsed} />
-            {/* Left sidebar resize handle */}
-            {!isSidebarCollapsed && (
-              <div 
-                className="sidebar-resize-handle sidebar-resize-handle--left"
-                onMouseDown={handleLeftSidebarResizeStart}
-              />
-            )}
-          </div>
-          
-          {/* Floating Main Container */}
-          <Card className="main-container" padding={false} elevation="medium">
-            <MainContent />
-          </Card>
-          
-          {/* Floating Right Sidebar - uses Card component with panel of cards */}
-          <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle}>
-            {/* Right sidebar resize handle */}
-            {showSidebar && (
-              <div 
-                className="sidebar-resize-handle sidebar-resize-handle--right"
-                onMouseDown={handleRightSidebarResizeStart}
-              />
-            )}
-            <Card 
-              className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`} 
-              padding={false} 
-              elevation="medium"
-            >
-              <div className="right-sidebar-content">
-                <RightSidebarCards />
+      <>
+        {/* ── Chrome: MobileLayout or desktop three-column ── */}
+        {isMobile ? (
+          <MobileLayout currentNodeId={currentNodeId} />
+        ) : (
+          <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}`}>
+            <TopBar />
+            <div className="app-workspace">
+              <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
+                <Sidebar collapsed={isSidebarCollapsed} />
+                {!isSidebarCollapsed && (
+                  <div
+                    className="sidebar-resize-handle sidebar-resize-handle--left"
+                    onMouseDown={handleLeftSidebarResizeStart}
+                  />
+                )}
               </div>
-            </Card>
+              <Card className="main-container" padding={false} elevation="medium">
+                <MainContent />
+              </Card>
+              <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle}>
+                {showSidebar && (
+                  <div
+                    className="sidebar-resize-handle sidebar-resize-handle--right"
+                    onMouseDown={handleRightSidebarResizeStart}
+                  />
+                )}
+                <Card
+                  className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`}
+                  padding={false}
+                  elevation="medium"
+                >
+                  <div className="right-sidebar-content">
+                    <RightSidebarCards />
+                  </div>
+                </Card>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        {/* Mobile: scrim backdrop that closes whichever drawer is open */}
-        {isMobile && (!isSidebarCollapsed || rightSidebarOpen) && (
-          <div
-            className="mobile-drawer-backdrop"
-            onClick={() => {
-              if (!isSidebarCollapsed) toggleSidebar();
-              if (rightSidebarOpen) toggleRightSidebar();
-            }}
-            aria-hidden="true"
-          />
         )}
+
+        {/* ── Modals (always present, portal-rendered) ── */}
 
         {/* Command Palette Modal (Ctrl+K) */}
         <CommandPalette
@@ -410,7 +340,7 @@ export function Layout() {
           isOpen={isMergePagesModalOpen}
           onClose={() => setMergePagesModalOpen(false)}
         />
-      </div>
+      </>
     </RouterSync>
   );
 }

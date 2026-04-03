@@ -149,3 +149,33 @@
   background: var(--color-outline-variant);
   margin: 0 var(--spacing-1);
 }
+
+/* ==================== Mobile TopBar ==================== */
+/*
+ * On mobile, hide desktop-only controls (back/forward, undo/redo,
+ * separators, right-sidebar toggle, scratchpad) to leave only the
+ * essentials: hamburger menu + app title + calendar + account.
+ */
+@media (max-width: 768px) {
+  .top-bar {
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  /* Hide navigationarrows, undo, redo and their separators */
+  .nav-arrows,
+  .toolbar-separator {
+    display: none;
+  }
+
+  /* The right sidebar dock button is useless on mobile (no right sidebar) */
+  .toolbar-btn[aria-label="Toggle right sidebar"] {
+    display: none;
+  }
+
+  /* Shrink the account avatar slightly */
+  .account-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+}
