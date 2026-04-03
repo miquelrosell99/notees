@@ -35,6 +35,8 @@ interface NoteesWebBridge {
   onShareReceived(text: string): void;
   /** Android received a deep link — navigate to that path. */
   onDeepLink(path: string): void;
+  /** Android wants to open the quick-note view. */
+  openQuickNote(): void;
   /** Android wants to open the sidebar drawer. */
   openDrawer(): void;
   /** Android wants to close the sidebar drawer. */
@@ -80,13 +82,37 @@ export function useAndroidBridge() {
         // Route to the path — parse node id from /node/42 etc.
         const nodeMatch = path.match(/^\/node\/(\d+)/);
         if (nodeMatch) {
-          openNode(parseInt(nodeMatch[1], 10));
+          const id = parseInt(nodeMatch[1], 10);
+          if (Number.isFinite(id)) openNode(id);
           return;
         }
-        // Fall back to view routing
-        if (path.startsWith('/journal')) setMainViewType('journals');
-        else if (path.startsWith('/graph')) setMainViewType('graph');
-        else if (path.startsWith('/pages')) setMainViewType('all-pages');
+
+        // Map known view routes
+        const viewRoutes: Record<string, Parameters<typeof setMainViewType>[0]> = {
+          '/journal': 'journals',
+          '/graph': 'graph',
+          '/pages': 'all-pages',
+          '/terrain': 'terrain',
+          '/timeline': 'timeline',
+          '/archived': 'archived',
+          '/trash': 'trash',
+          '/assets': 'assets',
+        };
+        for (const [prefix, viewType] of Object.entries(viewRoutes)) {
+          if (path.startsWith(prefix)) {
+            setMainViewType(viewType);
+            return;
+          }
+        }
+
+        // Unknown path — fall back to journals
+        console.warn('[noteesBridge] unhandled deep link:', path);
+        setMainViewType('journals');
+      },
+
+      openQuickNote() {
+        // Navigate to journals view — the daily note acts as quick capture
+        setMainViewType('journals');
       },
 
       openDrawer() {

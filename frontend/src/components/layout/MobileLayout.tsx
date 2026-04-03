@@ -25,6 +25,11 @@ import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import './MobileLayout.css';
 
+/** Touch gesture thresholds (px) */
+const EDGE_ZONE_WIDTH = 28;
+const SWIPE_MIN_DISTANCE = 60;
+const VERTICAL_RATIO = 0.7;
+
 interface MobileLayoutProps {
   /** Called when the user navigates to a new node (for auto-close of drawer). */
   currentNodeId: number | null;
@@ -66,14 +71,14 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
     const onTouchEnd = (e: TouchEvent) => {
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dy) > Math.abs(dx) * 0.7) return; // mostly vertical – ignore
+      if (Math.abs(dy) > Math.abs(dx) * VERTICAL_RATIO) return; // mostly vertical
 
       // Swipe right from left edge → open
-      if (!drawerOpen && startX < 28 && dx > 60) {
+      if (!drawerOpen && startX < EDGE_ZONE_WIDTH && dx > SWIPE_MIN_DISTANCE) {
         toggleSidebar();
       }
       // Swipe left when open → close
-      if (drawerOpen && dx < -60) {
+      if (drawerOpen && dx < -SWIPE_MIN_DISTANCE) {
         toggleSidebar();
       }
     };
@@ -84,6 +89,19 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
       document.removeEventListener('touchstart', onTouchStart);
       document.removeEventListener('touchend', onTouchEnd);
     };
+  }, [drawerOpen, toggleSidebar]);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen, toggleSidebar]);
 
   return (
