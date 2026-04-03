@@ -112,3 +112,29 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ── Floating action button ──────────────────────────────────── */
+.mobile-fab {
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--elevation-3);
+  z-index: var(--z-popover);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.mobile-fab:active {
+  transform: scale(0.92);
+  box-shadow: var(--elevation-1);
+}
