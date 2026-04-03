@@ -14,7 +14,7 @@
   flex-direction: column;
   /* Use dvh so the layout doesn't jump when the browser chrome shows/hides */
   height: 100dvh;
-  width: 100vw;
+  width: 100%;
   overflow: hidden;
   background: var(--color-background);
   /* Push content below the status bar on Android/iOS */
@@ -62,25 +62,41 @@
   flex-direction: column;
 }
 
+/* In landscape, cap the drawer to a reasonable width */
+@media (orientation: landscape) {
+  .mobile-drawer {
+    width: min(45vw, 320px);
+  }
+}
+
 .mobile-drawer--open {
   transform: translateX(0);
 }
 
-/* Force the inner Sidebar to fill the drawer completely */
+/*
+ * The desktop Sidebar has its own width / opacity / transform / visibility
+ * styles that conflict with the drawer overlay.  We override them here
+ * using .mobile-drawer specificity rather than !important where possible.
+ */
 .mobile-drawer .sidebar {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  opacity: 1 !important;
-  transform: none !important;
-  visibility: visible !important;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   flex: 1;
   /* The drawer itself handles the transition — kill inner animation */
-  transition: none !important;
+  transition: none;
   /* Provide a background so it isn't transparent */
   background: var(--color-surface);
   border-radius: 0 var(--shape-large) var(--shape-large) 0;
   box-shadow: var(--elevation-3);
+}
+
+/* Override desktop collapse styles that use visibility/opacity/transform */
+.mobile-drawer .sidebar,
+.mobile-drawer--open .sidebar {
+  opacity: 1 !important;
+  transform: none !important;
+  visibility: visible !important;
 }
 
 /* ── Scrim backdrop ──────────────────────────────────────────── */
