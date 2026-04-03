@@ -19,6 +19,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { useNavigationStore } from '@/stores';
+import { useAndroidBridge, reportDrawerStateToAndroid } from '@/hooks';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -33,6 +34,14 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
   const drawerOpen = !isSidebarCollapsed;
+
+  // Register window.noteesBridge so Android can control the web app
+  useAndroidBridge();
+
+  // Keep the Android native back-button handler in sync with drawer state
+  useEffect(() => {
+    reportDrawerStateToAndroid(drawerOpen);
+  }, [drawerOpen]);
 
   // Auto-close drawer when user taps a note — mirrors Obsidian
   const prevNodeIdRef = useRef(currentNodeId);
