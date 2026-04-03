@@ -41,6 +41,11 @@ svg.mdi-icon,
   width: 100vw;
   overflow: hidden;
   background: var(--color-background);
+  /* Safe-area for notch/home-bar devices (desktop no-ops to 0) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 .app-workspace {
@@ -49,102 +54,4 @@ svg.mdi-icon,
   overflow: hidden;
   padding: var(--container-gap);
   gap: var(--container-gap);
-}
-
-/* ==================== Responsive Breakpoints ==================== */
-
-/* Tablet/mobile: Obsidian-style off-canvas overlay drawers */
-@media (max-width: 768px) {
-  .app-workspace {
-    padding: 0;
-    gap: 0;
-  }
-
-  .app-workspace > .card {
-    border-radius: 0;
-  }
-
-  /* Left sidebar: fixed overlay drawer from the left */
-  .sidebar-wrapper:not(.sidebar-wrapper--right) {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100dvh;
-    width: 280px;
-    max-width: 85vw;
-    z-index: var(--z-modal);
-    /* Slide off-screen by default */
-    transform: translateX(-100%);
-    transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--elevation-5);
-  }
-
-  /* Reveal left drawer when sidebar is open (no collapsed class) */
-  .sidebar-wrapper:not(.sidebar-wrapper--right):not(.sidebar-wrapper--collapsed) {
-    transform: translateX(0);
-  }
-
-  /* Force the inner sidebar to fill the drawer and ignore its own collapse animation */
-  .sidebar-wrapper:not(.sidebar-wrapper--right) .sidebar {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-    visibility: visible !important;
-    flex: 1;
-    transition: none !important;
-  }
-
-  /* Right sidebar: fixed overlay drawer from the right */
-  .sidebar-wrapper--right {
-    position: fixed;
-    right: 0;
-    top: 0;
-    height: 100dvh;
-    width: 300px;
-    max-width: 90vw;
-    z-index: var(--z-modal);
-    /* Slide off-screen by default */
-    transform: translateX(100%);
-    transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--elevation-5);
-  }
-
-  /* Reveal right drawer when open (no collapsed class) */
-  .sidebar-wrapper--right:not(.sidebar-wrapper--collapsed) {
-    transform: translateX(0);
-  }
-
-  /* Force the inner right sidebar card to fill the drawer */
-  .sidebar-wrapper--right .right-container,
-  .sidebar-wrapper--right .card {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-    visibility: visible !important;
-    flex: 1;
-    transition: none !important;
-  }
-}
-
-/* ==================== Mobile Drawer Backdrop ==================== */
-.mobile-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: var(--z-modal-backdrop);
-  /* Fade in/out */
-  animation: backdrop-fade-in var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-@keyframes backdrop-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
