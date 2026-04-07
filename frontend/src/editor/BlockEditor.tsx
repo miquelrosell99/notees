@@ -26,6 +26,7 @@ import { EDITOR_NODES, serializeContentAST } from './editorConfig';
 import { BlockPlugin } from './plugins/BlockPlugin';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
+import { TouchIndentPlugin } from './plugins/TouchIndentPlugin';
 import { BlockDragSelectionPlugin } from './plugins/BlockDragSelectionPlugin';
 import { KeyboardSelectionPlugin } from './plugins/KeyboardSelectionPlugin';
 import { SelectionPlugin } from './plugins/SelectionPlugin';
@@ -646,6 +647,13 @@ export function BlockEditor({
         {/* Drag & drop */}
         <DragDropPlugin
           editorId={editorId}
+          readOnly={readOnly}
+        />
+
+        {/* Touch: swipe bullet left/right to outdent/indent (mobile) */}
+        <TouchIndentPlugin
+          onIndent={handleIndent}
+          onOutdent={handleOutdent}
           readOnly={readOnly}
         />
 
