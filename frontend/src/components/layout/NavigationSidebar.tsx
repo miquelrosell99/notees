@@ -197,6 +197,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setMainViewType,
     openNode,
     currentNodeId,
+    isSidebarCollapsed,
+    toggleSidebar,
   } = useNavigationStore();
   
   // Use individual selectors for data to ensure proper reactivity
@@ -390,10 +392,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
     useFavoritesStore.getState().removeFavorite(nodeId);
   }, []);
   
+  // Close the sidebar drawer on mobile (no-op on desktop where sidebar is always visible)
+  const closeMobileDrawer = useCallback(() => {
+    if (!isSidebarCollapsed) toggleSidebar();
+  }, [isSidebarCollapsed, toggleSidebar]);
+
   // Handle navigating to a page
   const handleNavigateToPage = useCallback((nodeId: number) => {
     openNode(nodeId);
-  }, [openNode]);
+    closeMobileDrawer();
+  }, [openNode, closeMobileDrawer]);
   
   // Handle context menu for favorites
   const handleFavoriteContextMenu = useCallback((nodeId: number, e: React.MouseEvent) => {
@@ -459,7 +467,10 @@ export function Sidebar({ collapsed }: SidebarProps) {
               size="md"
               icon={mdiMagnify}
               fullWidth
-              onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
+              onClick={() => {
+                useModalStore.getState().setCommandPaletteOpen(true);
+                closeMobileDrawer();
+              }}
             >
               Search
             </Button>
@@ -470,7 +481,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               icon={mdiNotebookOutline}
               fullWidth
               active={mainViewType === 'journals'}
-              onClick={() => setMainViewType('journals')}
+              onClick={() => { setMainViewType('journals'); closeMobileDrawer(); }}
             >
               Journal
             </Button>
@@ -481,7 +492,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               icon={mdiBookOpenPageVariant}
               fullWidth
               active={mainViewType === 'all-pages'}
-              onClick={() => setMainViewType('all-pages')}
+              onClick={() => { setMainViewType('all-pages'); closeMobileDrawer(); }}
             >
               All Pages
             </Button>
@@ -492,7 +503,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               icon={mdiGraphOutline}
               fullWidth
               active={mainViewType === 'graph'}
-              onClick={() => setMainViewType('graph')}
+              onClick={() => { setMainViewType('graph'); closeMobileDrawer(); }}
             >
               Graph View
             </Button>
@@ -503,7 +514,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               icon={mdiTerrain}
               fullWidth
               active={mainViewType === 'terrain'}
-              onClick={() => setMainViewType('terrain')}
+              onClick={() => { setMainViewType('terrain'); closeMobileDrawer(); }}
             >
               Terrain View
             </Button>
@@ -514,7 +525,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
               icon={mdiTimelineClockOutline}
               fullWidth
               active={mainViewType === 'timeline'}
-              onClick={() => setMainViewType('timeline')}
+              onClick={() => { setMainViewType('timeline'); closeMobileDrawer(); }}
             >
               Timeline View
             </Button>
@@ -599,7 +610,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             size="md"
             icon={mdiArchive}
             fullWidth
-            onClick={() => setMainViewType('archived')}
+            onClick={() => { setMainViewType('archived'); closeMobileDrawer(); }}
             active={mainViewType === 'archived'}
             title="Archived"
           >
@@ -610,7 +621,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             size="md"
             icon={mdiTrashCanOutline}
             fullWidth
-            onClick={() => setMainViewType('trash')}
+            onClick={() => { setMainViewType('trash'); closeMobileDrawer(); }}
             onContextMenu={handleTrashContextMenu}
             active={mainViewType === 'trash'}
             title="Trash"
@@ -622,7 +633,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             size="md"
             icon={mdiCog}
             fullWidth
-            onClick={() => setIsSettingsModalOpen(true)}
+            onClick={() => { setIsSettingsModalOpen(true); closeMobileDrawer(); }}
             title="Graph Settings"
           >
             Settings
