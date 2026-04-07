@@ -18,7 +18,7 @@
  *   • Swipe-right from left edge (≤28 px) → open sidebar (optional, low priority)
  */
 import { useEffect, useRef } from 'react';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { useAndroidBridge, reportDrawerStateToAndroid } from '@/hooks';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
@@ -38,7 +38,7 @@ interface MobileLayoutProps {
 export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
-  const setMainViewType = useNavigationStore(s => s.setMainViewType);
+  const setScratchpadOpen = useModalStore(s => s.setScratchpadOpen);
   const drawerOpen = !isSidebarCollapsed;
 
   // Register window.noteesBridge so Android can control the web app
@@ -132,12 +132,12 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
         />
       )}
 
-      {/* ── FAB: quick note ── */}
+      {/* ── FAB: open Scratchpad ── */}
       {!drawerOpen && (
         <button
           className="mobile-fab"
-          onClick={() => setMainViewType('journals')}
-          aria-label="Quick note"
+          onClick={() => setScratchpadOpen(true)}
+          aria-label="Open Scratchpad"
         >
           <svg viewBox="0 0 24 24" width="24" height="24">
             <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
