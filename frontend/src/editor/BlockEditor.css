@@ -1040,3 +1040,28 @@ body.notees-dragging-block * {
 .node-block--toc-highlight {
   animation: toc-highlight-flash 1.5s ease-out;
 }
+
+/* ─── Touch swipe indent / outdent (mobile) ─────────────────────── */
+
+/* Disable bullet transitions while a swipe gesture is active */
+.node-block--swipe-indent .block-ui > .bullet-wrapper,
+.node-block--swipe-outdent .block-ui > .bullet-wrapper {
+  transition: none;
+}
+
+/* Shift the bullet horizontally with rubber-band feel */
+.node-block--swipe-indent .block-ui > .bullet-wrapper {
+  transform: translateX(calc(var(--swipe-progress, 0) * 12px));
+}
+
+.node-block--swipe-outdent .block-ui > .bullet-wrapper {
+  transform: translateX(calc(var(--swipe-progress, 0) * -12px));
+}
+
+/* Brighten and scale the bullet dot as the gesture confirms */
+.node-block--swipe-indent .bullet-dot,
+.node-block--swipe-outdent .bullet-dot {
+  opacity: calc(0.55 + var(--swipe-progress, 0) * 0.45);
+  transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
+  transition: none;
+}
