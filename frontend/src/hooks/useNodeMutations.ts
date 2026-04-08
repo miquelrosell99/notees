@@ -1262,6 +1262,27 @@ export function useMoveNode() {
           return updated;
         }
       );
+
+      // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+      queryClient.setQueriesData<Node>(
+        { queryKey: ['nodes', 'uuid'] },
+        (oldNode) => {
+          if (!oldNode) return oldNode;
+
+          // First remove the moved node from anywhere in the tree
+          let updated: Node = {
+            ...oldNode,
+            children: oldNode.children ? removeFromChildren(oldNode.children) : [],
+          };
+
+          // Then insert at the new parent location (recursively finds the parent)
+          if (movedNode && parentId !== null) {
+            updated = insertAtParent(updated, movedNode, parentId, position ?? 0);
+          }
+
+          return updated;
+        }
+      );
     },
     onSuccess: (_movedNode, _variables) => {
       // The optimistic update in onMutate already handled the tree restructuring.
@@ -1273,6 +1294,10 @@ export function useMoveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'page-content'],
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'uuid'],
         refetchType: 'none',
       });
       queryClient.invalidateQueries({ 
