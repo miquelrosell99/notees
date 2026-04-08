@@ -1161,36 +1161,40 @@ export function useMoveNode() {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
       await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      await queryClient.cancelQueries({ queryKey: ['nodes', 'uuid'] });
       
       // Find the node being moved from any cache
       let movedNode: Node | null = null;
+
+      // Helper to search a node tree for the node with the given id
+      const findInChildren = (node: Node): Node | null => {
+        if (node.children) {
+          for (const child of node.children) {
+            if (child.id === id) return child;
+            const found = findInChildren(child);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
       
       // Search through all cached detail queries to find the node
       const detailQueries = queryClient.getQueriesData<Node>({ queryKey: nodeKeys.details() });
       for (const [, data] of detailQueries) {
         if (!data) continue;
-        // Check if this is the node itself
-        if (data.id === id) {
-          movedNode = data;
-          break;
-        }
-        // Check if the node is in children
-        const findInChildren = (node: Node): Node | null => {
-          if (node.children) {
-            for (const child of node.children) {
-              if (child.id === id) {
-                return child;
-              }
-              const found = findInChildren(child);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
+        if (data.id === id) { movedNode = data; break; }
         const found = findInChildren(data);
-        if (found) {
-          movedNode = found;
-          break;
+        if (found) { movedNode = found; break; }
+      }
+
+      // Also search byUuid queries (e.g. blocks under the Scratchpad page)
+      if (!movedNode) {
+        const byUuidQueries = queryClient.getQueriesData<Node>({ queryKey: ['nodes', 'uuid'] });
+        for (const [, data] of byUuidQueries) {
+          if (!data) continue;
+          if (data.id === id) { movedNode = data; break; }
+          const found = findInChildren(data);
+          if (found) { movedNode = found; break; }
         }
       }
       
