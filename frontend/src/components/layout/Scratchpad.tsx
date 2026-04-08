@@ -13,6 +13,8 @@ import { NodeSelector } from '../nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useTodayNote, usePages, useCreateNode, useNodeByUuid, useMoveNode } from '@/hooks';
+import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
+import { queueContentSave } from '@/hooks/useBlockPersist';
 import { useSettingsStore } from '@/stores';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { Node as ApiNode } from '@/types';
@@ -37,6 +39,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const { quickAddDestination } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const moveNodeMutation = useMoveNode();
+  const { handleContentChange: saveContent } = useContentSave();
 
   // Fetch the Scratchpad system page by its fixed UUID
   const { data: scratchpadPage } = useNodeByUuid(
@@ -79,17 +82,30 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     onEntryCountChange?.(meaningfulCount);
   }, [meaningfulCount, onEntryCountChange]);
 
-  const handleContentChange = useCallback((_blockId: string, _content: string) => {
-    // Content is auto-persisted by BlockEditor (not in draft mode)
-    if (!scratchpadPage?.uuid) return;
+  const handleContentChange = useCallback((blockId: string, content: string) => {
+    // Bridge block UUID → numeric serverId and persist via useContentSave
     const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    if (graphNode?.serverId != null) {
+      saveContent(graphNode.serverId, content);
+    } else if (graphNode) {
+      // Block not yet persisted — queue for when serverId arrives
+      queueContentSave(blockId, content);
+    }
+
+    // Update entry count
+    if (!scratchpadPage?.uuid) return;
     const children = runtime.getChildren(scratchpadPage.uuid);
     const count = children.length === 1 && !children[0]?.name ? 0 : children.length;
     onEntryCountChange?.(count);
-  }, [onEntryCountChange, scratchpadPage?.uuid]);
+  }, [onEntryCountChange, scratchpadPage?.uuid, saveContent]);
 
   const handleSendAll = useCallback(async () => {
     if (!destinationPage || !scratchpadPage || isSending) return;
+
+    // Flush any pending debounced content saves before moving blocks,
+    // so typed content is persisted to the server before the move.
+    flushAllContentSaves();
 
     setIsSending(true);
     try {
