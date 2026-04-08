@@ -19,6 +19,10 @@ export interface LogseqMdPage {
   title: string;
   properties: Record<string, string>;
   blocks: LogseqMdBlock[];
+  /** True when this page was parsed from the journals/ folder */
+  isJournal?: boolean;
+  /** ISO date string (YYYY-MM-DD) for journal pages */
+  journalDate?: string;
 }
 
 /**
@@ -132,4 +136,108 @@ export function countMdBlocks(blocks: LogseqMdBlock[]): number {
     n += countMdBlocks(b.children);
   }
   return n;
+}
+
+/**
+ * Extract all unique `[[page name]]` references from block content, recursively.
+ */
+export function collectWikiLinks(blocks: LogseqMdBlock[]): Set<string> {
+  const links = new Set<string>();
+  const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
+  function walk(block: LogseqMdBlock) {
+    for (const m of block.content.matchAll(WIKI_LINK_RE)) {
+      links.add(m[1]);
+    }
+    for (const child of block.children) walk(child);
+  }
+  for (const b of blocks) walk(b);
+  return links;
+}
+
+/**
+ * Try to parse a journal filename (YYYY_MM_DD.md) into an ISO date.
+ * Returns null if the filename doesn't match the expected pattern.
+ */
+function parseJournalDate(filename: string): string | null {
+  const base = filename.replace(/\.md$/i, '');
+  const m = base.match(/^(\d{4})_(\d{2})_(\d{2})$/);
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const month = parseInt(mo, 10);
+  const day = parseInt(d, 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${y}-${mo}-${d}`;
+}
+
+/** Result of parsing a whole Logseq markdown folder */
+export interface LogseqFolderResult {
+  pages: LogseqMdPage[];
+  journals: LogseqMdPage[];
+  /** All unique wiki-link targets found across all pages and journals */
+  allLinks: Set<string>;
+}
+
+/**
+ * Parse a Logseq folder uploaded via `webkitdirectory`.
+ *
+ * Expects file entries with `webkitRelativePath` like:
+ *   "GraphName/pages/My Page.md"
+ *   "GraphName/journals/2025_06_04.md"
+ *
+ * Files outside pages/ and journals/ are ignored.
+ */
+export function parseLogseqFolder(files: FileList): Promise<LogseqFolderResult> {
+  const pageFiles: { name: string; content: string }[] = [];
+  const journalFiles: { name: string; content: string }[] = [];
+
+  const readPromises: Promise<void>[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.name.toLowerCase().endsWith('.md')) continue;
+
+    const relPath = file.webkitRelativePath || file.name;
+    const parts = relPath.split('/');
+    // parts[0] = root folder, parts[1] = subfolder (pages/journals/...), parts[2..] = file
+    if (parts.length < 3) continue;
+    const subfolder = parts[1].toLowerCase();
+
+    if (subfolder === 'pages' || subfolder === 'journals') {
+      const fileName = parts.slice(2).join('/');
+      readPromises.push(
+        file.text().then((content) => {
+          const entry = { name: fileName, content };
+          if (subfolder === 'pages') {
+            pageFiles.push(entry);
+          } else {
+            journalFiles.push(entry);
+          }
+        }),
+      );
+    }
+  }
+
+  return Promise.all(readPromises).then(() => {
+    const pages: LogseqMdPage[] = pageFiles.map((f) => parseLogseqMd(f.name, f.content));
+
+    const journals: LogseqMdPage[] = journalFiles.map((f) => {
+      const page = parseLogseqMd(f.name, f.content);
+      const date = parseJournalDate(f.name);
+      if (date) {
+        page.isJournal = true;
+        page.journalDate = date;
+      }
+      return page;
+    }).filter((p) => p.isJournal);
+
+    // Collect all wiki-links across all parsed content
+    const allLinks = new Set<string>();
+    for (const p of [...pages, ...journals]) {
+      for (const link of collectWikiLinks(p.blocks)) {
+        allLinks.add(link);
+      }
+    }
+
+    return { pages, journals, allLinks };
+  });
 }
