@@ -291,6 +291,18 @@ export function useCreateNode() {
           }
         }
       }
+
+      // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+      const byUuidQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      for (const query of byUuidQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = addChildToParent(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
       
       return { optimisticNode, optimisticId };
     },
@@ -340,6 +352,12 @@ export function useCreateNode() {
           { queryKey: ['nodes', 'page-content'] },
           (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
         );
+
+        // Also update byUuid queries (e.g. Scratchpad)
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'uuid'] },
+          (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
+        );
       } else if (variables.parent_id) {
         // No optimistic update was made, add node to parent now
         const updateChildrenOptional = (oldNode: Node | undefined): Node | undefined => {
@@ -370,6 +388,15 @@ export function useCreateNode() {
           (oldNode) => {
             if (!oldNode || oldNode.id !== variables.parent_id) return oldNode;
             return updateChildrenOptional(oldNode);
+          }
+        );
+
+        // Also update byUuid queries (e.g. Scratchpad)
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'uuid'] },
+          (oldNode) => {
+            if (!oldNode) return oldNode;
+            return updateChildrenOptional(oldNode) ?? oldNode;
           }
         );
       }
@@ -434,6 +461,12 @@ export function useCreateNode() {
         
         queryClient.setQueriesData<Node>(
           { queryKey: ['nodes', 'page-content'] },
+          (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
+        );
+
+        // Also rollback byUuid queries (e.g. Scratchpad)
+        queryClient.setQueriesData<Node>(
+          { queryKey: ['nodes', 'uuid'] },
           (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
         );
       }
