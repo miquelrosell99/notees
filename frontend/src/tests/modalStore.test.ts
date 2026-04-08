@@ -8,6 +8,7 @@ beforeEach(() => {
     isCommandPaletteOpen: false,
     isImportDataModalOpen: false,
     isImportLogseqModalOpen: false,
+    isImportLogseqFolderModalOpen: false,
     isImportMarkdownModalOpen: false,
     isExportPageModalOpen: false,
     isRebuildLinksModalOpen: false,
@@ -45,6 +46,11 @@ describe('modalStore — setters', () => {
   it('setImportLogseqModalOpen sets isImportLogseqModalOpen', () => {
     useModalStore.getState().setImportLogseqModalOpen(true);
     expect(useModalStore.getState().isImportLogseqModalOpen).toBe(true);
+  });
+
+  it('setImportLogseqFolderModalOpen sets isImportLogseqFolderModalOpen', () => {
+    useModalStore.getState().setImportLogseqFolderModalOpen(true);
+    expect(useModalStore.getState().isImportLogseqFolderModalOpen).toBe(true);
   });
 
   it('setImportMarkdownModalOpen sets isImportMarkdownModalOpen', () => {
