@@ -200,8 +200,13 @@ export async function updateNode(id: number, data: NodeUpdate): Promise<Node> {
  * Each node is processed independently — failures don't block others.
  * Useful for Logseq / bulk imports.
  */
-export async function batchCreateNodes(request: BatchNodeCreateRequest): Promise<BatchNodeCreateResponse> {
-  const response = await api.post<BatchNodeCreateResponse>(`${BASE}/batch`, request);
+export async function batchCreateNodes(
+  request: BatchNodeCreateRequest,
+  options?: { headers?: Record<string, string> },
+): Promise<BatchNodeCreateResponse> {
+  const response = await api.post<BatchNodeCreateResponse>(`${BASE}/batch`, request, {
+    headers: options?.headers,
+  });
   return response.data;
 }
 
