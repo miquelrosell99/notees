@@ -541,7 +541,7 @@ async function createBlocksRecursively(
     };
   });
 
-  const batchResult = await batchCreateNodes({ nodes: batchItems });
+  const batchResult = await batchCreateNodes({ nodes: batchItems }, { headers: { 'X-Bulk-Import': 'true' } });
   const childWork: Array<{ block: LogseqBlock; parentNodeId: number }> = [];
 
   for (const result of batchResult.results) {
@@ -1018,7 +1018,7 @@ export function useLogseqImporter() {
                     ...(page.uuid ? { uuid: page.uuid } : {}),
                   })),
                   uuid_conflict_mode: 'return_existing',
-                });
+                }, { headers: { 'X-Bulk-Import': 'true' } });
                 for (let i = 0; i < batchResult.results.length; i++) {
                   const result = batchResult.results[i];
                   const page = chunk[i];
@@ -1130,7 +1130,7 @@ export function useLogseqImporter() {
                 ...(item.block.uuid ? { uuid: item.block.uuid } : {}),
               })),
               uuid_conflict_mode: 'return_existing',
-            });
+            }, { headers: { 'X-Bulk-Import': 'true' } });
             for (const result of batchResult.results) {
               const item = chunk[result.index];
               if (result.success && result.node) {

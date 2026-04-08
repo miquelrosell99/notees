@@ -327,6 +327,7 @@ export function ImportOptionsModal({
     const firstPath = fileList[0].webkitRelativePath || '';
     const rootFolder = firstPath.split('/')[0] || 'Unknown';
     setFolderName(rootFolder);
+    setIsParsing(true);
     try {
       const result = await parseLogseqFolder(fileList);
       if (result.pages.length === 0 && result.journals.length === 0) {
@@ -338,6 +339,8 @@ export function ImportOptionsModal({
     } catch (err) {
       setFolderResult(null);
       setFolderParseError(err instanceof Error ? err.message : 'Failed to parse folder');
+    } finally {
+      setIsParsing(false);
     }
   }, []);
 
@@ -399,7 +402,7 @@ export function ImportOptionsModal({
     if (selectedType === 'logseq-edn') return parsedExport !== null;
     if (selectedType === 'logseq-sqlite') return parsedExport !== null && !isParsing;
     if (selectedType === 'markdown') return true;
-    if (selectedType === 'logseq-folder') return folderResult !== null;
+    if (selectedType === 'logseq-folder') return folderResult !== null && !isParsing;
     return false;
   })();
 
@@ -706,13 +709,18 @@ export function ImportOptionsModal({
                 directory=""
                 className="import-folder__file-input"
                 onChange={handleFolderChange}
+                onClick={(e) => e.stopPropagation()}
                 disabled={isPending}
               />
               {folderName ? (
                 <span className="import-folder__dropzone-text">
                   <strong>{folderName}</strong>
                   <br />
-                  {folderResult ? 'Ready to import' : 'Click to choose a different folder'}
+                  {isParsing ? (
+                    <span className="import-folder__parsing">
+                      <SyncIcon size="xs" className="import-folder__parsing-spin" /> Reading files…
+                    </span>
+                  ) : folderResult ? 'Ready to import' : 'Click to choose a different folder'}
                 </span>
               ) : (
                 <span className="import-folder__dropzone-text">
@@ -770,6 +778,9 @@ export function ImportOptionsModal({
                   (s, p) => s + countMdBlocks(p.blocks), 0
                 )}
               </span></li>
+              {folderResult.assetFiles.size > 0 && (
+                <li><span>Assets</span><span>{folderResult.assetFiles.size}</span></li>
+              )}
               <li><span>Wiki-links</span><span>{folderResult.allLinks.size}</span></li>
             </ul>
           </details>

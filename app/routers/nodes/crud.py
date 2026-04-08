@@ -108,8 +108,15 @@ async def create_node(
     return _node_to_response(node, classes=list(body.classes))
 
 
+def _bulk_import_cost(request: Request) -> int:
+    """Return 0 for bulk-import requests so they don't count toward the rate limit."""
+    if request.headers.get("X-Bulk-Import") == "true":
+        return 0
+    return 1
+
+
 @router.post("/batch", name="batch_create_nodes")
-@limiter.limit("60/minute")
+@limiter.limit("60/minute", cost=_bulk_import_cost)
 async def batch_create_nodes(
     request: Request,
     body: BatchNodeCreateRequest,
