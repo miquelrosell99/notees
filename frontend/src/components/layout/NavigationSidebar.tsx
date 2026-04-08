@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useFavoritesStore, useModalStore } from '@/stores';
-import { useNode } from '@/hooks';
+import { useNode, useIsMobile } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
@@ -392,10 +392,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
     useFavoritesStore.getState().removeFavorite(nodeId);
   }, []);
   
+  const isMobile = useIsMobile();
+
   // Close the sidebar drawer on mobile (no-op on desktop where sidebar is always visible)
   const closeMobileDrawer = useCallback(() => {
-    if (!isSidebarCollapsed) toggleSidebar();
-  }, [isSidebarCollapsed, toggleSidebar]);
+    if (isMobile && !isSidebarCollapsed) toggleSidebar();
+  }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
   // Handle navigating to a page
   const handleNavigateToPage = useCallback((nodeId: number) => {
