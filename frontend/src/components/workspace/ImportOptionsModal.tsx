@@ -42,11 +42,18 @@ import { FileDropZone } from '../core/FileDropZone';
 import { TaskProgress } from '../core/TaskProgress';
 import { TaskReport } from '../core/TaskReport';
 import { AlertIcon, SyncIcon } from '../core/icons';
+import {
+  parseLogseqFolder,
+  countMdBlocks,
+  type LogseqFolderResult,
+} from '@/utils/logseqMdParser';
+import { useLogseqFolderImporter } from '@/hooks/useLogseqFolderImporter';
 import './ImportOptionsModal.css';
+import './ImportLogseqFolderModal.css';
 
 // -- Types -----------------------------------------------------------------
 
-export type ImportType = 'json' | 'logseq-edn' | 'logseq-sqlite' | 'markdown';
+export type ImportType = 'json' | 'logseq-edn' | 'logseq-sqlite' | 'logseq-folder' | 'markdown';
 
 export interface ImportResult {
   workspace: WorkspaceInfo;
@@ -82,6 +89,12 @@ const SOURCE_OPTIONS: RadioOption[] = [
     label: 'Logseq SQLite',
     description: 'Upload a Logseq SQLite database file',
     badge: 'file',
+  },
+  {
+    value: 'logseq-folder',
+    label: 'Logseq Folder',
+    description: 'Select a Logseq graph folder with pages/ and journals/',
+    badge: 'folder',
   },
   {
     value: 'markdown',
@@ -121,6 +134,12 @@ export function ImportOptionsModal({
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  // Folder import state (logseq-folder)
+  const [folderResult, setFolderResult] = useState<LogseqFolderResult | null>(null);
+  const [folderName, setFolderName] = useState<string | null>(null);
+  const [folderParseError, setFolderParseError] = useState<string | null>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
   // Modal phase  'preparing' = workspace switch in progress
   type ModalPhase = 'form' | 'preparing' | 'importing' | 'report';
   const [phase, setPhase] = useState<ModalPhase>('form');
@@ -128,6 +147,7 @@ export function ImportOptionsModal({
   const workspaceUuidRef = useRef<string | null>(null);
   const pendingParsedRef = useRef<LogseqExport | null>(null);
   const pendingWorkspaceRef = useRef<WorkspaceInfo | null>(null);
+  const pendingFolderRef = useRef<LogseqFolderResult | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -142,6 +162,18 @@ export function ImportOptionsModal({
     runImport,
     pageClassId,
   } = useLogseqImporter();
+
+  // Folder import pipeline — shared hook
+  const {
+    importing: folderImporting,
+    progress: folderProgress,
+    statusText: folderStatusText,
+    error: folderError,
+    done: folderDone,
+    reset: resetFolderImport,
+    runImport: runFolderImport,
+    pageClassId: folderPageClassId,
+  } = useLogseqFolderImporter();
 
   // -- Reset when modal opens ---------------------------------------------
   useEffect(() => {
@@ -159,14 +191,24 @@ export function ImportOptionsModal({
       pendingWorkspaceRef.current = null;
       setIsParsing(false);
       setParseError(null);
+      setFolderResult(null);
+      setFolderName(null);
+      setFolderParseError(null);
+      pendingFolderRef.current = null;
+      if (folderInputRef.current) folderInputRef.current.value = '';
       resetImport();
+      resetFolderImport();
     }
-  }, [isOpen, resetImport]);
+  }, [isOpen, resetImport, resetFolderImport]);
 
   // Reset parsed state when source type changes
   useEffect(() => {
     setParsedExport(null);
     setParseError(null);
+    setFolderResult(null);
+    setFolderName(null);
+    setFolderParseError(null);
+    if (folderInputRef.current) folderInputRef.current.value = '';
   }, [selectedType]);
 
   // -- Workspace switch (phase === 'preparing') ----------------------------
@@ -208,10 +250,22 @@ export function ImportOptionsModal({
     runImport(parsed, { importMode: 'additive' });
   }, [phase, pageClassId, importing, runImport]);
 
+  // -- Start folder import once workspace is ready ------------------------
+  useEffect(() => {
+    if (phase !== 'importing' || !pendingFolderRef.current || !folderPageClassId || folderImporting) return;
+    const folder = pendingFolderRef.current;
+    pendingFolderRef.current = null;
+    runFolderImport(folder);
+  }, [phase, folderPageClassId, folderImporting, runFolderImport]);
+
   // -- Transition to report when hook finishes ----------------------------
   useEffect(() => {
     if (hookReport) setPhase('report');
   }, [hookReport]);
+
+  useEffect(() => {
+    if (folderDone) setPhase('report');
+  }, [folderDone]);
 
   // -- Parse SQLite file eagerly -----------------------------------------
   useEffect(() => {
@@ -261,6 +315,32 @@ export function ImportOptionsModal({
     return () => { active = false; cancel(); };
   }, [ednContent, selectedType]);
 
+  // -- Folder select handler (logseq-folder) -----------------------------
+  const handleFolderChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFolderParseError(null);
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) {
+      setFolderResult(null);
+      setFolderName(null);
+      return;
+    }
+    const firstPath = fileList[0].webkitRelativePath || '';
+    const rootFolder = firstPath.split('/')[0] || 'Unknown';
+    setFolderName(rootFolder);
+    try {
+      const result = await parseLogseqFolder(fileList);
+      if (result.pages.length === 0 && result.journals.length === 0) {
+        setFolderParseError('No pages or journals found. Make sure you selected a Logseq graph folder.');
+        setFolderResult(null);
+        return;
+      }
+      setFolderResult(result);
+    } catch (err) {
+      setFolderResult(null);
+      setFolderParseError(err instanceof Error ? err.message : 'Failed to parse folder');
+    }
+  }, []);
+
   // -- Live name availability check --------------------------------------
   const { data: nameCheck, isLoading: isCheckingName } = useQuery({
     queryKey: ['workspace-name-check', name],
@@ -297,6 +377,12 @@ export function ImportOptionsModal({
         setPhase('preparing');
         return;
       }
+      if (type === 'logseq-folder') {
+        pendingFolderRef.current = folderResult;
+        pendingWorkspaceRef.current = workspace;
+        setPhase('preparing');
+        return;
+      }
       // markdown / other non-logseq: let parent handle navigation
       onSuccess({ workspace, type });
     },
@@ -313,6 +399,7 @@ export function ImportOptionsModal({
     if (selectedType === 'logseq-edn') return parsedExport !== null;
     if (selectedType === 'logseq-sqlite') return parsedExport !== null && !isParsing;
     if (selectedType === 'markdown') return true;
+    if (selectedType === 'logseq-folder') return folderResult !== null;
     return false;
   })();
 
@@ -362,12 +449,14 @@ export function ImportOptionsModal({
     workspaceUuidRef.current = null;
     pendingParsedRef.current = null;
     pendingWorkspaceRef.current = null;
+    pendingFolderRef.current = null;
     resetImport();
+    resetFolderImport();
     if (wsUuid) {
       try { await deleteWorkspace(wsUuid); } catch { /* ignore */ }
     }
     setPhase('form');
-  }, [resetImport]);
+  }, [resetImport, resetFolderImport]);
 
   // -- Open workspace handler (report phase)  fixes both bugs -----------
   // Bug 1: X button was wired to () => {}  now wired to this handler.
@@ -406,6 +495,7 @@ export function ImportOptionsModal({
 
   // -- Importing phase (Logseq pipeline running) -------------------------
   if (phase === 'importing') {
+    const isFolderType = selectedType === 'logseq-folder';
     return (
       <Modal
         isOpen={isOpen}
@@ -420,9 +510,9 @@ export function ImportOptionsModal({
       >
         <div style={{ padding: '8px 0' }}>
           <TaskProgress
-            progress={importProgress}
-            statusText={importStatus}
-            error={hookError ?? undefined}
+            progress={isFolderType ? folderProgress : importProgress}
+            statusText={isFolderType ? folderStatusText : importStatus}
+            error={(isFolderType ? folderError : hookError) ?? undefined}
           />
         </div>
       </Modal>
@@ -430,26 +520,49 @@ export function ImportOptionsModal({
   }
 
   // -- Report phase (Logseq import completed) ----------------------------
-  if (phase === 'report' && hookReport) {
-    return (
-      <Modal
-        isOpen={isOpen}
-        onClose={handleOpenWorkspace}
-        title="Import Report"
-        size="lg"
-        footer={
-          <Button variant="primary" onClick={handleOpenWorkspace}>
-            Open Workspace
-          </Button>
-        }
-      >
-        <TaskReport
-          report={hookReport}
-          successMessage="Import completed successfully"
-          warningMessage="Import completed with errors"
-        />
-      </Modal>
-    );
+  if (phase === 'report') {
+    if (hookReport) {
+      return (
+        <Modal
+          isOpen={isOpen}
+          onClose={handleOpenWorkspace}
+          title="Import Report"
+          size="lg"
+          footer={
+            <Button variant="primary" onClick={handleOpenWorkspace}>
+              Open Workspace
+            </Button>
+          }
+        >
+          <TaskReport
+            report={hookReport}
+            successMessage="Import completed successfully"
+            warningMessage="Import completed with errors"
+          />
+        </Modal>
+      );
+    }
+    if (folderDone) {
+      return (
+        <Modal
+          isOpen={isOpen}
+          onClose={handleOpenWorkspace}
+          title="Import Complete"
+          size="md"
+          footer={
+            <Button variant="primary" onClick={handleOpenWorkspace}>
+              Open Workspace
+            </Button>
+          }
+        >
+          <div style={{ padding: '16px 0', textAlign: 'center' }}>
+            <p style={{ fontSize: '1.1em', color: 'var(--color-success)' }}>
+              Import completed successfully
+            </p>
+          </div>
+        </Modal>
+      );
+    }
   }
 
   return (
@@ -575,6 +688,47 @@ export function ImportOptionsModal({
           </div>
         )}
 
+        {selectedType === 'logseq-folder' && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">Logseq graph folder</span>
+            <div
+              className={`import-folder__dropzone${folderResult ? ' import-folder__dropzone--valid' : ''}${folderParseError ? ' import-folder__dropzone--error' : ''}`}
+              onClick={() => folderInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') folderInputRef.current?.click(); }}
+            >
+              <input
+                ref={folderInputRef}
+                type="file"
+                /* @ts-expect-error webkitdirectory is non-standard but widely supported */
+                webkitdirectory=""
+                directory=""
+                className="import-folder__file-input"
+                onChange={handleFolderChange}
+                disabled={isPending}
+              />
+              {folderName ? (
+                <span className="import-folder__dropzone-text">
+                  <strong>{folderName}</strong>
+                  <br />
+                  {folderResult ? 'Ready to import' : 'Click to choose a different folder'}
+                </span>
+              ) : (
+                <span className="import-folder__dropzone-text">
+                  Click to select a Logseq graph folder
+                </span>
+              )}
+            </div>
+            {folderParseError && (
+              <div className="import-unified__error">
+                <AlertIcon size="sm" />
+                {folderParseError}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* -- 4. Parse error -------------------------------------------- */}
         {parseError && (
           <div className="import-unified__error">
@@ -597,6 +751,26 @@ export function ImportOptionsModal({
               <li><span>Blocks</span><span>{previewCounts.blockCount}</span></li>
               <li><span>Classes</span><span>{previewCounts.classCount}</span></li>
               <li><span>Properties</span><span>{previewCounts.propCount}</span></li>
+            </ul>
+          </details>
+        )}
+
+        {folderResult && (
+          <details className="import-unified__preview" open>
+            <summary className="import-unified__preview-summary">
+              Parsed content
+            </summary>
+            <ul className="import-unified__preview-list">
+              <li><span>Pages</span><span>{folderResult.pages.length}</span></li>
+              {folderResult.journals.length > 0 && (
+                <li><span>Journals</span><span>{folderResult.journals.length}</span></li>
+              )}
+              <li><span>Blocks</span><span>
+                {[...folderResult.pages, ...folderResult.journals].reduce(
+                  (s, p) => s + countMdBlocks(p.blocks), 0
+                )}
+              </span></li>
+              <li><span>Wiki-links</span><span>{folderResult.allLinks.size}</span></li>
             </ul>
           </details>
         )}

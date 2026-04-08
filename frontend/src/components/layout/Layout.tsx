@@ -27,6 +27,7 @@ import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
 import { ImportDataModal } from '../workspace/ImportDataModal';
 import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
+import { ImportLogseqFolderModal } from '../workspace/ImportLogseqFolderModal';
 import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
 import { ExportPageModal } from '../workspace/ExportPageModal';
 import { RebuildLinksModal } from '../maintenance/RebuildLinksModal';
@@ -49,6 +50,8 @@ export function Layout() {
   const setImportDataModalOpen = useModalStore(s => s.setImportDataModalOpen);
   const isImportLogseqModalOpen = useModalStore(s => s.isImportLogseqModalOpen);
   const setImportLogseqModalOpen = useModalStore(s => s.setImportLogseqModalOpen);
+  const isImportLogseqFolderModalOpen = useModalStore(s => s.isImportLogseqFolderModalOpen);
+  const setImportLogseqFolderModalOpen = useModalStore(s => s.setImportLogseqFolderModalOpen);
   const isImportMarkdownModalOpen = useModalStore(s => s.isImportMarkdownModalOpen);
   const setImportMarkdownModalOpen = useModalStore(s => s.setImportMarkdownModalOpen);
   const isExportPageModalOpen = useModalStore(s => s.isExportPageModalOpen);
@@ -306,6 +309,12 @@ export function Layout() {
         <ImportLogseqModal
           isOpen={isImportLogseqModalOpen}
           onClose={() => setImportLogseqModalOpen(false)}
+        />
+
+        {/* Import Logseq Folder Modal */}
+        <ImportLogseqFolderModal
+          isOpen={isImportLogseqFolderModalOpen}
+          onClose={() => setImportLogseqFolderModalOpen(false)}
         />
 
         {/* Import Markdown Modal */}

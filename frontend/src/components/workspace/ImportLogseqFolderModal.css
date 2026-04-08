@@ -1,0 +1,133 @@
+/**
+ * ImportLogseqFolderModal styles
+ */
+
+.import-folder__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.import-folder__description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.import-folder__description code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  padding: 1px 5px;
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-extra-small);
+}
+
+.import-folder__dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  padding: 16px;
+  border: 2px dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+
+.import-folder__dropzone:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+}
+
+.import-folder__dropzone--valid {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.import-folder__dropzone--error {
+  border-color: var(--color-error);
+}
+
+.import-folder__dropzone-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.import-folder__file-input {
+  display: none;
+}
+
+.import-folder__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+.import-folder__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-folder__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-folder__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-small);
+}
+
+.import-folder__page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.import-folder__page-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.import-folder__page-item:last-child {
+  border-bottom: none;
+}
+
+.import-folder__page-item--more {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.import-folder__page-item--journal {
+  color: var(--color-primary);
+}
+
+.import-folder__page-blocks {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+  margin-left: 8px;
+}
