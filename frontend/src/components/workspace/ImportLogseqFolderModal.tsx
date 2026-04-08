@@ -13,6 +13,7 @@ import { mdiImport } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { Button } from '../core/Button';
 import { TaskProgress } from '../core/TaskProgress';
+import { SyncIcon } from '../core/icons';
 import {
   parseLogseqFolder,
   countMdBlocks,
@@ -30,6 +31,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
   const [folderResult, setFolderResult] = useState<LogseqFolderResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -46,6 +48,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
     setFolderResult(null);
     setParseError(null);
     setFolderName(null);
+    setIsParsing(false);
     resetImporter();
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [resetImporter]);
@@ -63,6 +66,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
     const rootFolder = firstPath.split('/')[0] || 'Unknown';
     setFolderName(rootFolder);
 
+    setIsParsing(true);
     try {
       const result = await parseLogseqFolder(fileList);
       if (result.pages.length === 0 && result.journals.length === 0) {
@@ -74,6 +78,8 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
     } catch (err) {
       setFolderResult(null);
       setParseError(err instanceof Error ? err.message : 'Failed to parse folder');
+    } finally {
+      setIsParsing(false);
     }
   }, []);
 
@@ -90,6 +96,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
 
   const totalPages = folderResult?.pages.length ?? 0;
   const totalJournals = folderResult?.journals.length ?? 0;
+  const totalAssets = folderResult?.assetFiles.size ?? 0;
   const totalBlocks = folderResult
     ? [...folderResult.pages, ...folderResult.journals].reduce(
         (s, p) => s + countMdBlocks(p.blocks),
@@ -140,13 +147,18 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
             directory=""
             className="import-folder__file-input"
             onChange={handleFolderChange}
+            onClick={(e) => e.stopPropagation()}
             disabled={importing}
           />
           {folderName ? (
             <span className="import-folder__dropzone-text">
               <strong>{folderName}</strong>
               <br />
-              {folderResult ? 'Ready to import' : 'Click to choose a different folder'}
+              {isParsing ? (
+                <span className="import-folder__parsing">
+                  <SyncIcon size="xs" className="import-folder__parsing-spin" /> Reading files…
+                </span>
+              ) : folderResult ? 'Ready to import' : 'Click to choose a different folder'}
             </span>
           ) : (
             <span className="import-folder__dropzone-text">
@@ -173,6 +185,11 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
               <span className="import-folder__badge">
                 {totalBlocks} block{totalBlocks !== 1 ? 's' : ''}
               </span>
+              {totalAssets > 0 && (
+                <span className="import-folder__badge">
+                  {totalAssets} asset{totalAssets !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
 
             <ul className="import-folder__page-list">

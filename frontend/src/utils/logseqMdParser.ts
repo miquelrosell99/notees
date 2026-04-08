@@ -175,6 +175,23 @@ export interface LogseqFolderResult {
   journals: LogseqMdPage[];
   /** All unique wiki-link targets found across all pages and journals */
   allLinks: Set<string>;
+  /** Asset files found in the assets/ subfolder (filename → File) */
+  assetFiles: Map<string, File>;
+}
+
+/**
+ * Regex matching a pure-asset block: `![alt](../assets/filename){:optional attrs}`
+ * Captures: [1] = alt text, [2] = filename
+ */
+const ASSET_REF_RE = /^!\[[^\]]*\]\(\.\.\/assets\/([^)]+)\)(\{[^}]*\})?\s*$/;
+
+/**
+ * Extract the asset filename from a block's content if it is a pure-asset reference.
+ * Returns null for non-asset or mixed-content blocks.
+ */
+export function extractAssetFilename(content: string): string | null {
+  const m = content.match(ASSET_REF_RE);
+  return m ? m[1] : null;
 }
 
 /**
@@ -190,17 +207,25 @@ export function parseLogseqFolder(files: FileList): Promise<LogseqFolderResult> 
   const pageFiles: { name: string; content: string }[] = [];
   const journalFiles: { name: string; content: string }[] = [];
 
+  const assetFiles = new Map<string, File>();
   const readPromises: Promise<void>[] = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (!file.name.toLowerCase().endsWith('.md')) continue;
-
     const relPath = file.webkitRelativePath || file.name;
     const parts = relPath.split('/');
-    // parts[0] = root folder, parts[1] = subfolder (pages/journals/...), parts[2..] = file
+    // parts[0] = root folder, parts[1] = subfolder (pages/journals/assets/...), parts[2..] = file
     if (parts.length < 3) continue;
     const subfolder = parts[1].toLowerCase();
+
+    // Collect asset files (no async read needed — we keep the File object)
+    if (subfolder === 'assets') {
+      const fileName = parts.slice(2).join('/');
+      assetFiles.set(fileName, file);
+      continue;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.md')) continue;
 
     if (subfolder === 'pages' || subfolder === 'journals') {
       const fileName = parts.slice(2).join('/');
@@ -238,6 +263,6 @@ export function parseLogseqFolder(files: FileList): Promise<LogseqFolderResult> 
       }
     }
 
-    return { pages, journals, allLinks };
+    return { pages, journals, allLinks, assetFiles };
   });
 }

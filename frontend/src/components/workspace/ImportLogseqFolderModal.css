@@ -71,6 +71,22 @@
   font-size: var(--font-size-sm);
 }
 
+.import-folder__parsing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-on-surface-variant);
+}
+
+.import-folder__parsing-spin {
+  animation: import-folder-spin 1s linear infinite;
+}
+
+@keyframes import-folder-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .import-folder__summary {
   display: flex;
   flex-direction: column;
