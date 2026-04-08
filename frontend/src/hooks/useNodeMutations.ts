@@ -547,6 +547,18 @@ export function useUpdateNode() {
         }
       }
 
+      // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+      const byUuidUpdateQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      for (const query of byUuidUpdateQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = applyUpdate(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
+
       // Update nodeViews queryResults (flat Node[] arrays used by QueryNodeCollection table/list view)
       const viewQueryQueries = queryCache.findAll({ queryKey: ['nodeViews', 'queryResults'] });
       for (const query of viewQueryQueries) {
@@ -906,6 +918,18 @@ export function useDeleteNode() {
       // Update page-content queries
       const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
       for (const query of pageContentQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = removeNode(oldData);
+          if (newData !== oldData) {
+            queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+      }
+
+      // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+      const byUuidDeleteQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      for (const query of byUuidDeleteQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
           const newData = removeNode(oldData);

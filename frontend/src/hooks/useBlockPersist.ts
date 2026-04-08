@@ -206,6 +206,14 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
                 if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
               }
             }
+            // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+            for (const query of qCache.findAll({ queryKey: ['nodes', 'uuid'] })) {
+              const oldData = query.state.data as Node | undefined;
+              if (oldData) {
+                const newData = insertCreatedBlock(oldData);
+                if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+              }
+            }
           }
 
           // Flush any queued content save for this block BEFORE invalidating
@@ -305,6 +313,14 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           }
         }
         for (const query of queryCache.findAll({ queryKey: ['nodes', 'page-content'] })) {
+          const oldData = query.state.data as Node | undefined;
+          if (oldData) {
+            const newData = removeNode(oldData);
+            if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
+          }
+        }
+        // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
+        for (const query of queryCache.findAll({ queryKey: ['nodes', 'uuid'] })) {
           const oldData = query.state.data as Node | undefined;
           if (oldData) {
             const newData = removeNode(oldData);
