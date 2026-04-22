@@ -22,6 +22,7 @@ import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/us
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './api/workspaces';
 import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore, useUndoStore } from './stores';
+import { useAndroidBridge } from './hooks';
 import { SHORTCUT_IDS } from './stores/keyboardStore';
 import type { User } from './types/api';
 import { getLogger } from './utils/logger';
@@ -73,6 +74,10 @@ function GlobalKeyboardHandler() {
 }
 
 function AppContent() {
+  // Register the Android bridge as early as possible — before auth gates — so
+  // the native shell can call window.noteesBridge even while the app is loading.
+  useAndroidBridge();
+
   const { isAuthenticated, isLoading, logout } = useAuthStore();
   const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
   
@@ -315,7 +320,9 @@ function App() {
         <KeyboardShortcutsProvider>
           <DndProvider>
             <GlobalKeyboardHandler />
-            <AppContent />
+            <ErrorBoundary context="App">
+              <AppContent />
+            </ErrorBoundary>
             <NotificationToast />
           </DndProvider>
         </KeyboardShortcutsProvider>
