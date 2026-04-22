@@ -19,7 +19,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
-import { useAndroidBridge, reportDrawerStateToAndroid } from '@/hooks';
+import { reportDrawerStateToAndroid } from '@/hooks';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -40,9 +40,6 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
   const setScratchpadOpen = useModalStore(s => s.setScratchpadOpen);
   const drawerOpen = !isSidebarCollapsed;
-
-  // Register window.noteesBridge so Android can control the web app
-  useAndroidBridge();
 
   // Keep the Android native back-button handler in sync with drawer state
   useEffect(() => {

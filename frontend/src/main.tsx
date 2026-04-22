@@ -16,9 +16,25 @@ import './index.css'
 import App from './App.tsx'
 import { useSettingsStore, applyTheme } from './stores'
 
-// Apply saved theme on startup
-const savedTheme = useSettingsStore.getState().theme;
-applyTheme(savedTheme);
+// Apply saved theme on startup — wrapped in try/catch so a corrupt store
+// never prevents the app from mounting at all.
+try {
+  const savedTheme = useSettingsStore.getState().theme;
+  applyTheme(savedTheme);
+} catch (e) {
+  console.error('[main] Failed to apply saved theme, falling back to default:', e);
+}
+
+// Catch errors that escape React's error boundary (async callbacks, event
+// handlers, etc.) and log them so they surface in the browser console /
+// crash-reporter rather than silently producing a white screen.
+window.addEventListener('error', (event) => {
+  console.error('[main] Uncaught error:', event.error ?? event.message);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[main] Unhandled promise rejection:', event.reason);
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,7 +1,7 @@
 /**
  * React Query client configuration
  */
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryCache } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useUndoStore } from '@/stores/undoStore';
@@ -36,7 +36,21 @@ function onMutationError(error: Error) {
   );
 }
 
+/**
+ * Global query error handler — only surfaces non-auth errors so routine
+ * 401/403 responses (handled by the auth flow) don't spam the user.
+ */
+function onQueryError(error: unknown) {
+  const status = (error as AxiosError)?.response?.status;
+  if (status && (status === 401 || status === 403)) return; // handled by auth flow
+  const message = getErrorMessage(error);
+  useNotificationStore.getState().error('Failed to load data', message);
+}
+
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: onQueryError,
+  }),
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
@@ -50,6 +64,7 @@ export const queryClient = new QueryClient({
         return failureCount < 1;
       },
       refetchOnWindowFocus: false,
+      throwOnError: false,
     },
     mutations: {
       retry: 0,
