@@ -74,6 +74,13 @@ export function TouchIndentPlugin({ onIndent, onOutdent, readOnly }: TouchIndent
     function onMove(e: TouchEvent) {
       if (!activeBlockId || committed) return;
 
+      // If a long-press touch drag has been activated (DragDropPlugin), bail out
+      // so both gestures don't fight over the same touch stream.
+      if (document.body.classList.contains('notees-dragging-block')) {
+        cleanup();
+        return;
+      }
+
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
       const absDx = Math.abs(dx);

@@ -374,8 +374,12 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
   const spacerElRef = useRef<{ el: HTMLElement; cls: string } | null>(null);
 
   const dragStateRef = useRef<{
-    active: boolean;
+    /** Touch: long-press timer running; Mouse: mousedown threshold not yet crossed */
     pending: boolean;
+    /** Touch only: timer fired, waiting to see if user moves (drag) or lifts (context menu) */
+    longPressPending: boolean;
+    /** Drag is fully active */
+    active: boolean;
     startX: number;
     startY: number;
     blockId: string;
@@ -585,8 +589,9 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
 
       dragStateRef.current = {
-        active: false,
         pending: true,
+        longPressPending: false,
+        active: false,
         startX: e.clientX,
         startY: e.clientY,
         blockId,
@@ -730,17 +735,227 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       activeAnchorRef.current = null;
     }
 
+    // ── Touch drag system ─────────────────────────────────────
+    //
+    // Three distinct gestures on a bullet:
+    //
+    //   Short tap  (lift < 400 ms, finger barely moved)
+    //     → let native click propagate; ContextMenuPlugin navigates to focused mode.
+    //
+    //   Long press (≥ 400 ms, finger still on lift)
+    //     → open the bullet context menu.
+    //
+    //   Long press + move
+    //     → drag to move the bullet (same ghost/anchor system as mouse drag).
+    //
+    // Movement before the 400 ms timer fires cancels our tracking entirely so
+    // that horizontal-swipe indent/outdent (TouchIndentPlugin) still works.
+    // Once a long-press drag activates, `notees-dragging-block` on <body>
+    // tells TouchIndentPlugin to back off.
+
+    const LONG_PRESS_MS = 400;
+    /** px of finger travel before the long-press is cancelled */
+    const LONG_PRESS_CANCEL_PX = 10;
+
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function cancelLongPress() {
+      if (longPressTimer !== null) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }
+
+    /** Transition from longPressPending → active drag. */
+    function activateTouchDrag(
+      state: NonNullable<typeof dragStateRef.current>,
+      x: number,
+      y: number,
+    ) {
+      state.longPressPending = false;
+      state.active = true;
+      navigator.vibrate?.(30);
+      window.getSelection()?.removeAllRanges();
+
+      getDragCoordinator().startDrag({
+        blockId: state.blockId,
+        sourceEditorId: editorId,
+        sourceDepth: state.sourceDepth,
+      });
+
+      scrollContainerRef.current = findScrollableAncestor(rootEl);
+
+      const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+      const subtreeIds = new Set<string>();
+      editorRoots.forEach((root) => {
+        collectDragSubtreeIds(root, state.blockId).forEach((id) => subtreeIds.add(id));
+      });
+      excludedIdsRef.current = subtreeIds;
+
+      recomputeAnchors();
+
+      const ghost = ghostRef.current!;
+      ghost.innerHTML =
+        '<div class="block-drag-ghost__bullet"></div>' +
+        `<div class="block-drag-ghost__content">${escapeHtml(state.ghostText)}</div>`;
+      ghost.style.display = 'flex';
+      positionGhostFloat(ghost, x, y);
+
+      subtreeIds.forEach((id) => {
+        const el = document.querySelector(`.node-block[data-block-id="${id}"]`);
+        el?.classList.add('node-block--drag-source');
+      });
+      document.body.classList.add('notees-dragging-block');
+
+      const sc = scrollContainerRef.current;
+      if (sc) sc.addEventListener('scroll', handleScroll, { passive: true });
+
+      startAutoScroll();
+    }
+
+    // Defined with `function` so they can reference each other before
+    // their textual position (hoisted within the block).
+    function onTouchMoveDrag(e: TouchEvent) {
+      const state = dragStateRef.current;
+      if (!state) return;
+
+      const touch = e.touches[0];
+      lastMouseRef.current = { x: touch.clientX, y: touch.clientY };
+
+      if (state.pending) {
+        // Timer not yet fired — cancel our tracking if finger moved too far
+        // so swipe-indent and page-scroll are not disrupted.
+        const dx = touch.clientX - state.startX;
+        const dy = touch.clientY - state.startY;
+        if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_CANCEL_PX) {
+          cancelLongPress();
+          document.removeEventListener('touchmove', onTouchMoveDrag);
+          document.removeEventListener('touchend', onTouchEndDrag);
+          document.removeEventListener('touchcancel', onTouchEndDrag);
+          dragStateRef.current = null;
+        }
+        return;
+      }
+
+      if (state.longPressPending) {
+        // Long press fired, first movement — activate drag then handle this move.
+        activateTouchDrag(state, touch.clientX, touch.clientY);
+        e.preventDefault();
+        updateGhostPosition(touch.clientX, touch.clientY);
+        return;
+      }
+
+      if (state.active) {
+        e.preventDefault();
+        updateGhostPosition(touch.clientX, touch.clientY);
+      }
+    }
+
+    function onTouchEndDrag(_e?: TouchEvent) {
+      cancelLongPress();
+      document.removeEventListener('touchmove', onTouchMoveDrag);
+      document.removeEventListener('touchend', onTouchEndDrag);
+      document.removeEventListener('touchcancel', onTouchEndDrag);
+
+      const state = dragStateRef.current;
+      dragStateRef.current = null;
+      if (!state) return;
+
+      if (state.active) {
+        // Drag gesture ended — commit or cancel.
+        const coordinator = getDragCoordinator();
+        if (activeAnchorRef.current) {
+          coordinator.completeDrag();
+        } else {
+          coordinator.cancelDrag();
+        }
+        cleanup(state);
+        return;
+      }
+
+      if (state.longPressPending) {
+        // Long press with no movement — open context menu.
+        const bulletEl = state.blockEl.querySelector<HTMLElement>('.bullet-wrapper');
+        if (bulletEl) {
+          bulletEl.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: state.startX,
+            clientY: state.startY,
+          }));
+        }
+        return;
+      }
+
+      // state.pending — short tap: do nothing.
+      // The browser will fire `click` next and ContextMenuPlugin will
+      // route it to focused-mode navigation.
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const bullet = target.closest('.bullet-wrapper') as HTMLElement | null;
+      if (!bullet || target.closest('.bullet-collapse-arrow')) return;
+
+      const blockEl = findBlockRow(bullet);
+      if (!blockEl) return;
+      const blockId = blockEl.getAttribute('data-block-id');
+      if (!blockId) return;
+
+      // Don't start if a drag is already in progress.
+      if (dragStateRef.current) return;
+
+      const touch = e.touches[0];
+      const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
+      const contentEl = blockEl.querySelector('.node-block-content');
+      let ghostText = contentEl?.textContent?.trim() || '';
+      if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
+
+      dragStateRef.current = {
+        pending: true,
+        longPressPending: false,
+        active: false,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        blockId,
+        blockEl,
+        sourceDepth: depth,
+        ghostText,
+        snapped: false,
+      };
+
+      document.addEventListener('touchmove', onTouchMoveDrag, { passive: false });
+      document.addEventListener('touchend', onTouchEndDrag, { passive: true });
+      document.addEventListener('touchcancel', onTouchEndDrag, { passive: true });
+
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        const state = dragStateRef.current;
+        if (!state || !state.pending) return;
+        // Transition to longPressPending — short haptic signals "ready".
+        state.pending = false;
+        state.longPressPending = true;
+        navigator.vibrate?.(20);
+      }, LONG_PRESS_MS);
+    };
+
     // ── Bind ─────────────────────────────────────────────────
     rootEl.addEventListener('mousedown', handleMouseDown, true);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('keydown', handleKeyDown);
+    rootEl.addEventListener('touchstart', handleTouchStart, { passive: true });
 
     return () => {
       rootEl.removeEventListener('mousedown', handleMouseDown, true);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('keydown', handleKeyDown);
+      rootEl.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', onTouchMoveDrag);
+      document.removeEventListener('touchend', onTouchEndDrag);
+      document.removeEventListener('touchcancel', onTouchEndDrag);
+      cancelLongPress();
       stopAutoScroll();
     };
   }, [editor, editorId, readOnly]);
