@@ -70,6 +70,10 @@ export function useAndroidBridge() {
   useEffect(() => {
     if (!isAndroidApp()) return;
 
+    // Tell CSS that native padding already handles system bar insets so
+    // env(safe-area-inset-*) rules should not be applied on top.
+    document.documentElement.classList.add('android-app');
+
     window.noteesBridge = {
       onShareReceived(text: string) {
         // Fire a custom DOM event — the quick-capture UI listens to this
