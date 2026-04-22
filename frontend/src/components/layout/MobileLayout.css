@@ -21,6 +21,11 @@
   padding-top: env(safe-area-inset-top);
 }
 
+/* On Android the native shell already pads for the status bar — don't double up */
+.android-app .mobile-canvas {
+  padding-top: 0;
+}
+
 /* ── Top bar ─────────────────────────────────────────────────── */
 /* TopBar already has its own height; just make it shrink-proof */
 .mobile-canvas > .top-bar-card {
@@ -35,6 +40,11 @@
   flex-direction: column;
   /* Reserve space for the Android nav bar */
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* On Android the native shell already pads for the nav bar — don't double up */
+.android-app .mobile-content {
+  padding-bottom: 0;
 }
 
 /* Cards inside the content area: full-bleed, no border-radius */
