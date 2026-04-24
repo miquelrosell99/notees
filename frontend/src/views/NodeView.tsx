@@ -993,17 +993,6 @@ export function NodeView({
             </div>
           )}
 
-          {/* 3-dot context menu button */}
-          <Button
-            ref={topBarMenuBtnRef}
-            variant="ghost"
-            size="sm"
-            icon={mdiDotsVertical}
-            title="More actions"
-            onClick={handleTopBarMenuClick}
-            className={showTopBarMenu ? 'active' : ''}
-          />
-
           {/* Bullet/Card mode selector - for blocks, document mode is not available */}
           <SelectionButton
             options={resolvedType === 'block' ? [
@@ -1017,6 +1006,17 @@ export function NodeView({
             value={contentDisplayMode}
             onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
             size="sm"
+          />
+
+          {/* 3-dot context menu button */}
+          <Button
+            ref={topBarMenuBtnRef}
+            variant="ghost"
+            size="sm"
+            icon={mdiDotsVertical}
+            title="More actions"
+            onClick={handleTopBarMenuClick}
+            className={showTopBarMenu ? 'active' : ''}
           />
         </div>
       }
