@@ -876,8 +876,7 @@ export function NodeView({
   const handleCloseTopBarMenu = useCallback(() => {
     setShowTopBarMenu(false);
   }, []);
-  }, []);
-  
+
   const handleCoverImageUploaded = useCallback((asset: { node_id?: number }) => {
     setIsCoverImagePickerOpen(false);
     if (coverProperty && 'node_id' in asset && asset.node_id && node) {
