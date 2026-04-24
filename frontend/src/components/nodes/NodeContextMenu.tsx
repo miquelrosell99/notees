@@ -12,6 +12,7 @@
  */
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
+import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -132,6 +133,8 @@ export type ActionName =
   | 'toggle-header'
   | 'copy-uuid'
   | 'copy-link'
+  | 'copy-blocks'
+  | 'paste-blocks'
   | 'open-sidebar'
   | 'local-graph'
   | 'export'
@@ -152,6 +155,8 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['move-to',         'both'],
   ['toggle-header',   'block'],
   ['copy-link',       'both'],
+  ['copy-blocks',     'both'],
+  ['paste-blocks',    'both'],
   ['open-sidebar',    'both'],
   ['export',          'both'],
   ['copy-text',       'both'],
@@ -214,6 +219,10 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
   onParentChange?: (parentId: number | null) => void;
   /** Enables 'convert-to-page' action (block-scoped) */
   onConvertToPage?: () => void;
+  /** Called by 'copy-blocks' action — caller should copy the block to clipboard */
+  onCopyBlocks?: () => void;
+  /** Called by 'paste-blocks' action — caller should paste clipboard blocks after this block */
+  onPasteBlocks?: () => void;
 }
 
 export function NodeContextMenu({
@@ -223,6 +232,8 @@ export function NodeContextMenu({
   actions = DEFAULT_ACTIONS,
   onParentChange,
   onConvertToPage,
+  onCopyBlocks,
+  onPasteBlocks,
 }: NodeContextMenuProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -239,6 +250,7 @@ export function NodeContextMenu({
   const favorites = useFavoritesStore((state) => state.favorites);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
+  const clipboardMode = useClipboardStore((state) => state.mode);
 
   const nodeScope: 'page' | 'block' = node.is_page ? 'page' : 'block';
 
@@ -366,6 +378,27 @@ export function NodeContextMenu({
           });
           break;
 
+        case 'copy-blocks':
+          if (!onCopyBlocks) break;
+          items.push({
+            id: 'copy-blocks',
+            label: 'Copy',
+            shortcut: 'Ctrl+C',
+            onClick: () => { onCopyBlocks(); onClose(); },
+          });
+          break;
+
+        case 'paste-blocks':
+          // Only show when there's something to paste
+          if (!onPasteBlocks || clipboardMode !== 'blocks') break;
+          items.push({
+            id: 'paste-blocks',
+            label: 'Paste',
+            shortcut: 'Ctrl+V',
+            onClick: () => { onPasteBlocks(); onClose(); },
+          });
+          break;
+
         case 'open-sidebar':
           items.push({
             id: 'open-sidebar',
@@ -462,8 +495,8 @@ export function NodeContextMenu({
 
     return items;
   }, [
-    actions, nodeScope, node, isPageFavorited, isHeader,
-    onConvertToPage, onClose,
+    actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
+    onConvertToPage, onCopyBlocks, onPasteBlocks, onClose,
     addSidebarCard, openLocalGraph, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick,
   ]);

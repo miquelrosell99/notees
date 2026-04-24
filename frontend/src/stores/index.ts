@@ -75,4 +75,6 @@ export {
   type ShortcutContext,
   type ShortcutDefinition,
   type ModifierKeys,
-} from './keyboardStore';export { useWhiteboardStore } from './whiteboardStore';export { useUndoStore } from './undoStore';
+} from './keyboardStore';export { useWhiteboardStore } from './whiteboardStore';
+export { useUndoStore } from './undoStore';
+export { useClipboardStore, type ClipboardMode } from './clipboardStore';
