@@ -160,6 +160,11 @@ export interface DragPayload {
   sourceEditorId: string;
   /** The projected depth when drag started */
   sourceDepth: number;
+  /**
+   * For multi-block drag: all top-level selected blocks in DOM order.
+   * When present and length > 1, all blocks are moved as a group.
+   */
+  blockIds?: string[];
 }
 
 export interface DropTarget {
