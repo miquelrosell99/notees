@@ -46,7 +46,7 @@ export class DragCoordinator {
 
     const runtime = getNodeGraphRuntime();
 
-    // Compute the actual parent and position
+    // Compute the actual parent and anchor position for the first (or only) block
     let newParentId: string;
     let afterBlockId: string | null;
 
@@ -74,28 +74,52 @@ export class DragCoordinator {
       }
     }
 
-    // Prevent dropping onto self or descendants
-    const descendants = runtime.getDescendants(payload.blockId);
-    const descendantIds = new Set(descendants.map(d => d.blockId));
-    if (descendantIds.has(newParentId) || newParentId === payload.blockId) {
-      this.cancelDrag();
-      return;
+    // Determine the set of top-level blocks being moved (multi or single)
+    const blockIds = payload.blockIds && payload.blockIds.length > 1
+      ? payload.blockIds
+      : [payload.blockId];
+
+    // Prevent any dragged block from being dropped onto itself or its descendants
+    for (const blockId of blockIds) {
+      const descendants = runtime.getDescendants(blockId);
+      const descendantIds = new Set(descendants.map(d => d.blockId));
+      if (descendantIds.has(newParentId) || newParentId === blockId) {
+        this.cancelDrag();
+        return;
+      }
     }
 
     // Check move guard (page boundaries, projection root locking, etc.)
-    if (this.moveGuard && !this.moveGuard(payload.blockId, newParentId)) {
-      this.cancelDrag();
-      return;
+    for (const blockId of blockIds) {
+      if (this.moveGuard && !this.moveGuard(blockId, newParentId)) {
+        this.cancelDrag();
+        return;
+      }
     }
 
-    const intent: MutationIntent = {
-      type: 'move_block',
-      blockId: payload.blockId,
-      newParentId,
-      afterBlockId,
-    };
+    if (blockIds.length === 1) {
+      // Single block — existing behaviour
+      const intent: MutationIntent = {
+        type: 'move_block',
+        blockId: blockIds[0],
+        newParentId,
+        afterBlockId,
+      };
+      runtime.applyIntent(intent);
+    } else {
+      // Multi-block — move each top-level block in DOM order, placing each one
+      // after the previous so their relative order is preserved.
+      const intents: MutationIntent[] = [];
+      let afterId = afterBlockId;
+      for (const blockId of blockIds) {
+        intents.push({ type: 'move_block', blockId, newParentId, afterBlockId: afterId });
+        // The next block goes after this one (i.e., after blockId itself, not after
+        // its subtree — the runtime treats afterBlockId as a direct-sibling anchor).
+        afterId = blockId;
+      }
+      runtime.applyIntent({ type: 'batch', intents });
+    }
 
-    runtime.applyIntent(intent);
     this.state = { status: 'idle' };
     this.notify();
   }

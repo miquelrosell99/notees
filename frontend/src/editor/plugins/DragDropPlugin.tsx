@@ -329,6 +329,107 @@ function computeDropAnchors(
 }
 
 /**
+ * Build the ghost element's inner HTML for a drag.
+ * For multi-drag renders one row per block (up to MAX_GHOST_ROWS), then a
+ * "…and N more" row.  For single-drag renders the existing bullet+text layout.
+ */
+const MAX_GHOST_ROWS = 4;
+
+function buildGhostContent(
+  ghost: HTMLDivElement,
+  isMultiDrag: boolean,
+  topLevelIds: string[],
+  ghostText: string,
+  sourceRootEl: HTMLElement,
+): void {
+  if (isMultiDrag) {
+    ghost.classList.add('block-drag-ghost--multi');
+    const rows: string[] = [];
+    const visible = topLevelIds.slice(0, MAX_GHOST_ROWS);
+    for (const bid of visible) {
+      const blockEl = sourceRootEl.querySelector(
+        `.node-block[data-block-id="${bid}"]`,
+      ) as HTMLElement | null;
+      const text = blockEl?.querySelector('.node-block-content')?.textContent?.trim() || '';
+      const short = text.length > 48 ? text.slice(0, 48) + '\u2026' : text || '\u2026';
+      rows.push(
+        '<div class="block-drag-ghost__row">' +
+          '<div class="block-drag-ghost__bullet"></div>' +
+          `<div class="block-drag-ghost__content">${escapeHtml(short)}</div>` +
+          '</div>',
+      );
+    }
+    if (topLevelIds.length > MAX_GHOST_ROWS) {
+      rows.push(
+        `<div class="block-drag-ghost__row block-drag-ghost__row--more">\u2026and ${topLevelIds.length - MAX_GHOST_ROWS} more</div>`,
+      );
+    }
+    ghost.innerHTML = rows.join('');
+  } else {
+    ghost.classList.remove('block-drag-ghost--multi');
+    ghost.innerHTML =
+      '<div class="block-drag-ghost__bullet"></div>' +
+      `<div class="block-drag-ghost__content">${escapeHtml(ghostText)}</div>`;
+  }
+}
+
+/**
+ * Collect all top-level selected block IDs in DOM order from an editor root.
+ *
+ * A block is "top-level" if it is selected (primary or child class) and none
+ * of its DOM ancestors in the flat block list are also selected.  When a user
+ * has block A selected and A's child B is also marked selected-child, only A
+ * is returned — dragging A already carries B along as a subtree.
+ */
+function collectTopLevelSelectedBlocks(rootEl: HTMLElement): string[] {
+  const allBlocks = Array.from(
+    rootEl.querySelectorAll<HTMLElement>('.node-block[data-block-id]'),
+  );
+
+  // Build a set of all selected IDs (both primary and child)
+  const selectedIds = new Set<string>();
+  for (const el of allBlocks) {
+    if (
+      el.classList.contains('node-block--selected') ||
+      el.classList.contains('node-block--selected-child')
+    ) {
+      const id = el.getAttribute('data-block-id');
+      if (id) selectedIds.add(id);
+    }
+  }
+
+  if (selectedIds.size === 0) return [];
+
+  // Walk in DOM order, maintaining an ancestor stack to detect selected parents.
+  // Stack entries: { depth, selected } for each active ancestor.
+  const ancestorStack: Array<{ depth: number; selected: boolean }> = [];
+  const topLevel: string[] = [];
+
+  for (const el of allBlocks) {
+    const id = el.getAttribute('data-block-id');
+    if (!id) continue;
+
+    const depth = parseInt(el.getAttribute('data-depth') || '0', 10);
+
+    // Pop items that are no longer ancestors of the current block
+    while (ancestorStack.length > 0 && ancestorStack[ancestorStack.length - 1].depth >= depth) {
+      ancestorStack.pop();
+    }
+
+    const isSelected = selectedIds.has(id);
+    const hasSelectedAncestor = ancestorStack.some(a => a.selected);
+
+    if (isSelected && !hasSelectedAncestor) {
+      topLevel.push(id);
+    }
+
+    ancestorStack.push({ depth, selected: isSelected });
+  }
+
+  return topLevel;
+}
+
+/**
  * Find the nearest drop anchor to a cursor position.
  * Returns null if all anchors are beyond SNAP_DISTANCE.
  */
@@ -387,6 +488,11 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     sourceDepth: number;
     ghostText: string;
     snapped: boolean;
+    /**
+     * When dragging from a multi-selection: the top-level selected block IDs
+     * in DOM order.  Empty (length 0 or 1) means single-block drag.
+     */
+    topLevelIds: string[];
   } | null>(null);
 
   // ─── Ghost element lifecycle ────────────────────────────────
@@ -584,9 +690,29 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
       const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
 
-      const contentEl = blockEl.querySelector('.node-block-content');
-      let ghostText = contentEl?.textContent?.trim() || '';
-      if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
+      // Detect multi-selection drag: the grabbed block is part of a selection
+      const isInSelection =
+        blockEl.classList.contains('node-block--selected') ||
+        blockEl.classList.contains('node-block--selected-child');
+      const topLevelIds = isInSelection ? collectTopLevelSelectedBlocks(rootEl) : [];
+      const isMultiDrag = topLevelIds.length > 1;
+
+      // Ghost text: for multi-drag show the first top-level block's content + count
+      let ghostText: string;
+      if (isMultiDrag) {
+        const firstEl = rootEl.querySelector(
+          `.node-block[data-block-id="${topLevelIds[0]}"]`,
+        ) as HTMLElement | null;
+        const firstText = firstEl?.querySelector('.node-block-content')?.textContent?.trim() || '';
+        const short = firstText.length > 50 ? firstText.slice(0, 50) + '…' : firstText;
+        ghostText = short
+          ? `${short} (+${topLevelIds.length - 1})`
+          : `${topLevelIds.length} blocks`;
+      } else {
+        const contentEl = blockEl.querySelector('.node-block-content');
+        ghostText = contentEl?.textContent?.trim() || '';
+        if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
+      }
 
       dragStateRef.current = {
         pending: true,
@@ -599,6 +725,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         sourceDepth: depth,
         ghostText,
         snapped: false,
+        topLevelIds,
       };
     };
 
@@ -620,32 +747,37 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         state.active = true;
 
         window.getSelection()?.removeAllRanges();
+        const isMultiDrag = state.topLevelIds.length > 1;
         getDragCoordinator().startDrag({
           blockId: state.blockId,
           sourceEditorId: editorId,
           sourceDepth: state.sourceDepth,
+          ...(isMultiDrag ? { blockIds: state.topLevelIds } : {}),
         });
 
         // Find the scrollable container
         scrollContainerRef.current = findScrollableAncestor(rootEl);
 
-        // Collect the dragged block + all its descendants (flat DOM walk)
+        // Collect the dragged subtrees — for multi-drag, include all top-level blocks
         const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+        const idsToExclude = isMultiDrag ? state.topLevelIds : [state.blockId];
         let subtreeIds = new Set<string>();
         editorRoots.forEach((root) => {
-          const ids = collectDragSubtreeIds(root, state.blockId);
-          ids.forEach((id) => subtreeIds.add(id));
+          for (const bid of idsToExclude) {
+            collectDragSubtreeIds(root, bid).forEach((id) => subtreeIds.add(id));
+          }
         });
         excludedIdsRef.current = subtreeIds;
 
         // Compute initial anchors (uses excludedIdsRef)
         recomputeAnchors();
 
+        // Hide the selection card overlay — its position is about to become stale
+        document.querySelectorAll('.block-selection-card').forEach(el => el.remove());
+
         // Build ghost
         const ghost = ghostRef.current!;
-        ghost.innerHTML =
-          '<div class="block-drag-ghost__bullet"></div>' +
-          `<div class="block-drag-ghost__content">${escapeHtml(state.ghostText)}</div>`;
+        buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
         ghost.style.display = 'flex';
         positionGhostFloat(ghost, e.clientX, e.clientY);
 
@@ -733,6 +865,8 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       document.body.classList.remove('notees-dragging-block');
       anchorsRef.current = [];
       activeAnchorRef.current = null;
+      // Selection card positions are stale after the move — remove them
+      document.querySelectorAll('.block-selection-card').forEach(el => el.remove());
     }
 
     // ── Touch drag system ─────────────────────────────────────
@@ -777,27 +911,33 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       navigator.vibrate?.(30);
       window.getSelection()?.removeAllRanges();
 
+      const isMultiDrag = state.topLevelIds.length > 1;
       getDragCoordinator().startDrag({
         blockId: state.blockId,
         sourceEditorId: editorId,
         sourceDepth: state.sourceDepth,
+        ...(isMultiDrag ? { blockIds: state.topLevelIds } : {}),
       });
 
       scrollContainerRef.current = findScrollableAncestor(rootEl);
 
       const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
+      const idsToExclude = isMultiDrag ? state.topLevelIds : [state.blockId];
       const subtreeIds = new Set<string>();
       editorRoots.forEach((root) => {
-        collectDragSubtreeIds(root, state.blockId).forEach((id) => subtreeIds.add(id));
+        for (const bid of idsToExclude) {
+          collectDragSubtreeIds(root, bid).forEach((id) => subtreeIds.add(id));
+        }
       });
       excludedIdsRef.current = subtreeIds;
 
       recomputeAnchors();
 
+      // Hide the selection card overlay — its position is about to become stale
+      document.querySelectorAll('.block-selection-card').forEach(el => el.remove());
+
       const ghost = ghostRef.current!;
-      ghost.innerHTML =
-        '<div class="block-drag-ghost__bullet"></div>' +
-        `<div class="block-drag-ghost__content">${escapeHtml(state.ghostText)}</div>`;
+      buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
       ghost.style.display = 'flex';
       positionGhostFloat(ghost, x, y);
 
@@ -907,9 +1047,28 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
       const touch = e.touches[0];
       const depth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
-      const contentEl = blockEl.querySelector('.node-block-content');
-      let ghostText = contentEl?.textContent?.trim() || '';
-      if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
+
+      const isInSelection =
+        blockEl.classList.contains('node-block--selected') ||
+        blockEl.classList.contains('node-block--selected-child');
+      const topLevelIds = isInSelection ? collectTopLevelSelectedBlocks(rootEl) : [];
+      const isMultiDrag = topLevelIds.length > 1;
+
+      let ghostText: string;
+      if (isMultiDrag) {
+        const firstEl = rootEl.querySelector(
+          `.node-block[data-block-id="${topLevelIds[0]}"]`,
+        ) as HTMLElement | null;
+        const firstText = firstEl?.querySelector('.node-block-content')?.textContent?.trim() || '';
+        const short = firstText.length > 50 ? firstText.slice(0, 50) + '…' : firstText;
+        ghostText = short
+          ? `${short} (+${topLevelIds.length - 1})`
+          : `${topLevelIds.length} blocks`;
+      } else {
+        const contentEl = blockEl.querySelector('.node-block-content');
+        ghostText = contentEl?.textContent?.trim() || '';
+        if (ghostText.length > 60) ghostText = ghostText.substring(0, 60) + '…';
+      }
 
       dragStateRef.current = {
         pending: true,
@@ -922,6 +1081,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         sourceDepth: depth,
         ghostText,
         snapped: false,
+        topLevelIds,
       };
 
       document.addEventListener('touchmove', onTouchMoveDrag, { passive: false });
