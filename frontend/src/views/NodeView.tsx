@@ -19,7 +19,7 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, flushAllContentSaves, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -49,7 +49,7 @@ import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesE
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline } from '@mdi/js';
+import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiDotsVertical } from '@mdi/js';
 import Icon from '@mdi/react';
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -627,6 +627,11 @@ export function NodeView({
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+
+  // Top-bar 3-dot menu state
+  const [showTopBarMenu, setShowTopBarMenu] = useState(false);
+  const [topBarMenuPos, setTopBarMenuPos] = useState({ x: 0, y: 0 });
+  const topBarMenuBtnRef = useRef<HTMLButtonElement>(null);
   
   // Cover image picker state
   const [isCoverImagePickerOpen, setIsCoverImagePickerOpen] = useState(false);
@@ -858,16 +863,19 @@ export function NodeView({
   const handleCloseContextMenu = useCallback(() => {
     setShowContextMenu(false);
   }, []);
-  
-  // Navigate to type/tag
-  const handleNavigateToNode = useCallback((targetId: number) => {
-    flushAllContentSaves();
-    openNode(targetId);
-  }, [openNode]);
-  
-  // Cover image handlers
-  const handleSelectCoverImage = useCallback(() => {
-    setIsCoverImagePickerOpen(true);
+
+  // Top-bar 3-dot menu handlers
+  const handleTopBarMenuClick = useCallback(() => {
+    if (topBarMenuBtnRef.current) {
+      const rect = topBarMenuBtnRef.current.getBoundingClientRect();
+      setTopBarMenuPos({ x: rect.left, y: rect.bottom + 4 });
+    }
+    setShowTopBarMenu(prev => !prev);
+  }, []);
+
+  const handleCloseTopBarMenu = useCallback(() => {
+    setShowTopBarMenu(false);
+  }, []);
   }, []);
   
   const handleCoverImageUploaded = useCallback((asset: { node_id?: number }) => {
@@ -977,6 +985,17 @@ export function NodeView({
               />
             </div>
           )}
+
+          {/* 3-dot context menu button */}
+          <Button
+            ref={topBarMenuBtnRef}
+            variant="ghost"
+            size="sm"
+            icon={mdiDotsVertical}
+            title="More actions"
+            onClick={handleTopBarMenuClick}
+            className={showTopBarMenu ? 'active' : ''}
+          />
 
           {/* Bullet/Card mode selector - for blocks, document mode is not available */}
           <SelectionButton
@@ -1365,7 +1384,7 @@ export function NodeView({
         </footer>
       )}
       
-      {/* Context Menu */}
+      {/* Context Menu (right-click) */}
       {showContextMenu && (
         resolvedType === 'page' ? (
           <PageContextMenu
@@ -1378,6 +1397,23 @@ export function NodeView({
             node={node}
             position={contextMenuPos}
             onClose={handleCloseContextMenu}
+          />
+        )
+      )}
+
+      {/* Top-bar 3-dot menu */}
+      {showTopBarMenu && (
+        resolvedType === 'page' ? (
+          <PageContextMenu
+            node={node}
+            position={topBarMenuPos}
+            onClose={handleCloseTopBarMenu}
+          />
+        ) : (
+          <BlockContextMenu
+            node={node}
+            position={topBarMenuPos}
+            onClose={handleCloseTopBarMenu}
           />
         )
       )}
