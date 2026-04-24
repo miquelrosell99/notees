@@ -940,7 +940,7 @@ export function NodeView({
   }
 
   // Build header content
-  const headerContent = (
+  const baseHeaderContent = (
     <MainContentTopbar
       left={
         <NodeBreadcrumbs
@@ -1021,6 +1021,30 @@ export function NodeView({
         </div>
       }
     />
+  );
+
+  // Top-bar 3-dot menu (rendered here so it shares state with the button above)
+  const topBarMenu = showTopBarMenu ? (
+    resolvedType === 'page' ? (
+      <PageContextMenu
+        node={node}
+        position={topBarMenuPos}
+        onClose={handleCloseTopBarMenu}
+      />
+    ) : (
+      <BlockContextMenu
+        node={node}
+        position={topBarMenuPos}
+        onClose={handleCloseTopBarMenu}
+      />
+    )
+  ) : null;
+
+  const headerContent = (
+    <>
+      {baseHeaderContent}
+      {topBarMenu}
+    </>
   );
 
   // Build main content
@@ -1404,23 +1428,6 @@ export function NodeView({
             node={node}
             position={contextMenuPos}
             onClose={handleCloseContextMenu}
-          />
-        )
-      )}
-
-      {/* Top-bar 3-dot menu */}
-      {showTopBarMenu && (
-        resolvedType === 'page' ? (
-          <PageContextMenu
-            node={node}
-            position={topBarMenuPos}
-            onClose={handleCloseTopBarMenu}
-          />
-        ) : (
-          <BlockContextMenu
-            node={node}
-            position={topBarMenuPos}
-            onClose={handleCloseTopBarMenu}
           />
         )
       )}
