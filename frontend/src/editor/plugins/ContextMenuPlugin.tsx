@@ -24,6 +24,9 @@ import type { ASTInlineNode, ASTDocument } from '../../types/ast';
 import { getNodeByUuid } from '../../api/nodes';
 import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeContextMenu';
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
+import { copyRuntimeBlocksToClipboard } from '../../utils/clipboardManager';
+import { useClipboardStore } from '../../stores/clipboardStore';
+import { pasteBlocksAfterBlock } from './BlockCopyPastePlugin';
 import type { Node } from '../../types/api';
 
 export interface ContextMenuPluginProps {
@@ -394,17 +397,35 @@ export function ContextMenuPlugin({
     write_date: graphNode.updatedAt || '',
   };
 
+  const handleCopyBlocks = () => {
+    const rt = getNodeGraphRuntime();
+    copyRuntimeBlocksToClipboard([contextMenu.blockId], rt)
+      .then((data) => useClipboardStore.getState().setCopied(data))
+      .catch(console.error);
+  };
+
+  const handlePasteBlocks = () => {
+    const { copiedBlocks } = useClipboardStore.getState();
+    if (copiedBlocks) {
+      pasteBlocksAfterBlock(copiedBlocks, contextMenu.blockId);
+    }
+  };
+
   return contextMenu.isPage ? (
     <PageContextMenu
       node={apiNode}
       position={contextMenu.position}
       onClose={handleCloseContextMenu}
+      onCopyBlocks={handleCopyBlocks}
+      onPasteBlocks={handlePasteBlocks}
     />
   ) : (
     <BlockContextMenu
       node={apiNode}
       position={contextMenu.position}
       onClose={handleCloseContextMenu}
+      onCopyBlocks={handleCopyBlocks}
+      onPasteBlocks={handlePasteBlocks}
     />
   );
 }

@@ -29,4 +29,7 @@ export { FloatingToolbarPlugin } from './FloatingToolbarPlugin';
 export { ContextMenuPlugin } from './ContextMenuPlugin';
 export type { ContextMenuPluginProps } from './ContextMenuPlugin';
 
+export { BlockCopyPastePlugin, pasteBlocksAfterBlock } from './BlockCopyPastePlugin';
+export type { BlockCopyPastePluginProps } from './BlockCopyPastePlugin';
+
 export { BlockCodePlugin } from './BlockCodePlugin';

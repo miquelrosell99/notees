@@ -54,6 +54,7 @@ import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
+import { BlockCopyPastePlugin } from './plugins/BlockCopyPastePlugin';
 import { CreateLinkPlugin, isLikelyUrl, type PendingNewLink } from './plugins/CreateLinkPlugin';
 import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 import * as nodesApi from '@/api/nodes';
@@ -200,6 +201,14 @@ export function BlockEditor({
   // Track whether the initial data sync has run, so subsequent syncs
   // preserve client-side collapsed state while the first one uses the DB value.
   const hasInitializedRef = useRef(false);
+
+  // Internal selection state — needed by BlockCopyPastePlugin
+  const [internalSelectedBlockIds, setInternalSelectedBlockIds] = useState<string[]>([]);
+
+  const handleSelectionChange = useCallback((ids: string[]) => {
+    setInternalSelectedBlockIds(ids);
+    onSelectionChange?.(ids);
+  }, [onSelectionChange]);
 
   // Hooks for class management  
   const addClassMutation = useAddClass();
@@ -661,21 +670,21 @@ export function BlockEditor({
         <BlockDragSelectionPlugin
           editorId={editorId}
           readOnly={readOnly}
-          onSelectionChange={onSelectionChange}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Keyboard-based block selection (Esc, Shift+arrows) */}
         <KeyboardSelectionPlugin
           editorId={editorId}
           readOnly={readOnly}
-          onSelectionChange={onSelectionChange}
+          onSelectionChange={handleSelectionChange}
           onEscape={onEscape}
         />
 
         {/* Selection */}
         <SelectionPlugin
           editorId={editorId}
-          onSelectionChange={onSelectionChange}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Triggers (/, +, @, #) */}
@@ -692,6 +701,12 @@ export function BlockEditor({
 
         {/* Multi-line paste handler — creates hierarchical blocks with [[link]] and #tag resolution */}
         <PasteBlocksPlugin onContentChange={handleContentChange} />
+
+        {/* Structural block copy/paste — Ctrl+C/V for whole blocks with AST fidelity */}
+        <BlockCopyPastePlugin
+          selectedBlockIds={internalSelectedBlockIds}
+          onContentChange={handleContentChange}
+        />
 
         {/* Floating toolbar */}
         <FloatingToolbarPlugin />
