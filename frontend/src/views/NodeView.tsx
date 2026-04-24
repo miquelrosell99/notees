@@ -636,6 +636,7 @@ export function NodeView({
   const [showTopBarMenu, setShowTopBarMenu] = useState(false);
   const [topBarMenuPos, setTopBarMenuPos] = useState({ x: 0, y: 0 });
   const topBarMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const topBarMenuClosedAtRef = useRef(0);
   
   // Cover image picker state
   const [isCoverImagePickerOpen, setIsCoverImagePickerOpen] = useState(false);
@@ -870,14 +871,18 @@ export function NodeView({
 
   // Top-bar 3-dot menu handlers
   const handleTopBarMenuClick = useCallback(() => {
+    // If the menu was just closed by the outside-click handler (triggered by clicking
+    // this same button), don't reopen it — this gives the correct toggle behaviour.
+    if (Date.now() - topBarMenuClosedAtRef.current < 200) return;
     if (topBarMenuBtnRef.current) {
       const rect = topBarMenuBtnRef.current.getBoundingClientRect();
       setTopBarMenuPos({ x: rect.left, y: rect.bottom + 4 });
     }
-    setShowTopBarMenu(prev => !prev);
+    setShowTopBarMenu(true);
   }, []);
 
   const handleCloseTopBarMenu = useCallback(() => {
+    topBarMenuClosedAtRef.current = Date.now();
     setShowTopBarMenu(false);
   }, []);
 
