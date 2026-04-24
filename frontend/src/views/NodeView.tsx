@@ -485,6 +485,10 @@ export function NodeView({
     removeAlias.mutate({ nodeId: node.id, aliasId: aliasNode.id });
   }, [node, removeAlias]);
   
+  const handleNavigateToNode = useCallback((id: number) => {
+    openNode(id);
+  }, [openNode]);
+
   // Handle navigating to an alias node (skip redirection to show the alias itself)
   const handleNavigateToAlias = useCallback((aliasNode: Node) => {
     navigateToNode(aliasNode, { skipAliasRedirect: true });
@@ -875,6 +879,10 @@ export function NodeView({
 
   const handleCloseTopBarMenu = useCallback(() => {
     setShowTopBarMenu(false);
+  }, []);
+
+  const handleSelectCoverImage = useCallback(() => {
+    setIsCoverImagePickerOpen(true);
   }, []);
 
   const handleCoverImageUploaded = useCallback((asset: { node_id?: number }) => {
