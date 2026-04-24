@@ -16,6 +16,26 @@
 import type { Node } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 
+// ==================== Runtime Graph Node Interface ====================
+// Minimal structural interface so this module doesn't import from runtime
+// (avoids circular dependency: runtime → api → clipboardManager → runtime).
+
+interface RuntimeNodeLike {
+  blockId: string;
+  parentId: string | null;
+  contentAST: unknown;
+  icon?: string | null;
+  color?: string | null;
+  collapsed: boolean;
+  classIds: string[];
+  tagIds: string[];
+}
+
+interface RuntimeLike {
+  getNode(id: string): RuntimeNodeLike | undefined;
+  getChildren(parentId: string): RuntimeNodeLike[];
+}
+
 // ==================== Internal Copy Format ====================
 
 /**
@@ -751,4 +771,80 @@ export function regenerateLinkUuids(content: string): string {
     const newUuid = generateLinkUuid();
     return `[[${nodeId}:${newUuid}]]`;
   });
+}
+
+// ==================== Runtime-Based Copy ====================
+
+/**
+ * Build a BlockData tree from a runtime node and its descendants.
+ * Used to capture the full structure of a block for copy/paste.
+ */
+function runtimeNodeToBlockData(
+  blockId: string,
+  runtime: RuntimeLike,
+): BlockData | null {
+  const node = runtime.getNode(blockId);
+  if (!node) return null;
+
+  const children = runtime.getChildren(blockId)
+    .map(child => runtimeNodeToBlockData(child.blockId, runtime))
+    .filter((c): c is BlockData => c !== null);
+
+  return {
+    uuid: node.blockId,
+    // Store content as JSON string (AST) — same format as DB
+    name: JSON.stringify(node.contentAST),
+    icon: node.icon ?? null,
+    color: node.color ?? null,
+    collapsed: node.collapsed,
+    classUuids: node.classIds.length > 0 ? [...node.classIds] : undefined,
+    tagUuids: node.tagIds.length > 0 ? [...node.tagIds] : undefined,
+    children: children.length > 0 ? children : undefined,
+  };
+}
+
+/**
+ * Build a BlockCopyData snapshot from a set of block IDs in the runtime.
+ *
+ * Only top-level blocks are included at the root; any block whose parent
+ * is also in `blockIds` is omitted (it will appear as a child of its parent).
+ * Child blocks are captured recursively regardless of whether their IDs
+ * appear in the input set.
+ */
+export function buildBlockCopyDataFromRuntime(
+  blockIds: string[],
+  runtime: RuntimeLike,
+): BlockCopyData {
+  const blockIdSet = new Set(blockIds);
+
+  // Keep only top-level blocks (those whose parent is NOT also selected)
+  const topLevelIds = blockIds.filter(id => {
+    const node = runtime.getNode(id);
+    if (!node) return false;
+    return !node.parentId || !blockIdSet.has(node.parentId);
+  });
+
+  const blocks = topLevelIds
+    .map(id => runtimeNodeToBlockData(id, runtime))
+    .filter((b): b is BlockData => b !== null);
+
+  return {
+    version: 1,
+    format: 'notees-blocks',
+    timestamp: new Date().toISOString(),
+    blocks,
+  };
+}
+
+/**
+ * Copy a set of runtime blocks to the system clipboard as internal format.
+ * Returns the BlockCopyData so callers can update their clipboard store.
+ */
+export async function copyRuntimeBlocksToClipboard(
+  blockIds: string[],
+  runtime: RuntimeLike,
+): Promise<BlockCopyData> {
+  const data = buildBlockCopyDataFromRuntime(blockIds, runtime);
+  await copyToClipboard(JSON.stringify(data));
+  return data;
 }
