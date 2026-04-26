@@ -823,6 +823,15 @@ class PostgresPropertyRepository(PropertyRepository):
             )
             return int(result.split()[-1]) if result else 0
     
+    async def delete_relation_values_by_target(self, target_id: int) -> int:
+        """Delete all property_value_relation rows where target_id matches."""
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                "DELETE FROM property_value_relation WHERE target_id = $1",
+                target_id
+            )
+            return int(result.split()[-1]) if result else 0
+    
     # ============== Selection Lines ==============
     
     async def add_selection_line(self, property_id: int, name: str, icon: Optional[str] = None,

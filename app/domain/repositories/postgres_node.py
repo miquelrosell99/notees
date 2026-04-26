@@ -464,3 +464,283 @@ class PostgresNodeRepository(
                 RETURNING *
             """, now, node_id, self._workspace_id)
             return self._row_to_node(row) if row else None
+
+    # ============== Bulk / Ad-hoc Operations (migrated from domain services) ==============
+
+    async def find_page_by_name(
+        self, name: str, parent_id: Optional[int] = None
+    ) -> List[asyncpg.Record]:
+        """Find pages with the given name and parent, returning raw rows with class info."""
+        async with acquire_connection(self._pool) as conn:
+            return await conn.fetch("""
+                SELECT n.id, n.name, nl.target_id as class_id, class_node.name as class_name
+                FROM node n
+                LEFT JOIN node_link nl ON nl.source_id = n.id AND nl.is_inline_class = TRUE
+                LEFT JOIN node class_node ON class_node.id = nl.target_id
+                WHERE n.workspace_id = $1 AND n.name = $2 AND n.is_page = TRUE AND n.active = TRUE
+                  AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
+            """, self._workspace_id, name, parent_id)
+
+    async def has_circular_reference(self, ancestor_id: int, descendant_id: int) -> bool:
+        """Check if setting ancestor_id as parent of descendant_id would create a cycle."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM node_path WHERE ancestor_id = $1 AND descendant_id = $2",
+                ancestor_id, descendant_id
+            )
+            return row is not None
+
+    async def get_depth_info(self, node_id: int) -> tuple[int, int]:
+        """Get (parent_depth, subtree_depth) for a node using the closure table."""
+        async with acquire_connection(self._pool) as conn:
+            parent_row = await conn.fetchrow(
+                "SELECT COALESCE(MAX(depth), 0) as parent_depth FROM node_path WHERE descendant_id = $1",
+                node_id
+            )
+            subtree_row = await conn.fetchrow(
+                "SELECT COALESCE(MAX(depth), 0) as subtree_depth FROM node_path WHERE ancestor_id = $1",
+                node_id
+            )
+            return (
+                parent_row['parent_depth'] if parent_row else 0,
+                subtree_row['subtree_depth'] if subtree_row else 0,
+            )
+
+    async def get_inline_class_ids(self, node_id: int) -> List[int]:
+        """Get inline class IDs (from node_link with is_inline_class=TRUE) for a node."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT target_id as class_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE ORDER BY position",
+                node_id
+            )
+            return [row['class_id'] for row in rows]
+
+    async def get_deleted_nodes(self) -> List[Node]:
+        """Get all soft-deleted nodes in the workspace ordered by deleted_at DESC."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM node WHERE workspace_id = $1 AND is_deleted = true ORDER BY deleted_at DESC NULLS LAST",
+                self._workspace_id
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_node_by_id_with_workspace(self, node_id: int) -> Optional[Node]:
+        """Get a node by ID, verifying it belongs to this workspace."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
+            )
+            return self._row_to_node(row) if row else None
+
+    async def soft_delete_nodes(
+        self, node_ids: List[int], deleted_at: str, write_uid: int
+    ) -> None:
+        """Bulk soft-delete nodes by setting is_deleted=TRUE and deleted_at."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """UPDATE node SET is_deleted = TRUE, deleted_at = $1, write_date = $1, write_uid = $2
+                   WHERE id = ANY($3::integer[]) AND workspace_id = $4""",
+                deleted_at, write_uid, node_ids, self._workspace_id
+            )
+
+    async def restore_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk restore nodes from trash."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """UPDATE node SET is_deleted = FALSE, deleted_at = NULL, write_date = $1, write_uid = $2
+                   WHERE id = ANY($3::integer[]) AND workspace_id = $4""",
+                write_date, write_uid, node_ids, self._workspace_id
+            )
+
+    async def hard_delete_nodes(self, node_ids: List[int]) -> None:
+        """Bulk permanently delete nodes (assumes they are already in trash)."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "DELETE FROM node WHERE id = ANY($1::integer[]) AND workspace_id = $2",
+                node_ids, self._workspace_id
+            )
+
+    async def get_trash_node_ids(self) -> List[int]:
+        """Get IDs of all soft-deleted nodes in the workspace."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT id FROM node WHERE workspace_id = $1 AND is_deleted = true",
+                self._workspace_id
+            )
+            return [row['id'] for row in rows]
+
+    async def node_exists(self, node_id: int) -> bool:
+        """Check if a node exists in this workspace."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
+            )
+            return row is not None
+
+    async def get_children_ids(self, parent_id: int) -> List[int]:
+        """Get direct child IDs of a node ordered by sequence."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE ORDER BY sequence",
+                parent_id
+            )
+            return [row['id'] for row in rows]
+
+    async def get_max_sequence(self, parent_id: int) -> int:
+        """Get the maximum sequence among children of a parent."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT COALESCE(MAX(sequence), -1) as max_seq FROM node WHERE parent_id = $1",
+                parent_id
+            )
+            return row['max_seq'] if row else -1
+
+    async def reparent_nodes(
+        self, node_ids: List[int], new_parent_id: int, new_page_id: int,
+        start_sequence: int
+    ) -> None:
+        """Reparent multiple nodes to a new parent with sequential ordering."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            for idx, node_id in enumerate(node_ids):
+                await conn.execute(
+                    """UPDATE node SET parent_id = $1, page_id = $2, sequence = $3,
+                       write_date = NOW(), version = version + 1
+                       WHERE id = $4 AND workspace_id = $5""",
+                    new_parent_id, new_page_id, start_sequence + idx,
+                    node_id, self._workspace_id
+                )
+
+    async def archive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk archive nodes by setting active=FALSE."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """UPDATE node SET active = FALSE, write_date = $1, write_uid = $2, version = version + 1
+                   WHERE id = ANY($3::integer[]) AND workspace_id = $4""",
+                write_date, write_uid, node_ids, self._workspace_id
+            )
+
+    async def unarchive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk unarchive nodes by setting active=TRUE."""
+        if not node_ids:
+            return
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """UPDATE node SET active = TRUE, write_date = $1, write_uid = $2, version = version + 1
+                   WHERE id = ANY($3::integer[]) AND workspace_id = $4""",
+                write_date, write_uid, node_ids, self._workspace_id
+            )
+
+    async def count_active_day_descendants(self, node_id: int) -> int:
+        """Count active day-page descendants of a node."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow("""
+                SELECT COUNT(*) as day_count
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND np.depth > 0
+                  AND n.workspace_id = $2 AND n.active = TRUE AND n.is_day = TRUE
+            """, node_id, self._workspace_id)
+            return row['day_count'] if row else 0
+
+    async def list_templates(self) -> List[Node]:
+        """List all active templates in the workspace."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """SELECT * FROM node
+                   WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
+                     AND (is_deleted = FALSE OR is_deleted IS NULL)
+                   ORDER BY name""",
+                self._workspace_id
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_template_descendants(self, template_id: int) -> List[Node]:
+        """Get all descendant nodes of a template (excluding the template itself)."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch("""
+                SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.sequence,
+                       n.class_ids, n.collapsed
+                FROM node_path np
+                JOIN node n ON n.id = np.descendant_id
+                WHERE np.ancestor_id = $1 AND np.depth > 0
+                  AND n.workspace_id = $2 AND n.active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY np.depth, n.sequence
+            """, template_id, self._workspace_id)
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_node_sequence(self, node_id: int) -> Optional[int]:
+        """Get the sequence of a node."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT sequence FROM node WHERE id = $1 AND workspace_id = $2",
+                node_id, self._workspace_id
+            )
+            return row['sequence'] if row else None
+
+    async def shift_sequences(
+        self, parent_id: int, from_sequence: int, amount: int
+    ) -> None:
+        """Shift sequences of children at or after from_sequence by amount."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """UPDATE node SET sequence = sequence + $1
+                   WHERE parent_id = $2 AND sequence > $3
+                     AND workspace_id = $4 AND active = TRUE""",
+                amount, parent_id, from_sequence, self._workspace_id
+            )
+
+    async def find_node_id_by_uuid(self, uuid: str) -> Optional[int]:
+        """Find a node ID by UUID in this workspace."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM node WHERE uuid::text = $1 AND workspace_id = $2",
+                uuid, self._workspace_id
+            )
+            return row['id'] if row else None
+
+    async def get_node_class_ids(self, node_id: int) -> List[int]:
+        """Get the class_ids array for a node."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT class_ids FROM node WHERE id = $1", node_id
+            )
+            return row['class_ids'] if row and row['class_ids'] else []
+
+    async def update_node_class_ids(self, node_id: int, class_ids: List[int]) -> None:
+        """Update class_ids for a node."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
+                class_ids, node_id
+            )
+
+    async def redirect_property_relation_targets(self, old_target_id: int, new_target_id: int) -> int:
+        """Update all property_value_relation records to point from old_target to new_target.
+        
+        Returns the number of rows updated.
+        """
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                "UPDATE property_value_relation SET target_id = $1 WHERE target_id = $2",
+                new_target_id, old_target_id
+            )
+            return int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
