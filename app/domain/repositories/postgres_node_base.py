@@ -87,8 +87,8 @@ class _PostgresNodeBase:
         if class_ids is None:
             class_ids = []
 
-        create_date = row['create_date']
-        write_date = row['write_date']
+        create_date = row.get('create_date', '')
+        write_date = row.get('write_date', '')
         open_date = row.get('open_date')
         deleted_at = row.get('deleted_at')
 

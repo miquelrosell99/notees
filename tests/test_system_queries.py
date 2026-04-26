@@ -230,7 +230,7 @@ def test_empty_system_query_warning():
             logic=LogicType.AND,
             children=[
                 PropertyCondition(
-                    property_name="parent_uuid",
+                    property_name="parent_id",
                     property_type=PropertyType.TEXT,
                     operator=PropertyOperator.EQUALS,
                     value="parent-456"

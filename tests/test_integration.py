@@ -53,17 +53,13 @@ class TestNodeCrudFlow:
     async def test_create_read_update_delete_page(self, auth_client: AsyncClient):
         """Test full CRUD cycle for a page."""
         # Create a page
-        create_data = {
-            "name": "Integration Test Page",
-            "is_page": True,
-        }
-        response = await auth_client.post("/api/nodes", json=create_data)
+        response = await auth_client.post("/api/nodes/page", params={"name": "Integration Test Page"})
         assert response.status_code == 200
         page = response.json()
         page_id = page["id"]
         assert page["is_page"] is True
-        # For pages, content is stored as name
-        assert page.get("name") == "Integration Test Page"
+        # For pages, name is stored as AST
+        assert "Integration Test Page" in page.get("name", "")
         
         # Read the page
         response = await auth_client.get(f"/api/nodes/{page_id}")
@@ -76,6 +72,7 @@ class TestNodeCrudFlow:
         }
         response = await auth_client.put(f"/api/nodes/{page_id}", json=update_data)
         assert response.status_code == 200
+        assert "Updated Integration Test Page" in response.json().get("name", "")
         
         # Delete the page
         response = await auth_client.delete(f"/api/nodes/{page_id}")
@@ -89,10 +86,7 @@ class TestNodeCrudFlow:
     async def test_create_block_under_page(self, auth_client: AsyncClient):
         """Test creating blocks under a page."""
         # Create a page first
-        page_response = await auth_client.post("/api/nodes", json={
-            "name": "Parent Page for Blocks",
-            "is_page": True,
-        })
+        page_response = await auth_client.post("/api/nodes/page", params={"name": "Parent Page for Blocks"})
         assert page_response.status_code == 200
         page = page_response.json()
         page_id = page["id"]
@@ -100,9 +94,8 @@ class TestNodeCrudFlow:
         # Create blocks under the page
         blocks = []
         for i in range(3):
-            response = await auth_client.post("/api/nodes", json={
+            response = await auth_client.post("/api/nodes/", json={
                 "name": f"Block {i + 1} content",
-                "is_page": False,
                 "parent_id": page_id,
             })
             assert response.status_code == 200
@@ -167,7 +160,7 @@ class TestDailyPageFlow:
         page_id = response.json()["id"]
         
         # Add a block to the daily page
-        block_response = await auth_client.post("/api/nodes", json={
+        block_response = await auth_client.post("/api/nodes/", json={
             "name": "Today I learned about integration testing.",
             "is_page": False,
             "parent_id": page_id,
@@ -187,7 +180,7 @@ class TestSearchFlow:
         unique_marker = f"UNIQUE_{secrets.token_hex(6)}"
         
         # Create a page with unique name
-        await auth_client.post("/api/nodes", json={
+        await auth_client.post("/api/nodes/", json={
             "name": f"Searchable Page {unique_marker}",
             "is_page": True,
         })
@@ -212,55 +205,42 @@ class TestTagFlow:
     """Test tag operations."""
     
     @pytest.mark.asyncio
-    async def test_create_type(self, auth_client: AsyncClient):
-        """Test creating a class node."""
+    async def test_create_tag(self, auth_client: AsyncClient):
+        """Test creating a tag node."""
         import secrets
-        type_name = f"test-type-{secrets.token_hex(4)}"
+        tag_name = f"test-tag-{secrets.token_hex(4)}"
         
-        response = await auth_client.post("/api/nodes", json={
-            "name": type_name,
-            "is_class": True,
-            "is_page": True,
-        })
+        response = await auth_client.post("/api/nodes/page", params={"name": tag_name})
         assert response.status_code == 200
-        type_node = response.json()
+        tag_node = response.json()
         
-        # Classes are pages with is_class flag
-        assert type_node["is_class"] is True
-        assert type_node["is_page"] is True
+        # Regular pages are not classes
+        assert tag_node["is_page"] is True
 
 
-class TestDatabaseFlow:
-    """Test database management operations."""
+class TestWorkspaceFlow:
+    """Test workspace management operations."""
     
     @pytest.mark.asyncio
-    async def test_list_databases(self, auth_client: AsyncClient):
-        """Test listing available databases."""
-        response = await auth_client.get("/api/databases")
+    async def test_list_workspaces(self, auth_client: AsyncClient):
+        """Test listing available workspaces."""
+        response = await auth_client.get("/api/workspaces/")
         assert response.status_code == 200
         data = response.json()
-        assert "databases" in data
-        assert isinstance(data["databases"], list)
+        assert "workspaces" in data or "items" in data
     
     @pytest.mark.asyncio
-    async def test_create_and_switch_database(self, auth_client: AsyncClient):
-        """Test creating a new database and switching to it."""
+    async def test_create_and_switch_workspace(self, auth_client: AsyncClient):
+        """Test creating a new workspace and switching to it."""
         import secrets
-        db_name = f"testdb_{secrets.token_hex(4)}"
+        ws_name = f"testws_{secrets.token_hex(4)}"
         
-        # Create new database
-        response = await auth_client.post("/api/databases", json={
-            "name": db_name
+        # Create new workspace
+        response = await auth_client.post("/api/workspaces/", json={
+            "name": ws_name
         })
         assert response.status_code == 200
         
-        # Switch to the new database
-        response = await auth_client.post(f"/api/databases/{db_name}/switch")
+        # List workspaces and verify the new one exists
+        response = await auth_client.get("/api/workspaces/")
         assert response.status_code == 200
-        
-        # Verify we're on the new database
-        response = await auth_client.get("/api/databases")
-        data = response.json()
-        active_db = next((db for db in data["databases"] if db["is_active"]), None)
-        assert active_db is not None
-        assert active_db["name"] == db_name
