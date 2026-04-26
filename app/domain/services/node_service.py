@@ -11,7 +11,7 @@ from ..errors import SystemClassConstraintError, DatePageDeletionError, Duplicat
 from ..validation import validate_node_create, validate_node_update
 from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...db.connection import acquire_connection, get_workspace_uuid
+from ...db.connection import get_workspace_uuid
 from ...logging_config import get_logger
 from .class_management_service import ClassManagementService
 
@@ -183,26 +183,9 @@ class NodeService:
             # Unclassed pages can't conflict with anything
             return
         
-        # Query all pages with same name and parent in this workspace
-        pool = self._node_repo.get_connection()
-        query = """
-            SELECT n.id, n.name, nl.target_id as class_id, class_node.name as class_name
-            FROM node n
-            LEFT JOIN node_link nl ON nl.source_id = n.id AND nl.is_inline_class = TRUE
-            LEFT JOIN node class_node ON class_node.id = nl.target_id
-            WHERE n.workspace_id = $1 
-                AND n.name = $2 
-                AND n.is_page = TRUE 
-                AND n.active = TRUE
-                AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
-        """
-        params = [self._workspace_id, name, parent_id]
-        
+        rows = await self._node_repo.find_page_by_name(name, parent_id)
         if exclude_node_id:
-            query += " AND n.id != $4"
-            params.append(exclude_node_id)
-        
-        rows = await pool.fetch(query, *params)
+            rows = [r for r in rows if r['id'] != exclude_node_id]
         
         if not rows:
             return
@@ -262,18 +245,8 @@ class NodeService:
             is_leaf = (i == len(segments) - 1)
             
             # Check if a page with this name already exists at this level
-            pool = self._node_repo.get_connection()
-            query = """
-                SELECT n.id
-                FROM node n
-                WHERE n.workspace_id = $1 
-                    AND n.name = $2 
-                    AND n.is_page = TRUE 
-                    AND n.active = TRUE
-                    AND ($3::INTEGER IS NULL AND n.parent_id IS NULL OR n.parent_id = $3)
-                LIMIT 1
-            """
-            row = await pool.fetchrow(query, self._workspace_id, segment, current_parent_id)
+            existing = await self._node_repo.find_page_by_name(segment, current_parent_id)
+            row = existing[0] if existing else None
             
             if row:
                 # Page exists, use it as parent for next iteration
@@ -533,13 +506,7 @@ class NodeService:
             raise ValueError("Cannot move a node to be its own parent")
         
         # Use closure table (node_path) to check if new_parent is a descendant of node
-        pool = self._node_repo.get_connection()
-        row = await pool.fetchrow("""
-            SELECT 1 FROM node_path 
-            WHERE ancestor_id = $1 AND descendant_id = $2
-        """, node_id, new_parent_id)
-        
-        if row:
+        if await self._node_repo.has_circular_reference(node_id, new_parent_id):
             raise ValueError(
                 f"Cannot move node {node_id} to parent {new_parent_id}: "
                 f"would create circular reference (parent is a descendant)"
@@ -555,23 +522,7 @@ class NodeService:
         Raises:
             ValueError: If the move would exceed MAX_HIERARCHY_DEPTH
         """
-        pool = self._node_repo.get_connection()
-        
-        # Get depth of new parent (how deep is new_parent from root)
-        parent_depth_row = await pool.fetchrow("""
-            SELECT COALESCE(MAX(depth), 0) as parent_depth
-            FROM node_path
-            WHERE descendant_id = $1
-        """, new_parent_id)
-        parent_depth = parent_depth_row['parent_depth'] if parent_depth_row else 0
-        
-        # Get max depth of subtree being moved (how deep is node's deepest descendant)
-        subtree_depth_row = await pool.fetchrow("""
-            SELECT COALESCE(MAX(depth), 0) as subtree_depth
-            FROM node_path
-            WHERE ancestor_id = $1
-        """, node_id)
-        subtree_depth = subtree_depth_row['subtree_depth'] if subtree_depth_row else 0
+        parent_depth, subtree_depth = await self._node_repo.get_depth_info(new_parent_id)
         
         # New depth would be: parent_depth + 1 (for the move) + subtree_depth
         new_max_depth = parent_depth + 1 + subtree_depth
@@ -626,12 +577,7 @@ class NodeService:
             check_classes = None
             if data.name is not None or data.parent_id is not None:
                 # Get current classes for this node
-                pool = self._node_repo.get_connection()
-                class_rows = await pool.fetch(
-                    "SELECT target_id as class_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE ORDER BY position",
-                    node_id
-                )
-                check_classes = [row['class_id'] for row in class_rows]
+                check_classes = await self._node_repo.get_inline_class_targets(node_id)
             
             if check_classes:
                 await self._validate_page_name_uniqueness(
@@ -677,15 +623,9 @@ class NodeService:
             DatePageDeletionError: If trying to delete a month/year page that has active day children
         """
         # Get node including archived ones (bypassing active=TRUE filter)
-        pool = self._node_repo.get_connection()
-        row = await pool.fetchrow(
-            "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id, self._workspace_id
-        )
-        if not row:
+        node = await self._node_repo.get_node_by_id_with_workspace(node_id)
+        if not node:
             return False
-        
-        node = self._node_repo.row_to_node(row)
         
         # Prevent deletion of month/year pages that have active day children
         if node.is_month or node.is_year:
@@ -740,25 +680,12 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with acquire_connection(pool) as conn:
-            async with conn.transaction():
-                # Get all descendants using closure table
-                descendant_rows = await conn.fetch("""
-                    SELECT descendant_id FROM node_path 
-                    WHERE ancestor_id = $1 AND depth > 0
-                """, node_id)
-                
-                descendant_ids = [row['descendant_id'] for row in descendant_rows]
-                all_node_ids = [node_id] + descendant_ids
-                
-                # Soft-delete all nodes (parent and descendants)
-                await conn.execute("""
-                    UPDATE node 
-                    SET is_deleted = TRUE, deleted_at = $1, write_date = $1, write_uid = $2
-                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
-                """, now, uid, all_node_ids, self._workspace_id)
-                
-                logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
+        # Get all descendant IDs using closure table
+        descendant_ids = await self._node_repo.get_descendants(node_id)
+        all_node_ids = [node_id] + descendant_ids
+        
+        await self._node_repo.soft_delete_nodes(all_node_ids, now, uid)
+        logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
         
         # If this is an asset node, delete the asset folder
         if node.is_asset and node.uuid:
@@ -792,27 +719,10 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        pool = self._node_repo.get_connection()
-        async with acquire_connection(pool) as conn:
-            async with conn.transaction():
-                # Check if node exists and is deleted
-                row = await conn.fetchrow("""
-                    SELECT * FROM node 
-                    WHERE id = $1 AND workspace_id = $2 AND is_deleted = TRUE
-                """, node_id, self._workspace_id)
-                
-                if not row:
-                    return None
-                
-                # Restore the node
-                await conn.execute("""
-                    UPDATE node 
-                    SET is_deleted = FALSE, deleted_at = NULL, write_date = $1, write_uid = $2
-                    WHERE id = $3 AND workspace_id = $4
-                """, now, uid, node_id, self._workspace_id)
-                
-                logger.info(f"[RESTORE] Restored node {node_id}")
-        
+        restored = await self._node_repo.restore_node(node_id, now, uid)
+        if not restored:
+            return None
+        logger.info(f"[RESTORE] Restored node {node_id}")
         return await self._node_repo.get_by_id(node_id)
     
     async def get_deleted_nodes(self) -> List[Node]:
@@ -821,14 +731,7 @@ class NodeService:
         Returns:
             List of deleted nodes
         """
-        pool = self._node_repo.get_connection()
-        rows = await pool.fetch("""
-            SELECT * FROM node 
-            WHERE workspace_id = $1 AND is_deleted = true
-            ORDER BY deleted_at DESC NULLS LAST
-        """, self._workspace_id)
-        
-        return [self._node_repo.row_to_node(row) for row in rows]
+        return await self._node_repo.get_deleted_nodes_for_workspace()
     
     async def permanently_delete_node(self, node_id: int) -> bool:
         """Permanently delete a soft-deleted node (hard delete from database).
@@ -841,17 +744,7 @@ class NodeService:
         Returns:
             True if deleted, False if not found or not in trash
         """
-        pool = self._node_repo.get_connection()
-        row = await pool.fetchrow("""
-            SELECT * FROM node 
-            WHERE id = $1 AND workspace_id = $2 AND is_deleted = true
-        """, node_id, self._workspace_id)
-        
-        if not row:
-            return False
-        
-        # Use the repository's hard_delete method to permanently remove from database
-        return await self._node_repo.hard_delete(node_id)
+        return await self._node_repo.permanently_delete_node(node_id)
     
     async def empty_trash(self) -> int:
         """Permanently delete all soft-deleted nodes (empty trash).
@@ -864,23 +757,12 @@ class NodeService:
         from app.logging_config import get_logger
         logger = get_logger(__name__)
         
-        pool = self._node_repo.get_connection()
-        rows = await pool.fetch("""
-            SELECT id FROM node 
-            WHERE workspace_id = $1 AND is_deleted = true
-        """, self._workspace_id)
-        
-        logger.info(f"[EMPTY_TRASH] Found {len(rows)} nodes in trash for workspace {self._workspace_id}")
+        trashed = await self._node_repo.get_trashed_nodes()
+        logger.info(f"[EMPTY_TRASH] Found {len(trashed)} nodes in trash for workspace {self._workspace_id}")
         
         deleted_count = 0
-        for row in rows:
-            node_id = row['id']
-            # Check if node still exists (it may have been deleted as a descendant of another node)
-            exists = await pool.fetchrow("SELECT id FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id)
-            if not exists:
-                logger.info(f"[EMPTY_TRASH] Node {node_id} already deleted (was descendant of another trash node)")
-                continue
-            
+        for node in trashed:
+            node_id = node.id
             logger.info(f"[EMPTY_TRASH] Attempting to hard delete node {node_id}")
             try:
                 success = await self._node_repo.hard_delete(node_id)
@@ -892,7 +774,7 @@ class NodeService:
                 logger.info(f"[EMPTY_TRASH] Skipping node {node_id}: {e}")
                 continue
         
-        logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(rows)} nodes")
+        logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(trashed)} nodes")
         return deleted_count
     
     async def batch_permanent_delete(
@@ -1041,26 +923,9 @@ class NodeService:
         that reference it via property values (especially NODE type properties).
         The inline text references {{nodeId}} are handled separately.
         """
-        if self._pool is None:
-            return
-        
-        async with acquire_connection(self._pool) as conn:
-            # Remove from property_value_relation where this node is the target
-            # This handles NODE-type properties that reference this node
-            result = await conn.execute("""
-                DELETE FROM property_value_relation 
-                WHERE target_id = $1
-            """, node_id)
-            
-            # Extract the number of deleted rows from the result string (e.g., "DELETE 3")
-            deleted_count = int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
-            
-            if deleted_count > 0:
-                logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
-            
-            # Note: Scalar and selection values don't reference other nodes directly,
-            # so no cleanup needed for those tables. The ON DELETE CASCADE in the schema
-            # will handle cleanup when the node itself is deleted.
+        deleted_count = await self._property_repo.delete_relation_values_by_target(node_id)
+        if deleted_count > 0:
+            logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
     
     async def _count_active_day_descendants(self, node_id: int) -> int:
         """Count active day pages that are descendants of this node.
@@ -1073,64 +938,26 @@ class NodeService:
         Returns:
             Number of active day pages that are descendants of this node
         """
-        if self._pool is None or self._workspace_id is None:
-            return 0
-        
-        async with acquire_connection(self._pool) as conn:
-            # Use closure table (node_path) to find all descendants, then count day pages
-            row = await conn.fetchrow("""
-                SELECT COUNT(*) as day_count 
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 
-                  AND np.depth > 0
-                  AND n.workspace_id = $2 
-                  AND n.active = TRUE
-                  AND n.is_day = TRUE
-            """, node_id, self._workspace_id)
-            
-            return row['day_count'] if row else 0
+        return await self._node_repo.count_active_day_descendants(node_id)
 
     async def list_templates(self) -> List[Node]:
         """List all template nodes in this workspace."""
-        if self._pool is None or self._workspace_id is None:
-            return []
-
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
-                SELECT * FROM node
-                WHERE workspace_id = $1
-                  AND is_template = TRUE
-                  AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-                ORDER BY name
-            """, self._workspace_id)
-            return [self._node_repo.row_to_node(row) for row in rows]
+        return await self._node_repo.list_templates()
 
     async def extract_template_variables(self, node_id: int) -> List[str]:
         """Extract {{variable_name}} placeholders from a node and all its descendants."""
         import re
 
-        if self._pool is None or self._workspace_id is None:
+        template_node = await self._node_repo.get_by_id(node_id)
+        if not template_node:
             return []
-
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
-                SELECT n.name FROM node n
-                WHERE n.id = $1 AND n.workspace_id = $2
-                  AND n.active = TRUE
-                UNION
-                SELECT n.name FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND np.depth > 0
-                  AND n.workspace_id = $2 AND n.active = TRUE
-            """, node_id, self._workspace_id)
+        descendants = await self._node_repo.get_template_descendants(node_id)
+        all_names = [template_node.name] + [d.name for d in descendants]
 
         pattern = re.compile(r'\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}')
         seen: set = set()
         variables: List[str] = []
-        for row in rows:
-            name = row['name']
+        for name in all_names:
             if not name:
                 continue
             for match in pattern.finditer(name):
@@ -1161,46 +988,28 @@ class NodeService:
         import re
         import uuid as uuid_module
 
-        if self._pool is None or self._workspace_id is None:
-            raise ValueError("Service not fully initialised (missing pool or workspace_id)")
-
         # 1. Load the template root
         template_node = await self._node_repo.get_by_id(template_id)
         if not template_node or not template_node.is_template:
             raise ValueError(f"Node {template_id} is not a template")
 
         # 2. Load all descendants ordered by depth then sequence
-        async with acquire_connection(self._pool) as conn:
-            desc_rows = await conn.fetch("""
-                SELECT n.id, n.uuid, n.name, n.icon, n.color,
-                       n.parent_id, n.sequence, n.class_ids, n.collapsed
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND np.depth > 0
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
-                ORDER BY np.depth, n.sequence
-            """, template_id, self._workspace_id)
-            logger.info(f"[TEMPLATE] template_id={template_id}, desc_rows count={len(desc_rows)}, names={[r['name'][:30] if r['name'] else '' for r in desc_rows]}")
+        desc_nodes = await self._node_repo.get_template_descendants(template_id)
+        logger.info(f"[TEMPLATE] template_id={template_id}, desc_nodes count={len(desc_nodes)}, names={[n.name[:30] if n.name else '' for n in desc_nodes]}")
 
-            # 3. Look up the template class DB id so we can strip it from copies
-            template_class_uuid = SYSTEM_CLASS_UUIDS.get("template", "")
-            tc_row = await conn.fetchrow(
-                "SELECT id FROM node WHERE uuid::text = $1 AND workspace_id = $2",
-                template_class_uuid, self._workspace_id
-            )
-        template_class_db_id: Optional[int] = tc_row['id'] if tc_row else None
+        # 3. Look up the template class DB id so we can strip it from copies
+        template_class_uuid = SYSTEM_CLASS_UUIDS.get("template", "")
+        template_class_db_id = await self._node_repo.find_node_id_by_uuid(template_class_uuid)
 
         # 4. Build old-id → new-uuid mapping for every node in the tree
-        all_old_ids = [template_node.id] + [int(r['id']) for r in desc_rows]
+        all_old_ids = [template_node.id] + [n.id for n in desc_nodes]
         old_id_to_new_uuid: Dict[int, str] = {old_id: str(uuid_module.uuid4()) for old_id in all_old_ids}
 
         # old string UUID → new string UUID (for content rewriting)
         old_uuid_to_new_uuid: Dict[str, str] = {}
         old_uuid_to_new_uuid[str(template_node.uuid)] = old_id_to_new_uuid[template_node.id]
-        for r in desc_rows:
-            old_uuid_to_new_uuid[str(r['uuid'])] = old_id_to_new_uuid[int(r['id'])]
+        for n in desc_nodes:
+            old_uuid_to_new_uuid[str(n.uuid)] = old_id_to_new_uuid[n.id]
 
         def substitute_content(content: str) -> str:
             if not content:
@@ -1225,26 +1034,16 @@ class NodeService:
         # top-level children are inserted right after the anchor block.
         seq_offset = 0
         if as_blocks and after_id is not None and parent_id is not None:
-            async with acquire_connection(self._pool) as conn:
-                after_row = await conn.fetchrow(
-                    "SELECT sequence FROM node WHERE id = $1 AND workspace_id = $2",
-                    after_id, self._workspace_id
+            anchor_seq = await self._node_repo.get_node_sequence(after_id)
+            if anchor_seq is not None:
+                # Count how many direct template children will be inserted
+                direct_count = sum(
+                    1 for n in desc_nodes
+                    if n.parent_id == template_node.id
                 )
-                if after_row:
-                    anchor_seq = after_row['sequence']
-                    # Count how many direct template children will be inserted
-                    direct_count = sum(
-                        1 for r in desc_rows
-                        if int(r['parent_id']) == template_node.id
-                    )
-                    # Shift existing siblings that come after the anchor
-                    await conn.execute(
-                        """UPDATE node SET sequence = sequence + $1
-                           WHERE parent_id = $2 AND sequence > $3
-                             AND workspace_id = $4 AND active = TRUE""",
-                        direct_count, parent_id, anchor_seq, self._workspace_id
-                    )
-                    seq_offset = anchor_seq + 1
+                # Shift existing siblings that come after the anchor
+                await self._node_repo.shift_sequences(parent_id, anchor_seq, direct_count)
+                seq_offset = anchor_seq + 1
 
         if not as_blocks:
             root_name = substitute_content(name or template_node.name or '')
@@ -1263,9 +1062,9 @@ class NodeService:
             # Map template root → the provided parent so children chain correctly
             old_id_to_new_id[template_node.id] = parent_id  # type: ignore[assignment]
 
-        for row in desc_rows:
-            old_id = int(row['id'])
-            old_parent_id = int(row['parent_id']) if row['parent_id'] is not None else None
+        for node in desc_nodes:
+            old_id = node.id
+            old_parent_id = node.parent_id
             new_parent_id = old_id_to_new_id.get(old_parent_id)  # type: ignore[arg-type]
             if new_parent_id is None:
                 logger.warning(f"[TEMPLATE] Skipping node {old_id}: parent {old_parent_id} not yet mapped")
@@ -1273,17 +1072,17 @@ class NodeService:
 
             # For direct children of the template root in as_blocks mode,
             # offset their sequence so they appear after the anchor block.
-            seq = row['sequence']
+            seq = node.sequence
             if as_blocks and old_parent_id == template_node.id:
                 seq = seq + seq_offset
 
             node_data = NodeCreateData(
-                name=substitute_content(row['name'] or ''),
-                icon=row['icon'],
-                color=row['color'],
+                name=substitute_content(node.name or ''),
+                icon=node.icon,
+                color=node.color,
                 parent_id=new_parent_id,
                 sequence=seq,
-                classes=list(row['class_ids'] or []),
+                classes=list(node.class_ids or []),
                 uuid=old_id_to_new_uuid[old_id],
             )
             new_node = await self.create_node(node_data, user_id)
@@ -1324,13 +1123,13 @@ class NodeService:
         # 8. Return result
         if as_blocks:
             block_nodes = []
-            for row in desc_rows:
-                new_id = old_id_to_new_id.get(int(row['id']))
+            for node in desc_nodes:
+                new_id = old_id_to_new_id.get(node.id)
                 if new_id:
                     n = await self._node_repo.get_by_id(new_id)
                     if n:
                         block_nodes.append(n)
-            logger.info(f"[TEMPLATE] Returning {len(block_nodes)} blocks (from {len(desc_rows)} desc_rows)")
+            logger.info(f"[TEMPLATE] Returning {len(block_nodes)} blocks (from {len(desc_nodes)} desc_nodes)")
             return {'node': None, 'blocks': block_nodes, 'as_blocks': True}
         else:
             root_node = await self._node_repo.get_by_id(old_id_to_new_id[template_node.id])
@@ -1429,8 +1228,6 @@ class NodeService:
         """
         import re
 
-        pool = self._node_repo.get_connection()
-
         source = await self._node_repo.get_by_id(source_id)
         target = await self._node_repo.get_by_id(target_id)
 
@@ -1452,38 +1249,21 @@ class NodeService:
         logger.info(f"[MERGE] Merging node {source_id} ({source.name!r}) into {target_id} ({target.name!r})")
 
         # Step 1: Get direct children of source
-        children_rows = await pool.fetch(
-            "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE ORDER BY sequence",
-            source_id,
-        )
-        children_ids = [row['id'] for row in children_rows]
+        children = await self._node_repo.get_nodes_by_parent(source_id)
+        children_ids = [c.id for c in children]
 
         # Step 2: Determine base sequence offset for appending to target
-        max_seq_row = await pool.fetchrow(
-            "SELECT COALESCE(MAX(sequence), -1) as max_seq FROM node WHERE parent_id = $1",
-            target_id,
-        )
-        base_seq = (max_seq_row['max_seq'] if max_seq_row else -1) + 1
+        base_seq = await self._node_repo.get_max_sequence(target_id) + 1
 
         # Step 3: Reparent children — the node_path_update DB trigger keeps the closure table in sync
-        for i, child_id in enumerate(children_ids):
-            await pool.execute(
-                """UPDATE node
-                      SET parent_id = $1, page_id = $2, sequence = $3,
-                          write_date = NOW(), version = version + 1
-                    WHERE id = $4 AND workspace_id = $5""",
-                target_id, target_id, base_seq + i, child_id, self._workspace_id,
-            )
+        await self._node_repo.reparent_nodes(children_ids, target_id, target_id, base_seq)
 
         logger.info(f"[MERGE] Reparented {len(children_ids)} children from {source_id} to {target_id}")
 
         # Step 4: Update content of nodes that link to source to now link to target.
         # Collect backlink source IDs before redirecting node_link.
-        backlink_rows = await pool.fetch(
-            "SELECT DISTINCT source_id FROM node_link WHERE target_id = $1 AND source_id != $2",
-            source_id, target_id,
-        )
-        backlink_source_ids = [row['source_id'] for row in backlink_rows]
+        backlink_source_ids = await self._node_repo.get_backlink_sources(source_id)
+        backlink_source_ids = [sid for sid in backlink_source_ids if sid != target_id]
 
         if source.uuid and target.uuid:
             for bsid in backlink_source_ids:
@@ -1499,29 +1279,15 @@ class NodeService:
                     await self._node_repo.update(bsid, NodeUpdateData(name=updated))
 
         # Step 5: Redirect structural backlinks in node_link table
-        await pool.execute(
-            "UPDATE node_link SET target_id = $1 WHERE target_id = $2",
-            target_id, source_id,
-        )
+        await self._node_repo.redirect_node_links(source_id, target_id)
         logger.info(f"[MERGE] Redirected node_link backlinks from {source_id} to {target_id}")
 
         # Step 5b: Redirect node-type property values that point to the source page
-        pvr_result = await pool.execute(
-            "UPDATE property_value_relation SET target_id = $1 WHERE target_id = $2",
-            target_id, source_id,
-        )
-        pvr_count = int(pvr_result.split()[-1]) if pvr_result and pvr_result.split()[-1].isdigit() else 0
+        pvr_count = await self._node_repo.redirect_property_relations(source_id, target_id)
         logger.info(f"[MERGE] Redirected {pvr_count} property_value_relation rows from {source_id} to {target_id}")
 
         # Step 5c: Delete outgoing node_links from source page itself.
-        # These are links in the source page's own content (source_id = source).
-        # Children were already reparented so their links are fine, but the
-        # source page's own outgoing links would otherwise remain orphaned
-        # after soft-delete, showing up as backlinks from a missing node.
-        await pool.execute(
-            "DELETE FROM node_link WHERE source_id = $1",
-            source_id,
-        )
+        await self._node_repo.delete_outgoing_links(source_id)
         logger.info(f"[MERGE] Deleted outgoing node_links from source page {source_id}")
 
         # Step 6: Soft-delete source (backlinks already redirected, children already moved)
@@ -1576,70 +1342,28 @@ class NodeService:
     async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
         """Archive a node and all its descendants (set active to false)."""
         from ...utils import utc_now
-        pool = self._node_repo.get_connection()
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with acquire_connection(pool) as conn:
-            async with conn.transaction():
-                # Get all descendants using closure table
-                descendant_rows = await conn.fetch("""
-                    SELECT descendant_id FROM node_path 
-                    WHERE ancestor_id = $1 AND depth > 0
-                """, node_id)
-                
-                descendant_ids = [row['descendant_id'] for row in descendant_rows]
-                all_node_ids = [node_id] + descendant_ids
-                
-                # Archive all nodes (parent and descendants)
-                await conn.execute("""
-                    UPDATE node 
-                    SET active = FALSE, write_date = $1, write_uid = $2, version = version + 1
-                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
-                """, now, uid, all_node_ids, self._workspace_id)
-                
-                logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
-                
-                # Return the archived parent node
-                row = await conn.fetchrow(
-                    "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
-                    node_id, self._workspace_id
-                )
-                return self._node_repo.row_to_node(row) if row else None
+        descendant_ids = await self._node_repo.get_descendants(node_id)
+        all_node_ids = [node_id] + descendant_ids
+        
+        await self._node_repo.archive_nodes(all_node_ids, now, uid)
+        logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
+        return await self._node_repo.get_by_id(node_id)
 
     async def unarchive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
         """Unarchive a node and all its descendants (set active to true)."""
         from ...utils import utc_now
-        pool = self._node_repo.get_connection()
         now = utc_now()
         uid = user_id or self._user_id
         
-        async with acquire_connection(pool) as conn:
-            async with conn.transaction():
-                # Get all descendants using closure table
-                descendant_rows = await conn.fetch("""
-                    SELECT descendant_id FROM node_path 
-                    WHERE ancestor_id = $1 AND depth > 0
-                """, node_id)
-                
-                descendant_ids = [row['descendant_id'] for row in descendant_rows]
-                all_node_ids = [node_id] + descendant_ids
-                
-                # Unarchive all nodes (parent and descendants)
-                await conn.execute("""
-                    UPDATE node 
-                    SET active = TRUE, write_date = $1, write_uid = $2, version = version + 1
-                    WHERE id = ANY($3::integer[]) AND workspace_id = $4
-                """, now, uid, all_node_ids, self._workspace_id)
-                
-                logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
-                
-                # Return the unarchived parent node
-                row = await conn.fetchrow(
-                    "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
-                    node_id, self._workspace_id
-                )
-                return self._node_repo.row_to_node(row) if row else None
+        descendant_ids = await self._node_repo.get_descendants(node_id)
+        all_node_ids = [node_id] + descendant_ids
+        
+        await self._node_repo.unarchive_nodes(all_node_ids, now, uid)
+        logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
+        return await self._node_repo.get_by_id(node_id)
 
     async def get_archived_pages(self) -> List[Node]:
         """Get all archived pages."""

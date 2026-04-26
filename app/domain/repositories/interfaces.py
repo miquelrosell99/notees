@@ -109,23 +109,6 @@ class NodeRepository(ABC):
         pass
     
     @abstractmethod
-    def get_connection(self) -> Any:
-        """Get the underlying database connection pool.
-        
-        This is needed for raw SQL queries that aren't abstracted by the repository.
-        Returns the pool object (e.g., asyncpg.Pool).
-        """
-        pass
-    
-    @abstractmethod
-    def row_to_node(self, row: Any) -> Node:
-        """Convert a database row to a Node entity.
-        
-        This is useful when executing raw SQL queries that return node rows.
-        """
-        pass
-    
-    @abstractmethod
     async def get_breadcrumbs(
         self,
         exit_node_id: int,
@@ -180,6 +163,153 @@ class NodeRepository(ABC):
             
         Returns:
             List of descendant node IDs
+        """
+        pass
+    
+    @abstractmethod
+    async def find_page_by_name(
+        self, name: str, parent_id: Optional[int] = None
+    ) -> List[Any]:
+        """Find pages with the given name and parent, returning raw rows with class info."""
+        pass
+    
+    @abstractmethod
+    async def has_circular_reference(self, ancestor_id: int, descendant_id: int) -> bool:
+        """Check if setting ancestor_id as parent of descendant_id would create a cycle."""
+        pass
+    
+    @abstractmethod
+    async def get_depth_info(self, node_id: int) -> tuple[int, int]:
+        """Get (parent_depth, subtree_depth) for a node using the closure table.
+        
+        Returns:
+            (parent_depth, subtree_depth) — maximum depths from closure table.
+        """
+        pass
+    
+    @abstractmethod
+    async def get_inline_class_ids(self, node_id: int) -> List[int]:
+        """Get inline class IDs (from node_link with is_inline_class=TRUE) for a node."""
+        pass
+    
+    @abstractmethod
+    async def get_deleted_nodes(self) -> List[Node]:
+        """Get all soft-deleted nodes in the workspace ordered by deleted_at DESC."""
+        pass
+    
+    @abstractmethod
+    async def get_node_by_id_with_workspace(self, node_id: int) -> Optional[Node]:
+        """Get a node by ID, verifying it belongs to this workspace."""
+        pass
+    
+    @abstractmethod
+    async def soft_delete_nodes(
+        self, node_ids: List[int], deleted_at: str, write_uid: int
+    ) -> None:
+        """Bulk soft-delete nodes by setting is_deleted=TRUE and deleted_at."""
+        pass
+    
+    @abstractmethod
+    async def restore_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk restore nodes from trash."""
+        pass
+    
+    @abstractmethod
+    async def hard_delete_nodes(self, node_ids: List[int]) -> None:
+        """Bulk permanently delete nodes (assumes they are already in trash)."""
+        pass
+    
+    @abstractmethod
+    async def get_trash_node_ids(self) -> List[int]:
+        """Get IDs of all soft-deleted nodes in the workspace."""
+        pass
+    
+    @abstractmethod
+    async def node_exists(self, node_id: int) -> bool:
+        """Check if a node exists in this workspace."""
+        pass
+    
+    @abstractmethod
+    async def get_children_ids(self, parent_id: int) -> List[int]:
+        """Get direct child IDs of a node ordered by sequence."""
+        pass
+    
+    @abstractmethod
+    async def get_max_sequence(self, parent_id: int) -> int:
+        """Get the maximum sequence among children of a parent."""
+        pass
+    
+    @abstractmethod
+    async def reparent_nodes(
+        self, node_ids: List[int], new_parent_id: int, new_page_id: int,
+        start_sequence: int
+    ) -> None:
+        """Reparent multiple nodes to a new parent with sequential ordering."""
+        pass
+    
+    @abstractmethod
+    async def archive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk archive nodes by setting active=FALSE."""
+        pass
+    
+    @abstractmethod
+    async def unarchive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk unarchive nodes by setting active=TRUE."""
+        pass
+    
+    @abstractmethod
+    async def count_active_day_descendants(self, node_id: int) -> int:
+        """Count active day-page descendants of a node."""
+        pass
+    
+    @abstractmethod
+    async def list_templates(self) -> List[Node]:
+        """List all active templates in the workspace."""
+        pass
+    
+    @abstractmethod
+    async def get_template_descendants(self, template_id: int) -> List[Node]:
+        """Get all descendant nodes of a template (excluding the template itself)."""
+        pass
+    
+    @abstractmethod
+    async def get_node_sequence(self, node_id: int) -> Optional[int]:
+        """Get the sequence of a node."""
+        pass
+    
+    @abstractmethod
+    async def shift_sequences(
+        self, parent_id: int, from_sequence: int, amount: int
+    ) -> None:
+        """Shift sequences of children at or after from_sequence by amount."""
+        pass
+    
+    @abstractmethod
+    async def find_node_id_by_uuid(self, uuid: str) -> Optional[int]:
+        """Find a node ID by UUID in this workspace."""
+        pass
+    
+    @abstractmethod
+    async def get_node_class_ids(self, node_id: int) -> List[int]:
+        """Get the class_ids array for a node."""
+        pass
+    
+    @abstractmethod
+    async def update_node_class_ids(self, node_id: int, class_ids: List[int]) -> None:
+        """Update class_ids for a node."""
+        pass
+    
+    @abstractmethod
+    async def redirect_property_relation_targets(self, old_target_id: int, new_target_id: int) -> int:
+        """Update all property_value_relation records to point from old_target to new_target.
+        
+        Returns the number of rows updated.
         """
         pass
 
@@ -334,6 +464,14 @@ class PropertyRepository(ABC):
             node_id: The node to clear values from
             property_id: The property to clear values for
             delete_target_nodes: If True and property is text/image type, also delete target nodes
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_relation_values_by_target(self, target_id: int) -> int:
+        """Delete all property_value_relation rows where target_id matches.
+        
+        Used when a node is deleted to clean up node-type property references.
         """
         pass
     
@@ -503,12 +641,116 @@ class LinkRepository(ABC):
         pass
     
     @abstractmethod
-    def get_connection(self) -> Any:
-        """Get the underlying database connection pool.
+    async def get_text_link_targets(self, source_node_id: int) -> List[int]:
+        """Get target IDs of text links (non-tag, non-inline-class) from a source node."""
+        pass
+    
+    @abstractmethod
+    async def get_tag_link_targets(self, source_node_id: int) -> List[int]:
+        """Get target IDs of tag links from a source node."""
+        pass
+    
+    @abstractmethod
+    async def delete_non_tag_text_links(self, source_node_id: int) -> int:
+        """Delete all non-tag, non-inline-class text links from a source node.
         
-        This is needed for raw SQL queries that aren't abstracted by the repository.
-        Returns the pool object (e.g., asyncpg.Pool).
+        Returns the number of links deleted.
         """
+        pass
+    
+    @abstractmethod
+    async def ensure_tag_link(self, source_node_id: int, target_id: int) -> bool:
+        """Ensure a tag link exists between source and target.
+        
+        If a text link already exists, upgrades it to a tag link.
+        Returns True if a link now exists (created or upgraded).
+        """
+        pass
+    
+    @abstractmethod
+    async def clear_tag_link(self, source_node_id: int, target_id: int) -> bool:
+        """Remove the tag flag from a link between source and target.
+        
+        Returns True if the link was updated.
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_property_links(self, source_node_id: int, property_id: int) -> int:
+        """Delete all links for a specific property from a source node.
+        
+        Returns the number of links deleted.
+        """
+        pass
+    
+    @abstractmethod
+    async def get_alias_node_ids(self, target_id: int) -> List[int]:
+        """Get IDs of nodes that alias the target node."""
+        pass
+    
+    @abstractmethod
+    async def get_backlinks_batch(self, target_ids: List[int]) -> List[Any]:
+        """Get all node_link backlinks for multiple target IDs at once.
+        
+        Returns raw rows with source node info.
+        """
+        pass
+    
+    @abstractmethod
+    async def get_property_backlinks_batch(self, target_ids: List[int]) -> List[Any]:
+        """Get all property-value relation backlinks (node-type) for multiple targets."""
+        pass
+    
+    @abstractmethod
+    async def get_text_property_backlinks_batch(self, target_ids: List[int]) -> List[Any]:
+        """Get all text-type property backlinks for multiple targets."""
+        pass
+    
+    @abstractmethod
+    async def get_path_references(self, source_ids: List[int]) -> List[int]:
+        """Get distinct target IDs referenced by any of the source nodes."""
+        pass
+    
+    @abstractmethod
+    async def get_node_class_ids(self, node_id: int) -> List[int]:
+        """Get class_ids array for a node."""
+        pass
+    
+    @abstractmethod
+    async def get_distinct_class_ids(self, node_ids: List[int]) -> List[int]:
+        """Get all distinct class IDs from a list of nodes."""
+        pass
+    
+    @abstractmethod
+    async def bulk_update_classes_path(self, updates: List[tuple[List[int], int]]) -> None:
+        """Bulk update classes_path for multiple nodes.
+        
+        Args:
+            updates: List of (classes_path, node_id) tuples.
+        """
+        pass
+    
+    @abstractmethod
+    async def get_inline_class_targets(self, source_node_id: int) -> List[int]:
+        """Get target IDs of inline class links from a source node."""
+        pass
+    
+    @abstractmethod
+    async def log_link_activity(
+        self, node_id: int, action: str, details: str,
+        target_node_id: Optional[int], create_date: Any
+    ) -> None:
+        """Log a link-related activity event."""
+        pass
+    
+    @abstractmethod
+    async def get_backlink_source_ids(self, target_id: int) -> List[int]:
+        """Get distinct source node IDs that link to the target."""
+        pass
+    
+    @abstractmethod
+    async def redirect_link_targets(self, old_target_id: int, new_target_id: int) -> None:
+        """Update all node_link records to point from old_target to new_target."""
         pass
 
 

@@ -230,16 +230,8 @@ class LinkParsingService:
 
     async def _get_existing_text_links(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing text links from a source node."""
-        existing = set()
-        if hasattr(self._link_repo, 'get_connection'):
-            pool = self._link_repo.get_connection()
-            rows = await pool.fetch(
-                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL",
-                source_node_id
-            )
-            for row in rows:
-                existing.add(row['target_id'])
-        return existing
+        targets = await self._link_repo.get_text_link_targets(source_node_id)
+        return set(targets)
     
     @staticmethod
     def _node_name_to_text(name: str | None) -> str:
@@ -281,7 +273,6 @@ class LinkParsingService:
         if not target_node.is_page:
             return
         
-        conn = self._link_repo.get_connection()
         now = await self._get_utc_now()
         
         # Get source page info
@@ -294,19 +285,17 @@ class LinkParsingService:
         
         # 1. Log on source page: "Link to [target](notees:uuid) inserted"
         if source_page_id:
-            await conn.execute(
-                """INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-                   VALUES ($1, 'link_inserted', $2, $3, $4)""",
-                source_page_id, f"Link to {target_link} inserted", target_node_id, now
+            await self._link_repo.log_link_activity(
+                source_page_id, 'link_inserted',
+                f"Link to {target_link} inserted", target_node_id, now
             )
         
         # 2. Log on target page: "Linked in [source page](notees:uuid)"
         if source_page:
             source_link = self._notees_link(source_page.name, source_page.uuid)
-            await conn.execute(
-                """INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-                   VALUES ($1, 'link_inserted', $2, $3, $4)""",
-                target_node_id, f"Linked in {source_link}", source_page_id, now
+            await self._link_repo.log_link_activity(
+                target_node_id, 'link_inserted',
+                f"Linked in {source_link}", source_page_id, now
             )
     
     async def _get_utc_now(self) -> datetime:
@@ -401,25 +390,12 @@ class LinkParsingService:
     
     async def _get_existing_tag_link_targets(self, source_node_id: int) -> set[int]:
         """Get set of target node IDs for existing tag links from a source node."""
-        existing = set()
-        if hasattr(self._link_repo, 'get_connection'):
-            pool = self._link_repo.get_connection()
-            rows = await pool.fetch(
-                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = TRUE",
-                source_node_id
-            )
-            for row in rows:
-                existing.add(row['target_id'])
-        return existing
+        targets = await self._link_repo.get_tag_link_targets(source_node_id)
+        return set(targets)
     
     async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
         """Delete all non-tag, non-inline-class text links from a source node."""
-        if hasattr(self._link_repo, 'get_connection'):
-            pool = self._link_repo.get_connection()
-            await pool.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE AND is_inline_class = FALSE",
-                source_node_id
-            )
+        await self._link_repo.delete_non_tag_text_links(source_node_id)
     
     async def add_tag_link(self, source_node_id: int, target_node_id: int) -> Optional[NodeLink]:
         """Add a tag link from source to target.
@@ -439,34 +415,21 @@ class LinkParsingService:
         if not target_node or not target_node.is_page:
             return None
         
-        pool = self._link_repo.get_connection()
-        
-        # Check if link already exists
-        row = await pool.fetchrow(
-            "SELECT id FROM node_link WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL",
-            source_node_id, target_node_id
-        )
-        
-        if row:
-            # Update existing link to be a tag
-            await pool.execute(
-                "UPDATE node_link SET is_tag = TRUE WHERE id = $1",
-                row['id']
-            )
+        upgraded = await self._link_repo.ensure_tag_link(source_node_id, target_node_id)
+        if upgraded:
             return NodeLink(
-                id=row['id'],
                 source_id=source_node_id,
                 target_id=target_node_id,
                 is_tag=True,
             )
-        else:
-            # Create new tag link
-            link = NodeLink(
-                source_id=source_node_id,
-                target_id=target_node_id,
-                is_tag=True,
-            )
-            return await self._link_repo.create(link)
+        
+        # Create new tag link
+        link = NodeLink(
+            source_id=source_node_id,
+            target_id=target_node_id,
+            is_tag=True,
+        )
+        return await self._link_repo.create(link)
     
     async def remove_tag_link(self, source_node_id: int, target_node_id: int) -> bool:
         """Remove a tag link (convert back to regular link or delete).
@@ -478,14 +441,7 @@ class LinkParsingService:
         Returns:
             True if a tag was removed
         """
-        pool = self._link_repo.get_connection()
-        
-        result = await pool.execute(
-            "UPDATE node_link SET is_tag = FALSE WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE",
-            source_node_id, target_node_id
-        )
-        # asyncpg execute returns a status string like 'UPDATE 1'
-        return result and 'UPDATE 0' not in result
+        return await self._link_repo.clear_tag_link(source_node_id, target_node_id)
     
     async def update_inline_classes(self, node_id: int, content: str) -> List[NodeLink]:
         """Parse content and update inline class links for a node.
@@ -501,16 +457,7 @@ class LinkParsingService:
             List of created NodeLink objects (with is_inline_class=True)
         """
         # Get old inline class IDs BEFORE deleting them
-        from ...db.connection import acquire_connection
-        pool = self._node_repo.get_connection()
-        
-        old_inline_class_ids = set()
-        async with acquire_connection(pool) as conn:
-            old_inline_rows = await conn.fetch(
-                "SELECT DISTINCT target_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE",
-                node_id
-            )
-            old_inline_class_ids = {r['target_id'] for r in old_inline_rows}
+        old_inline_class_ids = set(await self._link_repo.get_inline_class_targets(node_id))
         
         # Remove existing inline class links from this source
         await self._link_repo.delete_source_inline_classes(node_id)
@@ -546,27 +493,18 @@ class LinkParsingService:
             new_inline_class_ids.append(class_node.id)
         
         # Update class_ids array to include inline classes
-        async with acquire_connection(pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1",
-                node_id
-            )
-            if row:
-                current_class_ids = list(row['class_ids'] or [])
-                
-                # Remove old inline classes from class_ids
-                filtered_class_ids = [cid for cid in current_class_ids if cid not in old_inline_class_ids]
-                
-                # Add new inline classes to class_ids (avoid duplicates)
-                for class_id in new_inline_class_ids:
-                    if class_id not in filtered_class_ids:
-                        filtered_class_ids.append(class_id)
-                
-                # Update the class_ids array
-                await conn.execute(
-                    "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
-                    filtered_class_ids, node_id
-                )
+        current_class_ids = await self._node_repo.get_node_class_ids(node_id)
+        
+        # Remove old inline classes from class_ids
+        filtered_class_ids = [cid for cid in current_class_ids if cid not in old_inline_class_ids]
+        
+        # Add new inline classes to class_ids (avoid duplicates)
+        for class_id in new_inline_class_ids:
+            if class_id not in filtered_class_ids:
+                filtered_class_ids.append(class_id)
+        
+        # Update the class_ids array
+        await self._node_repo.update_node_class_ids(node_id, filtered_class_ids)
         
         return created_links
     
@@ -622,12 +560,7 @@ class LinkParsingService:
     
     async def _delete_property_links(self, source_node_id: int, property_id: int) -> None:
         """Delete all links for a specific property from a source node."""
-        if hasattr(self._link_repo, 'get_connection'):
-            pool = self._link_repo.get_connection()
-            await pool.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id = $2",
-                source_node_id, property_id
-            )
+        await self._link_repo.delete_property_links(source_node_id, property_id)
     
     async def get_backlinks(self, target_node_id: int) -> List[BacklinkInfo]:
         """Get all backlinks pointing to a node with full provenance.
@@ -642,27 +575,15 @@ class LinkParsingService:
         
         Classes are stored in class_ids column, not as property links.
         """
-        if not hasattr(self._link_repo, 'get_connection'):
-            return []
-        
-        pool = self._link_repo.get_connection()
-        
         # Get all descendants of the target node (includes children, grandchildren, etc.)
         descendant_ids = await self._node_repo.get_descendants(target_node_id, include_self=True)
         
         if not descendant_ids:
-            # If no descendants found, just use the target node itself
             descendant_ids = [target_node_id]
         
         # Also include alias nodes and THEIR descendants
-        # Aliases are pages whose aliased_id points to this node
-        alias_rows = await pool.fetch("""
-            SELECT id FROM node 
-            WHERE aliased_id = $1 AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
-        """, target_node_id)
-        
-        for alias_row in alias_rows:
-            alias_id = alias_row['id']
+        alias_ids = await self._link_repo.get_alias_node_ids(target_node_id)
+        for alias_id in alias_ids:
             alias_descendants = await self._node_repo.get_descendants(alias_id, include_self=True)
             if alias_descendants:
                 descendant_ids.extend(alias_descendants)
@@ -670,23 +591,7 @@ class LinkParsingService:
                 descendant_ids.append(alias_id)
         
         # Get all links pointing to this node OR any of its descendants, with property info
-        rows = await pool.fetch("""
-            SELECT 
-                nl.id, nl.source_id, nl.target_id, nl.position, nl.property_id,
-                nl.create_date,
-                n.name as source_name, n.uuid as source_uuid, n.is_page as source_is_page,
-                n.page_id as source_page_id,
-                p.name as property_name,
-                page.name as page_name, page.uuid as page_uuid
-            FROM node_link nl
-            JOIN node n ON nl.source_id = n.id
-            LEFT JOIN property p ON nl.property_id = p.id
-            LEFT JOIN node page ON n.page_id = page.id
-            WHERE nl.target_id = ANY($1)
-              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
-              AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
-              AND (nl.is_inline_class IS NULL OR nl.is_inline_class = FALSE)
-        """, descendant_ids)
+        rows = await self._link_repo.get_backlinks_batch(descendant_ids)
         
         backlinks = []
         seen_source_target_pairs: set[tuple[int, int]] = set()
@@ -704,7 +609,6 @@ class LinkParsingService:
                 position=row['position'] or 0,
             )
             
-            # Build breadcrumb path
             breadcrumb_path = await self._build_breadcrumb_path(
                 source_node_id=row['source_id'],
                 property_name=row['property_name'],
@@ -726,39 +630,16 @@ class LinkParsingService:
             backlinks.append(backlink_info)
         
         # Also get references from node-type properties (property_value_relation)
-        # These are nodes that have a property value pointing to this target node or its descendants
-        property_rows = await pool.fetch("""
-            SELECT DISTINCT
-                pvr.node_id as source_id,
-                pvr.property_id,
-                n.name as source_name,
-                n.uuid as source_uuid,
-                n.is_page as source_is_page,
-                n.page_id as source_page_id,
-                p.name as property_name,
-                page.name as page_name,
-                page.uuid as page_uuid
-            FROM property_value_relation pvr
-            JOIN property p ON pvr.property_id = p.id
-            JOIN node n ON pvr.node_id = n.id
-            LEFT JOIN node page ON n.page_id = page.id
-            WHERE pvr.target_id = ANY($1)
-              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
-              AND p.type = 'node'
-              AND p.name NOT IN ('classes', 'extends')
-        """, descendant_ids)
+        property_rows = await self._link_repo.get_property_backlinks_batch(descendant_ids)
         
         for row in property_rows:
-            # Create a pseudo NodeLink for property references
-            # Use source_id as the node with the property
             link = NodeLink(
-                id=None,  # No actual node_link record
+                id=None,
                 source_id=row['source_id'],
                 target_id=target_node_id,
                 position=0,
             )
             
-            # Build breadcrumb path
             breadcrumb_path = await self._build_breadcrumb_path(
                 source_node_id=row['source_id'],
                 property_name=row['property_name'],
@@ -780,18 +661,12 @@ class LinkParsingService:
             backlinks.append(backlink_info)
         
         # ── Detect text property context ──────────────────────────────
-        # For text links from non-page blocks, check if the block (or an
-        # ancestor) is the root block of a text-type property.  If so,
-        # enrich the backlink with property provenance so the frontend
-        # can display it like a property reference.
-        
         text_link_backlinks = [
             b for b in backlinks
             if b.property_id is None and not b.source_is_page
         ]
         
         if text_link_backlinks:
-            # Collect all unique source block IDs and their ancestors
             all_ancestor_ids: set[int] = set()
             source_ancestor_map: dict[int, list[int]] = {}
             
@@ -803,29 +678,10 @@ class LinkParsingService:
                 all_ancestor_ids.update(ancestors)
             
             if all_ancestor_ids:
-                # Find which of these ancestor IDs are text property root blocks
-                # i.e. they appear as target_id in property_value_relation
-                # for a text-type property
-                text_prop_rows = await pool.fetch("""
-                    SELECT pvr.target_id AS root_block_id,
-                           pvr.node_id   AS owner_id,
-                           pvr.property_id,
-                           p.name        AS property_name,
-                           owner.name    AS owner_name,
-                           owner.uuid    AS owner_uuid,
-                           owner.is_page AS owner_is_page,
-                           owner.page_id AS owner_page_id,
-                           page.name     AS owner_page_name,
-                           page.uuid     AS owner_page_uuid
-                    FROM property_value_relation pvr
-                    JOIN property p ON pvr.property_id = p.id
-                    JOIN node owner ON pvr.node_id = owner.id
-                    LEFT JOIN node page ON owner.page_id = page.id
-                    WHERE pvr.target_id = ANY($1)
-                      AND p.type = 'text'
-                """, list(all_ancestor_ids))
+                text_prop_rows = await self._link_repo.get_text_property_backlinks_batch(
+                    list(all_ancestor_ids)
+                )
                 
-                # Build lookup: root_block_id → text property info
                 text_prop_lookup: dict[int, dict] = {}
                 for tpr in text_prop_rows:
                     text_prop_lookup[tpr['root_block_id']] = {
@@ -844,15 +700,12 @@ class LinkParsingService:
                 if text_prop_lookup:
                     for b in text_link_backlinks:
                         ancestors = source_ancestor_map.get(b.source_node_id, [])
-                        # Check ancestors (including self) for a text property root
                         for anc_id in ancestors:
                             if anc_id in text_prop_lookup:
                                 info = text_prop_lookup[anc_id]
                                 b.property_id = info['property_id']
                                 b.property_name = info['property_name']
                                 b.text_property_root_block_id = info['root_block_id']
-                                # Set source to the property owner (page/block
-                                # that has the text property)
                                 b.source_node_id = info['owner_id']
                                 b.source_node_name = info['owner_name'] or ''
                                 b.source_node_uuid = info['owner_uuid'] or ''
@@ -865,7 +718,6 @@ class LinkParsingService:
                                     b.source_page_id = info['owner_page_id']
                                     b.source_page_name = info['owner_page_name']
                                     b.source_page_uuid = info['owner_page_uuid']
-                                # Rebuild breadcrumb with property context
                                 b.breadcrumb_path = await self._build_breadcrumb_path(
                                     source_node_id=info['owner_id'],
                                     property_name=info['property_name'],
@@ -935,13 +787,6 @@ class LinkParsingService:
         
         Used for query semantics where descendants inherit references.
         """
-        if not hasattr(self._link_repo, 'get_connection'):
-            return []
-        
-        pool = self._link_repo.get_connection()
-        referenced_ids = set()
-        
-        # Get all ancestor IDs using closure table
         try:
             ancestor_ids = await self._node_repo.get_ancestors(node_id, include_self=True)
         except Exception:
@@ -950,14 +795,7 @@ class LinkParsingService:
         if not ancestor_ids:
             return []
         
-        # Get all links from all ancestors in one query
-        rows = await pool.fetch("""
-            SELECT DISTINCT nl.target_id
-            FROM node_link nl
-            WHERE nl.source_id = ANY($1)
-        """, ancestor_ids)
-        
-        return [row['target_id'] for row in rows]
+        return await self._link_repo.get_path_references(ancestor_ids)
     
     async def update_classes_path(self, node_id: int) -> List[int]:
         """Compute and store the Classes Path for a node.
@@ -969,18 +807,12 @@ class LinkParsingService:
         
         This is separate from backlinks and is used for filtering/queries.
         """
-        if not hasattr(self._link_repo, 'get_connection'):
-            return []
-        
-        pool = self._link_repo.get_connection()
-        classes_path = []
+        classes_path: list[int] = []
         
         # Get own classes from class_ids column
-        node_row = await pool.fetchrow("""
-            SELECT class_ids FROM node WHERE id = $1
-        """, node_id)
-        if node_row and node_row['class_ids']:
-            classes_path.extend(node_row['class_ids'])
+        own_classes = await self._node_repo.get_node_class_ids(node_id)
+        if own_classes:
+            classes_path.extend(own_classes)
         
         # Get ancestor IDs using closure table (ordered from root to parent)
         try:
@@ -988,23 +820,15 @@ class LinkParsingService:
         except Exception:
             ancestor_ids = []
         
-        # Collect classes from all ancestors using class_ids column
+        # Collect classes from all ancestors
         if ancestor_ids:
-            rows = await pool.fetch("""
-                SELECT DISTINCT unnest(class_ids) as class_id
-                FROM node
-                WHERE id = ANY($1) AND class_ids IS NOT NULL
-            """, ancestor_ids)
-            
-            for row in rows:
-                if row['class_id'] not in classes_path:
-                    classes_path.append(row['class_id'])
+            ancestor_classes = await self._link_repo.get_distinct_class_ids(ancestor_ids)
+            for class_id in ancestor_classes:
+                if class_id not in classes_path:
+                    classes_path.append(class_id)
         
         # Store classes_path
-        await pool.execute(
-            "UPDATE node SET classes_path = $1 WHERE id = $2",
-            json.dumps(classes_path), node_id
-        )
+        await self._link_repo.bulk_update_classes_path([(classes_path, node_id)])
         
         return classes_path
     
@@ -1053,3 +877,15 @@ class LinkParsingService:
             return f'<span class="node-link unresolved">{node_id}</span>'
         
         return LINK_PATTERN.sub(link_replacer, content)
+
+    async def get_backlink_source_ids(self, target_id: int) -> List[int]:
+        """Get distinct source node IDs that link to the target."""
+        return await self._link_repo.get_backlink_source_ids(target_id)
+    
+    async def redirect_link_targets(self, old_target_id: int, new_target_id: int) -> None:
+        """Update all node_link records to point from old_target to new_target."""
+        await self._link_repo.redirect_link_targets(old_target_id, new_target_id)
+    
+    async def delete_source_links(self, source_node_id: int) -> int:
+        """Delete all links from a source node."""
+        return await self._link_repo.delete_source_links(source_node_id)
