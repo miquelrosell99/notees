@@ -29,9 +29,9 @@ Date pages use **deterministic UUIDs** derived from the date, making them idempo
 
 | Type | UUID Format | Example |
 |------|------------|---------|
-| Day | `YYYYMMDD` | `20260216` |
-| Month | `YYYYMM00` | `20260200` |
-| Year | `YYYY0000` | `20260000` |
+| Day | `00000000-0000-0000-00dd-YYYYMMDD0000` | `00000000-0000-0000-00dd-202602160000` |
+| Month | `00000000-0000-0000-00aa-YYYYMM000000` | `00000000-0000-0000-00aa-202602000000` |
+| Year | `00000000-0000-0000-00bb-YYYY00000000` | `00000000-0000-0000-00bb-202600000000` |
 
 This means:
 - Requesting the same date twice returns the same page
@@ -51,7 +51,7 @@ Authorization: Bearer {token}
 
 This endpoint is **idempotent** — it creates the page if it doesn't exist, or returns the existing one:
 
-1. Computes the UUID: `20260216`
+1. Computes the UUID: `00000000-0000-0000-00dd-202602160000`
 2. Checks if a node with that UUID exists
 3. If not:
    - Creates the year page (`2026`) if missing

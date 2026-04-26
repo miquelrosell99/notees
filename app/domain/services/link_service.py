@@ -250,7 +250,7 @@ class LinkParsingService:
             ast = parse_ast(name, ParseMode.JSON)
             text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
             return text.strip() or 'Untitled'
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             return name or 'Untitled'
 
     @staticmethod
@@ -895,8 +895,8 @@ class LinkParsingService:
         # Use the node repository's get_breadcrumbs method (uses closure table)
         try:
             ancestor_nodes = await self._node_repo.get_breadcrumbs(source_node_id)
-        except Exception:
-            # Fallback: return empty if method not available or fails
+        except AttributeError:
+            # Fallback: return empty if method not available
             return breadcrumbs
         
         if not ancestor_nodes:

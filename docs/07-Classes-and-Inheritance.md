@@ -138,12 +138,12 @@ class ClassProperty:
     sequence: int            # Display order
     hidden: bool             # Hidden from default view
     # Default values (one per type)
-    default_value_text: Optional[str]
-    default_value_boolean: Optional[bool]
-    default_value_float: Optional[float]
-    default_value_integer: Optional[int]
-    default_value_selection_line_id: Optional[int]
-    default_value_target_id: Optional[int]
+    default_text: Optional[str]
+    default_boolean: Optional[bool]
+    default_float: Optional[float]
+    default_integer: Optional[int]
+    default_node_id: Optional[int]
+    default_selection_id: Optional[int]
 ```
 
 ### Example: "Task" Class Properties

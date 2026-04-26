@@ -22,6 +22,7 @@ import asyncio
 
 from app.db.connection import get_workspace_assets_dir
 from app.logging_config import get_logger
+from app.domain.errors import PermissionDeniedError
 
 logger = get_logger(__name__)
 
@@ -196,7 +197,7 @@ class AssetService:
                 
         except FileExistsError:
             raise AssetError(f"Asset UUID collision: {asset_uuid}")
-        except PermissionError as e:
+        except PermissionDeniedError as e:
             raise AssetPermissionError(f"Permission denied creating asset: {e}")
         except Exception as e:
             logger.error(f"Failed to create asset: {e}", exc_info=True)
@@ -287,7 +288,7 @@ class AssetService:
             
             return new_extension, old_extension, mime_category_changed
             
-        except PermissionError as e:
+        except PermissionDeniedError as e:
             raise AssetPermissionError(f"Permission denied replacing asset: {e}")
         except Exception as e:
             logger.error(f"Failed to replace asset {asset_uuid}: {e}", exc_info=True)
@@ -310,7 +311,7 @@ class AssetService:
             shutil.rmtree(folder)
             logger.info(f"Deleted asset folder: {asset_uuid}")
             return True
-        except PermissionError as e:
+        except PermissionDeniedError as e:
             logger.error(f"Permission denied deleting asset {asset_uuid}: {e}")
             return False
         except Exception as e:

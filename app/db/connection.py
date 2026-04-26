@@ -8,6 +8,7 @@ of each method independently acquiring and releasing from the pool.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from contextvars import ContextVar
 from contextlib import asynccontextmanager
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 
 # Global connection pool
 _pool: Optional[asyncpg.Pool] = None
+_pool_lock = asyncio.Lock()
 
 # Per-request connection (set by middleware, read by repos)
 _request_conn: ContextVar[Optional[asyncpg.Connection]] = ContextVar(
@@ -94,9 +96,14 @@ async def init_pool() -> asyncpg.Pool:
     if _pool is not None:
         return _pool
     
-    database_url = get_database_url()
-    
-    _pool = await asyncpg.create_pool(
+    async with _pool_lock:
+        # Double-checked locking pattern
+        if _pool is not None:
+            return _pool
+        
+        database_url = get_database_url()
+        
+        _pool = await asyncpg.create_pool(
         dsn=database_url,
         min_size=int(os.getenv('POSTGRES_POOL_MIN', 5)),
         max_size=int(os.getenv('POSTGRES_POOL_MAX', 50)),

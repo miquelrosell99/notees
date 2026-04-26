@@ -253,8 +253,15 @@ class BackupScheduler:
             return False
 
 
-# Global backup scheduler instance using settings
-backup_scheduler = BackupScheduler(
-    interval_seconds=settings.backup_interval_seconds,
-    max_backups=settings.max_backups
-)
+# Lazy-initialized backup scheduler instance
+_backup_scheduler: Optional[BackupScheduler] = None
+
+def get_backup_scheduler() -> BackupScheduler:
+    """Get or create the global backup scheduler instance."""
+    global _backup_scheduler
+    if _backup_scheduler is None:
+        _backup_scheduler = BackupScheduler(
+            interval_seconds=settings.backup_interval_seconds,
+            max_backups=settings.max_backups
+        )
+    return _backup_scheduler

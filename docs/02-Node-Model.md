@@ -40,6 +40,7 @@ Defined in `app/domain/entities/node.py` as a Python dataclass.
 | `is_asset` | `bool` | File attachment (image, audio) |
 | `is_template` | `bool` | Template node |
 | `is_comment` | `bool` | Comment on another node |
+| `parent_locked` | `bool` | Prevents parent_id from being changed |
 
 ### Lifecycle Fields
 
@@ -112,9 +113,9 @@ Date pages are nodes with special flags and deterministic UUIDs:
 
 | Flag | UUID Format | Example UUID | Example Name |
 |------|------------|--------------|--------------|
-| `is_year=true` | `YYYY0000` | `20260000` | `2026` |
-| `is_month=true` | `YYYYMM00` | `20260200` | `February 2026` |
-| `is_day=true` | `YYYYMMDD` | `20260216` | `February 16, 2026` |
+| `is_year=true` | `00000000-0000-0000-00bb-YYYY00000000` | `00000000-0000-0000-00bb-202600000000` | `2026` |
+| `is_month=true` | `00000000-0000-0000-00aa-YYYYMM000000` | `00000000-0000-0000-00aa-202602000000` | `February 2026` |
+| `is_day=true` | `00000000-0000-0000-00dd-YYYYMMDD0000` | `00000000-0000-0000-00dd-202602160000` | `February 16, 2026` |
 
 The hierarchy is always: Year → Month → Day (via `parent_id`).
 
@@ -360,9 +361,13 @@ interface Node {
   active: boolean;
   is_page: boolean;
   is_class: boolean;
-  is_daily: boolean;
-  is_monthly: boolean;
-  is_yearly: boolean;
+  is_day: boolean;
+  is_month: boolean;
+  is_year: boolean;
+  is_asset: boolean;
+  is_template: boolean;
+  is_comment: boolean;
+  parent_locked: boolean;
   is_deleted: boolean;
   deleted_at?: string;
   display_name?: string;
@@ -377,6 +382,7 @@ interface Node {
   comment_count: number;
   aliased_id?: number;
   aliases: number[];
+  version: number;
   create_date: string;
   write_date: string;
   open_date?: string;
