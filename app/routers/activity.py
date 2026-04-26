@@ -89,7 +89,7 @@ async def get_node_activity(
             ast = parse_ast(raw_name, ParseMode.JSON)
             text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
             return text.strip() or None
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             return raw_name
 
     return [

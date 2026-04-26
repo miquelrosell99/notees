@@ -19,6 +19,7 @@ from typing import Optional, List, TYPE_CHECKING
 import asyncpg
 
 from ..db.connection import acquire_connection
+from ..domain.errors import PermissionDeniedError
 
 if TYPE_CHECKING:
     pass
@@ -279,42 +280,42 @@ class PermissionChecker:
     async def require_workspace_read(self, workspace_id: int) -> None:
         """Require read permission on a workspace, raise if not allowed."""
         if not await self.can_read_workspace(workspace_id):
-            raise PermissionError(f"User {self._user_id} cannot read workspace {workspace_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot read workspace {workspace_id}")
     
     async def require_workspace_write(self, workspace_id: int) -> None:
         """Require write permission on a workspace, raise if not allowed."""
         if not await self.can_write_workspace(workspace_id):
-            raise PermissionError(f"User {self._user_id} cannot write to workspace {workspace_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot write to workspace {workspace_id}")
     
     async def require_workspace_create(self, workspace_id: int) -> None:
         """Require create permission on a workspace, raise if not allowed."""
         if not await self.can_create_in_workspace(workspace_id):
-            raise PermissionError(f"User {self._user_id} cannot create in workspace {workspace_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot create in workspace {workspace_id}")
     
     async def require_workspace_delete(self, workspace_id: int) -> None:
         """Require delete permission on a workspace, raise if not allowed."""
         if not await self.can_delete_workspace(workspace_id):
-            raise PermissionError(f"User {self._user_id} cannot delete workspace {workspace_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot delete workspace {workspace_id}")
     
     async def require_node_read(self, node_id: int) -> None:
         """Require read permission on a node, raise if not allowed."""
         if not await self.can_read_node(node_id):
-            raise PermissionError(f"User {self._user_id} cannot read node {node_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot read node {node_id}")
     
     async def require_node_write(self, node_id: int) -> None:
         """Require write permission on a node, raise if not allowed."""
         if not await self.can_write_node(node_id):
-            raise PermissionError(f"User {self._user_id} cannot write to node {node_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot write to node {node_id}")
     
     async def require_node_create(self, node_id: int) -> None:
         """Require create permission on a node, raise if not allowed."""
         if not await self.can_create_in_node(node_id):
-            raise PermissionError(f"User {self._user_id} cannot create in node {node_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot create in node {node_id}")
     
     async def require_node_delete(self, node_id: int) -> None:
         """Require delete permission on a node (works on archived nodes too)."""
         if not await self.can_delete_node_including_archived(node_id):
-            raise PermissionError(f"User {self._user_id} cannot delete node {node_id}")
+            raise PermissionDeniedError(f"User {self._user_id} cannot delete node {node_id}")
 
 
 async def get_permission_checker(pool: asyncpg.Pool, user_id: int) -> PermissionChecker:

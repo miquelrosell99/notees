@@ -90,6 +90,3 @@ def ensure_directories():
     """Create required directories if they don't exist."""
     settings.database_dir.mkdir(parents=True, exist_ok=True)
     (settings.database_dir / "users").mkdir(exist_ok=True)
-
-
-ensure_directories()
