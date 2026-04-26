@@ -5,6 +5,10 @@ from fastapi import APIRouter, HTTPException, Depends, Path, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from ...logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError, SystemClassConstraintError
 from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
