@@ -257,7 +257,7 @@ class TestNodeLinkWithoutLabel:
     def test_plain_markdown(self):
         assert (
             stringify_ast(self.ast, opts(StringifyMode.PLAIN_MARKDOWN, _link_resolver))
-            == "See ISO 14971"
+            == "See [ISO 14971]([[link-aaa]])"
         )
 
     def test_text_only(self):
@@ -279,7 +279,7 @@ class TestNodeLinkWithLabel:
     def test_plain_markdown(self):
         assert (
             stringify_ast(self.ast, opts(StringifyMode.PLAIN_MARKDOWN, _label_resolver))
-            == "See the risk standard"
+            == "See the [risk standard]([[link-bbb]])"
         )
 
     def test_text_only(self):
@@ -465,7 +465,7 @@ class TestComplexContent:
     def test_plain_markdown(self):
         assert (
             stringify_ast(self.ast, opts(StringifyMode.PLAIN_MARKDOWN, _complex_resolver))
-            == "Review the **updated **Design Doc before *Friday*"
+            == "Review the **updated **[Design Doc]([[link-x]]) before *Friday*"
         )
 
     def test_text_only(self):

@@ -5,6 +5,7 @@ from .errors import DomainError
 
 
 # Validation constants
+MAX_NAME_LENGTH = 50 * 1024  # 50KB
 MAX_ICON_LENGTH = 100
 MAX_COLOR_LENGTH = 50
 
@@ -31,6 +32,11 @@ def validate_node_name(name: str) -> None:
     """
     if name is None:
         return  # Empty names are allowed
+    
+    if len(name) > MAX_NAME_LENGTH:
+        raise ValidationError(
+            f"Node name is too long (max {MAX_NAME_LENGTH} characters, got {len(name)})"
+        )
     
     # Check for null bytes and other dangerous control characters
     # Allow newlines (\n) and carriage returns (\r) for multiline content

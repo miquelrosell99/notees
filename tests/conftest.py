@@ -154,6 +154,10 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # Initialize fresh schema
     await schema.init_database(pool)
     
+    # Clear in-memory auth cache so tests don't see stale user data
+    from app import auth
+    auth._user_cache.clear()
+    
     yield pool
     
     # Close pool after test
@@ -234,7 +238,7 @@ async def node_repository(db_pool, test_user):
     """Create a node repository for the test user's workspace."""
     from app.domain.repositories import PostgresNodeRepository
     return PostgresNodeRepository(
-        db_pool, test_user["workspace_id"], test_user["page_class_id"], test_user["id"]
+        db_pool, test_user["workspace_id"], test_user["page_class_id"], int(test_user["id"])
     )
 
 
@@ -242,14 +246,14 @@ async def node_repository(db_pool, test_user):
 async def property_repository(db_pool, test_user):
     """Create a property repository for the test user's workspace."""
     from app.domain.repositories import PostgresPropertyRepository
-    return PostgresPropertyRepository(db_pool, test_user["workspace_id"], test_user["id"])
+    return PostgresPropertyRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest_asyncio.fixture(scope="function")
 async def link_repository(db_pool, test_user):
     """Create a link repository for the test user's workspace."""
     from app.domain.repositories import PostgresLinkRepository
-    return PostgresLinkRepository(db_pool, test_user["workspace_id"], test_user["id"])
+    return PostgresLinkRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest_asyncio.fixture(scope="function")

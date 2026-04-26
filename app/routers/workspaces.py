@@ -38,7 +38,7 @@ def _workspace_error_to_http(error: Exception) -> HTTPException:
         return HTTPException(status_code=500, detail=str(error))
 
 
-@router.get("")
+@router.get("/")
 async def list_workspaces(user: User = Depends(get_current_user)):
     """List all available workspaces for current user."""
     workspaces = await wm.list_workspaces(user.id)
@@ -54,7 +54,7 @@ async def check_workspace_name(name: str, user: User = Depends(get_current_user)
     return {"available": not exists, "name": name}
 
 
-@router.post("")
+@router.post("/")
 async def create_workspace(data: WorkspaceCreate, user: User = Depends(get_current_user)):
     """Create a new workspace."""
     try:

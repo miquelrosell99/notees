@@ -77,7 +77,11 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     WHERE id = $6 AND workspace_id = $7
                 """, effective_parent_id, new_page_id, effective_sequence, now, uid, node_id, self._workspace_id)
 
-                return await self.get_by_id(node_id)
+                row = await conn.fetchrow(
+                    "SELECT * FROM node WHERE id = $1 AND workspace_id = $2",
+                    node_id, self._workspace_id
+                )
+                return self._row_to_node(row) if row else None
 
     async def get_breadcrumbs(
         self,

@@ -338,6 +338,12 @@ class NodeService:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
         
+        # Re-fetch to get updated version after side effects
+        if node.id is not None:
+            refreshed = await self._node_repo.get_by_id(node.id)
+            if refreshed:
+                node = refreshed
+        
         # Apply Class properties if any classes have associated properties with defaults
         if node.id is not None and data.classes:
             from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
@@ -522,7 +528,8 @@ class NodeService:
         Raises:
             ValueError: If the move would exceed MAX_HIERARCHY_DEPTH
         """
-        parent_depth, subtree_depth = await self._node_repo.get_depth_info(new_parent_id)
+        parent_depth, _ = await self._node_repo.get_depth_info(new_parent_id)
+        _, subtree_depth = await self._node_repo.get_depth_info(node_id)
         
         # New depth would be: parent_depth + 1 (for the move) + subtree_depth
         new_max_depth = parent_depth + 1 + subtree_depth
@@ -577,7 +584,7 @@ class NodeService:
             check_classes = None
             if data.name is not None or data.parent_id is not None:
                 # Get current classes for this node
-                check_classes = await self._node_repo.get_inline_class_targets(node_id)
+                check_classes = await self._link_service._link_repo.get_inline_class_targets(node_id)
             
             if check_classes:
                 await self._validate_page_name_uniqueness(
@@ -719,9 +726,7 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        restored = await self._node_repo.restore_node(node_id, now, uid)
-        if not restored:
-            return None
+        await self._node_repo.restore_nodes([node_id], now, uid)
         logger.info(f"[RESTORE] Restored node {node_id}")
         return await self._node_repo.get_by_id(node_id)
     
@@ -731,7 +736,7 @@ class NodeService:
         Returns:
             List of deleted nodes
         """
-        return await self._node_repo.get_deleted_nodes_for_workspace()
+        return await self._node_repo.get_deleted_nodes()
     
     async def permanently_delete_node(self, node_id: int) -> bool:
         """Permanently delete a soft-deleted node (hard delete from database).
@@ -744,7 +749,7 @@ class NodeService:
         Returns:
             True if deleted, False if not found or not in trash
         """
-        return await self._node_repo.permanently_delete_node(node_id)
+        return await self._node_repo.hard_delete(node_id)
     
     async def empty_trash(self) -> int:
         """Permanently delete all soft-deleted nodes (empty trash).
