@@ -50,8 +50,8 @@ All auth failures return a generic `"Invalid username or password"` message — 
 | Property | Value |
 |----------|-------|
 | Algorithm | HS256 |
-| Library | python-jose |
-| Expiry | 168 hours (1 week) |
+| Library | PyJWT |
+| Expiry | 24 hours (1 day) |
 | Secret | `SECRET_KEY` env var (≥32 chars) |
 | Payload | `{ user_id, username, exp }` |
 | Refresh | None — single long-lived token |
@@ -375,7 +375,7 @@ interface User {
 ```python
 # Backend (Pydantic)
 class User(UserBase):
-    id: str
+    id: int
     created_at: datetime
     is_active: bool = True
 
@@ -405,7 +405,7 @@ data/
 | Aspect | Implementation |
 |--------|---------------|
 | Password storage | pbkdf2_sha256 salted hash |
-| Token format | JWT HS256, 1-week expiry |
+| Token format | JWT HS256, 24-hour expiry |
 | Rate limiting | slowapi — 3/min register, 5/min login |
 | User enumeration | Generic error messages |
 | Token revocation | None (expires naturally) |

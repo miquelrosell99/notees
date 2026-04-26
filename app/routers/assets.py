@@ -22,7 +22,7 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Response, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from jose import jwt
+import jwt
 
 from ..db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
 from ..db.schema import get_or_create_user_workspace, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS

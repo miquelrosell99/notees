@@ -208,6 +208,18 @@ class DuplicateWorkspaceError(WorkspaceError):
         )
 
 
+# ==================== Permission Errors ====================
+
+class PermissionDeniedError(DomainError):
+    """Raised when a user lacks permission for an operation.
+    
+    Maps to HTTP 403 Forbidden in the API layer.
+    """
+    
+    def __init__(self, message: str):
+        super().__init__(message=message, code="PERMISSION_DENIED")
+
+
 # ==================== Sync Errors ====================
 
 class SyncError(DomainError):

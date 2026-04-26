@@ -34,10 +34,15 @@ import traceback
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import JSONResponse as StarletteJSONResponse
+
+from .domain.errors import PermissionDeniedError
 
 from . import auth
-from .backup import backup_scheduler
-from .config import settings
+from .backup import get_backup_scheduler
+from .config import settings, ensure_directories
 from .logging_config import setup_logging, get_logger
 from .db.connection import init_pool, close_pool
 from .db.schema import init_database
@@ -72,11 +77,14 @@ async def lifespan(app: FastAPI):
         await init_database(conn)  # type: ignore[arg-type]
     logger.info("Database schema initialized")
     
+    # Ensure required directories exist
+    ensure_directories()
+    
     # Ensure admin user exists
     await auth.ensure_admin_user()
     
     # Start backup scheduler
-    await backup_scheduler.start()
+    await get_backup_scheduler().start()
     
     logger.info("Notees application started successfully")
     
@@ -85,7 +93,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Notees application...")
     
     # Stop backup scheduler
-    await backup_scheduler.stop()
+    await get_backup_scheduler().stop()
     
     # Close PostgreSQL connection pool
     await close_pool()
@@ -112,21 +120,51 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Limit request body size to 55 MB (slightly above the asset 50 MB cap to allow for multipart overhead)
-from starlette.middleware import Middleware
-from starlette.requests import Request as StarletteRequest
-
 MAX_REQUEST_BODY_SIZE = 55 * 1024 * 1024  # 55 MB
 
-@app.middleware("http")
-async def limit_request_body_size(request: StarletteRequest, call_next):
-    """Reject requests whose body exceeds MAX_REQUEST_BODY_SIZE to prevent memory exhaustion."""
-    content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_REQUEST_BODY_SIZE:
-        return JSONResponse(
-            status_code=413,
-            content={"detail": f"Request body too large. Maximum size is {MAX_REQUEST_BODY_SIZE // (1024 * 1024)} MB."},
-        )
-    return await call_next(request)
+
+class LimitUploadSizeMiddleware:
+    """ASGI middleware that limits the total request body size.
+    
+    Handles both Content-Length and chunked transfer encoding by counting
+    bytes as they are received.
+    """
+    
+    def __init__(self, app: ASGIApp, max_size: int) -> None:
+        self.app = app
+        self.max_size = max_size
+    
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        
+        total_size = 0
+        
+        async def wrapped_receive() -> dict:
+            nonlocal total_size
+            message = await receive()
+            if message["type"] == "http.request":
+                body_chunk = message.get("body", b"")
+                total_size += len(body_chunk)
+                if total_size > self.max_size:
+                    await send({
+                        "type": "http.response.start",
+                        "status": 413,
+                        "headers": [(b"content-type", b"application/json")],
+                    })
+                    await send({
+                        "type": "http.response.body",
+                        "body": f'"detail":"Request body too large. Maximum size is {self.max_size // (1024 * 1024)} MB."'.encode(),
+                    })
+                    # After sending 413, stop processing further
+                    raise RuntimeError("Request body size exceeded")
+            return message
+        
+        await self.app(scope, wrapped_receive, send)
+
+
+app.add_middleware(LimitUploadSizeMiddleware, max_size=MAX_REQUEST_BODY_SIZE)
 
 # Configure CORS if origins are specified
 if settings.cors_origins:
@@ -154,6 +192,16 @@ async def validation_exception_handler(request, exc):
     return JSONResponse(
         status_code=422,
         content={"detail": exc.errors()}
+    )
+
+
+@app.exception_handler(PermissionDeniedError)
+async def permission_denied_exception_handler(request, exc: PermissionDeniedError):
+    """Return HTTP 403 for permission denied errors."""
+    logger.warning(f"Permission denied on {request.method} {request.url.path}: {exc.message}")
+    return JSONResponse(
+        status_code=403,
+        content={"detail": exc.message, "code": exc.code}
     )
 
 

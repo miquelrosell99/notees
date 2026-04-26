@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError
+from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError, PermissionDeniedError
 from ..validation import validate_node_create, validate_node_update
 from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
@@ -41,8 +41,8 @@ class NodeService:
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
         page_class_id: int,
-        pool: asyncpg.Pool = None,
-        workspace_id: int = None,
+        pool: Optional[asyncpg.Pool] = None,
+        workspace_id: Optional[int] = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -887,7 +887,7 @@ class NodeService:
                 logger.info(f"[EMPTY_TRASH] hard_delete({node_id}) returned {success}")
                 if success:
                     deleted_count += 1
-            except PermissionError as e:
+            except PermissionDeniedError as e:
                 # Node may have been deleted as part of a parent cascade
                 logger.info(f"[EMPTY_TRASH] Skipping node {node_id}: {e}")
                 continue

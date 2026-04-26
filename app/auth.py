@@ -9,7 +9,8 @@ from typing import Optional
 from pathlib import Path
 import time
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 from passlib.context import CryptContext
 
 from .config import settings
@@ -62,7 +63,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         return payload
-    except JWTError as e:
+    except PyJWTError as e:
         logger.warning(f"Token decode error: {e}")
         return None
 
@@ -203,13 +204,14 @@ async def ensure_admin_user():
         # Generate secure random password
         generated_password = secrets.token_urlsafe(16)
         await create_user("admin", generated_password)
-        logger.warning("=" * 60)
-        logger.warning("ADMIN USER CREATED WITH GENERATED PASSWORD")
-        logger.warning(f"Username: admin")
-        logger.warning(f"Password: {generated_password}")
-        logger.warning("SAVE THIS PASSWORD - IT WILL NOT BE SHOWN AGAIN")
-        logger.warning("Set ADMIN_PASSWORD env var to use a specific password")
-        logger.warning("=" * 60)
+        logger.info("=" * 60)
+        logger.info("ADMIN USER CREATED WITH GENERATED PASSWORD")
+        logger.info("Username: admin")
+        logger.info("A secure random password has been generated for the admin user.")
+        logger.info("The password is NOT shown in logs for security reasons.")
+        logger.info("To view or change the password, set ADMIN_PASSWORD env var")
+        logger.info("and restart the application.")
+        logger.info("=" * 60)
 
 
 async def get_current_user_from_token(token: str) -> Optional[dict]:

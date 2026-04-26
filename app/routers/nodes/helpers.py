@@ -505,7 +505,8 @@ def _name_text(name: Optional[str], max_len: int = 60) -> str:
         if ast:
             text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
             return text[:max_len] if text else ""
-    except Exception:
+    except (ValueError, TypeError, KeyError):
+        # Not valid AST JSON or AST processing error — return raw name
         pass
     return name[:max_len]
 

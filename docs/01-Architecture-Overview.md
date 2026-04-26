@@ -211,9 +211,6 @@ Content is stored as a tree of blocks (child nodes), each containing a JSON AST 
 ## Development Quick Start
 
 ```bash
-# Run both frontend and backend with hot-reload
-python run_dev.py
-
 # Backend only (port 8000)
 uvicorn app.main:app --reload
 

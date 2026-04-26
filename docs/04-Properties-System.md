@@ -36,6 +36,8 @@ class Property:
 | `image` | Relation | Asset node reference | Uploaded image |
 | `date` | Relation | Day node reference | `2026-02-16` |
 | `node` | Relation | Node reference | Link to another page |
+| `url` | Scalar | `value_text` column | `https://example.com` |
+| `email` | Scalar | `value_text` column | `user@example.com` |
 | `selection` | Selection | Selection line reference | Dropdown from predefined options |
 
 ### Category Behaviors
@@ -248,12 +250,12 @@ class ClassProperty:
     property_id: int          # The property definition
     sequence: int = 0         # Display order within the class
     hidden: bool = False      # Hidden from default view
-    default_value_text: Optional[str] = None
-    default_value_boolean: Optional[bool] = None
-    default_value_float: Optional[float] = None
-    default_value_integer: Optional[int] = None
-    default_value_selection_line_id: Optional[int] = None
-    default_value_target_id: Optional[int] = None
+    default_text: Optional[str] = None
+    default_boolean: Optional[bool] = None
+    default_float: Optional[float] = None
+    default_integer: Optional[int] = None
+    default_node_id: Optional[int] = None
+    default_selection_id: Optional[int] = None
 ```
 
 When a class is added to a node, all class properties are automatically assigned with their default values.
@@ -283,15 +285,17 @@ POST /api/properties/
 {
   "name": "Meeting Notes",
   "type": "text",
-  "is_local": true,
+  "scope": "node",
   "node_id": 100
 }
 ```
 
 Local properties:
-- Have `is_local=true` and `node_id` set to the owner page
+- Have `scope="node"` and `node_id` set to the owner page
 - Don't appear in the global property list by default
 - Are useful for page-specific metadata
+
+The `PropertyScope` enum has three values: `global`, `class`, and `node`.
 
 ```http
 # List local properties for a page

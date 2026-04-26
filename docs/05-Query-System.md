@@ -459,13 +459,18 @@ POST /api/nodes/views/{view_id}/execute
   ],
   "total_count": 150,
   "metrics": {
-    "ast_nodes_before_optimization": 8,
-    "ast_nodes_after_optimization": 5,
-    "condition_count": 3,
+    "ast_nodes_before": 8,
+    "ast_nodes_after": 5,
+    "conditions_before": 3,
+    "conditions_after": 2,
     "max_depth": 2,
-    "sql_execution_time_ms": 12.5,
+    "sql_time_ms": 12.5,
     "total_time_ms": 18.3,
-    "cache_hit": true
+    "cache_hit": true,
+    "has_recursive_cte": false,
+    "has_path_queries": false,
+    "has_property_joins": true,
+    "has_content_search": false
   }
 }
 ```
