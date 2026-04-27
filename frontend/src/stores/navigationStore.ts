@@ -71,7 +71,7 @@ interface NavigationState {
   closeLocalGraph: () => void;
 }
 
-export const useNavigationStore = create<NavigationState>()((set, get) => ({
+export const useNavigationStore = create<NavigationState>()((set, _get) => ({
   activeNode: null,
   activeNodeId: null,
   currentNodeId: null,

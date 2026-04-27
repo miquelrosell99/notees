@@ -163,6 +163,7 @@ export function PropertyConfigSection({
           id: Number(opt.id),
           name: opt.name,
           icon: opt.icon ?? null,
+          color: null,
           sequence: index,
         })),
       };

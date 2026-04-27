@@ -63,7 +63,7 @@ export interface NodeLinkPluginProps {
 
 export function NodeLinkPlugin({
   onPillClick,
-  onPillEdit,
+  onPillEdit: _onPillEdit,
   onPillRemove,
   pendingPillUpdate,
   onPillUpdateApplied,

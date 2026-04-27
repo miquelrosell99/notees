@@ -100,7 +100,7 @@ export function DatePropertiesPanel({
               color={prop.color}
               size="sm"
               showPicker
-              onColorChange={(color) => changeColor(prop.property, color)}
+              onColorChange={(color) => color && changeColor(prop.property, color)}
               title="Change color"
             />
             

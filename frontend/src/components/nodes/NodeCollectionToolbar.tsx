@@ -71,7 +71,7 @@ export interface NodeCollectionToolbarProps {
   /** Current card layout mode */
   cardLayout?: string;
   /** Callback when card layout changes */
-  onCardLayoutChange?: (layout: string) => void;
+  onCardLayoutChange?: (layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right') => void;
   /** Selected property UUIDs for table columns */
   selectedPropertyUuids?: string[];
   /** Callback when property column selection changes */
@@ -132,8 +132,8 @@ export function NodeCollectionToolbar({
   const storeSetCardLayout = useAppStore(state => state.setCardLayout);
   
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
-  const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: string) => {
-    storeSetCardLayout(layout as 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right');
+  const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right') => {
+    storeSetCardLayout(layout);
   });
   
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
@@ -280,7 +280,7 @@ export function NodeCollectionToolbar({
                   <SelectionButton
                     options={cardLayoutOptions}
                     value={effectiveCardLayout}
-                    onChange={(val) => effectiveOnCardLayoutChange(val)}
+                    onChange={(val) => effectiveOnCardLayoutChange(val as 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right')}
                     size="sm"
                   />
                 </div>

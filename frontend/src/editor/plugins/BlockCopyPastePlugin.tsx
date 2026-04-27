@@ -189,7 +189,7 @@ function insertLinkPillAtOffset(
   const firstBlock = existing[0];
   const newPara: ASTDocument[number] =
     firstBlock?.type === 'heading'
-      ? { type: 'heading', level: (firstBlock as { type: 'heading'; level: number; children: ASTInlineNode[] }).level ?? 1, children: [...before, link, ...after] }
+      ? { type: 'heading', level: firstBlock.level ?? 1, children: [...before, link, ...after] }
       : paragraph(...before, link, ...after);
 
   const newAST: ASTDocument = [newPara];

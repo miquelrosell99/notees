@@ -8,7 +8,7 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useExportSettingsStore } from '@/stores';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiFormatPageBreak, mdiLinkVariant, mdiLinkOff } from '@mdi/js';
+import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiLinkVariant, mdiLinkOff } from '@mdi/js';
 import { Modal } from '../core/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { Button } from '../core/Button';

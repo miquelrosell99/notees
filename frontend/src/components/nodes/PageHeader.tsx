@@ -57,10 +57,7 @@ export function PageHeader({
   const addClass = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
-  const { 
-    addSidebarCard, 
-    openNode,
-  } = useNavigationStore();
+  const { addSidebarCard } = useNavigationStore();
   
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);

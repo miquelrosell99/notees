@@ -168,7 +168,7 @@ export function PropertyList({
     if (onNodeValueShiftClick) {
       onNodeValueShiftClick(nodeId);
     } else {
-      addSidebarCard({ type: 'node', id: nodeId });
+      addSidebarCard(nodeId, 'block');
     }
   }, [onNodeValueShiftClick, addSidebarCard]);
   
@@ -249,8 +249,8 @@ function PropertyRow({
   onNameClick,
   onPropertyContextMenu,
   getContextMenuItems,
-  onValueClick,
-  onValueShiftClick,
+  onValueClick: _onValueClick,
+  onValueShiftClick: _onValueShiftClick,
   hideLabel,
 }: PropertyRowProps) {
   const { property, source, value } = entry;
@@ -258,7 +258,7 @@ function PropertyRow({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [showNodeValueContextMenu, setShowNodeValueContextMenu] = useState(false);
-  const [nodeValueContextMenuPosition, setNodeValueContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [_nodeValueContextMenuPosition, _setNodeValueContextMenuPosition] = useState({ x: 0, y: 0 });
   
   // Fetch the node for the value if it's a node or date property
   const nodeValueId = (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? value : null;
@@ -298,17 +298,9 @@ function PropertyRow({
   
   // Handle shift+click on label - opens property in sidebar
   const handleLabelShiftClick = useCallback(() => {
-    addSidebarCard({ type: 'property', id: property.id });
+    addSidebarCard(property.id, 'block');
   }, [addSidebarCard, property.id]);
   
-  // Handle context menu on node value
-  const handleNodeValueContextMenu = useCallback((_nodeId: number, event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setNodeValueContextMenuPosition({ x: event.clientX, y: event.clientY });
-    setShowNodeValueContextMenu(true);
-  }, []);
-
   // Create a minimal node for NodeInline to display the property name
   const propertyAsNode = useMemo<Node>(() => ({
     id: property.id,
@@ -367,7 +359,7 @@ function PropertyRow({
       {showNodeValueContextMenu && nodeValueData && (
         <PageContextMenu
           node={nodeValueData}
-          position={nodeValueContextMenuPosition}
+          position={_nodeValueContextMenuPosition}
           onClose={() => setShowNodeValueContextMenu(false)}
         />
       )}

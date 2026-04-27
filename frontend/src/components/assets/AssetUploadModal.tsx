@@ -70,19 +70,6 @@ function getAcceptString(acceptedTypes?: AssetCategory[]): string {
   return types.join(',');
 }
 
-function getFormatText(acceptedTypes?: AssetCategory[]): string {
-  const formats: string[] = [];
-  
-  if (!acceptedTypes || acceptedTypes.includes('image')) {
-    formats.push('JPEG, PNG, WebP');
-  }
-  if (!acceptedTypes || acceptedTypes.includes('audio')) {
-    formats.push('MP3, WAV, OGG, OPUS, WebM');
-  }
-  
-  return formats.join(', ');
-}
-
 export function AssetUploadModal({
   isOpen,
   onClose,

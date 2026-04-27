@@ -225,7 +225,7 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
  */
 function renderNodeLink(
   linkId: string,
-  refType: 'node' | 'class',
+  refType: 'node' | 'class' | 'embed',
   opts: StringifyOptions,
   astLabel?: string | null,
 ): string {

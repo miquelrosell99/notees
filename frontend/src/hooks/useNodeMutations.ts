@@ -17,7 +17,6 @@ import { nodeKeys, propertyKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import {
-  updateNodeByIdImmutable,
   updateNodeInTreeImmutable,
   removeNodeFromTreeImmutable,
   findNodeInRootTree,

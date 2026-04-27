@@ -377,10 +377,12 @@ function serializeContentForAPI(contentAST: import('../runtime/types').ContentAS
   if (!contentAST || contentAST.length === 0) return '';
 
   // Check if it's just an empty paragraph
+  const firstBlock = contentAST[0];
   const isEffectivelyEmpty = contentAST.length === 1 &&
-    contentAST[0].children.length <= 1 &&
-    (!contentAST[0].children[0] || 
-      ('text' in contentAST[0].children[0] && contentAST[0].children[0].text === ''));
+    firstBlock.children &&
+    firstBlock.children.length <= 1 &&
+    (!firstBlock.children[0] || 
+      ('text' in firstBlock.children[0] && firstBlock.children[0].text === ''));
 
   if (isEffectivelyEmpty) return '';
 

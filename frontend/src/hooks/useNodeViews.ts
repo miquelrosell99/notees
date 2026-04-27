@@ -25,7 +25,6 @@ import type {
   NodeViewCreate,
   NodeViewUpdate,
   QueryExecuteRequest,
-  QueryExecuteResponse,
 } from '@/types/nodeView';
 
 // ==================== Query Keys ====================

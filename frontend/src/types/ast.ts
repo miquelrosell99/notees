@@ -100,6 +100,7 @@ export interface ASTParagraph {
  */
 export interface ASTHeading {
   readonly type: 'heading';
+  readonly level: number;
   readonly children: ASTInlineNode[];
 }
 
@@ -118,6 +119,8 @@ export interface ASTHeading {
 export interface ASTWhiteboard {
   readonly type: 'whiteboard';
   readonly data: import('./whiteboard').WhiteboardData;
+  readonly children?: ASTInlineNode[];
+  readonly title?: string;
 }
 
 /**
@@ -135,6 +138,7 @@ export interface ASTWhiteboard {
 export interface ASTQuery {
   readonly type: 'query';
   readonly data: import('./queryAST').QueryAST;
+  readonly children?: ASTInlineNode[];
 }
 
 // ─── Union types ───────────────────────────────────────────────────
