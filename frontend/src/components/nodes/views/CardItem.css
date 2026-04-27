@@ -239,6 +239,20 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
+@media (max-width: 480px) {
+  .node-card__header {
+    padding: 0.375rem 0.5rem;
+  }
+
+  .node-card__metadata-row {
+    padding: 0.375rem 0.5rem;
+  }
+
+  .node-card__body {
+    padding: 0.375rem 0.5rem 0.5rem;
+  }
+}
+
 /* Collapse arrow button */
 .node-card__collapse-btn {
   display: flex;
@@ -455,6 +469,14 @@
   min-width: 0;
   overflow: hidden;
   height: auto;
+}
+
+/* Mobile: reduce metadata clutter */
+@media (max-width: 768px) {
+  .node-card__metadata-row {
+    gap: 0.2rem;
+    min-height: unset;
+  }
 }
 
 /* Collapsed body — hidden */

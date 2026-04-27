@@ -32,6 +32,24 @@
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
+/* Mobile: tighter rows and smaller label column */
+@media (max-width: 768px) {
+  .property-row {
+    grid-template-columns: minmax(100px, 140px) 1fr;
+    min-height: 32px;
+  }
+
+  .property-row__label,
+  .property-row__value {
+    padding: var(--spacing-1) var(--spacing-2);
+  }
+
+  /* Hide rows where the value is an empty placeholder on mobile */
+  .property-row:has(.property-placeholder) {
+    display: none;
+  }
+}
+
 .property-row:last-child {
   border-bottom: none;
 }

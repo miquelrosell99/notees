@@ -12,6 +12,29 @@
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
 
+/* Mobile: maximize width and reduce padding */
+@media (max-width: 768px) {
+  .node-view {
+    max-width: 100%;
+    padding: 0 var(--spacing-3) var(--spacing-4);
+  }
+
+  /* When a colored left border is present, hug it tightly */
+  .has-node-border .node-view {
+    padding-left: var(--spacing-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .node-view {
+    padding: 0 var(--spacing-2) var(--spacing-3);
+  }
+
+  .has-node-border .node-view {
+    padding-left: var(--spacing-1);
+  }
+}
+
 /* Reduced bottom padding in sidebar cards */
 .sidebar-card-node .node-view {
   padding-bottom: var(--spacing-2);
@@ -436,10 +459,6 @@
 
 /* Tablet: reduce padding */
 @media (max-width: 768px) {
-  .node-view {
-    padding: 0 var(--spacing-3) var(--spacing-4);
-  }
-
   .page-header-section {
     grid-template-columns: 1fr;
   }
@@ -451,17 +470,7 @@
 }
 
 /* Mobile: tighter spacing */
-@media (max-width: 768px) {
-  .node-view {
-    padding: 0 var(--spacing-2) var(--spacing-3);
-  }
-}
-
 @media (max-width: 480px) {
-  .node-view {
-    padding: 0 var(--spacing-1) var(--spacing-2);
-  }
-
   .node-view-footer {
     flex-direction: column;
     gap: var(--spacing-2);

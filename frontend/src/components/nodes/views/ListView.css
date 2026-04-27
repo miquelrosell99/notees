@@ -47,6 +47,16 @@
   gap: var(--spacing-6);
 }
 
+@media (max-width: 768px) {
+  .node-list-view--grouped {
+    gap: var(--spacing-4);
+  }
+
+  .node-list-view__group-content {
+    padding-left: 0;
+  }
+}
+
 .node-list-view__group {
   display: flex;
   flex-direction: column;

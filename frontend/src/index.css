@@ -125,3 +125,20 @@ input:focus, textarea:focus, select:focus {
   opacity: 0.45;
   font-size: 0.85em;
 }
+
+/* Dark mode: mute empty placeholders so they don't compete with real content */
+[data-theme="dark"] .property-placeholder {
+  opacity: 0.3;
+}
+
+/* Mobile: make empty placeholders even more subtle */
+@media (max-width: 768px) {
+  .property-placeholder {
+    opacity: 0.35;
+    font-size: 0.8em;
+  }
+
+  [data-theme="dark"] .property-placeholder {
+    opacity: 0.25;
+  }
+}
