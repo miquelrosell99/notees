@@ -336,7 +336,7 @@ export function NodeContextMenu({
                 if (!Array.isArray(ast) || ast.length === 0) return;
                 const newAst = ast.map((block: { type: string; [key: string]: unknown }, i: number) =>
                   i === 0 ? { ...block, type: block.type === 'heading' ? 'paragraph' : 'heading' } : block
-                ) as ContentAST;
+                ) as unknown as ContentAST;
 
                 // Update runtime directly for immediate UI feedback.
                 // The runtime is the source of truth for contentAST;

@@ -11,7 +11,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useProperties, useAvailableProperties } from '@/hooks';
+import { useAvailableProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -39,7 +39,6 @@ const HIDDEN_PROPERTY_UUIDS = new Set<string>([
   SYSTEM_PROPERTY_UUIDS.cover,
   SYSTEM_PROPERTY_UUIDS.show_hierarchy,
   SYSTEM_PROPERTY_UUIDS.banner,
-  SYSTEM_PROPERTY_UUIDS._query_ast,
   SYSTEM_PROPERTY_UUIDS._whiteboard_data,
 ]);
 

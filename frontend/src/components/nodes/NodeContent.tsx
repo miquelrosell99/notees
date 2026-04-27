@@ -17,7 +17,6 @@ import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClas
 import { generateUUID } from '@/utils/uuid';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
-import { useNavigationStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -58,10 +57,9 @@ export function NodeContent({
   node, 
   children,
   displayMode = 'bullet',
-  totalChildrenCount = 0,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
+
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
   // Lazy-load children of collapsed blocks when they are expanded
@@ -513,7 +511,6 @@ export function NodeContent({
             }
           }}
           allowCreate={false}
-          autoFocus
         />
       </Modal>
 

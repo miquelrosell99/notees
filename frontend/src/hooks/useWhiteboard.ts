@@ -46,7 +46,7 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { grid: _grid, background: _bg, ...rest } = wb.data as WhiteboardData & { grid?: unknown; background?: unknown };
     // Ensure groups array exists (backward compatibility)
-    return { groups: [], ...rest } as WhiteboardData;
+    return { ...rest, groups: (rest as WhiteboardData).groups || [] } as WhiteboardData;
   }
 
   return { ...DEFAULT_WHITEBOARD_DATA };

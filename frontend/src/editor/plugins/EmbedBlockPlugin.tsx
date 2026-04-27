@@ -71,7 +71,7 @@ export function EmbedBlockPlugin(): JSX.Element | null {
           const graphNode = runtime.getNode(blockId);
           if (graphNode) {
             for (const para of graphNode.contentAST) {
-              if (!('children' in para)) continue; // whiteboard/query blocks have no inline children
+              if (!para.children) continue; // whiteboard/query blocks have no inline children
               for (const inline of para.children) {
                 if (inline.type === 'node_link' && inline.ref_type === 'embed') {
                   embedLinkId = inline.link_id;

@@ -43,7 +43,6 @@ export function Layout() {
   const currentNodeId = useNavigationStore(s => s.currentNodeId);
   const mainViewType = useNavigationStore(s => s.mainViewType);
   const viewMode = useNavigationStore(s => s.viewMode);
-  const toggleRightSidebar = useNavigationStore(s => s.toggleRightSidebar);
   const isCommandPaletteOpen = useModalStore(s => s.isCommandPaletteOpen);
   const setCommandPaletteOpen = useModalStore(s => s.setCommandPaletteOpen);
   const isImportDataModalOpen = useModalStore(s => s.isImportDataModalOpen);

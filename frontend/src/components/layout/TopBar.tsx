@@ -56,7 +56,7 @@ export function TopBar() {
   const redoBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
-  const [goToTodaySignal, setGoToTodaySignal] = useState(0);
+  const [goToTodaySignal] = useState(0);
 
   // Navigation history for back/forward buttons
   const canGoBack = useNavigationHistoryStore(s => s.canGoBack);

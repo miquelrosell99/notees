@@ -52,8 +52,8 @@ describe('navigationStore — sidebar', () => {
   });
 
   it('setSidebarTab updates sidebarTab', () => {
-    useNavigationStore.getState().setSidebarTab('tags');
-    expect(useNavigationStore.getState().sidebarTab).toBe('tags');
+    useNavigationStore.getState().setSidebarTab('pages');
+    expect(useNavigationStore.getState().sidebarTab).toBe('pages');
   });
 });
 
@@ -82,25 +82,25 @@ describe('navigationStore — focus mode', () => {
 
 describe('navigationStore — sidebarCards', () => {
   it('addSidebarCard adds a new card and opens right sidebar', () => {
-    useNavigationStore.getState().addSidebarCard(7, 'linked-refs');
+    useNavigationStore.getState().addSidebarCard(7, 'page');
     const s = useNavigationStore.getState();
     expect(s.sidebarCards).toHaveLength(1);
     expect(s.sidebarCards[0].nodeId).toBe(7);
-    expect(s.sidebarCards[0].cardType).toBe('linked-refs');
+    expect(s.sidebarCards[0].cardType).toBe('page');
     expect(s.rightSidebarOpen).toBe(true);
   });
 
   it('addSidebarCard deduplicates: moves existing card to front', () => {
-    useNavigationStore.getState().addSidebarCard(7, 'linked-refs');
-    useNavigationStore.getState().addSidebarCard(8, 'linked-refs');
-    useNavigationStore.getState().addSidebarCard(7, 'linked-refs');
+    useNavigationStore.getState().addSidebarCard(7, 'page');
+    useNavigationStore.getState().addSidebarCard(8, 'block');
+    useNavigationStore.getState().addSidebarCard(7, 'page');
     const cards = useNavigationStore.getState().sidebarCards;
     expect(cards).toHaveLength(2);
     expect(cards[0].nodeId).toBe(7);
   });
 
   it('removeSidebarCard removes a card by id', () => {
-    useNavigationStore.getState().addSidebarCard(5, 'linked-refs');
+    useNavigationStore.getState().addSidebarCard(5, 'block');
     const { sidebarCards } = useNavigationStore.getState();
     const cardId = sidebarCards[0].id;
     useNavigationStore.getState().removeSidebarCard(cardId);
@@ -108,8 +108,8 @@ describe('navigationStore — sidebarCards', () => {
   });
 
   it('clearSidebarCards empties the list', () => {
-    useNavigationStore.getState().addSidebarCard(1, 'linked-refs');
-    useNavigationStore.getState().addSidebarCard(2, 'linked-refs');
+    useNavigationStore.getState().addSidebarCard(1, 'page');
+    useNavigationStore.getState().addSidebarCard(2, 'localGraph');
     useNavigationStore.getState().clearSidebarCards();
     expect(useNavigationStore.getState().sidebarCards).toHaveLength(0);
   });

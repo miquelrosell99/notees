@@ -17,7 +17,7 @@
 import { useMemo } from 'react';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions, nodeKeys } from './useNodes';
+import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';

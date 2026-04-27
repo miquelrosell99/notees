@@ -98,7 +98,6 @@ const terrainPeakMap   = new Map<number, number>();
 /** Ref-link arrays (source, target, type) for minimum-separation forces. */
 let refLinkSrcs:  Int32Array = new Int32Array(0);
 let refLinkTgts:  Int32Array = new Int32Array(0);
-let refLinkTypes: Uint8Array  = new Uint8Array(0);
 let refLinkCount  = 0;
 
 /**
@@ -658,7 +657,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       }
       refLinkSrcs  = d.refLinkSources;
       refLinkTgts  = d.refLinkTargets;
-      refLinkTypes = d.refLinkTypes;
+      // refLinkTypes removed — unused
       refLinkCount = d.refLinkSources.length;
       idToSlotDirty = true; // position cache may have shifted
       break;

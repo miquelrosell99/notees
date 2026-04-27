@@ -50,7 +50,7 @@ export class BlockHeadingNode extends BlockNode {
     blockName: string = '',
     key?: NodeKey,
   ) {
-    super(blockId, depth, false, nodeType, false, icon, color, blockName, key);
+    super(blockId, depth, false, nodeType, false, icon, color, blockName, false, [], true, key);
     this.__level = level;
   }
 

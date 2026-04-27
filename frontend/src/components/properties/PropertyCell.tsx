@@ -21,7 +21,7 @@ import { getOrCreateDaily } from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeInline } from '../blocks/NodeInline';
 import { ImageNode } from '../nodes/ImageNode';
-import { NodeRef } from '../nodes/NodeRef';
+
 import { NodeSelector } from '../nodes/NodeSelector';
 import { DatePickerPopup } from '../core/DatePickerPopup';
 import Icon from '@mdi/react';
@@ -179,7 +179,7 @@ export function PropertyCell({
   }, [isEditing]);
 
   // Text-type property: value is a block node ID or array of block node IDs (multi)
-  if (property.type === 'text') {
+  if (property.type === 'text' && !isEditing) {
     if (property.multi && Array.isArray(value)) {
       if (value.length === 0) {
         return (
@@ -316,7 +316,7 @@ export function PropertyCell({
     return (
       <div className="property-cell property-cell--editing">
         <InputComponent
-          ref={inputRef as React.RefCallback<HTMLInputElement & HTMLTextAreaElement>}
+          ref={inputRef as unknown as React.RefCallback<HTMLInputElement & HTMLTextAreaElement>}
           className="property-cell__input"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
@@ -367,86 +367,6 @@ function InlineBlock({ nodeId }: { nodeId: number }) {
 }
 
 /**
- * MultiNodePropertyCell - Renders multi-value node properties using NodeSelector
- * Fetches all node data and provides add/remove functionality
- */
-function MultiNodePropertyCell({
-  nodeIds,
-  property,
-  parentNode,
-  value,
-  editable,
-}: {
-  nodeIds: number[];
-  property: Property;
-  parentNode: Node;
-  value: unknown;
-  editable: boolean;
-}) {
-  const setPropertyMutation = useSetNodeProperty();
-  const openNode = useNavigationStore(s => s.openNode);
-
-  // Fetch all nodes in parallel
-  const nodeQueries = useQueries({
-    queries: nodeIds.map((nodeId) => ({
-      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
-      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
-
-  // Extract resolved nodes
-  const resolvedNodes = useMemo(() => {
-    return nodeQueries
-      .map(query => query.data)
-      .filter((n): n is Node => n !== undefined);
-  }, [nodeQueries]);
-
-  // Show loading state if any query is loading
-  const isLoading = nodeQueries.some(q => q.isLoading);
-
-  if (isLoading) {
-    return (
-      <div className="property-cell property-cell--loading">
-        Loading...
-      </div>
-    );
-  }
-
-  return (
-    <div className="property-cell property-cell--node-multi">
-      <NodeSelector
-        nodes={resolvedNodes}
-        searchMode="pages"
-        classFilters={property.class_filters}
-        emptyText="Add"
-        searchPlaceholder="Search..."
-        onNodeClick={(selectedNode) => {
-          openNode(selectedNode.id);
-        }}
-        onAdd={editable ? (selectedNode) => {
-          const currentValue = Array.isArray(value) ? value : [];
-          setPropertyMutation.mutate({
-            nodeId: parentNode.id,
-            propertyId: property.id,
-            value: [...currentValue, selectedNode.id],
-          });
-        } : undefined}
-        onRemove={editable ? (selectedNode) => {
-          const currentValue = Array.isArray(value) ? value : [];
-          setPropertyMutation.mutate({
-            nodeId: parentNode.id,
-            propertyId: property.id,
-            value: currentValue.filter(id => id !== selectedNode.id),
-          });
-        } : undefined}
-        readOnly={!editable}
-      />
-    </div>
-  );
-}
-
-/**
  * NodePropertyCell - Handles all node-type properties (empty/single/multi, asset/regular)
  * Uses NodeSelector for regular nodes, ImageNode for assets
  */
@@ -467,7 +387,7 @@ function NodePropertyCell({
   const openNode = useNavigationStore(s => s.openNode);
 
   // Parse node IDs from value
-  const isMultiValue = property.is_multi || Array.isArray(value);
+  const isMultiValue = property.multi || Array.isArray(value);
   const nodeIds: number[] = isMultiValue && Array.isArray(value)
     ? value.filter((v): v is number => typeof v === 'number')
     : typeof value === 'number'
@@ -539,7 +459,7 @@ function NodePropertyCell({
         }}
         onAdd={editable ? (selectedNode) => {
           const currentValue = isMultiValue && Array.isArray(value) ? value : (value ? [value] : []);
-          const newValue = property.is_multi 
+          const newValue = property.multi 
             ? [...currentValue, selectedNode.id]
             : selectedNode.id;
           setPropertyMutation.mutate({
@@ -549,7 +469,7 @@ function NodePropertyCell({
           });
         } : undefined}
         onRemove={editable ? (selectedNode) => {
-          if (property.is_multi && Array.isArray(value)) {
+          if (property.multi && Array.isArray(value)) {
             setPropertyMutation.mutate({
               nodeId: parentNode.id,
               propertyId: property.id,
@@ -604,7 +524,7 @@ function SelectionPropertyCell({
     .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
 
   const handleAddOption = (option: typeof options[0]) => {
-    if (property.is_multi) {
+    if (property.multi) {
       const currentValue = Array.isArray(value) ? value : [];
       setPropertyMutation.mutate({
         nodeId: parentNode.id,
@@ -622,7 +542,7 @@ function SelectionPropertyCell({
   };
 
   const handleRemoveOption = (option: typeof options[0]) => {
-    if (property.is_multi && Array.isArray(value)) {
+    if (property.multi && Array.isArray(value)) {
       setPropertyMutation.mutate({
         nodeId: parentNode.id,
         propertyId: property.id,
@@ -685,7 +605,7 @@ function SelectionPropertyCell({
           />
         );
       })}
-      {editable && property.is_multi && (
+      {editable && property.multi && (
         <Button
           variant="ghost"
           size="sm"

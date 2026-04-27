@@ -112,8 +112,8 @@ export const TableView = memo(function TableView({
   selectedIds: controlledSelectedIds,
   onSelectionChange,
   onReorder,
-  onNodeClick,
-  onNodeShiftClick,
+  onNodeClick: _onNodeClick,
+  onNodeShiftClick: _onNodeShiftClick,
   propertyUuids = [],
   className = '',
   customContextMenu,
@@ -377,8 +377,8 @@ export const TableView = memo(function TableView({
           depth={depth}
           className={`node-table-view ${className}`}
           getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
-          onNodeOpen={openNode}
-          onNodeOpenInSidebar={addSidebarCard}
+          onNodeOpen={(nodeId) => openNode(nodeId)}
+          onNodeOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'block')}
           nodeEditable={editable}
           defaultSort={defaultSort}
         />

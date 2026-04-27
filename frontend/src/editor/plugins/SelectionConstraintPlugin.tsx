@@ -13,7 +13,7 @@
  * - BlockDragSelectionPlugin (takes over when drag exits block bounds)
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,

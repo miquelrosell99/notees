@@ -257,7 +257,7 @@ export function ListSortable<T extends ListSortableItem>({
   };
 
   // Handle item click
-  const handleItemClick = useCallback((item: T, index: number, e: React.MouseEvent) => {
+  const handleItemClick = useCallback((item: T, index: number, _e: React.MouseEvent) => {
     // Don't trigger click if we were dragging
     if (dragState) return;
     onItemClick?.(item, index);

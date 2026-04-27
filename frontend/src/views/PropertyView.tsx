@@ -334,7 +334,7 @@ export function PropertyView({
  * Renders header as fixed bar and content in scrollable area
  */
 export function PropertyViewWrapper(props: PropertyViewProps) {
-  const { header, content } = PropertyView(props);
+  const { header, content: _content } = PropertyView(props);
   return header;
 }
 

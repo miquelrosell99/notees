@@ -7,7 +7,8 @@ import { useCallback } from 'react';
 import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/core/SearchBox';
 import { Button } from '../components/core/Button';
-import { PageIcon, AddIcon } from '../components/core/icons';
+import { PageIcon } from '../components/core/icons';
+import { mdiPlus } from '@mdi/js';
 import { useNavigationStore } from '@/stores';
 import { useModalStore } from '@/stores';
 import type { Node } from '@/types';
@@ -39,7 +40,7 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
             <Button
               variant="primary"
               size="sm"
-              icon={AddIcon}
+              icon={mdiPlus}
               onClick={() => setCommandPaletteOpen(true)}
               title="New page (Ctrl+K)"
             >

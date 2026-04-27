@@ -21,8 +21,6 @@ import {
   type JSX,
 } from 'react';
 
-import { Button } from '@/components/core/Button';
-import { Card } from '@/components/core/Card';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
@@ -34,7 +32,6 @@ import type { NodeCardViewProps } from '@/types/nodeCollection';
 import { useClasses } from '@/hooks';
 import { NodeCard } from './CardItem';
 import { NodeIcon } from '@/components/core/icons';
-import { mdiPlus } from '@mdi/js';
 import { sortBySequence } from '@/utils/nodeSort';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 
@@ -87,7 +84,7 @@ function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: s
 export const CardView = memo(function CardView({
   nodes,
   layout = 'no-cover',
-  columns,
+  columns: _columns,
   sortable,
   editable = true,
   selectable = false,
@@ -97,7 +94,7 @@ export const CardView = memo(function CardView({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
-  onAdd,
+  onAdd: _onAdd,
   customContextMenu,
   className = '',
   groupBy = 'none',

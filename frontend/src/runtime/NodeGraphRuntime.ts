@@ -1278,6 +1278,7 @@ function splitContentASTAtOffset(
 
   for (let i = 0; i < content.length; i++) {
     const para = content[i];
+    if (!para.children) continue;
     const paraStart = charCount;
     for (const child of para.children) {
       const len = getInlineLength(child);
@@ -1296,7 +1297,7 @@ function splitContentASTAtOffset(
   // Offset beyond content: split at end (everything stays in "before")
   if (!found) {
     return {
-      before: content.map(p => ({ ...p, children: [...p.children] })),
+      before: content.map(p => ({ ...p, children: p.children ? [...p.children] : [] })),
       after: [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }],
     };
   }
@@ -1305,7 +1306,7 @@ function splitContentASTAtOffset(
   const after = content.slice(splitParaIndex + 1);
 
   const splitPara = content[splitParaIndex];
-  if (splitPara) {
+  if (splitPara && splitPara.children) {
     const { beforeInlines, afterInlines } = splitInlinesAtOffset(splitPara.children, splitCharOffset);
     before.push({ type: 'paragraph', children: beforeInlines });
     after.unshift({ type: 'paragraph', children: afterInlines });
@@ -1325,7 +1326,7 @@ function mergeContentASTs(a: ContentAST, b: ContentAST): ContentAST {
   // Merge last paragraph of a with first paragraph of b
   // Then normalize adjacent plain-text nodes so the runtime's AST
   // matches what Lexical produces after its own text-node merge pass.
-  const merged = [...lastPara.children, ...firstB.children];
+  const merged = [...(lastPara.children || []), ...(firstB.children || [])];
   const normalized: ASTInlineNode[] = [];
   for (const node of merged) {
     const prev = normalized.length > 0 ? normalized[normalized.length - 1] : null;
@@ -1384,6 +1385,7 @@ function getContentASTLength(content: ContentAST): number {
   let totalLength = 0;
   for (let i = 0; i < content.length; i++) {
     const para = content[i];
+    if (!para.children) continue;
     for (const child of para.children) {
       totalLength += getInlineLength(child);
     }

@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, flushAllContentSaves, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
@@ -1268,7 +1268,6 @@ export function NodeView({
             <div className="page-properties-section">
               <PropertiesSection 
                 nodeId={node.id}
-                variant={resolvedType}
                 showHiddenSection={true}
                 showAddProperty={true}
                 isMainNode={true}

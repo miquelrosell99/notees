@@ -581,7 +581,7 @@ async function processSingleLineLinkPasteAsync(
 
   const existing = graphNode.contentAST ?? [paragraph(astText(''))];
   // Flatten all inlines from the existing block (single-paragraph assumed for editable blocks)
-  const existingInlines: ASTInlineNode[] = existing.flatMap(p => ('children' in p ? p.children : []));
+  const existingInlines: ASTInlineNode[] = existing.flatMap(p => (p.children ? p.children : []));
 
   // Split existing inlines at the cursor offset
   let remaining = cursorOffset;

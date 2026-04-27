@@ -144,7 +144,7 @@ export function TextPropertyBlock({
   readOnly = false,
   onOpenInSidebar,
   onPropertyChange,
-  onBulletClick,
+  onBulletClick: _onBulletClick,
 }: TextPropertyBlockProps) {
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -161,8 +161,6 @@ export function TextPropertyBlock({
   const createNode = useCreateNode();
   const moveNode = useMoveNode();
   const { handleNodeClick } = useNodeNavigation();
-  const { handleContentChange } = useContentSave();
-
   useBlockPersist();
   
   // Handle creating a new text block
@@ -195,11 +193,6 @@ export function TextPropertyBlock({
       setIsCreating(false);
     }
   }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange, isMulti, ids]);
-  
-  // Handle shift-click to open in sidebar
-  const handleNodeShiftClick = useCallback((clickedNode: Node) => {
-    onOpenInSidebar?.(clickedNode.id);
-  }, [onOpenInSidebar]);
   
   // ─── DragCoordinator-based drop zone ─────────────────────────
   const [isDragOver, setIsDragOver] = useState(false);
@@ -235,7 +228,7 @@ export function TextPropertyBlock({
       setIsDragOver(false);
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = (_e: MouseEvent) => {
       if (!isOverRef.current) return;
       const coordinator = getDragCoordinator();
       const payload = coordinator.getDragPayload();

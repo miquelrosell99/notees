@@ -156,7 +156,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
   const { interaction, data, settings } = wb;
   const { gridVisible, gridSnap, minimapVisible } = useWhiteboardStore();
-  const { toggleGrid, toggleSnap, toggleMinimap } = useWhiteboardStore();
+  const { toggleGrid: _toggleGrid, toggleSnap: _toggleSnap, toggleMinimap } = useWhiteboardStore();
   const activeTool = interaction.tool;
 
   // Track the last selected shape so left-clicking the shapes button re-activates it.
@@ -517,7 +517,7 @@ const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange,
         color={settings.color}
         showPicker
         colors={WB_COLOR_VARS}
-        onColorChange={(cssVar) => onChange({ ...settings, color: cssVar })}
+        onColorChange={(cssVar) => cssVar && onChange({ ...settings, color: cssVar })}
         size="sm"
         title="Pick color"
       />
@@ -617,7 +617,7 @@ const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onCha
         color={settings.fill}
         showPicker
         colors={WB_COLOR_VARS}
-        onColorChange={(cssVar) => onChange({ ...settings, fill: cssVar })}
+        onColorChange={(cssVar) => cssVar && onChange({ ...settings, fill: cssVar })}
         size="sm"
         title="Fill color"
       />
@@ -628,7 +628,7 @@ const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onCha
         color={settings.stroke}
         showPicker
         colors={WB_COLOR_VARS}
-        onColorChange={(cssVar) => onChange({ ...settings, stroke: cssVar })}
+        onColorChange={(cssVar) => cssVar && onChange({ ...settings, stroke: cssVar })}
         size="sm"
         title="Stroke color"
       />

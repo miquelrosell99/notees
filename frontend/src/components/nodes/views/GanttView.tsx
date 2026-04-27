@@ -35,9 +35,6 @@ const BAR_HEIGHT = 20;
 const BAR_RADIUS = 4;
 const MILESTONE_SIZE = 10;
 const RESIZE_HANDLE = 8; // px on right edge that triggers resize-end mode
-const LABEL_WIDTH = 220;
-const HEADER_HEIGHT = 32;
-
 /** Initial pixels per day for each named zoom level (used as starting point) */
 const PX_PER_DAY_INITIAL: Record<'day' | 'week' | 'month', number> = {
   day:   40,
@@ -180,10 +177,10 @@ function buildRows(
     let icon: string | null = null;
 
     if (groupBy === 'page') {
-      const pid = (item.node as Record<string, unknown>).page_id as number | undefined;
+      const pid = (item.node as unknown as Record<string, unknown>).page_id as number | undefined;
       label = pid != null ? (pageMap.get(pid)?.name ?? `Page ${pid}`) : '(No page)';
     } else if (groupByProp) {
-      const raw = (item.node.properties as Record<string, unknown>)?.[String(groupByProp.id)] ?? null;
+      const raw = ((item.node as unknown as Record<string, unknown>).properties as Record<string, unknown>)?.[String(groupByProp.id)] ?? null;
       ({ label, icon } = groupPropertyLabel(groupByProp, raw));
     } else {
       label = '';
@@ -622,7 +619,7 @@ export const GanttView = memo(function GanttView({
   }, []); // intentionally empty – uses refs only
 
   // ── Drag state ──────────────────────────────────────────────────────────
-  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [_dragState, setDragState] = useState<DragState | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
 
   // ── Context menu ────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $setSelection,
+  $isElementNode,
   KEY_ESCAPE_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ARROW_DOWN_COMMAND,
@@ -383,7 +384,7 @@ export function KeyboardSelectionPlugin({
           node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
         );
         
-        if (blockNode) {
+        if (blockNode && $isElementNode(blockNode)) {
           const firstChild = blockNode.getFirstDescendant();
           if (firstChild) {
             firstChild.selectStart();
@@ -417,7 +418,7 @@ export function KeyboardSelectionPlugin({
           node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
         );
         
-        if (blockNode) {
+        if (blockNode && $isElementNode(blockNode)) {
           const lastChild = blockNode.getLastDescendant();
           if (lastChild) {
             lastChild.selectEnd();

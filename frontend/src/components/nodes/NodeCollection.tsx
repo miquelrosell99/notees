@@ -22,7 +22,8 @@
  * ├─ TimelineView (timeline)
  * └─ GraphView (graph)
  */
-import { createContext, useContext, useMemo, useCallback, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useCallback, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
@@ -34,14 +35,7 @@ import {
   mdiChartGantt, 
   mdiGraphOutline,
   mdiTimelineClockOutline,
-  mdiGroup,
-  mdiPlus,
-  mdiCardOutline,
-  mdiDockLeft,
-  mdiDockRight,
-  mdiDockTop,
-  mdiTableColumn,
-  mdiRestore,
+  mdiTerrain,
 } from '@mdi/js';
 import type { 
   NodeCollectionProps, 
@@ -50,7 +44,7 @@ import type {
   NodeCollectionGroupBy 
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';
-import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
+import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
 import { 
   ListView, 
   DocumentView, 
@@ -90,6 +84,7 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
   table: { icon: mdiTable, label: 'Table' },
   gantt: { icon: mdiChartGantt, label: 'Gantt' },
   graph: { icon: mdiGraphOutline, label: 'Graph' },
+  terrain: { icon: mdiTerrain, label: 'Terrain' },
   timeline: { icon: mdiTimelineClockOutline, label: 'Timeline' },
 };
 
@@ -123,12 +118,10 @@ export function NodeCollection({
   onGroupByChange,
   showGroupBy: showGroupByProp = false,
   pagesOnly = false,
-  showClasses = false,
   showEmpty = true,
   emptyMessage = 'No items',
   maxDepth = Infinity,
   tableColumns,
-  pageMap,
   isolatedBlockState = false,
   suppressRootColor = false,
   showBreadcrumbs = false,
@@ -173,7 +166,7 @@ export function NodeCollection({
   const rawCardLayout = cardLayout ?? storeCardLayout;
   // Filter out invalid 'cover-bottom' from old persisted state
   const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' = 
-    (rawCardLayout === 'cover-bottom' ? 'no-cover' : rawCardLayout);
+    (rawCardLayout as string === 'cover-bottom' ? 'no-cover' : rawCardLayout);
   
   // Default groupBy: 'page' — group by page automatically in list view
   const defaultGroupBy: NodeCollectionGroupBy = 'page';
@@ -585,7 +578,7 @@ export function NodeCollection({
                 ganttTimeScale={ganttTimeScale}
                 onGanttTimeScaleChange={setGanttTimeScale}
                 toolbarPrefix={toolbarPrefix}
-                leftElement={typeof leftElement === 'function' ? leftElement(nodes.length) : leftElement}
+                leftElement={typeof leftElement === 'function' ? (leftElement as (count: number) => ReactNode)(nodes.length) : leftElement}
                 hideToolbarControls={hideToolbarControls}
               />
             </div>

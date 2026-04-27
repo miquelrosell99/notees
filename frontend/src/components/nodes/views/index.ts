@@ -30,4 +30,4 @@ export type { NodeVisual, RendererOptions, CameraState } from './graphWebGLRende
 
 // Shared view types and helpers
 export * from './viewTypes';
-export * from './viewHelpers';
+export { calculateMaxConnections, getDirectionalConnectionCount } from './viewHelpers';

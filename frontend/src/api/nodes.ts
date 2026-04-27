@@ -22,7 +22,6 @@ import type {
   BatchPermanentDeleteResponse,
   BatchGetNodesRequest,
   BatchGetNodesResponse,
-  BatchNodeDailyRequest,
   BatchNodeDailyResponse,
   BreadcrumbsResponse,
 } from '@/types/api';

@@ -24,6 +24,7 @@ import type {
   Point,
   Bounds,
   ConnectorEndpoint,
+  StrokeStyle,
 } from '@/types/whiteboard';
 import { boundsOverlap, isPointInBounds, getBounds } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
@@ -248,7 +249,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Eraser cursor circle — updated imperatively, lives in live SVG so opacity dimming never affects it
   const eraserCursorRef = useRef<SVGCircleElement>(null);
   const rafRef = useRef<number>(0);
-  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as const });
+  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as StrokeStyle });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isEmptyPanning, setIsEmptyPanning] = useState(false);
   // Tracks shift key during shape creation drag for preview re-renders
@@ -288,13 +289,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     return {
       x: (screenX - rect.left - viewport.x) / viewport.zoom,
       y: (screenY - rect.top - viewport.y) / viewport.zoom,
-    };
-  }, [viewport]);
-
-  const canvasToScreen = useCallback((canvasX: number, canvasY: number): Point => {
-    return {
-      x: canvasX * viewport.zoom + viewport.x,
-      y: canvasY * viewport.zoom + viewport.y,
     };
   }, [viewport]);
 
@@ -1030,11 +1024,13 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       setInteraction(prev => ({ ...prev, connectorStart: null }));
       // Only commit if the pointer was released on a different element
       const hitElement = hitTest(canvasPos);
-      const startId = interaction.connectorStart.elementId;
+      const start = interaction.connectorStart;
+      if (start.type !== 'element') return;
+      const startId = start.elementId;
       if (!hitElement || hitElement.id === startId) return;
       const anchor = getElementAnchor(canvasPos, hitElement);
       const end: ConnectorEndpoint = { type: 'element', elementId: hitElement.id, anchor };
-      const connector = wb.createConnector(interaction.connectorStart, end);
+      const connector = wb.createConnector(start, end);
       wb.addElement(connector);
       return;
     }

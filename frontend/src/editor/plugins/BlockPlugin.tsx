@@ -48,7 +48,7 @@ import { findParentNodeBlock } from '../utils/selectionUtils';
 import { generateUUID } from '../../utils/uuid';
 import { isOtherEditorActive } from '../activeEditorRegistry';
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
-import type { ASTInlineNode } from '@/types/ast';
+import type { ASTInlineNode, ASTNodeLink } from '@/types/ast';
 import {
   getVisibleBlockIds,
   isVirtualizationEnabled,
@@ -1669,11 +1669,13 @@ function isHeadingAST(contentAST: ContentAST): boolean {
 /** Returns true when the AST is null / empty / effectively blank. */
 function isEmptyAST(contentAST: ContentAST): boolean {
   if (!contentAST || contentAST.length === 0) return true;
+  const first = contentAST[0];
+  if (!first.children || first.children.length === 0) return false;
   if (
     contentAST.length === 1 &&
-    contentAST[0].children.length === 1 &&
-    contentAST[0].children[0].type === 'text' &&
-    contentAST[0].children[0].text === ''
+    first.children.length === 1 &&
+    first.children[0].type === 'text' &&
+    first.children[0].text === ''
   ) return true;
   return false;
 }
@@ -1689,7 +1691,7 @@ function populateBlockContent(block: BlockNode, contentAST: ContentAST): void {
   }
 
   for (const para of contentAST) {
-    if (!('children' in para)) continue; // whiteboard/query blocks have no inline children
+    if (!para.children) continue; // whiteboard/query blocks have no inline children
     for (const inline of para.children) {
       appendInlineNode(block, inline, 0);
     }
@@ -1725,7 +1727,7 @@ function populateBlockContentLight(block: BlockNode, contentAST: ContentAST): bo
 
   let hasPills = false;
   for (const para of contentAST) {
-    if (!('children' in para)) continue; // whiteboard/query blocks have no inline children
+    if (!para.children) continue; // whiteboard/query blocks have no inline children
     for (const inline of para.children) {
       if (appendInlineNodeLight(block, inline, 0)) hasPills = true;
     }
@@ -1838,7 +1840,7 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
   // --- Collect pills from the AST in document order ---
   const pills: ASTInlineNode[] = [];
   for (const para of contentAST) {
-    collectPillsFromAST(para.children, pills);
+    if (para.children) collectPillsFromAST(para.children, pills);
   }
   if (pills.length === 0) return; // Nothing to upgrade
 
@@ -1909,7 +1911,7 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
  * Recursively append inline nodes to a block, tracking format flags for nested marks.
  * Also ensures text nodes exist around pills for proper cursor navigation.
  */
-function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number, isFirst: boolean = false): void {
+function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: number): void {
   switch (inline.type) {
     case 'text': {
       // Auto-migrate legacy plain-text nodes that contain `backtick` patterns.
@@ -2022,14 +2024,14 @@ function extractBlockContent(block: BlockNode): ContentAST {
             : [],
         });
       } else {
-        const nodeLink: Record<string, unknown> = {
+        const pillLabel = child.getLabel();
+        const nodeLink: ASTNodeLink = {
           type: 'node_link',
           link_id: child.getLinkId(),
           ref_type: rt,
+          ...(pillLabel ? { label: pillLabel } : {}),
         };
-        const pillLabel = child.getLabel();
-        if (pillLabel) nodeLink.label = pillLabel;
-        inlines.push(nodeLink as ASTInlineNode);
+        inlines.push(nodeLink);
       }
     } else if ($isLineBreakNode(child)) {
       inlines.push({ type: 'hard_break' });

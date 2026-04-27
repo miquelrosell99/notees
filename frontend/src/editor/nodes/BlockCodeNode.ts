@@ -35,7 +35,7 @@ export class BlockCodeNode extends BlockNode {
     depth: number = 0,
     key?: NodeKey,
   ) {
-    super(blockId, depth, false, 'code' as GraphNodeType, false, null, null, '', key);
+    super(blockId, depth, false, 'code' as GraphNodeType, false, null, null, '', false, [], false, key);
     this.__language = language;
   }
 

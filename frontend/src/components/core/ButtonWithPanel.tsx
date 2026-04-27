@@ -74,7 +74,7 @@ export function ButtonWithPanel({
   usePortal = false,
   // openPanelOnRightClick = false, // removed
   onActivate,
-  active: activeProp = false,
+  active: _activeProp = false,
 }: ButtonWithPanelProps) {
   // Determine if component is controlled
   const isControlled = controlledOpen !== undefined;

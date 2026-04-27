@@ -7,12 +7,12 @@
 import { describe, it, expect } from 'vitest';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import type { NodeLinkResolver } from '@/lib/stringifyAST';
-import type { ASTDocument } from '@/types/ast';
+import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Shorthand for a single paragraph with the given inline nodes. */
-function p(...children: ASTDocument[0]['children']): ASTDocument {
+function p(...children: ASTInlineNode[]): ASTDocument {
   return [{ type: 'paragraph', children }];
 }
 
@@ -20,11 +20,11 @@ function text(t: string) {
   return { type: 'text' as const, text: t };
 }
 
-function strong(...children: ASTDocument[0]['children']) {
+function strong(...children: ASTInlineNode[]) {
   return { type: 'strong' as const, children };
 }
 
-function em(...children: ASTDocument[0]['children']) {
+function em(...children: ASTInlineNode[]) {
   return { type: 'em' as const, children };
 }
 
@@ -36,15 +36,15 @@ function nodeLink(linkId: string, refType: 'node' | 'class' = 'node') {
   return { type: 'node_link' as const, link_id: linkId, ref_type: refType };
 }
 
-function strikethrough(...children: ASTDocument[0]['children']) {
+function strikethrough(...children: ASTInlineNode[]) {
   return { type: 'strikethrough' as const, children };
 }
 
-function highlight(...children: ASTDocument[0]['children']) {
+function highlight(...children: ASTInlineNode[]) {
   return { type: 'highlight' as const, children };
 }
 
-function externalLink(url: string, ...children: ASTDocument[0]['children']) {
+function externalLink(url: string, ...children: ASTInlineNode[]) {
   return { type: 'external_link' as const, url, children };
 }
 
