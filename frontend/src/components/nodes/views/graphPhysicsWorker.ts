@@ -57,11 +57,11 @@ const MAX_TICK_BUDGET_MS = 50;
  * stable on the first frame.  A hard time-budget cap prevents blocking the
  * worker for too long on very large graphs.
  */
-const WARMUP_ENERGY_TARGET = 0.05;
+const WARMUP_ENERGY_TARGET = 0.005;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
-const WARMUP_TIME_BUDGET_MS = 3000;
+const WARMUP_TIME_BUDGET_MS = 5000;
 /** Minimum warm-up steps before checking energy convergence. */
-const WARMUP_MIN_STEPS = 100;
+const WARMUP_MIN_STEPS = 300;
 
 
 
@@ -414,6 +414,17 @@ function tick(): void {
   }
 
   postFrame();
+
+  // Auto-freeze when the simulation has fully settled.
+  // This gives Obsidian-like instant stability — the graph stays static
+  // until the user drags a node or changes settings (which reheat).
+  if (engine) {
+    const state = engine.getState();
+    if (state.alpha <= engine.getAlphaMin() && state.energy < 0.001 && substeps > 0) {
+      stopLoop();
+      return;
+    }
+  }
 
   // Schedule next tick: if step was slow, fire immediately (0ms) to maximise
   // throughput; otherwise honour the target interval.

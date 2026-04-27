@@ -92,6 +92,29 @@
   z-index: 10;
 }
 
+/* ── Hover tooltip ────────────────────────────────────────────────────────── */
+
+.sge-graph-tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(24, 24, 32, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.08s ease;
+}
+
 /* ── No-WebGL fallback ────────────────────────────────────────────────────── */
 
 .sge-graph-view--no-webgl {
