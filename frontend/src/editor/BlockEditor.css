@@ -82,7 +82,7 @@
   align-items: flex-start;
   padding: 0;
   margin: 3px 0;
-  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-8));
+  margin-left: calc(min(var(--node-block-depth, 0), 8) * var(--spacing-8));
   min-height: 1.6em;
   line-height: 1.6;
   transition: margin-left var(--motion-duration-medium) var(--motion-easing-standard);
@@ -156,6 +156,8 @@
   outline: none;
   margin: 0;
   line-height: 1.6;
+  /* Prevent long unbreakable words from forcing overflow */
+  overflow-wrap: break-word;
   /* Hide native caret - we use a custom caret */
   caret-color: transparent !important;
   /* Re-enable text selection within blocks */
@@ -1088,4 +1090,13 @@ body.notees-dragging-block * {
   opacity: calc(0.55 + var(--swipe-progress, 0) * 0.45);
   transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
   transition: none;
+}
+
+/* ─── Mobile outliner adjustments ─────────────────────────────── */
+/* Reduce indent step on narrow screens so deeply nested blocks stay readable */
+@media (max-width: 768px) {
+  .node-block {
+    /* Halve the indent step from 32px to 16px per level */
+    margin-left: calc(min(var(--node-block-depth, 0), 8) * var(--spacing-4));
+  }
 }

@@ -451,9 +451,15 @@
 }
 
 /* Mobile: tighter spacing */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .node-view {
     padding: 0 var(--spacing-2) var(--spacing-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .node-view {
+    padding: 0 var(--spacing-1) var(--spacing-2);
   }
 
   .node-view-footer {
