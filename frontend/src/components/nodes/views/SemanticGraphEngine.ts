@@ -619,7 +619,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   localRepelStrength: 1200,
   localRepelRadius: 500,
   radialStrength: 0.001,
-  componentCenterStrength: 0.001,
+  componentCenterStrength: 0.003,
   componentSpacing: 500,
   damping: 0.95,
   maxVelocity: 50,
@@ -691,11 +691,6 @@ export class SemanticGraphEngine {
   private clFy:    Float32Array = new Float32Array(0);
   private bigClusterBuf:   Int32Array = new Int32Array(0);
   private bigClusterCount  = 0;
-
-  // ── Component centroid arrays ─────────────────────────────────────────────────
-  private ccX:    Float32Array = new Float32Array(0);
-  private ccY:    Float32Array = new Float32Array(0);
-  private ccCount: Int32Array  = new Int32Array(0);
 
   // ── Sub-systems ───────────────────────────────────────────────────────────────
   private spatialHash: FastSpatialHash;
@@ -803,14 +798,6 @@ export class SemanticGraphEngine {
     this.clFx    = new Float32Array(c);
     this.clFy    = new Float32Array(c);
     this.bigClusterBuf = new Int32Array(c);
-  }
-
-  private ensureComponentCap(c: number): void {
-    if (this.ccX.length >= c) return;
-    const cc = Math.max(c, 64);
-    this.ccX     = new Float32Array(cc);
-    this.ccY     = new Float32Array(cc);
-    this.ccCount = new Int32Array(cc);
   }
 
   // ─── Graph initialization ─────────────────────────────────────────────────────
@@ -1135,22 +1122,98 @@ export class SemanticGraphEngine {
       }
     }
 
-    // ─ F) Component gravity ────────────────────────────────────────────────────  
-    const centerStr = cfg.componentCenterStrength;
-    if (centerStr > 0) {
+    // ─ F) Component repulsion (bounding force field) ───────────────────────────
+    // Each connected component exerts a repulsive bubble around its centroid.
+    // Unconnected nodes (isolates or other components) are pushed away, so
+    // islands stay separate and don't get swallowed by large clusters.
+    {
+      // 1) gather unique component ids and map them to dense indices
       let maxCompId = 0;
       for (let i = 0; i < N; i++) { if (compId[i] > maxCompId) maxCompId = compId[i]; }
       const C = maxCompId + 1;
-      this.ensureComponentCap(C);
-      const cpX = this.ccX, cpY = this.ccY, cpC = this.ccCount;
-      cpX.fill(0, 0, C); cpY.fill(0, 0, C); cpC.fill(0, 0, C);
-      for (let i = 0; i < N; i++) { const c = compId[i]; cpX[c] += posX[i]; cpY[c] += posY[i]; cpC[c]++; }
-      for (let i = 0; i < C; i++) { if (cpC[i] > 0) { cpX[i] /= cpC[i]; cpY[i] /= cpC[i]; } }
+      const cx = new Float32Array(C), cy = new Float32Array(C);
+      const cc = new Int32Array(C);
+      for (let i = 0; i < N; i++) {
+        const c = compId[i];
+        cx[c] += posX[i]; cy[c] += posY[i]; cc[c]++;
+      }
+      for (let c = 0; c < C; c++) { if (cc[c] > 0) { cx[c] /= cc[c]; cy[c] /= cc[c]; } }
+
+      // 2) pairwise repulsion between component centroids
+      const compRepelStr = 8000;
+      const compRepelRadius = 600;
+      const cfx = new Float32Array(C), cfy = new Float32Array(C);
+      for (let a = 0; a < C; a++) {
+        if (cc[a] === 0) continue;
+        for (let b = a + 1; b < C; b++) {
+          if (cc[b] === 0) continue;
+          const dx = cx[a] - cx[b], dy = cy[a] - cy[b];
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const t = 1 - dist / compRepelRadius;
+          if (t <= 0) continue;
+          const f = compRepelStr * t * t / dist;
+          const fx = dx * f, fy = dy * f;
+          cfx[a] += fx; cfy[a] += fy;
+          cfx[b] -= fx; cfy[b] -= fy;
+        }
+      }
+
+      // 3) Cap total force per component so per-node acceleration never exceeds
+      // 1.0.  Without this, close centroid encounters generate 50+ accel and
+      // nodes fly around uncontrollably.
+      const maxCompAccel = 1.0;
+      for (let c = 0; c < C; c++) {
+        if (cc[c] <= 0) continue;
+        const maxTotal = maxCompAccel * cc[c];
+        const totalMag = Math.sqrt(cfx[c] * cfx[c] + cfy[c] * cfy[c]);
+        if (totalMag > maxTotal) {
+          const s = maxTotal / totalMag;
+          cfx[c] *= s; cfy[c] *= s;
+        }
+      }
+
+      // 4) distribute evenly per member so large components move as a unit
       for (let k = 0; k < activeCount; k++) {
         const i = activeIdx[k];
-        const c = compId[i];
-        ax[i] -= centerStr * (posX[i] - cpX[c]);
-        ay[i] -= centerStr * (posY[i] - cpY[c]);
+        const c = compId[i]; if (cc[c] <= 0) continue;
+        ax[i] += cfx[c] / cc[c];
+        ay[i] += cfy[c] / cc[c];
+      }
+    }
+
+    // ─ G) Global center gravity / isolate soft wall ────────────────────────────
+    // Connected nodes: linear gravity toward origin, stronger for hubs.
+    // Isolated nodes (degree=0): a soft radial wall pushes them outward to
+    // an outer rim (targetR).  Once beyond targetR they feel no gravity,
+    // so they float freely in the periphery, kept in check only by local
+    // repulsion and component repulsion from other clusters.
+    const centerStr = cfg.componentCenterStrength;
+    if (centerStr > 0) {
+      const targetR = cfg.idealDistance * 8; // ~640
+      const eps = 0.001;
+      for (let k = 0; k < activeCount; k++) {
+        const i = activeIdx[k];
+        const degree = this.degArr[i];
+        const scale = 0.5 + Math.min(degree * 0.1, 2.5);
+        const strength = centerStr * scale;
+
+        if (degree === 0) {
+          const dx = posX[i], dy = posY[i];
+          const r = Math.sqrt(dx * dx + dy * dy);
+          if (r < targetR) {
+            const f = strength * (targetR - r);
+            if (r > eps) {
+              ax[i] += (dx / r) * f;
+              ay[i] += (dy / r) * f;
+            } else {
+              // exactly at origin — push along +x so it leaves the centre
+              ax[i] += f;
+            }
+          }
+        } else {
+          ax[i] -= strength * posX[i];
+          ay[i] -= strength * posY[i];
+        }
       }
     }
   }
