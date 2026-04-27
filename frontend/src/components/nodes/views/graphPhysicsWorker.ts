@@ -416,11 +416,14 @@ function tick(): void {
   postFrame();
 
   // Auto-freeze when the simulation has fully settled.
-  // This gives Obsidian-like instant stability — the graph stays static
-  // until the user drags a node or changes settings (which reheat).
+  // With damping-based settling (no time-based alpha cooling), we freeze
+  // purely by kinetic energy — once all nodes are nearly stationary the
+  // loop stops and CPU goes to zero.  Dragging or topology changes
+  // (which call startLoop()) wake it back up locally, without re-heating
+  // unrelated nodes.
   if (engine) {
     const state = engine.getState();
-    if (state.alpha <= engine.getAlphaMin() && state.energy < 0.001 && substeps > 0) {
+    if (state.energy < 0.0005 && substeps > 0) {
       stopLoop();
       return;
     }
