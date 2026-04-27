@@ -137,6 +137,13 @@
   border-left: 8px solid var(--node-border-color);
 }
 
+/* On mobile, thin the border slightly so it doesn't steal too much width */
+@media (max-width: 480px) {
+  .main-content.has-node-border {
+    border-left-width: 4px;
+  }
+}
+
 /* ==================== Right Container (Right Sidebar) ==================== */
 .right-container,
 .right-sidebar {

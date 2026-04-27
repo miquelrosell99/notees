@@ -69,6 +69,17 @@
   align-self: center;
 }
 
+/* Mobile: compact toolbar and hide overflow button if not needed */
+@media (max-width: 768px) {
+  .node-collection-toolbar {
+    gap: var(--spacing-1);
+  }
+
+  .node-collection-toolbar__right {
+    gap: var(--spacing-1);
+  }
+}
+
 .node-collection-toolbar__reset-views {
   align-self: center;
 }

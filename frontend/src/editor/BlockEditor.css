@@ -177,6 +177,20 @@
   user-select: none;
 }
 
+@media (max-width: 768px) {
+  .node-block-class-pills {
+    gap: 2px;
+    margin-left: 4px;
+    flex-wrap: wrap;
+    max-width: 40%;
+  }
+
+  .node-block-class-pills-inner {
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+}
+
 /* Hide class pills container when it has no visible children
    (e.g. all classes are inline and filtered out by the plugin) */
 .node-block-class-pills:empty {
@@ -445,6 +459,12 @@
   background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
   padding: 2px 8px;
   border-radius: var(--shape-small);
+}
+
+@media (max-width: 768px) {
+  .node-block[style*="--node-block-color"]:not(.node-block-heading) > .node-block-content {
+    padding: 2px 4px;
+  }
 }
 
 /* ─── Selection state ──────────────────────────────────────────── */
@@ -1003,6 +1023,12 @@ body.notees-dragging-block * {
   cursor: default;
 }
 
+@media (max-width: 768px) {
+  .notees-editor--list .notees-editor-content {
+    padding: 0 0 0 var(--spacing-3);
+  }
+}
+
 /* Text cursor only on actual content elements inside blocks in list mode */
 /* .node-block itself stays cursor:default — only content children get cursor:text */
 
@@ -1011,6 +1037,12 @@ body.notees-dragging-block * {
 .notees-editor-paragraph {
   margin: 0;
   line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .notees-editor-paragraph {
+    line-height: 1.5;
+  }
 }
 
 /* ─── Virtualization ───────────────────────────────────────────── */
@@ -1097,6 +1129,19 @@ body.notees-dragging-block * {
 @media (max-width: 768px) {
   .node-block {
     /* Halve the indent step from 32px to 16px per level */
-    margin-left: calc(min(var(--node-block-depth, 0), 8) * var(--spacing-4));
+    margin-left: calc(min(var(--node-block-depth, 0), 4) * var(--spacing-4));
+    line-height: 1.5;
   }
+
+  .node-block-content {
+    line-height: 1.5;
+    min-height: 1.5em;
+  }
+
+  .block-ui,
+  .block-ui--after-content {
+    height: 1.5em;
+    line-height: 1.5;
+  }
+}
 }

@@ -158,7 +158,8 @@
  */
 @media (max-width: 768px) {
   .top-bar {
-    padding: var(--spacing-2) var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-2);
+    gap: var(--spacing-2);
   }
 
   /* Hide navigation arrows, undo, redo, scratchpad, and their separators */
@@ -175,10 +176,28 @@
     display: none;
   }
 
+  /* Minimum 44px touch targets for all header buttons */
+  .top-bar .btn,
+  .top-bar .toolbar-btn,
+  .top-bar .calendar-btn,
+  .top-bar .local-graph-btn,
+  .top-bar .quick-add-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: var(--spacing-1);
+  }
+
   /* Shrink the account avatar slightly */
   .account-avatar {
     width: 28px;
     height: 28px;
     font-size: 12px;
+  }
+}
+
+/* Very small screens: hide calendar to reduce header clutter (journal is in sidebar) */
+@media (max-width: 480px) {
+  .top-bar-calendar-container {
+    display: none;
   }
 }

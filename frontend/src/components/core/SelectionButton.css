@@ -74,6 +74,23 @@
   height: 28px;
 }
 
+/* Mobile: slightly smaller view-mode switcher to save header space */
+@media (max-width: 768px) {
+  .selection-button--sm .selection-button__option {
+    width: 26px;
+    height: 26px;
+  }
+
+  .selection-button--sm {
+    padding: 2px;
+  }
+
+  .selection-button--sm .selection-button__indicator {
+    top: 2px;
+    left: 2px;
+  }
+}
+
 .selection-button--md .selection-button__option {
   width: 34px;
   height: 34px;
