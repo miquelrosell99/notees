@@ -259,11 +259,6 @@ export const UNLINKED_REPULSION_DIST_SQ = UNLINKED_REPULSION_DISTANCE * UNLINKED
 export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCITY;
 
 // Collision resolution (position-based)
-export const COLLISION_PADDING = 1.0;
-export const COLLISION_RESOLVE = 0.5; // fraction of overlap resolved per frame
-export const COLLISION_LINKED_RESOLVE = 0.02; // very soft for linked pairs — spring handles equilibrium
-export const COLLISION_VEL_DAMPENING = 0.8; // approaching-velocity absorption factor
-export const COLLISION_LINKED_VEL_DAMPENING = 0.1; // minimal dampening for linked pairs
 export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
 
 // ==================== Terrain Physics Constants ====================
@@ -325,6 +320,7 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
   class: 2,
   'property-reference': 1,
   reference: 0,
+  semantic: 0,
 };
 
 // Terrain contour levels (linear division by meters)

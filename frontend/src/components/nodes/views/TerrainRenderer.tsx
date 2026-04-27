@@ -236,6 +236,9 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
   // Node label state
   const [nodeLabels, setNodeLabels] = useState<Array<{ id: number; x: number; y: number; text: string; isSelected: boolean }>>([]);
   
+  // Elevation tooltip state (shown near crosshair)
+  const [elevationTooltip, setElevationTooltip] = useState<{ x: number; y: number; text: string; visible: boolean }>({ x: 0, y: 0, text: '', visible: false });
+  
   // Profile SVG viewBox dimensions (computed based on actual dimensions)
   const [profileViewBoxX, setProfileViewBoxX] = useState({ width: 800, height: 48 });
   const [profileViewBoxY, setProfileViewBoxY] = useState({ width: 48, height: 600 });
@@ -327,9 +330,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     simulationPausedRef,
   }), [recenter, triggerCreationAnimation, createNode, destroyNode, updateLinks, pauseSimulation, resumeSimulation]);
   
-  // Reusable flat segment buffer for marching-squares contour building.
-  const segsBufRef = useRef<Float32Array | null>(null);
-
   // Overlay canvas for crosshair, hover labels, selected outlines (lightweight layer)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -477,6 +477,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     hasSelection: boolean;
     selectedNodeIndices: Set<number>;
     referencePaths: ReferencePath[];
+    heightMap: Float32Array | null;
     valid: boolean;
   }>({
     positionHash: 0, selectionHash: 0, classColorsHash: 0,
@@ -485,6 +486,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     lowR: 0, lowG: 0, lowB: 0, highR: 0, highG: 0, highB: 0,
     hasClassColors: false, hasSelection: false, selectedNodeIndices: new Set(),
     referencePaths: [],
+    heightMap: null,
     valid: false,
   });
   
@@ -617,13 +619,6 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       && cache.gridH === gridH)
       || (throttled && cache.valid);
     
-    // Numeric point key for contour chain building (avoids string allocation)
-    // Uses relative grid coords (subtract origin) to keep values in a compact range
-    const ptKey = (x: number, y: number): number => {
-      const ix = (((x - originX) * 100 + 0.5) | 0) + 500000;
-      const iy = (((y - originY) * 100 + 0.5) | 0) + 500000;
-      return ix * 2097152 + iy; // 2^21 for larger range with world coords
-    };
     
     if (!cacheValid) {
       // ==================== Rebuild Terrain Cache ====================
@@ -1011,200 +1006,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
       }
     }
 
-    // (Marching-squares chain building removed — the GPU fragment shader
-    //  computes analytical per-pixel iso-line distances instead.)
-    const MIN_CHAIN_LEN = gs * 4; // kept for reference-path minimum-length guard
-    
-    // ---- Pre-compute filtered contour chains for all levels ----
-    type Pt = [number, number];
-    type Chain = Pt[];
-    
-    // Flat segment buffer: 4 floats per segment (x1, y1, x2, y2).
-    // Max segments = 2 per grid cell (saddle cases 5, 10).
-    const maxSegs = (gridW - 1) * (gridH - 1) * 2;
-    const segsFloats = maxSegs * 4;
-    if (!segsBufRef.current || segsBufRef.current.length < segsFloats) {
-      segsBufRef.current = new Float32Array(segsFloats);
-    }
-    const segsBuf = segsBufRef.current;
-    
-    // Write a segment into the flat buffer and bump the count
-    let segCount = 0;
-    const addSeg = (x1: number, y1: number, x2: number, y2: number) => {
-      const off = segCount * 4;
-      segsBuf[off] = x1; segsBuf[off + 1] = y1;
-      segsBuf[off + 2] = x2; segsBuf[off + 3] = y2;
-      segCount++;
-    };
-    
-    const collectSegments = (level: number): number => {
-      segCount = 0;
-      for (let gy = 0; gy < gridH - 1; gy++) {
-        const rowOff = gy * gridW;
-        const nextRowOff = rowOff + gridW;
-        const py = originY + gy * gs;
-        for (let gx = 0; gx < gridW - 1; gx++) {
-          const v00 = heightMap[rowOff + gx];
-          const v10 = heightMap[rowOff + gx + 1];
-          const v01 = heightMap[nextRowOff + gx];
-          const v11 = heightMap[nextRowOff + gx + 1];
-          const code = (v00 >= level ? 8 : 0) | (v10 >= level ? 4 : 0) |
-                       (v11 >= level ? 2 : 0) | (v01 >= level ? 1 : 0);
-          if (code === 0 || code === 15) continue;
-          const px = originX + gx * gs;
-          const topD = v10 - v00;
-          const topT = topD === 0 ? 0.5 : (level - v00) / topD;
-          const rightD = v11 - v10;
-          const rightT = rightD === 0 ? 0.5 : (level - v10) / rightD;
-          const bottomD = v11 - v01;
-          const bottomT = bottomD === 0 ? 0.5 : (level - v01) / bottomD;
-          const leftD = v01 - v00;
-          const leftT = leftD === 0 ? 0.5 : (level - v00) / leftD;
-          const topX = px + topT * gs, topY = py;
-          const rightX = px + gs, rightY = py + rightT * gs;
-          const bottomX = px + bottomT * gs, bottomY = py + gs;
-          const leftX = px, leftY = py + leftT * gs;
-          switch (code) {
-            case 1: addSeg(leftX, leftY, bottomX, bottomY); break;
-            case 2: addSeg(bottomX, bottomY, rightX, rightY); break;
-            case 3: addSeg(leftX, leftY, rightX, rightY); break;
-            case 4: addSeg(topX, topY, rightX, rightY); break;
-            case 5: addSeg(leftX, leftY, topX, topY); addSeg(bottomX, bottomY, rightX, rightY); break;
-            case 6: addSeg(topX, topY, bottomX, bottomY); break;
-            case 7: addSeg(leftX, leftY, topX, topY); break;
-            case 8: addSeg(topX, topY, leftX, leftY); break;
-            case 9: addSeg(topX, topY, bottomX, bottomY); break;
-            case 10: addSeg(topX, topY, rightX, rightY); addSeg(leftX, leftY, bottomX, bottomY); break;
-            case 11: addSeg(topX, topY, rightX, rightY); break;
-            case 12: addSeg(leftX, leftY, rightX, rightY); break;
-            case 13: addSeg(bottomX, bottomY, rightX, rightY); break;
-            case 14: addSeg(leftX, leftY, bottomX, bottomY); break;
-          }
-        }
-      }
-      return segCount;
-    };
-    
-    const buildChains = (nSegs: number): Chain[] => {
-      if (nSegs === 0) return [];
-      const adj = new Map<number, Array<{ si: number; end: number }>>();
-      const addAdj = (key: number, si: number, end: number) => {
-        let list = adj.get(key);
-        if (!list) { list = []; adj.set(key, list); }
-        list.push({ si, end });
-      };
-      for (let i = 0; i < nSegs; i++) {
-        const off = i * 4;
-        addAdj(ptKey(segsBuf[off], segsBuf[off + 1]), i, 0);
-        addAdj(ptKey(segsBuf[off + 2], segsBuf[off + 3]), i, 1);
-      }
-      const visited = new Uint8Array(nSegs);
-      const chains: Chain[] = [];
-      for (let si = 0; si < nSegs; si++) {
-        if (visited[si]) continue;
-        visited[si] = 1;
-        const off = si * 4;
-        const x1 = segsBuf[off], y1 = segsBuf[off + 1];
-        const x2 = segsBuf[off + 2], y2 = segsBuf[off + 3];
-        const chain: Pt[] = [[x1, y1], [x2, y2]];
-        let curKey = ptKey(x2, y2);
-        for (;;) {
-          const neighbors = adj.get(curKey);
-          if (!neighbors) break;
-          let found = false;
-          for (const nb of neighbors) {
-            if (visited[nb.si]) continue;
-            visited[nb.si] = 1;
-            const sOff = nb.si * 4;
-            const nx = nb.end === 0 ? segsBuf[sOff + 2] : segsBuf[sOff];
-            const ny = nb.end === 0 ? segsBuf[sOff + 3] : segsBuf[sOff + 1];
-            chain.push([nx, ny]);
-            curKey = ptKey(nx, ny);
-            found = true;
-            break;
-          }
-          if (!found) break;
-        }
-        curKey = ptKey(x1, y1);
-        for (;;) {
-          const neighbors = adj.get(curKey);
-          if (!neighbors) break;
-          let found = false;
-          for (const nb of neighbors) {
-            if (visited[nb.si]) continue;
-            visited[nb.si] = 1;
-            const sOff = nb.si * 4;
-            const nx = nb.end === 0 ? segsBuf[sOff + 2] : segsBuf[sOff];
-            const ny = nb.end === 0 ? segsBuf[sOff + 3] : segsBuf[sOff + 1];
-            chain.unshift([nx, ny]);
-            curKey = ptKey(nx, ny);
-            found = true;
-            break;
-          }
-          if (!found) break;
-        }
-        chains.push(chain);
-      }
-      return chains;
-    };
-    
-    const chainLength = (chain: Chain): number => {
-      let len = 0;
-      for (let i = 1; i < chain.length; i++) {
-        const dx = chain[i][0] - chain[i - 1][0];
-        const dy = chain[i][1] - chain[i - 1][1];
-        len += Math.sqrt(dx * dx + dy * dy);
-      }
-      return len;
-    };
-    
-    // Ramer-Douglas-Peucker chain decimation — removes redundant collinear
-    // points that the Catmull-Rom spline will reconstruct smoothly.
-    const decimateChain = (chain: Chain, epsilon: number): Chain => {
-      const n = chain.length;
-      if (n <= 3) return chain;
-      // Find the point with the greatest perpendicular distance from the
-      // line segment between the first and last point
-      const [sx, sy] = chain[0];
-      const [ex, ey] = chain[n - 1];
-      const lx = ex - sx, ly = ey - sy;
-      const lenSq = lx * lx + ly * ly;
-      let maxDist = 0, maxIdx = 0;
-      for (let i = 1; i < n - 1; i++) {
-        const dx = chain[i][0] - sx, dy = chain[i][1] - sy;
-        let dist: number;
-        if (lenSq < 0.0001) {
-          dist = Math.sqrt(dx * dx + dy * dy);
-        } else {
-          const t = (dx * lx + dy * ly) / lenSq;
-          const px = sx + t * lx - chain[i][0];
-          const py = sy + t * ly - chain[i][1];
-          dist = Math.sqrt(px * px + py * py);
-        }
-        if (dist > maxDist) { maxDist = dist; maxIdx = i; }
-      }
-      if (maxDist <= epsilon) {
-        return [chain[0], chain[n - 1]];
-      }
-      const left = decimateChain(chain.slice(0, maxIdx + 1), epsilon);
-      const right = decimateChain(chain.slice(maxIdx), epsilon);
-      return left.slice(0, -1).concat(right);
-    };
-
-    // Epsilon = half a grid cell — points closer than this to the line between
-    // their neighbours are invisible and will be reconstructed by the spline
-    const decimationEpsilon = gs * 0.5;
-
-    const allChains: Chain[][] = new Array(CONTOUR_LEVELS.length);
-    for (let li = 0; li < CONTOUR_LEVELS.length; li++) {
-      const nSegs = collectSegments(CONTOUR_LEVELS[li]);
-      const chains = buildChains(nSegs);
-      allChains[li] = chains
-        .filter(c => chainLength(c) >= MIN_CHAIN_LEN)
-        .map(c => decimateChain(c, decimationEpsilon));
-    }
-    
-    // Store to cache (allChains removed — contours are now GPU-rendered)
+    // Store to cache (contours are GPU-rendered via analytical fragment shader)
     cache.positionHash = positionHash;
     cache.selectionHash = selectionHash;
     cache.classColorsHash = classColorsHash;
@@ -1223,6 +1025,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     lastTerrainRebuildRef.current = now;
     cache.selectedNodeIndices = selectedNodeIndices;
     cache.referencePaths = computedReferencePaths;
+    cache.heightMap = heightMap;
     cache.valid = true;
     
     } // end if (!cacheValid)
@@ -1949,6 +1752,22 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         }
       }
       
+      // Update elevation tooltip
+      if (heightMap && gW > 0) {
+        const tHit = transformRef.current;
+        const hitWX = (screenX - tHit.x) / tHit.scale;
+        const hitWY = (screenY - tHit.y) / tHit.scale;
+        const gx = Math.floor((hitWX - hitOX) / hitGs);
+        const gy = Math.floor((hitWY - hitOY) / hitGs);
+        if (gx >= 0 && gx < gW && gy >= 0 && gy < gH) {
+          const h = heightMap[gy * gW + gx];
+          const meters = Math.round(h * 4000);
+          setElevationTooltip({ x: screenX + 12, y: screenY - 24, text: `${meters} m`, visible: true });
+        } else {
+          setElevationTooltip(prev => ({ ...prev, visible: false }));
+        }
+      }
+      
       // Update overlays and redraw profiles
       setOverlaysVisible(true);
       updateProfiles();
@@ -2019,6 +1838,7 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
     mouseScreenRef.current = { x: -1, y: -1 };
     hoveredContourLevelRef.current = -1;
     hoveredNodeRef.current = null;
+    setElevationTooltip(prev => ({ ...prev, visible: false }));
     setOverlaysVisible(false);
     updateProfiles();
     // Clear overlay canvas
@@ -2146,6 +1966,29 @@ export const TerrainRenderer = forwardRef<TerrainRendererRef, TerrainRendererPro
         className="node-graph-renderer__overlay"
         style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', width: '100%', height: '100%' }}
       />
+      {/* Elevation tooltip */}
+      {elevationTooltip.visible && (
+        <div
+          className="terrain-elevation-tooltip"
+          style={{
+            position: 'absolute',
+            left: elevationTooltip.x,
+            top: elevationTooltip.y,
+            pointerEvents: 'none',
+            background: 'var(--color-surface)',
+            color: 'var(--color-on-surface)',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 600,
+            opacity: 0.85,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            zIndex: 10,
+          }}
+        >
+          {elevationTooltip.text}
+        </div>
+      )}
       {/* Right profile (Y axis) */}
       <div
         ref={profileYCardRef}

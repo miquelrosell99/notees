@@ -43,11 +43,6 @@ import {
   ALPHA_REHEAT,
   TERRAIN_BASE_SLOPE_RADIUS,
   TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
-  COLLISION_PADDING,
-  COLLISION_RESOLVE,
-  COLLISION_LINKED_RESOLVE,
-  COLLISION_VEL_DAMPENING,
-  COLLISION_LINKED_VEL_DAMPENING,
   LINK_TYPE_PRIORITY,
   NODE_RADIUS_MAX,
   // Helpers
@@ -206,15 +201,9 @@ export function useNodePhysics({
   const linkForceJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random force multiplier [0.6, 1.0]
   const linkDistJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random rest distance multiplier [0.8, 1.2]
   
-  // Spatial hash grid for O(n) collision resolution
-  const collisionGridRef = useRef<Map<number, number[]>>(new Map());
-  
   // SemanticGraphEngine — handles all physics modes (normal, constrained-physics, terrain)
   const sgeRef = useRef<SemanticGraphEngine | null>(null);
   const sgeTopologyDirtyRef = useRef(true);
-  
-  // Reusable typed arrays for per-frame computation (avoids GC thrashing at 4k+ nodes)
-  const nodeRadiiRef = useRef<Float64Array>(new Float64Array(0));
   
   // Frame data (shared with render)
   const frameDataRef = useRef<FrameData>({
@@ -1091,136 +1080,7 @@ export function useNodePhysics({
       // Runs AFTER velocity integration so position corrections are the
       // final authority and aren't partially undone by node.x += node.vx.
       // Skip during early warmup — nodes are moving fast and collisions just burn CPU.
-      const skipCollisions = true; // Disabled: let repulsion handle spacing (like Obsidian/Logseq)
-      // const skipCollisions = (isConstrainedMode && currentSettings.constraintMode === 'equidistant')
-      //   || warmupT < 0.5;
-      
-      if (!skipCollisions) {
-        // Pre-compute radii for all visible nodes (avoid recomputing inside inner loop)
-        // Reuse typed array across frames — only reallocate when node count grows
-        if (nodeRadiiRef.current.length < nodes.length) {
-          nodeRadiiRef.current = new Float64Array(Math.max(nodes.length, 512));
-        }
-        const nodeRadii = nodeRadiiRef.current;
-        let maxCollisionRadius = 0;
-        for (let i = 0; i < nodes.length; i++) {
-          if (!nodes[i].visible) { nodeRadii[i] = 0; continue; }
-          const r = getGlareRadius(nodes[i], currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection) * COLLISION_PADDING;
-          nodeRadii[i] = r;
-          if (r > maxCollisionRadius) maxCollisionRadius = r;
-        }
-        
-        // Build spatial hash grid — cell size = 2x max radius so colliding pairs
-        // are always in the same or adjacent cells
-        const cellSize = Math.max(maxCollisionRadius * 2, 1);
-        const invCellSize = 1 / cellSize;
-        const grid = collisionGridRef.current;
-        grid.clear();
-        
-        const cellKey = (cx: number, cy: number): number => cx * 73856093 + cy * 19349663;
-        
-        for (let i = 0; i < nodes.length; i++) {
-          if (!nodes[i].visible) continue;
-          const n = nodes[i];
-          const cx = Math.floor(n.x * invCellSize);
-          const cy = Math.floor(n.y * invCellSize);
-          const key = cellKey(cx, cy);
-          let bucket = grid.get(key);
-          if (!bucket) { bucket = []; grid.set(key, bucket); }
-          bucket.push(i);
-        }
-        
-        // Check each node against neighbors in its 3x3 cell neighborhood
-        const visitedPairs = new Set<number>();
-        const pairId = (a: number, b: number): number => a < b ? a * nodes.length + b : b * nodes.length + a;
-        
-        for (let i = 0; i < nodes.length; i++) {
-          const a = nodes[i];
-          if (!a.visible) continue;
-          const aImmovable = dragNodeRef.current?.id === a.id || a.pinned;
-          const radiusA = nodeRadii[i];
-          
-          const cx = Math.floor(a.x * invCellSize);
-          const cy = Math.floor(a.y * invCellSize);
-          
-          // Check 3x3 neighborhood
-          for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-              const bucket = grid.get(cellKey(cx + dx, cy + dy));
-              if (!bucket) continue;
-              
-              for (const j of bucket) {
-                if (j <= i) continue; // avoid duplicate pairs
-                const pid = pairId(i, j);
-                if (visitedPairs.has(pid)) continue;
-                visitedPairs.add(pid);
-                
-                const b = nodes[j];
-                if (!b.visible) continue;
-                const bImmovable = dragNodeRef.current?.id === b.id || b.pinned;
-                if (aImmovable && bImmovable) continue;
-                
-                const cdx = b.x - a.x;
-                const cdy = b.y - a.y;
-                const distSq = cdx * cdx + cdy * cdy;
-                const radiusB = nodeRadii[j];
-                const minDist = radiusA + radiusB;
-                
-                if (distSq >= minDist * minDist) continue;
-                
-                const dist = Math.sqrt(distSq) || 0.1;
-                const overlap = minDist - dist;
-                
-                const nx = cdx / dist;
-                const ny = cdy / dist;
-                
-                // Linked pairs: soften collision so springs can pull them close
-                // without collision constantly pushing them apart.
-                const isLinked = connectedPairs.has(pairKey(a.id, b.id));
-                const resolveStr = isLinked ? COLLISION_LINKED_RESOLVE : COLLISION_RESOLVE;
-                
-                // Position-based correction (no energy injection)
-                const correction = overlap * resolveStr;
-                
-                if (aImmovable) {
-                  b.x += nx * correction;
-                  b.y += ny * correction;
-                } else if (bImmovable) {
-                  a.x -= nx * correction;
-                  a.y -= ny * correction;
-                } else {
-                  const halfCorrection = correction * 0.5;
-                  a.x -= nx * halfCorrection;
-                  a.y -= ny * halfCorrection;
-                  b.x += nx * halfCorrection;
-                  b.y += ny * halfCorrection;
-                }
-                
-                // Dampen approaching velocity along collision normal
-                // to prevent nodes from immediately re-overlapping
-                const relVelNormal = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-                if (relVelNormal < 0) {
-                  // Nodes are approaching — absorb the approaching component
-                  const dampFactor = isLinked ? COLLISION_LINKED_VEL_DAMPENING : COLLISION_VEL_DAMPENING;
-                  if (!aImmovable && !bImmovable) {
-                    const halfAbsorb = relVelNormal * dampFactor * 0.5;
-                    a.vx += nx * halfAbsorb;
-                    a.vy += ny * halfAbsorb;
-                    b.vx -= nx * halfAbsorb;
-                    b.vy -= ny * halfAbsorb;
-                  } else if (aImmovable) {
-                    b.vx -= nx * relVelNormal * dampFactor;
-                    b.vy -= ny * relVelNormal * dampFactor;
-                  } else {
-                    a.vx += nx * relVelNormal * dampFactor;
-                    a.vy += ny * relVelNormal * dampFactor;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+
       
       // Render skip — terrain mode always renders every tick (cached contours are cheap)
       const renderSkip = isTerrainModeNow ? getTerrainRenderSkip(nodes.length) : getRenderSkip(nodes.length);
