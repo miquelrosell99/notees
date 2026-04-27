@@ -146,6 +146,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     canvasRef,
     labelCanvasRef,
     stats,
+    hoveredNode,
     reheat,
     pause,
     resume,
@@ -231,6 +232,19 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
           visibleNodes={stats.visibleNodes}
           visibleEdges={stats.visibleEdges}
         />
+      )}
+
+      {/* Hover tooltip — Obsidian-style node preview card */}
+      {hoveredNode && (
+        <div
+          className="sge-graph-tooltip"
+          style={{
+            left: hoveredNode.screenX + 12,
+            top: hoveredNode.screenY + 12,
+          }}
+        >
+          <span className="sge-graph-tooltip__name">{hoveredNode.name}</span>
+        </div>
       )}
     </div>
   );
