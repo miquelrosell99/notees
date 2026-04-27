@@ -413,7 +413,8 @@ class BHQuadTree {
     if (leafIdx !== -1) {
       if (leafIdx === aIdx || distSq < 0.01) return;
       const dist = Math.sqrt(distSq);
-      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSq;
+      const distSqSafe = Math.max(distSq, 100);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSqSafe;
       fxOut[aIdx] += (dx / dist) * f_;
       fyOut[aIdx] += (dy / dist) * f_;
       return;
@@ -424,7 +425,8 @@ class BHQuadTree {
     if (size2 < theta2 * distSq) {
       if (distSq < 0.01 || nmass === 0) return;
       const dist = Math.sqrt(distSq);
-      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSq;
+      const distSqSafe = Math.max(distSq, 100);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSqSafe;
       fxOut[aIdx] += (dx / dist) * f_;
       fyOut[aIdx] += (dy / dist) * f_;
       return;
@@ -451,7 +453,8 @@ function directClusterRepulsion(
       const distSq = dx * dx + dy * dy;
       if (distSq < 0.01) continue;
       const dist = Math.sqrt(distSq);
-      const force = repelStr * Math.sqrt(cc[ai] * cc[bi]) / distSq;
+      const distSqSafe = Math.max(distSq, 100);
+      const force = repelStr * Math.sqrt(cc[ai] * cc[bi]) / distSqSafe;
       const fx = (dx / dist) * force, fy = (dy / dist) * force;
       clFx[ai] += fx; clFy[ai] += fy;
       clFx[bi] -= fx; clFy[bi] -= fy;
@@ -608,7 +611,7 @@ function findConnectedComponents(
 
 const DEFAULT_CONFIG: SGEConfig = {
   seed: 42,
-  springStrength: 0.04,
+  springStrength: 0.06,
   idealDistance: 80,
   clusterStrength: 0.004,
   clusterRepelStrength: 800,
@@ -618,7 +621,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
   componentSpacing: 500,
-  damping: 0.92,
+  damping: 0.88,
   maxVelocity: 50,
   alpha: 1.0,
   alphaDecay: 0.005,
@@ -1096,7 +1099,11 @@ export class SemanticGraphEngine {
         const dist = Math.sqrt(distSq);
         const t    = 1 - dist * invRepelRad;
         const env  = t * t * t * (t * (t * 6 - 15) + 10);
-        const force = localStr * env / distSq;
+        // Soften the 1/r² singularity: cap close-range force by clamping dist².
+        // Without this, two nodes placed within a few units on the initial spiral
+        // can receive repulsion of 3000+, blasting them apart in a single tick.
+        const distSqSafe = Math.max(distSq, 16);
+        const force = localStr * env / distSqSafe;
         const fx = dx / dist * force, fy = dy / dist * force;
         ax[i] += fx; ay[i] += fy;
         if (!pin[j]) { ax[j] -= fx; ay[j] -= fy; }
@@ -1152,6 +1159,18 @@ export class SemanticGraphEngine {
     const oldAx = this.oldAx, oldAy = this.oldAy;
     const activeIdx   = this.activeNodeIndices;
     const activeCount = this.activeCount;
+    // Scale all accumulated forces by the cooling alpha (d3-force style).
+    // This makes the simulation start energetic and gradually settle, preventing
+    // the explosive oscillations that happen when all forces are at full strength
+    // while nodes are still on their initial spiral placement.
+    const alpha = this.alpha;
+    if (alpha < 1.0) {
+      for (let k = 0; k < activeCount; k++) {
+        const i = activeIdx[k];
+        ax[i] *= alpha; ay[i] *= alpha;
+      }
+    }
+
     let totalEnergy = 0;
 
     for (let k = 0; k < activeCount; k++) {
@@ -1199,6 +1218,9 @@ export class SemanticGraphEngine {
     if (this.frozen) return;
     this.computeForces();
     this.integrate();
+    // Decay cooling alpha (d3-force style). Forces scale by alpha so the layout
+    // starts energetic and gradually settles, preventing explosive oscillations.
+    this.alpha = Math.max(this.config.alphaMin, this.alpha * (1 - this.config.alphaDecay));
   }
 
   getState(): SGEState {
