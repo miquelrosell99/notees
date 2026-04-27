@@ -247,3 +247,13 @@
   outline-offset: 2px;
   border-radius: 50%;
 }
+
+/* ─── Mobile: keep collapse arrow visible on deep nesting ─────── */
+@media (max-width: 768px) {
+  .bullet-collapse-arrow {
+    /* Pull arrow closer to bullet so it doesn't get clipped */
+    left: -14px;
+    width: 18px;
+    height: 18px;
+  }
+}

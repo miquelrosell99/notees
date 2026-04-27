@@ -173,6 +173,12 @@ export interface GraphRendererHandle {
   setConfig: (cfg: Partial<SGEConfig>) => void;
   /** Programmatically centre the camera on the graph centroid. */
   recenter: () => void;
+  /** Pan the camera by a screen-pixel delta. */
+  panBy: (dx: number, dy: number) => void;
+  /** Zoom by a factor (1 = no change, >1 = in, <1 = out). */
+  zoomBy: (factor: number) => void;
+  /** Clear the current node selection. */
+  clearSelection: () => void;
   /** Convert canvas pixel coords to world-space. */
   screenToWorld: (x: number, y: number) => { x: number; y: number };
 }
@@ -399,9 +405,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               const pad = 60 * (window.devicePixelRatio || 1);
               const worldW = (maxX - minX) + 32;
               const worldH = (maxY - minY) + 32;
-              cam.x = (minX + maxX) / 2;
-              cam.y = (minY + maxY) / 2;
-              cam.zoom = (worldW > 0 && worldH > 0)
+              camRef.current.x = (minX + maxX) / 2;
+              camRef.current.y = (minY + maxY) / 2;
+              camRef.current.zoom = (worldW > 0 && worldH > 0)
                 ? Math.max(0.02, Math.min(
                     (canvas.width  - pad * 2) / worldW,
                     (canvas.height - pad * 2) / worldH,
@@ -974,6 +980,30 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     return rendRef.current?.screenToWorld(sx, sy) ?? { x: 0, y: 0 };
   }, []);
 
+  const panBy = useCallback((dx: number, dy: number) => {
+    const cam = camRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // Convert screen-pixel delta to world-space delta
+    const dpr = devicePixelRatio;
+    cam.x -= (dx * dpr) / cam.zoom;
+    cam.y += (dy * dpr) / cam.zoom;
+    dirtyRef.current.camera = true;
+  }, []);
+
+  const zoomBy = useCallback((factor: number) => {
+    const cam = camRef.current;
+    cam.zoom *= factor;
+    cam.zoom = Math.max(0.02, Math.min(cam.zoom, 40));
+    dirtyRef.current.camera = true;
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    selectedRef.current = -1;
+    setSelectedNodeId(-1);
+    dirtyRef.current.hover = true;
+  }, []);
+
   return {
     canvasRef: canvasRef as React.RefObject<HTMLCanvasElement | null>,
     labelCanvasRef,
@@ -984,6 +1014,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     resume,
     setConfig,
     recenter,
+    panBy,
+    zoomBy,
+    clearSelection,
     screenToWorld,
     // Expose interaction handlers so the component can attach them to the canvas
     // (returned as extra fields consumed by SGEGraphView)

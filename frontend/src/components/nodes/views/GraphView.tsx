@@ -125,7 +125,7 @@ export function GraphView({
   
   // View state
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
-  const [pinnedNodes, setPinnedNodes] = useState<Set<number>>(new Set());
+  const [pinnedNodes] = useState<Set<number>>(new Set());
   const [simulationPaused, setSimulationPaused] = useState(false);
   
   // Settings state
@@ -190,7 +190,6 @@ export function GraphView({
             // Convert raw AST class names to text
             const migrated = parsed.map((cc: Record<string, unknown>) => {
               const rawName = (cc.className ?? '') as string;
-              const converted = nodeNameToText(rawName);
               return {
                 ...cc,
                 className: nodeNameToText(rawName) || rawName || 'Untitled',
@@ -462,6 +461,61 @@ export function GraphView({
     }
     return map;
   }, [sourceNodes]);
+
+  // Keyboard shortcuts for graph navigation
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Only handle when the graph view is focused / no input is active
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+      const renderer = rendererRef.current;
+      if (!renderer) return;
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          renderer.panBy(0, 40);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          renderer.panBy(0, -40);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          renderer.panBy(40, 0);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          renderer.panBy(-40, 0);
+          break;
+        case '+':
+        case '=':
+          e.preventDefault();
+          renderer.zoomBy(1.2);
+          break;
+        case '-':
+        case '_':
+          e.preventDefault();
+          renderer.zoomBy(1 / 1.2);
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          renderer.recenter();
+          break;
+        case 'Escape':
+          e.preventDefault();
+          renderer.clearSelection();
+          setSelectedNodes([]);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -920,7 +974,7 @@ export function GraphView({
           icon={mdiCrosshairsGps}
           size="sm"
           onClick={() => rendererRef.current?.recenter()}
-          title="Fit graph to view"
+          title="Fit graph to view (R)"
         />
       </div>
     </div>

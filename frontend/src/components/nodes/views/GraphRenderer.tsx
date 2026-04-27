@@ -36,6 +36,12 @@ export interface GraphRendererRef {
   resumeSimulation: () => void;
   /** Centre the camera on the graph centroid. */
   recenter: () => void;
+  /** Pan the camera by a screen-pixel delta. */
+  panBy: (dx: number, dy: number) => void;
+  /** Zoom by a factor (1 = no change, >1 = in, <1 = out). */
+  zoomBy: (factor: number) => void;
+  /** Clear the current node selection. */
+  clearSelection: () => void;
   /** Live-update SGE config without recreating the worker. */
   setConfig: (cfg: Partial<SGEConfig>) => void;
 }
@@ -144,6 +150,9 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     pause,
     resume,
     recenter,
+    panBy,
+    zoomBy,
+    clearSelection,
     setConfig: _setConfig,
     _pointerDown,
     _pointerMove,
@@ -164,8 +173,11 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     pauseSimulation: pause,
     resumeSimulation: resume,
     recenter,
+    panBy,
+    zoomBy,
+    clearSelection,
     setConfig: _setConfig,
-  }), [reheat, pause, resume, recenter, _setConfig]);
+  }), [reheat, pause, resume, recenter, panBy, zoomBy, clearSelection, _setConfig]);
 
   // Prevent native context menu on right-click
   const onContextMenu = useCallback((e: React.MouseEvent) => {
