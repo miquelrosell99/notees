@@ -30,7 +30,7 @@ export interface WorkspaceCheckResponse {
  * List all workspaces for the current user
  */
 export async function listWorkspaces(): Promise<WorkspaceListResponse> {
-  const response = await api.get('/workspaces');
+  const response = await api.get('/workspaces/');
   return response.data;
 }
 
@@ -46,7 +46,7 @@ export async function checkWorkspaceName(name: string): Promise<WorkspaceCheckRe
  * Create a new workspace
  */
 export async function createWorkspace(name: string): Promise<WorkspaceInfo> {
-  const response = await api.post('/workspaces', { name });
+  const response = await api.post('/workspaces/', { name });
   return response.data;
 }
 
