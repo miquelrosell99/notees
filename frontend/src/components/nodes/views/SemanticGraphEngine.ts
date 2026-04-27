@@ -413,8 +413,8 @@ class BHQuadTree {
     if (leafIdx !== -1) {
       if (leafIdx === aIdx || distSq < 0.01) return;
       const dist = Math.sqrt(distSq);
-      const distSqSafe = Math.max(distSq, 100);
-      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSqSafe;
+      const distSafe = Math.max(dist, 20);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / (distSafe * 200);
       fxOut[aIdx] += (dx / dist) * f_;
       fyOut[aIdx] += (dy / dist) * f_;
       return;
@@ -425,8 +425,8 @@ class BHQuadTree {
     if (size2 < theta2 * distSq) {
       if (distSq < 0.01 || nmass === 0) return;
       const dist = Math.sqrt(distSq);
-      const distSqSafe = Math.max(distSq, 100);
-      const f_   = repelStr * Math.sqrt(aMass * nmass) / distSqSafe;
+      const distSafe = Math.max(dist, 20);
+      const f_   = repelStr * Math.sqrt(aMass * nmass) / (distSafe * 200);
       fxOut[aIdx] += (dx / dist) * f_;
       fyOut[aIdx] += (dy / dist) * f_;
       return;
@@ -453,8 +453,8 @@ function directClusterRepulsion(
       const distSq = dx * dx + dy * dy;
       if (distSq < 0.01) continue;
       const dist = Math.sqrt(distSq);
-      const distSqSafe = Math.max(distSq, 100);
-      const force = repelStr * Math.sqrt(cc[ai] * cc[bi]) / distSqSafe;
+      const distSafe = Math.max(dist, 20);
+      const force = repelStr * Math.sqrt(cc[ai] * cc[bi]) / (distSafe * 200);
       const fx = (dx / dist) * force, fy = (dy / dist) * force;
       clFx[ai] += fx; clFy[ai] += fy;
       clFx[bi] -= fx; clFy[bi] -= fy;
@@ -616,7 +616,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   clusterStrength: 0.004,
   clusterRepelStrength: 800,
   clusterSpacing: 200,
-  localRepelStrength: 3000,
+  localRepelStrength: 1200,
   localRepelRadius: 500,
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
@@ -1033,7 +1033,9 @@ export class SemanticGraphEngine {
     // ─ B) Inter-cluster repulsion ─ Barnes–Hut or direct O(K²) ──────────────── 
     const bigIds   = this.bigClusterBuf, bigK = this.bigClusterCount;
     const clFx = this.clFx, clFy = this.clFy;
-    const nScale   = N > 1 ? Math.sqrt(N) : 1;
+    // Cap N scaling so cluster repulsion doesn't explode on large graphs.
+    // sqrt(10000) = 100 would give repelStr = 80,000 — far too strong.
+    const nScale   = N > 1 ? Math.min(Math.sqrt(N), 10) : 1;
     const repelStr = cfg.clusterRepelStrength * nScale;
 
     if (bigK > 0) {
@@ -1102,8 +1104,11 @@ export class SemanticGraphEngine {
         // Soften the 1/r² singularity: cap close-range force by clamping dist².
         // Without this, two nodes placed within a few units on the initial spiral
         // can receive repulsion of 3000+, blasting them apart in a single tick.
-        const distSqSafe = Math.max(distSq, 16);
-        const force = localStr * env / distSqSafe;
+        // Inverse-linear repulsion (not 1/r²) scaled by the repulsion radius.
+        // This dramatically lowers the effective spring constant at close range,
+        // eliminating the high-frequency jitter in dense clumps.
+        const distSafe = Math.max(dist, 4);
+        const force = localStr * env / (distSafe * repelRadius);
         const fx = dx / dist * force, fy = dy / dist * force;
         ax[i] += fx; ay[i] += fy;
         if (!pin[j]) { ax[j] -= fx; ay[j] -= fy; }
