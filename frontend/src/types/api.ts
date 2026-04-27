@@ -238,6 +238,8 @@ export interface NodeUpdate {
   parent_id?: number | null;
   sequence?: number | null;
   collapsed?: boolean | null;
+  is_page?: boolean | null;
+  is_favorite?: boolean | null;
   expected_version?: number;  // For optimistic locking
   /** When provided, reconcile node classes to exactly this set (Odoo-style write) */
   classes?: number[];
@@ -610,6 +612,7 @@ export interface PropertyUpdate {
   multi?: boolean | null;  // Aligned with backend naming
   class_filters?: number[] | null;
   icon_visibility?: PropertyIconVisibility | null;
+  validation_rules?: Record<string, unknown> | null;
 }
 
 // ==================== User Types ====================

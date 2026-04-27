@@ -907,7 +907,7 @@ export function NodeSelector({
                   })}
                 </>
               )}
-              {showCreateOption && effectiveCreateNew && (
+              {showCreateOption && (
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}
@@ -976,7 +976,7 @@ export function NodeSelector({
                   allClasses={allClasses}
                 />
               ))}
-              {showCreateOption && effectiveCreateNew && (
+              {showCreateOption && (
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}

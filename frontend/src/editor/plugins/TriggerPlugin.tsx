@@ -60,7 +60,7 @@ export interface TriggerPluginProps {
 }
 
 export function TriggerPlugin({
-  onLinkSelect,
+  onLinkSelect: _onLinkSelect,
   onAddClass,
   onSlashCommand,
   onTemplateInstantiate,
@@ -249,7 +249,7 @@ export function TriggerPlugin({
         const triggerChar =
           trigger.type === 'link' ? '+' : trigger.type === 'type' ? '@' : '#';
 
-        const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): boolean => {
+        const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): node is import('lexical').TextNode => {
           if (!node || !$isTextNode(node)) return false;
           const t = node.getTextContent().replace(/\u200B/g, '');
           return trigger.triggerOffset < t.length && t[trigger.triggerOffset] === triggerChar;

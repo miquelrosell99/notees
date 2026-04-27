@@ -68,7 +68,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { uploadAsset } from '@/api/assets';
-import { createNode, getNode } from '@/api/nodes';
+import { getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose, mdiChevronDown } from '@mdi/js';
@@ -558,8 +558,8 @@ export const NodeCard = memo(function NodeCard({
   }, [onNodeShiftClick, addSidebarCard]);
 
   // Manual asset class state
-  const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
-  const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
+  const [_manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
+  const [_manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
 
   // Add class to block (uses API mutation)
   const handleAddClass = useCallback((blockId: number, classId: number) => {
@@ -616,17 +616,17 @@ export const NodeCard = memo(function NodeCard({
     addClass.mutate({ nodeId: tableTargetBlockId, classId: cls.id });
 
     try {
-      const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
+      const headerRow = await createNode.mutateAsync({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
       await Promise.all(
         Array.from({ length: size.columns }, (_, i) =>
-          createNode({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
         )
       );
       for (let r = 1; r < size.rows; r++) {
-        const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
+        const row = await createNode.mutateAsync({ name: '', parent_id: tableTargetBlockId, sequence: r });
         await Promise.all(
           Array.from({ length: size.columns }, (_, c) =>
-            createNode({ name: '', parent_id: row.id, sequence: c })
+            createNode.mutateAsync({ name: '', parent_id: row.id, sequence: c })
           )
         );
       }

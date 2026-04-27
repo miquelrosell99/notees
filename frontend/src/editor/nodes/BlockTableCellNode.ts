@@ -39,7 +39,7 @@ export class BlockTableCellNode extends BlockNode {
     isHeader: boolean = false,
     key?: NodeKey,
   ) {
-    super(blockId, 0, false, 'block', false, null, null, '', key);
+    super(blockId, 0, false, 'block', false, null, null, '', false, [], false, key);
     this.__rowIndex = rowIndex;
     this.__colIndex = colIndex;
     this.__isHeader = isHeader;

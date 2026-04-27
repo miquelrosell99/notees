@@ -269,7 +269,7 @@ export function ContextMenuPlugin({
               replacements.push($createTextNode(customLabel));
             } else if (nameAST && nameAST.length > 0) {
               for (const para of nameAST) {
-                if ('children' in para) {
+                if (para.children) {
                   for (const inline of para.children) {
                     collectInlineReplacements(inline, replacements);
                   }

@@ -11,7 +11,7 @@ export * from '../constants/viewModes';
 export type {
   PropertyOperator,
   ContentOperator,
-  PropertyType,
+  QueryPropertyType,
   ASTNodeType,
   QueryAST,
   ScopeNode,

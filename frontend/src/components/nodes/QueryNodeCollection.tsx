@@ -948,7 +948,7 @@ export function QueryNodeCollection({
           <NodeCollection
             nodes={showPageSeparation ? resultBlocks : windowedResultNodes}
             viewId={activeView?.id}
-            view={activeView}
+            view={activeView ?? undefined}
             viewMode={collectionViewMode}
             availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
             onViewModeChange={handleViewModeChange}
@@ -1005,7 +1005,7 @@ export function QueryNodeCollection({
               {resultPages.length > 0 && <NodeCollection
                 nodes={resultPages}
                 viewId={activeView?.id}
-                view={activeView}
+                view={activeView ?? undefined}
                 viewMode={collectionViewMode}
                 availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
                 onViewModeChange={handleViewModeChange}

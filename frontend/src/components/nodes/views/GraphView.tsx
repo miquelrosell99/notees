@@ -196,7 +196,7 @@ export function GraphView({
               };
             });
             skipClassColorsSaveRef.current++;  // skip the save-back on next render
-            setClassColors(migrated);
+            setClassColors(migrated as ClassColor[]);
           }
         } catch (e) {
           console.error('Failed to parse graph_class_colors:', e);

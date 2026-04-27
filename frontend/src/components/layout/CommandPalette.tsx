@@ -360,7 +360,7 @@ export function CommandPalette({
   
   const { openNode, openPropertyView } = useNavigationStore();
   const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
-  const { navigateToNode } = useNodeNavigation();
+  const { navigateToNode: _navigateToNode } = useNodeNavigation();
   const { error: notifyError, warning: notifyWarning, success: notifySuccess } = useNotifications();
   const createNodeMutation = useCreateNode();
   const { pageClassId } = usePageClass();

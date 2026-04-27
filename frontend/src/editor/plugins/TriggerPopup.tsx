@@ -35,7 +35,7 @@ export function TriggerPopup({
   onSelect,
   onClose,
 }: TriggerPopupProps): JSX.Element | null {
-  const suggestionType: SuggestionType = type === 'type' ? 'class' : type;
+  const suggestionType: SuggestionType = type === 'type' ? 'class' : type === 'slash' ? 'type' : type;
 
   const handleSelect = useCallback((node: Node, _addInline: boolean) => {
     onSelect(node.uuid, { node, type: suggestionType });

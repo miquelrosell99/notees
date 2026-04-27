@@ -109,7 +109,7 @@ export function ClassColorsPanel({
                 color={item.color}
                 size="xs"
                 showPicker
-                onColorChange={(color) => updateClassColor(item.id as number, color)}
+                onColorChange={(color) => color && updateClassColor(item.id as number, color)}
                 title="Change color"
               />,
               <Button

@@ -140,8 +140,8 @@ export function externalLink(url: string, ...children: ASTInlineNode[]): ASTExte
 export function paragraph(...children: ASTInlineNode[]): ASTParagraph {
   return { type: 'paragraph', children };
 }
-export function heading(...children: ASTInlineNode[]): ASTHeading {
-  return { type: 'heading', children };
+export function heading(level: number, ...children: ASTInlineNode[]): ASTHeading {
+  return { type: 'heading', level, children };
 }
 export function whiteboard(data: WhiteboardData): ASTWhiteboard {
   return { type: 'whiteboard', data };

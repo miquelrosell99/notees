@@ -756,7 +756,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         });
 
         // Find the scrollable container
-        scrollContainerRef.current = findScrollableAncestor(rootEl);
+        scrollContainerRef.current = rootEl ? findScrollableAncestor(rootEl) : null;
 
         // Collect the dragged subtrees — for multi-drag, include all top-level blocks
         const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
@@ -777,7 +777,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
 
         // Build ghost
         const ghost = ghostRef.current!;
-        buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
+        if (rootEl) buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
         ghost.style.display = 'flex';
         positionGhostFloat(ghost, e.clientX, e.clientY);
 
@@ -802,7 +802,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
     };
 
     // ── Mouseup ──────────────────────────────────────────────
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = (_e: MouseEvent) => {
       const state = dragStateRef.current;
       if (!state) return;
       if (state.active) {
@@ -841,7 +841,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       dragStateRef.current = null;
     };
 
-    function cleanup(state: NonNullable<typeof dragStateRef.current>) {
+    function cleanup(_state: NonNullable<typeof dragStateRef.current>) {
       stopAutoScroll();
 
       const sc = scrollContainerRef.current;
@@ -919,7 +919,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
         ...(isMultiDrag ? { blockIds: state.topLevelIds } : {}),
       });
 
-      scrollContainerRef.current = findScrollableAncestor(rootEl);
+      scrollContainerRef.current = rootEl ? findScrollableAncestor(rootEl) : null;
 
       const editorRoots = document.querySelectorAll<HTMLElement>('.notees-editor-content');
       const idsToExclude = isMultiDrag ? state.topLevelIds : [state.blockId];
@@ -937,7 +937,7 @@ export function DragDropPlugin({ editorId, readOnly }: DragDropPluginProps): nul
       document.querySelectorAll('.block-selection-card').forEach(el => el.remove());
 
       const ghost = ghostRef.current!;
-      buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
+      if (rootEl) buildGhostContent(ghost, isMultiDrag, state.topLevelIds, state.ghostText, rootEl);
       ghost.style.display = 'flex';
       positionGhostFloat(ghost, x, y);
 

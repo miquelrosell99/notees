@@ -103,7 +103,7 @@ function AppContent() {
     // Fetch user settings to check enrollment status
     getSettings().then((settings) => {
       const completed = settings['enrollment_completed'];
-      setNeedsEnrollment(completed !== 'true' && completed !== true);
+      setNeedsEnrollment(String(completed) !== 'true');
       setEnrollmentChecked(true);
     }).catch(() => {
       // If settings fetch fails, skip enrollment

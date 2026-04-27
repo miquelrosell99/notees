@@ -85,7 +85,6 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
       <div className="sidebar-node-view__content">
         <NodeViewContent
           nodeId={nodeId}
-          nodeType={nodeType}
           viewMode={viewMode}
           sidebarMode={true}
         />

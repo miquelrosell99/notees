@@ -14,7 +14,6 @@ import {
   type SensorDescriptor,
   type SensorOptions,
   type PointerActivationConstraint,
-  type DelayConstraint,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { DragSensorConfig } from '@/types/dnd';
@@ -71,7 +70,7 @@ export function useDndSensors(config: DragSensorConfig = {}): SensorDescriptor<S
       coordinateGetter: sortableKeyboardCoordinates,
     }),
     useSensor(TouchSensor, {
-      activationConstraint: mergedConfig.touch as DelayConstraint | undefined,
+      activationConstraint: mergedConfig.touch as PointerActivationConstraint | undefined,
     })
   );
 }

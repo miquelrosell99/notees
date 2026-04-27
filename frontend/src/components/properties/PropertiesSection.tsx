@@ -23,29 +23,9 @@ import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
-import { ChevronRightIcon, PropertiesIcon, NodeIcon } from '../core/icons';
+import { PropertiesIcon, NodeIcon } from '../core/icons';
 import { Checkbox } from '../core/Checkbox';
 import { addSelectionOption } from '@/api/properties';
-import type { PropertyType } from '@/types/api';
-
-/** Default MDI icons for each property type (used when no custom icon is set) */
-const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  text: 'mdiFormatText',
-  integer: 'mdiPound',
-  float: 'mdiDecimal',
-  boolean: 'mdiCheckboxMarkedOutline',
-  date: 'mdiCalendar',
-  selection: 'mdiFormatListBulleted',
-  node: 'mdiLink',
-  url: 'mdiLinkVariant',
-  email: 'mdiEmail',
-  image: 'mdiImage',
-};
-
-/** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */
-function getPropertyIcon(property: Property): string {
-  return property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdiFileDocumentOutline';
-}
 import { Button } from '../core/Button';
 import { Dropdown } from '../core/Dropdown';
 import { DatePickerPopup } from '../core/DatePickerPopup';
@@ -53,8 +33,7 @@ import { NodeSelector } from '../nodes/NodeSelector';
 import { TextPropertyBlock } from '../blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { Bullet } from '../blocks/Bullet';
+import type { ContextMenuItem } from '../core/ContextMenu';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { parseIconField } from '@/utils/iconDom';
 import { NodeViewSection } from '../nodes/NodeViewSection';
@@ -216,13 +195,6 @@ function PropertyValue({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>('');
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  const startEditing = useCallback(() => {
-    if (readOnly) return;
-    setEditValue(String(value ?? ''));
-    setValidationError(null);
-    setIsEditing(true);
-  }, [readOnly, value]);
 
   const commitEdit = useCallback(() => {
     setIsEditing(false);
@@ -447,7 +419,6 @@ function PropertyValue({
             searchable
             disabled={readOnly}
             size="sm"
-            onDelete={!readOnly && currentValue != null ? () => onChange(null) : undefined}
           />
         );
       }
@@ -619,7 +590,7 @@ export function PropertiesSection({
   isMainNode = false,
 }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
-  const [showHidden, setShowHidden] = useState(false);
+  const [showHidden, _setShowHidden] = useState(false);
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   
   const { data: node, isLoading: nodeLoading } = useNode(nodeId, { include_properties: true });
@@ -810,7 +781,7 @@ export function PropertiesSection({
   }, [createPropertyMutation, setPropertyMutation, nodeId]);
 
   // Handler for right-clicking on a property name - PropertyList will call getPropertyContextMenuItems
-  const handlePropertyContextMenu = useCallback((property: Property, event: React.MouseEvent) => {
+  const handlePropertyContextMenu = useCallback((_property: Property, event: React.MouseEvent) => {
     // PropertyList handles showing the context menu
     event.preventDefault();
   }, []);

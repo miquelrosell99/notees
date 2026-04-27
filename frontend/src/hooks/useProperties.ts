@@ -91,7 +91,7 @@ export function useUpdateProperty() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null } }) => 
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null; validation_rules?: Record<string, unknown> | null } }) => 
       propertiesApi.updateProperty(id, data),
     onSuccess: (updated) => {
       queryClient.setQueryData(propertyKeys.detail(updated.id), updated);

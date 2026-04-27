@@ -4,7 +4,7 @@
  * Shared topbar component used by NodeView and PropertyView.
  * Provides a consistent header structure with left/center/right sections.
  */
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import './MainContentTopbar.css';
 
 interface MainContentTopbarProps {
