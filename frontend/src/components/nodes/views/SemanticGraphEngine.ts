@@ -883,16 +883,20 @@ export class SemanticGraphEngine {
     }
     const deg     = this.degArr;
     const rest0   = this.config.idealDistance;
+    const clId    = this.clIdArr;
     let valid = 0;
     for (const e of this.edges) {
       const si = this.nodeIndex.get(e.source);
       const ti = this.nodeIndex.get(e.target);
       if (si === undefined || ti === undefined) continue;
       const maxDeg = Math.max(deg[si], deg[ti], 1);
+      const isInterCluster = clId[si] !== clId[ti];
+      // Inter-community edges are longer and weaker, allowing clusters to separate
+      // even when they share some links. Intra-community edges stay tight.
       this.edgeSrc[valid]   = si;
       this.edgeTgt[valid]   = ti;
-      this.edgeRest[valid]  = rest0;
-      this.edgeStiff[valid] = 1 / Math.sqrt(maxDeg);
+      this.edgeRest[valid]  = isInterCluster ? rest0 * 1.6 : rest0;
+      this.edgeStiff[valid] = (1 / Math.sqrt(maxDeg)) * (isInterCluster ? 0.7 : 1.0);
       valid++;
     }
     this.numEdges = valid;
