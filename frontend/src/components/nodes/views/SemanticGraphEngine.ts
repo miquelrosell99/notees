@@ -621,7 +621,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
   componentSpacing: 500,
-  damping: 0.88,
+  damping: 0.6,
   maxVelocity: 50,
   alpha: 1.0,
   alphaDecay: 0.005,
@@ -896,7 +896,10 @@ export class SemanticGraphEngine {
       this.edgeSrc[valid]   = si;
       this.edgeTgt[valid]   = ti;
       this.edgeRest[valid]  = isInterCluster ? rest0 * 1.6 : rest0;
-      this.edgeStiff[valid] = (1 / Math.sqrt(maxDeg)) * (isInterCluster ? 0.7 : 1.0);
+      // 1/maxDeg scaling keeps total clique stiffness independent of clique size:
+      // a node with D edges each of strength 1/D has total restoring force ~1,
+      // preventing dense clusters from becoming arbitrarily stiff and oscillatory.
+      this.edgeStiff[valid] = (1 / maxDeg) * (isInterCluster ? 0.7 : 1.0);
       valid++;
     }
     this.numEdges = valid;
@@ -1168,32 +1171,35 @@ export class SemanticGraphEngine {
     const oldAx = this.oldAx, oldAy = this.oldAy;
     const activeIdx   = this.activeNodeIndices;
     const activeCount = this.activeCount;
-    // Scale all accumulated forces by the cooling alpha (d3-force style).
-    // This makes the simulation start energetic and gradually settle, preventing
-    // the explosive oscillations that happen when all forces are at full strength
-    // while nodes are still on their initial spiral placement.
-    const alpha = this.alpha;
-    if (alpha < 1.0) {
-      for (let k = 0; k < activeCount; k++) {
-        const i = activeIdx[k];
-        ax[i] *= alpha; ay[i] *= alpha;
-      }
-    }
-
     let totalEnergy = 0;
+
+    // Nodes with velocity below this threshold are considered "asleep" — their
+    // velocity is zeroed and their position is not updated.  This eliminates
+    // both sub-pixel jitter and slow drift caused by tiny residual forces that
+    // never fully cancel in a large force-directed system.
+    const V_DEADZONE2 = 1e-6; // |v| < 0.001
 
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k];
       const oax = oldAx[i], oay = oldAy[i];
       const nax = ax[i],    nay = ay[i];
-      posX[i] += velX[i] * dt + oax * hdt2;
-      posY[i] += velY[i] * dt + oay * hdt2;
       let vx = (velX[i] + 0.5 * (oax + nax) * dt) * damp;
       let vy = (velY[i] + 0.5 * (oay + nay) * dt) * damp;
       const v2 = vx * vx + vy * vy;
-      if (v2 > maxV2) { const s = maxVel / Math.sqrt(v2); vx *= s; vy *= s; }
-      velX[i] = vx; velY[i] = vy;
-      totalEnergy += vx * vx + vy * vy;
+      if (v2 > maxV2) {
+        const s = maxVel / Math.sqrt(v2);
+        vx *= s; vy *= s;
+      }
+      if (v2 < V_DEADZONE2) {
+        // Sleep: zero velocity and skip the tiny displacement that would
+        // otherwise accumulate into visible drift over thousands of frames.
+        velX[i] = 0; velY[i] = 0;
+      } else {
+        posX[i] += velX[i] * dt + oax * hdt2;
+        posY[i] += velY[i] * dt + oay * hdt2;
+        velX[i] = vx; velY[i] = vy;
+        totalEnergy += v2;
+      }
     }
 
     // ── Force buffer swap ────────────────────────────────────────────────────
@@ -1227,9 +1233,6 @@ export class SemanticGraphEngine {
     if (this.frozen) return;
     this.computeForces();
     this.integrate();
-    // Decay cooling alpha (d3-force style). Forces scale by alpha so the layout
-    // starts energetic and gradually settles, preventing explosive oscillations.
-    this.alpha = Math.max(this.config.alphaMin, this.alpha * (1 - this.config.alphaDecay));
   }
 
   getState(): SGEState {
@@ -1436,7 +1439,6 @@ export class SemanticGraphEngine {
   // ─── Simulation control ───────────────────────────────────────────────────────
 
   reheat(): void {
-    this.alpha  = Math.max(this.alpha, this.config.reheatFactor);
     this.frozen = false;
     this.prevDt = this.config.dt;
     this.oscillationCounter = 0;
