@@ -131,6 +131,8 @@ export interface GraphRendererStats {
   edgeCount: number;
   visibleNodes: number;
   visibleEdges: number;
+  arrowInstCount: number;
+  glowInstCount: number;
   alpha: number;
   energy: number;
   ticks: number;
@@ -163,6 +165,8 @@ export interface GraphRendererHandle {
   stats: GraphRendererStats;
   /** Currently selected node ID (-1 = none). */
   selectedNodeId: number;
+  /** Currently hovered node info for tooltip (null = none). */
+  hoveredNode: { id: number; name: string; screenX: number; screenY: number } | null;
   /** Restart the physics simulation cooling schedule. */
   reheat: () => void;
   /** Pause the physics simulation without destroying state. */
@@ -212,6 +216,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const hoveredNodeRef = useRef(-1);
   const selectedRef    = useRef(-1);
   const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
+  const [hoveredNode, setHoveredNode] = useState<{ id: number; name: string; screenX: number; screenY: number } | null>(null);
 
   // Node name map for label rendering (id → displayName)
   const nodeNamesRef = useRef(new Map<number, string>());
@@ -236,6 +241,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   // Physics stats (only re-render periodically)
   const [stats, setStats] = useState<GraphRendererStats>({
     nodeCount: 0, edgeCount: 0, visibleNodes: 0, visibleEdges: 0,
+    arrowInstCount: 0, glowInstCount: 0,
     alpha: 1, energy: 0, ticks: 0, fps: 0,
   });
 
@@ -663,14 +669,17 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       // Build physics nodes (compact)
       const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
 
-      // Build edges (only unique source/target pairs), with dashed flag
-      // Parent/class/extends links are solid; reference links are dashed; semantic links are dashed with a distinct color
+      // Build edges (only unique source/target pairs), with dashed flag and width by type
+      // Parent/class/extends links are solid and thicker; reference links are dashed and thinner
       const SEMANTIC_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
       const physEdges = edges.map(e => ({
         source: e.source,
         target: e.target,
         dashed: e.type === 'reference' || e.type === 'property-reference' || e.type === 'semantic',
         color: e.type === 'semantic' ? SEMANTIC_COLOR : undefined,
+        width: e.type === 'parent' || e.type === 'extends' ? 1.2
+          : e.type === 'class' ? 1.0
+          : 0.6,
       }));
 
       // Build visual metadata map
@@ -828,6 +837,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         hoveredNodeRef.current = hit;
         rend.setHoveredNode(hit);
         dirtyRef.current.hover = true;
+        // Update tooltip state (convert canvas pixels to CSS pixels for positioning)
+        if (hit >= 0) {
+          const rect = canvas.getBoundingClientRect();
+          const cssX = (px / (canvas.width / rect.width));
+          const cssY = (py / (canvas.height / rect.height));
+          const name = nodeNamesRef.current.get(hit) ?? '';
+          setHoveredNode({ id: hit, name, screenX: cssX, screenY: cssY });
+        } else {
+          setHoveredNode(null);
+        }
       }
       if (d.mode === 'none') {
         canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
@@ -1008,6 +1027,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     canvasRef: canvasRef as React.RefObject<HTMLCanvasElement | null>,
     labelCanvasRef,
     selectedNodeId,
+    hoveredNode,
     stats,
     reheat,
     pause,

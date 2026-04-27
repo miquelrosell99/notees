@@ -608,7 +608,7 @@ function findConnectedComponents(
 
 const DEFAULT_CONFIG: SGEConfig = {
   seed: 42,
-  springStrength: 0.06,
+  springStrength: 0.04,
   idealDistance: 80,
   clusterStrength: 0.004,
   clusterRepelStrength: 800,
@@ -618,11 +618,11 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
   componentSpacing: 500,
-  damping: 0.88,
+  damping: 0.92,
   maxVelocity: 50,
   alpha: 1.0,
-  alphaDecay: 0.002,
-  alphaMin: 0.0005,
+  alphaDecay: 0.005,
+  alphaMin: 0.001,
   reheatFactor: 0.3,
   dt: 1.0,
   bhTheta: 0.8,
@@ -1431,6 +1431,7 @@ export class SemanticGraphEngine {
 
   getAlpha():  number { return this.alpha; }
   getEnergy(): number { return this.energy; }
+  getAlphaMin(): number { return this.config.alphaMin; }
 
   get nodeCount(): number { return this.n; }
   get edgeCount(): number { return this.edges.length; }

@@ -239,6 +239,86 @@ void main() {
 }
 `;
 
+/**
+ * Glow / halo fragment shader — soft radial falloff for cluster halos.
+ * Reuses the same vertex layout as RING but with a softer alpha profile.
+ */
+const GLOW_FRAG_SRC = /* glsl */ `#version 300 es
+precision mediump float;
+
+in vec2 v_uv;
+in vec4 v_color;
+out vec4 outColor;
+
+void main() {
+  float d = length(v_uv);
+  float fw = fwidth(d);
+  // Soft radial falloff: strongest at center, fading to edges
+  float rawAlpha = 1.0 - smoothstep(0.0, 1.0 + fw, d);
+  rawAlpha = rawAlpha * rawAlpha; // quadratic falloff for softer look
+  float alpha = pow(rawAlpha, 1.0 / 2.2) * v_color.a;
+  if (alpha <= 0.005) discard;
+  outColor = vec4(v_color.rgb, alpha);
+}
+`;
+
+/**
+ * Arrowhead vertex shader — draws a small triangle at the target end of each edge.
+ * Samples endpoint positions from the RG32F texture so no CPU repack is needed.
+ */
+const ARROW_VERT_SRC = /* glsl */ `#version 300 es
+precision highp float;
+
+in vec2 a_local;   // triangle vertex: (-0.5,-0.5) (0.5,-0.5) (0,0.5)
+
+in float a_i1;     // source node index
+in float a_i2;     // target node index
+in float a_targetRadius; // world units, to stop before node center
+in float a_size;   // world units
+in vec4  a_color;
+
+uniform vec2  u_resolution;
+uniform vec2  u_camera;
+uniform float u_zoom;
+uniform highp sampler2D u_positions;
+
+out vec4 v_color;
+
+void main() {
+  int si = int(a_i1);
+  int ti = int(a_i2);
+  vec2 p1 = texelFetch(u_positions, ivec2(si, 0), 0).rg;
+  vec2 p2 = texelFetch(u_positions, ivec2(ti, 0), 0).rg;
+
+  vec2 dir = p2 - p1;
+  float len = length(dir);
+  vec2 n = (len > 0.001) ? dir / len : vec2(1.0, 0.0);
+  vec2 perp = vec2(-n.y, n.x);
+
+  // Rotate and scale local triangle to point along edge direction
+  vec2 local = a_local * a_size;
+  vec2 rotated = local.x * perp + local.y * n;
+
+  // Offset to just outside the target node radius
+  float offset = a_targetRadius + a_size * 0.3;
+  vec2 world = p2 - n * offset + rotated;
+
+  vec2 screen = (world - u_camera) * u_zoom;
+  vec2 clip   = screen / (u_resolution * 0.5);
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  v_color = a_color;
+}
+`;
+
+const ARROW_FRAG_SRC = /* glsl */ `#version 300 es
+precision mediump float;
+in vec4 v_color;
+out vec4 outColor;
+void main() {
+  outColor = v_color;
+}
+`;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface NodeVisual {
@@ -252,6 +332,10 @@ export interface RendererOptions {
   defaultRadius?: number;
   /** Default edge half-width in world units. Default: 0.8 */
   edgeWidth?: number;
+  /** Arrow size in world units. Default: 3.5 */
+  arrowSize?: number;
+  /** Node glow radius multiplier. Default: 4.5 */
+  glowRadiusMult?: number;
   /** Cull nodes/edges outside this many world units beyond the viewport. 0 = no culling. */
   cullMargin?: number;
   /** Pre-allocate instance capacity (resize automatically if exceeded). Default: 512 */
@@ -271,6 +355,15 @@ export interface CameraState {
 const NODE_STRIDE = 7; // x, y, radius, r, g, b, a
 // Floats per edge instance (no positions baked in — GPU samples from texture)
 const EDGE_STRIDE = 8; // i1, i2, width, r, g, b, a, dashed
+// Floats per arrow instance (samples position texture like edges)
+const ARROW_STRIDE = 8; // i1, i2, targetRadius, size, r, g, b, a
+
+// Triangle geometry for arrowheads
+const ARROW_VERTS = new Float32Array([
+  0.0,  0.5,   // tip
+ -0.5, -0.5,   // bottom left
+  0.5, -0.5,   // bottom right
+]);
 
 // ─── WebGL Helpers ────────────────────────────────────────────────────────────
 
@@ -388,6 +481,8 @@ export class GraphWebGLRenderer {
   private nodeProg: WebGLProgram | null = null;
   private edgeProg: WebGLProgram | null = null;
   private ringProg: WebGLProgram | null = null;
+  private glowProg: WebGLProgram | null = null;
+  private arrowProg: WebGLProgram | null = null;
 
   // --- Node VAO / buffers ---
   private nodeVAO: WebGLVertexArrayObject | null = null;
@@ -418,6 +513,34 @@ export class GraphWebGLRenderer {
     zoom:       WebGLUniformLocation | null;
   } = { resolution: null, camera: null, zoom: null };
 
+  // --- Glow VAO / buffer (cluster halos behind nodes) ---
+  // Reuses NODE_STRIDE layout; one instance per node.
+  private glowVAO: WebGLVertexArrayObject | null = null;
+  private glowQuadBuf: WebGLBuffer | null = null;
+  private glowInstBuf: WebGLBuffer | null = null;
+  private glowInstCapacity = 0;
+  private glowInstData: Float32Array = new Float32Array(0);
+  private glowInstCount = 0;
+  private glowUniforms: {
+    resolution: WebGLUniformLocation | null;
+    camera:     WebGLUniformLocation | null;
+    zoom:       WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null };
+
+  // --- Arrow VAO / buffer (directional arrowheads on edges) ---
+  private arrowVAO: WebGLVertexArrayObject | null = null;
+  private arrowTriBuf: WebGLBuffer | null = null;
+  private arrowInstBuf: WebGLBuffer | null = null;
+  private arrowInstCapacity = 0;
+  private arrowInstData: Float32Array = new Float32Array(0);
+  private arrowInstCount = 0;
+  private arrowUniforms: {
+    resolution: WebGLUniformLocation | null;
+    camera:     WebGLUniformLocation | null;
+    zoom:       WebGLUniformLocation | null;
+    positions:  WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null };
+
   // --- Hover / selection state ---
   private _hoveredNodeId  = -1;
   private _selectedNodeId = -1;
@@ -444,7 +567,7 @@ export class GraphWebGLRenderer {
   private positions: Float32Array = new Float32Array(0);
 
   // --- Edge topology ---
-  private edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number] }> = [];
+  private edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number]; width?: number }> = [];
 
   // --- Adjacency for dimming ---
   private _adjacency = new Map<number, Set<number>>();
@@ -486,6 +609,8 @@ export class GraphWebGLRenderer {
     this.opts = {
       defaultRadius: opts.defaultRadius ?? 8,
       edgeWidth: opts.edgeWidth ?? 0.8,
+      arrowSize: opts.arrowSize ?? 3.5,
+      glowRadiusMult: opts.glowRadiusMult ?? 4.5,
       cullMargin: opts.cullMargin ?? 150,
       initialCapacity: opts.initialCapacity ?? 512,
     };
@@ -515,6 +640,8 @@ export class GraphWebGLRenderer {
     this.nodeProg = linkProgram(gl, NODE_VERT_SRC, NODE_FRAG_SRC);
     this.edgeProg = linkProgram(gl, EDGE_VERT_SRC, EDGE_FRAG_SRC);
     this.ringProg = linkProgram(gl, RING_VERT_SRC, RING_FRAG_SRC);
+    this.glowProg = linkProgram(gl, RING_VERT_SRC, GLOW_FRAG_SRC);
+    this.arrowProg = linkProgram(gl, ARROW_VERT_SRC, ARROW_FRAG_SRC);
 
     // Cache uniform locations once — they never change after linking
     this.nodeUniforms = {
@@ -533,10 +660,23 @@ export class GraphWebGLRenderer {
       camera:     gl.getUniformLocation(this.ringProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.ringProg, 'u_zoom'),
     };
+    this.glowUniforms = {
+      resolution: gl.getUniformLocation(this.glowProg, 'u_resolution'),
+      camera:     gl.getUniformLocation(this.glowProg, 'u_camera'),
+      zoom:       gl.getUniformLocation(this.glowProg, 'u_zoom'),
+    };
+    this.arrowUniforms = {
+      resolution: gl.getUniformLocation(this.arrowProg, 'u_resolution'),
+      camera:     gl.getUniformLocation(this.arrowProg, 'u_camera'),
+      zoom:       gl.getUniformLocation(this.arrowProg, 'u_zoom'),
+      positions:  gl.getUniformLocation(this.arrowProg, 'u_positions'),
+    };
 
     this._initNodeBuffers();
     this._initEdgeBuffers();
     this._initRingBuffers();
+    this._initGlowBuffers();
+    this._initArrowBuffers();
     this._initPositionTexture();
     ensureThemeObserver();
 
@@ -553,15 +693,23 @@ export class GraphWebGLRenderer {
     gl.deleteProgram(this.nodeProg);
     gl.deleteProgram(this.edgeProg);
     gl.deleteProgram(this.ringProg);
+    gl.deleteProgram(this.glowProg);
+    gl.deleteProgram(this.arrowProg);
     gl.deleteBuffer(this.nodeQuadBuf);
     gl.deleteBuffer(this.nodeInstBuf);
     gl.deleteBuffer(this.edgeQuadBuf);
     gl.deleteBuffer(this.edgeInstBuf);
     gl.deleteBuffer(this.ringQuadBuf);
     gl.deleteBuffer(this.ringInstBuf);
+    gl.deleteBuffer(this.glowQuadBuf);
+    gl.deleteBuffer(this.glowInstBuf);
+    gl.deleteBuffer(this.arrowTriBuf);
+    gl.deleteBuffer(this.arrowInstBuf);
     gl.deleteVertexArray(this.nodeVAO);
     gl.deleteVertexArray(this.edgeVAO);
     gl.deleteVertexArray(this.ringVAO);
+    gl.deleteVertexArray(this.glowVAO);
+    gl.deleteVertexArray(this.arrowVAO);
     gl.deleteTexture(this.posTex);
 
     this.gl = null;
@@ -608,6 +756,98 @@ export class GraphWebGLRenderer {
     // a_color: vec4 at offset 12
     gl.enableVertexAttribArray(aColor);
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
+    gl.vertexAttribDivisor(aColor, 1);
+
+    gl.bindVertexArray(null);
+  }
+
+  private _initGlowBuffers(): void {
+    const gl = this.gl!;
+    this.glowVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.glowVAO);
+
+    // Reuse the same unit quad geometry
+    this.glowQuadBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowQuadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, QUAD_VERTS, gl.STATIC_DRAW);
+
+    const aQuad = gl.getAttribLocation(this.glowProg!, 'a_quad');
+    gl.enableVertexAttribArray(aQuad);
+    gl.vertexAttribPointer(aQuad, 2, gl.FLOAT, false, 0, 0);
+
+    // Dynamic instance buffer — NODE_STRIDE layout, one per node
+    this.glowInstCapacity = this.opts.initialCapacity * NODE_STRIDE;
+    this.glowInstData = new Float32Array(this.glowInstCapacity);
+    this.glowInstBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.glowInstData, gl.DYNAMIC_DRAW);
+
+    const STRIDE = NODE_STRIDE * 4;
+    const aPos = gl.getAttribLocation(this.glowProg!, 'a_pos');
+    const aRadius = gl.getAttribLocation(this.glowProg!, 'a_radius');
+    const aColor = gl.getAttribLocation(this.glowProg!, 'a_color');
+
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, STRIDE, 0);
+    gl.vertexAttribDivisor(aPos, 1);
+
+    gl.enableVertexAttribArray(aRadius);
+    gl.vertexAttribPointer(aRadius, 1, gl.FLOAT, false, STRIDE, 8);
+    gl.vertexAttribDivisor(aRadius, 1);
+
+    gl.enableVertexAttribArray(aColor);
+    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
+    gl.vertexAttribDivisor(aColor, 1);
+
+    gl.bindVertexArray(null);
+  }
+
+  private _initArrowBuffers(): void {
+    const gl = this.gl!;
+    this.arrowVAO = gl.createVertexArray()!;
+    gl.bindVertexArray(this.arrowVAO);
+
+    // Static triangle geometry
+    this.arrowTriBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowTriBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, ARROW_VERTS, gl.STATIC_DRAW);
+
+    const aLocal = gl.getAttribLocation(this.arrowProg!, 'a_local');
+    gl.enableVertexAttribArray(aLocal);
+    gl.vertexAttribPointer(aLocal, 2, gl.FLOAT, false, 0, 0);
+
+    // Instance buffer: ARROW_STRIDE = 8 floats
+    this.arrowInstCapacity = this.opts.initialCapacity * ARROW_STRIDE;
+    this.arrowInstData = new Float32Array(this.arrowInstCapacity);
+    this.arrowInstBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowInstBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrowInstData, gl.DYNAMIC_DRAW);
+
+    const STRIDE = ARROW_STRIDE * 4; // 32 bytes
+    const aI1 = gl.getAttribLocation(this.arrowProg!, 'a_i1');
+    const aI2 = gl.getAttribLocation(this.arrowProg!, 'a_i2');
+    const aTargetRadius = gl.getAttribLocation(this.arrowProg!, 'a_targetRadius');
+    const aSize = gl.getAttribLocation(this.arrowProg!, 'a_size');
+    const aColor = gl.getAttribLocation(this.arrowProg!, 'a_color');
+
+    gl.enableVertexAttribArray(aI1);
+    gl.vertexAttribPointer(aI1, 1, gl.FLOAT, false, STRIDE, 0);
+    gl.vertexAttribDivisor(aI1, 1);
+
+    gl.enableVertexAttribArray(aI2);
+    gl.vertexAttribPointer(aI2, 1, gl.FLOAT, false, STRIDE, 4);
+    gl.vertexAttribDivisor(aI2, 1);
+
+    gl.enableVertexAttribArray(aTargetRadius);
+    gl.vertexAttribPointer(aTargetRadius, 1, gl.FLOAT, false, STRIDE, 8);
+    gl.vertexAttribDivisor(aTargetRadius, 1);
+
+    gl.enableVertexAttribArray(aSize);
+    gl.vertexAttribPointer(aSize, 1, gl.FLOAT, false, STRIDE, 12);
+    gl.vertexAttribDivisor(aSize, 1);
+
+    gl.enableVertexAttribArray(aColor);
+    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 16);
     gl.vertexAttribDivisor(aColor, 1);
 
     gl.bindVertexArray(null);
@@ -751,8 +991,8 @@ export class GraphWebGLRenderer {
     this._posDirty  = true;
   }
 
-  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. `color` overrides the default edge color (RGBA 0..1). */
-  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number] }>): void {
+  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. `color` overrides the default edge color (RGBA 0..1). `width` overrides the default edge width. */
+  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number]; width?: number }>): void {
     this.edges = edges;
     this._edgeDirty = true;
     this._rebuildAdjacency();
@@ -777,6 +1017,7 @@ export class GraphWebGLRenderer {
     const focusIds = [this._selectedNodeId].filter(id => id >= 0);
     if (focusIds.length === 0) {
       this._dimDirty = true;
+      this._edgeDirty = true; // rebuild edges without dimming
       return;
     }
     for (const id of focusIds) {
@@ -785,6 +1026,7 @@ export class GraphWebGLRenderer {
       if (neighbours) for (const nb of neighbours) this._highlightedIds.add(nb);
     }
     this._dimDirty = true;
+    this._edgeDirty = true; // rebuild edges with dimming
   }
 
   /**
@@ -968,26 +1210,30 @@ export class GraphWebGLRenderer {
     }
 
     const defaultColor = getCssEdgeColor();
-    const width = this.opts.edgeWidth;
+    const hasFocus = this._highlightedIds.size > 0;
 
     let count = 0;
     for (let i = 0; i < ne; i++) {
-      const { source, target, dashed, color } = edges[i];
+      const { source, target, dashed, color, width } = edges[i];
       const si = this.nodeIndex.get(source);
       const ti = this.nodeIndex.get(target);
       if (si === undefined || ti === undefined) continue;
 
       const [er, eg, eb, ea] = color ?? defaultColor;
 
+      // Edge dimming: edges not touching a highlighted node fade out
+      const edgeHighlighted = !hasFocus || this._highlightedIds.has(source) || this._highlightedIds.has(target);
+      const finalAlpha = edgeHighlighted ? ea : ea * this.DIM_ALPHA;
+
       // Store indices as floats — shader casts to int via int()
       const base = count * EDGE_STRIDE;
       this.edgeInstData[base    ] = si;           // source node index
       this.edgeInstData[base + 1] = ti;           // target node index
-      this.edgeInstData[base + 2] = width;
+      this.edgeInstData[base + 2] = width ?? this.opts.edgeWidth;
       this.edgeInstData[base + 3] = er;
       this.edgeInstData[base + 4] = eg;
       this.edgeInstData[base + 5] = eb;
-      this.edgeInstData[base + 6] = ea;
+      this.edgeInstData[base + 6] = finalAlpha;
       this.edgeInstData[base + 7] = dashed ? 1.0 : 0.0; // dashed flag
       count++;
     }
@@ -997,6 +1243,113 @@ export class GraphWebGLRenderer {
     const gl = this.gl!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.edgeInstData, 0, count * EDGE_STRIDE);
+
+    // Rebuild arrow topology whenever edges change (same dependency set)
+    this._rebuildArrowTopology();
+  }
+
+  /**
+   * Pack arrowhead instances. Arrows are drawn at the target end of each edge.
+   * Samples positions from the texture so this only needs to run on topology change.
+   */
+  private _rebuildArrowTopology(): void {
+    const edges = this.edges;
+    const ne = edges.length;
+    const needed = ne * ARROW_STRIDE;
+
+    if (this.arrowInstCapacity < needed) {
+      this.arrowInstCapacity = Math.ceil(needed * 1.5);
+      this.arrowInstData = new Float32Array(this.arrowInstCapacity);
+
+      const gl = this.gl!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowInstBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, this.arrowInstCapacity * 4, gl.DYNAMIC_DRAW);
+    }
+
+    const defaultColor = getCssEdgeColor();
+    const arrowSize = this.opts.arrowSize;
+    const hasFocus = this._highlightedIds.size > 0;
+
+    let count = 0;
+    for (let i = 0; i < ne; i++) {
+      const { source, target, dashed, color } = edges[i];
+      const si = this.nodeIndex.get(source);
+      const ti = this.nodeIndex.get(target);
+      if (si === undefined || ti === undefined) continue;
+
+      // Skip arrows on dashed (reference) edges to reduce clutter
+      if (dashed) continue;
+
+      const [er, eg, eb, ea] = color ?? defaultColor;
+
+      // Arrow dimming follows edge dimming
+      const edgeHighlighted = !hasFocus || this._highlightedIds.has(source) || this._highlightedIds.has(target);
+      const finalAlpha = edgeHighlighted ? ea : ea * this.DIM_ALPHA;
+
+      const targetRadius = this.nodeVisuals.get(target)?.radius ?? this.opts.defaultRadius;
+
+      const base = count * ARROW_STRIDE;
+      this.arrowInstData[base    ] = si;
+      this.arrowInstData[base + 1] = ti;
+      this.arrowInstData[base + 2] = targetRadius;
+      this.arrowInstData[base + 3] = arrowSize;
+      this.arrowInstData[base + 4] = er;
+      this.arrowInstData[base + 5] = eg;
+      this.arrowInstData[base + 6] = eb;
+      this.arrowInstData[base + 7] = finalAlpha;
+      count++;
+    }
+
+    this.arrowInstCount = count;
+
+    const gl = this.gl!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowInstBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.arrowInstData, 0, count * ARROW_STRIDE);
+  }
+
+  /**
+   * Pack glow/halo instances — one large soft disc per node.
+   * Creates Obsidian-like cluster halos by blending where same-colored nodes cluster.
+   */
+  private _packGlowInstances(): void {
+    const n = this.nodeIdOrder.length;
+    const needed = n * NODE_STRIDE;
+
+    if (this.glowInstCapacity < needed) {
+      this.glowInstCapacity = Math.ceil(needed * 1.5);
+      this.glowInstData = new Float32Array(this.glowInstCapacity);
+
+      const gl = this.gl!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, this.glowInstCapacity * 4, gl.DYNAMIC_DRAW);
+    }
+
+    const pos = this.positions;
+    const defaultColor = getCssNodeDefaultColor();
+    const glowMult = this.opts.glowRadiusMult;
+
+    for (let i = 0; i < n; i++) {
+      const id = this.nodeIdOrder[i];
+      const vis = this.nodeVisuals.get(id);
+      const radius = (vis?.radius ?? this.opts.defaultRadius) * glowMult;
+      const color = vis?.color;
+      const def = color ? null : defaultColor;
+
+      const base = i * NODE_STRIDE;
+      this.glowInstData[base    ] = pos[i * 2];
+      this.glowInstData[base + 1] = pos[i * 2 + 1];
+      this.glowInstData[base + 2] = radius;
+      this.glowInstData[base + 3] = color ? color[0] : def![0];
+      this.glowInstData[base + 4] = color ? color[1] : def![1];
+      this.glowInstData[base + 5] = color ? color[2] : def![2];
+      this.glowInstData[base + 6] = 0.035; // very subtle fixed alpha
+    }
+
+    this.glowInstCount = n;
+
+    const gl = this.gl!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.glowInstData, 0, n * NODE_STRIDE);
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -1013,7 +1366,7 @@ export class GraphWebGLRenderer {
     }
 
     // ── Position / dim update ──
-    // Upload positions texture + repack node instances.
+    // Upload positions texture + repack node instances + glow instances.
     // Camera movement does NOT reach this path — camera is just a uniform.
     // _dimDirty triggers a repack (no texture upload needed) when hover/select
     // changes so dimming is applied immediately without waiting for new physics.
@@ -1027,6 +1380,7 @@ export class GraphWebGLRenderer {
         }
         this._dimDirty = false;
         this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
+        this._packGlowInstances();     // O(N): large soft halos behind nodes
       }
     }
 
@@ -1038,8 +1392,18 @@ export class GraphWebGLRenderer {
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
+    // ── Draw cluster glow halos (behind everything) ───────────────────────
+    if (this.glowInstCount > 0 && this.glowVAO && this.positions.length > 0) {
+      gl.useProgram(this.glowProg);
+      gl.bindVertexArray(this.glowVAO);
+      gl.uniform2fv(this.glowUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.glowUniforms.camera, this._camBuf);
+      gl.uniform1f( this.glowUniforms.zoom, zoom);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.glowInstCount);
+    }
+
     // ── Build hover / selection glow rings ────────────────────────────────
-    // Written first so rings are drawn BEFORE nodes (appear under the main circle).
+    // Written so rings are drawn BEFORE nodes (appear under the main circle).
     this.ringInstCount = 0;
     const rid = this.ringInstData;
 
@@ -1072,7 +1436,7 @@ export class GraphWebGLRenderer {
       writeRing(this._hoveredNodeId, 1.55, 0.45);
     }
 
-    // ── Draw glow rings (UNDER nodes and edges) ────────────────────────────
+    // ── Draw hover/selection rings (UNDER nodes) ────────────────────────────
     if (this.ringInstCount > 0 && this.ringVAO && this.positions.length > 0) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.ringInstBuf);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, rid, 0, this.ringInstCount * NODE_STRIDE);
@@ -1109,6 +1473,19 @@ export class GraphWebGLRenderer {
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 
+    // ── Draw arrowheads (on top of edges, under nodes) ────────────────────
+    if (this.arrowInstCount > 0 && this.posTex && this.posTexWidth > 0) {
+      gl.useProgram(this.arrowProg);
+      gl.bindVertexArray(this.arrowVAO);
+      gl.uniform2fv(this.arrowUniforms.resolution, this._resBuf);
+      gl.uniform2fv(this.arrowUniforms.camera, this._camBuf);
+      gl.uniform1f( this.arrowUniforms.zoom, zoom);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.posTex);
+      gl.uniform1i(this.arrowUniforms.positions, 0);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, this.arrowInstCount);
+    }
+
     gl.bindVertexArray(null);
   }
 
@@ -1118,6 +1495,8 @@ export class GraphWebGLRenderer {
     return {
       nodeInstCount: this.nodeInstCount,
       edgeInstCount: this.edgeInstCount,
+      arrowInstCount: this.arrowInstCount,
+      glowInstCount: this.glowInstCount,
       nodeDataCapacity: this.nodeInstCapacity,
       edgeDataCapacity: this.edgeInstCapacity,
     };

@@ -10,6 +10,9 @@
   height: 100%;
   overflow: hidden;
   background: var(--color-surface);
+  /* Subtle dot grid — matches Obsidian's graph background */
+  background-image: radial-gradient(circle, var(--color-outline-variant) 1px, transparent 1px);
+  background-size: 24px 24px;
   /* Hardware acceleration: promotes to its own compositor layer */
   transform: translateZ(0);
 }
