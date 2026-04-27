@@ -57,11 +57,11 @@ const MAX_TICK_BUDGET_MS = 50;
  * stable on the first frame.  A hard time-budget cap prevents blocking the
  * worker for too long on very large graphs.
  */
-const WARMUP_ENERGY_TARGET = 0.005;
+const WARMUP_ENERGY_TARGET = 0.05;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
-const WARMUP_TIME_BUDGET_MS = 5000;
+const WARMUP_TIME_BUDGET_MS = 3000;
 /** Minimum warm-up steps before checking energy convergence. */
-const WARMUP_MIN_STEPS = 300;
+const WARMUP_MIN_STEPS = 100;
 
 
 
