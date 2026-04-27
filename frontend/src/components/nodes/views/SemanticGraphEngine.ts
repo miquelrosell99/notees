@@ -621,7 +621,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.001,
   componentSpacing: 500,
-  damping: 0.6,
+  damping: 0.95,
   maxVelocity: 50,
   alpha: 1.0,
   alphaDecay: 0.005,
@@ -1161,8 +1161,6 @@ export class SemanticGraphEngine {
     const N = this.n, cfg = this.config;
     const dt = this.prevDt, hdt2 = 0.5 * dt * dt;
     const maxVel = cfg.maxVelocity, maxV2 = maxVel * maxVel;
-    const damp = cfg.damping;
-
     // Motion slab locals (contiguous in memory).
     const posX = this.posX, posY = this.posY;
     const velX = this.velX, velY = this.velY;
@@ -1173,33 +1171,34 @@ export class SemanticGraphEngine {
     const activeCount = this.activeCount;
     let totalEnergy = 0;
 
-    // Nodes with velocity below this threshold are considered "asleep" — their
-    // velocity is zeroed and their position is not updated.  This eliminates
-    // both sub-pixel jitter and slow drift caused by tiny residual forces that
-    // never fully cancel in a large force-directed system.
-    const V_DEADZONE2 = 1e-6; // |v| < 0.001
+    // Velocity-dependent damping: fast motion is heavily suppressed,
+    // slow motion flows freely.  This creates the feel of "no bouncing,
+    // but gradual repositioning is allowed".
+    //   |v| ≈ 0   → damp ≈ 0.95   (gentle, micro-movements survive)
+    //   |v| ≈ 5   → damp ≈ 0.5    (moderate suppression)
+    //   |v| ≥ 5   → damp ≈ 0.3    (strong suppression, kills oscillation)
+    const dampMax = cfg.damping; // 0.95
+    const dampMin = 0.3;
+    const blendDenom = 25;       // crossover at |v| = 5
 
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k];
       const oax = oldAx[i], oay = oldAy[i];
       const nax = ax[i],    nay = ay[i];
-      let vx = (velX[i] + 0.5 * (oax + nax) * dt) * damp;
-      let vy = (velY[i] + 0.5 * (oay + nay) * dt) * damp;
+      let vx = velX[i] + 0.5 * (oax + nax) * dt;
+      let vy = velY[i] + 0.5 * (oay + nay) * dt;
       const v2 = vx * vx + vy * vy;
       if (v2 > maxV2) {
         const s = maxVel / Math.sqrt(v2);
         vx *= s; vy *= s;
       }
-      if (v2 < V_DEADZONE2) {
-        // Sleep: zero velocity and skip the tiny displacement that would
-        // otherwise accumulate into visible drift over thousands of frames.
-        velX[i] = 0; velY[i] = 0;
-      } else {
-        posX[i] += velX[i] * dt + oax * hdt2;
-        posY[i] += velY[i] * dt + oay * hdt2;
-        velX[i] = vx; velY[i] = vy;
-        totalEnergy += v2;
-      }
+      const blend = Math.min(1, v2 / blendDenom);
+      const damp  = dampMax - (dampMax - dampMin) * blend;
+      vx *= damp; vy *= damp;
+      posX[i] += velX[i] * dt + oax * hdt2;
+      posY[i] += velY[i] * dt + oay * hdt2;
+      velX[i] = vx; velY[i] = vy;
+      totalEnergy += v2 * damp * damp;
     }
 
     // ── Force buffer swap ────────────────────────────────────────────────────
