@@ -464,7 +464,7 @@ export function SuggestionPopup({
           </>
         ) : (
           <>
-            <span className="suggestion-popup__icon">[[</span>
+            <span className="suggestion-popup__icon">@</span>
             <span>Insert link</span>
           </>
         )}
