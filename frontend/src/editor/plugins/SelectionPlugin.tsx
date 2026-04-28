@@ -46,6 +46,13 @@ export function SelectionPlugin({
     return editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
+        const rootEl = editor.getRootElement();
+        if (rootEl && !rootEl.contains(document.activeElement)) {
+          // Editor is blurred — block-selection plugins manage visual state,
+          // so don't clobber their selection with an empty text-selection report.
+          return false;
+        }
+
         const selection = $getSelection();
         const newSelectedIds = new Set<string>();
 

@@ -95,6 +95,7 @@ export function KeyboardSelectionPlugin({
           anchorBlockId.current = null;
           onSelectionChange?.([]);
           onEscape?.();
+          _event.preventDefault();
           return true;
         }
 
@@ -117,7 +118,8 @@ export function KeyboardSelectionPlugin({
           // Apply block selection (CSS classes + overlay) while DOM is stable
           applyBlockSelection(blockIdToSelect);
           // Blur the editor so the custom caret hides and node-block--editing is removed
-          rootEl.blur();
+          editor.blur();
+          _event.preventDefault();
         }
 
         onEscape?.();
@@ -127,21 +129,63 @@ export function KeyboardSelectionPlugin({
     );
   }, [editor, readOnly, onEscape, onSelectionChange]);
 
-  // Document-level Escape handler for deselecting blocks.
-  // When blocks are selected the editor is blurred, so Lexical commands won't fire.
+  // Document-level Escape handler.
+  // Acts as a fallback when the Lexical command handler doesn't fire, and also
+  // handles clearing an existing block selection when the editor is blurred.
   useEffect(() => {
     if (readOnly) return;
 
     const handleGlobalEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // If the Lexical handler above already handled this Escape, do nothing.
+      if (event.defaultPrevented) return;
+
+      const rootEl = editor.getRootElement();
+      if (!rootEl) return;
+
+      const editorHasFocus = rootEl.contains(document.activeElement);
+
+      // ── Fallback: editor is focused but Lexical command didn't fire ──
+      if (editorHasFocus && selectedBlocks.current.size === 0) {
+        let blockIdToSelect: string | null = null;
+        editor.read(() => {
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            const anchorNode = selection.anchor.getNode();
+            const blockNode = findParentNodeBlock(anchorNode);
+            if (blockNode) {
+              blockIdToSelect = blockNode.getBlockId();
+            }
+          }
+        });
+
+        if (blockIdToSelect) {
+          window.getSelection()?.removeAllRanges();
+          applyBlockSelection(blockIdToSelect);
+          editor.blur();
+          event.preventDefault();
+        }
+
+        onEscape?.();
+        return;
+      }
+
+      // ── Editor focused with blocks selected: clear them ──
+      if (editorHasFocus && selectedBlocks.current.size > 0) {
+        clearBlockSelection(rootEl);
+        selectedBlocks.current.clear();
+        anchorBlockId.current = null;
+        onSelectionChange?.([]);
+        onEscape?.();
+        event.preventDefault();
+        return;
+      }
+
+      // ── Editor blurred with blocks selected: clear them ──
       if (selectedBlocks.current.size === 0) return;
 
-      // If the editor has focus, let the Lexical command handler above deal with it
-      const rootEl = editor.getRootElement();
-      if (rootEl && rootEl.contains(document.activeElement)) return;
-
       event.preventDefault();
-      if (rootEl) clearBlockSelection(rootEl);
+      clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
       onSelectionChange?.([]);
