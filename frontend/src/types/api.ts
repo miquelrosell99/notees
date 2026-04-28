@@ -47,7 +47,7 @@ export interface Node {
   // Computed fields
   display_name?: string | null;
   tags?: number[];  // Tag node IDs (descriptive linking with #)
-  classes?: number[]; // Class node IDs (categorization with @)
+  classes?: number[]; // Class node IDs (categorization with +)
   properties?: Record<number, unknown>;  // Property values keyed by property ID
   is_daily?: boolean; // Whether this is a daily note
   is_monthly?: boolean; // Whether this is a monthly note

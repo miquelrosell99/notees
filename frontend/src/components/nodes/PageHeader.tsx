@@ -63,7 +63,7 @@ export function PageHeader({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerPos, setIconPickerPos] = useState({ x: 0, y: 0 });
   
-  // @ class popup state
+  // + class popup state
   const [classPopupOpen, setClassPopupOpen] = useState(false);
   const [classQuery, setClassQuery] = useState('');
   const [classPopupPosition, setClassPopupPosition] = useState({ top: 0, left: 0 });
@@ -138,9 +138,9 @@ export function PageHeader({
   const handleInputChange = useCallback((newValue: string) => {
     setInputValue(newValue);
     
-    // Check for @ trigger (class popup)
-    // Match @ at start of string or after whitespace, with no whitespace in the query after it
-    const typingMatch = newValue.match(/(^|.*\s)@(\S*)$/);
+    // Check for + trigger (class popup)
+    // Match + at start of string or after whitespace, with no whitespace in the query after it
+    const typingMatch = newValue.match(/(^|.*\s)\+(\S*)$/);
     if (typingMatch && isNameEditable) {
       const query = typingMatch[2];
       // Position popup below the textarea
@@ -158,19 +158,19 @@ export function PageHeader({
     }
   }, [isNameEditable]);
 
-  // Handle class selection from @ popup
+  // Handle class selection from + popup
   const handleClassSelect = useCallback((classNode: Node) => {
     // Add class to this page
     addClass.mutate({ nodeId: page.id, classId: classNode.id });
-    // Remove the @query text from the title
-    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('@'));
+    // Remove the +query text from the title
+    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('+'));
     setInputValue(beforeAt.trimEnd());
     setClassPopupOpen(false);
     // Keep focus on textarea
     titleRef.current?.focus();
   }, [page.id, addClass, inputValue]);
 
-  // Handle creating a new class from @ popup
+  // Handle creating a new class from + popup
   const handleClassCreate = useCallback((name: string) => {
     if (!classClassId || !pageClassId) return;
     createNode.mutate({ name, classes: [classClassId, pageClassId] }, {
@@ -179,8 +179,8 @@ export function PageHeader({
         addClass.mutate({ nodeId: page.id, classId: newClass.id });
       }
     });
-    // Remove the @query text from the title
-    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('@'));
+    // Remove the +query text from the title
+    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('+'));
     setInputValue(beforeAt.trimEnd());
     setClassPopupOpen(false);
     titleRef.current?.focus();
@@ -188,8 +188,8 @@ export function PageHeader({
 
   // Close class popup
   const handleClassPopupClose = useCallback(() => {
-    // Remove the @ text from the title when closing
-    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('@'));
+    // Remove the + text from the title when closing
+    const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('+'));
     setInputValue(beforeAt.trimEnd() || inputValue);
     setClassPopupOpen(false);
   }, [inputValue]);
@@ -198,8 +198,8 @@ export function PageHeader({
     // Close class popup if open
     setClassPopupOpen(false);
     
-    // Strip any trailing @query text (user blurred while typing a class trigger)
-    const cleanName = newName.replace(/(^|\s)@\S*$/, '').trimEnd() || newName;
+    // Strip any trailing +query text (user blurred while typing a class trigger)
+    const cleanName = newName.replace(/(^|\s)\+\S*$/, '').trimEnd() || newName;
     
     // Disable hierarchical creation for date pages (daily, monthly, yearly)
     const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
