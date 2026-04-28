@@ -4,7 +4,7 @@
  * Shared search/filter logic for node selection components.
  * Used by:
  * - NodePicker (property value selection)
- * - SuggestionPopup (inline @/# /+ triggers)
+ * - SuggestionPopup (inline @/+ /# triggers)
  * 
  * Features:
  * - Query-based search using useSearch API
@@ -70,7 +70,7 @@ export interface UseNodeSearchReturn {
  * const { pageResults, blockResults } = useNodeSearch(query);
  * 
  * @example
- * // Class selection (for @ trigger)
+ * // Class selection (for + trigger)
  * const { pageResults } = useNodeSearch(query, { mode: 'classes' });
  * 
  * @example
@@ -135,7 +135,7 @@ export function useNodeSearch(
     const parsed = parseHierarchicalPath(debouncedQuery);
     const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
     
-    // Classes mode - special handling for @ trigger
+    // Classes mode - special handling for + trigger
     if (mode === 'classes') {
       let results = searchQuery.length > 0
         ? (classSearchResults ?? [])

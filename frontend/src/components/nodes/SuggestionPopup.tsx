@@ -2,11 +2,11 @@
  * SuggestionPopup - Floating popup for various triggers
  * 
  * Shows matching nodes when user types trigger characters in the editor.
- * - @ triggers class selection (nodes that are classes)
+ * - + triggers class selection (nodes that are classes)
  * - # triggers tag selection (any page)
  * - [[ triggers link selection (pages first, then blocks)
  * 
- * Keyboard shortcuts for @ class:
+ * Keyboard shortcuts for + class:
  * - Enter: Add to class_ids only (pill displayed below block)
  * - Ctrl+Enter: Add to class_ids AND show inline (inline pill in content)
  *   Note: System hides the below-block pill when class is also inline
@@ -246,7 +246,7 @@ export function SuggestionPopup({
       case 'Enter':
         e.preventDefault();
         e.stopPropagation();
-        // For @ class: Ctrl+Enter adds inline pill too, plain Enter just adds to class_ids
+        // For + class: Ctrl+Enter adds inline pill too, plain Enter just adds to class_ids
         // For # tag and [[ link: always insert inline
         const addInline = e.ctrlKey;
         
@@ -449,12 +449,12 @@ export function SuggestionPopup({
           </>
         ) : type === 'type' ? (
           <>
-            <span className="suggestion-popup__icon">@</span>
+            <span className="suggestion-popup__icon">+</span>
             <span>Add class</span>
           </>
         ) : type === 'class' ? (
           <>
-            <span className="suggestion-popup__icon">@</span>
+            <span className="suggestion-popup__icon">+</span>
             <span>Select class</span>
           </>
         ) : type === 'tag' ? (

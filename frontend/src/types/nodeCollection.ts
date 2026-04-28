@@ -95,7 +95,7 @@ export interface NodeCollectionProps {
   /** Called when node content changes (only in edit mode) */
   onContentChange?: (nodeId: number, content: string) => void;
   
-  /** Called when a class is added to a node via @ menu (plain Enter) */
+  /** Called when a class is added to a node via + menu (plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
   
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment) */
@@ -274,7 +274,7 @@ export interface NodeCollectionViewBaseProps {
   /** Content change handler */
   onContentChange?: (nodeId: number, content: string) => void;
   
-  /** Add class handler (called when @ menu adds class via plain Enter) */
+  /** Add class handler (called when + menu adds class via plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
   
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */

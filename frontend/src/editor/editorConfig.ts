@@ -32,7 +32,7 @@
  *   AutoWrapPlugin      — wraps orphaned content into a BlockNode
  *   TaskCyclePlugin     — cycles task status on BlockNode
  *   PasteBlocksPlugin   — creates block hierarchy on paste
- *   TriggerPlugin       — /@ # triggers; needs block ID for positioning popups
+ *   TriggerPlugin       — /@ + # triggers; needs block ID for positioning popups
  *   CreateLinkPlugin    — depends on NodeLinkPlugin (inserts an InlineLinkNode)
  *   CustomCaretPlugin   — depends on EditablePlugin (caret override only when editable)
  *
