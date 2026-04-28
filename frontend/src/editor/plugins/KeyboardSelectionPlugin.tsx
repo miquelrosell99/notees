@@ -21,6 +21,7 @@ import {
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
   COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_CRITICAL,
 } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { selectBlockWithChildren, clearBlockSelection, findParentNodeBlock } from '../utils/selectionUtils';
@@ -119,6 +120,10 @@ export function KeyboardSelectionPlugin({
           applyBlockSelection(blockIdToSelect);
           // Blur the editor so the custom caret hides and node-block--editing is removed
           editor.blur();
+          const activeEl = document.activeElement;
+          if (activeEl && rootEl.contains(activeEl) && activeEl !== rootEl) {
+            (activeEl as HTMLElement).blur();
+          }
           _event.preventDefault();
         }
 
@@ -520,6 +525,197 @@ export function KeyboardSelectionPlugin({
     return () => document.removeEventListener('keydown', handleDeleteKey);
   }, [editor, readOnly, onSelectionChange]);
 
+  // ─── Document-level keyboard handlers (for when editor is blurred) ─
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const rootEl = editor.getRootElement();
+    if (!rootEl) return;
+
+    // Shift+ArrowUp: extend/reduce block selection upward
+    const handleShiftArrowUp = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowUp' || !event.shiftKey) return;
+      if (event.defaultPrevented) return;
+      if (selectedBlocks.current.size === 0) return;
+      if (rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+
+      const runtime = getNodeGraphRuntime();
+      const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
+      if (!anchorBlock) return;
+
+      const siblings = runtime.getSiblings(anchorBlock.blockId);
+      const siblingIds = siblings.map(s => s.blockId);
+      if (siblingIds.length === 0) return;
+
+      const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
+      if (anchorIndex === -1) return;
+
+      const selectedSiblingIds = siblingIds.filter(id => selectedBlocks.current.has(id));
+      if (selectedSiblingIds.length === 0) return;
+
+      const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
+      const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
+
+      let newSelection: string[] = [];
+
+      if (lastSelectedIndex > anchorIndex) {
+        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
+      } else if (firstSelectedIndex === anchorIndex && firstSelectedIndex > 0) {
+        newSelection = siblingIds.slice(firstSelectedIndex - 1, lastSelectedIndex + 1);
+      } else if (firstSelectedIndex < anchorIndex) {
+        newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
+      } else if (firstSelectedIndex === 0 && anchorIndex === 0 && anchorBlock.parentId) {
+        const parentBlock = runtime.getNode(anchorBlock.parentId);
+        if (parentBlock) {
+          clearBlockSelection(rootEl);
+          selectedBlocks.current.clear();
+          selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
+          anchorBlockId.current = parentBlock.blockId;
+          onSelectionChange?.([...selectedBlocks.current]);
+          return;
+        }
+      }
+
+      if (newSelection.length > 0) {
+        clearBlockSelection(rootEl);
+        selectedBlocks.current.clear();
+        for (const blockId of newSelection) {
+          selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
+        }
+        onSelectionChange?.([...selectedBlocks.current]);
+      }
+    };
+
+    // Shift+ArrowDown: extend/reduce block selection downward
+    const handleShiftArrowDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowDown' || !event.shiftKey) return;
+      if (event.defaultPrevented) return;
+      if (selectedBlocks.current.size === 0) return;
+      if (rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+
+      const runtime = getNodeGraphRuntime();
+      const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
+      if (!anchorBlock) return;
+
+      const siblings = runtime.getSiblings(anchorBlock.blockId);
+      const siblingIds = siblings.map(s => s.blockId);
+      if (siblingIds.length === 0) return;
+
+      const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
+      if (anchorIndex === -1) return;
+
+      const selectedSiblingIds = siblingIds.filter(id => selectedBlocks.current.has(id));
+      if (selectedSiblingIds.length === 0) return;
+
+      const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
+      const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
+
+      let newSelection: string[] = [];
+
+      if (firstSelectedIndex < anchorIndex) {
+        newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
+      } else if (lastSelectedIndex === anchorIndex && lastSelectedIndex < siblingIds.length - 1) {
+        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex + 2);
+      } else if (lastSelectedIndex > anchorIndex) {
+        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
+      } else if (lastSelectedIndex === siblingIds.length - 1 && anchorIndex === lastSelectedIndex && anchorBlock.parentId) {
+        const parentBlock = runtime.getNode(anchorBlock.parentId);
+        if (parentBlock) {
+          clearBlockSelection(rootEl);
+          selectedBlocks.current.clear();
+          selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
+          anchorBlockId.current = parentBlock.blockId;
+          onSelectionChange?.([...selectedBlocks.current]);
+          return;
+        }
+      }
+
+      if (newSelection.length > 0) {
+        clearBlockSelection(rootEl);
+        selectedBlocks.current.clear();
+        for (const blockId of newSelection) {
+          selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
+        }
+        onSelectionChange?.([...selectedBlocks.current]);
+      }
+    };
+
+    // ArrowLeft: re-enter edit mode at start of anchor block
+    const handleArrowLeft = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' || event.shiftKey) return;
+      if (event.defaultPrevented) return;
+      if (selectedBlocks.current.size === 0) return;
+      if (rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+
+      const blockIdToFocus = anchorBlockId.current || [...selectedBlocks.current][0];
+
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+
+      editor.focus(() => {
+        const blockNode = $getRoot().getChildren().find(
+          node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
+        );
+        if (blockNode && $isElementNode(blockNode)) {
+          const firstChild = blockNode.getFirstDescendant();
+          if (firstChild) {
+            firstChild.selectStart();
+          }
+        }
+      });
+    };
+
+    // ArrowRight: re-enter edit mode at end of anchor block
+    const handleArrowRight = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowRight' || event.shiftKey) return;
+      if (event.defaultPrevented) return;
+      if (selectedBlocks.current.size === 0) return;
+      if (rootEl.contains(document.activeElement)) return;
+
+      event.preventDefault();
+
+      const blockIdToFocus = anchorBlockId.current || [...selectedBlocks.current][0];
+
+      clearBlockSelection(rootEl);
+      selectedBlocks.current.clear();
+      anchorBlockId.current = null;
+      onSelectionChange?.([]);
+
+      editor.focus(() => {
+        const blockNode = $getRoot().getChildren().find(
+          node => $isBlockNode(node) && node.getBlockId() === blockIdToFocus
+        );
+        if (blockNode && $isElementNode(blockNode)) {
+          const lastChild = blockNode.getLastDescendant();
+          if (lastChild) {
+            lastChild.selectEnd();
+          }
+        }
+      });
+    };
+
+    document.addEventListener('keydown', handleShiftArrowUp);
+    document.addEventListener('keydown', handleShiftArrowDown);
+    document.addEventListener('keydown', handleArrowLeft);
+    document.addEventListener('keydown', handleArrowRight);
+
+    return () => {
+      document.removeEventListener('keydown', handleShiftArrowUp);
+      document.removeEventListener('keydown', handleShiftArrowDown);
+      document.removeEventListener('keydown', handleArrowLeft);
+      document.removeEventListener('keydown', handleArrowRight);
+    };
+  }, [editor, readOnly, onSelectionChange]);
+
   // ─── Alt+Shift+Up/Down: Move selected blocks ────────────────────
 
   useEffect(() => {
@@ -607,8 +803,8 @@ export function KeyboardSelectionPlugin({
       return true;
     };
 
-    const unsubUp = editor.registerCommand(KEY_ARROW_UP_COMMAND, handleMoveUp, COMMAND_PRIORITY_HIGH);
-    const unsubDown = editor.registerCommand(KEY_ARROW_DOWN_COMMAND, handleMoveDown, COMMAND_PRIORITY_HIGH);
+    const unsubUp = editor.registerCommand(KEY_ARROW_UP_COMMAND, handleMoveUp, COMMAND_PRIORITY_CRITICAL);
+    const unsubDown = editor.registerCommand(KEY_ARROW_DOWN_COMMAND, handleMoveDown, COMMAND_PRIORITY_CRITICAL);
 
     return () => {
       unsubUp();
