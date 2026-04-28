@@ -2,7 +2,7 @@
  * TriggerSuggestionPopup — Wrapper around SuggestionPopup for editor triggers.
  *
  * Provides onCreate for creating new pages, classes, or tags
- * directly from the + / @ / # trigger menus.
+ * directly from the @ / + / # trigger menus.
  */
 
 import { useCallback, useMemo, type JSX } from 'react';
@@ -31,9 +31,9 @@ export interface TriggerSuggestionPopupProps {
   footerHintText?: string;
   /** Hide the "create new" option */
   hideCreate?: boolean;
-  /** True when the user is actively typing a @class query inside the link trigger */
+  /** True when the user is actively typing a +class query inside the link trigger */
   isTypingClass?: boolean;
-  /** The text typed after @ for class filtering */
+  /** The text typed after + for class filtering */
   classQuery?: string;
   /** Called when a class is selected from the class sub-picker */
   onClassSelect?: (node: Node) => void;
@@ -88,7 +88,7 @@ export function TriggerSuggestionPopup({
     });
   }, [createNode, pageClassId, classClassId, triggerType, onSelect]);
 
-  // When typing @class inside link trigger: show class picker instead of link picker
+  // When typing +class inside link trigger: show class picker instead of link picker
   const handleClassCreate = useCallback((name: string) => {
     if (!pageClassId || !classClassId) return;
     createNode.mutate({ name, classes: [pageClassId, classClassId] }, {

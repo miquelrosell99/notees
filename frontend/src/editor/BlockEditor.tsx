@@ -112,7 +112,7 @@ export interface BlockEditorProps {
 
   /** Called when any block's content changes (for API persistence) */
   onContentChange?: (blockId: string, content: string) => void;
-  /** Called when a class should be added to a block via @ menu (plain Enter) */
+  /** Called when a class should be added to a block via + menu (plain Enter) */
   onAddClass?: (blockId: number, classId: number) => void;
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;

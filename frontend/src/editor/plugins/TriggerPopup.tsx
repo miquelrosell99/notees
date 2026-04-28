@@ -2,8 +2,8 @@
  * TriggerPopup — Popup UI for editor triggers.
  *
  * Renders the appropriate popup based on trigger type:
- * - +   → Link search (TriggerSuggestionPopup)
- * - @   → Type/class search (TriggerSuggestionPopup)
+ * - @   → Link search (TriggerSuggestionPopup)
+ * - +   → Type/class search (TriggerSuggestionPopup)
  * - #   → Tag search (TriggerSuggestionPopup)
  * - /   → Slash commands (SlashCommandMenu)
  */

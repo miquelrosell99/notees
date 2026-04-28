@@ -46,7 +46,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'type',
     label: 'Add Class',
-    description: 'Add a class to this block @',
+    description: 'Add a class to this block +',
     icon: <BulletIcon size="sm" />,
   },
   {

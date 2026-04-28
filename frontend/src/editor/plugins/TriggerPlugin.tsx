@@ -1,5 +1,5 @@
 /**
- * TriggerPlugin — Detects trigger patterns (/, +, @, #) and shows popups.
+ * TriggerPlugin — Detects trigger patterns (/, @, +, #) and shows popups.
  *
  * Monitors text input for trigger characters and displays the appropriate
  * popup menu for inserting links, types, tags, or slash commands.
@@ -165,7 +165,7 @@ export function TriggerPlugin({
             return;
           }
 
-          const triggerChar = trigger.type === 'link' ? '+' : trigger.type === 'type' ? '@' : '#';
+          const triggerChar = trigger.type === 'link' ? '@' : trigger.type === 'type' ? '+' : '#';
           if (cleanOffset <= trigger.triggerOffset || cleanText[trigger.triggerOffset] !== triggerChar) {
             // Trigger char was deleted or cursor moved before it — close popup
             setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -247,7 +247,7 @@ export function TriggerPlugin({
       let cursorClean: number;
       if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
         const triggerChar =
-          trigger.type === 'link' ? '+' : trigger.type === 'type' ? '@' : '#';
+          trigger.type === 'link' ? '@' : trigger.type === 'type' ? '+' : '#';
 
         const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): node is import('lexical').TextNode => {
           if (!node || !$isTextNode(node)) return false;
@@ -369,7 +369,7 @@ export function TriggerPlugin({
           // Don't close trigger normally — we're reopening it
           return;
         } else if (value === 'type') {
-          const newText = beforeTrigger + '@' + afterCursor;
+          const newText = beforeTrigger + '+' + afterCursor;
           (anchorNode as any).setTextContent(newText || '\u200B');
           const newOffset = beforeTrigger.length + 1;
           selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
@@ -425,7 +425,7 @@ export function TriggerPlugin({
     const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
 
     const handleSuggestionSelect = (node: Node, addInline: boolean) => {
-      // For @ type trigger: ALWAYS add to class_ids
+      // For + type trigger: ALWAYS add to class_ids
       if (trigger.type === 'type' && onAddClass) {
         let blockServerId: number | undefined;
         
@@ -492,7 +492,7 @@ export function TriggerPlugin({
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
       } else if (trigger.type === 'type') {
-        // @ class trigger but onAddClass not provided — remove trigger text without inserting inline
+        // + class trigger but onAddClass not provided — remove trigger text without inserting inline
         editor.update(() => {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return;
@@ -511,7 +511,7 @@ export function TriggerPlugin({
         });
         setTrigger(prev => ({ ...prev, isOpen: false }));
       } else {
-        // For # tag and + link triggers
+        // For # tag and @ link triggers
         if (trigger.templateMode) {
           // Template mode: remove the search text typed during template search,
           // then instantiate the selected template
@@ -547,7 +547,7 @@ export function TriggerPlugin({
       }
     };
 
-    // Alt+Enter: insert as embed sibling (for regular + link trigger)
+    // Alt+Enter: insert as embed sibling (for regular @ link trigger)
     const handleSelectEmbed = (node: Node) => {
       // Remove the + trigger text first (doesn't apply in embedMode — already cleaned)
       if (!trigger.embedMode) {
@@ -572,14 +572,14 @@ export function TriggerPlugin({
       handleSelect(pageId, { type: 'date' });
     };
 
-    // Parse @class syntax from link trigger query
+    // Parse +class syntax from link trigger query
     const parsedLinkQuery = trigger.type === 'link' ? parseLinkQueryWithClass(trigger.query) : null;
     const linkQuery = parsedLinkQuery?.linkQuery ?? trigger.query;
     const isTypingClass = parsedLinkQuery?.isTypingClass ?? false;
     const classQuery = parsedLinkQuery?.classQuery ?? '';
 
     const handleClassSelect = (classNode: Node) => {
-      // Remove the @classQuery from editor text
+      // Remove the +classQuery from editor text
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
@@ -589,7 +589,7 @@ export function TriggerPlugin({
         const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
         const cursorClean = selection.anchor.offset - zwsBefore;
         const afterTriggerChar = text.slice(trigger.triggerOffset + 1);
-        const atIdx = afterTriggerChar.indexOf('@');
+        const atIdx = afterTriggerChar.indexOf('+');
         if (atIdx === -1) return;
         const keepBefore = text.slice(0, trigger.triggerOffset + 1 + atIdx);
         const afterCursor = text.slice(cursorClean);
@@ -646,16 +646,16 @@ interface TriggerMatch {
 }
 
 function parseLinkQueryWithClass(query: string): { linkQuery: string; isTypingClass: boolean; classQuery: string } {
-  const atMatch = query.match(/^(.*?)@(\S*)$/);
-  if (atMatch) {
-    return { linkQuery: atMatch[1], isTypingClass: true, classQuery: atMatch[2] };
+  const classMatch = query.match(/^(.*?)\+(\S*)$/);
+  if (classMatch) {
+    return { linkQuery: classMatch[1], isTypingClass: true, classQuery: classMatch[2] };
   }
   return { linkQuery: query, isTypingClass: false, classQuery: '' };
 }
 
 function detectTriggerPattern(text: string): TriggerMatch | null {
-  // + link trigger (not preceded by word char)
-  const linkMatch = text.match(/(?:^|[^a-zA-Z0-9])\+([^+\s]*)$/);
+  // @ link trigger (not preceded by word char)
+  const linkMatch = text.match(/(?:^|[^a-zA-Z0-9])@([^@\s]*)$/);
   if (linkMatch) {
     return {
       type: 'link',
@@ -664,8 +664,8 @@ function detectTriggerPattern(text: string): TriggerMatch | null {
     };
   }
 
-  // @ type trigger (not preceded by word char)
-  const typeMatch = text.match(/(?:^|[^a-zA-Z0-9])@([^@\s]*)$/);
+  // + type trigger (not preceded by word char)
+  const typeMatch = text.match(/(?:^|[^a-zA-Z0-9])\+([^+\s]*)$/);
   if (typeMatch) {
     return {
       type: 'type',
