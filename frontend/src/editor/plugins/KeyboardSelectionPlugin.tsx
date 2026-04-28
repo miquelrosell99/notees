@@ -44,6 +44,7 @@ export function KeyboardSelectionPlugin({
   
   const selectedBlocks = useRef<Set<string>>(new Set());
   const anchorBlockId = useRef<string | null>(null);
+  const focusBlockId = useRef<string | null>(null);
 
   // ─── Helper: apply block selection after clearing text selection ─
   const applyBlockSelection = (blockId: string) => {
@@ -53,7 +54,84 @@ export function KeyboardSelectionPlugin({
     selectedBlocks.current.clear();
     selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
     anchorBlockId.current = blockId;
+    focusBlockId.current = blockId;
     onSelectionChange?.([...selectedBlocks.current]);
+  };
+
+  // ─── Helpers: document-order selection ───────────────────────────
+
+  const getAllBlockIdsInDocumentOrder = (rootEl: HTMLElement): string[] => {
+    return Array.from(rootEl.querySelectorAll('.node-block[data-block-id]'))
+      .map(el => el.getAttribute('data-block-id'))
+      .filter((id): id is string => id !== null);
+  };
+
+  const applyDocumentOrderSelection = (
+    rootEl: HTMLElement,
+    anchorId: string,
+    focusId: string,
+  ): void => {
+    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
+    const anchorIndex = allBlockIds.indexOf(anchorId);
+    const focusIndex = allBlockIds.indexOf(focusId);
+
+    if (anchorIndex === -1 || focusIndex === -1) return;
+
+    const start = Math.min(anchorIndex, focusIndex);
+    const end = Math.max(anchorIndex, focusIndex);
+
+    clearBlockSelection(rootEl);
+    selectedBlocks.current.clear();
+
+    for (let i = start; i <= end; i++) {
+      selectBlockWithChildren(rootEl, allBlockIds[i], selectedBlocks.current);
+    }
+
+    onSelectionChange?.([...selectedBlocks.current]);
+  };
+
+  const moveFocusDown = (rootEl: HTMLElement): boolean => {
+    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
+    const anchorId = anchorBlockId.current;
+    const focusId = focusBlockId.current || anchorId;
+    if (!anchorId || !focusId) return false;
+
+    const anchorIndex = allBlockIds.indexOf(anchorId);
+    const focusIndex = allBlockIds.indexOf(focusId);
+    if (focusIndex === -1 || focusIndex >= allBlockIds.length - 1) return false;
+
+    const newFocusId = allBlockIds[focusIndex + 1];
+
+    // Lock: when extending downward (focus at or below anchor), don't cross
+    // out of the current subtree to a higher-level block
+    if (focusIndex >= anchorIndex) {
+      const anchorEl = rootEl.querySelector(`.node-block[data-block-id="${anchorId}"]`) as HTMLElement | null;
+      const nextEl = rootEl.querySelector(`.node-block[data-block-id="${newFocusId}"]`) as HTMLElement | null;
+      if (anchorEl && nextEl) {
+        const anchorDepth = parseInt(anchorEl.getAttribute('data-depth') || '0', 10);
+        const nextDepth = parseInt(nextEl.getAttribute('data-depth') || '0', 10);
+        if (nextDepth < anchorDepth) return false;
+      }
+    }
+
+    applyDocumentOrderSelection(rootEl, anchorId, newFocusId);
+    focusBlockId.current = newFocusId;
+    return true;
+  };
+
+  const moveFocusUp = (rootEl: HTMLElement): boolean => {
+    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
+    const anchorId = anchorBlockId.current;
+    const focusId = focusBlockId.current || anchorId;
+    if (!anchorId || !focusId) return false;
+
+    const focusIndex = allBlockIds.indexOf(focusId);
+    if (focusIndex <= 0) return false;
+
+    const newFocusId = allBlockIds[focusIndex - 1];
+    applyDocumentOrderSelection(rootEl, anchorId, newFocusId);
+    focusBlockId.current = newFocusId;
+    return true;
   };
 
   // ─── Clear block selection state when editor regains focus (user clicked back in) ─
@@ -68,6 +146,7 @@ export function KeyboardSelectionPlugin({
         clearBlockSelection(rootEl);
         selectedBlocks.current.clear();
         anchorBlockId.current = null;
+        focusBlockId.current = null;
         onSelectionChange?.([]);
       }
     };
@@ -201,7 +280,7 @@ export function KeyboardSelectionPlugin({
     return () => document.removeEventListener('keydown', handleGlobalEscape);
   }, [editor, readOnly, onSelectionChange, onEscape]);
 
-  // ─── Shift+Arrow Up: Extend/reduce block selection upward ────────
+  // ─── Shift+Arrow Up: Move focus boundary upward ──────────────────
 
   useEffect(() => {
     if (readOnly) return;
@@ -209,16 +288,14 @@ export function KeyboardSelectionPlugin({
     return editor.registerCommand(
       KEY_ARROW_UP_COMMAND,
       (event: KeyboardEvent) => {
-        // Only handle shift+arrow
         if (!event.shiftKey) return false;
 
         const rootEl = editor.getRootElement();
         if (!rootEl) return false;
 
-        // If no blocks selected yet, select current block
+        // If no blocks selected yet, start selection from current block
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
-          
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
@@ -227,73 +304,14 @@ export function KeyboardSelectionPlugin({
               blockIdToSelect = blockNode.getBlockId();
             }
           }
-          
           if (blockIdToSelect) {
             editor.update(() => { $setSelection(null); });
             window.getSelection()?.removeAllRanges();
             queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
-          // Extend/shrink existing selection - only navigate among siblings
-          const runtime = getNodeGraphRuntime();
-          const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
-          
-          if (!anchorBlock) return false;
-          
-          // Get siblings at the same parent level
-          const siblings = runtime.getSiblings(anchorBlock.blockId);
-          const siblingIds = siblings.map(s => s.blockId);
-          
-          if (siblingIds.length === 0) return false;
-          
-          // Find anchor position in sibling list
-          const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
-          if (anchorIndex === -1) return false;
-          
-          // Determine current selection range within siblings
-          const selectedSiblingIds = siblingIds.filter(id => 
-            selectedBlocks.current.has(id)
-          );
-          
-          if (selectedSiblingIds.length === 0) return false;
-          
-          const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
-          const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
-          
-          let newSelection: string[] = [];
-          
-          // Shift+Up: Prioritize shrinking toward anchor, then extending
-          if (lastSelectedIndex > anchorIndex) {
-            // Selection extends below anchor, shrink from bottom (move bottom toward anchor)
-            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
-          } else if (firstSelectedIndex === anchorIndex && firstSelectedIndex > 0) {
-            // At anchor and can extend upward
-            newSelection = siblingIds.slice(firstSelectedIndex - 1, lastSelectedIndex + 1);
-          } else if (firstSelectedIndex < anchorIndex) {
-            // Selection extends above anchor, shrink from top (move top toward anchor)
-            newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
-          } else if (firstSelectedIndex === 0 && anchorIndex === 0 && anchorBlock.parentId) {
-            // At first sibling - select parent block instead
-            const parentBlock = runtime.getNode(anchorBlock.parentId);
-            if (parentBlock) {
-              clearBlockSelection(rootEl);
-              selectedBlocks.current.clear();
-              selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
-              anchorBlockId.current = parentBlock.blockId;
-              onSelectionChange?.([...selectedBlocks.current]);
-              event.preventDefault();
-              return true;
-            }
-          }
-          
-          if (newSelection.length > 0) {
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            for (const blockId of newSelection) {
-              selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-            }
-            onSelectionChange?.([...selectedBlocks.current]);
-          }
+          // Editor still focused but blocks selected — extend via document order
+          moveFocusUp(rootEl);
         }
 
         event.preventDefault();
@@ -303,7 +321,7 @@ export function KeyboardSelectionPlugin({
     );
   }, [editor, readOnly, onSelectionChange]);
 
-  // ─── Shift+Arrow Down: Extend/reduce block selection downward ────
+  // ─── Shift+Arrow Down: Move focus boundary downward ──────────────
 
   useEffect(() => {
     if (readOnly) return;
@@ -311,16 +329,14 @@ export function KeyboardSelectionPlugin({
     return editor.registerCommand(
       KEY_ARROW_DOWN_COMMAND,
       (event: KeyboardEvent) => {
-        // Only handle shift+arrow
         if (!event.shiftKey) return false;
 
         const rootEl = editor.getRootElement();
         if (!rootEl) return false;
 
-        // If no blocks selected yet, select current block
+        // If no blocks selected yet, start selection from current block
         if (selectedBlocks.current.size === 0) {
           let blockIdToSelect: string | null = null;
-          
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
             const anchorNode = selection.anchor.getNode();
@@ -329,73 +345,14 @@ export function KeyboardSelectionPlugin({
               blockIdToSelect = blockNode.getBlockId();
             }
           }
-          
           if (blockIdToSelect) {
             editor.update(() => { $setSelection(null); });
             window.getSelection()?.removeAllRanges();
             queueMicrotask(() => applyBlockSelection(blockIdToSelect!));
           }
         } else {
-          // Extend/shrink existing selection - only navigate among siblings
-          const runtime = getNodeGraphRuntime();
-          const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
-          
-          if (!anchorBlock) return false;
-          
-          // Get siblings at the same parent level
-          const siblings = runtime.getSiblings(anchorBlock.blockId);
-          const siblingIds = siblings.map(s => s.blockId);
-          
-          if (siblingIds.length === 0) return false;
-          
-          // Find anchor position in sibling list
-          const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
-          if (anchorIndex === -1) return false;
-          
-          // Determine current selection range within siblings
-          const selectedSiblingIds = siblingIds.filter(id => 
-            selectedBlocks.current.has(id)
-          );
-          
-          if (selectedSiblingIds.length === 0) return false;
-          
-          const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
-          const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
-          
-          let newSelection: string[] = [];
-          
-          // Shift+Down: Prioritize shrinking toward anchor, then extending
-          if (firstSelectedIndex < anchorIndex) {
-            // Selection extends above anchor, shrink from top (move top toward anchor)
-            newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
-          } else if (lastSelectedIndex === anchorIndex && lastSelectedIndex < siblingIds.length - 1) {
-            // At anchor and can extend downward
-            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex + 2);
-          } else if (lastSelectedIndex > anchorIndex) {
-            // Selection extends below anchor, shrink from bottom (move bottom toward anchor)
-            newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
-          } else if (lastSelectedIndex === siblingIds.length - 1 && anchorIndex === lastSelectedIndex && anchorBlock.parentId) {
-            // At last sibling - select parent block instead
-            const parentBlock = runtime.getNode(anchorBlock.parentId);
-            if (parentBlock) {
-              clearBlockSelection(rootEl);
-              selectedBlocks.current.clear();
-              selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
-              anchorBlockId.current = parentBlock.blockId;
-              onSelectionChange?.([...selectedBlocks.current]);
-              event.preventDefault();
-              return true;
-            }
-          }
-          
-          if (newSelection.length > 0) {
-            clearBlockSelection(rootEl);
-            selectedBlocks.current.clear();
-            for (const blockId of newSelection) {
-              selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-            }
-            onSelectionChange?.([...selectedBlocks.current]);
-          }
+          // Editor still focused but blocks selected — extend via document order
+          moveFocusDown(rootEl);
         }
 
         event.preventDefault();
@@ -424,6 +381,7 @@ export function KeyboardSelectionPlugin({
       clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
+      focusBlockId.current = null;
       onSelectionChange?.([]);
 
       // Focus at start of anchor block
@@ -458,6 +416,7 @@ export function KeyboardSelectionPlugin({
       clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
+      focusBlockId.current = null;
       onSelectionChange?.([]);
 
       // Focus at end of anchor block
@@ -510,6 +469,7 @@ export function KeyboardSelectionPlugin({
       if (rootEl) clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
+      focusBlockId.current = null;
       onSelectionChange?.([]);
 
       // Batch-delete all selected blocks via the runtime
@@ -533,7 +493,7 @@ export function KeyboardSelectionPlugin({
     const rootEl = editor.getRootElement();
     if (!rootEl) return;
 
-    // Shift+ArrowUp: extend/reduce block selection upward
+    // Shift+ArrowUp: move focus boundary upward
     const handleShiftArrowUp = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowUp' || !event.shiftKey) return;
       if (event.defaultPrevented) return;
@@ -541,55 +501,10 @@ export function KeyboardSelectionPlugin({
       if (rootEl.contains(document.activeElement)) return;
 
       event.preventDefault();
-
-      const runtime = getNodeGraphRuntime();
-      const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
-      if (!anchorBlock) return;
-
-      const siblings = runtime.getSiblings(anchorBlock.blockId);
-      const siblingIds = siblings.map(s => s.blockId);
-      if (siblingIds.length === 0) return;
-
-      const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
-      if (anchorIndex === -1) return;
-
-      const selectedSiblingIds = siblingIds.filter(id => selectedBlocks.current.has(id));
-      if (selectedSiblingIds.length === 0) return;
-
-      const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
-      const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
-
-      let newSelection: string[] = [];
-
-      if (lastSelectedIndex > anchorIndex) {
-        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
-      } else if (firstSelectedIndex === anchorIndex && firstSelectedIndex > 0) {
-        newSelection = siblingIds.slice(firstSelectedIndex - 1, lastSelectedIndex + 1);
-      } else if (firstSelectedIndex < anchorIndex) {
-        newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
-      } else if (firstSelectedIndex === 0 && anchorIndex === 0 && anchorBlock.parentId) {
-        const parentBlock = runtime.getNode(anchorBlock.parentId);
-        if (parentBlock) {
-          clearBlockSelection(rootEl);
-          selectedBlocks.current.clear();
-          selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
-          anchorBlockId.current = parentBlock.blockId;
-          onSelectionChange?.([...selectedBlocks.current]);
-          return;
-        }
-      }
-
-      if (newSelection.length > 0) {
-        clearBlockSelection(rootEl);
-        selectedBlocks.current.clear();
-        for (const blockId of newSelection) {
-          selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-        }
-        onSelectionChange?.([...selectedBlocks.current]);
-      }
+      moveFocusUp(rootEl);
     };
 
-    // Shift+ArrowDown: extend/reduce block selection downward
+    // Shift+ArrowDown: move focus boundary downward
     const handleShiftArrowDown = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowDown' || !event.shiftKey) return;
       if (event.defaultPrevented) return;
@@ -597,52 +512,7 @@ export function KeyboardSelectionPlugin({
       if (rootEl.contains(document.activeElement)) return;
 
       event.preventDefault();
-
-      const runtime = getNodeGraphRuntime();
-      const anchorBlock = anchorBlockId.current ? runtime.getNode(anchorBlockId.current) : null;
-      if (!anchorBlock) return;
-
-      const siblings = runtime.getSiblings(anchorBlock.blockId);
-      const siblingIds = siblings.map(s => s.blockId);
-      if (siblingIds.length === 0) return;
-
-      const anchorIndex = siblingIds.indexOf(anchorBlock.blockId);
-      if (anchorIndex === -1) return;
-
-      const selectedSiblingIds = siblingIds.filter(id => selectedBlocks.current.has(id));
-      if (selectedSiblingIds.length === 0) return;
-
-      const firstSelectedIndex = siblingIds.indexOf(selectedSiblingIds[0]);
-      const lastSelectedIndex = siblingIds.indexOf(selectedSiblingIds[selectedSiblingIds.length - 1]);
-
-      let newSelection: string[] = [];
-
-      if (firstSelectedIndex < anchorIndex) {
-        newSelection = siblingIds.slice(firstSelectedIndex + 1, lastSelectedIndex + 1);
-      } else if (lastSelectedIndex === anchorIndex && lastSelectedIndex < siblingIds.length - 1) {
-        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex + 2);
-      } else if (lastSelectedIndex > anchorIndex) {
-        newSelection = siblingIds.slice(firstSelectedIndex, lastSelectedIndex);
-      } else if (lastSelectedIndex === siblingIds.length - 1 && anchorIndex === lastSelectedIndex && anchorBlock.parentId) {
-        const parentBlock = runtime.getNode(anchorBlock.parentId);
-        if (parentBlock) {
-          clearBlockSelection(rootEl);
-          selectedBlocks.current.clear();
-          selectBlockWithChildren(rootEl, parentBlock.blockId, selectedBlocks.current);
-          anchorBlockId.current = parentBlock.blockId;
-          onSelectionChange?.([...selectedBlocks.current]);
-          return;
-        }
-      }
-
-      if (newSelection.length > 0) {
-        clearBlockSelection(rootEl);
-        selectedBlocks.current.clear();
-        for (const blockId of newSelection) {
-          selectBlockWithChildren(rootEl, blockId, selectedBlocks.current);
-        }
-        onSelectionChange?.([...selectedBlocks.current]);
-      }
+      moveFocusDown(rootEl);
     };
 
     // ArrowLeft: re-enter edit mode at start of anchor block
@@ -659,6 +529,7 @@ export function KeyboardSelectionPlugin({
       clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
+      focusBlockId.current = null;
       onSelectionChange?.([]);
 
       editor.focus(() => {
@@ -688,6 +559,7 @@ export function KeyboardSelectionPlugin({
       clearBlockSelection(rootEl);
       selectedBlocks.current.clear();
       anchorBlockId.current = null;
+      focusBlockId.current = null;
       onSelectionChange?.([]);
 
       editor.focus(() => {
