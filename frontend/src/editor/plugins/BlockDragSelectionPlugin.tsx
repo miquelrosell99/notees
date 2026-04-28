@@ -123,7 +123,11 @@ export function BlockDragSelectionPlugin({
             });
 
             // Blur editor so custom caret hides immediately
-            rootEl.blur();
+            editor.blur();
+            const activeEl = document.activeElement;
+            if (activeEl && rootEl.contains(activeEl) && activeEl !== rootEl) {
+              (activeEl as HTMLElement).blur();
+            }
 
             // Select the starting block with its children
             const startBlockId = dragStartBlock.current!.getAttribute('data-block-id');
@@ -168,7 +172,11 @@ export function BlockDragSelectionPlugin({
           justCompletedDrag.current = false;
         });
         // Blur editor so custom caret hides and editing state is removed
-        rootEl.blur();
+        editor.blur();
+        const activeEl = document.activeElement;
+        if (activeEl && rootEl.contains(activeEl) && activeEl !== rootEl) {
+          (activeEl as HTMLElement).blur();
+        }
       }
 
       isDragging.current = false;
