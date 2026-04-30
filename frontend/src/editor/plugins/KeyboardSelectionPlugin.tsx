@@ -58,22 +58,21 @@ export function KeyboardSelectionPlugin({
     onSelectionChange?.([...selectedBlocks.current]);
   };
 
-  // ─── Helpers: document-order selection ───────────────────────────
+  // ─── Helpers: sibling-level selection ────────────────────────────
 
-  const getAllBlockIdsInDocumentOrder = (rootEl: HTMLElement): string[] => {
-    return Array.from(rootEl.querySelectorAll('.node-block[data-block-id]'))
-      .map(el => el.getAttribute('data-block-id'))
-      .filter((id): id is string => id !== null);
+  const getSiblingIds = (blockId: string): string[] => {
+    const runtime = getNodeGraphRuntime();
+    return runtime.getSiblings(blockId).map(s => s.blockId);
   };
 
-  const applyDocumentOrderSelection = (
+  const applySiblingSelection = (
     rootEl: HTMLElement,
     anchorId: string,
     focusId: string,
   ): void => {
-    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
-    const anchorIndex = allBlockIds.indexOf(anchorId);
-    const focusIndex = allBlockIds.indexOf(focusId);
+    const siblingIds = getSiblingIds(anchorId);
+    const anchorIndex = siblingIds.indexOf(anchorId);
+    const focusIndex = siblingIds.indexOf(focusId);
 
     if (anchorIndex === -1 || focusIndex === -1) return;
 
@@ -84,52 +83,38 @@ export function KeyboardSelectionPlugin({
     selectedBlocks.current.clear();
 
     for (let i = start; i <= end; i++) {
-      selectBlockWithChildren(rootEl, allBlockIds[i], selectedBlocks.current);
+      selectBlockWithChildren(rootEl, siblingIds[i], selectedBlocks.current);
     }
 
     onSelectionChange?.([...selectedBlocks.current]);
   };
 
   const moveFocusDown = (rootEl: HTMLElement): boolean => {
-    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
     const anchorId = anchorBlockId.current;
     const focusId = focusBlockId.current || anchorId;
     if (!anchorId || !focusId) return false;
 
-    const anchorIndex = allBlockIds.indexOf(anchorId);
-    const focusIndex = allBlockIds.indexOf(focusId);
-    if (focusIndex === -1 || focusIndex >= allBlockIds.length - 1) return false;
+    const siblingIds = getSiblingIds(anchorId);
+    const focusIndex = siblingIds.indexOf(focusId);
+    if (focusIndex === -1 || focusIndex >= siblingIds.length - 1) return false;
 
-    const newFocusId = allBlockIds[focusIndex + 1];
-
-    // Lock: when extending downward (focus at or below anchor), don't cross
-    // out of the current subtree to a higher-level block
-    if (focusIndex >= anchorIndex) {
-      const anchorEl = rootEl.querySelector(`.node-block[data-block-id="${anchorId}"]`) as HTMLElement | null;
-      const nextEl = rootEl.querySelector(`.node-block[data-block-id="${newFocusId}"]`) as HTMLElement | null;
-      if (anchorEl && nextEl) {
-        const anchorDepth = parseInt(anchorEl.getAttribute('data-depth') || '0', 10);
-        const nextDepth = parseInt(nextEl.getAttribute('data-depth') || '0', 10);
-        if (nextDepth < anchorDepth) return false;
-      }
-    }
-
-    applyDocumentOrderSelection(rootEl, anchorId, newFocusId);
+    const newFocusId = siblingIds[focusIndex + 1];
+    applySiblingSelection(rootEl, anchorId, newFocusId);
     focusBlockId.current = newFocusId;
     return true;
   };
 
   const moveFocusUp = (rootEl: HTMLElement): boolean => {
-    const allBlockIds = getAllBlockIdsInDocumentOrder(rootEl);
     const anchorId = anchorBlockId.current;
     const focusId = focusBlockId.current || anchorId;
     if (!anchorId || !focusId) return false;
 
-    const focusIndex = allBlockIds.indexOf(focusId);
+    const siblingIds = getSiblingIds(anchorId);
+    const focusIndex = siblingIds.indexOf(focusId);
     if (focusIndex <= 0) return false;
 
-    const newFocusId = allBlockIds[focusIndex - 1];
-    applyDocumentOrderSelection(rootEl, anchorId, newFocusId);
+    const newFocusId = siblingIds[focusIndex - 1];
+    applySiblingSelection(rootEl, anchorId, newFocusId);
     focusBlockId.current = newFocusId;
     return true;
   };
