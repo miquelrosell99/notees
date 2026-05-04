@@ -30,7 +30,6 @@ export type NodeCollectionViewMode =
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'graph'     // Graph visualization
-  | 'terrain'   // Terrain contour visualization
   | 'timeline'; // Timeline with date-based circular nodes
 
 /**
@@ -157,10 +156,10 @@ export interface NodeCollectionProps {
   /** Whether to auto-collapse nodes at configured depth (default: false, enabled for linked refs and queries) */
   autoCollapse?: boolean;
   
-  /** Whether to wrap spatial views (graph, terrain) in a Card container (default: false) */
+  /** Whether to wrap spatial views (graph) in a Card container (default: false) */
   containerCard?: boolean;
 
-  /** Active/current node to include in graph/terrain views (e.g., the page being viewed) */
+  /** Active/current node to include in graph views (e.g., the page being viewed) */
   activeNode?: { id: number; uuid: string; name: string };
   
   /** Element to render between the header and content (e.g., property references section) */

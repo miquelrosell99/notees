@@ -7,7 +7,6 @@
  * - /                                    -> Redirect to active workspace home
  * - /{workspace_uuid}                    -> Workspace home
  * - /{workspace_uuid}/graph              -> Graph view
- * - /{workspace_uuid}/terrain            -> Terrain view
  * - /{workspace_uuid}/pages              -> All pages view
  * - /{workspace_uuid}/journal            -> Journals view
  * - /{workspace_uuid}/archived           -> Archived pages view
@@ -31,7 +30,6 @@ const log = getLogger('Router');
 // Special view routes
 export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   'graph': 'graph',
-  'terrain': 'terrain',
   'pages': 'all-pages',
   'journal': 'journals',
   'archived': 'archived',
@@ -54,7 +52,6 @@ export function isUuid(str: string): boolean {
 export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'node': '', // Node view uses /{uuid} format (empty string for home)
   'graph': 'graph',
-  'terrain': 'terrain',
   'all-pages': 'pages',
   'journals': 'journal',
   'timeline': 'timeline',

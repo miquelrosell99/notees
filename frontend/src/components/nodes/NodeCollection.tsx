@@ -35,7 +35,6 @@ import {
   mdiChartGantt, 
   mdiGraphOutline,
   mdiTimelineClockOutline,
-  mdiTerrain,
 } from '@mdi/js';
 import type { 
   NodeCollectionProps, 
@@ -52,7 +51,6 @@ import {
   TableView, 
   GanttView,
   GraphView,
-  TerrainView,
   TimelineView,
 } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
@@ -84,7 +82,6 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
   table: { icon: mdiTable, label: 'Table' },
   gantt: { icon: mdiChartGantt, label: 'Gantt' },
   graph: { icon: mdiGraphOutline, label: 'Graph' },
-  terrain: { icon: mdiTerrain, label: 'Terrain' },
   timeline: { icon: mdiTimelineClockOutline, label: 'Timeline' },
 };
 
@@ -499,42 +496,6 @@ export function NodeCollection({
           </ErrorBoundary>
         );
         return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{wrappedGraph}</Card> : wrappedGraph;
-      }
-      
-      case 'terrain': {
-        // Terrain mode - similar to graph but uses contour visualization
-        const terrainNodes = nodes
-          .filter(n => n.is_page)
-          .map(n => ({
-            id: n.id,
-            uuid: n.uuid || '',
-            name: n.name || 'Untitled',
-            type: 'page' as const,
-            tags: [],
-            class_ids: [],
-            properties: {},
-            is_daily: n.is_daily || false,
-          }));
-        // Include active node if provided and not already in the list
-        if (activeNode && !terrainNodes.some(n => n.id === activeNode.id)) {
-          terrainNodes.unshift({
-            id: activeNode.id,
-            uuid: activeNode.uuid,
-            name: activeNode.name || 'Untitled',
-            type: 'page' as const,
-            tags: [],
-            class_ids: [],
-            properties: {},
-            is_daily: false,
-          });
-        }
-        const terrainContent = <TerrainView nodes={terrainNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__terrain" />;
-        const wrappedTerrain = (
-          <ErrorBoundary context="Terrain View" showRetry>
-            {terrainContent}
-          </ErrorBoundary>
-        );
-        return containerCard ? <Card variant="default" padding paddingSize="sm" radius="md">{wrappedTerrain}</Card> : wrappedTerrain;
       }
       
       default:

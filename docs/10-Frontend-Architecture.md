@@ -121,7 +121,7 @@ The `MainContent` component routes to the correct view based on `mainViewType` f
 | `journals` | `JournalsView` | Daily pages list |
 | `all-pages` | `AllPagesView` | All root pages |
 | `graph` | `AllPagesGraphView` | Force-directed graph |
-| `terrain` | `AllPagesTerrainView` | Terrain visualization |
+
 | `timeline` | `AllPagesTimelineView` | Chronological timeline |
 | `archived` | `ArchivedPagesView` | Archived pages |
 | `trash` | `TrashView` | Deleted nodes |
@@ -143,7 +143,7 @@ The `MainContent` component routes to the correct view based on `mainViewType` f
 │ Journals │  │ NodeView           │  │       │ ┌───────┐ │
 │ All Pages│  │ ┌────────────────┐ │  │       │ │Card 1 │ │
 │ Graph    │  │ │ Page Header    │ │  │       │ └───────┘ │
-│ Terrain  │  │ ├────────────────┤ │  │       │ ┌───────┐ │
+│          │  │ ├────────────────┤ │  │       │ ┌───────┐ │
 │ Timeline │  │ │ Properties     │ │  │       │ │Card 2 │ │
 │ Archived │  │ ├────────────────┤ │  │       │ └───────┘ │
 │ Trash    │  │ │ Block Content  │ │  │       │           │
@@ -232,7 +232,7 @@ Used by `JournalsView` — skips properties, backlinks, and query sections for p
 | `table` | `TableView` | Spreadsheet with property columns |
 | `gantt` | `GanttView` | Gantt chart for date properties |
 | `graph` | `GraphView` | Force-directed graph (canvas) |
-| `terrain` | `TerrainView` | Contour visualization (canvas) |
+
 | `timeline` | `TimelineView` | Chronological timeline |
 
 ```typescript
@@ -336,7 +336,7 @@ Features:
 │ 📅 Journals      │
 │ 📄 All Pages     │
 │ 🕸️ Graph         │
-│ 🏔️ Terrain       │
+
 │ 📊 Timeline      │
 │ 📦 Archived      │
 │ 🗑️ Trash         │
