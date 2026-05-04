@@ -53,8 +53,42 @@ async def init_database(conn: asyncpg.Connection) -> None:
         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
     """, str(SCHEMA_VERSION))
     
+    # Repair node_view JSON columns that were stored as strings instead of proper JSON
+    await _repair_node_view_json_columns(conn)
+    
     # Ensure task_recurrence property exists in all workspaces (migration for existing DBs)
     await _ensure_task_recurrence_property(conn)
+
+
+async def _repair_node_view_json_columns(conn: asyncpg.Connection) -> None:
+    """Fix node_view columns that were accidentally stored as JSON strings.
+    
+    Some imports or older code paths stored shown_properties or query_json
+    as JSON strings (e.g. '"[]"') instead of proper JSON values (e.g. []).
+    This uses PostgreSQL's jsonb_typeof to identify and repair them.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    # Fix shown_properties that are JSON strings instead of arrays
+    result = await conn.execute("""
+        UPDATE node_view
+        SET shown_properties = '[]'::jsonb
+        WHERE jsonb_typeof(shown_properties) = 'string'
+    """)
+    sp_count = int(result.split()[-1]) if result else 0
+    if sp_count > 0:
+        logger.info(f"Repaired shown_properties for {sp_count} node_view rows")
+    
+    # Fix query_json that are JSON strings instead of objects
+    result = await conn.execute("""
+        UPDATE node_view
+        SET query_json = '{"type": "AND_CONTAINER", "blocks": []}'::jsonb
+        WHERE jsonb_typeof(query_json) = 'string'
+    """)
+    qj_count = int(result.split()[-1]) if result else 0
+    if qj_count > 0:
+        logger.info(f"Repaired query_json for {qj_count} node_view rows")
 
 
 async def _repair_page_ids(conn: asyncpg.Connection) -> None:
