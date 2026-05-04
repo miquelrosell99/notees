@@ -220,8 +220,10 @@ DEFAULT_VIEW_CLASSES = [
     "main_content",
 ]
 
-# Default empty query block tree (AND container with no blocks)
+# Default empty query AST (new format with scope and root_group)
 DEFAULT_QUERY_AST = {
-    "type": "AND_CONTAINER",
-    "blocks": []
+    "type": "query",
+    "version": "1.0",
+    "scope": {"type": "scope", "scope_type": "entire_workspace"},
+    "root_group": {"type": "group", "logic": "AND", "children": []}
 }
