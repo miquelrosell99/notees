@@ -61,10 +61,13 @@ async def init_database(conn: asyncpg.Connection) -> None:
 
 
 async def _repair_node_view_json_columns(conn: asyncpg.Connection) -> None:
-    """Fix node_view columns that were accidentally stored as JSON strings.
+    """Fix node_view columns that were accidentally stored as JSON strings or old format.
     
     Some imports or older code paths stored shown_properties or query_json
     as JSON strings (e.g. '"[]"') instead of proper JSON values (e.g. []).
+    Additionally, query_json may be in the old 'AND_CONTAINER' format which
+    is no longer recognized by the frontend.
+    
     This uses PostgreSQL's jsonb_typeof to identify and repair them.
     """
     from ...logging_config import get_logger
@@ -80,15 +83,46 @@ async def _repair_node_view_json_columns(conn: asyncpg.Connection) -> None:
     if sp_count > 0:
         logger.info(f"Repaired shown_properties for {sp_count} node_view rows")
     
-    # Fix query_json that are JSON strings instead of objects
+    # Fix default views that have old-format or string query_json.
+    # We restore the proper system query AST for each view_type.
+    result = await conn.execute("""
+        UPDATE node_view nv
+        SET query_json = CASE nv.view_type
+            WHEN 'child_pages' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "pages"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "parent", "parent_uuid": "{current_node_uuid}", "operator": "has_parent"}]}, "is_system": true}'::jsonb
+            WHEN 'classed_nodes' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "class", "class_uuid": "{current_node_uuid}", "operator": "contains"}]}, "is_system": true}'::jsonb
+            WHEN 'extended_by' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "extends", "extends_class_uuid": "{current_node_uuid}"}]}, "is_system": true}'::jsonb
+            WHEN 'linked_references' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "reference", "target_uuid": "{current_node_uuid}"}, {"type": "condition", "condition_type": "page", "page_uuid": "{current_node_uuid}", "operator": "is_not_page"}]}, "is_system": true}'::jsonb
+            WHEN 'unlinked_references' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "content", "operator": "contains", "value": "{current_node_name}"}, {"type": "condition", "condition_type": "property", "property_name": "uuid", "operator": "not_equals", "value": "{current_node_uuid}"}, {"type": "condition", "condition_type": "class", "class_uuid": "00000000-0000-0000-0001-000000000002", "operator": "does_not_contain"}]}, "is_system": true}'::jsonb
+            WHEN 'main_content' THEN
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}, "is_system": true}'::jsonb
+            ELSE
+                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}'::jsonb
+        END
+        WHERE nv.is_default = TRUE
+          AND (jsonb_typeof(nv.query_json) = 'string'
+               OR (nv.query_json->>'type') = 'AND_CONTAINER')
+    """)
+    def_qj_count = int(result.split()[-1]) if result else 0
+    if def_qj_count > 0:
+        logger.info(f"Repaired query_json for {def_qj_count} default node_view rows")
+    
+    # Fix non-default views that have old-format or string query_json.
+    # We can't restore their original intent, so we set them to the new empty AST format.
     result = await conn.execute("""
         UPDATE node_view
-        SET query_json = '{"type": "AND_CONTAINER", "blocks": []}'::jsonb
-        WHERE jsonb_typeof(query_json) = 'string'
+        SET query_json = '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}'::jsonb
+        WHERE is_default = FALSE
+          AND (jsonb_typeof(query_json) = 'string'
+               OR (query_json->>'type') = 'AND_CONTAINER')
     """)
-    qj_count = int(result.split()[-1]) if result else 0
-    if qj_count > 0:
-        logger.info(f"Repaired query_json for {qj_count} node_view rows")
+    custom_qj_count = int(result.split()[-1]) if result else 0
+    if custom_qj_count > 0:
+        logger.info(f"Repaired query_json for {custom_qj_count} custom node_view rows")
 
 
 async def _repair_page_ids(conn: asyncpg.Connection) -> None:
