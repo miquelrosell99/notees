@@ -14,7 +14,7 @@ import { useNode, useIsMobile } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTerrain, mdiTimelineClockOutline, mdiCog, mdiMagnify } from '@mdi/js';
+import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog, mdiMagnify } from '@mdi/js';
 import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '../workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
@@ -508,17 +508,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
               onClick={() => { setMainViewType('graph'); closeMobileDrawer(); }}
             >
               Graph View
-            </Button>
-            
-            <Button 
-              variant="ghost"
-              size="md"
-              icon={mdiTerrain}
-              fullWidth
-              active={mainViewType === 'terrain'}
-              onClick={() => { setMainViewType('terrain'); closeMobileDrawer(); }}
-            >
-              Terrain View
             </Button>
             
             <Button 

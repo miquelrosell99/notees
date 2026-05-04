@@ -182,7 +182,7 @@ App
     │   ├── PropertyView          (single property)
     │   ├── TrashView             (deleted nodes)
     │   ├── ArchivedPagesView     (archived)
-    │   └── Graph/Terrain/Timeline views
+    │   └── Graph/Timeline views
     ├── CommentsSidebar           (conditional)
     └── RightSidebarCards         (shift-click panels)
 ```

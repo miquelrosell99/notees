@@ -183,44 +183,6 @@ export interface PhysicsDestroyMessage {
   type: 'destroy';
 }
 
-/**
- * Enable or disable terrain physics mode in the worker.
- *
- * When enabled the worker splits every step into:
- *   computeForces() → applyTerrainForces() → integrate()
- * instead of the normal step().
- */
-export interface PhysicsSetTerrainModeMessage {
-  type: 'setTerrainMode';
-  enabled: boolean;
-}
-
-/**
- * Per-node terrain physics data — sent whenever terrain parameters change
- * (topology or settings).  The worker stores these and uses them in the
- * terrain force injection phase each tick.
- *
- * All arrays are parallel — element i describes the node with id nodeIds[i].
- */
-export interface PhysicsTerrainDataMessage {
-  type: 'terrainData';
-  /** Node IDs in the same order as heights and peakRadii. */
-  nodeIds: Int32Array;
-  /** Double-log-compressed height value per node. */
-  heights: Float32Array;
-  /** Peak radius fraction [0..1] per node. */
-  peakRadii: Float32Array;
-  /** Reference-link source node IDs (parallel with targets and types). */
-  refLinkSources: Int32Array;
-  /** Reference-link target node IDs. */
-  refLinkTargets: Int32Array;
-  /**
-   * Reference-link type flags (parallel with sources/targets).
-   * 0 = 'reference', 1 = 'property-reference'.
-   */
-  refLinkTypes: Uint8Array;
-}
-
 export type MainToPhysicsMessage =
   | PhysicsInitMessage
   | PhysicsSetTopologyMessage
@@ -237,9 +199,7 @@ export type MainToPhysicsMessage =
   | PhysicsReheatMessage
   | PhysicsPauseMessage
   | PhysicsResumeMessage
-  | PhysicsDestroyMessage
-  | PhysicsSetTerrainModeMessage
-  | PhysicsTerrainDataMessage;
+  | PhysicsDestroyMessage;
 
 // ============================================================
 // Worker → Main

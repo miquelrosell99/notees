@@ -78,7 +78,6 @@ export { SidebarCard } from './sidebar/SidebarCard';
 
 // Node graph visualization components (force-directed graph)
 export { GraphRenderer, type GraphRendererRef } from './nodes/views/GraphRenderer';
-export { TerrainRenderer, type TerrainRendererRef } from './nodes/views/TerrainRenderer';
 export { GraphView } from './nodes/views/GraphView';
 export { GraphMinimap } from './layout/GraphMinimap';
 export { SidebarLocalGraph } from './sidebar/SidebarLocalGraph';

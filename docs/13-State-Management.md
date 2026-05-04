@@ -79,7 +79,7 @@ The primary store for navigation, layout, and view management.
 | `isCalendarOpen` | `boolean` | `false` | Calendar modal |
 | `nodeViewModes` | `Record<number, ViewMode>` | `{}` | Per-node view overrides |
 
-`MainViewType` values: `'node'`, `'all-pages'`, `'journals'`, `'graph'`, `'terrain'`, `'timeline'`, `'archived'`, `'trash'`, `'assets'`, `'property'`
+`MainViewType` values: `'node'`, `'all-pages'`, `'journals'`, `'graph'`, `'timeline'`, `'archived'`, `'trash'`, `'assets'`, `'property'`
 
 **Key actions**: `openNode(id)`, `openNodeInSidebar(id, type)`, `toggleSidebar()`, `setMainViewType(type)`, `openPropertyView(id)`, `addSidebarCard(card)`, `setNodeViewMode(nodeId, mode)`
 

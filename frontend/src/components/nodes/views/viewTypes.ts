@@ -1,11 +1,10 @@
 /**
  * View Types Module
  * 
- * Shared type definitions for graph and terrain view components.
+ * Shared type definitions for graph view components.
  * These types are used by:
  * - NodeGraphRenderer (graph visualization)
  * - GraphView (graph settings wrapper)
- * - TerrainView (terrain visualization wrapper)
  */
 
 // ==================== Core Types ====================
@@ -19,19 +18,18 @@ export type PeakSizeMode = 'links' | 'pageSize';
 
 /**
  * Graph layout mode (for NodeGraphRenderer only)
- * Terrain has its own separate view mode now
  */
 export type GraphLayoutMode = 'normal' | 'circle' | 'tree';
 
 /**
- * All view modes including terrain (used by facade)
+ * All view modes (used by facade)
  */
-export type GraphViewMode = 'normal' | 'circle' | 'tree' | 'terrain';
+export type GraphViewMode = 'normal' | 'circle' | 'tree';
 
 /**
  * Available graph view modes for UI selection
  */
-export const GRAPH_VIEW_MODES: GraphViewMode[] = ['normal', 'circle', 'tree', 'terrain'];
+export const GRAPH_VIEW_MODES: GraphViewMode[] = ['normal', 'circle', 'tree'];
 
 /**
  * Graph node representation for physics simulation
@@ -87,7 +85,7 @@ export interface ClassColor {
 }
 
 /**
- * Graph settings (shared between graph and terrain)
+ * Graph settings
  */
 export interface GraphSettings {
   linkCountAttraction: boolean;
@@ -165,8 +163,6 @@ export interface FrameData {
   maxConnections: number;
   maxMass: number;
   maxContentSize: number;
-  terrainHeights: Map<number, number>; // nodeId → normalized height [0,1]
-  terrainPeakRadii: Map<number, number>; // nodeId → normalized peak radius [0,1]
 }
 
 // ==================== Defaults ====================
@@ -222,10 +218,6 @@ export const CENTER_GRAVITY_STRENGTH = 0.01;
 // Velocity constraints (d3-force: velocityDecay=0.4 → multiply by 0.6)
 // Logseq uses velocityDecay=0.6 → multiply by 0.4
 export const VELOCITY_DAMPING = 0.6;   // Logseq: 0.4, d3 default: 0.6
-export const TERRAIN_VELOCITY_DAMPING = 0.6;
-export const TERRAIN_VELOCITY_DEADZONE = 0.1;
-export const TERRAIN_LINK_DAMPING = 0.12;
-export const TERRAIN_MAX_VELOCITY = 10;
 
 // Alpha decay (d3-force style): forces scale by alpha which decays exponentially.
 // Logseq: alphaDecay=0.02, d3 default: 0.0228
@@ -238,8 +230,6 @@ export const ALPHA_REHEAT = 0.3;
 // Sleep tuning (uses average KE per node, not total)
 export const GRAPH_SLEEP_THRESHOLD = 0.00005;
 export const GRAPH_SLEEP_FRAMES = 30;
-export const TERRAIN_SLEEP_THRESHOLD = 0.0005;
-export const TERRAIN_SLEEP_FRAMES = 30;
 
 // Drag pull
 export const DRAG_PULL_STRENGTH = 0.03;
@@ -256,25 +246,9 @@ export const BH_THETA_SQ = BH_THETA * BH_THETA;
 
 // Pre-computed squared distances (avoid sqrt in hot loops)
 export const UNLINKED_REPULSION_DIST_SQ = UNLINKED_REPULSION_DISTANCE * UNLINKED_REPULSION_DISTANCE;
-export const TERRAIN_MAX_VELOCITY_SQ = TERRAIN_MAX_VELOCITY * TERRAIN_MAX_VELOCITY;
 
 // Collision resolution (position-based)
 export const TANGENTIAL_OVERLAP_RESOLVE = 0.15; // constrained-mode tangential correction
-
-// ==================== Terrain Physics Constants ====================
-
-export const TERRAIN_BASE_FOOTPRINT = 60;
-export const TERRAIN_PEAK_FOOTPRINT = 120;
-export const TERRAIN_SEPARATION_STRENGTH = 0.15;
-export const TERRAIN_MIN_SEPARATION = 5;
-
-// Reference-linked node separation (ensures valleys between peaks for path routing)
-export const TERRAIN_REF_LINK_MIN_SEPARATION = 240; // minimum distance in world units
-export const TERRAIN_REF_LINK_SEPARATION_STRENGTH = 0.06; // repulsion strength (gentle)
-
-// Kinetic-energy threshold for showing reference paths (multiple of sleep threshold)
-// Paths appear when KE drops below this, well before full sleep
-export const TERRAIN_REF_PATH_KE_THRESHOLD = 0.025;
 
 // ==================== Rendering Constants ====================
 
@@ -323,50 +297,6 @@ export const LINK_TYPE_PRIORITY: Record<GraphLink['type'], number> = {
   semantic: 0,
 };
 
-// Terrain contour levels (linear division by meters)
-// Max terrain height in "meters" (scale unit)
-export const TERRAIN_MAX_HEIGHT_METERS = 4000;
-// Interval between contour lines in meters
-export const TERRAIN_CONTOUR_INTERVAL_METERS = 200;
-// Generate contour levels at every interval (0.1, 0.2, 0.3, ... 1.0)
-export const CONTOUR_LEVELS: number[] = Array.from(
-  { length: Math.floor(TERRAIN_MAX_HEIGHT_METERS / TERRAIN_CONTOUR_INTERVAL_METERS) },
-  (_, i) => ((i + 1) * TERRAIN_CONTOUR_INTERVAL_METERS) / TERRAIN_MAX_HEIGHT_METERS
-);
-
-/**
- * Convert normalized height [0,1] to meters
- */
-export const normalizedHeightToMeters = (normalizedHeight: number): number => {
-  return normalizedHeight * TERRAIN_MAX_HEIGHT_METERS;
-};
-
-/**
- * Get meter value for a specific contour level
- */
-export const getContourLevelMeters = (levelIndex: number): number => {
-  return (levelIndex + 1) * TERRAIN_CONTOUR_INTERVAL_METERS;
-};
-
-// Terrain height map parameters (spline smoothing allows coarser grid)
-export const TERRAIN_GRID_RES = 4;
-export const TERRAIN_DECIMATION_EPSILON_MULTIPLIER = 0.15; // Controls contour spline detail (lower = more detail)
-
-// Node peaks - small and compact
-export const TERRAIN_BASE_PLATEAU_RADIUS = 6; // Small flat peak top
-export const TERRAIN_PEAK_PLATEAU_BONUS = 8; // Modest size variation
-export const TERRAIN_BASE_SLOPE_RADIUS = 120; // Compact peak base
-export const TERRAIN_PEAK_SLOPE_RADIUS_BONUS = 80; // Limited spread
-export const TERRAIN_ANISOTROPY = 0.4; // Directional stretching toward children for cordillera shapes
-export const TERRAIN_NOISE_STRENGTH = 0.25; // Minimal irregularity for clean peaks
-export const TERRAIN_SLOPE_POWER = 2.5; // Steep falloff for distinct peaks
-
-// Ridge stamps between parent-child pairs (Option A: cordillera connectivity)
-export const TERRAIN_RIDGE_HEIGHT_FACTOR = 0.75; // Ridge spine height relative to interpolated peak heights
-export const TERRAIN_RIDGE_WIDTH = 30; // Half-width of ridge in world units (wider = more contour lines visible)
-export const TERRAIN_RIDGE_FALLOFF_POWER = 1.5; // Lateral falloff steepness (lower = gentler slopes)
-export const TERRAIN_RIDGE_SAG = 0.25; // Catenary sag: 0 = flat spine, 1 = deep valley in the middle
-
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];
 export const LINE_DASH_DOTTED = [3, 3];
@@ -387,12 +317,7 @@ export const getRenderSkip = (nodeCount: number): number => {
 };
 
 /**
- * Terrain mode always renders every physics tick to avoid visible jumps.
- * The terrain render is cached so repeated draws are cheap.
- */
-export const getTerrainRenderSkip = (_nodeCount: number): number => 1;
-
-/**
+ * Generate numeric pair key
  * Generate numeric pair key (order-independent) for link deduplication
  */
 export const pairKey = (a: number, b: number): number => {

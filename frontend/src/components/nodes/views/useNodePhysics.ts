@@ -10,15 +10,12 @@
  * - Transform state (pan/zoom)
  * - Node dragging
  * 
- * Used by both GraphRenderer and TerrainRenderer.
+ * Used by GraphRenderer.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SemanticGraphEngine } from './SemanticGraphEngine';
-import type {
-  MainToPhysicsMessage,
-  PhysicsToMainMessage,
-} from './graphPhysicsWorkerProtocol';
+
 import type {
   GraphNode,
   GraphLink,
@@ -41,13 +38,10 @@ import {
   ALPHA_DECAY,
   ALPHA_TARGET,
   ALPHA_REHEAT,
-  TERRAIN_BASE_SLOPE_RADIUS,
-  TERRAIN_PEAK_SLOPE_RADIUS_BONUS,
   LINK_TYPE_PRIORITY,
   NODE_RADIUS_MAX,
   // Helpers
   getRenderSkip,
-  getTerrainRenderSkip,
   pairKey,
   getGlareRadius,
   getNodeRadius,
@@ -62,26 +56,20 @@ import {
   runEquidistantStep,
   type MainThreadPhysicsRefs,
 } from './graphPhysicsCore';
-import {
-  runTerrainWorkerSync,
-  computeAndDispatchTerrainData,
-  type TerrainWorkerSyncRefs,
-  type TerrainDataRefs,
-} from './terrainPhysicsCore';
+
 
 // ==================== Hook Props ====================
 
 export interface UseNodePhysicsProps {
   inputNodes: GraphNode[];
   inputLinks: GraphLink[];
-  viewMode: GraphLayoutMode | 'terrain';
+  viewMode: GraphLayoutMode;
   settings: GraphSettings;
   visibilityFilters: VisibilityFilters;
   classColors: ClassColor[];
   selectedNodeIds: number[];
   currentNodeId: number | null;
   dimensions: Dimensions;
-  isTerrainMode?: boolean;
 }
 
 export interface UseGraphPhysicsReturn {
@@ -136,7 +124,7 @@ export interface UseGraphPhysicsReturn {
   classColorsRef: React.MutableRefObject<ClassColor[]>;
   selectedNodeIdsRef: React.MutableRefObject<number[]>;
   currentNodeIdRef: React.MutableRefObject<number | null>;
-  viewModeRef: React.MutableRefObject<GraphLayoutMode | 'terrain'>;
+  viewModeRef: React.MutableRefObject<GraphLayoutMode>;
   visibilityFiltersRef: React.MutableRefObject<VisibilityFilters>;
   
   // CSS vars cache
@@ -155,7 +143,6 @@ export function useNodePhysics({
   selectedNodeIds,
   currentNodeId,
   dimensions,
-  isTerrainMode: _isTerrainMode = false,
 }: UseNodePhysicsProps): UseGraphPhysicsReturn {
   
   // ==================== Refs ====================
@@ -169,7 +156,7 @@ export function useNodePhysics({
   const classColorsRef = useRef<ClassColor[]>([...classColors].sort((a, b) => a.order - b.order));
   const selectedNodeIdsRef = useRef<number[]>(selectedNodeIds);
   const currentNodeIdRef = useRef<number | null>(currentNodeId);
-  const viewModeRef = useRef<GraphLayoutMode | 'terrain'>(viewMode);
+  const viewModeRef = useRef<GraphLayoutMode>(viewMode);
   const visibilityFiltersRef = useRef<VisibilityFilters>(visibilityFilters);
   const dimensionsRef = useRef<Dimensions>(dimensions);
   
@@ -201,7 +188,7 @@ export function useNodePhysics({
   const linkForceJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random force multiplier [0.6, 1.0]
   const linkDistJitterRef = useRef<Map<number, number>>(new Map()); // pairKey → random rest distance multiplier [0.8, 1.2]
   
-  // SemanticGraphEngine — handles all physics modes (normal, constrained-physics, terrain)
+  // SemanticGraphEngine — handles all physics modes (normal, constrained-physics)
   const sgeRef = useRef<SemanticGraphEngine | null>(null);
   const sgeTopologyDirtyRef = useRef(true);
   
@@ -213,34 +200,10 @@ export function useNodePhysics({
     maxConnections: 0,
     maxMass: 0,
     maxContentSize: 0,
-    terrainHeights: new Map(),
-    terrainPeakRadii: new Map(),
   });
   const frameNodeMapRef = useRef<Map<number, GraphNode>>(new Map());
   const frameVisibleLinksRef = useRef<GraphLink[]>([]);
   
-  // Terrain data dirty flag — only recompute heights/radii when topology or settings change
-  const terrainDataDirtyRef = useRef(true);
-
-  // ==================== Terrain Physics Worker ====================
-  // When isTerrainMode, we offload computeForces() + terrain forces + integrate()
-  // to the same physics worker used by GraphRenderer.  The main thread only
-  // computes terrain heights/radii (once per topology change) and syncs
-  // positions back from the worker's SharedArrayBuffer each RAF.
-  const terrainWorkerRef      = useRef<Worker | null>(null);
-  const terrainWorkerReadyRef = useRef(false);
-  // Preferred path: SharedArrayBuffer zero-copy poll
-  const terrainSabPosRef      = useRef<Float32Array | null>(null);
-  const terrainSabMetaI32Ref  = useRef<Int32Array   | null>(null);
-  const terrainSabMetaF32Ref  = useRef<Float32Array | null>(null);
-  const terrainSabNodeIdsRef  = useRef<Int32Array   | null>(null);
-  const terrainSabSeqRef      = useRef<number>(0);
-  // Fallback path: transferable frame messages (crossOriginIsolated=false)
-  const terrainFramePosRef    = useRef<Float32Array | null>(null);
-  const terrainFrameIdsRef    = useRef<Int32Array   | null>(null);
-  // Per-frame drag & pin delta tracking (so we don't flood the worker with redundant messages)
-  const terrainPrevDragIdRef   = useRef<number | null>(null);
-  const terrainPinnedTrackRef  = useRef<Set<number>>(new Set());  
   // Canvas context and render function (set by renderer)
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const renderRef = useRef<((ctx: CanvasRenderingContext2D) => void) | null>(null);
@@ -316,7 +279,6 @@ export function useNodePhysics({
   // ==================== Visibility Helpers ====================
   
   const shouldNodeBeVisible = useCallback((node: GraphNode, filters: VisibilityFilters): boolean => {
-    if (viewModeRef.current === 'terrain' && node.isClassNode) return false;
     if (node.isClassNode && !filters.showClassNodes) return false;
     if (node.isDaily && !filters.showDayPages) return false;
     if (node.isMonthly && !filters.showMonthPages) return false;
@@ -337,7 +299,7 @@ export function useNodePhysics({
   
   const calculatePositions = useCallback((
     nodes: GraphNode[],
-    mode: GraphLayoutMode | 'terrain',
+    mode: GraphLayoutMode,
     w: number,
     h: number,
     constraintMode: 'physics' | 'equidistant' = 'physics',
@@ -370,7 +332,7 @@ export function useNodePhysics({
     } else if (mode === 'tree') {
       applyTreeLayout(nodes, centerX, centerY, nodeSpacing, levelGap, constraintMode);
     } else {
-      // Normal or terrain mode: random initial positions
+      // Normal mode: random initial positions
       nodes.forEach(node => {
         if (node.x === 0 && node.y === 0) {
           node.x = centerX + (Math.random() - 0.5) * w * 0.5;
@@ -418,7 +380,6 @@ export function useNodePhysics({
       outLinkCounts.set(link.source, (outLinkCounts.get(link.source) || 0) + 1);
       inLinkCounts.set(link.target, (inLinkCounts.get(link.target) || 0) + 1);
       
-      // Count reference links only for terrain plateau sizing
       if (link.type === 'reference') {
         outReferenceLinkCounts.set(link.source, (outReferenceLinkCounts.get(link.source) || 0) + 1);
         inReferenceLinkCounts.set(link.target, (inReferenceLinkCounts.get(link.target) || 0) + 1);
@@ -522,7 +483,6 @@ export function useNodePhysics({
     
     topologyDirtyRef.current = false;
     sgeTopologyDirtyRef.current = true; // Signal SGE to rebuild on next tick
-    terrainDataDirtyRef.current = true; // Recompute terrain heights/radii on topology change
   }, []);
   
   // ==================== Node Management ====================
@@ -587,24 +547,15 @@ export function useNodePhysics({
     const nodes = nodesRef.current.filter(n => n.visible);
     if (nodes.length === 0) return;
     
-    const isTerrain = viewModeRef.current === 'terrain';
-    const terrainPeakRadii = isTerrain ? frameDataRef.current.terrainPeakRadii : null;
-    
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const node of nodes) {
-      // In terrain mode, each node has a slope radius extending beyond its center
-      let footprint = 0;
-      if (isTerrain && terrainPeakRadii) {
-        const peakSize = terrainPeakRadii.get(node.id) ?? 0;
-        footprint = TERRAIN_BASE_SLOPE_RADIUS + TERRAIN_PEAK_SLOPE_RADIUS_BONUS * peakSize;
-      }
-      minX = Math.min(minX, node.x - footprint);
-      maxX = Math.max(maxX, node.x + footprint);
-      minY = Math.min(minY, node.y - footprint);
-      maxY = Math.max(maxY, node.y + footprint);
+      minX = Math.min(minX, node.x);
+      maxX = Math.max(maxX, node.x);
+      minY = Math.min(minY, node.y);
+      maxY = Math.max(maxY, node.y);
     }
     
-    const padding = isTerrain ? 20 : 60;
+    const padding = 60;
     minX -= padding;
     maxX += padding;
     minY -= padding;
@@ -760,87 +711,6 @@ export function useNodePhysics({
     return null;
   }, [screenToWorld]);
   
-  // ==================== Terrain Worker: Lifecycle ====================
-
-  useEffect(() => {
-    if (!_isTerrainMode) {
-      // If we had a worker from a previous terrain session, clean it up.
-      if (terrainWorkerRef.current) {
-        terrainWorkerRef.current.postMessage({ type: 'destroy' } satisfies MainToPhysicsMessage);
-        terrainWorkerRef.current.terminate();
-        terrainWorkerRef.current    = null;
-        terrainWorkerReadyRef.current = false;
-        terrainSabPosRef.current     = null;
-        terrainSabMetaI32Ref.current = null;
-        terrainSabMetaF32Ref.current = null;
-        terrainSabNodeIdsRef.current = null;
-        terrainFramePosRef.current   = null;
-        terrainFrameIdsRef.current   = null;
-      }
-      return;
-    }
-
-    // Spawn the physics worker (same bundle as graph mode, but will receive setTerrainMode).
-    const worker = new Worker(
-      new URL('./graphPhysicsWorker.ts', import.meta.url),
-      { type: 'module' },
-    );
-    terrainWorkerRef.current    = worker;
-    terrainWorkerReadyRef.current = false;
-
-    worker.onmessage = (e: MessageEvent<PhysicsToMainMessage>) => {
-      const msg = e.data;
-      if (msg.type === 'ready') {
-        terrainWorkerReadyRef.current = true;
-        // Enable terrain force injection in the worker.
-        worker.postMessage({ type: 'setTerrainMode', enabled: true } satisfies MainToPhysicsMessage);
-        wakeSimulationRef.current();
-      } else if (msg.type === 'sharedBuffer') {
-        terrainSabPosRef.current     = new Float32Array(msg.positions);
-        terrainSabMetaI32Ref.current = new Int32Array(msg.meta);
-        terrainSabMetaF32Ref.current = new Float32Array(msg.meta);
-        terrainSabNodeIdsRef.current = msg.nodeIds;
-        terrainSabSeqRef.current     = 0; // reset so next SAB frame is picked up
-      } else if (msg.type === 'frame') {
-        // Fallback when SAB is not available.
-        terrainFramePosRef.current = msg.positions;
-        terrainFrameIdsRef.current = msg.nodeIds;
-      }
-    };
-
-    // Send initial topology — the worker responds with 'ready' once the engine is created.
-    {
-      const initNodes = nodesRef.current.filter(n => n.visible).map(n => ({ id: n.id, x: n.x, y: n.y }));
-      const initEdges = linksRef.current.map(l => ({ source: l.source, target: l.target }));
-      worker.postMessage({
-        type: 'init',
-        nodes: initNodes,
-        edges: initEdges,
-        config: {
-          seed: 42,
-          idealDistance: LINKED_ATTRACTION_DISTANCE,
-          localRepelRadius: UNLINKED_REPULSION_DISTANCE,
-        },
-      } satisfies MainToPhysicsMessage);
-      // Flag terrain data as dirty so worker gets heights/peakRadii on the first ready tick.
-      terrainDataDirtyRef.current = true;
-    }
-
-    return () => {
-      worker.postMessage({ type: 'destroy' } satisfies MainToPhysicsMessage);
-      worker.terminate();
-      terrainWorkerRef.current      = null;
-      terrainWorkerReadyRef.current = false;
-      terrainSabPosRef.current      = null;
-      terrainSabMetaI32Ref.current  = null;
-      terrainSabMetaF32Ref.current  = null;
-      terrainSabNodeIdsRef.current  = null;
-      terrainFramePosRef.current    = null;
-      terrainFrameIdsRef.current    = null;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [_isTerrainMode]);
-
   // ==================== Simulation ====================
   
   const startSimulation = useCallback(() => {
@@ -871,7 +741,6 @@ export function useNodePhysics({
       const currentSettings = settingsRef.current;
       const currentViewMode = viewModeRef.current;
       const isConstrainedMode = currentViewMode === 'circle' || currentViewMode === 'tree';
-      const isTerrainModeNow = currentViewMode === 'terrain';
       
       // Sleep: skip all force + integration work when asleep
       if (simulationSleepingRef.current) {
@@ -930,77 +799,46 @@ export function useNodePhysics({
       const currentLinkDirection = currentSettings.linkDirection;
       
       // ==================== SemanticGraphEngine (all physics modes) ====================
-      // Uses cluster-aware hybrid layout (SGE) for normal, constrained-physics, and
-      // terrain modes. Core forces (repulsion, springs, clustering) are computed by SGE;
+      // Uses cluster-aware hybrid layout (SGE) for normal and constrained-physics modes.
+      // Core forces (repulsion, springs, clustering) are computed by SGE;
       // mode-specific forces are injected via applyForce() between phases.
       if (usePhysics) {
-        // Is the terrain physics worker ready to handle this frame?
-        const usingTerrainWorker = isTerrainModeNow && terrainWorkerReadyRef.current;
-
         // Build/rebuild SGE when topology changes
-        if (sgeTopologyDirtyRef.current || (!sgeRef.current && !usingTerrainWorker)) {
+        if (sgeTopologyDirtyRef.current || !sgeRef.current) {
           const sgeNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
           const sgeEdges = links.map(l => ({ source: l.source, target: l.target }));
-          if (usingTerrainWorker) {
-            // Offload topology change to worker — no local SGE needed in terrain mode.
-            terrainWorkerRef.current!.postMessage({
-              type: 'setTopology', nodes: sgeNodes, edges: sgeEdges,
-            } satisfies MainToPhysicsMessage);
+          if (sgeRef.current) {
+            sgeRef.current.setNodes(sgeNodes);
+            sgeRef.current.setEdges(sgeEdges);
           } else {
-            if (sgeRef.current) {
-              sgeRef.current.setNodes(sgeNodes);
-              sgeRef.current.setEdges(sgeEdges);
-            } else {
-              sgeRef.current = new SemanticGraphEngine(sgeNodes, sgeEdges, {
-                seed: 42,
-                idealDistance: LINKED_ATTRACTION_DISTANCE,
-                localRepelRadius: UNLINKED_REPULSION_DISTANCE,
-              });
-            }
-            for (const node of nodes) {
-              if (sgeRef.current.getNode(node.id)) {
-                sgeRef.current.moveNode(node.id, node.x, node.y);
-              }
+            sgeRef.current = new SemanticGraphEngine(sgeNodes, sgeEdges, {
+              seed: 42,
+              idealDistance: LINKED_ATTRACTION_DISTANCE,
+              localRepelRadius: UNLINKED_REPULSION_DISTANCE,
+            });
+          }
+          for (const node of nodes) {
+            if (sgeRef.current.getNode(node.id)) {
+              sgeRef.current.moveNode(node.id, node.x, node.y);
             }
           }
           sgeTopologyDirtyRef.current = false;
         }
 
-        if (usingTerrainWorker) {
-          // ================================================================
-          // TERRAIN WORKER PATH — positions read back from the off-thread worker.
-          // ================================================================
-          runTerrainWorkerSync(
-            {
-              terrainWorkerRef, terrainSabPosRef, terrainSabMetaI32Ref,
-              terrainSabMetaF32Ref, terrainSabNodeIdsRef, terrainSabSeqRef,
-              terrainFramePosRef, terrainFrameIdsRef,
-              terrainPrevDragIdRef, terrainPinnedTrackRef,
-              dragNodeRef, kineticEnergyRef, alphaRef,
-            } satisfies TerrainWorkerSyncRefs,
-            nodes,
-            nodeMap,
-          );
-        } else {
-          // ================================================================
-          // MAIN THREAD PHYSICS PATH (graph mode, or terrain before worker ready)
-          // ================================================================
+        // Sync centralGravity setting to SGE config
+        if (sgeRef.current) {
+          sgeRef.current.setConfig({
+            componentCenterStrength: currentSettings.centralGravity ? 0.001 : 0,
+          });
+        }
 
-          // Sync centralGravity setting to SGE config
-          if (sgeRef.current) {
-            sgeRef.current.setConfig({
-              componentCenterStrength: currentSettings.centralGravity ? 0.001 : 0,
-            });
-          }
-
-          runMainThreadPhysicsStep(
-            { sgeRef, dragNodeRef, dimensionsRef, frameDataRef } satisfies MainThreadPhysicsRefs,
-            nodes, nodeMap, links,
-            adjacency, connectedPairs, massCache,
-            alpha, isConstrainedMode, isTerrainModeNow, useMass,
-            currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection,
-          );
-        } // end if/else usingTerrainWorker
+        runMainThreadPhysicsStep(
+          { sgeRef, dragNodeRef, dimensionsRef } satisfies MainThreadPhysicsRefs,
+          nodes, nodeMap, links,
+          adjacency, connectedPairs, massCache,
+          alpha, isConstrainedMode, useMass,
+          currentNodeSizeMode, maxConnections, maxMass, maxContentSize, currentLinkDirection,
+        );
         
         // Ring constraint projection (constrained physics — position-based, after integration)
         if (isConstrainedMode) {
@@ -1008,7 +846,7 @@ export function useNodePhysics({
         }
         
         // COM recentering (normal mode only — keep graph centered on canvas)
-        if (!isConstrainedMode && !isTerrainModeNow && comCount > 0) {
+        if (!isConstrainedMode && comCount > 0) {
           applyCOMRecentering(dragNodeRef, dimensionsRef, nodes, comCount);
         }
       } else {
@@ -1082,8 +920,7 @@ export function useNodePhysics({
       // Skip during early warmup — nodes are moving fast and collisions just burn CPU.
 
       
-      // Render skip — terrain mode always renders every tick (cached contours are cheap)
-      const renderSkip = isTerrainModeNow ? getTerrainRenderSkip(nodes.length) : getRenderSkip(nodes.length);
+      const renderSkip = getRenderSkip(nodes.length);
       const isDragging = !!dragNodeRef.current;
       if (isDragging || totalFrames % renderSkip === 0) {
         const currentFilters = visibilityFiltersRef.current;
@@ -1100,19 +937,6 @@ export function useNodePhysics({
         frameDataRef.current.maxConnections = maxConnections;
         frameDataRef.current.maxMass = maxMass;
         frameDataRef.current.maxContentSize = maxContentSize;
-        
-        // Compute terrain heights and peak radii — only when topology or settings changed
-        if (isTerrainModeNow && terrainDataDirtyRef.current) {
-          computeAndDispatchTerrainData(
-            {
-              frameDataRef, terrainDataDirtyRef,
-              terrainWorkerRef, terrainWorkerReadyRef,
-              massCacheRef, inLinkCountsRef,
-              inReferenceLinkCountsRef, outReferenceLinkCountsRef, allReferenceLinkCountsRef,
-            } satisfies TerrainDataRefs,
-            nodes, links, currentSettings,
-          );
-        }
         
         if (ctxRef.current && renderRef.current) {
           renderRef.current(ctxRef.current);
@@ -1142,7 +966,6 @@ export function useNodePhysics({
     const prevNodeSizeMode = settingsRef.current.nodeSizeMode;
     settingsRef.current = settings;
     topologyDirtyRef.current = true;
-    terrainDataDirtyRef.current = true; // Terrain heights/radii may depend on settings
     const modeChanged = settings.constraintMode !== prevConstraintMode || settings.nodeSizeMode !== prevNodeSizeMode;
     if (modeChanged && (viewModeRef.current === 'circle' || viewModeRef.current === 'tree') && nodesRef.current.length > 0) {
       calculatePositions(nodesRef.current, viewModeRef.current, dimensionsRef.current.width, dimensionsRef.current.height, settings.constraintMode, settings.nodeSizeMode);
@@ -1178,59 +1001,18 @@ export function useNodePhysics({
     return () => observer.disconnect();
   }, []);
   
-  // View mode transitions (terrain enter/leave)
+  // View mode transitions
   const prevViewModeRef = useRef(viewMode);
   useEffect(() => {
     if (prevViewModeRef.current === viewMode) return;
-    const prevMode = prevViewModeRef.current;
     prevViewModeRef.current = viewMode;
-    
-    const enteringTerrain = viewMode === 'terrain' && prevMode !== 'terrain';
-    const leavingTerrain = viewMode !== 'terrain' && prevMode === 'terrain';
-    
-    if (enteringTerrain) {
-      const classNodeIds = nodesRef.current.filter(n => n.isClassNode).map(n => n.id);
-      for (const id of classNodeIds) {
-        const index = nodesRef.current.findIndex(n => n.id === id);
-        if (index !== -1) nodesRef.current.splice(index, 1);
-      }
-      const classIdSet = new Set(classNodeIds);
-      linksRef.current = linksRef.current.filter(
-        l => !classIdSet.has(l.source) && !classIdSet.has(l.target)
-      );
-      topologyDirtyRef.current = true;
-    }
-    
-    if (leavingTerrain) {
-      const currentFilters = visibilityFiltersRef.current;
-      inputNodesMapRef.current.forEach((node) => {
-        if (node.isClassNode && shouldNodeBeVisible(node, currentFilters)) {
-          const exists = nodesRef.current.find(n => n.id === node.id);
-          if (!exists) {
-            const centerX = dimensionsRef.current.width / 2;
-            const centerY = dimensionsRef.current.height / 2;
-            nodesRef.current.push({
-              ...node,
-              x: centerX + (Math.random() - 0.5) * 200,
-              y: centerY + (Math.random() - 0.5) * 200,
-              vx: 0, vy: 0,
-            });
-          }
-        }
-      });
-      const visibleIds = new Set(nodesRef.current.map(n => n.id));
-      linksRef.current = allLinksRef.current.filter(
-        l => visibleIds.has(l.source) && visibleIds.has(l.target) && shouldLinkBeActive(l, currentFilters)
-      );
-      topologyDirtyRef.current = true;
-    }
     
     if (nodesRef.current.length > 0) {
       calculatePositions(nodesRef.current, viewMode, dimensionsRef.current.width, dimensionsRef.current.height, settingsRef.current.constraintMode, settingsRef.current.nodeSizeMode);
       topologyDirtyRef.current = true;
       wakeSimulationRef.current();
     }
-  }, [viewMode, calculatePositions, shouldNodeBeVisible, shouldLinkBeActive]);
+  }, [viewMode, calculatePositions]);
   
   // Visibility filter changes
   useEffect(() => {
@@ -1356,15 +1138,12 @@ export function useNodePhysics({
     alphaRef.current = ALPHA_INITIAL;
     
     if (!initialFitDoneRef.current && nodesRef.current.length > 0) {
-      // For terrain mode, recenter immediately to ensure bullets spawn centered
-      // For other modes, allow brief stabilization period
-      const delay = viewMode === 'terrain' ? 0 : 500;
       const stabilizationTimer = setTimeout(() => {
         if (!initialFitDoneRef.current) {
           initialFitDoneRef.current = true;
           recenter();
         }
-      }, delay);
+      }, 500);
       return () => clearTimeout(stabilizationTimer);
     }
   }, [inputNodes, inputLinks, viewMode, visibilityFilters, calculatePositions, createNode, destroyNode, shouldNodeBeVisible, shouldLinkBeActive, recenter, settings.constraintMode, settings.nodeSizeMode]);

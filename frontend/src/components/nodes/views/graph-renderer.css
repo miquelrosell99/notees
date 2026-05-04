@@ -1,7 +1,5 @@
 /**
  * Graph Renderer Styles
- * 
- * Shared styles for GraphRenderer and TerrainRenderer components.
  */
 
 .node-graph-renderer {
@@ -19,43 +17,7 @@
   cursor: grab;
 }
 
-/* Terrain profile cards — absolutely positioned over the main canvas */
-.terrain-profile-card {
-  position: absolute;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 2;
-  opacity: 0;
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-.terrain-profile-card__inner {
-  width: 100%;
-  height: 100%;
-  background: var(--color-surface) !important;
-  border: 1px solid var(--color-outline-variant) !important;
-  box-shadow: var(--elevation-4) !important;
-}
-
-.terrain-profile-card.terrain-overlay--visible {
-  opacity: 1;
-}
-
-.terrain-profile-card--right {
-  top: 12px;
-  right: 12px;
-  bottom: 68px; /* leave room for bottom card + gap */
-  width: 48px;
-}
-
-.terrain-profile-card--bottom {
-  bottom: 12px;
-  left: 12px;
-  right: 68px; /* leave room for right card + gap */
-  height: 48px;
-}
-
-.terrain-recenter-btn {
+.recenter-btn {
   position: absolute;
   bottom: 12px;
   right: 12px;
@@ -65,52 +27,7 @@
   pointer-events: none;
 }
 
-.node-graph-view:hover .terrain-recenter-btn {
+.node-graph-view:hover .recenter-btn {
   opacity: 1;
   pointer-events: auto;
-}
-
-.terrain-profile-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* SVG profile styling */
-.terrain-profile-canvas path {
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.terrain-profile-canvas circle {
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard), transform var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-/* Node labels as DOM elements */
-.terrain-node-label-wrapper {
-  opacity: 0;
-  animation: fadeInLabel var(--motion-duration-medium) var(--motion-easing-standard) forwards;
-}
-
-.terrain-node-label-card {
-  padding: 2px 6px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: 0 2px 8px var(--color-shadow);
-  pointer-events: none;
-  width: fit-content;
-}
-
-.terrain-node-label-text {
-  font-size: 11px;
-  font-family: Inter, sans-serif;
-  font-weight: 500;
-  color: var(--color-on-surface);
-  white-space: nowrap;
-  text-align: center;
-}
-
-@keyframes fadeInLabel {
-  to {
-    opacity: 1;
-  }
 }

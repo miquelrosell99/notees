@@ -96,7 +96,6 @@ export function useAndroidBridge() {
           '/journal': 'journals',
           '/graph': 'graph',
           '/pages': 'all-pages',
-          '/terrain': 'terrain',
           '/timeline': 'timeline',
           '/archived': 'archived',
           '/trash': 'trash',

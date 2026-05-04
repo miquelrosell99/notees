@@ -30,7 +30,6 @@ import type {
   PhysicsFrameMessage,
   PhysicsReadyMessage,
   PhysicsSharedBufferMessage,
-  PhysicsTerrainDataMessage,
 } from './graphPhysicsWorkerProtocol';
 import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
 
@@ -80,46 +79,10 @@ let ready = false;
 /** Timeout handle for the physics tick loop. */
 let tickTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
 
-// ============================================================
-// Terrain mode state
-// ============================================================
-
 /**
- * When true, the tick loop splits engine.step() into
- * computeForces() → applyTerrainForces() → integrate().
- */
-let isTerrainMode = false;
-
-/** Per-node height lookup (double-log-compressed) keyed by node ID. */
-const terrainHeightMap = new Map<number, number>();
-/** Per-node peak-radius fraction [0..1] keyed by node ID. */
-const terrainPeakMap   = new Map<number, number>();
-
-/** Ref-link arrays (source, target, type) for minimum-separation forces. */
-let refLinkSrcs:  Int32Array = new Int32Array(0);
-let refLinkTgts:  Int32Array = new Int32Array(0);
-let refLinkCount  = 0;
-
-/**
- * Mirrors the pinned/dragged state of the engine so that terrain forces
- * can skip immovable nodes without querying engine internals.
+ * Mirrors the pinned/dragged state of the engine.
  */
 const pinnedWorkerSet = new Set<number>();
-
-/**
- * Cached nodeId→slot mapping for the engine's internal typed arrays.
- * Rebuilt whenever topology changes (set dirty by idToSlotDirty flag).
- * Used to look up positions by node ID in reference-link force phase.
- */
-const idToSlotCache = new Map<number, number>();
-let   idToSlotDirty = true;
-
-// Terrain physics constants — must match viewTypes.ts
-const T_BASE_FP = 60;    // TERRAIN_BASE_FOOTPRINT
-const T_PEAK_FP = 120;   // TERRAIN_PEAK_FOOTPRINT
-const T_SEP_STR = 0.15;  // TERRAIN_SEPARATION_STRENGTH
-const T_REF_SEP = 240;   // TERRAIN_REF_LINK_MIN_SEPARATION
-const T_REF_STR = 0.06;  // TERRAIN_REF_LINK_SEPARATION_STRENGTH
 
 // ============================================================
 // SharedArrayBuffer path (active when crossOriginIsolated)
@@ -264,85 +227,6 @@ function postFrame(): void {
   workerPost(msg, [buf.buffer]);
 }
 
-// ============================================================
-// Terrain force injection
-// ============================================================
-
-/**
- * Apply terrain-specific forces AFTER computeForces() and BEFORE integrate().
- *
- * Two phases:
- *  1. Cone-collision avoidance — shorter nodes are pushed away from taller
- *     nodes' cone footprints, proportional to height difference.
- *  2. Reference-link minimum separation — reference/property-reference linked
- *     node pairs are gently pushed apart when too close.
- */
-function applyTerrainForces(): void {
-  if (!engine || terrainHeightMap.size === 0) return;
-  const state = engine.getState();
-  const { posX, posY, nodeIdArr, nodeCount, alpha } = state;
-
-  // --- Phase 1: Cone-based collision avoidance  O(n²) ---
-  for (let i = 0; i < nodeCount; i++) {
-    const idI = nodeIdArr[i];
-    if (pinnedWorkerSet.has(idI)) continue;
-    const shortH    = terrainHeightMap.get(idI) ?? 0;
-    const shortPeak = terrainPeakMap.get(idI) ?? 0;
-    const shortRp   = T_BASE_FP * 0.25 + T_PEAK_FP * 0.25 * shortPeak;
-    const xi = posX[i], yi = posY[i];
-    for (let j = 0; j < nodeCount; j++) {
-      if (i === j) continue;
-      const idJ   = nodeIdArr[j];
-      const tallH = terrainHeightMap.get(idJ) ?? 0;
-      if (tallH <= shortH) continue; // only repel from taller peaks
-      const tallPeak = terrainPeakMap.get(idJ) ?? 0;
-      const tallRp   = T_BASE_FP * 0.25 + T_PEAK_FP * 0.25 * tallPeak;
-      const tallRs   = T_BASE_FP         + T_PEAK_FP           * tallPeak;
-      const hRatio   = (tallH - shortH) / tallH;
-      const coneR    = tallRp + (tallRs - tallRp) * hRatio;
-      const dx = xi - posX[j], dy = yi - posY[j];
-      const dist     = Math.sqrt(dx * dx + dy * dy) || 1;
-      const effR     = coneR - shortRp * 0.5;
-      if (dist >= effR) continue;
-      const overlap = effR - dist;
-      const force   = overlap * T_SEP_STR * alpha;
-      engine.applyForce(idI, (dx / dist) * force, (dy / dist) * force);
-    }
-  }
-
-  // --- Phase 2: Reference-link minimum separation  O(links) ---
-  if (refLinkCount === 0) return;
-
-  // Build / refresh nodeId→slot cache (topology-stable; only dirty on change).
-  if (idToSlotDirty) {
-    idToSlotCache.clear();
-    for (let i = 0; i < nodeCount; i++) idToSlotCache.set(nodeIdArr[i], i);
-    idToSlotDirty = false;
-  }
-
-  for (let e = 0; e < refLinkCount; e++) {
-    const srcId = refLinkSrcs[e], tgtId = refLinkTgts[e];
-    const iA = idToSlotCache.get(srcId), iB = idToSlotCache.get(tgtId);
-    if (iA === undefined || iB === undefined) continue;
-    const pinnedA = pinnedWorkerSet.has(srcId);
-    const pinnedB = pinnedWorkerSet.has(tgtId);
-    if (pinnedA && pinnedB) continue;
-    const dx = posX[iB] - posX[iA];
-    const dy = posY[iB] - posY[iA];
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const peakA   = terrainPeakMap.get(srcId) ?? 0;
-    const peakB   = terrainPeakMap.get(tgtId) ?? 0;
-    const avgPeak = (peakA + peakB) * 0.5;
-    const minSep  = T_REF_SEP + avgPeak * 60;
-    if (dist >= minSep) continue;
-    const overlap = minSep - dist;
-    const force   = overlap * T_REF_STR * alpha;
-    const nx = dx / dist, ny = dy / dist;
-    if (!pinnedA) engine.applyForce(srcId, -nx * force, -ny * force);
-    if (!pinnedB) engine.applyForce(tgtId,  nx * force,  ny * force);
-  }
-}
-
 /** Build the nodeIds Int32Array from the engine's current state. */
 function rebuildNodeIds(): void {
   if (!engine) { nodeIds = new Int32Array(0); return; }
@@ -394,14 +278,7 @@ function tick(): void {
   const t0 = now;
   let   substeps = 0;
   while (accumulator >= FIXED_DT_MS && substeps < MAX_SUBSTEPS) {
-    if (isTerrainMode) {
-      // Split step so we can inject terrain forces between computeForces and integrate.
-      engine.computeForces();
-      applyTerrainForces();
-      engine.integrate();
-    } else {
-      engine.step();
-    }
+    engine.step();
     accumulator -= FIXED_DT_MS;
     substeps++;
   }
@@ -481,7 +358,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
     // ── Full topology swap ───────────────────────────────────
     case 'setTopology': {
       pinnedWorkerSet.clear();
-      idToSlotDirty = true;
       if (!engine) break;
       // Snapshot positions from typed SoA arrays
       const prevPositions = new Map<number, { x: number; y: number; vx: number; vy: number }>();
@@ -527,7 +403,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine.addNode(msg.node, msg.connectedToIds);
       rebuildNodeIds();
       ensureBuffers(engine.nodeCount);
-      idToSlotDirty = true;
       if (SAB_ENABLED) postSharedBufferRefs();
       startLoop();
       break;
@@ -645,35 +520,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine?.dispose();
       engine = null;
       ready = false;
-      isTerrainMode = false;
       pinnedWorkerSet.clear();
-      terrainHeightMap.clear();
-      terrainPeakMap.clear();
-      refLinkCount = 0;
-      idToSlotDirty = true;
-      break;
-    }
-
-    // ── Enable/disable terrain mode ───────────────────────────
-    case 'setTerrainMode': {
-      isTerrainMode = msg.enabled;
-      break;
-    }
-
-    // ── Update per-node terrain data ──────────────────────────
-    case 'terrainData': {
-      const d = msg as PhysicsTerrainDataMessage;
-      terrainHeightMap.clear();
-      terrainPeakMap.clear();
-      for (let i = 0; i < d.nodeIds.length; i++) {
-        terrainHeightMap.set(d.nodeIds[i], d.heights[i]);
-        terrainPeakMap.set(d.nodeIds[i], d.peakRadii[i]);
-      }
-      refLinkSrcs  = d.refLinkSources;
-      refLinkTgts  = d.refLinkTargets;
-      // refLinkTypes removed — unused
-      refLinkCount = d.refLinkSources.length;
-      idToSlotDirty = true; // position cache may have shifted
       break;
     }
   }

@@ -21,7 +21,6 @@ export type MainViewType =
   | 'all-pages'
   | 'journals'
   | 'graph'
-  | 'terrain'
   | 'timeline'
   | 'archived'
   | 'trash'
