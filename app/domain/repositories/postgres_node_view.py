@@ -63,17 +63,23 @@ class PostgresNodeViewRepository:
             query_json = DEFAULT_QUERY_AST.copy()
         elif isinstance(query_json, str):
             try:
-                query_json = json.loads(query_json)
+                parsed = json.loads(query_json)
+                query_json = parsed if isinstance(parsed, dict) else DEFAULT_QUERY_AST.copy()
             except json.JSONDecodeError:
                 query_json = DEFAULT_QUERY_AST.copy()
         
         # Parse shown_properties from JSONB
-        shown_properties = row.get('shown_properties', [])
-        if isinstance(shown_properties, str):
+        shown_properties = row.get('shown_properties')
+        if shown_properties is None:
+            shown_properties = []
+        elif isinstance(shown_properties, str):
             try:
-                shown_properties = json.loads(shown_properties)
+                parsed = json.loads(shown_properties)
+                shown_properties = parsed if isinstance(parsed, list) else []
             except json.JSONDecodeError:
                 shown_properties = []
+        elif not isinstance(shown_properties, list):
+            shown_properties = []
         
         return NodeView(
             id=row['id'],
