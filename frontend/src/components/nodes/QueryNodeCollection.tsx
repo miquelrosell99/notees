@@ -842,6 +842,7 @@ export function QueryNodeCollection({
           nodeData = {
             name: '',
             parent_id: nodeId,
+            classes: [nodeId],
           };
           break;
         
