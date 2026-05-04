@@ -317,8 +317,27 @@ export function BlockEditor({
       const allDescendants = runtime.getDescendants(derivedRootId);
       const effectiveSkipPages = skipPages ?? true;
       const staleIds = allDescendants
-        .filter(desc => !newBlockIds.has(desc.blockId) && desc.serverId != null
-          && !(effectiveSkipPages && desc.isPage))
+        .filter(desc => {
+          if (newBlockIds.has(desc.blockId)) return false;         // still present
+          if (desc.serverId == null) return false;                  // keep optimistic blocks
+          if (effectiveSkipPages && desc.isPage) return false;      // keep pages
+          // SAFETY: only remove a descendant if its parent is ALSO in the
+          // current view.  If the parent is missing (e.g. the parent is
+          // collapsed in this editor, or this is a query view that only
+          // shows the parent), the child may be displayed in another
+          // editor (e.g. the sidebar) and must NOT be removed from the
+          // shared runtime.
+          //
+          // The root itself (page/block) is not added as a GraphNode, so
+          // direct children have a parentId that resolves to null in the
+          // runtime.  We treat the root as "in view" so direct children
+          // can still be cleaned up when deleted.
+          const parentInRuntime = desc.parentId ? runtime.getNode(desc.parentId) : null;
+          const isDirectChildOfRoot = desc.parentId === derivedRootId;
+          if (!parentInRuntime && !isDirectChildOfRoot) return false;
+          if (parentInRuntime && !newBlockIds.has(parentInRuntime.blockId)) return false;
+          return true;
+        })
         .map(desc => desc.blockId);
       if (staleIds.length > 0) {
         runtime.removeNodes(staleIds);
