@@ -152,7 +152,7 @@ export interface QueryNodeCollectionProps {
   nodeId: number;
   /** The node UUID for query placeholders */
   nodeUuid: string;
-  /** The node name (used to include the active node in graph/terrain views) */
+  /** The node name (used to include the active node in graph views) */
   nodeName?: string;
   /** The view type (e.g., 'linked_references', 'child_pages') */
   viewType: NodeViewType | string;
@@ -951,7 +951,7 @@ export function QueryNodeCollection({
             viewId={activeView?.id}
             view={activeView ?? undefined}
             viewMode={collectionViewMode}
-            availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
+            availableViewModes={['list', 'table', 'card', 'graph', 'gantt']}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             onContentChange={saveContent}
@@ -1008,7 +1008,7 @@ export function QueryNodeCollection({
                 viewId={activeView?.id}
                 view={activeView ?? undefined}
                 viewMode={collectionViewMode}
-                availableViewModes={['list', 'table', 'card', 'graph', 'terrain', 'gantt']}
+                availableViewModes={['list', 'table', 'card', 'graph', 'gantt']}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
                 onContentChange={saveContent}

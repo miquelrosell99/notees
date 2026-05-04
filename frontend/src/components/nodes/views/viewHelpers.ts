@@ -1,7 +1,7 @@
 /**
  * View Helpers Module
  * 
- * Shared helper functions for graph and terrain view components.
+ * Shared helper functions for graph view components.
  * Contains pure functions for node calculations, color handling, and path finding.
  */
 import type { GraphNode, GraphLink, ClassColor, NodeSizeMode, LinkDirection } from './viewTypes';

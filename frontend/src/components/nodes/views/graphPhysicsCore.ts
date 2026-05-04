@@ -2,8 +2,7 @@
  * graphPhysicsCore.ts
  *
  * Main-thread graph physics step for SemanticGraphEngine (SGE).
- * Called from useNodePhysics during the simulation loop when the terrain physics
- * worker is NOT active. Also handles post-integration position constraints
+ * Also handles post-integration position constraints
  * (ring projection, centre-of-mass recentering) and the equidistant stepping mode.
  *
  * All functions are pure (no React hooks) so they can be called from inside the
@@ -12,17 +11,12 @@
 
 import type { MutableRefObject } from 'react';
 import type { SemanticGraphEngine } from './SemanticGraphEngine';
-import type { GraphNode, GraphLink, Dimensions, FrameData, NodeSizeMode, LinkDirection } from './viewTypes';
+import type { GraphNode, GraphLink, Dimensions, NodeSizeMode, LinkDirection } from './viewTypes';
 import {
   RETURN_FORCE,
   LINKED_ATTRACTION_DISTANCE,
   DRAG_PULL_STRENGTH,
   REFERENCE_LINK_FORCE_MULTIPLIER,
-  TERRAIN_BASE_FOOTPRINT,
-  TERRAIN_PEAK_FOOTPRINT,
-  TERRAIN_SEPARATION_STRENGTH,
-  TERRAIN_REF_LINK_MIN_SEPARATION,
-  TERRAIN_REF_LINK_SEPARATION_STRENGTH,
   TANGENTIAL_OVERLAP_RESOLVE,
   pairKey,
   getGlareRadius,
@@ -35,31 +29,27 @@ export interface MainThreadPhysicsRefs {
   sgeRef:       MutableRefObject<SemanticGraphEngine | null>;
   dragNodeRef:  MutableRefObject<GraphNode | null>;
   dimensionsRef: MutableRefObject<Dimensions>;
-  frameDataRef: MutableRefObject<FrameData>;
 }
 
 // ==================== Main-Thread Physics Step ====================
 
 /**
- * Runs when terrain worker is NOT active (graph modes, or terrain before worker is ready).
- *
  * Executes the full SGE cycle:
  *   Phase 1 – compute core forces (repulsion, springs, clustering)
- *   Phase 2 – inject mode-specific external forces (return-to-target, terrain cone
- *              collision, ref-link separation, tangential overlap, drag pull)
+ *   Phase 2 – inject mode-specific external forces (return-to-target,
+ *              tangential overlap, drag pull)
  *   Phase 3 – Verlet integration + position copy-back to GraphNode objects
  */
 export function runMainThreadPhysicsStep(
   refs: MainThreadPhysicsRefs,
   nodes: GraphNode[],
   nodeMap: Map<number, GraphNode>,
-  links: GraphLink[],
+  _links: GraphLink[],
   adjacency: Map<number, Set<number>>,
   connectedPairs: Map<number, GraphLink['type']>,
   massCache: Map<number, number>,
-  alpha: number,
+  _alpha: number,
   isConstrainedMode: boolean,
-  isTerrainModeNow: boolean,
   useMass: boolean,
   currentNodeSizeMode: NodeSizeMode,
   maxConnections: number,
@@ -67,7 +57,7 @@ export function runMainThreadPhysicsStep(
   maxContentSize: number,
   currentLinkDirection: LinkDirection,
 ): void {
-  const { sgeRef, dragNodeRef, dimensionsRef, frameDataRef } = refs;
+  const { sgeRef, dragNodeRef, dimensionsRef } = refs;
   const sge = sgeRef.current!;
 
   // Sync pinned/dragged state into engine
@@ -96,64 +86,6 @@ export function runMainThreadPhysicsStep(
       const connCount = node.connectionCount;
       const multiplier = connCount === 0 ? 10 : 1;
       sge.applyForce(node.id, dx * returnStrength * multiplier, dy * returnStrength * multiplier);
-    }
-  }
-
-  // Terrain: cone-based collision avoidance
-  if (isTerrainModeNow) {
-    const terrainPeakRadii = frameDataRef.current.terrainPeakRadii;
-    const terrainHeights   = frameDataRef.current.terrainHeights;
-    for (let i = 0; i < nodes.length; i++) {
-      const shortNode = nodes[i];
-      if (dragNodeRef.current?.id === shortNode.id || shortNode.pinned) continue;
-      const shortHeight = terrainHeights.get(shortNode.id) ?? 0;
-      const shortPeak   = terrainPeakRadii.get(shortNode.id) ?? 0;
-      const shortRp     = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * shortPeak;
-      for (let j = 0; j < nodes.length; j++) {
-        if (i === j) continue;
-        const tallNode   = nodes[j];
-        const tallHeight = terrainHeights.get(tallNode.id) ?? 0;
-        if (tallHeight <= shortHeight) continue;
-        const tallPeak = terrainPeakRadii.get(tallNode.id) ?? 0;
-        const tallRp   = TERRAIN_BASE_FOOTPRINT * 0.25 + TERRAIN_PEAK_FOOTPRINT * 0.25 * tallPeak;
-        const tallRs   = TERRAIN_BASE_FOOTPRINT + TERRAIN_PEAK_FOOTPRINT * tallPeak;
-        const heightRatio = (tallHeight - shortHeight) / tallHeight;
-        const coneRadiusAtShortHeight = tallRp + (tallRs - tallRp) * heightRatio;
-        const dx   = shortNode.x - tallNode.x;
-        const dy   = shortNode.y - tallNode.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const effectiveConeRadius = coneRadiusAtShortHeight - shortRp * 0.5;
-        if (dist >= effectiveConeRadius) continue;
-        const overlap = effectiveConeRadius - dist;
-        const force   = overlap * TERRAIN_SEPARATION_STRENGTH * alpha;
-        const nx = dx / dist;
-        const ny = dy / dist;
-        sge.applyForce(shortNode.id, nx * force, ny * force);
-      }
-    }
-
-    // Terrain: minimum separation between reference-linked nodes
-    for (const link of links) {
-      if (link.type !== 'reference' && link.type !== 'property-reference') continue;
-      const nodeA = nodeMap.get(link.source);
-      const nodeB = nodeMap.get(link.target);
-      if (!nodeA || !nodeB) continue;
-      if (nodeA.pinned && nodeB.pinned) continue;
-      if (dragNodeRef.current?.id === nodeA.id || dragNodeRef.current?.id === nodeB.id) continue;
-      const dx   = nodeB.x - nodeA.x;
-      const dy   = nodeB.y - nodeA.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const peakA   = frameDataRef.current.terrainPeakRadii.get(nodeA.id) ?? 0;
-      const peakB   = frameDataRef.current.terrainPeakRadii.get(nodeB.id) ?? 0;
-      const avgPeak = (peakA + peakB) * 0.5;
-      const minSep  = TERRAIN_REF_LINK_MIN_SEPARATION + avgPeak * 60;
-      if (dist >= minSep) continue;
-      const overlap = minSep - dist;
-      const force   = overlap * TERRAIN_REF_LINK_SEPARATION_STRENGTH * alpha;
-      const nx = dx / dist;
-      const ny = dy / dist;
-      if (!nodeA.pinned) sge.applyForce(nodeA.id, -nx * force, -ny * force);
-      if (!nodeB.pinned) sge.applyForce(nodeB.id,  nx * force,  ny * force);
     }
   }
 
@@ -220,12 +152,10 @@ export function runMainThreadPhysicsStep(
           const mass = rawM <= 1 ? 1 : 1 + Math.log(rawM);
           const linkType = connectedPairs.get(pairKey(dragNode.id, connectedId)) ?? null;
           let dragMultiplier = 1;
-          if (!isTerrainModeNow) {
-            if (linkType === 'property-reference') {
-              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
-            } else if (linkType === 'reference') {
-              dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
-            }
+          if (linkType === 'property-reference') {
+            dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER;
+          } else if (linkType === 'reference') {
+            dragMultiplier = REFERENCE_LINK_FORCE_MULTIPLIER * REFERENCE_LINK_FORCE_MULTIPLIER;
           }
           const fx = (dx / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
           const fy = (dy / dist) * DRAG_PULL_STRENGTH * (dist - LINKED_ATTRACTION_DISTANCE) * dragMultiplier / mass;
@@ -296,7 +226,7 @@ export function applyRingConstraints(
 // ==================== Centre-of-Mass Recentering ====================
 
 /**
- * Keeps the graph centred on the canvas in normal (non-constrained, non-terrain) mode.
+ * Keeps the graph centred on the canvas in normal (non-constrained) mode.
  * Translates all mobile nodes so their centroid stays at the canvas centre.
  */
 export function applyCOMRecentering(
