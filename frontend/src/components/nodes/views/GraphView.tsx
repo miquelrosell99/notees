@@ -33,6 +33,9 @@ import type {
   LinkDirection,
   GraphDataMode,
 } from './viewTypes';
+import type { SGEConfig } from './SemanticGraphEngine';
+import { applyCircleLayout } from './circleLayout';
+import { applyTreeLayout } from './treeLayout';
 import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
@@ -76,6 +79,21 @@ interface SelectedNodeItem {
 
 // Helper to get localStorage key for a view
 const getStorageKey = (viewId: string, key: string) => `graph_${viewId}_${key}`;
+
+/** Derive SGE physics config from user-facing graph settings. */
+function buildSGEConfig(settings: GraphSettings, viewMode: 'normal' | 'circle' | 'tree'): Partial<SGEConfig> {
+  const isConstrained = (viewMode === 'circle' || viewMode === 'tree') && settings.constraintMode === 'equidistant';
+  return {
+    springStrength: isConstrained ? 0.15 : settings.linkCountAttraction ? 0.055 : 0.035,
+    damping: isConstrained ? 0.78 : 0.85,
+    idealDistance: isConstrained ? 90 : 80,
+    maxVelocity: isConstrained ? 8 : 15,
+    componentCenterStrength: settings.centralGravity ? 0.003 : 0,
+    radialStrength: isConstrained ? 0.004 : settings.heightMode === 'hierarchy' ? 0.002 : 0.0005,
+    clusterStrength: isConstrained ? 0.008 : settings.heightMode === 'hierarchy' ? 0.006 : 0.003,
+    linkCountAttraction: settings.linkCountAttraction,
+  };
+}
 
 export function GraphView({ 
   viewId = 'default', 
@@ -174,6 +192,8 @@ export function GraphView({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
+
+  const sgeConfig = useMemo(() => buildSGEConfig(graphSettings, viewMode), [graphSettings, viewMode]);
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
@@ -391,6 +411,25 @@ export function GraphView({
       return true;
     });
 
+    // Apply circle/tree initial positions so view modes are visible immediately
+    if (viewMode === 'circle') {
+      const nodeSpacing = baseNodeRadius * 2.5 * 2 + 8;
+      applyCircleLayout(visibleNodes, 0, 0, nodeSpacing);
+      for (const n of visibleNodes) {
+        // Use a tiny non-zero sentinel so SGE doesn't fall back to spiral defaults
+        n.x = n.targetX === 0 ? 0.001 : n.targetX;
+        n.y = n.targetY === 0 ? 0.001 : n.targetY;
+      }
+    } else if (viewMode === 'tree') {
+      const nodeSpacing = baseNodeRadius * 2.5 * 2 + 8;
+      const levelGap = baseNodeRadius * 2.5 * 2 + 40;
+      applyTreeLayout(visibleNodes, 0, 0, nodeSpacing, levelGap, graphSettings.constraintMode);
+      for (const n of visibleNodes) {
+        n.x = n.targetX === 0 ? 0.001 : n.targetX;
+        n.y = n.targetY === 0 ? 0.001 : n.targetY;
+      }
+    }
+
     const visibleIds = new Set(visibleNodes.map(n => n.id));
 
     // Apply visibility filters to links
@@ -409,8 +448,14 @@ export function GraphView({
       .map(link => ({ source: link.source, target: link.target, type: link.type }));
     
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, classColors, visibilityFilters]);
+  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, classColors, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode]);
   
+  // Forward live graph-settings changes to the physics worker
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    rendererRef.current?.setConfig(sgeConfig);
+  }, [sgeConfig]);
+
   // Event handlers — SGEGraphView fires (nodeId: number) without event objects
   const handleNodeClick = useCallback((nodeId: number) => {
     if (customNodeClick) {
@@ -944,6 +989,7 @@ export function GraphView({
         ref={rendererRef}
         nodes={linksLoading ? EMPTY_NODES : nodes}
         edges={linksLoading ? EMPTY_EDGES : links}
+        config={sgeConfig}
         sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
         baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
