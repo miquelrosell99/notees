@@ -728,6 +728,27 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, sizeByConnections, baseNodeRadius]);
 
+  // ─── Visual-only updates (radius, color) ────────────────────────────────────
+  // These don't affect physics, so we skip the worker re-init and update the
+  // renderer directly. We mark the RAF dirty so the new radii appear immediately.
+  useEffect(() => {
+    const renderer = rendRef.current;
+    if (!renderer) return;
+
+    const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
+    const visuals = new Map<number, NodeVisual>();
+    for (const n of nodes) {
+      visuals.set(n.id, {
+        radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
+        color: nodeColor(n),
+      });
+    }
+    const idArr = new Int32Array(nodes.map(n => n.id));
+    renderer.setNodeVisuals(idArr, visuals);
+    dirtyRef.current.positions = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, baseNodeRadius, sizeByConnections]);
+
   // ─── Label canvas resize observer ─────────────────────────────────────────
   useEffect(() => {
     const lc = labelCanvasRef.current;
