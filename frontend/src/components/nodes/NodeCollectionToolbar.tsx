@@ -19,6 +19,7 @@ import {
   mdiDockTop,
   mdiDotsHorizontal,
   mdiTune,
+  mdiClose,
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
@@ -29,7 +30,8 @@ import { PropertyColumnSelector } from '@/components/properties/PropertyColumnSe
 import { GroupBySelector } from '@/components/properties/GroupBySelector';
 import { GanttPropertySelector } from '@/components/properties/GanttPropertySelector';
 import type { GanttTimeScale } from '@/components/properties/GanttPropertySelector';
-import type { Property } from '@/types';
+import type { Property } from '@/types/api';
+import { useProperties } from '@/hooks/useProperties';
 import './NodeCollectionToolbar.css';
 
 /** Max number of view mode icons shown inline before overflow */
@@ -145,6 +147,15 @@ export function NodeCollectionToolbar({
 
   // Whether we have any view-mode-specific settings to show
   const hasViewSettings = showGroupByButton || showPropertyColumnSelector || showGanttPropertySelector || showCardLayoutSelector;
+
+  // Resolve active group-by label for visible indicator
+  const { data: properties } = useProperties();
+  const groupByLabel = useMemo(() => {
+    if (!groupBy || groupBy === 'none') return null;
+    if (groupBy === 'page') return 'Page';
+    const prop = properties?.find(p => p.uuid === groupBy);
+    return prop?.name ?? 'Property';
+  }, [groupBy, properties]);
   
   // ── View mode inline/overflow split ─────────────────────────────────────
   const { inlineModes, overflowModes } = useMemo(() => {
@@ -256,6 +267,21 @@ export function NodeCollectionToolbar({
             </div>
           )}
         </ButtonWithPanel>
+      )}
+
+      {/* Active group-by badge */}
+      {groupByLabel && onGroupByChange && (
+        <span className="node-collection-toolbar__group-by-badge">
+          <span className="node-collection-toolbar__group-by-badge-label">Group: {groupByLabel}</span>
+          <button
+            className="node-collection-toolbar__group-by-badge-close"
+            onClick={() => onGroupByChange('none')}
+            title="Clear grouping"
+            type="button"
+          >
+            <Icon path={mdiClose} size={0.6} />
+          </button>
+        </span>
       )}
 
       {/* View Settings – single button combining all view-specific config */}

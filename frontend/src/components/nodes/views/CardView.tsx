@@ -16,7 +16,6 @@ import {
   useCallback,
   useMemo,
   useRef,
-  useId,
   memo,
   type JSX,
 } from 'react';
@@ -95,7 +94,6 @@ function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: s
 export const CardView = memo(function CardView({
   nodes,
   layout = 'no-cover',
-  columns: _columns,
   sortable,
   editable = true,
   selectable = false,
@@ -105,14 +103,11 @@ export const CardView = memo(function CardView({
   onNodeClick,
   onNodeShiftClick,
   onContentChange,
-  onAdd: _onAdd,
   customContextMenu,
   className = '',
   groupBy = 'none',
   groupByProperty,
 }: NodeCardViewProps): JSX.Element {
-  const viewId = useId();
-
   // ─── Sync structural changes to database ───────────────────
   useStructureSync();
 
@@ -137,7 +132,7 @@ export const CardView = memo(function CardView({
     const runtime = getNodeGraphRuntime();
     const { graphNodes } = apiNodesToGraphNodes(allNodes);
     runtime.upsertNodes(graphNodes);
-  }, [nodes, viewId]);
+  }, [nodes]);
 
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
@@ -152,15 +147,15 @@ export const CardView = memo(function CardView({
       const groups = new Map<string, CardGroup>();
 
       for (const node of sortedNodes) {
-        const pageId = (node as any).page_id;
+        const pageId = node.page_id;
 
         if (pageId) {
           const pageKey = `page-${pageId}`;
           if (!groups.has(pageKey)) {
             const pageNode = {
               id: pageId,
-              name: (node as any).page_name || 'Untitled',
-              uuid: (node as any).page_uuid || '',
+              name: node.page_name || 'Untitled',
+              uuid: node.page_uuid || '',
               is_page: true,
             } as Node;
             groups.set(pageKey, { page: pageNode, nodes: [] });
