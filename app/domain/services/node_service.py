@@ -787,7 +787,7 @@ class NodeService:
         from app.logging_config import get_logger
         logger = get_logger(__name__)
         
-        trashed = await self._node_repo.get_trashed_nodes()
+        trashed = await self._node_repo.get_deleted_nodes()
         logger.info(f"[EMPTY_TRASH] Found {len(trashed)} nodes in trash for workspace {self._workspace_id}")
         
         deleted_count = 0
