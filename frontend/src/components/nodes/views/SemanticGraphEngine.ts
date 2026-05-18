@@ -623,7 +623,7 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.003,
   componentSpacing: 500,
-  damping: 0.85,
+  damping: 0.8,
   maxVelocity: 15,
   alpha: 1.0,
   alphaDecay: 0.02,
@@ -1303,7 +1303,9 @@ export class SemanticGraphEngine {
     this.computeForces();
     this.integrate();
     if (this.alpha > this.config.alphaMin) {
-      this.alpha = Math.max(this.config.alphaMin, this.alpha - this.config.alphaDecay);
+      // Exponential decay (d3-force style): alpha *= (1 - decay).
+      // This gives a much more natural cooling schedule than linear subtraction.
+      this.alpha = Math.max(this.config.alphaMin, this.alpha * (1 - this.config.alphaDecay));
     }
   }
 
@@ -1346,7 +1348,6 @@ export class SemanticGraphEngine {
       this.velX[idx] = 0; this.velY[idx] = 0;
       this._rebuildActiveIndices();
     }
-    this.reheat();
   }
 
   moveNode(id: number, x: number, y: number): void {
@@ -1514,6 +1515,15 @@ export class SemanticGraphEngine {
   reheat(): void {
     this.frozen = false;
     this.alpha = 1.0;
+    this.prevDt = this.config.dt;
+    this.oscillationCounter = 0;
+  }
+
+  /** Wake the simulation with a small energy boost instead of a full reheat.
+   *  Used for drag interactions so the graph doesn't jiggle from alpha=1.0. */
+  softReheat(alphaBoost = 0.2): void {
+    this.frozen = false;
+    this.alpha = Math.min(1.0, Math.max(this.alpha, alphaBoost));
     this.prevDt = this.config.dt;
     this.oscillationCounter = 0;
   }

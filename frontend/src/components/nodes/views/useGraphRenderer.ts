@@ -115,13 +115,12 @@ function getLabelShadowColor(): string {
 
 const BASE_RADIUS   = 7;
 const MAX_RADIUS    = 22;
-const MIN_RADIUS    = 4;
 
 function nodeRadius(n: GraphNode, maxConnections: number, base = BASE_RADIUS): number {
   if (maxConnections <= 0) return base;
   // Scale logarithmically so hubs don't dominate visually
   const t = Math.log1p(n.connectionCount) / Math.log1p(maxConnections);
-  return MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * t;
+  return base + (MAX_RADIUS - base) * t;
 }
 
 // ─── Public API types ─────────────────────────────────────────────────────────
