@@ -85,7 +85,7 @@
   border-bottom: 1px solid var(--color-outline-variant);
   flex-shrink: 0;
   gap: var(--spacing-2);
-  border-radius: var(--shape-extra-large) var(--shape-extra-large) 0 0;
+  border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
 }
 
 .modal__header-left {
@@ -131,5 +131,5 @@
   padding: var(--spacing-3) var(--spacing-4);
   border-top: 1px solid var(--color-outline-variant);
   flex-shrink: 0;
-  border-radius: 0 0 var(--shape-extra-large) var(--shape-extra-large);
+  border-radius: 0 0 var(--shape-sheet) var(--shape-sheet);
 }

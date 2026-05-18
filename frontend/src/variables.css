@@ -166,6 +166,10 @@
   --shape-medium: 6px;
   --shape-large: 8px;
   --shape-extra-large: 12px;
+  --shape-card: 20px;
+  --shape-button-large: 16px;
+  --shape-button-small: 12px;
+  --shape-sheet: 28px;
   --shape-full: 9999px;
 
   /* ==================== Motion ==================== */
@@ -295,6 +299,22 @@
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
 
+}
+
+/* ==================== OLED Pure-Black Overrides ==================== */
+[data-oled="true"] {
+  --color-background: #000000;
+  --color-on-background: #e5e5e5;
+  --color-surface: #000000;
+  --color-surface-variant: #0a0a0a;
+  --color-surface-dim: #000000;
+  --color-surface-bright: #111111;
+  --color-surface-container: #000000;
+  --color-surface-container-low: #000000;
+  --color-surface-container-high: #0a0a0a;
+  --color-surface-container-highest: #171717;
+  --color-surface-container-lowest: #000000;
+  --color-outline-variant: #1a1a1a;
 }
 
 /* ==================== Responsive Breakpoints ==================== */

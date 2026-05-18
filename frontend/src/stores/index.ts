@@ -20,11 +20,13 @@ export { useAppStore, type ViewMode, type MainViewType, type NodeViewType, type 
 export { 
   useSettingsStore, 
   applyTheme,
+  applyAccentColor,
   formatDate,
   formatMonth,
   formatYear,
   DATE_FORMAT_OPTIONS,
   FIRST_DAY_OF_WEEK_OPTIONS,
+  ACCENT_COLOR_OPTIONS,
   type ThemePreference, 
   type DateFormat,
   type DateFormatOption,
@@ -33,6 +35,7 @@ export {
   type DefaultView,
   type FirstDayOfWeek,
   type FirstDayOfWeekOption,
+  type AccentColor,
 } from './settingsStore';
 export {
   useFavoritesStore,

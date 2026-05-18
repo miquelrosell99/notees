@@ -13,6 +13,7 @@ import './Card.css';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
+export type CardRadius = 'sm' | 'md' | 'lg' | 'xl' | 'none';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Card content */
@@ -26,7 +27,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Padding size */
   paddingSize?: 'sm' | 'md' | 'lg';
   /** Border radius size */
-  radius?: 'sm' | 'md' | 'lg' | 'none';
+  radius?: CardRadius;
   /** Additional class name */
   className?: string;
   /** Whether the card is interactive (hover effects) */
@@ -47,7 +48,7 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   {
     children,
-    elevation = 'medium',
+    elevation = 'none',
     variant = 'default',
     padding = true,
     paddingSize = 'md',
@@ -65,7 +66,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     'card',
     `card--elevation-${elevation}`,
     `card--variant-${variant}`,
-    `card--radius-${radius}`,
+    radius ? `card--radius-${radius}` : '',
     padding ? `card--padded card--padding-${paddingSize}` : '',
     interactive ? 'card--interactive' : '',
     selected ? 'card--selected' : '',

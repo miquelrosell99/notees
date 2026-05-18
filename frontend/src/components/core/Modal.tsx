@@ -106,7 +106,7 @@ export function Modal({
         className={`modal modal--${size} ${className}`}
         elevation="high"
         padding={false}
-        radius="lg"
+        radius="xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

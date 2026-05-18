@@ -82,6 +82,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    // Tactile feedback on mobile
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
     if (requiresConfirm) {
       e.preventDefault();
       e.stopPropagation();

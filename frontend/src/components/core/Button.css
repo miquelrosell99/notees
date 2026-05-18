@@ -12,7 +12,7 @@
   justify-content: center;
   gap: var(--spacing-1);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-large);
+  border-radius: var(--shape-button-large);
   font-family: var(--font-family-base);
   font-weight: 500;
   cursor: pointer;
@@ -93,11 +93,15 @@
   justify-self: start;
 }
 
+.btn--xs,
 .btn--icon-only.btn--xs {
+  border-radius: var(--shape-button-small);
   width: var(--height-sm);
 }
 
+.btn--sm,
 .btn--icon-only.btn--sm {
+  border-radius: var(--shape-button-small);
   width: var(--height-md);
 }
 

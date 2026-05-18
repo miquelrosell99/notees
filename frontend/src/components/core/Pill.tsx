@@ -25,7 +25,9 @@ export const Pill: React.FC<PillProps> = ({
   };
 
   const pillStyle = color
-    ? { backgroundColor: color, color: isColorLight(color) ? '#000' : '#fff' }
+    // Intentionally hardcoded black/white: these are contrast-math results
+    // against arbitrary user-chosen tag/property colors, not theme surfaces.
+    ? { backgroundColor: color, color: isColorLight(color) ? '#000000' : '#ffffff' }
     : undefined;
 
   return (
