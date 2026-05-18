@@ -709,6 +709,7 @@ export class SemanticGraphEngine {
   private prevDt:  number;
   private oscillationCounter = 0;
   private prevEnergy = Infinity;
+  private dragMode = false;
 
   constructor(
     inputNodes: Array<{ id: number; x?: number; y?: number }>,
@@ -1013,11 +1014,12 @@ export class SemanticGraphEngine {
     // ax/ay are already zeroed — cleared at the tail of the previous integrate().
 
     const alpha = this.alpha;
+    const dragScale = this.dragMode ? 0.15 : 1.0;
     this.updateClusterData();
     const clCx = this.clCx, clCy = this.clCy, clCC = this.clCount;
 
     // ─ A) Intra-cluster cohesion (shell model) ─────────────────────────────────
-    const clusterStr = cfg.clusterStrength * alpha;
+    const clusterStr = cfg.clusterStrength * alpha * dragScale;
     const idealDist  = cfg.idealDistance;
     for (let i = 0; i < N; i++) {
       if (pin[i]) continue;
@@ -1037,7 +1039,7 @@ export class SemanticGraphEngine {
     // Cap N scaling so cluster repulsion doesn't explode on large graphs.
     // sqrt(10000) = 100 would give repelStr = 80,000 — far too strong.
     const nScale   = N > 1 ? Math.min(Math.sqrt(N), 10) : 1;
-    const repelStr = cfg.clusterRepelStrength * nScale * alpha;
+    const repelStr = cfg.clusterRepelStrength * nScale * alpha * dragScale;
 
     if (bigK > 0) {
       for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
@@ -1117,7 +1119,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ E) Radial stability ───────────────────────────────────────────────────── 
-    const radialStr = cfg.radialStrength * alpha;
+    const radialStr = cfg.radialStrength * alpha * dragScale;
     if (radialStr > 0) {
       for (let k = 0; k < activeCount; k++) {
         const i = activeIdx[k];
@@ -1147,7 +1149,7 @@ export class SemanticGraphEngine {
       for (let c = 0; c < C; c++) { if (cc[c] > 0) { cx[c] /= cc[c]; cy[c] /= cc[c]; } }
 
       // 2) pairwise repulsion between component centroids
-      const compRepelStr = 2500 * alpha;
+      const compRepelStr = 2500 * alpha * dragScale;
       const compRepelRadius = 600;
       const cfx = new Float32Array(C), cfy = new Float32Array(C);
       for (let a = 0; a < C; a++) {
@@ -1194,7 +1196,7 @@ export class SemanticGraphEngine {
     // an outer rim (targetR).  Once beyond targetR they feel no gravity,
     // so they float freely in the periphery, kept in check only by local
     // repulsion and component repulsion from other clusters.
-    const centerStr = cfg.componentCenterStrength * alpha;
+    const centerStr = cfg.componentCenterStrength * alpha * dragScale;
     if (centerStr > 0) {
       const targetR = cfg.idealDistance * 8; // ~640
       const eps = 0.001;
@@ -1526,6 +1528,18 @@ export class SemanticGraphEngine {
     this.alpha = Math.min(1.0, Math.max(this.alpha, alphaBoost));
     this.prevDt = this.config.dt;
     this.oscillationCounter = 0;
+  }
+
+  /** Enter drag mode: suppress global forces so only local springs/repulsion react. */
+  startDrag(): void {
+    this.dragMode = true;
+    this.softReheat(0.06);
+  }
+
+  /** Exit drag mode: restore global forces and give a tiny nudge to settle. */
+  endDrag(): void {
+    this.dragMode = false;
+    this.softReheat(0.04);
   }
 
   freeze(): void { this.frozen = true; }
