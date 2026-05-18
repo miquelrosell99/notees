@@ -24,12 +24,12 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
 import { useCommentCount, useDailyNote } from '@/hooks';
-import { Button } from '../core/Button';
-import type { ButtonBadge } from '../core/Button';
-import { CalendarPopup } from '../core/CalendarPopup';
-import { Card } from '../core/Card';
-import { ContextMenu } from '../core/ContextMenu';
-import type { ContextMenuItem } from '../core/ContextMenu';
+import { Button } from '@/components/core/Button';
+import type { ButtonBadge } from '@/components/core/Button';
+import { CalendarPopup } from '@/components/core/CalendarPopup';
+import { Card } from '@/components/core/Card';
+import { ContextMenu } from '@/components/core/ContextMenu';
+import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal } from './UserSettingsModal';

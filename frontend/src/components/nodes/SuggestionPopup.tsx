@@ -25,8 +25,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SuggestionPopup.css';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
 import type { Node } from '@/types';
-import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '../core/icons';
-import { Checkbox } from '../core/Checkbox';
+import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '@/components/core/icons';
+import { Checkbox } from '@/components/core/Checkbox';
 import { NodeResultItem } from './NodeResultItem';
 import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
@@ -731,4 +731,3 @@ export function SuggestionPopup({
   );
 }
 
-export default SuggestionPopup;

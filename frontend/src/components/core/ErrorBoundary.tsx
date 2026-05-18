@@ -187,4 +187,3 @@ export function ViewErrorBoundary({
   );
 }
 
-export default ErrorBoundary;

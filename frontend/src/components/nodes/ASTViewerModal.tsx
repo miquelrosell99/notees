@@ -4,7 +4,7 @@
  * A debug modal that displays the raw AST (Abstract Syntax Tree) of a node's name
  * and all its child blocks. Useful for debugging and understanding the internal structure.
  */
-import { Modal } from '../core/Modal';
+import { Modal } from '@/components/core/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -154,4 +154,3 @@ export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
   );
 }
 
-export default ASTViewerModal;

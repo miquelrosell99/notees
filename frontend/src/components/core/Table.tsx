@@ -15,8 +15,8 @@
 import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
-import { NodeInline } from '../blocks/NodeInline';
-import { NodeNameContent } from '../blocks/NodeNameContent';
+import { NodeInline } from '@/components/blocks/NodeInline';
+import { NodeNameContent } from '@/components/blocks/NodeNameContent';
 import { NodeCellEditable } from './NodeCellEditable';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';

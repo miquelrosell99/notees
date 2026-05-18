@@ -6,9 +6,9 @@
  */
 import { useState, useCallback } from 'react';
 import { QueryNodeCollection } from './QueryNodeCollection';
-import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
-import { Button } from '../core/Button';
-import { LoadingSkeleton } from '../core/LoadingSkeleton';
+import { ChevronRightIcon, ChevronDownIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
+import { LoadingSkeleton } from '@/components/core/LoadingSkeleton';
 import type { NodeViewType } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import './NodeViewSection.css';
@@ -142,4 +142,3 @@ export function QuerySection({
   );
 }
 
-export default QuerySection;

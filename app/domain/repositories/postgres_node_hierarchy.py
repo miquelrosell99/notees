@@ -23,9 +23,6 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         user_id: Optional[int] = None,
     ) -> Optional[object]:
         """Move a node to a new parent and/or position with proper sibling resequencing."""
-        if self._user_id:
-            await self.permissions.require_node_write(node_id)
-
         async with acquire_connection(self._pool) as conn:
             async with conn.transaction():
                 node = await self.get_by_id(node_id)

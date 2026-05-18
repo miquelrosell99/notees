@@ -9,12 +9,12 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useExportSettingsStore } from '@/stores';
 import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiLinkVariant, mdiLinkOff } from '@mdi/js';
-import { Modal } from '../core/Modal';
+import { Modal } from '@/components/core/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { Button } from '../core/Button';
-import { SelectionButton } from '../core/SelectionButton';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { BooleanToggle } from '../core/BooleanToggle';
+import { Button } from '@/components/core/Button';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
 import api from '@/api/client';
 import './ExportPageModal.css';
 
@@ -437,4 +437,3 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
   );
 }
 
-export default ExportPageModal;

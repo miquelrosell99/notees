@@ -8,7 +8,7 @@
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
-import { NodeBreadcrumbs } from '../nodes/NodeBreadcrumbs';
+import { NodeBreadcrumbs } from '@/components/nodes/NodeBreadcrumbs';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
 import './SidebarCardNode.css';
@@ -45,4 +45,3 @@ export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodePr
   );
 }
 
-export default SidebarCardNode;

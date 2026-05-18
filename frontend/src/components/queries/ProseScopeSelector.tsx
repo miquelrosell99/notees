@@ -6,7 +6,7 @@
  */
 
 import { useCallback } from 'react';
-import { SelectionButton } from '../core/SelectionButton';
+import { SelectionButton } from '@/components/core/SelectionButton';
 import { mdiWeb, mdiFileDocumentOutline, mdiFileMultiple } from '@mdi/js';
 import type { ScopeNode, ScopeType } from '@/types/queryAST';
 import './ProseScopeSelector.css';
@@ -52,4 +52,3 @@ export function ProseScopeSelector({
   );
 }
 
-export default ProseScopeSelector;

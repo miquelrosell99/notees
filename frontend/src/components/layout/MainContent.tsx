@@ -20,7 +20,7 @@ import { JournalsView } from '../../views/JournalsView';
 import { AllPagesGraphView } from '../../views/AllPagesGraphView';
 import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
 import { PropertyViewFull } from '../../views/PropertyView';
-import { WhiteboardView } from '../nodes/views/WhiteboardView';
+import { WhiteboardView } from '@/components/nodes/views/WhiteboardView';
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNavigationStore();

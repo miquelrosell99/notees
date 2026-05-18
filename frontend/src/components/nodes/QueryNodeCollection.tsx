@@ -30,16 +30,16 @@ import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
 import { NodeCollection } from './NodeCollection';
 import type { Node } from '@/types';
-import { Button } from '../core/Button';
-import { Modal } from '../core/Modal';
-import { Badge } from '../core/Badge';
-import { SelectionButton } from '../core/SelectionButton';
-import { InlineConfirmButton } from '../core/InlineConfirmButton';
-import { TextField } from '../core/TextField';
+import { Button } from '@/components/core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Badge } from '@/components/core/Badge';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { InlineConfirmButton } from '@/components/core/InlineConfirmButton';
+import { TextField } from '@/components/core/TextField';
 import { ViewBuilder } from '../queries';
-import { QuerySQLPreview } from '../queries/QuerySQLPreview';
-import { ProseScopeSelector } from '../queries/ProseScopeSelector';
-import { DeleteIcon } from '../core/icons';
+import { QuerySQLPreview } from '@/components/queries/QuerySQLPreview';
+import { ProseScopeSelector } from '@/components/queries/ProseScopeSelector';
+import { DeleteIcon } from '@/components/core/icons';
 import { validateQueryAST, canSaveQuery } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
@@ -1300,4 +1300,3 @@ export function QueryNodeCollection({
   });
 }
 
-export default QueryNodeCollection;

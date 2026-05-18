@@ -258,4 +258,3 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
   return inline ? menu : createPortal(menu, document.body);
 }
 
-export default ContextMenu;

@@ -23,20 +23,20 @@ import { getOrCreateDaily } from '@/api/nodes';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { mdiPlus } from '@mdi/js';
-import { PropertiesIcon, NodeIcon } from '../core/icons';
-import { Checkbox } from '../core/Checkbox';
+import { PropertiesIcon, NodeIcon } from '@/components/core/icons';
+import { Checkbox } from '@/components/core/Checkbox';
 import { addSelectionOption } from '@/api/properties';
-import { Button } from '../core/Button';
-import { Dropdown } from '../core/Dropdown';
-import { DatePickerPopup } from '../core/DatePickerPopup';
-import { NodeSelector } from '../nodes/NodeSelector';
-import { TextPropertyBlock } from '../blocks/TextPropertyBlock';
+import { Button } from '@/components/core/Button';
+import { Dropdown } from '@/components/core/Dropdown';
+import { DatePickerPopup } from '@/components/core/DatePickerPopup';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
+import { TextPropertyBlock } from '@/components/blocks/TextPropertyBlock';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
-import type { ContextMenuItem } from '../core/ContextMenu';
+import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { parseIconField } from '@/utils/iconDom';
-import { NodeViewSection } from '../nodes/NodeViewSection';
+import { NodeViewSection } from '@/components/nodes/NodeViewSection';
 import './PropertiesSection.css';
 
 interface PropertiesSectionProps {
@@ -201,6 +201,27 @@ function PropertyValue({
     
     // Convert value based on property type
     let finalValue: unknown;
+    // Hoisted hook calls to comply with Rules of Hooks
+    const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
+      const newPage = await onCreatePage?.(name, property.class_filters);
+      if (!newPage) throw new Error('Failed to create page');
+      return newPage;
+    }, [onCreatePage, property.class_filters]);
+
+    const selectionOptions = useMemo(() => {
+      const opts = property.options ?? [];
+      return opts.map(opt => {
+        const color = opt.color || parseIconField(opt.icon || '').color || null;
+        return {
+          value: opt.id,
+          label: opt.name,
+          iconNode: color
+            ? <span className="selection-color-dot" style={{ background: color }} />
+            : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
+        };
+      });
+    }, [property.options]);
+
     switch (property.type) {
       case 'integer':
         finalValue = parseInt(editValue, 10);
@@ -311,12 +332,6 @@ function PropertyValue({
 
     case 'node':
       // For node references
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
-        const newPage = await onCreatePage?.(name, property.class_filters);
-        if (!newPage) throw new Error('Failed to create page');
-        return newPage;
-      }, [onCreatePage, property.class_filters]);
       
       if (property.multi) {
         // Multi-value: pill-row mode with add/remove (same as classes/tags)
@@ -364,20 +379,6 @@ function PropertyValue({
       
       if (property.multi) {
         // Multi-value selection: use Dropdown with multiple
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const selectionOptions = useMemo(() => 
-          options.map(opt => {
-            const color = opt.color || parseIconField(opt.icon || '').color || null;
-            return {
-              value: opt.id,
-              label: opt.name,
-              iconNode: color
-                ? <span className="selection-color-dot" style={{ background: color }} />
-                : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
-            };
-          }),
-          [options]
-        );
         
         return (
           <Dropdown
@@ -393,20 +394,6 @@ function PropertyValue({
         );
       } else {
         // Single-value selection: use Dropdown
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const selectionOptions = useMemo(() => 
-          options.map(opt => {
-            const color = opt.color || parseIconField(opt.icon || '').color || null;
-            return {
-              value: opt.id,
-              label: opt.name,
-              iconNode: color
-                ? <span className="selection-color-dot" style={{ background: color }} />
-                : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
-            };
-          }),
-          [options]
-        );
         
         const currentValue = typeof value === 'object' && value !== null && 'id' in value ? (value as { id: number }).id : value;
         
@@ -733,6 +720,27 @@ export function PropertiesSection({
     // Note: null values cause the property to be removed, so we use empty strings
     // for text-like types to ensure the property is actually added
     let defaultValue: unknown;
+    // Hoisted hook calls to comply with Rules of Hooks
+    const handleCreateNodeForProperty = useCallback(async (name: string): Promise<Node> => {
+      const newPage = await onCreatePage?.(name, property.class_filters);
+      if (!newPage) throw new Error('Failed to create page');
+      return newPage;
+    }, [onCreatePage, property.class_filters]);
+
+    const selectionOptions = useMemo(() => {
+      const opts = property.options ?? [];
+      return opts.map(opt => {
+        const color = opt.color || parseIconField(opt.icon || '').color || null;
+        return {
+          value: opt.id,
+          label: opt.name,
+          iconNode: color
+            ? <span className="selection-color-dot" style={{ background: color }} />
+            : opt.icon ? <NodeIcon icon={opt.icon} size="xs" /> : undefined,
+        };
+      });
+    }, [property.options]);
+
     switch (property.type) {
       case 'boolean':
         defaultValue = false;
@@ -1033,6 +1041,4 @@ export function InlineProperties({
     </div>
   );
 }
-
-export default PropertiesSection;
 

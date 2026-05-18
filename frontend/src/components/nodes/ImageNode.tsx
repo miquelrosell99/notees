@@ -12,10 +12,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNode } from '@/hooks';
 import { useNavigationStore } from '@/stores';
 import { getAssetUrlAsync } from '@/api/assets';
-import { Card } from '../core/Card';
-import { Button } from '../core/Button';
-import { ImageModal } from '../core/ImageModal';
-import { FloatingButtonArray } from '../core/FloatingButtonArray';
+import { Card } from '@/components/core/Card';
+import { Button } from '@/components/core/Button';
+import { ImageModal } from '@/components/core/ImageModal';
+import { FloatingButtonArray } from '@/components/core/FloatingButtonArray';
 import { mdiPencil, mdiClose } from '@mdi/js';
 import './ImageNode.css';
 
@@ -232,4 +232,3 @@ export function ImageNode({
   );
 }
 
-export default ImageNode;

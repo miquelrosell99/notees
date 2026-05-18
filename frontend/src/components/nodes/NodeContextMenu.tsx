@@ -17,11 +17,11 @@ import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { ConfirmationModal } from '../core/ConfirmationModal';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 
 import { ASTViewerModal } from './ASTViewerModal';
-import { ExportPageModal } from '../workspace/ExportPageModal';
+import { ExportPageModal } from '@/components/workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
 import api from '@/api/client';
 import type { Node, NodeUpdate } from '@/types';
@@ -565,4 +565,3 @@ export function NodeContextMenu({
 export const PageContextMenu = NodeContextMenu;
 export const BlockContextMenu = NodeContextMenu;
 
-export default NodeContextMenu;

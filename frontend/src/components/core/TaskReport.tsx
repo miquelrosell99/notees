@@ -131,4 +131,3 @@ function PhaseRow({ phase }: { phase: TaskPhaseResult }) {
   );
 }
 
-export default TaskReport;

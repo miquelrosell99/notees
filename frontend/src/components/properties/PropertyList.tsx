@@ -18,10 +18,10 @@ import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import type { Property, PropertyType, Node } from '@/types/api';
 import { useNavigationStore } from '@/stores';
 import { useNode } from '@/hooks';
-import { NodeInline } from '../blocks/NodeInline';
-import { ChevronRightIcon } from '../core/icons';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { PageContextMenu } from '../nodes/NodeContextMenu';
+import { NodeInline } from '@/components/blocks/NodeInline';
+import { ChevronRightIcon } from '@/components/core/icons';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
+import { PageContextMenu } from '@/components/nodes/NodeContextMenu';
 import './PropertyList.css';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
@@ -367,4 +367,3 @@ function PropertyRow({
   );
 }
 
-export default PropertyList;

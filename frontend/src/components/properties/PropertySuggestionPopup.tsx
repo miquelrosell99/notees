@@ -16,7 +16,7 @@ import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { getPropertySuggestions } from '@/api/properties';
-import { AddIcon, NodeIcon } from '../core/icons';
+import { AddIcon, NodeIcon } from '@/components/core/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
@@ -336,4 +336,3 @@ export function PropertySuggestionPopup({
   );
 }
 
-export default PropertySuggestionPopup;

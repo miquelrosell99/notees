@@ -10,8 +10,8 @@ import Icon from '@mdi/react';
 import { mdiPlus, mdiDatabaseOutline, mdiViewDashboard } from '@mdi/js';
 import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
-import { Button } from '../core/Button';
-import { Dropdown, type DropdownOption } from '../core/Dropdown';
+import { Button } from '@/components/core/Button';
+import { Dropdown, type DropdownOption } from '@/components/core/Dropdown';
 import './WorkspaceSwitcher.css';
 
 interface WorkspaceSwitcherProps {
@@ -126,4 +126,3 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   );
 }
 
-export default WorkspaceSwitcher;

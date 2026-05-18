@@ -6,8 +6,8 @@
 import { useCallback, useState } from 'react';
 import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { ConfirmationModal } from '../core/ConfirmationModal';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
@@ -148,4 +148,3 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   );
 }
 
-export default ArchivedNodeContextMenu;

@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError, PermissionDeniedError
+from ..permissions import PermissionChecker
 from ..validation import validate_node_create, validate_node_update
 from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
@@ -16,6 +17,7 @@ from ...logging_config import get_logger
 from .class_management_service import ClassManagementService
 
 if TYPE_CHECKING:
+    import asyncpg
     from ..repositories import NodeRepository, PropertyRepository, LinkRepository
     from .link_service import LinkParsingService
 
@@ -34,6 +36,7 @@ class NodeService:
     _pool: Any = None
     _workspace_id: Optional[int] = None
     _user_id: Optional[int] = None
+    _permissions: Optional[PermissionChecker] = None
     
     def __init__(
         self,
@@ -43,6 +46,7 @@ class NodeService:
         page_class_id: int,
         pool: Optional[asyncpg.Pool] = None,
         workspace_id: Optional[int] = None,
+        user_id: Optional[int] = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -50,6 +54,7 @@ class NodeService:
         self._page_class_id = page_class_id
         self._pool = pool
         self._workspace_id = workspace_id
+        self._user_id = user_id
         self._class_service = ClassManagementService(pool, workspace_id, node_repository, property_repository)
 
     # ── Public properties ──────────────────────────────────────────────────
@@ -73,6 +78,14 @@ class NodeService:
     def property_repo(self):
         """Property repository (used by property routers that need repo-level CRUD)."""
         return self._property_repo
+
+    @property
+    def permissions(self) -> PermissionChecker:
+        if self._permissions is None:
+            if self._pool is None or self._user_id is None:
+                raise RuntimeError("Pool and user ID required for permission checks")
+            self._permissions = PermissionChecker(self._pool, self._user_id)
+        return self._permissions
 
     # ── Public delegation methods ──────────────────────────────────────────
 
@@ -143,6 +156,8 @@ class NodeService:
         Used for system-managed nodes (date pages, assets) where the UUID is
         predetermined and normal validation / link-parsing is not needed.
         """
+        if self._user_id:
+            await self.permissions.require_workspace_create(self._workspace_id)
         return await self._node_repo.create(data, uuid=uuid)
 
     async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
@@ -331,6 +346,8 @@ class NodeService:
             )
         
         # Create the node
+        if self._user_id:
+            await self.permissions.require_workspace_create(self._workspace_id)
         node = await self._node_repo.create(data, user_id)
         
         # Parse and store links and inline classes from content
@@ -484,6 +501,8 @@ class NodeService:
             # Check that move won't exceed maximum depth
             await self._check_max_depth(node_id, new_parent_id)
         
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
         # Use dedicated move method for proper resequencing
         node = await self._node_repo.move(node_id, new_parent_id, new_sequence, user_id)
         if not node:
@@ -598,6 +617,8 @@ class NodeService:
         if data.parent_id is not None and data.parent_id != old_parent_id:
             await self._check_circular_reference(node_id, data.parent_id)
 
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
         node = await self._node_repo.update(node_id, data, user_id, expected_version=expected_version)
         if not node:
             return None
@@ -629,6 +650,8 @@ class NodeService:
         Raises:
             DatePageDeletionError: If trying to delete a month/year page that has active day children
         """
+        if self._user_id:
+            await self.permissions.require_node_delete(node_id)
         # Get node including archived ones (bypassing active=TRUE filter)
         node = await self._node_repo.get_node_by_id_with_workspace(node_id)
         if not node:
@@ -749,6 +772,8 @@ class NodeService:
         Returns:
             True if deleted, False if not found or not in trash
         """
+        if self._user_id:
+            await self.permissions.require_node_delete(node_id)
         return await self._node_repo.hard_delete(node_id)
     
     async def empty_trash(self) -> int:

@@ -19,12 +19,12 @@ import {
   useUpdateClassProperty,
 } from '@/hooks';
 import { mdiPlus, mdiDotsVertical, mdiAsterisk } from '@mdi/js';
-import { Button } from '../core/Button';
+import { Button } from '@/components/core/Button';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
-import { NodeViewSection } from '../nodes/NodeViewSection';
-import { PropertiesIcon } from '../core/icons';
-import { ListSortable } from '../core/ListSortable';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { NodeViewSection } from '@/components/nodes/NodeViewSection';
+import { PropertiesIcon } from '@/components/core/icons';
+import { ListSortable } from '@/components/core/ListSortable';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { useNavigationStore } from '@/stores';
 import type { Property, PropertyType, PropertyCreate } from '@/types/api';
 import { getMdiPath } from '@/utils/iconDom';
@@ -267,6 +267,4 @@ export function ClassPropertiesEditor({
     </NodeViewSection>
   );
 }
-
-export default ClassPropertiesEditor;
 

@@ -22,13 +22,13 @@ import {
 } from '@mdi/js';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
-import { SelectionButton, type SelectionButtonOption } from '../core/SelectionButton';
-import { ButtonWithPanel } from '../core/ButtonWithPanel';
-import { Button } from '../core/Button';
-import { PropertyColumnSelector } from '../properties/PropertyColumnSelector';
-import { GroupBySelector } from '../properties/GroupBySelector';
-import { GanttPropertySelector } from '../properties/GanttPropertySelector';
-import type { GanttTimeScale } from '../properties/GanttPropertySelector';
+import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
+import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
+import { Button } from '@/components/core/Button';
+import { PropertyColumnSelector } from '@/components/properties/PropertyColumnSelector';
+import { GroupBySelector } from '@/components/properties/GroupBySelector';
+import { GanttPropertySelector } from '@/components/properties/GanttPropertySelector';
+import type { GanttTimeScale } from '@/components/properties/GanttPropertySelector';
 import type { Property } from '@/types';
 import './NodeCollectionToolbar.css';
 
@@ -326,4 +326,3 @@ export function NodeCollectionToolbar({
   );
 }
 
-export default NodeCollectionToolbar;

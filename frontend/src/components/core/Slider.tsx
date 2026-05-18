@@ -124,4 +124,3 @@ export function Slider({
   );
 }
 
-export default Slider;

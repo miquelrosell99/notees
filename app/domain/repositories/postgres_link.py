@@ -16,12 +16,12 @@ import asyncpg
 
 from ..entities import NodeLink
 from .interfaces import LinkRepository
-from .base import normalize_timestamp
+from .base import BasePostgresRepository, normalize_timestamp
 from ...utils import utc_now
 from ...db.connection import acquire_connection
 
 
-class PostgresLinkRepository(LinkRepository):
+class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
     """PostgreSQL implementation of the LinkRepository.
     
     Handles both regular node links and inline class references
@@ -36,15 +36,11 @@ class PostgresLinkRepository(LinkRepository):
             workspace_id: The workspace this repository operates on
             user_id: Optional current user ID for audit trails
         """
-        self._pool = pool
-        self._workspace_id = workspace_id
-        self._user_id = user_id
+        super().__init__(pool, workspace_id, user_id)
     
     def _row_to_link(self, row: asyncpg.Record) -> NodeLink:
         """Convert database row to NodeLink entity."""
-        create_date = row['create_date']
-        if isinstance(create_date, str):
-            create_date = datetime.fromisoformat(create_date)
+        create_date = normalize_timestamp(row['create_date'])
         return NodeLink(
             id=row['id'],
             source_id=row['source_id'],

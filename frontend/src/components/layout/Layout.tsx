@@ -22,18 +22,18 @@ import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { MobileLayout } from './MobileLayout';
-import { RightSidebarCards } from '../sidebar/RightSidebarCards';
+import { RightSidebarCards } from '@/components/sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
-import { ImportDataModal } from '../workspace/ImportDataModal';
-import { ImportLogseqModal } from '../workspace/ImportLogseqModal';
-import { ImportLogseqFolderModal } from '../workspace/ImportLogseqFolderModal';
-import { ImportMarkdownModal } from '../workspace/ImportMarkdownModal';
-import { ExportPageModal } from '../workspace/ExportPageModal';
-import { RebuildLinksModal } from '../maintenance/RebuildLinksModal';
-import { FixRawLinksModal } from '../maintenance/FixRawLinksModal';
+import { ImportDataModal } from '@/components/workspace/ImportDataModal';
+import { ImportLogseqModal } from '@/components/workspace/ImportLogseqModal';
+import { ImportLogseqFolderModal } from '@/components/workspace/ImportLogseqFolderModal';
+import { ImportMarkdownModal } from '@/components/workspace/ImportMarkdownModal';
+import { ExportPageModal } from '@/components/workspace/ExportPageModal';
+import { RebuildLinksModal } from '@/components/maintenance/RebuildLinksModal';
+import { FixRawLinksModal } from '@/components/maintenance/FixRawLinksModal';
 import { MergePagesModal } from './MergePagesModal';
-import { Card } from '../core/Card';
+import { Card } from '@/components/core/Card';
 import './Layout.css';
 
 export function Layout() {

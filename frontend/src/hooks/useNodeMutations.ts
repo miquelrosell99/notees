@@ -750,7 +750,7 @@ export function useUpdateNode() {
         }
       }
     },
-    onError: (error: any, variables) => {
+    onError: (error: Error & { response?: { status: number } }, variables) => {
       // Handle optimistic locking conflicts
       if (error.response?.status === 409) {
         console.warn('[useUpdateNode] Conflict detected - node was modified by another user/session');

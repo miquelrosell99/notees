@@ -17,6 +17,7 @@ from asyncpg.pool import PoolConnectionProxy
 from ..entities import Node, generate_uuid
 from ..permissions import PermissionChecker
 from ...db.connection import acquire_connection
+from .base import BasePostgresRepository, normalize_timestamp
 
 if TYPE_CHECKING:
     pass
@@ -37,7 +38,7 @@ def _normalize_name_to_ast(name: Optional[str]) -> Optional[str]:
     return serialize_ast(parse_ast(name, ParseMode.MARKDOWN))
 
 
-class _PostgresNodeBase:
+class _PostgresNodeBase(BasePostgresRepository):
     """Shared state and low-level helpers for all Postgres node repositories.
 
     Not intended for direct instantiation — use PostgresNodeRepository.
@@ -50,10 +51,8 @@ class _PostgresNodeBase:
         page_type_id: int,
         user_id: Optional[int] = None,
     ):
-        self._pool = pool
-        self._workspace_id = workspace_id
+        super().__init__(pool, workspace_id, user_id)
         self._page_class_id = page_type_id
-        self._user_id = user_id
         self._permissions: Optional[PermissionChecker] = None
 
     @property
@@ -63,10 +62,6 @@ class _PostgresNodeBase:
         elif self._permissions is None:
             raise RuntimeError("User ID required for permission checks")
         return self._permissions
-
-    def get_connection(self) -> asyncpg.Pool:
-        """Return the underlying connection pool."""
-        return self._pool
 
     def row_to_node(self, row: asyncpg.Record) -> Node:
         """Convert a database row to a Node entity (public interface)."""
@@ -87,19 +82,10 @@ class _PostgresNodeBase:
         if class_ids is None:
             class_ids = []
 
-        create_date = row.get('create_date', '')
-        write_date = row.get('write_date', '')
-        open_date = row.get('open_date')
-        deleted_at = row.get('deleted_at')
-
-        if isinstance(create_date, datetime):
-            create_date = create_date.isoformat()
-        if isinstance(write_date, datetime):
-            write_date = write_date.isoformat()
-        if isinstance(open_date, datetime):
-            open_date = open_date.isoformat()
-        if isinstance(deleted_at, datetime):
-            deleted_at = deleted_at.isoformat()
+        create_date = normalize_timestamp(row.get('create_date', ''))
+        write_date = normalize_timestamp(row.get('write_date', ''))
+        open_date = normalize_timestamp(row.get('open_date')) or None
+        deleted_at = normalize_timestamp(row.get('deleted_at')) or None
 
         return Node(
             id=row['id'],

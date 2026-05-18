@@ -10,10 +10,10 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { mdiImport } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { TaskProgress } from '../core/TaskProgress';
-import { SyncIcon } from '../core/icons';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { TaskProgress } from '@/components/core/TaskProgress';
+import { SyncIcon } from '@/components/core/icons';
 import {
   parseLogseqFolder,
   countMdBlocks,

@@ -30,13 +30,8 @@ class PostgresUserRepository(UserRepository):
     
     def _row_to_user(self, row: asyncpg.Record) -> User:
         """Convert database row to User entity."""
-        create_date = row['create_date']
-        write_date = row['write_date']
-        
-        if isinstance(create_date, datetime):
-            create_date = create_date.isoformat()
-        if isinstance(write_date, datetime):
-            write_date = write_date.isoformat()
+        create_date = normalize_timestamp(row['create_date'])
+        write_date = normalize_timestamp(row['write_date'])
         
         return User(
             id=row['id'],

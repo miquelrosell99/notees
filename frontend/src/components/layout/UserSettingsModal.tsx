@@ -9,11 +9,11 @@ import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/api/workspaces';
 import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { SelectionButton } from '../core/SelectionButton';
-import { BooleanToggle } from '../core/BooleanToggle';
-import { Separator } from '../core/Separator';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { Separator } from '@/components/core/Separator';
 import './UserSettingsModal.css';
 
 interface UserSettingsModalProps {
@@ -404,4 +404,3 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   );
 }
 
-export default UserSettingsModal;

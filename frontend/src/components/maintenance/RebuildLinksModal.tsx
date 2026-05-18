@@ -8,8 +8,8 @@ import { useState, useCallback } from 'react';
 import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiDatabaseRefresh } from '@mdi/js';
 import Icon from '@mdi/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -199,4 +199,3 @@ function ErrorList({ errors, totalErrors }: { errors: string[]; totalErrors: num
   );
 }
 
-export default RebuildLinksModal;

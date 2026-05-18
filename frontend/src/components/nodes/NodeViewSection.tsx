@@ -13,8 +13,8 @@
  * - Controlled: Use expanded + onExpandedChange for external control
  */
 import { useState, useCallback, type ReactNode } from 'react';
-import { ChevronRightIcon, ChevronDownIcon } from '../core/icons';
-import { Button } from '../core/Button';
+import { ChevronRightIcon, ChevronDownIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
 import './NodeViewSection.css';
 
 export interface NodeViewSectionProps {
@@ -107,4 +107,3 @@ export function NodeViewSection({
   );
 }
 
-export default NodeViewSection;

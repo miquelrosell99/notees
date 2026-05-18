@@ -283,4 +283,3 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
   );
 }
 
-export default CalendarPopup;

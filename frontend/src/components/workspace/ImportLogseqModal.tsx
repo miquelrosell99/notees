@@ -6,12 +6,12 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { mdiImport } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { ToggleSwitch } from '../core/ToggleSwitch';
-import { CodeTextarea } from '../core/CodeTextarea';
-import { TaskProgress } from '../core/TaskProgress';
-import { TaskReport } from '../core/TaskReport';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { ToggleSwitch } from '@/components/core/ToggleSwitch';
+import { CodeTextarea } from '@/components/core/CodeTextarea';
+import { TaskProgress } from '@/components/core/TaskProgress';
+import { TaskReport } from '@/components/core/TaskReport';
 import { type LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';

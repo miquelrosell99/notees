@@ -8,9 +8,9 @@
  * - Syntax highlighting-ready structure
  */
 import { useState } from 'react';
-import { Dropdown } from '../core/Dropdown';
-import type { DropdownOption } from '../core/Dropdown';
-import { Card } from '../core/Card';
+import { Dropdown } from '@/components/core/Dropdown';
+import type { DropdownOption } from '@/components/core/Dropdown';
+import { Card } from '@/components/core/Card';
 import './CodeBlock.css';
 
 export interface CodeBlockProps {
@@ -137,4 +137,3 @@ export function CodeBlock({
   );
 }
 
-export default CodeBlock;

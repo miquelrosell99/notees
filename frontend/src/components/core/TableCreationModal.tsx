@@ -138,4 +138,3 @@ export function TableCreationModal({
 // Re-export TableSize for consumers
 export type { TableSize } from './TableSizeSelector';
 
-export default TableCreationModal;

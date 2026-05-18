@@ -15,21 +15,21 @@ import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog, mdiMagnify } from '@mdi/js';
-import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
-import { WorkspaceModal } from '../workspace/WorkspaceModal';
+import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
+import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
-import { Card } from '../core/Card';
-import { Button } from '../core/Button';
-import { NodeInline } from '../blocks/NodeInline';
-import { PageContextMenu } from '../nodes/NodeContextMenu';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { ConfirmationModal } from '../core/ConfirmationModal';
+import { Card } from '@/components/core/Card';
+import { Button } from '@/components/core/Button';
+import { NodeInline } from '@/components/blocks/NodeInline';
+import { PageContextMenu } from '@/components/nodes/NodeContextMenu';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { 
   StarIcon,
   ClockIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-} from '../core/icons';
+} from '@/components/core/icons';
 import './NavigationSidebar.css';
 
 interface SidebarProps {

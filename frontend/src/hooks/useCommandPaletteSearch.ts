@@ -100,7 +100,7 @@ export function useCommandPaletteSearch(
       worker.terminate();
       workerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Keep fresh node/property maps the worker response can look up

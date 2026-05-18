@@ -6,8 +6,8 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { mdiImport, mdiCodeJson, mdiAlertCircle } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { isValidBlockCopyData, type BlockCopyData, type BlockData } from '@/utils/clipboardManager';
 import './ImportDataModal.css';
 
@@ -196,4 +196,3 @@ function countAllBlocks(blocks: BlockData[]): number {
   return count;
 }
 
-export default ImportDataModal;

@@ -14,10 +14,10 @@ import { useMemo } from 'react';
 import { mdiClose } from '@mdi/js';
 import type { Node } from '@/types';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { Button } from '../core/Button';
-import { ColorButton } from '../core/ColorButton';
-import { ListSortable } from '../core/ListSortable';
-import { SearchBox } from '../core/SearchBox';
+import { Button } from '@/components/core/Button';
+import { ColorButton } from '@/components/core/ColorButton';
+import { ListSortable } from '@/components/core/ListSortable';
+import { SearchBox } from '@/components/core/SearchBox';
 import './ClassColorsPanel.css';
 
 import { getClassColorPalette } from '@/components/nodes/views/viewTypes';

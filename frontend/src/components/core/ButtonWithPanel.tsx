@@ -381,4 +381,3 @@ export function ButtonWithPanel({
   );
 }
 
-export default ButtonWithPanel;

@@ -6,8 +6,8 @@
 
 import { useCallback, useState } from 'react';
 import { mdiPlus } from '@mdi/js';
-import { Button } from '../core/Button';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { Button } from '@/components/core/Button';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, StyleType } from '@/types/queryAST';
 import { isNodeEditable } from '@/types/queryAST';
@@ -430,4 +430,3 @@ export function QueryBlockList({
   );
 }
 
-export default QueryBlockList;

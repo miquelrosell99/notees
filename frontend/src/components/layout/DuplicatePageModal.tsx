@@ -5,11 +5,11 @@
  * Example: "Apple" already exists as a Fruit → create "Apple" as a Company.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { useClasses, useCreateNode, useClassClass, usePageClass } from '@/hooks';
 import type { Node } from '@/types';
-import { NodeIcon } from '../core/icons';
+import { NodeIcon } from '@/components/core/icons';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import './DuplicatePageModal.css';
 
@@ -241,4 +241,3 @@ export function DuplicatePageModal({
   );
 }
 
-export default DuplicatePageModal;

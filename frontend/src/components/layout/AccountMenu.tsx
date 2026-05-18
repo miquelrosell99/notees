@@ -9,8 +9,8 @@ import { createPortal } from 'react-dom';
 import { useAuthStore, useModalStore } from '@/stores';
 import { mdiCog, mdiLogout, mdiDatabaseOutline, mdiServerNetwork } from '@mdi/js';
 import Icon from '@mdi/react';
-import { Card } from '../core/Card';
-import { Button } from '../core/Button';
+import { Card } from '@/components/core/Card';
+import { Button } from '@/components/core/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { isAndroidApp } from '@/hooks/useAndroidBridge';
@@ -128,4 +128,3 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
   );
 }
 
-export default AccountMenu;

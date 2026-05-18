@@ -7,12 +7,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { checkWorkspaceName } from '@/api/workspaces';
-import { AlertIcon, SyncIcon } from '../core/icons';
+import { AlertIcon, SyncIcon } from '@/components/core/icons';
 import Icon from '@mdi/react';
 import { mdiCheck, mdiClose } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { TextField } from '../core/TextField';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { TextField } from '@/components/core/TextField';
 
 interface WorkspaceNameModalProps {
   isOpen: boolean;
@@ -139,4 +139,3 @@ export function WorkspaceNameModal({
   );
 }
 
-export default WorkspaceNameModal;

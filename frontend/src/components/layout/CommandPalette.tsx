@@ -21,13 +21,13 @@ import type { RecentPage } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
 import { useNavigationStore, useModalStore, useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import type { Node, Property } from '@/types';
-import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '../core/icons';
+import { NodeIcon, BulletIcon, AddIcon, PropertiesIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
 import Icon from '@mdi/react';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle, mdiMap, mdiGraphOutline, mdiFilter } from '@mdi/js';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
-import { SuggestionPopup } from '../nodes/SuggestionPopup';
-import { NodeRef } from '../nodes/NodeRef';
+import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
+import { NodeRef } from '@/components/nodes/NodeRef';
 import { DuplicatePageModal } from './DuplicatePageModal';
 import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
@@ -1503,4 +1503,3 @@ export function CommandPalette({
   );
 }
 
-export default CommandPalette;

@@ -6,9 +6,9 @@
  * other component that presents a searchable list of nodes.
  */
 import type { Node } from '@/types';
-import { NodeIcon, CheckIcon } from '../core/icons';
+import { NodeIcon, CheckIcon } from '@/components/core/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { NodeNameContent } from '../blocks/NodeNameContent';
+import { NodeNameContent } from '@/components/blocks/NodeNameContent';
 import './NodeResultItem.css';
 
 export interface NodeResultItemProps {

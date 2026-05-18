@@ -98,4 +98,3 @@ function ProseConditionRow({
   );
 }
 
-export default ProseConditionBuilder;

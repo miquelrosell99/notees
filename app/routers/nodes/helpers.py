@@ -466,7 +466,8 @@ async def _get_node_service(user: User) -> NodeService:
         node_repo, property_repo, link_service,
         page_class_id,
         pool=pool,
-        workspace_id=workspace_id
+        workspace_id=workspace_id,
+        user_id=user_id,
     )
 
     return node_service

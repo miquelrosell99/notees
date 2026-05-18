@@ -10,9 +10,9 @@ import { useState, type ReactNode } from 'react';
 import { mdiClose, mdiChevronDown } from '@mdi/js';
 import Icon from '@mdi/react';
 import './SidebarCard.css';
-import { AlertIcon } from '../core/icons';
-import { Button } from '../core/Button';
-import { Card } from '../core/Card';
+import { AlertIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
+import { Card } from '@/components/core/Card';
 
 interface SidebarCardProps {
   /** Card title */
@@ -143,4 +143,3 @@ export function SidebarCard({
   );
 }
 
-export default SidebarCard;

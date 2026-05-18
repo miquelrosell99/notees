@@ -609,4 +609,3 @@ export function EmojiPickerTrigger({
   );
 }
 
-export default EmojiPicker;

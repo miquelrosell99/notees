@@ -7,10 +7,10 @@
 
 import { useState, useEffect } from 'react';
 import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@mdi/js';
-import { Dropdown } from '../core/Dropdown';
-import { TextField } from '../core/TextField';
-import { SelectionButton } from '../core/SelectionButton';
-import { NodeSelector } from '../nodes/NodeSelector';
+import { Dropdown } from '@/components/core/Dropdown';
+import { TextField } from '@/components/core/TextField';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
@@ -635,6 +635,4 @@ export function GenericConditionRenderer({
     </div>
   );
 }
-
-export default GenericConditionRenderer;
 

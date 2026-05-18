@@ -93,4 +93,3 @@ export const ToggleSwitch = forwardRef<HTMLDivElement, ToggleSwitchProps>(functi
   );
 });
 
-export default ToggleSwitch;

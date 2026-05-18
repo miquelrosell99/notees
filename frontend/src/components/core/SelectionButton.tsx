@@ -189,4 +189,3 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
   );
 });
 
-export default SelectionButton;

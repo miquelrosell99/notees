@@ -13,8 +13,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 
-from ..models import SyncRequest, SyncResponse, Node as NodeModel, User
-from ..domain import Node
+from ..models import SyncRequest, SyncResponse, User
 from .auth import get_current_user
 from ..dependencies import get_settings_repository
 from ..domain.repositories import SettingsRepository
