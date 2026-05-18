@@ -314,12 +314,100 @@ export function BlockPlugin({
             const projectedSerialized = JSON.stringify(projected.contentAST);
             
             if (currentSerialized !== projectedSerialized) {
-              // Content changed - clear and repopulate
+              // Content changed - clear and repopulate.
+              // If the cursor is inside this block and there is no pending focus
+              // request, save the offset so we can restore it after repopulation.
+              // This prevents the caret from jumping to the start of the document
+              // when an external update (e.g. paste, remote sync) changes content.
+              let savedCursorOffset: number | null = null;
+              if (!pendingFocus && !deferredFocusBlockId) {
+                const currentSelection = $getSelection();
+                if ($isRangeSelection(currentSelection)) {
+                  const anchorNode = currentSelection.anchor.getNode();
+                  const anchorBlock = findParentNodeBlock(anchorNode);
+                  if (anchorBlock && anchorBlock.getBlockId() === projected.blockId) {
+                    let offset = 0;
+                    const blockChildren = anchorBlock.getChildren();
+                    for (const child of blockChildren) {
+                      if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
+                        if ($isTextNode(child) && child.getTextContent() !== '\u200B') {
+                          offset += currentSelection.anchor.offset;
+                        } else if ($isInlineLinkNode(child)) {
+                          offset += currentSelection.anchor.offset > 0 ? 1 : 0;
+                        }
+                        break;
+                      }
+                      if ($isTextNode(child)) {
+                        const t = child.getTextContent();
+                        if (t !== '\u200B') offset += t.length;
+                      } else if ($isInlineLinkNode(child)) {
+                        offset += 1;
+                      } else {
+                        offset += child.getTextContent().length;
+                      }
+                    }
+                    savedCursorOffset = offset;
+                  }
+                }
+              }
+
               const children = existing.getChildren();
               for (const child of children) {
                 child.remove();
               }
               populateBlockContent(existing, projected.contentAST);
+
+              // Restore cursor if we saved one and nothing else claimed focus
+              if (savedCursorOffset != null && !deferredFocusBlockId) {
+                let remaining = savedCursorOffset;
+                let restored = false;
+                const blockChildren = existing.getChildren();
+                for (const child of blockChildren) {
+                  if ($isTextNode(child)) {
+                    const t = child.getTextContent();
+                    const len = t === '\u200B' ? 0 : t.length;
+                    if (remaining <= len) {
+                      child.select(remaining, remaining);
+                      deferredFocusBlockId = projected.blockId;
+                      restored = true;
+                      break;
+                    }
+                    remaining -= len;
+                  } else if ($isInlineLinkNode(child)) {
+                    if (remaining <= 0) {
+                      child.selectPrevious();
+                      deferredFocusBlockId = projected.blockId;
+                      restored = true;
+                      break;
+                    }
+                    remaining -= 1;
+                  } else {
+                    const len = child.getTextContent().length;
+                    if (remaining <= len) {
+                      if (remaining <= 0) {
+                        child.selectPrevious();
+                      } else {
+                        child.selectNext();
+                      }
+                      deferredFocusBlockId = projected.blockId;
+                      restored = true;
+                      break;
+                    }
+                    remaining -= len;
+                  }
+                }
+                // If offset is beyond new content, place at end
+                if (!restored) {
+                  const last = existing.getLastDescendant();
+                  if (last) {
+                    last.selectEnd();
+                  } else {
+                    existing.selectEnd();
+                  }
+                  deferredFocusBlockId = projected.blockId;
+                }
+              }
+
               // Sync heading flag whenever content changes
               const heading = isHeadingAST(projected.contentAST);
               if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
@@ -635,6 +723,17 @@ export function BlockPlugin({
 
           const graphNode = runtime.getNode(blockId);
           if (!graphNode) { pendingUpgrade.delete(blockId); continue; }
+
+          // Skip blocks that are currently focused to avoid destroying the
+          // cursor during an idle callback while the user is actively editing.
+          // Don't delete from pendingUpgrade — leave it for the next idle pass.
+          const currentSelection = $getSelection();
+          if ($isRangeSelection(currentSelection)) {
+            const anchorBlock = findParentNodeBlock(currentSelection.anchor.getNode());
+            if (anchorBlock && anchorBlock.getKey() === block.getKey()) {
+              continue;
+            }
+          }
 
           upgradeBlockContent(block, graphNode.contentAST);
           pendingUpgrade.delete(blockId);
@@ -975,25 +1074,45 @@ export function BlockPlugin({
         // them from the runtime's contentAST — offsets must stay aligned.
         let cursorOffset = 0;
         const children = blockNode.getChildren();
-        for (const child of children) {
-          if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
-            // If the anchor is a ZWS placeholder, it doesn't exist in the
-            // runtime AST so its offset contributes nothing.
-            if (!($isTextNode(child) && child.getTextContent() === '\u200B')) {
-              cursorOffset += selection.anchor.offset;
+        const anchor = selection.anchor;
+
+        if (anchor.type === 'element') {
+          // Anchor is on the BlockNode itself (e.g. at a block boundary).
+          // anchor.offset is the child index; walk that many children.
+          for (let i = 0; i < Math.min(anchor.offset, children.length); i++) {
+            const child = children[i];
+            if ($isTextNode(child)) {
+              const text = child.getTextContent();
+              if (text !== '\u200B') {
+                cursorOffset += text.length;
+              }
+            } else if ($isInlineLinkNode(child)) {
+              cursorOffset += 1; // Pills count as 1 character
+            } else {
+              cursorOffset += child.getTextContent().length;
             }
-            break;
           }
-          if ($isTextNode(child)) {
-            const text = child.getTextContent();
-            // Skip ZWS-only nodes (they're stripped in extractBlockContent)
-            if (text !== '\u200B') {
-              cursorOffset += text.length;
+        } else {
+          for (const child of children) {
+            if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
+              // If the anchor is a ZWS placeholder, it doesn't exist in the
+              // runtime AST so its offset contributes nothing.
+              if (!($isTextNode(child) && child.getTextContent() === '\u200B')) {
+                cursorOffset += anchor.offset;
+              }
+              break;
             }
-          } else if ($isInlineLinkNode(child)) {
-            cursorOffset += 1; // Pills count as 1 character
-          } else {
-            cursorOffset += child.getTextContent().length;
+            if ($isTextNode(child)) {
+              const text = child.getTextContent();
+              // Skip ZWS-only nodes (they're stripped in extractBlockContent)
+              if (text !== '\u200B') {
+                cursorOffset += text.length;
+              }
+            } else if ($isInlineLinkNode(child)) {
+              cursorOffset += 1; // Pills count as 1 character
+            } else {
+              cursorOffset += child.getTextContent().length;
+            }
           }
         }
 

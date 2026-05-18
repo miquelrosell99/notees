@@ -33,7 +33,7 @@ import { analyzeClipboard, flattenBlocks } from '../../utils/clipboardManager';
 import { searchNodes, createPage, getNodeByUuid } from '../../api/nodes';
 import { buildLinkId, paragraph, text as astText, nodeLink } from '../../lib/astBuilder';
 import { generateUUID } from '../../utils/uuid';
-import type { ASTInlineNode, ASTDocument } from '../../types/ast';
+import type { ASTInlineNode, ASTDocument, ASTBlockNode } from '../../types/ast';
 import type { HashtagPasteMode } from '../../stores/settingsStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 
@@ -340,7 +340,7 @@ export function PasteBlocksPlugin({ onContentChange }: PasteBlocksPluginProps): 
             }
             if (!pasteBlockId) return false;
             event.preventDefault();
-            processSingleLineLinkPasteAsync(pasteBlockId, pasteCursorOffset, plain, onContentChange).catch(err => {
+            processSingleLineLinkPasteAsync(editor, pasteBlockId, pasteCursorOffset, plain, onContentChange).catch(err => {
               console.error('[PasteBlocksPlugin] Single-line link paste error:', err);
             });
             return true;
@@ -443,6 +443,20 @@ async function processPasteAsync(
     });
     onContentChange?.(currentBlockId!, astResults[0]);
 
+    // Move cursor to the end of the pasted content in the current block
+    // so it doesn't jump to the start of the document during repopulation.
+    const firstBlockCursor = astResults[0].reduce((acc: number, para: ASTBlockNode) => {
+      if (para.children) {
+        for (const child of para.children) {
+          acc += child.type === 'text' ? (child.text?.length ?? 0)
+            : child.type === 'node_link' || child.type === 'external_link' ? 1
+            : 0;
+        }
+      }
+      return acc;
+    }, 0);
+    runtime.requestFocus(currentBlockId!, firstBlockCursor);
+
     depthParentMap.set(0, currentBlockId!);
     afterBlockId = currentBlockId;
     startIndex = 1;
@@ -528,6 +542,7 @@ async function processPasteAsync(
  * Lexical tree update safely inside its own editor context.
  */
 async function processSingleLineLinkPasteAsync(
+  editor: import('lexical').LexicalEditor,
   currentBlockId: string,
   cursorOffset: number,
   pastedText: string,
@@ -621,9 +636,20 @@ async function processSingleLineLinkPasteAsync(
   runtime.applyIntent({ type: 'update_content', blockId: currentBlockId, contentAST: newContentAST });
   onContentChange?.(currentBlockId, newContentAST);
 
-  // Ask the runtime to move the cursor after the inserted content
-  const newCursorOffset = cursorOffset + pastedInlines.reduce((acc, n) =>
-    acc + (n.type === 'text' ? n.text.length : 1), 0);
-  runtime.requestFocus(currentBlockId, newCursorOffset);
-  runtime.flushEvents();
+  // Only move the cursor if the user hasn't navigated away from the block
+  // while the async link resolution was in flight.
+  const shouldMoveCursor = editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return false;
+    const anchorNode = selection.anchor.getNode();
+    const anchorBlock = findParentNodeBlock(anchorNode);
+    return anchorBlock?.getBlockId() === currentBlockId;
+  });
+
+  if (shouldMoveCursor) {
+    const newCursorOffset = cursorOffset + pastedInlines.reduce((acc, n) =>
+      acc + (n.type === 'text' ? n.text.length : 1), 0);
+    runtime.requestFocus(currentBlockId, newCursorOffset);
+    runtime.flushEvents();
+  }
 }
