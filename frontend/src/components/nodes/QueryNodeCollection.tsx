@@ -461,11 +461,23 @@ export function QueryNodeCollection({
   // Get collapse level setting for linked references
   const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
 
+  // Deduplicate by source_node.id as a safety net (backend should already
+  // deduplicate, but this prevents any duplicate display in the UI).
+  const dedupedLinkedRefs = useMemo(() => {
+    if (!linkedReferencesData) return [];
+    const seen = new Set<number>();
+    return linkedReferencesData.filter((ref) => {
+      if (seen.has(ref.source_node.id)) return false;
+      seen.add(ref.source_node.id);
+      return true;
+    });
+  }, [linkedReferencesData]);
+
   // Extract nodes from linked references and attach metadata
   // Show page collapsed only when link comes from a property on a PAGE
   // For links in blocks (including text properties of blocks), show the block
   const { linkedReferencesBlocks, linkedReferencesPages } = useMemo(() => {
-    if (!linkedReferencesData) return { linkedReferencesBlocks: [] as Node[], linkedReferencesPages: [] as Node[] };
+    if (!dedupedLinkedRefs.length) return { linkedReferencesBlocks: [] as Node[], linkedReferencesPages: [] as Node[] };
     
     const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
     
@@ -475,7 +487,7 @@ export function QueryNodeCollection({
     // page appears once even if multiple blocks on it have a property pointing to this node.
     const seenPropertyPageIds = new Set<number>();
     
-    for (const ref of linkedReferencesData) {
+    for (const ref of dedupedLinkedRefs) {
       // Check if link has property context (direct property link or text link in text property)
       const isPropertyLink = ref.link_type === 'property';
       const hasPropertyInBreadcrumbs = ref.breadcrumb_path?.some(seg => seg.is_property) ?? false;
@@ -560,7 +572,7 @@ export function QueryNodeCollection({
     }
     
     return { linkedReferencesBlocks: blocks, linkedReferencesPages: pages };
-  }, [linkedReferencesData, nodeId, collectionViewMode, linkedRefsCollapseLevel]);
+  }, [dedupedLinkedRefs, nodeId, collectionViewMode, linkedRefsCollapseLevel]);
 
   // Execute ad-hoc query for pseudo-nodes
   const {

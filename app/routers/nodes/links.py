@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ...db.schema import parse_date_uuid
 from ..auth import get_current_user
 from ...models import User
+from ...domain.entities import BacklinkInfo
 from .models import (
     NodeLinkResponse,
     TagLinkRequest,
@@ -379,6 +380,16 @@ async def get_linked_references(
     service = await _get_node_service(user)
     
     backlinks = await service.get_backlinks(node_id)
+    
+    # Deduplicate by source_node_id, preferring direct backlinks to the target node.
+    # A block that links to both the target page and one of its descendants would
+    # otherwise appear twice in linked references.
+    seen_source_ids: dict[int, BacklinkInfo] = {}
+    for link in backlinks:
+        existing = seen_source_ids.get(link.source_node_id)
+        if existing is None or link.link.target_id == node_id:
+            seen_source_ids[link.source_node_id] = link
+    backlinks = list(seen_source_ids.values())
     
     # Collect all source node IDs for batch type fetching
     source_node_ids = []
