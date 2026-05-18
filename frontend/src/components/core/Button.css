@@ -94,14 +94,15 @@
 }
 
 .btn--xs,
-.btn--icon-only.btn--xs {
+.btn--sm {
   border-radius: var(--shape-button-small);
+}
+
+.btn--icon-only.btn--xs {
   width: var(--height-sm);
 }
 
-.btn--sm,
 .btn--icon-only.btn--sm {
-  border-radius: var(--shape-button-small);
   width: var(--height-md);
 }
 
