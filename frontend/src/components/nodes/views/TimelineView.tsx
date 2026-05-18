@@ -894,6 +894,7 @@ export const TimelineView = memo(function TimelineView({
               viewMode="list"
               editable={false}
               showClasses={true}
+              pagesOnly={true}
               onNodeClick={(node) => openNode(node.id)}
               onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
             />
