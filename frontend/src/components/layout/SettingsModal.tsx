@@ -12,10 +12,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/keyboardStore';
-import { ConfirmationModal } from '../core/ConfirmationModal';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { BooleanToggle } from '../core/BooleanToggle';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -202,4 +202,3 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   );
 }
 
-export default SettingsModal;

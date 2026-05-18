@@ -33,4 +33,3 @@ export function TaskProgress({ progress, statusText, error }: TaskProgressProps)
   );
 }
 
-export default TaskProgress;

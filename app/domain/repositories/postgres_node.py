@@ -39,9 +39,6 @@ class PostgresNodeRepository(
         uuid: Optional[str] = None,
     ) -> Node:
         """Create a new node."""
-        if self._user_id:
-            await self.permissions.require_workspace_create(self._workspace_id)
-
         now = utc_now()
         uuid = uuid or data.uuid or generate_uuid()
         uid = user_id or self._user_id
@@ -222,9 +219,6 @@ class PostgresNodeRepository(
         expected_version: Optional[int] = None,
     ) -> Optional[Node]:
         """Update a node with optimistic locking support."""
-        if self._user_id:
-            await self.permissions.require_node_write(node_id)
-
         now = utc_now()
         uid = user_id or self._user_id
 
@@ -356,9 +350,6 @@ class PostgresNodeRepository(
 
     async def delete(self, node_id: int) -> bool:
         """Delete a node and all its children (soft delete)."""
-        if self._user_id:
-            await self.permissions.require_node_delete(node_id)
-
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
                 SELECT np.descendant_id as id
@@ -383,9 +374,6 @@ class PostgresNodeRepository(
         """Permanently delete a node and all its children."""
         from app.logging_config import get_logger
         logger = get_logger(__name__)
-
-        if self._user_id:
-            await self.permissions.require_node_delete(node_id)
 
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch("""
@@ -439,9 +427,6 @@ class PostgresNodeRepository(
         self, node_id: int, active: bool, user_id: Optional[int] = None
     ) -> Optional[Node]:
         """Set the active status of a node (archive/unarchive)."""
-        if self._user_id:
-            await self.permissions.require_node_write(node_id)
-
         now = utc_now()
         uid = user_id or self._user_id
         async with acquire_connection(self._pool) as conn:

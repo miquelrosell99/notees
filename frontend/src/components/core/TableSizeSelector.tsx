@@ -127,4 +127,3 @@ export function TableSizeSelector({
   );
 }
 
-export default TableSizeSelector;

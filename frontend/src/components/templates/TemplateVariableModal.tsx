@@ -5,8 +5,8 @@
  * Calls onConfirm with the filled-in values when the user submits the form.
  */
 import { useState, useEffect, type JSX, type FormEvent } from 'react';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { useTemplateVariables } from '@/hooks/useTemplates';
 
 export interface TemplateVariableModalProps {

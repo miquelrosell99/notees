@@ -36,4 +36,3 @@ export function SidebarCardLocalGraph({ nodeId, onClose }: SidebarCardLocalGraph
   );
 }
 
-export default SidebarCardLocalGraph;

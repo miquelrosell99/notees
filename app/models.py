@@ -113,116 +113,11 @@ class PaginatedResponse(BaseModel, Generic[T]):
     has_prev: bool
 
 
-# ==================== NODE MODELS ====================
-
-class NodeBase(BaseModel):
-    """Base node model - the foundation of the system.
-    
-    Properties:
-    - uuid: Stable unique identifier
-    - name: UUID for blocks, title for pages (unique within parent hierarchy)
-    - display_name: Human-readable name for display (date format for journals)
-    - parent_id: Establishes hierarchy
-    - page_id: Reference to the containing page (for blocks)
-    - tags: Special tags like 'day', 'month', 'year', 'task', 'template', 'property' for journals and types
-    - Audit fields: create_date, create_uid, write_date, write_uid
-    """
-    name: Optional[str] = None  # UUID for blocks, title for pages
-    display_name: Optional[str] = None  # Human-readable name
-    content: str = ""  # Block content or page description
-    title: Optional[str] = None  # Page title (for pages)
-    parent_id: Optional[str] = None
-    page_id: Optional[str] = None  # Reference to containing page (for blocks)
-    order: int = 0
-    collapsed: bool = False
-    tags: List[str] = []  # Type tags: day, month, year, task, template, property, etc.
-    properties: dict = {}  # Custom properties and user-defined attributes
-    
-    # Node type flags
-    is_page: bool = False
-    is_tag: bool = False
-    is_property: bool = False
-    is_template: bool = False
-    is_task: bool = False
-    is_system: bool = False
-    is_daily: bool = False  # For daily journal pages
-    is_monthly: bool = False
-    is_yearly: bool = False
-    daily_date: Optional[str] = None  # YYYY-MM-DD for daily pages
-
-
-class NodeCreate(NodeBase):
-    """Node creation model."""
-    id: Optional[str] = None
-    uuid: Optional[str] = None
-    page_id: Optional[str] = None
-
-
-class NodeUpdate(BaseModel):
-    """Node update model - all fields optional."""
-    name: Optional[str] = None
-    display_name: Optional[str] = None
-    content: Optional[str] = None
-    title: Optional[str] = None
-    parent_id: Optional[str] = None
-    page_id: Optional[str] = None
-    order: Optional[int] = None
-    collapsed: Optional[bool] = None
-    tags: Optional[List[str]] = None
-    properties: Optional[dict] = None
-
-
-class Node(NodeBase):
-    """Full node model."""
-    id: str
-    uuid: str
-    page_id: Optional[str] = None  # Reference to containing page
-    created_at: datetime  # Alias for create_date
-    updated_at: datetime  # Alias for write_date
-    create_uid: Optional[str] = None  # User who created the node
-    write_uid: Optional[str] = None  # User who last modified the node
-    version: int = 1
-
-    class Config:
-        from_attributes = True
-
-
-class NodeWithChildren(Node):
-    """Node with its children for tree views."""
-    children: List["NodeWithChildren"] = []
-
-
-class NodeWithContext(Node):
-    """Node with additional context."""
-    parent_title: Optional[str] = None
-    children_count: int = 0
-    backlinks_count: int = 0
-
-
-# ==================== DATABASE MODELS ====================
-
-class DatabaseInfo(BaseModel):
-    """Database/workspace information."""
-    name: str
-    filename: str
-    created_at: datetime
-    updated_at: datetime
-    size_bytes: int = 0
-    node_count: int = 0
-    page_count: int = 0
-    is_active: bool = False
-    user_id: Optional[str] = None
-
+# ==================== WORKSPACE MODELS ====================
 
 class WorkspaceCreate(BaseModel):
     """Create workspace request."""
     name: str
-
-
-class DatabaseImport(BaseModel):
-    """Import database request."""
-    name: str
-    # File will be uploaded separately
 
 
 # ==================== SYNC MODELS ====================
@@ -237,7 +132,7 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     """Response from sync."""
     server_time: datetime
-    nodes: List[Node] = []
+    nodes: List[dict] = []
     deleted_nodes: List[str] = []
     conflicts: List[dict] = []
 
@@ -269,5 +164,4 @@ class UserSettings(BaseModel):
     first_day_of_week: int = 0  # 0 = Sunday, 1 = Monday, 6 = Saturday
 
 
-# Enable forward references for recursive model
-NodeWithChildren.model_rebuild()
+

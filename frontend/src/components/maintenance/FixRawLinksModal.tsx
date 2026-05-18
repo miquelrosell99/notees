@@ -8,9 +8,9 @@ import { useState, useCallback } from 'react';
 import { mdiAlertCircleOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { TaskReport, type TaskPhaseResult } from '../core/TaskReport';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { TaskReport, type TaskPhaseResult } from '@/components/core/TaskReport';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -179,4 +179,3 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   );
 }
 
-export default FixRawLinksModal;

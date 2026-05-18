@@ -14,8 +14,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { PropertyType, PropertyCreate, PropertyScope, Node } from '@/types/api';
 import { useProperties } from '@/hooks';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { PropertyForm } from './PropertyForm';
 
 import './PropertyCreateModal.css';

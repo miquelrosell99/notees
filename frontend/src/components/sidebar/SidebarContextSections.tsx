@@ -11,21 +11,21 @@ import { useNavigationStore, useSettingsStore, formatDate } from '@/stores';
 import { useComments, useCreateComment, useNodeActivity, useNode, nodeNameToText } from '@/hooks';
 import { getNodeVersions, restoreNodeVersion } from '@/api/nodes';
 import type { NodeVersion } from '@/api/nodes';
-import { NodeViewSection } from '../nodes/NodeViewSection';
-import { NodeActivityLogSection } from '../nodes/NodeActivityLogSection';
-import { NodeCollection } from '../nodes/NodeCollection';
-import { Button } from '../core/Button';
-import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '../core/icons';
+import { NodeViewSection } from '@/components/nodes/NodeViewSection';
+import { NodeActivityLogSection } from '@/components/nodes/NodeActivityLogSection';
+import { NodeCollection } from '@/components/nodes/NodeCollection';
+import { Button } from '@/components/core/Button';
+import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '@/components/core/icons';
 import Icon from '@mdi/react';
 import { mdiHistory, mdiTableOfContents } from '@mdi/js';
-import { TextField } from '../core/TextField';
+import { TextField } from '@/components/core/TextField';
 import type { Node } from '@/types/api';
 import { parseAST } from '@/lib/astBuilder';
 import { isHeadingBlock } from '@/types/ast';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useNotifications } from '@/stores/notificationStore';
-import { Bullet } from '../blocks/Bullet';
+import { Bullet } from '@/components/blocks/Bullet';
 import './SidebarContextSections.css';
 
 interface TocEntry {
@@ -343,4 +343,3 @@ export function SidebarContextSections() {
   );
 }
 
-export default SidebarContextSections;

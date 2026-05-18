@@ -10,7 +10,7 @@
 import { useCallback } from 'react';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Bullet } from './Bullet';
-import { NodeIcon } from '../core/icons';
+import { NodeIcon } from '@/components/core/icons';
 import './NodeInline.css';
 
 export interface NodeInlineProps {
@@ -97,4 +97,3 @@ export function NodeInline({
   );
 }
 
-export default NodeInline;

@@ -7,9 +7,9 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { mdiMerge } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { NodeSelector } from '../nodes/NodeSelector';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';

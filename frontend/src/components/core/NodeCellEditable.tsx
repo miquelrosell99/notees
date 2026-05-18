@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
-import { NodeNameContent } from '../blocks/NodeNameContent';
-import { NodeCollection } from '../nodes/NodeCollection';
+import { NodeNameContent } from '@/components/blocks/NodeNameContent';
+import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { useContentSave, useNodeNavigation } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 

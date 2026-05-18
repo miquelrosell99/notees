@@ -152,4 +152,3 @@ export function FileDropZone({
   );
 }
 
-export default FileDropZone;

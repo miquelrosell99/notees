@@ -15,14 +15,14 @@ import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
-import { AddIcon, NodeIcon } from '../core/icons';
+import { AddIcon, NodeIcon } from '@/components/core/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { Checkbox } from '../core/Checkbox';
-import { SearchField } from '../core/SearchField';
+import { Checkbox } from '@/components/core/Checkbox';
+import { SearchField } from '@/components/core/SearchField';
 import { NodeResultItem } from './NodeResultItem';
-import { Button } from '../core/Button';
-import { Card } from '../core/Card';
-import { SelectTrigger, type SelectTriggerSize } from '../core/SelectTrigger';
+import { Button } from '@/components/core/Button';
+import { Card } from '@/components/core/Card';
+import { SelectTrigger, type SelectTriggerSize } from '@/components/core/SelectTrigger';
 import { mdiPlus, mdiChevronDown } from '@mdi/js';
 import Icon from '@mdi/react';
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
@@ -1128,6 +1128,4 @@ export function NodeSelector({
     </div>
   );
 }
-
-export default NodeSelector;
 

@@ -12,7 +12,7 @@ import { useNavigationStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { SidebarCardLocalGraph, SidebarCardNode } from '.';
 import { SidebarContextSections } from './SidebarContextSections';
-import { Button } from '../core/Button';
+import { Button } from '@/components/core/Button';
 import './RightSidebarCards.css';
 
 /**
@@ -110,4 +110,3 @@ export function RightSidebarCards() {
   );
 }
 
-export default RightSidebarCards;

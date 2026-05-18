@@ -9,11 +9,11 @@
 import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { mdiTrashCanOutline } from '@mdi/js';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
 import { getNodeByUuid } from '@/api/nodes';
 import { useNavigationStore } from '@/stores';
-import { Bullet } from '../blocks/Bullet';
+import { Bullet } from '@/components/blocks/Bullet';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
@@ -220,4 +220,3 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
   );
 }
 
-export default NodeActivityLogSection;

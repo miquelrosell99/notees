@@ -12,7 +12,7 @@
 import type { ReactNode } from 'react';
 import { mdiLock, mdiClose } from '@mdi/js';
 import Icon from '@mdi/react';
-import { Button } from '../core/Button';
+import { Button } from '@/components/core/Button';
 import './QueryBlockCard.css';
 
 // ==================== Types ====================
@@ -85,4 +85,3 @@ export function QueryBlockCard({
   );
 }
 
-export default QueryBlockCard;

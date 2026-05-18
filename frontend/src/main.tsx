@@ -13,7 +13,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './variables.css'
 import './index.css'
-import App from './App.tsx'
+import { App } from './App.tsx'
 import { useSettingsStore, applyTheme } from './stores'
 
 // Apply saved theme on startup — wrapped in try/catch so a corrupt store

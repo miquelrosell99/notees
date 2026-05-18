@@ -12,7 +12,7 @@ import { useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { mdiClose, mdiDownload } from '@mdi/js';
 import { Button } from './Button';
-import { Bullet } from '../blocks/Bullet';
+import { Bullet } from '@/components/blocks/Bullet';
 import './ImageModal.css';
 
 export interface ImageModalProps {
@@ -144,4 +144,3 @@ export function ImageModal({
   return createPortal(modalContent, document.body);
 }
 
-export default ImageModal;

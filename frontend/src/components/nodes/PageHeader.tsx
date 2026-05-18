@@ -20,8 +20,8 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
 import type { Node, NodeUpdate } from '@/types';
-import { NodeIcon } from '../core/icons';
-import { EmojiPicker } from '../core/EmojiPicker';
+import { NodeIcon } from '@/components/core/icons';
+import { EmojiPicker } from '@/components/core/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
 import { isSystemPage } from '@/utils/systemPages';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
@@ -500,4 +500,3 @@ export function PageHeader({
   );
 }
 
-export default PageHeader;

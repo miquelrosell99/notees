@@ -11,7 +11,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useProperties } from '@/hooks';
-import { SearchIcon, NodeIcon } from '../core/icons';
+import { SearchIcon, NodeIcon } from '@/components/core/icons';
 import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './GroupBySelector.css';

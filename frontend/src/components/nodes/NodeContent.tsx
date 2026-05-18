@@ -22,14 +22,14 @@ import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
-import { AssetUploadModal } from '../assets/AssetUploadModal';
-import { Button } from '../core/Button';
-import { Modal } from '../core/Modal';
+import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
+import { Button } from '@/components/core/Button';
+import { Modal } from '@/components/core/Modal';
 import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { TableCreationModal, type TableSize } from '../core/TableCreationModal';
+import { TableCreationModal, type TableSize } from '@/components/core/TableCreationModal';
 
 import './NodeContent.css';
 
@@ -519,4 +519,3 @@ export function NodeContent({
   );
 }
 
-export default NodeContent;

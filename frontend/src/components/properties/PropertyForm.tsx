@@ -8,12 +8,12 @@ import { useCallback } from 'react';
 import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
-import { EmojiPickerTrigger } from '../core/EmojiPicker';
-import { TextField } from '../core/TextField';
-import { SelectionButton } from '../core/SelectionButton';
-import { Button } from '../core/Button';
-import { ListSortable } from '../core/ListSortable';
-import { NodeSelector } from '../nodes/NodeSelector';
+import { EmojiPickerTrigger } from '@/components/core/EmojiPicker';
+import { TextField } from '@/components/core/TextField';
+import { SelectionButton } from '@/components/core/SelectionButton';
+import { Button } from '@/components/core/Button';
+import { ListSortable } from '@/components/core/ListSortable';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 import './PropertyForm.css';
 
 export interface PropertyTypeOption {

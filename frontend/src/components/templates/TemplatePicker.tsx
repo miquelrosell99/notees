@@ -8,7 +8,7 @@
  */
 import { useState, useMemo, useEffect, useRef, useCallback, type JSX } from 'react';
 import { createPortal } from 'react-dom';
-import { NodeSelector } from '../nodes/NodeSelector';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { useClasses } from '@/hooks';
 import { useInstantiateTemplate } from '@/hooks/useTemplates';
 import { TemplateVariableModal } from './TemplateVariableModal';

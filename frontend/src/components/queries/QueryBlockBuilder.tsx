@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { QueryBlockList } from './QueryBlockList';
 import { QueryBlockCard } from './QueryBlockCard';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
-import { SelectionButton } from '../core/SelectionButton';
+import { SelectionButton } from '@/components/core/SelectionButton';
 import { operatorNeedsValue } from './conditionConfigs';
 import { isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
@@ -286,4 +286,3 @@ export function QueryBlockBuilder({
   );
 }
 
-export default QueryBlockBuilder;
