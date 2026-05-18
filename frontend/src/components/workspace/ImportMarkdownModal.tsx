@@ -11,8 +11,8 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { mdiImport } from '@mdi/js';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import {
   parseLogseqMdFiles,
   countMdBlocks,

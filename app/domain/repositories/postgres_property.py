@@ -30,7 +30,7 @@ from ..entities import (
     generate_uuid,
 )
 from .interfaces import PropertyRepository
-from .base import normalize_timestamp
+from .base import BasePostgresRepository, normalize_timestamp
 from ...utils import utc_now
 from ...db.connection import acquire_connection
 from ...logging_config import get_logger
@@ -39,7 +39,7 @@ from ...logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class PostgresPropertyRepository(PropertyRepository):
+class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
     """PostgreSQL implementation of the PropertyRepository.
     
     Updated for new schema:
@@ -56,18 +56,12 @@ class PostgresPropertyRepository(PropertyRepository):
             workspace_id: The workspace this repository operates on
             user_id: Optional current user ID for audit trails
         """
-        self._pool = pool
-        self._workspace_id = workspace_id
-        self._user_id = user_id
+        super().__init__(pool, workspace_id, user_id)
     
     def _row_to_property(self, row: asyncpg.Record) -> Property:
         """Convert database row to Property entity."""
-        create_date = row['create_date']
-        write_date = row['write_date']
-        if isinstance(create_date, datetime):
-            create_date = create_date.isoformat()
-        if isinstance(write_date, datetime):
-            write_date = write_date.isoformat()
+        create_date = normalize_timestamp(row['create_date'])
+        write_date = normalize_timestamp(row['write_date'])
             
         return Property(
             id=row['id'],

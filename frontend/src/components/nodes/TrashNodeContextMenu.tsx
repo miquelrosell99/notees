@@ -8,8 +8,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restoreNode, permanentlyDeleteNode } from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { nodeKeys } from '@/hooks/useNodes';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
-import { ConfirmationModal } from '../core/ConfirmationModal';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import './NodeContextMenu.css';
@@ -136,4 +136,3 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   );
 }
 
-export default TrashNodeContextMenu;

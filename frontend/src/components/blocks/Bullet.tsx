@@ -11,7 +11,7 @@
  * - Shows outer ring when collapsed with children (like graph nodes)
  */
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '../core/icons';
+import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '@/components/core/icons';
 import './Bullet.css';
 
 export type BulletSize = 'xs' | 'sm' | 'md';
@@ -45,7 +45,7 @@ export interface BulletProps {
   /** @dnd-kit activator ref for drag handle */
   activatorRef?: (element: HTMLElement | null) => void;
   /** @dnd-kit activator listeners for drag handle */
-  activatorListeners?: Record<string, any>;
+  activatorListeners?: Record<string, (event: React.SyntheticEvent) => void>;
   /** Whether currently dragging */
   isDragging?: boolean;
   /** Custom class name */
@@ -192,4 +192,3 @@ export function Bullet({
   );
 }
 
-export default Bullet;

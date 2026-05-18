@@ -76,4 +76,3 @@ export function NotificationToast() {
   );
 }
 
-export default NotificationToast;

@@ -232,7 +232,7 @@ export function TriggerPlugin({
 
   // ─── Handle selection ──────────────────────────────────────
 
-  const handleSelect = useCallback((value: string, _metadata?: any) => {
+  const handleSelect = useCallback((value: string, _metadata?: unknown) => {
     editor.update(() => {
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;

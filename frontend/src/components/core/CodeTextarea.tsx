@@ -75,4 +75,3 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
   },
 );
 
-export default CodeTextarea;

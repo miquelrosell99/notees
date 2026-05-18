@@ -7,8 +7,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { mdiClose } from '@mdi/js';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
-import { Button } from '../core/Button';
-import { FileDropZone } from '../core/FileDropZone';
+import { Button } from '@/components/core/Button';
+import { FileDropZone } from '@/components/core/FileDropZone';
 import './AssetUploadModal.css';
 
 interface AssetUploadModalProps {
@@ -284,4 +284,3 @@ export function AssetUploadModal({
   );
 }
 
-export default AssetUploadModal;

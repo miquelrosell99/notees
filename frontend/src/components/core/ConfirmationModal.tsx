@@ -88,4 +88,3 @@ export function ConfirmationModal({
   );
 }
 
-export default ConfirmationModal;

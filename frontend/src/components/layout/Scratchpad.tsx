@@ -8,8 +8,8 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mdiPin, mdiPinOff, mdiSend, mdiPlus } from '@mdi/js';
-import { Button } from '../core/Button';
-import { NodeSelector } from '../nodes/NodeSelector';
+import { Button } from '@/components/core/Button';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useTodayNote, usePages, useCreateNode, useNodeByUuid, useMoveNode } from '@/hooks';
@@ -339,4 +339,3 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   );
 }
 
-export default Scratchpad;

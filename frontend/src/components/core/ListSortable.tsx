@@ -343,4 +343,3 @@ export function ListSortable<T extends ListSortableItem>({
   );
 }
 
-export default ListSortable;

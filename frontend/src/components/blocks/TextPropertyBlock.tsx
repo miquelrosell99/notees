@@ -27,8 +27,8 @@ import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
-import { NodeCollection } from '../nodes/NodeCollection';
-import { Button } from '../core/Button';
+import { NodeCollection } from '@/components/nodes/NodeCollection';
+import { Button } from '@/components/core/Button';
 import { getDragCoordinator } from '@/runtime/DragCoordinator';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 
@@ -364,4 +364,3 @@ export function TextPropertyBlock({
   );
 }
 
-export default TextPropertyBlock;

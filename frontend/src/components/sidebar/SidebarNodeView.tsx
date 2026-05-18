@@ -12,8 +12,8 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import type { SidebarNodeType } from '@/stores';
 import { NodeViewContent } from '@/views/NodeView';
-import { NodeIcon } from '../core/icons';
-import { Button } from '../core/Button';
+import { NodeIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
@@ -92,6 +92,4 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
     </div>
   );
 }
-
-export default SidebarNodeView;
 

@@ -211,4 +211,3 @@ export function QuerySQLPreview({ ast, disabled = false }: QuerySQLPreviewProps)
   );
 }
 
-export default QuerySQLPreview;

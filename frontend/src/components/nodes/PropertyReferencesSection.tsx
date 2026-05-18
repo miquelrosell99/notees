@@ -218,4 +218,3 @@ export function PropertyReferencesSection({
 }
 
 export type { PropertyRefItem };
-export default PropertyReferencesSection;

@@ -54,8 +54,8 @@ import {
   TimelineView,
 } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
-import { Card } from '../core/Card';
-import { ErrorBoundary } from '../core/ErrorBoundary';
+import { Card } from '@/components/core/Card';
+import { ErrorBoundary } from '@/components/core/ErrorBoundary';
 import './NodeCollection.css';
 
 // ==================== Context ====================

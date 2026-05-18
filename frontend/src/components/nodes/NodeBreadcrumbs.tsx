@@ -30,11 +30,11 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
 import { mdiPlus, mdiChevronDown } from '@mdi/js';
-import { ChevronRightIcon } from '../core/icons';
-import { Button } from '../core/Button';
-import { NodeInline } from '../blocks/NodeInline';
+import { ChevronRightIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
+import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeSelector } from './NodeSelector';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import './NodeBreadcrumbs.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -624,4 +624,3 @@ export function InlineNodeBreadcrumbs({
   );
 }
 
-export default NodeBreadcrumbs;

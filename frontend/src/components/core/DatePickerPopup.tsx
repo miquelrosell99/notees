@@ -335,4 +335,3 @@ export function DatePickerPopup({
   return createPortal(popup, document.body);
 }
 
-export default DatePickerPopup;

@@ -5,8 +5,8 @@
  * Validates that no node with the given UUID already exists before creating.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
 import { useCreateNode, usePageClass } from '@/hooks';
 import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
@@ -199,4 +199,3 @@ export function CreatePageWithUuidModal({
   );
 }
 
-export default CreatePageWithUuidModal;

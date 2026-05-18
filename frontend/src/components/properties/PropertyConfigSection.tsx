@@ -19,10 +19,10 @@ import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reord
 import { parseIconField } from '@/utils/iconDom';
 import { useUpdateProperty, useClasses } from '@/hooks';
 import { useNavigationStore } from '@/stores';
-import { Button } from '../core/Button';
-import { Modal } from '../core/Modal';
-import { TextField } from '../core/TextField';
-import { SelectionButton } from '../core/SelectionButton';
+import { Button } from '@/components/core/Button';
+import { Modal } from '@/components/core/Modal';
+import { TextField } from '@/components/core/TextField';
+import { SelectionButton } from '@/components/core/SelectionButton';
 import { PropertyForm } from './PropertyForm';
 import './PropertyConfigSection.css';
 

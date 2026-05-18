@@ -33,15 +33,15 @@ import { useFavoritesStore } from '@/stores';
 import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter } from '@/hooks/useLogseqImporter';
-import { Modal } from '../core/Modal';
-import { Button } from '../core/Button';
-import { TextField } from '../core/TextField';
-import { SelectionRadio, type RadioOption } from '../core/SelectionRadio';
-import { CodeTextarea } from '../core/CodeTextarea';
-import { FileDropZone } from '../core/FileDropZone';
-import { TaskProgress } from '../core/TaskProgress';
-import { TaskReport } from '../core/TaskReport';
-import { AlertIcon, SyncIcon } from '../core/icons';
+import { Modal } from '@/components/core/Modal';
+import { Button } from '@/components/core/Button';
+import { TextField } from '@/components/core/TextField';
+import { SelectionRadio, type RadioOption } from '@/components/core/SelectionRadio';
+import { CodeTextarea } from '@/components/core/CodeTextarea';
+import { FileDropZone } from '@/components/core/FileDropZone';
+import { TaskProgress } from '@/components/core/TaskProgress';
+import { TaskReport } from '@/components/core/TaskReport';
+import { AlertIcon, SyncIcon } from '@/components/core/icons';
 import {
   parseLogseqFolder,
   countMdBlocks,
@@ -798,4 +798,3 @@ export function ImportOptionsModal({
   );
 }
 
-export default ImportOptionsModal;

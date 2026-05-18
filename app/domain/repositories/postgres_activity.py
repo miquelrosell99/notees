@@ -6,16 +6,15 @@ from typing import Any, List, Optional
 import asyncpg
 
 from .interfaces import ActivityRepository
+from .base import BasePostgresRepository
 from ...db.connection import acquire_connection
 
 
-class PostgresActivityRepository(ActivityRepository):
+class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
     """Handles node_activity and link_click tables."""
 
     def __init__(self, pool: asyncpg.Pool, workspace_id: int, user_id: Optional[int] = None):
-        self._pool = pool
-        self._workspace_id = workspace_id
-        self._user_id = user_id
+        super().__init__(pool, workspace_id, user_id)
 
     async def verify_node_in_workspace(self, node_id: int) -> bool:
         async with acquire_connection(self._pool) as conn:

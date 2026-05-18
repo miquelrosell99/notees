@@ -13,9 +13,9 @@
  * - `nodeUuid` (string): resolved via ReferencedNodesContext → useNodeByUuid fallback
  */
 import { useState, useCallback, useMemo, useRef, memo, createContext, useContext } from 'react';
-import { Pill } from '../core/Pill';
-import { NodeIcon, CloseIcon } from '../core/icons';
-import { ContextMenu, type ContextMenuItem } from '../core/ContextMenu';
+import { Pill } from '@/components/core/Pill';
+import { NodeIcon, CloseIcon } from '@/components/core/icons';
+import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { ColorPickerRow } from './NodeContextMenu';
 import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';

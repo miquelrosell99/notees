@@ -78,4 +78,3 @@ export function ViewBuilder({
   );
 }
 
-export default ViewBuilder;

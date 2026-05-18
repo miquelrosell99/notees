@@ -315,4 +315,3 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   );
 });
 
-export default ColorButton;
