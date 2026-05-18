@@ -113,8 +113,8 @@ function getLabelShadowColor(): string {
   return labelColorCache.shadow;
 }
 
-const BASE_RADIUS   = 7;
-const MAX_RADIUS    = 22;
+const BASE_RADIUS   = 20;
+const MAX_RADIUS    = 50;
 
 function nodeRadius(n: GraphNode, maxConnections: number, base = BASE_RADIUS): number {
   if (maxConnections <= 0) return base;
