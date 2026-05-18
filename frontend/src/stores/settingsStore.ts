@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
+export type AccentColor = 'monochrome' | 'sage' | 'teal' | 'rose' | 'navy';
 
 export type DateFormat = 
   | 'YYYY/MM/DD'
@@ -56,9 +57,19 @@ export const FIRST_DAY_OF_WEEK_OPTIONS: FirstDayOfWeekOption[] = [
   { value: 6, label: 'Saturday' },
 ];
 
+export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
+  { value: 'monochrome', label: 'Monochrome', hex: '#404040' },
+  { value: 'sage', label: 'Sage', hex: '#5B7D5B' },
+  { value: 'teal', label: 'Teal', hex: '#2D6B5B' },
+  { value: 'rose', label: 'Rose', hex: '#8B5B5B' },
+  { value: 'navy', label: 'Navy', hex: '#1E3A5F' },
+];
+
 interface SettingsState {
   // Theme
   theme: ThemePreference;
+  oledMode: boolean;
+  accentColor: AccentColor;
   
   // Date format
   dateFormat: DateFormat;
@@ -78,6 +89,8 @@ interface SettingsState {
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
+  setOledMode: (enabled: boolean) => void;
+  setAccentColor: (color: AccentColor) => void;
   setDateFormat: (format: DateFormat) => void;
   setDefaultView: (view: DefaultView) => void;
   setShowDailyNotes: (show: boolean) => void;
@@ -91,7 +104,7 @@ interface SettingsState {
 /**
  * Apply theme to document based on preference
  */
-export function applyTheme(theme: ThemePreference): void {
+export function applyTheme(theme: ThemePreference, oledMode = false): void {
   if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
   } else if (theme === 'light') {
@@ -105,6 +118,16 @@ export function applyTheme(theme: ThemePreference): void {
       document.documentElement.removeAttribute('data-theme');
     }
   }
+  // OLED mode is applied independently
+  if (oledMode && (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches))) {
+    document.documentElement.setAttribute('data-oled', 'true');
+  } else {
+    document.documentElement.removeAttribute('data-oled');
+  }
+}
+
+export function applyAccentColor(accentColor: AccentColor): void {
+  document.documentElement.setAttribute('data-accent', accentColor);
 }
 
 /**
@@ -194,6 +217,8 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       // Defaults
       theme: 'system',
+      oledMode: false,
+      accentColor: 'monochrome',
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,
@@ -206,7 +231,17 @@ export const useSettingsStore = create<SettingsState>()(
       // Actions
       setTheme: (theme) => {
         set({ theme });
-        applyTheme(theme);
+        const { oledMode } = useSettingsStore.getState();
+        applyTheme(theme, oledMode);
+      },
+      setOledMode: (oledMode) => {
+        set({ oledMode });
+        const { theme } = useSettingsStore.getState();
+        applyTheme(theme, oledMode);
+      },
+      setAccentColor: (accentColor) => {
+        set({ accentColor });
+        applyAccentColor(accentColor);
       },
       
       setDateFormat: (dateFormat) => {
@@ -243,7 +278,8 @@ export const useSettingsStore = create<SettingsState>()(
       // Initialize theme on rehydration
       onRehydrateStorage: () => (state) => {
         if (state) {
-          applyTheme(state.theme);
+          applyTheme(state.theme, state.oledMode ?? false);
+          applyAccentColor(state.accentColor ?? 'monochrome');
         }
       },
     }
@@ -254,9 +290,9 @@ export const useSettingsStore = create<SettingsState>()(
 if (typeof window !== 'undefined') {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
   mediaQuery.addEventListener('change', () => {
-    const { theme } = useSettingsStore.getState();
+    const { theme, oledMode } = useSettingsStore.getState();
     if (theme === 'system') {
-      applyTheme('system');
+      applyTheme('system', oledMode);
     }
   });
 }
