@@ -293,14 +293,12 @@ function tick(): void {
   postFrame();
 
   // Auto-freeze when the simulation has fully settled.
-  // With damping-based settling (no time-based alpha cooling), we freeze
-  // purely by kinetic energy — once all nodes are nearly stationary the
-  // loop stops and CPU goes to zero.  Dragging or topology changes
-  // (which call startLoop()) wake it back up locally, without re-heating
-  // unrelated nodes.
+  // We stop when kinetic energy is very low OR when alpha has decayed to
+  // its minimum (forces are essentially zero). The higher threshold (0.005)
+  // prevents perpetual micro-movements from persistent tiny forces.
   if (engine) {
     const state = engine.getState();
-    if (state.energy < 0.0005 && substeps > 0) {
+    if (substeps > 0 && (state.energy < 0.005 || state.alpha <= engine.getAlphaMin())) {
       stopLoop();
       return;
     }
@@ -443,7 +441,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       if (!engine) break;
       engine.pinNode(msg.nodeId);
       pinnedWorkerSet.add(msg.nodeId);
-      engine.reheat();
+      engine.softReheat(0.15);
       startLoop();
       break;
     }
@@ -463,6 +461,7 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       if (!engine) break;
       engine.unpinNode(msg.nodeId);
       pinnedWorkerSet.delete(msg.nodeId);
+      engine.softReheat(0.1);
       startLoop();
       break;
     }
