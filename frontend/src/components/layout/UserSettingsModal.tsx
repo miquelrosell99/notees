@@ -5,8 +5,8 @@
  * Separate from graph/workspace settings.
  */
 import { useState } from 'react';
-import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS } from '@/stores';
-import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek } from '@/stores';
+import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
+import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/api/workspaces';
 import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
 import { Modal } from '../core/Modal';
@@ -26,7 +26,7 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
   const { user, logout } = useAuthStore();
-  const { theme, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
+  const { theme, oledMode, accentColor, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
 
   if (!isOpen) return null;
 
@@ -37,8 +37,20 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
   const handleThemeChange = (newTheme: ThemePreference) => {
     setTheme(newTheme);
-    applyTheme(newTheme);
+    applyTheme(newTheme, oledMode);
     setSetting('theme', newTheme).catch(console.error);
+  };
+
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  const handleOledModeChange = (enabled: boolean) => {
+    setOledMode(enabled);
+    setSetting('oled_mode', enabled).catch(console.error);
+  };
+
+  const handleAccentColorChange = (color: AccentColor) => {
+    setAccentColor(color);
+    setSetting('accent_color', color).catch(console.error);
   };
 
   const handleDateFormatChange = (newFormat: DateFormat) => {
@@ -130,6 +142,48 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   onChange={(value) => handleThemeChange(value as ThemePreference)}
                   size="sm"
                 />
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">
+                    Pure Black
+                    {!isDark && (
+                      <span className="settings-badge">Dark only</span>
+                    )}
+                  </label>
+                  <p className="settings-item__description">
+                    Pure black backgrounds for OLED displays
+                  </p>
+                </div>
+                <BooleanToggle
+                  checked={oledMode}
+                  onChange={() => handleOledModeChange(!oledMode)}
+                  disabled={!isDark}
+                  size="md"
+                />
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label className="settings-item__label">Accent Color</label>
+                  <p className="settings-item__description">
+                    Functional accent for tags, badges, and active states
+                  </p>
+                </div>
+                <div className="settings-accent-options">
+                  {ACCENT_COLOR_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`settings-accent-swatch ${accentColor === option.value ? 'settings-accent-swatch--active' : ''}`}
+                      style={{ backgroundColor: option.hex }}
+                      onClick={() => handleAccentColorChange(option.value)}
+                      aria-label={option.label}
+                      title={option.label}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -320,6 +374,18 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <p className="settings-about__description">
                   A powerful note-taking app with graph visualization,
                   bidirectional linking, and more.
+                </p>
+                <p className="settings-about__copyright">
+                  © {new Date().getFullYear()} Miquel Rosell Tarragó
+                </p>
+              </div>
+
+              <Separator orientation="horizontal" size="lg" spacing="md" />
+
+              <div className="settings-privacy-card">
+                <h4 className="settings-privacy-card__title">Privacy</h4>
+                <p className="settings-privacy-card__text">
+                  No cloud. All data stays on your device.
                 </p>
               </div>
 

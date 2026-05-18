@@ -41,7 +41,15 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
   ref
 ) {
   const toggleId = id || `toggle-${Math.random().toString(36).slice(2, 9)}`;
-  
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Tactile feedback on mobile
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
+    rest.onChange?.(e);
+  };
+
   const containerClasses = [
     'toggle-container',
     `toggle-container--${size}`,
@@ -61,6 +69,7 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
         className="toggle-input"
         disabled={disabled}
         {...rest}
+        onChange={handleChange}
       />
       <span className={`toggle-track toggle-track--${size}`}>
         <span className="toggle-thumb" />

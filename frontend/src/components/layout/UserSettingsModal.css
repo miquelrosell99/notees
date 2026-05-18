@@ -8,3 +8,71 @@
   color: var(--color-on-surface-variant);
   margin: 0 0 var(--spacing-4) 0;
 }
+
+/* ==================== Settings Badge (e.g. "Dark only") ==================== */
+.settings-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font: var(--font-label-small);
+  font-weight: 600;
+  border-radius: var(--shape-full);
+  vertical-align: middle;
+}
+
+/* ==================== Accent Color Swatches ==================== */
+.settings-accent-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.settings-accent-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
+              border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-accent-swatch:hover {
+  transform: scale(1.15);
+}
+
+.settings-accent-swatch--active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-container);
+}
+
+/* ==================== About Section ==================== */
+.settings-about__copyright {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: var(--spacing-3) 0 0 0;
+}
+
+/* ==================== Privacy Card ==================== */
+.settings-privacy-card {
+  padding: var(--spacing-4);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+}
+
+.settings-privacy-card__title {
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-2) 0;
+}
+
+.settings-privacy-card__text {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}

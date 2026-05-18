@@ -28,7 +28,6 @@
 
 .pill:hover {
   border-color: var(--color-outline-variant);
-  box-shadow: var(--elevation-1);
 }
 
 .pill:active {

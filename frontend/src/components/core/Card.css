@@ -51,11 +51,16 @@
 }
 
 .card--radius-lg {
-  border-radius: var(--shape-extra-large);
+  border-radius: var(--shape-card);
   overflow: hidden;
 }
 
-/* Elevation levels */
+.card--radius-xl {
+  border-radius: var(--shape-sheet);
+  overflow: hidden;
+}
+
+/* Elevation levels — zero visual noise by default */
 .card--elevation-none {
   box-shadow: none;
 }
