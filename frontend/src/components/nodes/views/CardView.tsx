@@ -47,6 +47,17 @@ interface CardGroup {
   nodes: Node[];
 }
 
+// ── Group sorting helper ───────────────────────────────────────────────────
+
+/** Move the "None" group to the end so informed values appear first. */
+function sortGroupsNoneLast(groups: CardGroup[]): CardGroup[] {
+  const noneIndex = groups.findIndex(g => g.label === 'None' && !g.page);
+  if (noneIndex === -1) return groups;
+  const noneGroup = groups[noneIndex];
+  const others = groups.filter((_, i) => i !== noneIndex);
+  return [...others, noneGroup];
+}
+
 // ── Property grouping helper ───────────────────────────────────────────────
 
 function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
@@ -132,61 +143,64 @@ export const CardView = memo(function CardView({
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 
   // Group nodes by page or property value
-  const groupedNodes = useMemo((): { groups: CardGroup[]; pages: Node[] } | null => {
+  const groupedNodes = useMemo((): CardGroup[] | null => {
     if (groupBy === 'none') {
       return null; // No grouping
     }
 
     if (groupBy === 'page') {
       const groups = new Map<string, CardGroup>();
-      const pages: Node[] = [];
-      
+
       for (const node of sortedNodes) {
-        if (node.is_page) {
-          pages.push(node);
-          continue;
-        }
-        
-        const pageKey = (node as any).page_id 
-          ? `page-${(node as any).page_id}` 
-          : 'no-page';
-        
-        if (!groups.has(pageKey)) {
-          let pageNode: Node | null = null;
-          if ((node as any).page_id) {
-            pageNode = {
-              id: (node as any).page_id,
+        const pageId = (node as any).page_id;
+
+        if (pageId) {
+          const pageKey = `page-${pageId}`;
+          if (!groups.has(pageKey)) {
+            const pageNode = {
+              id: pageId,
               name: (node as any).page_name || 'Untitled',
               uuid: (node as any).page_uuid || '',
               is_page: true,
             } as Node;
+            groups.set(pageKey, { page: pageNode, nodes: [] });
           }
-          
-          groups.set(pageKey, { page: pageNode, nodes: [] });
+          groups.get(pageKey)!.nodes.push(node);
+        } else {
+          // Pages and blocks without a page_id → None group
+          if (!groups.has('none')) {
+            groups.set('none', { label: 'None', nodes: [] });
+          }
+          groups.get('none')!.nodes.push(node);
         }
-        
-        groups.get(pageKey)!.nodes.push(node);
       }
-      
-      return { groups: Array.from(groups.values()), pages };
+
+      return sortGroupsNoneLast(Array.from(groups.values()));
     }
 
     // Property-based grouping
     if (groupByProperty) {
       const propId = String(groupByProperty.id);
       const groups = new Map<string, CardGroup>();
-      
+
       for (const node of sortedNodes) {
         const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
-        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
-        
-        if (!groups.has(label)) {
-          groups.set(label, { label, headerIcon: icon, nodes: [] });
+
+        if (rawValue === null || rawValue === undefined) {
+          if (!groups.has('none')) {
+            groups.set('none', { label: 'None', nodes: [] });
+          }
+          groups.get('none')!.nodes.push(node);
+        } else {
+          const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
+          if (!groups.has(label)) {
+            groups.set(label, { label, headerIcon: icon, nodes: [] });
+          }
+          groups.get(label)!.nodes.push(node);
         }
-        groups.get(label)!.nodes.push(node);
       }
-      
-      return { groups: Array.from(groups.values()), pages: [] };
+
+      return sortGroupsNoneLast(Array.from(groups.values()));
     }
 
     return null;
@@ -269,52 +283,21 @@ export const CardView = memo(function CardView({
     sortable && 'node-card-view--sortable',
     selectable && 'node-card-view--selectable',
     layout === 'cover-top' && 'node-card-view--vertical-layout',
-    groupedNodes && 'node-card-view--kanban',
+    groupedNodes && groupedNodes.length > 0 && 'node-card-view--kanban',
     className,
   ].filter(Boolean).join(' ');
 
   // Kanban view (grouped)
-  if (groupedNodes) {
+  if (groupedNodes && groupedNodes.length > 0) {
     return (
       <div className={gridClassName} ref={containerRef}>
-        {/* Pages column */}
-        {groupedNodes.pages.length > 0 && (
-          <div key="pages-column" className="node-card-view__kanban-column">
-            <div className="node-card-view__kanban-header">
-              <span className="node-card-view__kanban-title">Pages</span>
-              <span className="node-card-view__kanban-count">{groupedNodes.pages.length}</span>
-            </div>
-            <div className="node-card-view__kanban-cards">
-              {groupedNodes.pages.map((node, index) => (
-                <NodeCard
-                  key={node.id}
-                  node={node}
-                  index={index}
-                  layout={layout}
-                  sortable={false}
-                  isDragging={false}
-                  isDropTarget={false}
-                  editable={editable}
-                  allClasses={allClasses}
-                  isSelected={selectable && selectedIds?.has(node.id)}
-                  onNodeClick={onNodeClick}
-                  onNodeShiftClick={onNodeShiftClick}
-                  onContentChange={onContentChange}
-                  onDragStart={handleDragStart}
-                  onSelectionChange={selectable ? handleCardSelectionChange : undefined}
-                  customContextMenu={customContextMenu}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        {groupedNodes.groups.map((group, groupIndex) => {
-          const groupKey = group.page?.id 
-            ? `page-${group.page.id}` 
+        {groupedNodes.map((group, groupIndex) => {
+          const groupKey = group.page?.id
+            ? `page-${group.page.id}`
             : group.label !== undefined
               ? `prop-${group.label}`
               : `group-${groupIndex}`;
-          
+
           return (
             <div key={groupKey} className="node-card-view__kanban-column">
               <div className="node-card-view__kanban-header">
@@ -324,14 +307,12 @@ export const CardView = memo(function CardView({
                     <span className="node-card-view__kanban-title">{nodeNameToText(group.page.name) || 'Untitled'}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
-                ) : group.label !== undefined ? (
+                ) : (
                   <>
                     {group.headerIcon && <NodeIcon icon={group.headerIcon} size="xs" className="node-card-view__kanban-icon" />}
-                    <span className="node-card-view__kanban-title">{group.label}</span>
+                    <span className="node-card-view__kanban-title">{group.label ?? 'None'}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
-                ) : (
-                  <span className="node-card-view__kanban-title">No Page</span>
                 )}
               </div>
               <div className="node-card-view__kanban-cards">

@@ -342,6 +342,7 @@ export const ListView = memo(function ListView({
                 pageUuid={pageUuid}
                 className="node-list-view__editor"
                 hideProperties={hideProperties}
+                skipPages={false}
               />
             </div>
           </div>
