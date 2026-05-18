@@ -13,7 +13,7 @@
 import { useState, useCallback, type MouseEvent } from 'react';
 import './TableSizeSelector.css';
 
-export interface TableSize {
+export interface TableGridSize {
   rows: number;
   columns: number;
 }
@@ -24,7 +24,7 @@ export interface TableSizeSelectorProps {
   /** Maximum number of columns in the grid */
   maxColumns?: number;
   /** Called when user clicks to confirm selection */
-  onSelect: (size: TableSize) => void;
+  onSelect: (size: TableGridSize) => void;
   /** Called when selection is cancelled (e.g., click outside) */
   onCancel?: () => void;
   /** Initial hint text shown below grid */
@@ -42,7 +42,7 @@ export function TableSizeSelector({
   hintText = 'Select table size',
 }: TableSizeSelectorProps) {
   // Currently hovered cell position (1-indexed for display)
-  const [hoveredSize, setHoveredSize] = useState<TableSize | null>(null);
+  const [hoveredSize, setHoveredSize] = useState<TableGridSize | null>(null);
 
   // Handle mouse enter on a cell
   const handleCellMouseEnter = useCallback((row: number, col: number) => {

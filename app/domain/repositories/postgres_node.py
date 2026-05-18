@@ -672,6 +672,66 @@ class PostgresNodeRepository(
             """, template_id, self._workspace_id)
             return [self._row_to_node(row) for row in rows]
 
+    async def list_classes(self) -> List[Node]:
+        """List all active class nodes in the workspace, ordered by name."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name",
+                self._workspace_id,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def search_classes(self, q: str, limit: int = 20) -> List[Node]:
+        """Search class nodes by name (ILIKE) and full-text search."""
+        name_text = """(CASE
+            WHEN name IS NOT NULL AND name LIKE '[%' THEN
+                COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(name::jsonb, '$.**.text') AS t), '')
+            ELSE COALESCE(name, '')
+        END)"""
+
+        async with acquire_connection(self._pool) as conn:
+            if len(q) >= 3:
+                rows = await conn.fetch(f"""
+                    SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                    FROM node
+                    WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                      AND is_class = TRUE AND parent_id IS NULL
+                      AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
+                    ORDER BY
+                        (LOWER({name_text}) = LOWER($1)) DESC,
+                        (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
+                        rank DESC,
+                        write_date DESC
+                    LIMIT $4
+                """, q, self._workspace_id, f'%{q}%', limit)
+            else:
+                rows = await conn.fetch(f"""
+                    SELECT * FROM node
+                    WHERE {name_text} ILIKE $1
+                      AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                      AND is_class = TRUE AND parent_id IS NULL
+                    ORDER BY
+                        (LOWER({name_text}) = LOWER($4)) DESC,
+                        (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
+                        write_date DESC
+                    LIMIT $3
+                """, f'%{q}%', self._workspace_id, limit, q)
+
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_nodes_with_classes(self, class_ids: List[int]) -> List[Node]:
+        """Get all nodes that have any of the given class IDs in their class_ids array."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """SELECT * FROM node
+                   WHERE class_ids && $1::integer[]
+                     AND workspace_id = $2
+                     AND active = TRUE
+                   ORDER BY write_date DESC""",
+                class_ids, self._workspace_id,
+            )
+            return [self._row_to_node(row) for row in rows]
+
     async def get_node_sequence(self, node_id: int) -> Optional[int]:
         """Get the sequence of a node."""
         async with acquire_connection(self._pool) as conn:

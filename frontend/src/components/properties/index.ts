@@ -12,5 +12,12 @@ export { PropertySuggestionPopup } from './PropertySuggestionPopup';
 export { PropertyColumnSelector } from './PropertyColumnSelector';
 
 export { PropertyCell } from './PropertyCell';
+export { PropertyValue } from './PropertyValue';
+export { InlineBlock } from './InlineBlock';
+export { NodePropertyCell } from './NodePropertyCell';
+export { SelectionPropertyCell } from './SelectionPropertyCell';
+export { UrlPropertyCell } from './UrlPropertyCell';
+export { EmailPropertyCell } from './EmailPropertyCell';
+export { DatePropertyCell } from './DatePropertyCell';
 export { GanttPropertySelector } from './GanttPropertySelector';
 export type { GanttPropertySelectorProps } from './GanttPropertySelector';

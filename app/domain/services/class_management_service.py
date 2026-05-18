@@ -12,7 +12,6 @@ from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError, DuplicateNodeError
 from ..stringify_ast import parse_ast, serialize_ast, ParseMode
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...db.connection import acquire_connection
 from ...logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -120,71 +119,24 @@ class ClassManagementService:
 
     async def list_classes(self) -> List[Node]:
         """Return all class nodes in the workspace, ordered by name."""
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                "SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name",
-                self._workspace_id,
-            )
-        return [self._node_repo.row_to_node(row) for row in rows]
+        return await self._node_repo.list_classes()
 
     async def search_classes(self, q: str, limit: int = 20) -> List[Node]:
         """Full-text + ILIKE search over class nodes."""
-        name_text = """(CASE
-            WHEN name IS NOT NULL AND name LIKE '[%' THEN
-                COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(name::jsonb, '$.**.text') AS t), '')
-            ELSE COALESCE(name, '')
-        END)"""
-
-        async with acquire_connection(self._pool) as conn:
-            if len(q) >= 3:
-                rows = await conn.fetch(f"""
-                    SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
-                    FROM node
-                    WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
-                      AND is_class = TRUE AND parent_id IS NULL
-                      AND (search_vector @@ plainto_tsquery('english', $1) OR {name_text} ILIKE $3)
-                    ORDER BY
-                        (LOWER({name_text}) = LOWER($1)) DESC,
-                        (LOWER({name_text}) LIKE LOWER($1) || '%') DESC,
-                        rank DESC,
-                        write_date DESC
-                    LIMIT $4
-                """, q, self._workspace_id, f'%{q}%', limit)
-            else:
-                rows = await conn.fetch(f"""
-                    SELECT * FROM node
-                    WHERE {name_text} ILIKE $1
-                      AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
-                      AND is_class = TRUE AND parent_id IS NULL
-                    ORDER BY
-                        (LOWER({name_text}) = LOWER($4)) DESC,
-                        (LOWER({name_text}) LIKE LOWER($4) || '%') DESC,
-                        write_date DESC
-                    LIMIT $3
-                """, f'%{q}%', self._workspace_id, limit, q)
-
-        return [self._node_repo.row_to_node(row) for row in rows]
+        return await self._node_repo.search_classes(q, limit)
 
     async def get_nodes_with_class(self, class_id: int) -> List[Node]:
         """Return all nodes that carry the given class (or any of its subclasses)."""
         from .class_extension_service import ClassExtensionService
         from ..repositories import PostgresPropertyRepository
+        from ..repositories.postgres_class_extend import PostgresClassExtendRepository
 
         property_repo = PostgresPropertyRepository(self._pool, self._workspace_id, 0)
-        extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo)
+        class_extend_repo = PostgresClassExtendRepository(self._pool, self._workspace_id, 0)
+        extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo, class_extend_repo)
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
-
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                """SELECT * FROM node
-                   WHERE class_ids && $1::integer[]
-                     AND workspace_id = $2
-                     AND active = TRUE
-                   ORDER BY write_date DESC""",
-                all_class_ids, self._workspace_id,
-            )
-        return [self._node_repo.row_to_node(row) for row in rows]
+        return await self._node_repo.get_nodes_with_classes(all_class_ids)
 
     # ------------------------------------------------------------------
     # Node-level class queries
@@ -192,18 +144,10 @@ class ClassManagementService:
 
     async def get_node_classes(self, node_id: int) -> List[Node]:
         """Return all class nodes assigned to *node_id*."""
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id,
-            )
-            if not row or not row['class_ids']:
-                return []
-            rows = await conn.fetch(
-                "SELECT * FROM node WHERE id = ANY($1) AND workspace_id = $2",
-                row['class_ids'], self._workspace_id,
-            )
-        return [self._node_repo.row_to_node(r) for r in rows]
+        class_ids = await self._node_repo.get_node_class_ids(node_id)
+        if not class_ids:
+            return []
+        return await self._node_repo.get_by_ids(class_ids)
 
     # ------------------------------------------------------------------
     # Adding / removing classes
@@ -244,45 +188,38 @@ class ClassManagementService:
                 "Date classes (day, month, year) are managed by the system."
             )
 
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT id, name, is_page, parent_id, class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id,
-            )
-            if not row:
-                return False
+        node = await self._node_repo.get_by_id(node_id)
+        if not node:
+            return False
 
-            if class_node and class_node.uuid == CLASS_CLASS_UUID:
-                if not row['is_page']:
-                    raise SystemClassConstraintError(
-                        "The 'class' class can only be assigned to pages, not blocks."
-                    )
-
-            if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
-                if row['is_page']:
-                    raise SystemClassConstraintError(
-                        f"The '{class_node.name}' class can only be assigned to blocks, not pages."
-                    )
-
-            current_class_ids = list(row['class_ids'] or [])
-            if class_node_id in current_class_ids:
-                return False
-
-            if row['is_page'] and _page_name_validator:
-                new_classes = current_class_ids + [class_node_id]
-                await _page_name_validator(
-                    name=row['name'],
-                    parent_id=row['parent_id'],
-                    classes=new_classes,
-                    exclude_node_id=node_id,
+        if class_node and class_node.uuid == CLASS_CLASS_UUID:
+            if not node.is_page:
+                raise SystemClassConstraintError(
+                    "The 'class' class can only be assigned to pages, not blocks."
                 )
 
-            new_class_ids = current_class_ids + [class_node_id]
-            await conn.execute(
-                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
-                new_class_ids, node_id,
+        if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
+            if node.is_page:
+                raise SystemClassConstraintError(
+                    f"The '{class_node.name}' class can only be assigned to blocks, not pages."
+                )
+
+        current_class_ids = list(node.class_ids or [])
+        if class_node_id in current_class_ids:
+            return False
+
+        if node.is_page and _page_name_validator:
+            new_classes = current_class_ids + [class_node_id]
+            await _page_name_validator(
+                name=node.name,
+                parent_id=node.parent_id,
+                classes=new_classes,
+                exclude_node_id=node_id,
             )
-            await self.update_flags_from_classes(node_id, new_class_ids)
+
+        new_class_ids = current_class_ids + [class_node_id]
+        await self._node_repo.update_node_class_ids(node_id, new_class_ids)
+        await self.update_flags_from_classes(node_id, new_class_ids)
 
         # Apply class-defined property defaults
         await self._apply_class_property_defaults(node_id, class_node_id)
@@ -310,24 +247,16 @@ class ClassManagementService:
                     "System classes must remain as classes."
                 )
 
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id,
-            )
-            if not row:
-                return False
+        current_class_ids = await self._node_repo.get_node_class_ids(node_id)
+        if not current_class_ids:
+            return False
 
-            current_class_ids = list(row['class_ids'] or [])
-            if class_node_id not in current_class_ids:
-                return False
+        if class_node_id not in current_class_ids:
+            return False
 
-            new_class_ids = [cid for cid in current_class_ids if cid != class_node_id]
-            await conn.execute(
-                "UPDATE node SET class_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
-                new_class_ids, node_id,
-            )
-            await self.update_flags_from_classes(node_id, new_class_ids)
+        new_class_ids = [cid for cid in current_class_ids if cid != class_node_id]
+        await self._node_repo.update_node_class_ids(node_id, new_class_ids)
+        await self.update_flags_from_classes(node_id, new_class_ids)
 
         return True
 

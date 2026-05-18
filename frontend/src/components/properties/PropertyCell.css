@@ -45,9 +45,6 @@
   padding: 4px 8px;
   position: relative;
 }
-  gap: 4px;
-  padding: 4px 8px;
-}
 
 /* Block component wrapper for text and single node properties */
 .property-cell-block {

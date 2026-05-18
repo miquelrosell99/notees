@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { mdiTablePlus, mdiAutoFix } from '@mdi/js';
-import { TableSizeSelector, type TableSize } from './TableSizeSelector';
+import { TableSizeSelector, type TableGridSize } from './TableSizeSelector';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { SelectionButton } from './SelectionButton';
@@ -23,7 +23,7 @@ export interface TableCreationModalProps {
   /** Number of existing children blocks (if any) */
   existingChildCount?: number;
   /** Called when user selects a size for new table */
-  onConfirm: (size: TableSize) => void;
+  onConfirm: (size: TableGridSize) => void;
   /** Called when user wants to adapt existing children to table */
   onAdaptExisting: () => void;
   /** Called when user cancels */
@@ -69,7 +69,7 @@ export function TableCreationModal({
   }, [isOpen, onCancel]);
 
   // Handle size selection for new table
-  const handleSelect = useCallback((size: TableSize) => {
+  const handleSelect = useCallback((size: TableGridSize) => {
     onConfirm(size);
   }, [onConfirm]);
 
@@ -135,6 +135,6 @@ export function TableCreationModal({
   );
 }
 
-// Re-export TableSize for consumers
-export type { TableSize } from './TableSizeSelector';
+// Re-export TableGridSize for consumers
+export type { TableGridSize } from './TableSizeSelector';
 

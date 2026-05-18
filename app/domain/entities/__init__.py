@@ -26,6 +26,9 @@ from .link import (
     NodeLink,
     BacklinkInfo,
 )
+from .class_extend import (
+    ClassExtend,
+)
 from .user import (
     User,
     UserCreateData,
@@ -78,6 +81,8 @@ __all__ = [
     "ALWAYS_SINGLE_TYPES",
     # Link
     "NodeLink",
+    # ClassExtend
+    "ClassExtend",
     # User
     "User",
     "UserCreateData",
