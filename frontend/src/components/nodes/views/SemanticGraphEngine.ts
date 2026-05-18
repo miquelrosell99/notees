@@ -41,6 +41,8 @@ export interface SGEConfig {
   dt: number;
   /** Barnes–Hut opening criterion. Lower = more accurate, slower. Default 0.8 */
   bhTheta: number;
+  /** When true, high-degree nodes attract more strongly (weaker per-edge stiffness scaling). */
+  linkCountAttraction?: boolean;
 }
 
 /** Typed-array views into the SoA physics state. All valid for [0..nodeCount). */
@@ -611,7 +613,7 @@ function findConnectedComponents(
 
 const DEFAULT_CONFIG: SGEConfig = {
   seed: 42,
-  springStrength: 0.06,
+  springStrength: 0.035,
   idealDistance: 80,
   clusterStrength: 0.004,
   clusterRepelStrength: 800,
@@ -621,14 +623,15 @@ const DEFAULT_CONFIG: SGEConfig = {
   radialStrength: 0.001,
   componentCenterStrength: 0.003,
   componentSpacing: 500,
-  damping: 0.95,
-  maxVelocity: 50,
+  damping: 0.85,
+  maxVelocity: 15,
   alpha: 1.0,
-  alphaDecay: 0.005,
+  alphaDecay: 0.02,
   alphaMin: 0.001,
   reheatFactor: 0.3,
-  dt: 1.0,
+  dt: 0.6,
   bhTheta: 0.8,
+  linkCountAttraction: false,
 };
 
 // ─── SemanticGraphEngine ──────────────────────────────────────────────────────
@@ -886,7 +889,10 @@ export class SemanticGraphEngine {
       // 1/maxDeg scaling keeps total clique stiffness independent of clique size:
       // a node with D edges each of strength 1/D has total restoring force ~1,
       // preventing dense clusters from becoming arbitrarily stiff and oscillatory.
-      this.edgeStiff[valid] = (1 / maxDeg) * (isInterCluster ? 0.7 : 1.0);
+      // When linkCountAttraction is enabled we use weaker 1/sqrt(maxDeg) scaling
+      // so hubs pull more strongly.
+      const stiffScale = this.config.linkCountAttraction ? 1 / Math.sqrt(maxDeg) : 1 / maxDeg;
+      this.edgeStiff[valid] = stiffScale * (isInterCluster ? 0.7 : 1.0);
       valid++;
     }
     this.numEdges = valid;
@@ -1006,11 +1012,12 @@ export class SemanticGraphEngine {
     const activeCount = this.activeCount;
     // ax/ay are already zeroed — cleared at the tail of the previous integrate().
 
+    const alpha = this.alpha;
     this.updateClusterData();
     const clCx = this.clCx, clCy = this.clCy, clCC = this.clCount;
 
     // ─ A) Intra-cluster cohesion (shell model) ─────────────────────────────────
-    const clusterStr = cfg.clusterStrength;
+    const clusterStr = cfg.clusterStrength * alpha;
     const idealDist  = cfg.idealDistance;
     for (let i = 0; i < N; i++) {
       if (pin[i]) continue;
@@ -1030,7 +1037,7 @@ export class SemanticGraphEngine {
     // Cap N scaling so cluster repulsion doesn't explode on large graphs.
     // sqrt(10000) = 100 would give repelStr = 80,000 — far too strong.
     const nScale   = N > 1 ? Math.min(Math.sqrt(N), 10) : 1;
-    const repelStr = cfg.clusterRepelStrength * nScale;
+    const repelStr = cfg.clusterRepelStrength * nScale * alpha;
 
     if (bigK > 0) {
       for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
@@ -1055,7 +1062,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ C) Edge springs ─ pure arithmetic, no topology or derived math per step ─
-    const springStr  = cfg.springStrength;
+    const springStr  = cfg.springStrength * alpha;
     const E          = this.numEdges;
     const eSrc       = this.edgeSrc,   eTgt   = this.edgeTgt;
     const eRest      = this.edgeRest,  eStiff = this.edgeStiff;
@@ -1072,7 +1079,7 @@ export class SemanticGraphEngine {
     // ─ D) Local repulsion ─ open-addressing typed-array spatial hash ─────────── 
     const baseRepelRadius = cfg.localRepelRadius;
     const repelRadius  = N > 1000 ? baseRepelRadius * Math.min(1, Math.sqrt(1000 / N)) : baseRepelRadius;
-    const localStr     = cfg.localRepelStrength;
+    const localStr     = cfg.localRepelStrength * alpha;
     const repelRadSq   = repelRadius * repelRadius;
     const invRepelRad  = 1 / repelRadius;
 
@@ -1110,7 +1117,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ E) Radial stability ───────────────────────────────────────────────────── 
-    const radialStr = cfg.radialStrength;
+    const radialStr = cfg.radialStrength * alpha;
     if (radialStr > 0) {
       for (let k = 0; k < activeCount; k++) {
         const i = activeIdx[k];
@@ -1140,7 +1147,7 @@ export class SemanticGraphEngine {
       for (let c = 0; c < C; c++) { if (cc[c] > 0) { cx[c] /= cc[c]; cy[c] /= cc[c]; } }
 
       // 2) pairwise repulsion between component centroids
-      const compRepelStr = 8000;
+      const compRepelStr = 2500 * alpha;
       const compRepelRadius = 600;
       const cfx = new Float32Array(C), cfy = new Float32Array(C);
       for (let a = 0; a < C; a++) {
@@ -1187,7 +1194,7 @@ export class SemanticGraphEngine {
     // an outer rim (targetR).  Once beyond targetR they feel no gravity,
     // so they float freely in the periphery, kept in check only by local
     // repulsion and component repulsion from other clusters.
-    const centerStr = cfg.componentCenterStrength;
+    const centerStr = cfg.componentCenterStrength * alpha;
     if (centerStr > 0) {
       const targetR = cfg.idealDistance * 8; // ~640
       const eps = 0.001;
@@ -1278,7 +1285,7 @@ export class SemanticGraphEngine {
     // Adaptive timestep: back off if diverging
     if (this.energy > this.prevEnergy * 1.1 && this.energy > 0.01) {
       if (++this.oscillationCounter > 3) {
-        this.prevDt = Math.max(cfg.dt * 0.25, this.prevDt * 0.8);
+        this.prevDt = Math.max(cfg.dt * 0.25, this.prevDt * 0.6);
         this.oscillationCounter = 0;
       }
     } else {
@@ -1295,6 +1302,9 @@ export class SemanticGraphEngine {
     if (this.frozen) return;
     this.computeForces();
     this.integrate();
+    if (this.alpha > this.config.alphaMin) {
+      this.alpha = Math.max(this.config.alphaMin, this.alpha - this.config.alphaDecay);
+    }
   }
 
   getState(): SGEState {
@@ -1474,6 +1484,7 @@ export class SemanticGraphEngine {
     if (partial.localRepelRadius !== undefined) this.spatialHash.setCellSize(partial.localRepelRadius);
     if (partial.seed !== undefined) this.rng = new SeededRNG(partial.seed);
     if (partial.idealDistance !== undefined) this._rebuildEdgeRest();
+    if (partial.linkCountAttraction !== undefined) this._rebuildEdgeArrays();
   }
 
   getNodePosition(id: number): { x: number; y: number } | undefined {
@@ -1502,6 +1513,7 @@ export class SemanticGraphEngine {
 
   reheat(): void {
     this.frozen = false;
+    this.alpha = 1.0;
     this.prevDt = this.config.dt;
     this.oscillationCounter = 0;
   }
