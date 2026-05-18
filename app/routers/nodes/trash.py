@@ -1,0 +1,151 @@
+"""Trash operations for nodes."""
+from typing import Optional, List, Dict
+
+from fastapi import APIRouter, HTTPException, Depends, Path, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from ...logging_config import get_logger
+logger = get_logger(__name__)
+
+from ...domain.entities import NodeCreateData, NodeUpdateData
+from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError, SystemClassConstraintError
+from ..auth import get_current_user
+from ...models import User
+from .models import (
+    NodeResponse,
+    NodeCreateRequest,
+    NodeUpdateRequest,
+    BatchNodeCreateRequest,
+    BatchNodeCreateResponse,
+    BatchNodeCreateResultItem,
+    BatchNodeUpdateRequest,
+    BatchNodeUpdateResponse,
+    BatchNodeUpdateResultItem,
+    BatchNodeDeleteRequest,
+    BatchNodeDeleteResponse,
+    BatchNodeDeleteResultItem,
+    BatchPermanentDeleteRequest,
+    BatchPermanentDeleteResponse,
+    BatchPermanentDeleteResultItem,
+    BatchGetNodesRequest,
+    BatchGetNodesResponse,
+)
+from .helpers import (
+    _get_node_service,
+    _get_undo_service,
+    _node_snapshot,
+    _node_to_response,
+    _get_class_ids,
+    _get_tag_ids,
+    _get_class_ids_batch,
+    _get_alias_ids,
+    _get_related_ids_batch,
+    extract_properties_dict,
+    _resolve_referenced_display_names,
+    _name_text,
+    _apply_node_extras,
+)
+
+limiter = Limiter(key_func=get_remote_address)
+router = APIRouter()
+
+@router.get("/trash", name="get_trash")
+async def get_trash(
+    user: User = Depends(get_current_user),
+):
+    """Get all soft-deleted nodes (trash) for the current workspace.
+    
+    Returns nodes that have been soft-deleted (is_deleted=true) but not
+    permanently removed from the database.
+    """
+    service = await _get_node_service(user)
+    deleted_nodes = await service.get_deleted_nodes()
+    
+    # Convert to response format
+    responses = []
+    for node in deleted_nodes:
+        types = await service.get_node_classes(node.id) if node.id else []
+        responses.append(_node_to_response(node, classes=[t.id for t in types if t.id]))
+    
+    return {
+        "nodes": responses,
+        "total": len(responses)
+    }
+
+@router.post("/trash/empty", name="empty_trash")
+async def empty_trash(
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete all soft-deleted nodes (empty trash).
+    
+    This is irreversible. All nodes in trash will be hard deleted from the database.
+    """
+    service = await _get_node_service(user)
+    count = await service.empty_trash()
+    
+    return {
+        "status": "success",
+        "deleted_count": count
+    }
+
+@router.post("/trash/batch-delete", name="batch_permanent_delete")
+async def batch_permanent_delete(
+    request: BatchPermanentDeleteRequest,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete multiple nodes from trash by ID.
+    
+    Accepts an array of node IDs and hard-deletes each independently.
+    Only works on nodes that are already soft-deleted (in trash).
+    A failure on one node does not prevent the others from being deleted.
+    """
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    raw_results = await service.batch_permanent_delete(request.ids)
+    
+    results = []
+    deleted = 0
+    failed = 0
+    for i, r in enumerate(raw_results):
+        if r["success"]:
+            deleted += 1
+            results.append(BatchPermanentDeleteResultItem(
+                index=i,
+                id=request.ids[i],
+                success=True,
+            ))
+        else:
+            failed += 1
+            results.append(BatchPermanentDeleteResultItem(
+                index=i,
+                id=request.ids[i],
+                success=False,
+                error=r["error"],
+            ))
+    
+    logger.info(f"[BATCH_PERMANENT_DELETE] {deleted} deleted, {failed} failed out of {len(request.ids)}")
+    return BatchPermanentDeleteResponse(results=results, deleted=deleted, failed=failed)
+
+@router.delete("/{node_id}/permanent", name="permanently_delete_node")
+@limiter.limit("120/minute")
+async def permanently_delete_node(
+    request: Request,
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete a node from trash (hard delete from database).
+    
+    This is irreversible. Only works on nodes that are already soft-deleted.
+    The node and all its relationships will be removed from the database.
+    """
+    service = await _get_node_service(user)
+    
+    success = await service.permanently_delete_node(node_id)
+    if not success:
+        raise HTTPException(404, "Node not found in trash")
+    
+    return {"status": "permanently_deleted"}
+

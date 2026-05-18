@@ -29,7 +29,7 @@ import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { TableCreationModal, type TableSize } from '@/components/core/TableCreationModal';
+import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
 import './NodeContent.css';
 
@@ -280,7 +280,7 @@ export function NodeContent({
   useBlockPersist();
 
   // Handle table creation from modal — new table with selected dimensions
-  const handleTableConfirm = useCallback(async (size: TableSize) => {
+  const handleTableConfirm = useCallback(async (size: TableGridSize) => {
     if (tableTargetBlockId == null) return;
     const classId = systemClassMap?.table;
     if (classId == null) return;

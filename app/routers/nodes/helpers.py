@@ -372,7 +372,9 @@ async def _get_effective_class_ids_batch(pool, workspace_id: int, node_ids: List
         return explicit_classes
     
     property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    extension_service = ClassExtensionService(pool, workspace_id, property_repo)
+    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
+    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
+    extension_service = ClassExtensionService(pool, workspace_id, property_repo, class_extend_repo)
     
     # Cache for class -> extended classes
     extends_cache: Dict[int, List[int]] = {}
@@ -625,3 +627,50 @@ def _format_year(year: int) -> str:
     """
     from ...domain.stringify_ast import parse_ast, serialize_ast, ParseMode
     return serialize_ast(parse_ast(str(year), ParseMode.PLAIN))
+
+
+async def _apply_node_extras(service, node_id: int, classes, properties) -> None:
+    """Reconcile classes and apply property values alongside a core node update.
+
+    - ``classes``: when not None, the node's classes are set to exactly this list
+      (adds missing, removes extras).
+    - ``properties``: dict of {property_id: value}; each pair is applied using
+      the same dispatch logic as the ``POST /{node_id}/properties`` endpoint.
+    """
+    if classes is not None:
+        current = set(await service._node_repo.get_node_class_ids(node_id))
+        want = set(classes)
+        for cls_id in want - current:
+            await service.add_class(node_id, cls_id)
+        for cls_id in current - want:
+            await service.remove_class(node_id, cls_id)
+
+    if properties:
+        from ...domain.entities.property import SCALAR_TYPES, RELATION_TYPES
+        repo = service.property_repo
+        for prop_id, value in properties.items():
+            prop = await repo.get_by_id(prop_id)
+            if not prop:
+                continue
+            if prop.type in SCALAR_TYPES:
+                await repo.set_scalar_value(node_id, prop_id, value)
+            elif prop.type in RELATION_TYPES:
+                if value == "" or value is None:
+                    await repo.assign_property_to_node(node_id, prop_id)
+                elif isinstance(value, list):
+                    unique_vals = list(dict.fromkeys(value))
+                    await repo.clear_relation_values(node_id, prop_id)
+                    for target_id in unique_vals:
+                        await repo.set_relation_value(node_id, prop_id, int(target_id))
+                else:
+                    await repo.set_relation_value(node_id, prop_id, int(value))
+            else:  # SELECTION
+                if value == "" or value is None:
+                    await repo.assign_property_to_node(node_id, prop_id)
+                elif isinstance(value, list):
+                    unique_vals = list(dict.fromkeys(value))
+                    await repo.clear_selection_values(node_id, prop_id)
+                    for sel_id in unique_vals:
+                        await repo.set_selection_value(node_id, prop_id, int(sel_id))
+                else:
+                    await repo.set_selection_value(node_id, prop_id, int(value))

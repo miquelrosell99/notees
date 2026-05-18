@@ -17,13 +17,15 @@ router = APIRouter()
 async def _get_extension_service(user: User):
     """Get ClassExtensionService for user's workspace (respects active workspace)."""
     from ...domain.services.class_extension_service import ClassExtensionService
+    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
     from ...dependencies import _get_workspace_context_cached
 
     pool = await get_pool()
     user_id = int(user.id)
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     repo = await _get_property_repo(user)
-    return ClassExtensionService(pool, workspace_id, repo)
+    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
+    return ClassExtensionService(pool, workspace_id, repo, class_extend_repo)
 
 
 # ============== Batch Class Properties ==============
