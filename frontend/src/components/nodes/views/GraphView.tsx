@@ -159,7 +159,7 @@ export function GraphView({
   const settingsLoadedRef = useRef(false);
   
   // Node radius (world units) — separate from graphSettings because it feeds directly to the renderer
-  const [baseNodeRadius, setBaseNodeRadius] = useState(7);
+  const [baseNodeRadius, setBaseNodeRadius] = useState(20);
   
   // Class colors
   const [classColors, setClassColors] = useState<ClassColor[]>([]);
@@ -678,8 +678,8 @@ export function GraphView({
                 <div className="visibility-option__slider-row">
                   <input
                     type="range"
-                    min={3}
-                    max={20}
+                    min={5}
+                    max={40}
                     step={1}
                     value={baseNodeRadius}
                     onChange={(e) => setBaseNodeRadius(Number(e.target.value))}
