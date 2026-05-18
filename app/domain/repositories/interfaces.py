@@ -15,27 +15,24 @@ if TYPE_CHECKING:
     from ..entities import User, UserCreateData
 
 
-class NodeRepository(ABC):
-    """Repository interface for Node operations."""
-    
+class NodeCrudRepository(ABC):
+    """Repository interface for basic Node CRUD operations."""
+
     @abstractmethod
     async def create(self, data: NodeCreateData, user_id: Optional[int] = None) -> Node:
         """Create a new node."""
         pass
-    
+
     @abstractmethod
     async def get_by_id(self, node_id: int) -> Optional[Node]:
         """Get node by internal ID."""
         pass
-    
+
     @abstractmethod
     async def get_by_ids(self, node_ids: List[int]) -> List[Node]:
-        """Get multiple nodes by internal IDs in a single query.
-        
-        Returns nodes in no particular order. Missing/inaccessible IDs are silently skipped.
-        """
+        """Get multiple nodes by internal IDs in a single query."""
         pass
-    
+
     @abstractmethod
     async def get_by_uuid(self, uuid: str) -> Optional[Node]:
         """Get node by UUID."""
@@ -43,57 +40,53 @@ class NodeRepository(ABC):
 
     @abstractmethod
     async def get_by_uuids(self, uuids: List[str]) -> List[Node]:
-        """Get multiple nodes by UUID in a single query.
-
-        Returns nodes in no particular order. Missing/inaccessible UUIDs are silently skipped.
-        """
+        """Get multiple nodes by UUID in a single query."""
         pass
-    
+
     @abstractmethod
     async def update(self, node_id: int, data: NodeUpdateData, user_id: Optional[int] = None) -> Optional[Node]:
         """Update a node."""
         pass
-    
+
     @abstractmethod
     async def delete(self, node_id: int) -> bool:
         """Delete a node and all its children."""
         pass
-    
+
     @abstractmethod
     async def get_children(self, parent_id: int) -> List[Node]:
         """Get direct children of a node."""
         pass
-    
+
     @abstractmethod
     async def get_all_pages(self) -> List[Node]:
         """Get all nodes tagged as 'page'."""
         pass
-    
+
     @abstractmethod
     async def get_page_content(self, page_id: int) -> List[Node]:
         """Get all nodes belonging to a page (recursive children)."""
         pass
-    
-    @abstractmethod
-    async def search(self, query: str, limit: int = 50) -> List[Node]:
-        """Search nodes by name."""
-        pass
-    
-    @abstractmethod
-    async def get_typed_with(self, type_node_id: int) -> List[Node]:
-        """Get all nodes with a specific type."""
-        pass
-    
+
     @abstractmethod
     async def set_active(self, node_id: int, active: bool, user_id: Optional[int] = None) -> Optional[Node]:
         """Set the active status of a node (archive/unarchive)."""
         pass
-    
+
     @abstractmethod
     async def get_archived_pages(self) -> List[Node]:
         """Get all archived pages."""
         pass
-    
+
+    @abstractmethod
+    async def node_exists(self, node_id: int) -> bool:
+        """Check if a node exists in this workspace."""
+        pass
+
+
+class NodeHierarchyRepository(ABC):
+    """Repository interface for Node tree/hierarchy operations."""
+
     @abstractmethod
     async def move(
         self,
@@ -102,145 +95,63 @@ class NodeRepository(ABC):
         new_sequence: Optional[int] = None,
         user_id: Optional[int] = None
     ) -> Optional[Node]:
-        """Move a node to a new parent and/or sequence position.
-        
-        Handles sibling resequencing to maintain order consistency.
-        """
+        """Move a node to a new parent and/or sequence position."""
         pass
-    
+
     @abstractmethod
     async def get_breadcrumbs(
         self,
         exit_node_id: int,
         enter_node_id: Optional[int] = None
     ) -> List[Node]:
-        """Get the breadcrumb path for a node using the closure table.
-        
-        Returns ordered list of ancestor nodes from root (or enter_node) down to exit_node.
-        Uses the node_path closure table for efficient O(1) ancestor lookup.
-        
-        Args:
-            exit_node_id: The node to get breadcrumbs for
-            enter_node_id: Optional starting ancestor (if None, starts from root)
-            
-        Returns:
-            List of Node entities ordered from root/enter_node to exit_node
-        """
+        """Get the breadcrumb path for a node using the closure table."""
         pass
-    
+
     @abstractmethod
     async def get_ancestors(
         self,
         node_id: int,
         include_self: bool = False
     ) -> List[int]:
-        """Get all ancestor IDs of a node using the closure table.
-        
-        Uses the node_path closure table for efficient O(1) lookup.
-        
-        Args:
-            node_id: The node to get ancestors for
-            include_self: Whether to include the node itself in the result
-            
-        Returns:
-            List of ancestor node IDs (ordered from root to immediate parent)
-        """
+        """Get all ancestor IDs of a node using the closure table."""
         pass
-    
+
     @abstractmethod
     async def get_descendants(
         self,
         node_id: int,
         include_self: bool = False
     ) -> List[int]:
-        """Get all descendant IDs of a node using the closure table.
-        
-        Uses the node_path closure table for efficient O(1) lookup.
-        
-        Args:
-            node_id: The node to get descendants for
-            include_self: Whether to include the node itself in the result
-            
-        Returns:
-            List of descendant node IDs
-        """
+        """Get all descendant IDs of a node using the closure table."""
         pass
-    
+
     @abstractmethod
     async def find_page_by_name(
         self, name: str, parent_id: Optional[int] = None
     ) -> List[Any]:
         """Find pages with the given name and parent, returning raw rows with class info."""
         pass
-    
+
     @abstractmethod
     async def has_circular_reference(self, ancestor_id: int, descendant_id: int) -> bool:
         """Check if setting ancestor_id as parent of descendant_id would create a cycle."""
         pass
-    
+
     @abstractmethod
     async def get_depth_info(self, node_id: int) -> tuple[int, int]:
-        """Get (parent_depth, subtree_depth) for a node using the closure table.
-        
-        Returns:
-            (parent_depth, subtree_depth) — maximum depths from closure table.
-        """
+        """Get (parent_depth, subtree_depth) for a node using the closure table."""
         pass
-    
-    @abstractmethod
-    async def get_inline_class_ids(self, node_id: int) -> List[int]:
-        """Get inline class IDs (from node_link with is_inline_class=TRUE) for a node."""
-        pass
-    
-    @abstractmethod
-    async def get_deleted_nodes(self) -> List[Node]:
-        """Get all soft-deleted nodes in the workspace ordered by deleted_at DESC."""
-        pass
-    
-    @abstractmethod
-    async def get_node_by_id_with_workspace(self, node_id: int) -> Optional[Node]:
-        """Get a node by ID, verifying it belongs to this workspace."""
-        pass
-    
-    @abstractmethod
-    async def soft_delete_nodes(
-        self, node_ids: List[int], deleted_at: str, write_uid: int
-    ) -> None:
-        """Bulk soft-delete nodes by setting is_deleted=TRUE and deleted_at."""
-        pass
-    
-    @abstractmethod
-    async def restore_nodes(
-        self, node_ids: List[int], write_date: str, write_uid: int
-    ) -> None:
-        """Bulk restore nodes from trash."""
-        pass
-    
-    @abstractmethod
-    async def hard_delete_nodes(self, node_ids: List[int]) -> None:
-        """Bulk permanently delete nodes (assumes they are already in trash)."""
-        pass
-    
-    @abstractmethod
-    async def get_trash_node_ids(self) -> List[int]:
-        """Get IDs of all soft-deleted nodes in the workspace."""
-        pass
-    
-    @abstractmethod
-    async def node_exists(self, node_id: int) -> bool:
-        """Check if a node exists in this workspace."""
-        pass
-    
+
     @abstractmethod
     async def get_children_ids(self, parent_id: int) -> List[int]:
         """Get direct child IDs of a node ordered by sequence."""
         pass
-    
+
     @abstractmethod
     async def get_max_sequence(self, parent_id: int) -> int:
         """Get the maximum sequence among children of a parent."""
         pass
-    
+
     @abstractmethod
     async def reparent_nodes(
         self, node_ids: List[int], new_parent_id: int, new_page_id: int,
@@ -248,69 +159,223 @@ class NodeRepository(ABC):
     ) -> None:
         """Reparent multiple nodes to a new parent with sequential ordering."""
         pass
-    
-    @abstractmethod
-    async def archive_nodes(
-        self, node_ids: List[int], write_date: str, write_uid: int
-    ) -> None:
-        """Bulk archive nodes by setting active=FALSE."""
-        pass
-    
-    @abstractmethod
-    async def unarchive_nodes(
-        self, node_ids: List[int], write_date: str, write_uid: int
-    ) -> None:
-        """Bulk unarchive nodes by setting active=TRUE."""
-        pass
-    
-    @abstractmethod
-    async def count_active_day_descendants(self, node_id: int) -> int:
-        """Count active day-page descendants of a node."""
-        pass
-    
-    @abstractmethod
-    async def list_templates(self) -> List[Node]:
-        """List all active templates in the workspace."""
-        pass
-    
-    @abstractmethod
-    async def get_template_descendants(self, template_id: int) -> List[Node]:
-        """Get all descendant nodes of a template (excluding the template itself)."""
-        pass
-    
-    @abstractmethod
-    async def get_node_sequence(self, node_id: int) -> Optional[int]:
-        """Get the sequence of a node."""
-        pass
-    
+
     @abstractmethod
     async def shift_sequences(
         self, parent_id: int, from_sequence: int, amount: int
     ) -> None:
         """Shift sequences of children at or after from_sequence by amount."""
         pass
-    
+
+
+class NodeSearchRepository(ABC):
+    """Repository interface for Node search and class-related queries."""
+
+    @abstractmethod
+    async def search(self, query: str, limit: int = 50) -> List[Node]:
+        """Search nodes by name."""
+        pass
+
+    @abstractmethod
+    async def get_typed_with(self, type_node_id: int) -> List[Node]:
+        """Get all nodes with a specific type."""
+        pass
+
+    @abstractmethod
+    async def list_classes(self) -> List[Node]:
+        """List all active class nodes in the workspace, ordered by name."""
+        pass
+
+    @abstractmethod
+    async def search_classes(self, q: str, limit: int = 20) -> List[Node]:
+        """Search class nodes by name (ILIKE) and full-text search."""
+        pass
+
+    @abstractmethod
+    async def get_nodes_with_classes(self, class_ids: List[int]) -> List[Node]:
+        """Get all nodes that have any of the given class IDs in their class_ids array."""
+        pass
+
+    @abstractmethod
+    async def get_inline_class_ids(self, node_id: int) -> List[int]:
+        """Get inline class IDs (from node_link with is_inline_class=TRUE) for a node."""
+        pass
+
     @abstractmethod
     async def find_node_id_by_uuid(self, uuid: str) -> Optional[int]:
         """Find a node ID by UUID in this workspace."""
         pass
-    
+
+
+class NodeTrashRepository(ABC):
+    """Repository interface for Node trash and archive operations."""
+
+    @abstractmethod
+    async def get_deleted_nodes(self) -> List[Node]:
+        """Get all soft-deleted nodes in the workspace ordered by deleted_at DESC."""
+        pass
+
+    @abstractmethod
+    async def get_node_by_id_with_workspace(self, node_id: int) -> Optional[Node]:
+        """Get a node by ID, verifying it belongs to this workspace."""
+        pass
+
+    @abstractmethod
+    async def soft_delete_nodes(
+        self, node_ids: List[int], deleted_at: str, write_uid: int
+    ) -> None:
+        """Bulk soft-delete nodes by setting is_deleted=TRUE and deleted_at."""
+        pass
+
+    @abstractmethod
+    async def restore_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk restore nodes from trash."""
+        pass
+
+    @abstractmethod
+    async def hard_delete_nodes(self, node_ids: List[int]) -> None:
+        """Bulk permanently delete nodes (assumes they are already in trash)."""
+        pass
+
+    @abstractmethod
+    async def get_trash_node_ids(self) -> List[int]:
+        """Get IDs of all soft-deleted nodes in the workspace."""
+        pass
+
+    @abstractmethod
+    async def archive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk archive nodes by setting active=FALSE."""
+        pass
+
+    @abstractmethod
+    async def unarchive_nodes(
+        self, node_ids: List[int], write_date: str, write_uid: int
+    ) -> None:
+        """Bulk unarchive nodes by setting active=TRUE."""
+        pass
+
+
+class NodeTemplateRepository(ABC):
+    """Repository interface for Node template operations."""
+
+    @abstractmethod
+    async def list_templates(self) -> List[Node]:
+        """List all active templates in the workspace."""
+        pass
+
+    @abstractmethod
+    async def get_template_descendants(self, template_id: int) -> List[Node]:
+        """Get all descendant nodes of a template (excluding the template itself)."""
+        pass
+
+    @abstractmethod
+    async def count_active_day_descendants(self, node_id: int) -> int:
+        """Count active day-page descendants of a node."""
+        pass
+
+
+class NodeClassRepository(ABC):
+    """Repository interface for Node class assignment operations."""
+
     @abstractmethod
     async def get_node_class_ids(self, node_id: int) -> List[int]:
         """Get the class_ids array for a node."""
         pass
-    
+
     @abstractmethod
     async def update_node_class_ids(self, node_id: int, class_ids: List[int]) -> None:
         """Update class_ids for a node."""
         pass
-    
+
+    @abstractmethod
+    async def get_node_sequence(self, node_id: int) -> Optional[int]:
+        """Get the sequence of a node."""
+        pass
+
     @abstractmethod
     async def redirect_property_relation_targets(self, old_target_id: int, new_target_id: int) -> int:
-        """Update all property_value_relation records to point from old_target to new_target.
-        
-        Returns the number of rows updated.
-        """
+        """Update all property_value_relation records to point from old_target to new_target."""
+        pass
+
+
+class NodeRepository(
+    NodeCrudRepository,
+    NodeHierarchyRepository,
+    NodeSearchRepository,
+    NodeTrashRepository,
+    NodeTemplateRepository,
+    NodeClassRepository,
+    ABC,
+):
+    """Combined repository interface for Node operations.
+    
+    Composed of smaller, cohesive sub-interfaces for CRUD, hierarchy,
+    search, trash, template, and class operations.
+    """
+    pass
+
+
+class QueryRepository(ABC):
+    """Repository interface for executing QueryAST-based queries."""
+
+    @abstractmethod
+    async def execute_query(
+        self,
+        query: Any,
+        runtime_params: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        order_by: Optional[str] = None,
+        enrich: Optional[Dict[str, bool]] = None,
+    ) -> Dict[str, Any]:
+        """Execute a query and return results with optional pagination metadata."""
+        pass
+
+    @abstractmethod
+    async def count_query_results(
+        self,
+        query: Any,
+        runtime_params: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """Count results for a query without fetching all data."""
+        pass
+
+
+class ClassExtendRepository(ABC):
+    """Repository interface for class extension (inheritance) operations."""
+
+    @abstractmethod
+    async def get_extended_classes(self, class_node_id: int) -> List[int]:
+        """Get direct parent class IDs that this class extends, ordered by sequence."""
+        pass
+
+    @abstractmethod
+    async def get_extended_classes_with_details(self, class_node_id: int) -> List["ClassExtend"]:
+        """Get direct parent classes with full details (name, icon)."""
+        pass
+
+    @abstractmethod
+    async def add_extends(self, class_node_id: int, extends_class_id: int, sequence: int = 0) -> "ClassExtend":
+        """Add an extends relationship. Raises ValueError if already exists."""
+        pass
+
+    @abstractmethod
+    async def remove_extends(self, class_node_id: int, extends_class_id: int) -> bool:
+        """Remove an extends relationship. Returns True if deleted."""
+        pass
+
+    @abstractmethod
+    async def get_classes_extended_by(self, class_node_id: int) -> List[Dict[str, Any]]:
+        """Get all classes that directly extend this class (reverse lookup)."""
+        pass
+
+    @abstractmethod
+    async def get_direct_subclasses(self, class_node_id: int) -> List[int]:
+        """Get direct subclass IDs (classes that extend this class)."""
         pass
 
 

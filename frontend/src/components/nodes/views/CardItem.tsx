@@ -72,7 +72,7 @@ import { getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose, mdiChevronDown } from '@mdi/js';
-import { TableCreationModal, type TableSize } from '@/components/core/TableCreationModal';
+import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
 import './CardItem.css';
 
@@ -608,7 +608,7 @@ export const NodeCard = memo(function NodeCard({
   }, [_propsAllClasses, addClass]);
 
   // Handle table creation from modal — new table
-  const handleTableConfirm = useCallback(async (size: TableSize) => {
+  const handleTableConfirm = useCallback(async (size: TableGridSize) => {
     if (tableTargetBlockId == null || !_propsAllClasses) return;
     const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
     if (!cls) return;

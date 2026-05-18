@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Optional, List, Dict, Set, Any, TYPE_CHECKING
 from dataclasses import dataclass
+from ..entities import ClassExtend
 
 from ...logging_config import get_logger
 
@@ -39,17 +40,6 @@ class InheritedProperty:
     is_overridden: bool = False  # True if the property exists as a dedicated class property
 
 
-@dataclass
-class ClassExtend:
-    """Represents a class extension relationship."""
-    id: int
-    target_id: int  # The child class
-    source_id: int  # The parent class being extended
-    sequence: int
-    source_name: str = ""
-    source_icon: Optional[str] = None
-
-
 class CircularInheritanceError(Exception):
     """Raised when a circular inheritance is detected."""
     def __init__(self, cycle_path: List[int]):
@@ -65,56 +55,26 @@ class ClassExtensionService:
         pool: asyncpg.Pool,
         workspace_id: int,
         property_repository: PropertyRepository,
+        class_extend_repository: ClassExtendRepository,
     ):
         self._pool = pool
         self._workspace_id = workspace_id
         self._property_repo = property_repository
+        self._class_extend_repo = class_extend_repository
     
     async def get_extended_classes(self, class_node_id: int) -> List[int]:
         """Get the list of class IDs that this class extends (direct only).
         
         Returns class IDs in the order they are defined (by sequence).
         """
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
-                SELECT ce.source_id
-                FROM class_extend ce
-                JOIN node n ON n.id = ce.source_id
-                WHERE ce.target_id = $1
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                ORDER BY ce.sequence, ce.id
-            """, class_node_id, self._workspace_id)
-            
-            return [row['source_id'] for row in rows]
+        return await self._class_extend_repo.get_extended_classes(class_node_id)
     
     async def get_extended_classes_with_details(self, class_node_id: int) -> List[ClassExtend]:
         """Get the list of classes that this class extends with full details.
         
         Returns ClassExtend objects with source class name and icon.
         """
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
-                SELECT ce.id, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
-                FROM class_extend ce
-                JOIN node n ON n.id = ce.source_id
-                WHERE ce.target_id = $1
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                ORDER BY ce.sequence, ce.id
-            """, class_node_id, self._workspace_id)
-            
-            return [
-                ClassExtend(
-                    id=row['id'],
-                    target_id=row['target_id'],
-                    source_id=row['source_id'],
-                    sequence=row['sequence'],
-                    source_name=row['name'],
-                    source_icon=row['icon'],
-                )
-                for row in rows
-            ]
+        return await self._class_extend_repo.get_extended_classes_with_details(class_node_id)
     
     async def add_extends(self, class_node_id: int, extends_class_id: int, sequence: int = 0) -> ClassExtend:
         """Add an extends relationship between two classes.
@@ -133,53 +93,14 @@ class ClassExtensionService:
         """
         # First validate this won't create a cycle
         await self.validate_extends_acyclic(class_node_id, [extends_class_id])
-        
-        async with acquire_connection(self._pool) as conn:
-            # Check if already exists
-            existing = await conn.fetchrow("""
-                SELECT id FROM class_extend 
-                WHERE target_id = $1 AND source_id = $2
-            """, class_node_id, extends_class_id)
-            
-            if existing:
-                raise ValueError(f"Class {class_node_id} already extends {extends_class_id}")
-            
-            # Get the source class details
-            source = await conn.fetchrow("""
-                SELECT name, icon FROM node WHERE id = $1 AND workspace_id = $2
-            """, extends_class_id, self._workspace_id)
-            
-            if not source:
-                raise ValueError(f"Class {extends_class_id} not found")
-            
-            # Insert the relationship
-            row = await conn.fetchrow("""
-                INSERT INTO class_extend (target_id, source_id, sequence)
-                VALUES ($1, $2, $3)
-                RETURNING id, target_id, source_id, sequence
-            """, class_node_id, extends_class_id, sequence)
-            
-            return ClassExtend(
-                id=row['id'],
-                target_id=row['target_id'],
-                source_id=row['source_id'],
-                sequence=row['sequence'],
-                source_name=source['name'],
-                source_icon=source['icon'],
-            )
+        return await self._class_extend_repo.add_extends(class_node_id, extends_class_id, sequence)
     
     async def remove_extends(self, class_node_id: int, extends_class_id: int) -> bool:
         """Remove an extends relationship.
         
         Returns True if deleted, False if not found.
         """
-        async with acquire_connection(self._pool) as conn:
-            result = await conn.execute("""
-                DELETE FROM class_extend
-                WHERE target_id = $1 AND source_id = $2
-            """, class_node_id, extends_class_id)
-            
-            return result == "DELETE 1"
+        return await self._class_extend_repo.remove_extends(class_node_id, extends_class_id)
     
     async def get_all_extended_classes(
         self,
@@ -232,6 +153,9 @@ class ClassExtensionService:
         Properties from more derived classes take precedence.
         Returns properties with is_overridden flag set if they exist as dedicated properties.
         """
+        from ..repositories import PostgresNodeRepository
+        node_repo = PostgresNodeRepository(self._pool, self._workspace_id, 0)
+
         try:
             # Get the inheritance chain
             extended_classes = await self.get_all_extended_classes(class_node_id)
@@ -257,12 +181,8 @@ class ClassExtensionService:
             class_props = await self._property_repo.get_class_properties(extended_class_id)
             
             # Get class name
-            async with acquire_connection(self._pool) as conn:
-                class_row = await conn.fetchrow(
-                    "SELECT name FROM node WHERE id = $1 AND workspace_id = $2",
-                    extended_class_id, self._workspace_id
-                )
-                class_name = class_row['name'] if class_row else f"Class {extended_class_id}"
+            class_node = await node_repo.get_by_id(extended_class_id)
+            class_name = class_node.name if class_node else f"Class {extended_class_id}"
             
             for cp in class_props:
                 # Skip if already seen (more derived class takes precedence)
@@ -332,27 +252,7 @@ class ClassExtensionService:
         
         Returns a flat list of classes (not hierarchical).
         """
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
-                SELECT DISTINCT n.id, n.uuid, n.name, n.icon
-                FROM node n
-                JOIN class_extend ce ON ce.target_id = n.id
-                WHERE ce.source_id = $1
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                  AND n.is_class = TRUE
-                ORDER BY n.name
-            """, class_node_id, self._workspace_id)
-            
-            return [
-                {
-                    "id": row['id'],
-                    "uuid": str(row['uuid']),
-                    "name": row['name'],
-                    "icon": row['icon'],
-                }
-                for row in rows
-            ]
+        return await self._class_extend_repo.get_classes_extended_by(class_node_id)
     
     async def get_all_subclasses(self, class_node_id: int) -> List[int]:
         """Get all classes that extend this class (recursively).
@@ -361,20 +261,7 @@ class ClassExtensionService:
         Example: A <- B <- C means if we query A, we get [B, C]
         """
         result = []
-        
-        async with acquire_connection(self._pool) as conn:
-            # Get direct subclasses using class_extend table
-            rows = await conn.fetch("""
-                SELECT DISTINCT n.id
-                FROM node n
-                JOIN class_extend ce ON ce.target_id = n.id
-                WHERE ce.source_id = $1
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                  AND n.is_class = TRUE
-            """, class_node_id, self._workspace_id)
-            
-            direct_subclasses = [row['id'] for row in rows]
+        direct_subclasses = await self._class_extend_repo.get_direct_subclasses(class_node_id)
         
         # Add direct subclasses
         result.extend(direct_subclasses)

@@ -5,6 +5,10 @@ The monolithic nodes.py has been split into:
 - models.py: Pydantic request/response models
 - helpers.py: Helper functions and _get_node_service
 - crud.py: Basic CRUD operations (create, get, update, delete, move, archive)
+- batch.py: Batch create, update, delete, get operations
+- trash.py: Trash management and permanent deletion
+- templates.py: Template listing, variables, and instantiation
+- versions.py: Node version history and restoration
 - daily.py: Daily/monthly/yearly date page endpoints
 - classes.py: Class-related endpoints
 - search.py: Search, list, and workspace endpoints
@@ -16,6 +20,10 @@ The monolithic nodes.py has been split into:
 from fastapi import APIRouter
 
 from .crud import router as crud_router
+from .batch import router as batch_router
+from .trash import router as trash_router
+from .templates import router as templates_router
+from .versions import router as versions_router
 from .daily import router as daily_router
 from .classes import router as classes_router
 from .search import router as search_router
@@ -87,6 +95,18 @@ router.include_router(property_values_router)
 
 # Views endpoints (NodeViews for dynamic query tabs)
 router.include_router(views_router, prefix="/views")
+
+# Batch endpoints (POST /batch, PUT /batch, DELETE /batch, POST /batch-get)
+router.include_router(batch_router)
+
+# Trash endpoints (GET /trash, POST /trash/empty, POST /trash/batch-delete)
+router.include_router(trash_router)
+
+# Template endpoints (GET /templates, GET /{node_id}/template-variables, POST /{node_id}/instantiate)
+router.include_router(templates_router)
+
+# Version endpoints (GET /{node_id}/versions, GET /{node_id}/versions/{version_id}, POST /{node_id}/versions/{version_id}/restore)
+router.include_router(versions_router)
 
 # CRUD endpoints (POST "", POST /page, GET /recents, GET /archived, GET/PUT/DELETE /{node_id}, etc.)
 router.include_router(crud_router)
