@@ -132,20 +132,24 @@ export const CardView = memo(function CardView({
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 
   // Group nodes by page or property value
-  const groupedNodes = useMemo((): CardGroup[] | null => {
+  const groupedNodes = useMemo((): { groups: CardGroup[]; pages: Node[] } | null => {
     if (groupBy === 'none') {
       return null; // No grouping
     }
 
     if (groupBy === 'page') {
       const groups = new Map<string, CardGroup>();
+      const pages: Node[] = [];
       
       for (const node of sortedNodes) {
+        if (node.is_page) {
+          pages.push(node);
+          continue;
+        }
+        
         const pageKey = (node as any).page_id 
           ? `page-${(node as any).page_id}` 
-          : node.is_page 
-            ? `self-${node.id}` 
-            : 'no-page';
+          : 'no-page';
         
         if (!groups.has(pageKey)) {
           let pageNode: Node | null = null;
@@ -156,8 +160,6 @@ export const CardView = memo(function CardView({
               uuid: (node as any).page_uuid || '',
               is_page: true,
             } as Node;
-          } else if (node.is_page) {
-            pageNode = node;
           }
           
           groups.set(pageKey, { page: pageNode, nodes: [] });
@@ -166,7 +168,7 @@ export const CardView = memo(function CardView({
         groups.get(pageKey)!.nodes.push(node);
       }
       
-      return Array.from(groups.values());
+      return { groups: Array.from(groups.values()), pages };
     }
 
     // Property-based grouping
@@ -184,7 +186,7 @@ export const CardView = memo(function CardView({
         groups.get(label)!.nodes.push(node);
       }
       
-      return Array.from(groups.values());
+      return { groups: Array.from(groups.values()), pages: [] };
     }
 
     return null;
@@ -275,7 +277,38 @@ export const CardView = memo(function CardView({
   if (groupedNodes) {
     return (
       <div className={gridClassName} ref={containerRef}>
-        {groupedNodes.map((group, groupIndex) => {
+        {/* Pages column */}
+        {groupedNodes.pages.length > 0 && (
+          <div key="pages-column" className="node-card-view__kanban-column">
+            <div className="node-card-view__kanban-header">
+              <span className="node-card-view__kanban-title">Pages</span>
+              <span className="node-card-view__kanban-count">{groupedNodes.pages.length}</span>
+            </div>
+            <div className="node-card-view__kanban-cards">
+              {groupedNodes.pages.map((node, index) => (
+                <NodeCard
+                  key={node.id}
+                  node={node}
+                  index={index}
+                  layout={layout}
+                  sortable={false}
+                  isDragging={false}
+                  isDropTarget={false}
+                  editable={editable}
+                  allClasses={allClasses}
+                  isSelected={selectable && selectedIds?.has(node.id)}
+                  onNodeClick={onNodeClick}
+                  onNodeShiftClick={onNodeShiftClick}
+                  onContentChange={onContentChange}
+                  onDragStart={handleDragStart}
+                  onSelectionChange={selectable ? handleCardSelectionChange : undefined}
+                  customContextMenu={customContextMenu}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {groupedNodes.groups.map((group, groupIndex) => {
           const groupKey = group.page?.id 
             ? `page-${group.page.id}` 
             : group.label !== undefined
