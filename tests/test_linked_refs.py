@@ -346,3 +346,52 @@ async def test_recursive_child_references(link_service_fixtures):
     grandchild_backlinks_updated = await link_service.get_backlinks(grandchild.id)
     assert len(grandchild_backlinks_updated) == 1, f'Expected 1 backlink to grandchild, got {len(grandchild_backlinks_updated)}'
 
+
+
+@pytest.mark.asyncio
+async def test_linked_references_dedup_self_and_child_links(auth_client, link_service_fixtures):
+    """A block linking to both the current page and a child page should appear once.
+
+    Regression: blocks mentioning both the target page and one of its descendants
+    produced two linked-reference entries because get_backlinks() includes links to
+    descendants and get_linked_references() did not deduplicate by source node.
+    """
+    from app.domain.entities import NodeCreateData
+
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+
+    # Create Colombia page
+    colombia = await node_repo.create(NodeCreateData(name='Colombia'))
+    assert colombia.id is not None
+
+    # Create Bogotá child page under Colombia
+    bogota = await node_repo.create(NodeCreateData(name='Bogotá', parent_id=colombia.id))
+    assert bogota.id is not None
+
+    # Create a block under Colombia that links to both Colombia and Bogotá
+    block = await node_repo.create(NodeCreateData(
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "La capital de "},
+            {"type": "node_link", "ref_type": "node", "link_id": colombia.uuid},
+            {"type": "text", "text": " es "},
+            {"type": "node_link", "ref_type": "node", "link_id": bogota.uuid},
+        ]}]),
+        parent_id=colombia.id,
+    ))
+    assert block.id is not None
+
+    # Update links so node_link records are created
+    await link_service.update_node_links(block.id, block.name)
+
+    # Verify get_backlinks returns 2 (one for Colombia, one for Bogotá)
+    colombia_backlinks = await link_service.get_backlinks(colombia.id)
+    assert len(colombia_backlinks) == 2, f'Expected 2 backlinks to Colombia, got {len(colombia_backlinks)}'
+
+    # But the linked-references endpoint should deduplicate and return 1
+    response = await auth_client.get(f"/api/nodes/{colombia.id}/linked-references")
+    assert response.status_code == 200
+    data = response.json()
+    linked_refs = data.get("linked_references", [])
+    assert len(linked_refs) == 1, f'Expected 1 linked reference, got {len(linked_refs)}'
+    assert linked_refs[0]["source_node"]["id"] == block.id
