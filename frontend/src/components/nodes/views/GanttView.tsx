@@ -177,8 +177,12 @@ function buildRows(
     let icon: string | null = null;
 
     if (groupBy === 'page') {
-      const pid = (item.node as unknown as Record<string, unknown>).page_id as number | undefined;
-      label = pid != null ? (pageMap.get(pid)?.name ?? `Page ${pid}`) : '(No page)';
+      if (item.node.is_page) {
+        label = 'Pages';
+      } else {
+        const pid = (item.node as unknown as Record<string, unknown>).page_id as number | undefined;
+        label = pid != null ? (pageMap.get(pid)?.name ?? `Page ${pid}`) : 'No page';
+      }
     } else if (groupByProp) {
       const raw = ((item.node as unknown as Record<string, unknown>).properties as Record<string, unknown>)?.[String(groupByProp.id)] ?? null;
       ({ label, icon } = groupPropertyLabel(groupByProp, raw));

@@ -36,9 +36,10 @@ interface NodeGroup {
   nodes: Node[];
 }
 
-/** Result of grouping: named groups + ungrouped remainder */
+/** Result of grouping: named groups + pages + ungrouped remainder */
 interface GroupingResult {
   groups: NodeGroup[];
+  pages: Node[];
   ungrouped: Node[];
 }
 
@@ -227,13 +228,16 @@ export const ListView = memo(function ListView({
     }
 
     if (groupBy === 'page') {
-      // Group top-level nodes by their page.
-      // Pages themselves and nodes without a page go into ungrouped.
+      // Group blocks by their containing page.
+      // Pages themselves always go into the separate `pages` section.
       const groups = new Map<string, NodeGroup>();
+      const pages: Node[] = [];
       const ungrouped: Node[] = [];
       
       for (const node of nodes) {
-        if ((node as any).page_id) {
+        if (node.is_page) {
+          pages.push(node);
+        } else if ((node as any).page_id) {
           const pageKey = `page-${(node as any).page_id}`;
           if (!groups.has(pageKey)) {
             const pageNode = {
@@ -246,12 +250,12 @@ export const ListView = memo(function ListView({
           }
           groups.get(pageKey)!.nodes.push(node);
         } else {
-          // Pages themselves or nodes without a page_id → ungrouped
+          // Blocks without a page_id → ungrouped
           ungrouped.push(node);
         }
       }
       
-      return { groups: Array.from(groups.values()), ungrouped };
+      return { groups: Array.from(groups.values()), pages, ungrouped };
     }
 
     // Property-based grouping
@@ -274,11 +278,26 @@ export const ListView = memo(function ListView({
         groups.get(label)!.nodes.push(node);
       }
       
-      return { groups: Array.from(groups.values()), ungrouped };
+      return { groups: Array.from(groups.values()), pages: [], ungrouped };
     }
 
     return null;
   }, [nodes, groupBy, groupByProperty, enableGrouping]);
+
+  // Collect and sort nodes for pages section
+  const pagesAllNodes = useMemo(() => {
+    if (!groupingResult || groupingResult.pages.length === 0) return [];
+    const result: Node[] = [];
+    const collect = (n: Node) => {
+      if (pagesOnly && !n.is_page) return;
+      result.push(n);
+      if (n.children) {
+        for (const child of n.children) collect(child);
+      }
+    };
+    for (const n of groupingResult.pages) collect(n);
+    return sortBySequence(result);
+  }, [groupingResult, pagesOnly]);
 
   // Collect and sort nodes for ungrouped section
   const ungroupedAllNodes = useMemo(() => {
@@ -299,6 +318,34 @@ export const ListView = memo(function ListView({
   if (groupingResult) {
     return (
       <div className={`node-list-view node-list-view--grouped ${sizeClass} ${className}`}>
+        {/* Pages section — shown before grouped blocks */}
+        {pagesAllNodes.length > 0 && (
+          <div className="node-list-view__pages">
+            <div className="node-list-view__pages-header">
+              <span className="node-list-view__group-label">Pages</span>
+            </div>
+            <div className="node-list-view__pages-content">
+              <BlockEditor
+                editorId={`list-view-${viewId}-pages`}
+                nodes={pagesAllNodes}
+                mode="list"
+                readOnly={!editable}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={handleOpenInSidebar}
+                onContentChange={handleContentChangeBridge}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
+                pageId={pageId}
+                pageUuid={pageUuid}
+                className="node-list-view__editor"
+                hideProperties={hideProperties}
+              />
+            </div>
+          </div>
+        )}
         {groupingResult.groups.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
           const groupAllNodes: Node[] = [];
