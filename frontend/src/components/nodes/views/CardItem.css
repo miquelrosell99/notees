@@ -399,6 +399,8 @@
   caret-color: var(--color-on-surface);
   flex: 1;
   min-width: 0;
+  padding: 0;
+  min-height: unset;
 }
 
 .node-card__title-editor .notees-editor-placeholder {
@@ -440,10 +442,14 @@
   min-height: unset;
 }
 
-/* Strip extra spacing from Lexical paragraph inside title */
+/* Strip extra spacing from Lexical paragraph inside title and clamp multi-line */
 .node-card__title-block .notees-editor-paragraph {
   min-height: unset;
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ─── Action buttons ───────────────────────────────────────────── */

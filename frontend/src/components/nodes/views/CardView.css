@@ -55,10 +55,10 @@
   flex: 0 0 300px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: var(--spacing-4);
   background: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-3);
+  padding: var(--spacing-4);
   max-height: calc(100vh - 200px);
 }
 
@@ -104,7 +104,7 @@
 .node-card-view__kanban-cards {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: var(--spacing-4);
   overflow-y: auto;
   flex: 1;
   padding: var(--spacing-1);
