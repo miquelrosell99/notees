@@ -17,6 +17,7 @@ import {
   $isRangeSelection,
   $createRangeSelection,
   $setSelection,
+  $getNodeByKey,
 } from 'lexical';
 import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
@@ -165,10 +166,16 @@ export function CreateLinkPlugin({
     editor.update(() => {
       if (saved) {
         // Restore the saved selection so insertNodes replaces the original text.
-        const sel = $createRangeSelection();
-        sel.anchor.set(saved.anchorKey, saved.anchorOffset, saved.anchorType);
-        sel.focus.set(saved.focusKey, saved.focusOffset, saved.focusType);
-        $setSelection(sel);
+        // Validate that the saved keys still exist — a concurrent sync may have
+        // re-keyed or removed the nodes while the modal was open.
+        const anchorNode = $getNodeByKey(saved.anchorKey);
+        const focusNode = $getNodeByKey(saved.focusKey);
+        if (anchorNode && focusNode) {
+          const sel = $createRangeSelection();
+          sel.anchor.set(saved.anchorKey, saved.anchorOffset, saved.anchorType);
+          sel.focus.set(saved.focusKey, saved.focusOffset, saved.focusType);
+          $setSelection(sel);
+        }
       }
 
       const selection = $getSelection();

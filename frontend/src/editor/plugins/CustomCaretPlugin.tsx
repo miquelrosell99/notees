@@ -204,7 +204,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
               } else {
                 const next = node.getNextSibling();
                 if (next && $isTextNode(next) && next.getTextContentSize() > 0) {
-                  next.select(1, 1);
+                  next.select(0, 0);
                 }
               }
             } else {
@@ -215,7 +215,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
                 if (prevSibling && $isTextNode(prevSibling)) {
                   const len = prevSibling.getTextContentSize();
                   if (len > 0) {
-                    prevSibling.select(len - 1, len - 1);
+                    prevSibling.select(len, len);
                   }
                 }
               }
