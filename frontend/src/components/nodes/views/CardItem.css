@@ -47,6 +47,20 @@
   grid-template-columns: 1fr auto;
 }
 
+/* Collapsed body: don't reserve 1fr space — prevents empty gap at bottom */
+.node-card--no-cover.node-card--body-collapsed {
+  grid-template-rows: auto auto auto auto 0fr;
+}
+
+.node-card--cover-top.node-card--body-collapsed {
+  grid-template-rows: auto auto auto auto auto 0fr;
+}
+
+.node-card--cover-left.node-card--body-collapsed,
+.node-card--cover-right.node-card--body-collapsed {
+  grid-template-rows: auto auto auto auto 0fr;
+}
+
 /* ─── Cover positioning ────────────────────────────────────────── */
 
 .node-card--cover-top .node-card__cover {
@@ -442,14 +456,10 @@
   min-height: unset;
 }
 
-/* Strip extra spacing from Lexical paragraph inside title and clamp multi-line */
+/* Strip extra spacing from Lexical paragraph inside title */
 .node-card__title-block .notees-editor-paragraph {
   min-height: unset;
   line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* ─── Action buttons ───────────────────────────────────────────── */
