@@ -312,24 +312,25 @@ export const CardView = memo(function CardView({
               </div>
               <div className="node-card-view__kanban-cards">
                 {group.nodes.map((node, index) => (
-                  <NodeCard
-                    key={node.id}
-                    node={node}
-                    index={index}
-                    layout={layout}
-                    sortable={false}
-                    isDragging={false}
-                    isDropTarget={false}
-                    editable={editable}
-                    allClasses={allClasses}
-                    isSelected={selectable && selectedIds?.has(node.id)}
-                    onNodeClick={onNodeClick}
-                    onNodeShiftClick={onNodeShiftClick}
-                    onContentChange={onContentChange}
-                    onDragStart={handleDragStart}
-                    onSelectionChange={selectable ? handleCardSelectionChange : undefined}
-                    customContextMenu={customContextMenu}
-                  />
+                  <div key={node.id} className="node-card-view__kanban-card-wrapper">
+                    <NodeCard
+                      node={node}
+                      index={index}
+                      layout={layout}
+                      sortable={false}
+                      isDragging={false}
+                      isDropTarget={false}
+                      editable={editable}
+                      allClasses={allClasses}
+                      isSelected={selectable && selectedIds?.has(node.id)}
+                      onNodeClick={onNodeClick}
+                      onNodeShiftClick={onNodeShiftClick}
+                      onContentChange={onContentChange}
+                      onDragStart={handleDragStart}
+                      onSelectionChange={selectable ? handleCardSelectionChange : undefined}
+                      customContextMenu={customContextMenu}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
