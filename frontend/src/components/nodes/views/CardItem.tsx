@@ -690,7 +690,6 @@ export const NodeCard = memo(function NodeCard({
     'node-card',
     `node-card--${layout}`,
     effectiveColor && 'node-card--colored',
-    isBodyCollapsed && 'node-card--body-collapsed',
     isDragging && 'node-card--dragging',
     isDropTarget && 'node-card--drop-target',
     isSelected && 'node-card--selected',

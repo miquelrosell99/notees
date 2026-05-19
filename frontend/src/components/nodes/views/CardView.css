@@ -110,10 +110,15 @@
   padding: var(--spacing-1);
 }
 
+/* Wrapper around each kanban card — prevents flexbox min-height:auto=0 bug
+   when the card itself has overflow:hidden */
+.node-card-view__kanban-card-wrapper {
+  width: 100%;
+}
+
 /* Cards in kanban columns don't use masonry */
 .node-card-view--kanban .node-card {
   break-inside: auto;
   width: 100%;
   margin-bottom: 0;
-  min-height: 64px;
 }
