@@ -30,7 +30,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
 import { mdiPlus, mdiChevronDown } from '@mdi/js';
-import { ChevronRightIcon } from '@/components/core/icons';
+import { ChevronRightIcon, NodeIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeSelector } from './NodeSelector';
@@ -150,7 +150,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
             className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
             onClick={() => onClick(item)}
           >
-            {item.icon && <span className="node-breadcrumb-popup-icon">{item.icon}</span>}
+            {item.icon && <NodeIcon icon={item.icon} size="xs" className="node-breadcrumb-popup-icon" />}
             <span className="node-breadcrumb-popup-name">{item.isProperty ? item.name : (item.displayName || nodeNameToText(item.name) || 'Untitled')}</span>
           </button>
         ))}

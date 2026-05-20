@@ -4,6 +4,7 @@
  * Vanilla-DOM utilities for rendering node icons.
  * Used by BlockNode (Lexical custom node) which cannot use React components.
  */
+import { mdiCircleSmall } from '@mdi/js';
 import { getMdiIconPath } from './mdiIconMap';
 
 /**
@@ -98,6 +99,23 @@ export function createIconElement(icon: string): HTMLElement | SVGSVGElement {
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pathEl.setAttribute('fill', 'currentColor');
     pathEl.setAttribute('d', mdiPath);
+    svg.appendChild(pathEl);
+
+    return svg;
+  }
+
+  // If it looks like an MDI name but isn't in the map, render a default bullet
+  // instead of showing the raw icon name as text
+  if (parsedIcon.match(/^mdi[A-Z]/)) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '1em');
+    svg.setAttribute('height', '1em');
+    svg.classList.add('bullet-icon');
+
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('fill', 'currentColor');
+    pathEl.setAttribute('d', mdiCircleSmall);
     svg.appendChild(pathEl);
 
     return svg;

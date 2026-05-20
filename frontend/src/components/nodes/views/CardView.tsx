@@ -307,7 +307,7 @@ export const CardView = memo(function CardView({
               <div className="node-card-view__kanban-header">
                 {group.page ? (
                   <>
-                    {group.page.icon && <span className="node-card-view__kanban-icon">{group.page.icon}</span>}
+                    {group.page.icon && <NodeIcon icon={group.page.icon} size="xs" className="node-card-view__kanban-icon" />}
                     <span className="node-card-view__kanban-title">{nodeNameToText(group.page.name) || 'Untitled'}</span>
                     <span className="node-card-view__kanban-count">{group.nodes.length}</span>
                   </>
