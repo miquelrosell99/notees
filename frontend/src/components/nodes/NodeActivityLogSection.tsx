@@ -8,7 +8,6 @@
  */
 import { useState, useCallback } from 'react';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
-import { mdiTrashCanOutline } from '@mdi/js';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
 import { getNodeByUuid } from '@/api/nodes';
@@ -183,7 +182,7 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
     {
       id: 'delete',
       label: 'Delete entry',
-      icon: mdiTrashCanOutline,
+      icon: "mdi mdi-trash-can-outline",
       danger: true,
       onClick: () => handleDeleteActivity(contextMenu.activityId),
     },

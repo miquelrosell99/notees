@@ -12,9 +12,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
-import Icon from '@mdi/react';
+
 import { generateUUID } from '@/utils/uuid';
-import { mdiCubeOutline } from '@mdi/js';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
@@ -23,6 +22,7 @@ import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Node } from '@/types/api';
 import './EmbedBlock.css';
+import { Icon } from '@/components/core/icons';
 
 // ─── Props ───────────────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ export function EmbedBlock({
       <div className="embed-block-card">
         <div className="embed-block-header">
           <span className="embed-block-header__icon">
-            <Icon path={mdiCubeOutline} size="14px" />
+            <Icon path={"mdi mdi-cube-outline"} size="14px" />
           </span>
           <span className="embed-block-header__label">Loading embed…</span>
         </div>
@@ -182,7 +182,7 @@ export function EmbedBlock({
       <div className="embed-block-card">
         <div className="embed-block-header">
           <span className="embed-block-header__icon">
-            <Icon path={mdiCubeOutline} size="14px" />
+            <Icon path={"mdi mdi-cube-outline"} size="14px" />
           </span>
           <span className="embed-block-header__label">Embed not found</span>
         </div>
@@ -204,7 +204,7 @@ export function EmbedBlock({
       {/* Header bar showing the embed origin */}
       <div className="embed-block-header">
         <span className="embed-block-header__icon">
-          <Icon path={mdiCubeOutline} size="14px" />
+          <Icon path={"mdi mdi-cube-outline"} size="14px" />
         </span>
         <span className="embed-block-header__label" title={embeddedName}>
           Embed: {embeddedName}

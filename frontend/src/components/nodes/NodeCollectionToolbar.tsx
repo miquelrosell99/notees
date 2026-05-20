@@ -10,17 +10,7 @@
  */
 import { useMemo } from 'react';
 import { useAppStore } from '@/stores';
-import Icon from '@mdi/react';
-import { 
-  mdiPlus,
-  mdiCardOutline,
-  mdiDockLeft,
-  mdiDockRight,
-  mdiDockTop,
-  mdiDotsHorizontal,
-  mdiTune,
-  mdiClose,
-} from '@mdi/js';
+
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
 import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
@@ -33,16 +23,17 @@ import type { GanttTimeScale } from '@/components/properties/GanttPropertySelect
 import type { Property } from '@/types/api';
 import { useProperties } from '@/hooks/useProperties';
 import './NodeCollectionToolbar.css';
+import { Icon } from '@/components/core/icons';
 
 /** Max number of view mode icons shown inline before overflow */
 const INLINE_VIEW_COUNT = 4;
 
 // Card layout mode icon mappings
 const CARD_LAYOUT_ICONS: Record<string, string> = {
-  'no-cover': mdiCardOutline,
-  'cover-left': mdiDockLeft,
-  'cover-right': mdiDockRight,
-  'cover-top': mdiDockTop,
+  'no-cover': "mdi mdi-card-outline",
+  'cover-left': "mdi mdi-dock-left",
+  'cover-right': "mdi mdi-dock-right",
+  'cover-top': "mdi mdi-dock-top",
 };
 
 // Card layout mode labels
@@ -218,7 +209,7 @@ export function NodeCollectionToolbar({
       {/* Add Button */}
       {showAdd && (
         <Button
-          icon={mdiPlus}
+          icon={"mdi mdi-plus"}
           variant="ghost"
           size="sm"
           onClick={onAdd}
@@ -241,7 +232,7 @@ export function NodeCollectionToolbar({
       {/* Overflow view modes dropdown */}
       {showViewSwitcher && overflowModes.length > 0 && (
         <ButtonWithPanel
-          icon={mdiDotsHorizontal}
+          icon={"mdi mdi-dots-horizontal"}
           variant="ghost"
           size="sm"
           panelPosition="bottom"
@@ -279,7 +270,7 @@ export function NodeCollectionToolbar({
             title="Clear grouping"
             type="button"
           >
-            <Icon path={mdiClose} size={0.6} />
+            <Icon path={"mdi mdi-close"} size={0.6} />
           </button>
         </span>
       )}
@@ -287,7 +278,7 @@ export function NodeCollectionToolbar({
       {/* View Settings – single button combining all view-specific config */}
       {hasViewSettings && (
         <ButtonWithPanel
-          icon={mdiTune}
+          icon={"mdi mdi-tune"}
           variant="ghost"
           size="sm"
           panelPosition="bottom"

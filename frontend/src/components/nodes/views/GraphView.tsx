@@ -37,7 +37,6 @@ import type {
 import type { SGEConfig } from './SemanticGraphEngine';
 import { applyCircleLayout } from './circleLayout';
 import { applyTreeLayout } from './treeLayout';
-import { mdiCog, mdiPalette, mdiCrosshairsGps, mdiEye, mdiCircleOutline, mdiTrashCanOutline, mdiClose, mdiConnection, mdiWeight, mdiAtom, mdiDistributeHorizontalCenter, mdiCallReceived, mdiCallMade, mdiSwapHorizontal, mdiNote, mdiFileTree } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -601,7 +600,7 @@ export function GraphView({
       {showSettings && (
       <div className="node-graph-view__top-left">
         <ButtonWithPanel
-          icon={mdiCog}
+          icon={"mdi mdi-cog"}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
@@ -661,10 +660,10 @@ export function GraphView({
                 description="Size nodes uniformly, by connections, mass, or content"
                 labelPosition="left"
                 options={[
-                  { value: 'uniform', icon: mdiCircleOutline, label: 'Uniform size' },
-                  { value: 'connections', icon: mdiConnection, label: 'Connection count' },
-                  { value: 'mass', icon: mdiWeight, label: 'Hierarchy mass' },
-                  { value: 'content', icon: mdiNote, label: 'Content size' }
+                  { value: 'uniform', icon: "mdi mdi-circle-outline", label: 'Uniform size' },
+                  { value: 'connections', icon: "mdi mdi-connection", label: 'Connection count' },
+                  { value: 'mass', icon: "mdi mdi-weight", label: 'Hierarchy mass' },
+                  { value: 'content', icon: "mdi mdi-note", label: 'Content size' }
                 ]}
                 value={graphSettings.nodeSizeMode}
                 onChange={(value) => setGraphSettings(prev => ({
@@ -698,9 +697,9 @@ export function GraphView({
                   description="Count incoming, outgoing, or all links"
                   labelPosition="left"
                   options={[
-                    { value: 'in', icon: mdiCallReceived, label: 'Incoming links' },
-                    { value: 'out', icon: mdiCallMade, label: 'Outgoing links' },
-                    { value: 'all', icon: mdiSwapHorizontal, label: 'All links' }
+                    { value: 'in', icon: "mdi mdi-call-received", label: 'Incoming links' },
+                    { value: 'out', icon: "mdi mdi-call-made", label: 'Outgoing links' },
+                    { value: 'all', icon: "mdi mdi-swap-horizontal", label: 'All links' }
                   ]}
                   value={graphSettings.linkDirection}
                   onChange={(value) => setGraphSettings(prev => ({
@@ -719,8 +718,8 @@ export function GraphView({
                   description="Physics simulation or fixed equidistant positions"
                   labelPosition="left"
                   options={[
-                    { value: 'physics', icon: mdiAtom, label: 'Physics simulation' },
-                    { value: 'equidistant', icon: mdiDistributeHorizontalCenter, label: 'Equidistant' }
+                    { value: 'physics', icon: "mdi mdi-atom", label: 'Physics simulation' },
+                    { value: 'equidistant', icon: "mdi mdi-distribute-horizontal-center", label: 'Equidistant' }
                   ]}
                   value={graphSettings.constraintMode}
                   onChange={(value) => setGraphSettings(prev => ({
@@ -753,7 +752,7 @@ export function GraphView({
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={mdiPalette}
+          icon={"mdi mdi-palette"}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
@@ -772,7 +771,7 @@ export function GraphView({
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={mdiEye}
+          icon={"mdi mdi-eye"}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
@@ -946,7 +945,7 @@ export function GraphView({
               <div className="selected-list-header">
                 Selected ({selectedNodes.length})
                 <Button
-                  icon={mdiTrashCanOutline}
+                  icon={"mdi mdi-trash-can-outline"}
                   size="sm"
                   variant="ghost"
                   onClick={() => setSelectedNodes([])}
@@ -961,7 +960,7 @@ export function GraphView({
                 )}
                 renderAction={(item) => (
                   <Button
-                    icon={mdiClose}
+                    icon={"mdi mdi-close"}
                     size="xs"
                     variant="ghost"
                     onClick={(e) => {
@@ -1005,9 +1004,9 @@ export function GraphView({
           <SelectionButton
             size="sm"
             options={[
-              { value: 'normal', icon: mdiAtom, label: 'Normal' },
-              { value: 'circle', icon: mdiCircleOutline, label: 'Circle' },
-              { value: 'tree', icon: mdiFileTree, label: 'Tree' },
+              { value: 'normal', icon: "mdi mdi-atom", label: 'Normal' },
+              { value: 'circle', icon: "mdi mdi-circle-outline", label: 'Circle' },
+              { value: 'tree', icon: "mdi mdi-file-tree", label: 'Tree' },
             ]}
             value={viewMode}
             onChange={(value) => setViewMode(value as 'normal' | 'circle' | 'tree')}
@@ -1018,7 +1017,7 @@ export function GraphView({
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">
         <Button
-          icon={mdiCrosshairsGps}
+          icon={"mdi mdi-crosshairs-gps"}
           size="sm"
           onClick={() => rendererRef.current?.recenter()}
           title="Fit graph to view (R)"

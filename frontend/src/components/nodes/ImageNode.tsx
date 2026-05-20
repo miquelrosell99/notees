@@ -16,7 +16,6 @@ import { Card } from '@/components/core/Card';
 import { Button } from '@/components/core/Button';
 import { ImageModal } from '@/components/core/ImageModal';
 import { FloatingButtonArray } from '@/components/core/FloatingButtonArray';
-import { mdiPencil, mdiClose } from '@mdi/js';
 import './ImageNode.css';
 
 interface ImageNodeProps {
@@ -169,7 +168,7 @@ export function ImageNode({
     <>
       {onEdit && (
         <Button
-          icon={mdiPencil}
+          icon={"mdi mdi-pencil"}
           iconOnly
           variant="ghost"
           size="sm"
@@ -179,7 +178,7 @@ export function ImageNode({
       )}
       {onRemove && (
         <Button
-          icon={mdiClose}
+          icon={"mdi mdi-close"}
           iconOnly
           variant="ghost"
           size="sm"

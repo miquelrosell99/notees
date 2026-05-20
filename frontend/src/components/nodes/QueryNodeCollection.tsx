@@ -46,7 +46,6 @@ import { normalizeAST } from '@/lib/astNormalizer';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
-import { mdiPlusBox, mdiFilterOutline, mdiEyeOutline, mdiContentCopy, mdiRestore } from '@mdi/js';
 import './QueryNodeCollection.css';
 
 // ==================== Helper Functions ====================
@@ -398,7 +397,7 @@ export function QueryNodeCollection({
   const viewOptions = useMemo(() => {
     return views.map(v => ({
       value: String(v.id),
-      icon: mdiEyeOutline,
+      icon: "mdi mdi-eye-outline",
       label: v.name,
     }));
   }, [views]);
@@ -919,7 +918,7 @@ export function QueryNodeCollection({
           {/* Hide add view button for pseudo-nodes and inline mode (query blocks manage AST directly) */}
           {!isPseudoNode && !isInlineMode && (
             <Button
-              icon={mdiPlusBox}
+              icon={"mdi mdi-plus-box"}
               iconOnly
               variant="ghost"
               size="xs"
@@ -931,7 +930,7 @@ export function QueryNodeCollection({
           {activeView && (
             <div className="query-section__filter-btn-wrapper">
               <Button
-                icon={mdiFilterOutline}
+                icon={"mdi mdi-filter-outline"}
                 iconOnly
                 variant="ghost"
                 size="xs"
@@ -1056,7 +1055,7 @@ export function QueryNodeCollection({
         title="Query"
         headerLeftElement={
           <Button
-            icon={mdiEyeOutline}
+            icon={"mdi mdi-eye-outline"}
             iconOnly
             variant="ghost"
             size="xs"
@@ -1099,7 +1098,7 @@ export function QueryNodeCollection({
             <div className="query-section__footer-spacer" />
             
             <Button
-              icon={mdiRestore}
+              icon={"mdi mdi-restore"}
               iconOnly
               variant="ghost"
               size="sm"
@@ -1213,7 +1212,7 @@ export function QueryNodeCollection({
                   Query Structure
                 </h4>
                 <Button
-                  icon={mdiContentCopy}
+                  icon={"mdi mdi-content-copy"}
                   onClick={handleCopyAST}
                   variant="ghost"
                   size="xs"

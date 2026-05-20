@@ -13,7 +13,6 @@
  * - Automatic Node cell rendering with Block component and navigation buttons
  */
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode } from 'react';
-import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeNameContent } from '@/components/blocks/NodeNameContent';
@@ -503,7 +502,7 @@ export function Table<T>({
                     <div className="table-node-cell__actions">
                       {onNodeOpenInSidebar && (
                         <Button
-                          icon={mdiDockRight}
+                          icon={"mdi mdi-dock-right"}
                           variant="ghost"
                           size="xs"
                           title="Open in sidebar"
@@ -515,7 +514,7 @@ export function Table<T>({
                       )}
                       {onNodeOpen && (
                         <Button
-                          icon={mdiArrowRight}
+                          icon={"mdi mdi-arrow-right"}
                           variant="ghost"
                           size="xs"
                           title="Open node"

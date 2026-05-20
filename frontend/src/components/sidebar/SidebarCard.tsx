@@ -7,10 +7,9 @@
  * Built on top of the core Card component for consistent styling.
  */
 import { useState, type ReactNode } from 'react';
-import { mdiClose, mdiChevronDown } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import './SidebarCard.css';
-import { AlertIcon } from '@/components/core/icons';
+import { Icon, AlertIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 
@@ -112,7 +111,7 @@ export function SidebarCard({
             aria-label={isCollapsed ? "Expand card" : "Collapse card"}
             aria-expanded={!isCollapsed}
           >
-            <Icon path={mdiChevronDown} size={0.6} rotate={isCollapsed ? -90 : 0} />
+            <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isCollapsed ? -90 : 0} />
           </button>
           <div className="sidebar-card__title-section">
             {icon && <span className="sidebar-card__icon">{icon}</span>}
@@ -123,7 +122,7 @@ export function SidebarCard({
           </div>
           {onClose && (
             <Button
-              icon={mdiClose}
+              icon={"mdi mdi-close"}
               iconOnly
               className="sidebar-card__close-btn"
               onClick={onClose}

@@ -6,7 +6,6 @@
  * and the source page is soft-deleted.
  */
 import { useState, useCallback, useEffect } from 'react';
-import { mdiMerge } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
@@ -95,7 +94,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
           </Button>
           <Button
             variant="primary"
-            icon={mdiMerge}
+            icon={"mdi mdi-merge"}
             onClick={handleProceed}
             disabled={!canProceed}
             confirm

@@ -24,7 +24,6 @@ import {
   useNodeNavigation,
 } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
-import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
@@ -93,7 +92,7 @@ function SingleTextBlock({
       <div className="text-property-block__nav-actions">
         {onOpenInSidebar && (
           <Button
-            icon={mdiDockRight}
+            icon={"mdi mdi-dock-right"}
             variant="ghost"
             size="xs"
             title="Open in sidebar"
@@ -105,7 +104,7 @@ function SingleTextBlock({
         )}
         {onOpenNode && (
           <Button
-            icon={mdiArrowRight}
+            icon={"mdi mdi-arrow-right"}
             variant="ghost"
             size="xs"
             title="Open"

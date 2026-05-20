@@ -6,10 +6,10 @@
  */
 
 import { useState } from 'react';
-import { mdiChevronDown, mdiChevronRight, mdiCodeTags } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import type { QueryAST } from '@/types/queryAST';
 import './QuerySQLPreview.css';
+import { Icon } from '@/components/core/icons';
 
 interface QuerySQLPreviewProps {
   ast: QueryAST;
@@ -196,8 +196,8 @@ export function QuerySQLPreview({ ast, disabled = false }: QuerySQLPreviewProps)
         onClick={() => setIsExpanded(!isExpanded)}
         type="button"
       >
-        <Icon path={isExpanded ? mdiChevronDown : mdiChevronRight} size={0.7} />
-        <Icon path={mdiCodeTags} size={0.7} />
+        <Icon path={isExpanded ? "mdi mdi-chevron-down" : "mdi mdi-chevron-right"} size={0.7} />
+        <Icon path={"mdi mdi-code-tags"} size={0.7} />
         <span>Generated SQL</span>
         <span className="query-sql-preview__hint">(read-only preview)</span>
       </button>

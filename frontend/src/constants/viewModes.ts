@@ -4,15 +4,6 @@
  * Centralized constants for view modes across the application.
  * Ensures consistent ordering and icons everywhere.
  */
-import { 
-  mdiFormatListBulleted, 
-  mdiFileDocumentOutline, 
-  mdiViewGrid, 
-  mdiTable, 
-  mdiChartGantt, 
-  mdiGraphOutline,
-  mdiTimelineClockOutline,
-} from '@mdi/js';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 
 /**
@@ -33,13 +24,13 @@ export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
  * View mode icon mappings
  */
 export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
-  list: mdiFormatListBulleted,
-  document: mdiFileDocumentOutline,
-  card: mdiViewGrid,
-  table: mdiTable,
-  gantt: mdiChartGantt,
-  graph: mdiGraphOutline,
-  timeline: mdiTimelineClockOutline,
+  list: "mdi mdi-format-list-bulleted",
+  document: "mdi mdi-file-document-outline",
+  card: "mdi mdi-view-grid",
+  table: "mdi mdi-table",
+  gantt: "mdi mdi-chart-gantt",
+  graph: "mdi mdi-graph-outline",
+  timeline: "mdi mdi-timeline-clock-outline",
 };
 
 /**

@@ -8,9 +8,9 @@
 import { useMemo } from 'react';
 import { useProperties } from '@/hooks';
 import type { Property } from '@/types';
-import { mdiCalendarStart, mdiCalendarEnd, mdiCalendarRange } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import './GanttPropertySelector.css';
+import { Icon } from '@/components/core/icons';
 
 export type GanttTimeScale = 'day' | 'week' | 'month';
 
@@ -112,7 +112,7 @@ export function GanttPropertySelector({
         <>
           <div className="gantt-property-selector__section">
             <div className="gantt-property-selector__section-header">
-              <Icon path={mdiCalendarRange} size={0.7} />
+              <Icon path={"mdi mdi-calendar-range"} size={0.7} />
               <span>Time scale</span>
             </div>
             <div className="gantt-property-selector__scale-row">
@@ -131,9 +131,9 @@ export function GanttPropertySelector({
         </>
       )}
 
-      {renderPropertyList('Start date', mdiCalendarStart, startDateProperty, onStartDatePropertyChange)}
+      {renderPropertyList('Start date', "mdi mdi-calendar-start", startDateProperty, onStartDatePropertyChange)}
       <div className="gantt-property-selector__divider" />
-      {renderPropertyList('End date', mdiCalendarEnd, endDateProperty, onEndDatePropertyChange)}
+      {renderPropertyList('End date', "mdi mdi-calendar-end", endDateProperty, onEndDatePropertyChange)}
     </div>
   );
 }

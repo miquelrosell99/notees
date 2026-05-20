@@ -6,13 +6,13 @@
  */
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Icon from '@mdi/react';
-import { mdiPlus, mdiDatabaseOutline, mdiViewDashboard } from '@mdi/js';
+
 import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
 import { Button } from '@/components/core/Button';
 import { Dropdown, type DropdownOption } from '@/components/core/Dropdown';
 import './WorkspaceSwitcher.css';
+import { Icon } from '@/components/core/icons';
 
 interface WorkspaceSwitcherProps {
   onAddWorkspace: () => void;
@@ -60,7 +60,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     return data.workspaces.map(w => ({
       value: w.uuid,
       label: w.name,
-      icon: mdiDatabaseOutline,
+      icon: "mdi mdi-database-outline",
     }));
   }, [data?.workspaces]);
 
@@ -72,7 +72,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
   // Custom option renderer  
   const renderOption = useCallback((option: DropdownOption<string>, isSelected: boolean) => (
     <>
-      <Icon path={mdiDatabaseOutline} size={0.6} className="workspace-switcher__item-icon" />
+      <Icon path={"mdi mdi-database-outline"} size={0.6} className="workspace-switcher__item-icon" />
       <span className="workspace-switcher__item-name">{option.label}</span>
       {isSelected && (
         <span className="workspace-switcher__item-badge">Active</span>
@@ -93,7 +93,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           renderOption={renderOption}
           searchExtra={
             <Button
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               iconOnly
               size="xs"
               variant="ghost"
@@ -106,7 +106,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
               className="workspace-switcher__manage-btn"
               onClick={() => setShowWorkspaceManager(true)}
             >
-              <Icon path={mdiViewDashboard} size={0.6} />
+              <Icon path={"mdi mdi-view-dashboard"} size={0.6} />
               <span>Workspaces</span>
             </button>
           }
@@ -116,7 +116,7 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           className="workspace-switcher__add-btn"
           onClick={() => onAddWorkspace()}
           title="Create new graph"
-          icon={mdiPlus}
+          icon={"mdi mdi-plus"}
           iconOnly
           size="sm"
           variant="ghost"

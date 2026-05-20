@@ -13,11 +13,11 @@
  * - Keyboard navigation support
  */
 import { type ReactNode, type KeyboardEvent, type MouseEvent } from 'react';
-import Icon from '@mdi/react';
-import { mdiChevronDown, mdiClose } from '@mdi/js';
+
 import { Card } from './Card';
 import { Button } from './Button';
 import './SelectTrigger.css';
+import { Icon } from '@/components/core/icons';
 
 export type SelectTriggerSize = 'sm' | 'md' | 'lg';
 
@@ -129,7 +129,7 @@ export function SelectTrigger({
           {/* Chevron icon */}
           <div className="select-trigger__chevron">
             <Icon
-              path={mdiChevronDown}
+              path={"mdi mdi-chevron-down"}
               size={0.7}
               className={isOpen ? 'select-trigger__chevron-icon--open' : ''}
             />
@@ -140,7 +140,7 @@ export function SelectTrigger({
       {/* Clear button - outside the trigger */}
       {clearable && hasValue && onClear && (
         <Button
-          icon={mdiClose}
+          icon={"mdi mdi-close"}
           iconOnly
           variant="ghost"
           size="sm"

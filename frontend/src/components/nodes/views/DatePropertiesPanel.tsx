@@ -5,14 +5,14 @@
  * Uses SearchBox with properties table to fetch date-type properties.
  */
 import { useMemo } from 'react';
-import { mdiEye, mdiEyeOff, mdiClose } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import type { Property } from '@/types';
 import { useProperties } from '@/hooks';
 import { Button } from '../../core/Button';
 import { ColorButton } from '../../core/ColorButton';
 import { SearchBox } from '../../core/SearchBox';
 import { getDateLanePalette } from './viewTypes';
+import { Icon } from '@/components/core/icons';
 
 export interface DatePropertyConfig {
   property: string;
@@ -93,7 +93,7 @@ export function DatePropertiesPanel({
               onClick={() => toggleVisibility(prop.property)}
               title={prop.visible ? 'Hide' : 'Show'}
             >
-              <Icon path={prop.visible ? mdiEye : mdiEyeOff} size={0.7} />
+              <Icon path={prop.visible ? "mdi mdi-eye" : "mdi mdi-eye-off"} size={0.7} />
             </Button>
             
             <ColorButton
@@ -113,7 +113,7 @@ export function DatePropertiesPanel({
                 onClick={() => removeProperty(prop.property)}
                 title="Remove"
               >
-                <Icon path={mdiClose} size={0.6} />
+                <Icon path={"mdi mdi-close"} size={0.6} />
               </Button>
             )}
           </div>

@@ -15,7 +15,6 @@
  */
 import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
-import { mdiTrashCanOutline } from '@mdi/js';
 import { Button } from './Button';
 import { TextField } from './TextField';
 import { PRESET_COLOR_ENTRIES } from '@/utils/colorPresets';
@@ -289,7 +288,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               <Button
                 variant="ghost"
                 size="sm"
-                icon={mdiTrashCanOutline}
+                icon={"mdi mdi-trash-can-outline"}
                 iconOnly
                 title="Remove color"
                 onClick={(e) => {

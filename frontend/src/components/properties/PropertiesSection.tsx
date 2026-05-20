@@ -21,7 +21,6 @@ import { useNavigationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { mdiPlus } from '@mdi/js';
 import { PropertiesIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { addSelectionOption } from '@/api/properties';
@@ -314,8 +313,6 @@ export function PropertiesSection({
     return { visibleProperties: visible, hiddenProperties: hidden };
   }, [nodeProperties, filterPropertyIds, isMainNode]);
 
-
-
   // Render property value function for PropertyList
   const renderPropertyValue = useCallback((entry: PropertyEntry, isReadOnly: boolean) => {
     const { property, value } = entry;
@@ -390,7 +387,7 @@ export function PropertiesSection({
         {showAddProperty && !readOnly && (
           <div className="properties-add-wrapper">
             <Button
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               className="properties-add-btn"
               onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"
@@ -459,7 +456,7 @@ export function PropertiesSection({
         {showAddProperty && !readOnly && (
           <div className="properties-add-wrapper">
             <Button
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               className="properties-add-btn"
               onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"

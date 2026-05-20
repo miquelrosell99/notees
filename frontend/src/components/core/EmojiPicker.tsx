@@ -16,15 +16,14 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import Icon from '@mdi/react';
-import { MDI_ICON_MAP } from '@/utils/mdiIconMap';
-import { mdiTrashCanOutline } from '@mdi/js';
-import { getMdiPath } from '@/utils/iconDom';
+
+import { MDI_ICON_LIST } from '@/utils/mdiIconList';
+import { getMdiClass } from '@/utils/iconDom';
 
 import { Button } from './Button';
 import { ColorButton } from './ColorButton';
 import './EmojiPicker.css';
-
+import { Icon } from '@/components/core/icons';
 
 // Common emoji categories
 const EMOJI_CATEGORIES = {
@@ -165,8 +164,8 @@ function addRecent(value: string): void {
 // Helpers
 // ─────────────────────────────────────────────
 
-function getIconPath(name: string): string | null {
-  return MDI_ICON_MAP[name] ?? null;
+function getIconClass(name: string): string | null {
+  return getMdiClass(name);
 }
 
 function iconCamelToKebab(name: string): string {
@@ -216,7 +215,7 @@ function LazyCategory({ label, items, isIcon, selectedValue, onSelect }: LazyCat
         <div className={`ep-grid ${isIcon ? 'ep-icon-grid' : 'ep-emoji-grid'}`}>
           {items.map((item, idx) => {
             if (isIcon) {
-              const path = getIconPath(item);
+              const path = getIconClass(item);
               if (!path) return null;
               const kebab = iconCamelToKebab(item);
               return (
@@ -272,7 +271,7 @@ function ItemGrid({ items, isIcon, selectedValue, onSelect }: ItemGridProps) {
     <div className={`ep-grid ${isIcon ? 'ep-icon-grid' : 'ep-emoji-grid'}`}>
       {items.map((item, idx) => {
         if (isIcon) {
-          const path = getIconPath(item);
+          const path = getIconClass(item);
           if (!path) return null;
           const kebab = iconCamelToKebab(item);
           return (
@@ -316,8 +315,6 @@ function SectionHeader({ children }: { children: ReactNode }) {
 // ─────────────────────────────────────────────
 
 type TabType = 'all' | 'emojis' | 'icons';
-
-
 
 export interface EmojiPickerProps {
   /** Currently selected value (emoji character or camelCase MDI key e.g. "mdiCalendar") */
@@ -374,7 +371,7 @@ export function EmojiPicker({
   }, [onClose]);
 
   const allMdiNames = useMemo(
-    () => Object.keys(MDI_ICON_MAP).filter((k) => k.startsWith('mdi')).sort(),
+    () => MDI_ICON_LIST.filter((k) => k.startsWith('mdi')).sort(),
     [],
   );
 
@@ -437,10 +434,9 @@ const popupStyle: React.CSSProperties =
               onColorChange={onColorChange}
             />
           )}
-          <Button variant="ghost" size="sm" icon={mdiTrashCanOutline} iconOnly title="Remove icon" onClick={handleRemove} />
+          <Button variant="ghost" size="sm" icon={"mdi mdi-trash-can-outline"} iconOnly title="Remove icon" onClick={handleRemove} />
         </div>
       </div>
-
 
       {/* Search */}
       <div className="ep-search">
@@ -486,7 +482,7 @@ const popupStyle: React.CSSProperties =
                 <div className="ep-grid ep-mixed-grid">
                   {recents.map((item) => {
                     if (isIconValue(item)) {
-                      const path = getMdiPath(item);
+                      const path = getMdiClass(item);
                       if (!path) return null;
                       return (
                         <Button key={item} variant="ghost" size="xs" title={item} active={value === item} className="ep-item"
@@ -579,7 +575,7 @@ export function EmojiPickerTrigger({
 
   const renderValue = () => {
     if (!value) return <span className="ep-trigger-placeholder">{placeholder}</span>;
-    const mdiPath = getMdiPath(value);
+    const mdiPath = getMdiClass(value);
     if (mdiPath) return <Icon path={mdiPath} size={0.9} color={color ?? undefined} />;
     // Don't render raw MDI icon names as text — show nothing instead
     if (value.match(/^mdi[A-Z]/)) return null;

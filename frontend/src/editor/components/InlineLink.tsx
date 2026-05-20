@@ -7,11 +7,10 @@
  * Supports URL pills (refType === 'url') that render an external-link pill.
  */
 
-import Icon from '@mdi/react';
-import { mdiWeb } from '@mdi/js';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { parseLinkId } from '@/lib/astBuilder';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
+import { Icon } from '@/components/core/icons';
 
 export interface InlineLinkProps {
   linkId: string;
@@ -35,7 +34,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     return (
       <span className="inline-link-inner" data-ref-type="url" title={customLabel ? url : undefined}>
         <span className="inline-link-icon">
-          <Icon path={mdiWeb} size="14px" />
+          <Icon path={"mdi mdi-web"} size="14px" />
         </span>
         <span className="inline-link-text">{displayText}</span>
       </span>

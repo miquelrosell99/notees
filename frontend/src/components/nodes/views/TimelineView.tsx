@@ -15,7 +15,6 @@ import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from './timelineTypes';
 import { getDateLanePalette } from './viewTypes';
-import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { ButtonWithPanel } from '../../core/ButtonWithPanel';
 import { CalendarIcon } from '../../core/icons';
@@ -813,11 +812,11 @@ export const TimelineView = memo(function TimelineView({
   }, [transform.scale, dateRange]);
   
   const zoomPresetOptions = [
-    { value: 'decade', label: 'Decade', icon: mdiAlphaD },
-    { value: 'year', label: 'Year', icon: mdiAlphaY },
-    { value: 'semester', label: 'Semester', icon: mdiAlphaS },
-    { value: 'quatrimester', label: 'Quatrimester', icon: mdiAlphaQ },
-    { value: 'month', label: 'Month', icon: mdiAlphaM },
+    { value: 'decade', label: 'Decade', icon: "mdi mdi-alpha-d" },
+    { value: 'year', label: 'Year', icon: "mdi mdi-alpha-y" },
+    { value: 'semester', label: 'Semester', icon: "mdi mdi-alpha-s" },
+    { value: 'quatrimester', label: 'Quatrimester', icon: "mdi mdi-alpha-q" },
+    { value: 'month', label: 'Month', icon: "mdi mdi-alpha-m" },
   ];
   
   if (timeEvents.length === 0) {
@@ -839,7 +838,7 @@ export const TimelineView = memo(function TimelineView({
       <div className="node-timeline-renderer__controls">
         <div className="node-timeline-renderer__controls-left">
           <ButtonWithPanel
-            icon={mdiCalendarRange}
+            icon={"mdi mdi-calendar-range"}
             size="sm"
             panelPosition="right"
           >
