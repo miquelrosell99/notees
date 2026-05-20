@@ -424,6 +424,8 @@ See `.env.example` for the full template.
 
 ## Deployment
 
+**Notees is deployed via Docker** for both development and production environments. There is no bare-metal or native deployment path; all runtime dependencies (Python, Node.js, PostgreSQL) are containerized.
+
 ### Docker Compose (Development)
 
 The included `compose.yaml` brings up:
