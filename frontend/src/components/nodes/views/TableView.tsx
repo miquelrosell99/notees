@@ -210,11 +210,16 @@ export const TableView = memo(function TableView({
   // Fetch property definitions
   const { data: allProperties = [] } = useProperties();
 
+  // If no columns are explicitly configured, default to useful virtual columns
+  const effectivePropertyUuids = propertyUuids.length > 0
+    ? propertyUuids
+    : [CLASSES_VIRTUAL_UUID, CREATED_VIRTUAL_UUID, MODIFIED_VIRTUAL_UUID];
+
   // Generate property columns from propertyUuids
   const propertyColumns = useMemo<NodeTableColumn[]>(() => {
-    if (!propertyUuids.length) return [];
+    if (!effectivePropertyUuids.length) return [];
 
-    return propertyUuids
+    return effectivePropertyUuids
       .map((uuid: string): NodeTableColumn | null => {
         // Handle virtual Classes column
         if (uuid === CLASSES_VIRTUAL_UUID) {
@@ -298,7 +303,7 @@ export const TableView = memo(function TableView({
         };
       })
       .filter((col): col is NodeTableColumn => col !== null);
-  }, [propertyUuids, allProperties, allClasses, editable, openNode, addClass, removeClass, dateColumnRenderer]);
+  }, [effectivePropertyUuids, allProperties, allClasses, editable, openNode, addClass, removeClass, dateColumnRenderer]);
 
   // Convert node columns to Table columns, injecting column renderers
   const nodeColumns = useMemo<NodeTableColumn[]>(() => {

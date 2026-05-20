@@ -86,6 +86,29 @@
   font-size: 14px;
 }
 
+.node-timeline-renderer__empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  padding: var(--spacing-4);
+}
+
+.node-timeline-renderer__empty-title {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.node-timeline-renderer__empty-subtitle {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  max-width: 280px;
+  margin: 0;
+}
+
 /* Event Card */
 .timeline-event-card {
   min-width: 280px;
