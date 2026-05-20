@@ -75,6 +75,11 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       for (const portal of Array.from(floatingPortals)) {
         if (portal.contains(e.target as Node)) return;
       }
+      // Don't close if clicking inside emoji picker or color picker popovers
+      const pickerPopups = document.querySelectorAll('.ep--popup, .color-btn-picker');
+      for (const popup of Array.from(pickerPopups)) {
+        if (popup.contains(e.target as Node)) return;
+      }
       // Don't close if clicking inside container (e.g., color picker row)
       if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
         return;
