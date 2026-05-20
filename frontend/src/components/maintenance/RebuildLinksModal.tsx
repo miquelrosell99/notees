@@ -5,8 +5,7 @@
  * then displays a results report similar to the EDN import.
  */
 import { useState, useCallback } from 'react';
-import { mdiCheckCircleOutline, mdiAlertCircleOutline, mdiChevronDown, mdiChevronUp, mdiDatabaseRefresh } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
@@ -14,6 +13,7 @@ import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import './RebuildLinksModal.css';
+import { Icon } from '@/components/core/icons';
 
 interface RebuildLinksModalProps {
   isOpen: boolean;
@@ -67,7 +67,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
       >
         <div className="rebuild-links__report">
           <div className={`rebuild-links__report-summary ${hasErrors ? 'rebuild-links__report-summary--warning' : 'rebuild-links__report-summary--success'}`}>
-            <Icon path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline} size={1.2} />
+            <Icon path={hasErrors ? "mdi mdi-alert-circle-outline" : "mdi mdi-check-circle-outline"} size={1.2} />
             <div>
               <strong>{hasErrors ? 'Rebuild completed with errors' : 'Rebuild completed successfully'}</strong>
               <div className="rebuild-links__report-stats">
@@ -117,7 +117,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
             variant="primary"
             onClick={handleConfirm}
             disabled={isRebuilding}
-            icon={mdiDatabaseRefresh}
+            icon={"mdi mdi-database-refresh"}
           >
             {isRebuilding ? 'Rebuilding…' : 'Rebuild Links'}
           </Button>
@@ -127,7 +127,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
       <div className="rebuild-links__body">
         {error && (
           <div className="rebuild-links__error">
-            <Icon path={mdiAlertCircleOutline} size={1} />
+            <Icon path={"mdi mdi-alert-circle-outline"} size={1} />
             <span>{error}</span>
           </div>
         )}
@@ -139,7 +139,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
             </p>
 
             <div className="rebuild-links__warning">
-              <Icon path={mdiAlertCircleOutline} size={0.9} />
+              <Icon path={"mdi mdi-alert-circle-outline"} size={0.9} />
               <div>
                 <strong>What this does:</strong>
                 <ul>
@@ -181,7 +181,7 @@ function ErrorList({ errors, totalErrors }: { errors: string[]; totalErrors: num
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
       >
         <span><strong>{totalErrors}</strong> error{totalErrors !== 1 ? 's' : ''}</span>
-        <Icon path={expanded ? mdiChevronUp : mdiChevronDown} size={0.7} />
+        <Icon path={expanded ? "mdi mdi-chevron-up" : "mdi mdi-chevron-down"} size={0.7} />
       </div>
       {expanded && (
         <ul className="rebuild-links__errors-list">

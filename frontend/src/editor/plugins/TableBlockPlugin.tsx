@@ -34,7 +34,6 @@ import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { BlockEditor } from '../BlockEditor';
 import { SelectionButton } from '@/components/core/SelectionButton';
-import { mdiTable, mdiFormatListBulleted } from '@mdi/js';
 import './TableBlockPlugin.css';
 
 // ─── Inline AST renderer ─────────────────────────────────────────
@@ -164,8 +163,8 @@ interface TableBlockInfo {
 type TableViewMode = 'table' | 'outline';
 
 const TABLE_VIEW_OPTIONS = [
-  { value: 'table', icon: mdiTable, label: 'Table view' },
-  { value: 'outline', icon: mdiFormatListBulleted, label: 'Outline view' },
+  { value: 'table', icon: "mdi mdi-table", label: 'Table view' },
+  { value: 'outline', icon: "mdi mdi-format-list-bulleted", label: 'Outline view' },
 ];
 
 // ─── Inner Component (per table) ──────────────────────────────────

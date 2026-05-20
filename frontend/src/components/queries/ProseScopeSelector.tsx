@@ -7,7 +7,6 @@
 
 import { useCallback } from 'react';
 import { SelectionButton } from '@/components/core/SelectionButton';
-import { mdiWeb, mdiFileDocumentOutline, mdiFileMultiple } from '@mdi/js';
 import type { ScopeNode, ScopeType } from '@/types/queryAST';
 import './ProseScopeSelector.css';
 
@@ -42,9 +41,9 @@ export function ProseScopeSelector({
         onChange={handleScopeTypeChange}
         disabled={readOnly}
         options={[
-          { value: 'entire_workspace', icon: mdiWeb, label: 'All nodes' },
-          { value: 'pages', icon: mdiFileMultiple, label: 'All pages' },
-          { value: 'current_page', icon: mdiFileDocumentOutline, label: 'Current page' },
+          { value: 'entire_workspace', icon: "mdi mdi-web", label: 'All nodes' },
+          { value: 'pages', icon: "mdi mdi-file-multiple", label: 'All pages' },
+          { value: 'current_page', icon: "mdi mdi-file-document-outline", label: 'Current page' },
         ]}
         size="sm"
       />

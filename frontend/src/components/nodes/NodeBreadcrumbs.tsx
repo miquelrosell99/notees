@@ -29,7 +29,6 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import type { Node } from '@/types';
-import { mdiPlus, mdiChevronDown } from '@mdi/js';
 import { ChevronRightIcon, NodeIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { NodeInline } from '@/components/blocks/NodeInline';
@@ -108,7 +107,7 @@ function NodeBreadcrumbsElement({
       />
       {onEditParent && !item.isProperty && !item.childParentLocked && (
         <Button
-          icon={mdiChevronDown}
+          icon={"mdi mdi-chevron-down"}
           variant="ghost"
           size="xs"
           className="node-breadcrumb-edit-btn"
@@ -435,7 +434,7 @@ export function NodeBreadcrumbs({
       <>
         <Button
           ref={addParentRef}
-          icon={mdiPlus}
+          icon={"mdi mdi-plus"}
           variant="ghost"
           size="xs"
           className="node-breadcrumb-add-parent"

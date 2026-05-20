@@ -5,7 +5,6 @@
  */
 
 import { useCallback, useState } from 'react';
-import { mdiPlus } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
@@ -208,8 +207,6 @@ export function QueryBlockList({
     onChange([...blocks, newCondition]);
   }, [blocks, onChange]);
 
-
-
   // State for context menu
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
@@ -373,7 +370,7 @@ export function QueryBlockList({
       {!readOnly && !showAddButton && (
         <div className="query-block-list__inline-add">
           <Button
-            icon={mdiPlus}
+            icon={"mdi mdi-plus"}
             iconOnly
             variant="ghost"
             size="sm"
@@ -389,7 +386,7 @@ export function QueryBlockList({
       {!readOnly && showAddButton && safeBlocks.length > 0 && (
         <div className="query-block-list__add">
           <Button
-            icon={mdiPlus}
+            icon={"mdi mdi-plus"}
             iconOnly
             variant="ghost"
             size="sm"
@@ -405,7 +402,7 @@ export function QueryBlockList({
       {!readOnly && showAddButton && safeBlocks.length === 0 && (
         <div className="query-block-list__empty-add">
           <Button
-            icon={mdiPlus}
+            icon={"mdi mdi-plus"}
             variant="default"
             size="md"
             onClick={(e) => {

@@ -28,7 +28,6 @@ import { PropertyCell } from '../../properties/PropertyCell';
 import { NodeSelector } from '../NodeSelector';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
-import { mdiDockRight, mdiArrowRight } from '@mdi/js';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
 import './TableView.css';
 
@@ -183,7 +182,7 @@ export const TableView = memo(function TableView({
         </span>
         <div className="node-table__actions">
           <Button
-            icon={mdiDockRight}
+            icon={"mdi mdi-dock-right"}
             variant="ghost"
             size="xs"
             title="Open day in sidebar"
@@ -193,7 +192,7 @@ export const TableView = memo(function TableView({
             }}
           />
           <Button
-            icon={mdiArrowRight}
+            icon={"mdi mdi-arrow-right"}
             variant="ghost"
             size="xs"
             title="Open day"

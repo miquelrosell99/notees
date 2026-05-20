@@ -27,15 +27,6 @@ import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
-import { 
-  mdiFormatListBulleted, 
-  mdiFileDocumentOutline, 
-  mdiViewGrid, 
-  mdiTable, 
-  mdiChartGantt, 
-  mdiGraphOutline,
-  mdiTimelineClockOutline,
-} from '@mdi/js';
 import type { 
   NodeCollectionProps, 
   NodeCollectionViewMode, 
@@ -76,13 +67,13 @@ export function useNodeCollectionContext(): NodeCollectionContextValue {
 // ==================== View Mode Mapping ====================
 
 const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: string }> = {
-  list: { icon: mdiFormatListBulleted, label: 'List' },
-  document: { icon: mdiFileDocumentOutline, label: 'Document' },
-  card: { icon: mdiViewGrid, label: 'Cards' },
-  table: { icon: mdiTable, label: 'Table' },
-  gantt: { icon: mdiChartGantt, label: 'Gantt' },
-  graph: { icon: mdiGraphOutline, label: 'Graph' },
-  timeline: { icon: mdiTimelineClockOutline, label: 'Timeline' },
+  list: { icon: "mdi mdi-format-list-bulleted", label: 'List' },
+  document: { icon: "mdi mdi-file-document-outline", label: 'Document' },
+  card: { icon: "mdi mdi-view-grid", label: 'Cards' },
+  table: { icon: "mdi mdi-table", label: 'Table' },
+  gantt: { icon: "mdi mdi-chart-gantt", label: 'Gantt' },
+  graph: { icon: "mdi mdi-graph-outline", label: 'Graph' },
+  timeline: { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline' },
 };
 
 // ==================== Component ====================

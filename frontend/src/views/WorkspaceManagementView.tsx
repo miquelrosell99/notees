@@ -29,12 +29,12 @@ import {
   DeleteIcon,
   EditIcon,
 } from '../components/core/icons';
-import Icon from '@mdi/react';
-import { mdiExport, mdiCogOutline, mdiBackupRestore } from '@mdi/js';
+
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import './WorkspaceManagementView.css';
+import { Icon } from '@/components/core/icons';
 
 interface WorkspaceManagementViewProps {
   /** Called when a workspace is selected/activated */
@@ -263,7 +263,7 @@ export function WorkspaceManagementView({
               className="workspace-management__user-settings" 
               variant="ghost" 
               size="sm"
-              icon={mdiCogOutline}
+              icon={"mdi mdi-cog-outline"}
               onClick={() => setIsUserSettingsOpen(true)}
               title="User Settings"
             />
@@ -348,7 +348,7 @@ export function WorkspaceManagementView({
                         onClick={() => handleExport(workspace)}
                         title="Export"
                       >
-                        <Icon path={mdiExport} size={0.7} />
+                        <Icon path={"mdi mdi-export"} size={0.7} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -357,7 +357,7 @@ export function WorkspaceManagementView({
                         title="Restore from dump"
                         disabled={restoreMutation.isPending}
                       >
-                        <Icon path={mdiBackupRestore} size={0.7} />
+                        <Icon path={"mdi mdi-backup-restore"} size={0.7} />
                       </Button>
                       {deleteConfirm === workspace.uuid ? (
                         <>

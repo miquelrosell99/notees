@@ -15,9 +15,8 @@ import { NodeViewSection } from '@/components/nodes/NodeViewSection';
 import { NodeActivityLogSection } from '@/components/nodes/NodeActivityLogSection';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { Button } from '@/components/core/Button';
-import { CommentIcon, ClockIcon, AddIcon, SendIcon } from '@/components/core/icons';
-import Icon from '@mdi/react';
-import { mdiHistory, mdiTableOfContents } from '@mdi/js';
+import { Icon, CommentIcon, ClockIcon, AddIcon, SendIcon } from '@/components/core/icons';
+
 import { TextField } from '@/components/core/TextField';
 import type { Node } from '@/types/api';
 import { parseAST } from '@/lib/astBuilder';
@@ -217,7 +216,7 @@ export function SidebarContextSections() {
       {tocEntries.length > 0 && (
         <NodeViewSection
           title="Table of Contents"
-          icon={<Icon path={mdiTableOfContents} size={0.6} />}
+          icon={<Icon path={"mdi mdi-table-of-contents"} size={0.6} />}
           count={tocEntries.length}
           className="sidebar-context-section sidebar-context-section--toc"
           defaultExpanded={false}
@@ -302,7 +301,7 @@ export function SidebarContextSections() {
       {/* Version History Section */}
       <NodeViewSection
         title="Version History"
-        icon={<Icon path={mdiHistory} size={0.6} />}
+        icon={<Icon path={"mdi mdi-history"} size={0.6} />}
         count={versionsExpanded ? versions.length : undefined}
         expanded={versionsExpanded}
         onExpandedChange={setVersionsExpanded}

@@ -5,14 +5,14 @@
  */
 import { useState, useRef, useEffect, useCallback, useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from '@mdi/react';
-import { mdiCheck } from '@mdi/js';
+
 import { Card } from './Card';
 import { SelectTrigger } from './SelectTrigger';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import './Dropdown.css';
+import { Icon } from '@/components/core/icons';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
 
@@ -305,7 +305,7 @@ export function Dropdown<T = string>({
                             )}
                           </div>
                           {selected && (
-                            <Icon path={mdiCheck} size={0.6} className="dropdown-option-check" />
+                            <Icon path={"mdi mdi-check"} size={0.6} className="dropdown-option-check" />
                           )}
                         </button>
                       );

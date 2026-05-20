@@ -9,19 +9,6 @@
  * - Node view specific controls (document/bullet mode toggle)
  */
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
-import { 
-  mdiMenu, 
-  mdiCalendar, 
-  mdiCalendarToday,
-  mdiDockRight,
-  mdiNoteTextOutline,
-  mdiCommentOutline,
-  mdiUndo,
-  mdiRedo,
-  mdiArrowLeft,
-  mdiArrowRight,
-  mdiDeleteOutline,
-} from '@mdi/js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
 import { useCommentCount, useDailyNote } from '@/hooks';
@@ -102,7 +89,7 @@ export function TopBar() {
       },
     })),
     { id: 'sep', label: '', separator: true },
-    { id: 'clear', label: 'Clear history', icon: mdiDeleteOutline, danger: true, onClick: () => { clearHistory(); setUndoMenuOpen(false); } },
+    { id: 'clear', label: 'Clear history', icon: "mdi mdi-delete-outline", danger: true, onClick: () => { clearHistory(); setUndoMenuOpen(false); } },
   ], [undoEntries, performUndoTo, queryClient, clearHistory]);
 
   const redoMenuItems: ContextMenuItem[] = useMemo(() => [
@@ -115,7 +102,7 @@ export function TopBar() {
       },
     })),
     { id: 'sep', label: '', separator: true },
-    { id: 'clear', label: 'Clear history', icon: mdiDeleteOutline, danger: true, onClick: () => { clearHistory(); setRedoMenuOpen(false); } },
+    { id: 'clear', label: 'Clear history', icon: "mdi mdi-delete-outline", danger: true, onClick: () => { clearHistory(); setRedoMenuOpen(false); } },
   ], [redoEntries, performRedoTo, queryClient, clearHistory]);
 
   // Pre-fetch today's note for shift+click
@@ -131,7 +118,7 @@ export function TopBar() {
   const sidebarBadges = useMemo(() => {
     const badges: ButtonBadge[] = [];
     if (commentCount && commentCount > 0) {
-      badges.push({ icon: mdiCommentOutline, position: 'bottom-right' });
+      badges.push({ icon: "mdi mdi-comment-outline", position: 'bottom-right' });
     }
     if (sidebarCards.length > 0) {
       badges.push({ count: sidebarCards.length, position: 'top-right' });
@@ -139,7 +126,6 @@ export function TopBar() {
     return badges;
   }, [commentCount, sidebarCards.length]);
   
-
 
   return (
     <Card 
@@ -152,7 +138,7 @@ export function TopBar() {
       <header className="top-bar">
         <div className="top-bar-left">
           <Button 
-            icon={mdiMenu}
+            icon={"mdi mdi-menu"}
             variant="ghost"
             size="sm"
             onClick={toggleSidebar}
@@ -172,7 +158,7 @@ export function TopBar() {
         {/* Back / Forward navigation */}
         <div className="nav-arrows">
           <Button
-            icon={mdiArrowLeft}
+            icon={"mdi mdi-arrow-left"}
             variant="ghost"
             size="sm"
             onClick={goBack}
@@ -182,7 +168,7 @@ export function TopBar() {
             className="toolbar-btn"
           />
           <Button
-            icon={mdiArrowRight}
+            icon={"mdi mdi-arrow-right"}
             variant="ghost"
             size="sm"
             onClick={goForward}
@@ -198,7 +184,7 @@ export function TopBar() {
         {/* Undo button */}
         <Button
           ref={undoBtnRef}
-          icon={mdiUndo}
+          icon={"mdi mdi-undo"}
           variant="ghost"
           size="sm"
           disabled={!canUndo}
@@ -216,7 +202,7 @@ export function TopBar() {
         {/* Redo button */}
         <Button
           ref={redoBtnRef}
-          icon={mdiRedo}
+          icon={"mdi mdi-redo"}
           variant="ghost"
           size="sm"
           disabled={!canRedo}
@@ -264,7 +250,7 @@ export function TopBar() {
         {/* Scratchpad button */}
         <Button
           ref={scratchpadBtnRef}
-          icon={mdiNoteTextOutline}
+          icon={"mdi mdi-note-text-outline"}
           variant="ghost"
           size="sm"
           active={isScratchpadOpen}
@@ -277,7 +263,7 @@ export function TopBar() {
         
         {/* Today button */}
         <Button
-          icon={mdiCalendarToday}
+          icon={"mdi mdi-calendar-today"}
           variant="ghost"
           size="sm"
           onClick={useCallback(async () => {
@@ -293,7 +279,7 @@ export function TopBar() {
         <div className="top-bar-calendar-container">
           <Button 
             ref={calendarBtnRef}
-            icon={mdiCalendar}
+            icon={"mdi mdi-calendar"}
             variant="ghost"
             size="sm"
             onClick={toggleCalendar}
@@ -311,7 +297,7 @@ export function TopBar() {
         
         {/* Right sidebar toggle button */}
         <Button
-          icon={mdiDockRight}
+          icon={"mdi mdi-dock-right"}
           variant="ghost"
           size="sm"
           active={rightSidebarOpen}

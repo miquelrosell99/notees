@@ -10,7 +10,6 @@
  */
 import { useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { mdiClose, mdiDownload } from '@mdi/js';
 import { Button } from './Button';
 import { Bullet } from '@/components/blocks/Bullet';
 import './ImageModal.css';
@@ -95,7 +94,7 @@ export function ImageModal({
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
         <Button
-          icon={mdiDownload}
+          icon={"mdi mdi-download"}
           iconOnly
           className="image-modal-download"
           onClick={handleDownload}
@@ -104,7 +103,7 @@ export function ImageModal({
           title="Download image"
         />
         <Button
-          icon={mdiClose}
+          icon={"mdi mdi-close"}
           iconOnly
           className="image-modal-close"
           onClick={onClose}

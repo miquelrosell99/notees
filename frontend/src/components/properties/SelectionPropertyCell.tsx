@@ -3,11 +3,10 @@ import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { Pill } from '@/components/core/Pill';
-import { NodeIcon } from '@/components/core/icons';
+import { Icon, NodeIcon } from '@/components/core/icons';
 import { parseIconField } from '@/utils/iconDom';
 import { Button } from '@/components/core/Button';
-import Icon from '@mdi/react';
-import { mdiClose } from '@mdi/js';
+
 import './PropertyCell.css';
 
 interface SelectionPropertyCellProps {
@@ -122,7 +121,7 @@ export function SelectionPropertyCell({
             key={option.id}
             text={option.name}
             color={color || undefined}
-            rightIcon={editable ? <Icon path={mdiClose} size={0.55} /> : undefined}
+            rightIcon={editable ? <Icon path={"mdi mdi-close"} size={0.55} /> : undefined}
             onRightIconClick={editable ? () => handleRemoveOption(option) : undefined}
           />
         );

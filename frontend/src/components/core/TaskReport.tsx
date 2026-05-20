@@ -5,14 +5,9 @@
  * any future operation that produces a phase-by-phase summary.
  */
 import { useState } from 'react';
-import Icon from '@mdi/react';
-import {
-  mdiCheckCircleOutline,
-  mdiAlertCircleOutline,
-  mdiChevronDown,
-  mdiChevronUp,
-} from '@mdi/js';
+
 import './TaskReport.css';
+import { Icon } from '@/components/core/icons';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -55,7 +50,7 @@ export function TaskReport({
         }`}
       >
         <Icon
-          path={hasErrors ? mdiAlertCircleOutline : mdiCheckCircleOutline}
+          path={hasErrors ? "mdi mdi-alert-circle-outline" : "mdi mdi-check-circle-outline"}
           size={1}
         />
         <div>
@@ -103,7 +98,7 @@ function PhaseRow({ phase }: { phase: TaskPhaseResult }) {
         <span className="task-report__phase-counts">
           <span className="task-report__phase-ok">
             {phase.succeeded}{' '}
-            <Icon path={mdiCheckCircleOutline} size={0.6} />
+            <Icon path={"mdi mdi-check-circle-outline"} size={0.6} />
           </span>
           {hasErrors && (
             <>
@@ -111,7 +106,7 @@ function PhaseRow({ phase }: { phase: TaskPhaseResult }) {
                 {phase.failed} failed
               </span>
               <Icon
-                path={expanded ? mdiChevronUp : mdiChevronDown}
+                path={expanded ? "mdi mdi-chevron-up" : "mdi mdi-chevron-down"}
                 size={0.7}
               />
             </>

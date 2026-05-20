@@ -10,7 +10,6 @@
  * the selected source parser, and creates pages + blocks via the existing API.
  */
 import { useState, useCallback, useRef } from 'react';
-import { mdiImport } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import {
@@ -151,7 +150,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
             variant="primary"
             onClick={handleImport}
             disabled={pages.length === 0 || importing}
-            icon={mdiImport}
+            icon={"mdi mdi-import"}
           >
             {importing ? 'Importing…' : 'Import'}
           </Button>

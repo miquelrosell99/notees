@@ -14,7 +14,6 @@ import { useNode, useIsMobile } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
-import { mdiClose, mdiNotebookOutline, mdiBookOpenPageVariant, mdiArchive, mdiTrashCanOutline, mdiGraphOutline, mdiTimelineClockOutline, mdiCog, mdiMagnify } from '@mdi/js';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
 import { SettingsModal } from './SettingsModal';
@@ -154,7 +153,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
       
       {/* Remove button */}
       <Button
-        icon={mdiClose}
+        icon={"mdi mdi-close"}
         size="xs"
         variant="ghost"
         className="sidebar-favorite-remove"
@@ -444,7 +443,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     {
       id: 'empty-trash',
       label: 'Empty Trash',
-      icon: mdiTrashCanOutline,
+      icon: "mdi mdi-trash-can-outline",
       danger: true,
       onClick: () => {
         setTrashContextMenuPos(null);
@@ -467,7 +466,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <Button 
               variant="ghost"
               size="md"
-              icon={mdiMagnify}
+              icon={"mdi mdi-magnify"}
               fullWidth
               onClick={() => {
                 useModalStore.getState().setCommandPaletteOpen(true);
@@ -480,7 +479,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <Button 
               variant="ghost"
               size="md"
-              icon={mdiNotebookOutline}
+              icon={"mdi mdi-notebook-outline"}
               fullWidth
               active={mainViewType === 'journals'}
               onClick={() => { setMainViewType('journals'); closeMobileDrawer(); }}
@@ -491,7 +490,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <Button 
               variant="ghost"
               size="md"
-              icon={mdiBookOpenPageVariant}
+              icon={"mdi mdi-book-open-page-variant"}
               fullWidth
               active={mainViewType === 'all-pages'}
               onClick={() => { setMainViewType('all-pages'); closeMobileDrawer(); }}
@@ -502,7 +501,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <Button 
               variant="ghost"
               size="md"
-              icon={mdiGraphOutline}
+              icon={"mdi mdi-graph-outline"}
               fullWidth
               active={mainViewType === 'graph'}
               onClick={() => { setMainViewType('graph'); closeMobileDrawer(); }}
@@ -513,7 +512,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <Button 
               variant="ghost"
               size="md"
-              icon={mdiTimelineClockOutline}
+              icon={"mdi mdi-timeline-clock-outline"}
               fullWidth
               active={mainViewType === 'timeline'}
               onClick={() => { setMainViewType('timeline'); closeMobileDrawer(); }}
@@ -599,7 +598,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           <Button 
             variant="ghost"
             size="md"
-            icon={mdiArchive}
+            icon={"mdi mdi-archive"}
             fullWidth
             onClick={() => { setMainViewType('archived'); closeMobileDrawer(); }}
             active={mainViewType === 'archived'}
@@ -610,7 +609,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           <Button 
             variant="ghost"
             size="md"
-            icon={mdiTrashCanOutline}
+            icon={"mdi mdi-trash-can-outline"}
             fullWidth
             onClick={() => { setMainViewType('trash'); closeMobileDrawer(); }}
             onContextMenu={handleTrashContextMenu}
@@ -622,7 +621,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           <Button 
             variant="ghost"
             size="md"
-            icon={mdiCog}
+            icon={"mdi mdi-cog"}
             fullWidth
             onClick={() => { setIsSettingsModalOpen(true); closeMobileDrawer(); }}
             title="Graph Settings"

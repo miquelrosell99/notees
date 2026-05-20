@@ -5,15 +5,16 @@
  * Provides consistent styling across the application.
  * 
  * Usage:
- * - Icon only: <Button icon={mdiCog} />
+ * - Icon only: <Button icon="mdi mdi-cog" />
  * - Text only: <Button>Click me</Button>
- * - Icon + Text: <Button icon={mdiCog}>Settings</Button>
+ * - Icon + Text: <Button icon="mdi mdi-cog">Settings</Button>
  * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
  */
 import { forwardRef, useState, useCallback, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import Icon from '@mdi/react';
+
 import './Button.css';
 import { ConfirmationModal } from './ConfirmationModal';
+import { Icon } from '@/components/core/icons';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -28,7 +29,7 @@ export interface ButtonBadge {
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** MDI icon path (from @mdi/js) */
+  /** MDI CSS class string (e.g. "mdi mdi-plus") */
   icon?: string;
   /** Icon position relative to text */
   iconPosition?: 'left' | 'right';

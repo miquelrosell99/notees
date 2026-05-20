@@ -11,7 +11,6 @@
  * - Supports adapting existing children to table layout
  */
 import { useCallback, useEffect, useState } from 'react';
-import { mdiTablePlus, mdiAutoFix } from '@mdi/js';
 import { TableSizeSelector, type TableGridSize } from './TableSizeSelector';
 import { Button } from './Button';
 import { Modal } from './Modal';
@@ -95,8 +94,8 @@ export function TableCreationModal({
               onChange={(value) => setMode(value as 'select' | 'adapt')}
               size="sm"
               options={[
-                { value: 'adapt', icon: mdiAutoFix, label: 'Adapt existing blocks' },
-                { value: 'select', icon: mdiTablePlus, label: 'Create new table' },
+                { value: 'adapt', icon: "mdi mdi-auto-fix", label: 'Adapt existing blocks' },
+                { value: 'select', icon: "mdi mdi-table-plus", label: 'Create new table' },
               ]}
             />
           )}

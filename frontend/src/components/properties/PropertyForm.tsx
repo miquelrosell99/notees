@@ -5,7 +5,6 @@
  * Provides a consistent interface for editing property settings.
  */
 import { useCallback } from 'react';
-import { mdiNumeric1, mdiNumeric9Plus, mdiPlus, mdiTrashCan } from '@mdi/js';
 import type { PropertyType, Node } from '@/types/api';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { EmojiPickerTrigger } from '@/components/core/EmojiPicker';
@@ -206,8 +205,8 @@ export function PropertyForm({
           <label className="property-form__label">Values</label>
           <SelectionButton
             options={[
-              { value: 'single', icon: mdiNumeric1, label: 'Single value' },
-              { value: 'multi', icon: mdiNumeric9Plus, label: 'Multiple values' },
+              { value: 'single', icon: "mdi mdi-numeric1", label: 'Single value' },
+              { value: 'multi', icon: "mdi mdi-numeric9-plus", label: 'Multiple values' },
             ]}
             value={isMultiValue ? 'multi' : 'single'}
             onChange={(value) => !readOnly && onIsMultiValueChange(value === 'multi')}
@@ -249,7 +248,7 @@ export function PropertyForm({
                   key="delete"
                   variant="ghost"
                   size="sm"
-                  icon={mdiTrashCan}
+                  icon={"mdi mdi-trash-can"}
                   onClick={() => onRemoveOption(opt.id)}
                   aria-label="Remove option"
                   disabled={readOnly}
@@ -299,7 +298,7 @@ export function PropertyForm({
                 <Button
                   variant="default"
                   size="sm"
-                  icon={mdiPlus}
+                  icon={"mdi mdi-plus"}
                   onClick={() => onShowAddOptionChange(true)}
                 >
                   Add Option

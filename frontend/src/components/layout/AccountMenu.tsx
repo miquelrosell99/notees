@@ -7,14 +7,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore, useModalStore } from '@/stores';
-import { mdiCog, mdiLogout, mdiDatabaseOutline, mdiServerNetwork } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { Card } from '@/components/core/Card';
 import { Button } from '@/components/core/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { isAndroidApp } from '@/hooks/useAndroidBridge';
 import './AccountMenu.css';
+import { Icon } from '@/components/core/icons';
 
 interface AccountMenuProps {
   onOpenUserSettings: () => void;
@@ -100,23 +100,23 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
           </div>
           <div className="account-menu__divider" />
           <button className="account-menu__item" onClick={handleUserSettings}>
-            <Icon path={mdiCog} size={0.7} />
+            <Icon path={"mdi mdi-cog"} size={0.7} />
             <span>User Settings</span>
           </button>
           <button className="account-menu__item" onClick={handleManageGraphs}>
-            <Icon path={mdiDatabaseOutline} size={0.7} />
+            <Icon path={"mdi mdi-database-outline"} size={0.7} />
             <span>Workspaces</span>
           </button>
           <div className="account-menu__divider" />
           <button className="account-menu__item account-menu__item--danger" onClick={handleLogout}>
-            <Icon path={mdiLogout} size={0.7} />
+            <Icon path={"mdi mdi-logout"} size={0.7} />
             <span>Log out</span>
           </button>
           {isAndroidApp() && (
             <>
               <div className="account-menu__divider" />
               <button className="account-menu__item" onClick={handleChangeServer}>
-                <Icon path={mdiServerNetwork} size={0.7} />
+                <Icon path={"mdi mdi-server-network"} size={0.7} />
                 <span>Change server</span>
               </button>
             </>
