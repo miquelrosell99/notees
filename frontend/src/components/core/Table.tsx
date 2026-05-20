@@ -12,7 +12,7 @@
  * - Depth-based row indentation
  * - Automatic Node cell rendering with Block component and navigation buttons
  */
-import { useState, useCallback, useRef, useEffect, Fragment, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode } from 'react';
 import { mdiArrowRight, mdiDockRight } from '@mdi/js';
 import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
@@ -351,30 +351,33 @@ export function Table<T>({
   }, [dragIndex, dropTargetIndex, data.length, reorderable]);
 
   // Sort data by multiple columns
-  const sortedData = [...data];
-  if (sortColumns.length > 0) {
-    sortedData.sort((a, b) => {
-      for (const sortEntry of sortColumns) {
-        const column = columns.find(c => c.key === sortEntry.key);
-        if (!column) continue;
-        
-        let comparison: number;
-        if (column.sortFn) {
-          comparison = column.sortFn(a, b);
-        } else {
-          // Default string comparison
-          const aVal = String(column.accessor(a) ?? '');
-          const bVal = String(column.accessor(b) ?? '');
-          comparison = aVal.localeCompare(bVal);
+  const sortedData = useMemo(() => {
+    const result = [...data];
+    if (sortColumns.length > 0) {
+      result.sort((a, b) => {
+        for (const sortEntry of sortColumns) {
+          const column = columns.find(c => c.key === sortEntry.key);
+          if (!column) continue;
+          
+          let comparison: number;
+          if (column.sortFn) {
+            comparison = column.sortFn(a, b);
+          } else {
+            // Default string comparison
+            const aVal = String(column.accessor(a) ?? '');
+            const bVal = String(column.accessor(b) ?? '');
+            comparison = aVal.localeCompare(bVal);
+          }
+          
+          if (comparison !== 0) {
+            return sortEntry.direction === 'asc' ? comparison : -comparison;
+          }
         }
-        
-        if (comparison !== 0) {
-          return sortEntry.direction === 'asc' ? comparison : -comparison;
-        }
-      }
-      return 0;
-    });
-  }
+        return 0;
+      });
+    }
+    return result;
+  }, [data, sortColumns, columns]);
 
   // Compute selection state including nested children
   const computeAllKeys = (items: T[]): (string | number)[] => {

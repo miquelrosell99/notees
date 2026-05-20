@@ -12,7 +12,7 @@
  * - Drag the right edge of left sidebar to resize
  * - Drag the left edge of right sidebar to resize
  */
-import { useEffect, useCallback, useRef, useState } from 'react';
+import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
@@ -25,14 +25,14 @@ import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/components/sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
-import { ImportDataModal } from '@/components/workspace/ImportDataModal';
-import { ImportLogseqModal } from '@/components/workspace/ImportLogseqModal';
-import { ImportLogseqFolderModal } from '@/components/workspace/ImportLogseqFolderModal';
-import { ImportMarkdownModal } from '@/components/workspace/ImportMarkdownModal';
-import { ExportPageModal } from '@/components/workspace/ExportPageModal';
-import { RebuildLinksModal } from '@/components/maintenance/RebuildLinksModal';
-import { FixRawLinksModal } from '@/components/maintenance/FixRawLinksModal';
-import { MergePagesModal } from './MergePagesModal';
+const ImportDataModal = React.lazy(() => import('@/components/workspace/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
+const ImportLogseqModal = React.lazy(() => import('@/components/workspace/ImportLogseqModal').then(m => ({ default: m.ImportLogseqModal })));
+const ImportLogseqFolderModal = React.lazy(() => import('@/components/workspace/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
+const ImportMarkdownModal = React.lazy(() => import('@/components/workspace/ImportMarkdownModal').then(m => ({ default: m.ImportMarkdownModal })));
+const ExportPageModal = React.lazy(() => import('@/components/workspace/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
+const RebuildLinksModal = React.lazy(() => import('@/components/maintenance/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
+const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
+const MergePagesModal = React.lazy(() => import('./MergePagesModal').then(m => ({ default: m.MergePagesModal })));
 import { Card } from '@/components/core/Card';
 import './Layout.css';
 
@@ -270,34 +270,36 @@ export function Layout() {
         />
         
         {/* Import Data Modal (Ctrl+Shift+I) */}
-        <ImportDataModal
-          isOpen={isImportDataModalOpen}
-          onClose={() => setImportDataModalOpen(false)}
-          onImport={async (blocks: BlockData[]) => {
-            // Import blocks as children of current node
-            if (!currentNodeId) return;
-            
-            // Create blocks recursively
-            const createBlocksRecursively = async (
-              blockDataList: BlockData[],
-              parentId: number
-            ) => {
-              for (const blockData of blockDataList) {
-                const newNode = await createNodeMutation.mutateAsync({
-                  name: (blockData as any).content || '',
-                  parent_id: parentId,
-                });
-                
-                // Recursively create children
-                if (blockData.children && blockData.children.length > 0) {
-                  await createBlocksRecursively(blockData.children, newNode.id);
+        <Suspense fallback={null}>
+          <ImportDataModal
+            isOpen={isImportDataModalOpen}
+            onClose={() => setImportDataModalOpen(false)}
+            onImport={async (blocks: BlockData[]) => {
+              // Import blocks as children of current node
+              if (!currentNodeId) return;
+              
+              // Create blocks recursively
+              const createBlocksRecursively = async (
+                blockDataList: BlockData[],
+                parentId: number
+              ) => {
+                for (const blockData of blockDataList) {
+                  const newNode = await createNodeMutation.mutateAsync({
+                    name: (blockData as any).content || '',
+                    parent_id: parentId,
+                  });
+                  
+                  // Recursively create children
+                  if (blockData.children && blockData.children.length > 0) {
+                    await createBlocksRecursively(blockData.children, newNode.id);
+                  }
                 }
-              }
-            };
-            
-            await createBlocksRecursively(blocks, currentNodeId);
-          }}
-        />
+              };
+              
+              await createBlocksRecursively(blocks, currentNodeId);
+            }}
+          />
+        </Suspense>
         
         {/* Floating Graph Minimap */}
         {isMinimapOpen && (
@@ -305,49 +307,63 @@ export function Layout() {
         )}
 
         {/* Import Logseq Modal */}
-        <ImportLogseqModal
-          isOpen={isImportLogseqModalOpen}
-          onClose={() => setImportLogseqModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ImportLogseqModal
+            isOpen={isImportLogseqModalOpen}
+            onClose={() => setImportLogseqModalOpen(false)}
+          />
+        </Suspense>
 
         {/* Import Logseq Folder Modal */}
-        <ImportLogseqFolderModal
-          isOpen={isImportLogseqFolderModalOpen}
-          onClose={() => setImportLogseqFolderModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ImportLogseqFolderModal
+            isOpen={isImportLogseqFolderModalOpen}
+            onClose={() => setImportLogseqFolderModalOpen(false)}
+          />
+        </Suspense>
 
         {/* Import Markdown Modal */}
-        <ImportMarkdownModal
-          isOpen={isImportMarkdownModalOpen}
-          onClose={() => setImportMarkdownModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ImportMarkdownModal
+            isOpen={isImportMarkdownModalOpen}
+            onClose={() => setImportMarkdownModalOpen(false)}
+          />
+        </Suspense>
 
         {/* Export Page Modal */}
         {currentNodeId && currentNode?.uuid && (
-          <ExportPageModal
-            isOpen={isExportPageModalOpen}
-            onClose={() => setExportPageModalOpen(false)}
-            nodeUuid={currentNode.uuid}
-          />
+          <Suspense fallback={null}>
+            <ExportPageModal
+              isOpen={isExportPageModalOpen}
+              onClose={() => setExportPageModalOpen(false)}
+              nodeUuid={currentNode.uuid}
+            />
+          </Suspense>
         )}
 
         {/* Rebuild Links Modal */}
-        <RebuildLinksModal
-          isOpen={isRebuildLinksModalOpen}
-          onClose={() => setRebuildLinksModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <RebuildLinksModal
+            isOpen={isRebuildLinksModalOpen}
+            onClose={() => setRebuildLinksModalOpen(false)}
+          />
+        </Suspense>
 
         {/* Fix Raw UUID Links Modal */}
-        <FixRawLinksModal
-          isOpen={isFixRawLinksModalOpen}
-          onClose={() => setFixRawLinksModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <FixRawLinksModal
+            isOpen={isFixRawLinksModalOpen}
+            onClose={() => setFixRawLinksModalOpen(false)}
+          />
+        </Suspense>
 
         {/* Merge Pages Modal */}
-        <MergePagesModal
-          isOpen={isMergePagesModalOpen}
-          onClose={() => setMergePagesModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <MergePagesModal
+            isOpen={isMergePagesModalOpen}
+            onClose={() => setMergePagesModalOpen(false)}
+          />
+        </Suspense>
       </>
     </RouterSync>
   );

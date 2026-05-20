@@ -5,7 +5,7 @@
  * Provides default icons for system tags and pages.
  */
 import Icon from '@mdi/react';
-import * as mdiIcons from '@mdi/js';
+import { getMdiIconPath } from '@/utils/mdiIconMap';
 import {
   mdiFileDocumentOutline,
   mdiCalendarToday,
@@ -485,9 +485,7 @@ function getMdiPath(iconName: string): string | null {
   if (iconName.startsWith('mdi:')) {
     const name = iconName.slice(4);
     const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    const path = (mdiIcons as Record<string, string>)[camelName];
-    return path || null;
+    return getMdiIconPath(camelName);
   }
-  const path = (mdiIcons as Record<string, string>)[iconName];
-  return path || null;
+  return getMdiIconPath(iconName);
 }

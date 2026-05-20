@@ -7,7 +7,7 @@
  * - shift-click on bullets adds page/block cards
  * - local graph button adds a localGraph card
  */
-import { useCallback } from 'react';
+import { useCallback, memo } from 'react';
 import { useNavigationStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { SidebarCardLocalGraph, SidebarCardNode } from '.';
@@ -18,7 +18,7 @@ import './RightSidebarCards.css';
 /**
  * Renders a single sidebar card based on its type
  */
-function SidebarCardRenderer({ 
+const SidebarCardRenderer = memo(function SidebarCardRenderer({ 
   card, 
   onClose 
 }: { 
@@ -49,7 +49,7 @@ function SidebarCardRenderer({
     default:
       return null;
   }
-}
+});
 
 /**
  * Main component - scrollable panel of sidebar cards

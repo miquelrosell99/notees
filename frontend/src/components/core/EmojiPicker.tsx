@@ -17,7 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 import Icon from '@mdi/react';
-import * as mdiIcons from '@mdi/js';
+import { MDI_ICON_MAP } from '@/utils/mdiIconMap';
 import { mdiTrashCanOutline } from '@mdi/js';
 import { getMdiPath } from '@/utils/iconDom';
 
@@ -166,7 +166,7 @@ function addRecent(value: string): void {
 // ─────────────────────────────────────────────
 
 function getIconPath(name: string): string | null {
-  return (mdiIcons as Record<string, string>)[name] ?? null;
+  return MDI_ICON_MAP[name] ?? null;
 }
 
 function iconCamelToKebab(name: string): string {
@@ -374,7 +374,7 @@ export function EmojiPicker({
   }, [onClose]);
 
   const allMdiNames = useMemo(
-    () => Object.keys(mdiIcons).filter((k) => k.startsWith('mdi') && k !== 'default').sort(),
+    () => Object.keys(MDI_ICON_MAP).filter((k) => k.startsWith('mdi')).sort(),
     [],
   );
 
