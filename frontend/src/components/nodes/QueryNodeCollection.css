@@ -326,6 +326,7 @@
   line-height: 1.6;
   color: var(--color-on-surface);
   background-color: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
 }
 
@@ -341,6 +342,7 @@
   font-size: 0.8125rem;
   line-height: 1.5;
   background-color: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: auto;
   max-height: 300px;
@@ -365,5 +367,5 @@
   display: flex;
   justify-content: center;
   padding: 0.75rem 1rem;
-  border-top: 1px solid var(--color-surface-variant);
+  border-top: 1px solid var(--color-outline-variant);
 }

@@ -235,7 +235,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: var(--color-surface-container);
+  background: var(--color-surface-container-high);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
