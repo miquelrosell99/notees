@@ -33,7 +33,7 @@
   cursor: grab;
   touch-action: none; /* Prevent browser gestures */
   background: transparent;
-  padding-bottom: 120px; /* Make room for minimap container */
+  padding-bottom: 160px; /* Make room for minimap card */
 }
 
 .node-timeline-renderer__canvas:active {
@@ -42,16 +42,17 @@
 
 .node-timeline-renderer__minimap-container {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: var(--spacing-4);
+  left: var(--spacing-4);
+  right: var(--spacing-4);
   display: flex;
   flex-direction: column;
   align-items: center;
   background: var(--color-surface-container-high);
-  border-top: 1px solid var(--color-outline-variant);
-  padding: var(--spacing-3);
-  gap: var(--spacing-2);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-card);
+  padding: var(--spacing-4);
+  gap: var(--spacing-3);
   z-index: 10;
   overflow: visible;
 }
@@ -63,12 +64,10 @@
 }
 
 .node-timeline-renderer__minimap {
-  width: 80%;
+  width: 90%;
   height: 60px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-medium);
   cursor: pointer;
-  background: var(--color-surface-container-low);
 }
 
 .node-timeline-renderer__minimap:active {
