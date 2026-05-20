@@ -581,6 +581,8 @@ export function EmojiPickerTrigger({
     if (!value) return <span className="ep-trigger-placeholder">{placeholder}</span>;
     const mdiPath = getMdiPath(value);
     if (mdiPath) return <Icon path={mdiPath} size={0.9} color={color ?? undefined} />;
+    // Don't render raw MDI icon names as text — show nothing instead
+    if (value.match(/^mdi[A-Z]/)) return null;
     return <span className="ep-trigger-emoji" style={color ? { color } : undefined}>{value}</span>;
   };
 
