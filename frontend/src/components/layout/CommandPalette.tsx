@@ -17,9 +17,8 @@ import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { DuplicatePageModal } from './DuplicatePageModal';
 import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
-import { AddIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
-import Icon from '@mdi/react';
-import { mdiExport, mdiDatabaseRefresh, mdiBrain, mdiFingerprint, mdiMerge, mdiShuffle, mdiMap, mdiGraphOutline, mdiFilter } from '@mdi/js';
+import { Icon, AddIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
+
 import type { CommandPaletteProps } from './CommandPalette.types';
 
 export type { CommandPaletteProps } from './CommandPalette.types';
@@ -179,7 +178,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                       >
                         <div className="command-palette__result-row">
                           <span className="command-palette__result-icon">
-                            <Icon path={mdiFilter} size={0.7} />
+                            <Icon path={"mdi mdi-filter"} size={0.7} />
                           </span>
                           <span className="command-palette__result-content">
                             <span className="command-palette__result-name">{item.label}</span>
@@ -205,7 +204,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                       >
                         <div className="command-palette__result-row">
                           <span className="command-palette__result-icon">
-                            <Icon path={mdiFilter} size={0.7} />
+                            <Icon path={"mdi mdi-filter"} size={0.7} />
                           </span>
                           <span className="command-palette__result-content">
                             <span className="command-palette__result-name">{item.filterPrefix?.prefix}:</span>
@@ -297,21 +296,21 @@ export function CommandPalette(props: CommandPaletteProps) {
                         {item.commandIcon === 'import' ? (
                           <ImportIcon size="sm" />
                         ) : item.commandIcon === 'maintenance' ? (
-                          <Icon path={mdiDatabaseRefresh} size={0.7} />
+                          <Icon path={"mdi mdi-database-refresh"} size={0.7} />
                         ) : item.commandIcon === 'focus' ? (
-                          <Icon path={mdiBrain} size={0.7} />
+                          <Icon path={"mdi mdi-brain"} size={0.7} />
                         ) : item.commandIcon === 'uuid' ? (
-                          <Icon path={mdiFingerprint} size={0.7} />
+                          <Icon path={"mdi mdi-fingerprint"} size={0.7} />
                         ) : item.commandIcon === 'merge' ? (
-                          <Icon path={mdiMerge} size={0.7} />
+                          <Icon path={"mdi mdi-merge"} size={0.7} />
                         ) : item.commandIcon === 'random' ? (
-                          <Icon path={mdiShuffle} size={0.7} />
+                          <Icon path={"mdi mdi-shuffle"} size={0.7} />
                         ) : item.commandIcon === 'minimap' ? (
-                          <Icon path={mdiMap} size={0.7} />
+                          <Icon path={"mdi mdi-map"} size={0.7} />
                         ) : item.commandIcon === 'graph' ? (
-                          <Icon path={mdiGraphOutline} size={0.7} />
+                          <Icon path={"mdi mdi-graph-outline"} size={0.7} />
                         ) : (
-                          <Icon path={mdiExport} size={0.7} />
+                          <Icon path={"mdi mdi-export"} size={0.7} />
                         )}
                       </span>
                       <span className="command-palette__result-content">

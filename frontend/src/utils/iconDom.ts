@@ -2,10 +2,51 @@
  * iconDom.ts
  *
  * Vanilla-DOM utilities for rendering node icons.
- * Used by BlockNode (Lexical custom node) which cannot use React components.
+ * Uses @mdi/font CSS classes instead of inline SVG.
  */
-import { mdiCircleSmall } from '@mdi/js';
-import { getMdiIconPath } from './mdiIconMap';
+
+function camelToKebab(name: string): string {
+  if (!name.startsWith('mdi')) return name;
+  const rest = name.slice(3);
+  let result = rest[0]?.toLowerCase() ?? '';
+  for (const char of rest.slice(1)) {
+    result += char === char.toUpperCase() ? '-' + char.toLowerCase() : char;
+  }
+  return 'mdi-' + result;
+}
+
+/**
+ * Convert a camelCase or Logseq/Python mdi name to a CSS class string.
+ * e.g. "mdiHeartOutline" → "mdi mdi-heart-outline"
+ * e.g. "mdi:heart-outline" → "mdi mdi-heart-outline"
+ */
+export function getMdiClass(iconName: string): string | null {
+  if (!iconName) return null;
+
+  // JSON-encoded icon field
+  try {
+    const parsed = JSON.parse(iconName) as unknown;
+    if (typeof parsed === 'object' && parsed !== null) {
+      const obj = parsed as Record<string, unknown>;
+      if (typeof obj.icon === 'string') {
+        return getMdiClass(obj.icon);
+      }
+    }
+  } catch {
+    // not JSON
+  }
+
+  if (iconName.startsWith('mdi:')) {
+    const name = iconName.slice(4);
+    return 'mdi mdi-' + name;
+  }
+
+  if (iconName.match(/^mdi[A-Z]/)) {
+    return 'mdi ' + camelToKebab(iconName);
+  }
+
+  return null;
+}
 
 /**
  * Parse a raw icon field that may be a JSON-encoded object `{"icon":"...","color":"..."}`
@@ -19,11 +60,9 @@ export function parseIconField(raw: string | null | undefined): { icon: string; 
     const parsed = JSON.parse(raw) as unknown;
     if (typeof parsed === 'object' && parsed !== null) {
       const obj = parsed as Record<string, unknown>;
-      // Full object: {icon, color?}
       if (typeof obj.icon === 'string') {
         return { icon: obj.icon, color: (obj.color as string) || undefined };
       }
-      // Color-only: {color}
       if (typeof obj.color === 'string') {
         return { icon: '', color: obj.color || undefined };
       }
@@ -36,8 +75,6 @@ export function parseIconField(raw: string | null | undefined): { icon: string; 
 
 /**
  * Encode an icon name and optional color into the stored field format.
- * If color is provided, returns `JSON.stringify({icon, color})`.
- * Otherwise returns the plain icon string.
  */
 export function formatIconField(icon: string, color?: string | null): string {
   if (!color) return icon || '';
@@ -46,79 +83,29 @@ export function formatIconField(icon: string, color?: string | null): string {
 }
 
 /**
- * Convert an icon name to its MDI SVG path string.
- * Accepts:
- * - camelCase format as exported by `@mdi/js` (e.g. "mdiHeartOutline")
- * - Logseq/Python kebab format with prefix (e.g. "mdi:heart-outline")
- * - JSON-encoded icon fields like `{"icon":"mdiHeartOutline","color":"..."}`
- * Returns null for anything that is not a recognised MDI key (treated as emoji).
- */
-export function getMdiPath(iconName: string): string | null {
-  // Handle JSON-encoded icon field
-  const { icon } = parseIconField(iconName);
-  if (icon !== iconName) return getMdiPath(icon);
-  if (!iconName) return null;
-  // Handle Logseq/Python mdi:kebab-name format → @mdi/js mdiCamelName
-  if (iconName.startsWith('mdi:')) {
-    const name = iconName.slice(4);
-    const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    return getMdiIconPath(camelName);
-  }
-  return getMdiIconPath(iconName);
-}
-
-/**
- * Convert a Logseq/Python mdi:kebab-name icon to the @mdi/js camelCase key.
- * e.g. "mdi:heart-outline" → "mdiHeartOutline"
- * Returns the input unchanged if it doesn't start with "mdi:".
+ * Convert a Logseq/Python mdi:kebab-name icon to the CSS class string.
+ * e.g. "mdi:heart-outline" → "mdi mdi-heart-outline"
  */
 export function normalizeMdiIcon(icon: string): string {
   if (!icon.startsWith('mdi:')) return icon;
-  const name = icon.slice(4);
-  return 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+  return 'mdi mdi-' + icon.slice(4);
 }
 
 /**
  * Create a DOM element that renders `icon` correctly:
- * - If `icon` is an MDI name  → returns an <svg> element
+ * - If `icon` is an MDI name  → returns an <i> element with MDI font classes
  * - Otherwise (emoji / text)  → returns a <span> with the icon as textContent
  *
  * The returned element already has `bullet-icon` as its CSS class.
  */
-export function createIconElement(icon: string): HTMLElement | SVGSVGElement {
+export function createIconElement(icon: string): HTMLElement {
   const { icon: parsedIcon } = parseIconField(icon);
-  const mdiPath = getMdiPath(parsedIcon);
+  const mdiClass = getMdiClass(parsedIcon);
 
-  if (mdiPath) {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('width', '1em');
-    svg.setAttribute('height', '1em');
-    svg.classList.add('bullet-icon');
-
-    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathEl.setAttribute('fill', 'currentColor');
-    pathEl.setAttribute('d', mdiPath);
-    svg.appendChild(pathEl);
-
-    return svg;
-  }
-
-  // If it looks like an MDI name but isn't in the map, render a default bullet
-  // instead of showing the raw icon name as text
-  if (parsedIcon.match(/^mdi[A-Z]/)) {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('width', '1em');
-    svg.setAttribute('height', '1em');
-    svg.classList.add('bullet-icon');
-
-    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathEl.setAttribute('fill', 'currentColor');
-    pathEl.setAttribute('d', mdiCircleSmall);
-    svg.appendChild(pathEl);
-
-    return svg;
+  if (mdiClass) {
+    const i = document.createElement('i');
+    i.className = 'bullet-icon ' + mdiClass;
+    return i;
   }
 
   // Emoji / arbitrary text fallback

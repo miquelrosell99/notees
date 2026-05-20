@@ -12,7 +12,6 @@
  */
 import { useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { mdiClose } from '@mdi/js';
 import { Card } from './Card';
 import { Button } from './Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -122,7 +121,7 @@ export function Modal({
             {title && <h2 id="modal-title" className="modal__title">{title}</h2>}
             {showCloseButton && (
               <Button
-                icon={mdiClose}
+                icon={"mdi mdi-close"}
                 iconOnly
                 className="modal__close"
                 onClick={onClose}

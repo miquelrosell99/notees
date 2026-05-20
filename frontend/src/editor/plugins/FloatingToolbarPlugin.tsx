@@ -12,7 +12,6 @@ import {
   type TextFormatType,
 } from 'lexical';
 import { createPortal } from 'react-dom';
-import { mdiFormatBold, mdiFormatItalic, mdiFormatUnderline, mdiFormatStrikethrough, mdiCodeTags } from '@mdi/js';
 import { Card } from '../../components/core/Card';
 import { Button } from '../../components/core/Button';
 import { $trimSelectionWhitespace } from '../utils/selectionUtils';
@@ -140,7 +139,7 @@ export function FloatingToolbarPlugin({
       >
         <div className="floating-toolbar__actions">
           <Button
-            icon={mdiFormatBold}
+            icon={"mdi mdi-format-bold"}
             variant="ghost"
             size="sm"
             title="Bold (Ctrl+B)"
@@ -149,7 +148,7 @@ export function FloatingToolbarPlugin({
             className="floating-toolbar__button"
           />
           <Button
-            icon={mdiFormatItalic}
+            icon={"mdi mdi-format-italic"}
             variant="ghost"
             size="sm"
             title="Italic (Ctrl+I)"
@@ -158,7 +157,7 @@ export function FloatingToolbarPlugin({
             className="floating-toolbar__button"
           />
           <Button
-            icon={mdiFormatUnderline}
+            icon={"mdi mdi-format-underline"}
             variant="ghost"
             size="sm"
             title="Underline (Ctrl+U)"
@@ -167,7 +166,7 @@ export function FloatingToolbarPlugin({
             className="floating-toolbar__button"
           />
           <Button
-            icon={mdiFormatStrikethrough}
+            icon={"mdi mdi-format-strikethrough"}
             variant="ghost"
             size="sm"
             title="Strikethrough (Ctrl+Shift+D)"
@@ -176,7 +175,7 @@ export function FloatingToolbarPlugin({
             className="floating-toolbar__button"
           />
           <Button
-            icon={mdiCodeTags}
+            icon={"mdi mdi-code-tags"}
             variant="ghost"
             size="sm"
             title="Inline code (Ctrl+E)"

@@ -9,7 +9,6 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { mdiLinkVariant, mdiWeb, mdiTextBox } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -64,9 +63,9 @@ export interface LinkEditResult {
 }
 
 const LINK_MODE_OPTIONS = [
-  { value: 'node' as const, icon: mdiLinkVariant, label: 'Page' },
-  { value: 'block' as const, icon: mdiTextBox, label: 'Block' },
-  { value: 'url' as const, icon: mdiWeb, label: 'URL' },
+  { value: 'node' as const, icon: "mdi mdi-link-variant", label: 'Page' },
+  { value: 'block' as const, icon: "mdi mdi-text-box", label: 'Block' },
+  { value: 'url' as const, icon: "mdi mdi-web", label: 'URL' },
 ];
 
 export function LinkEditModal({

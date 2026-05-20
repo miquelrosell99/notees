@@ -9,7 +9,6 @@
  * by ImportOptionsModal (workspace-creation flow).
  */
 import { useState, useCallback, useRef } from 'react';
-import { mdiImport } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { TaskProgress } from '@/components/core/TaskProgress';
@@ -119,7 +118,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
             variant="primary"
             onClick={handleImport}
             disabled={!folderResult || importing || !pageClassId}
-            icon={mdiImport}
+            icon={"mdi mdi-import"}
           >
             {importing ? 'Importing…' : 'Import'}
           </Button>

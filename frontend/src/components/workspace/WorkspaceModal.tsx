@@ -6,9 +6,8 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { createWorkspace, checkWorkspaceName, type WorkspaceInfo } from '@/api/workspaces';
-import { AlertIcon, SyncIcon } from '@/components/core/icons';
-import Icon from '@mdi/react';
-import { mdiCheck, mdiClose } from '@mdi/js';
+import { Icon, AlertIcon, SyncIcon } from '@/components/core/icons';
+
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
@@ -108,7 +107,7 @@ export function WorkspaceModal({ isOpen, onClose, onSuccess }: WorkspaceModalPro
             isCheckingName ? (
               <SyncIcon size="xs" />
             ) : name.length >= 2 ? (
-              <Icon path={nameCheck?.available ? mdiCheck : mdiClose} size={0.6} />
+              <Icon path={nameCheck?.available ? "mdi mdi-check" : "mdi mdi-close"} size={0.6} />
             ) : undefined
           }
         />

@@ -8,7 +8,6 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useExportSettingsStore } from '@/stores';
-import { mdiContentCopy, mdiDownload, mdiCheck, mdiFileTree, mdiFileDocumentOutline, mdiTextShort, mdiBookOpenPageVariant, mdiTagOff, mdiTagOutline, mdiTagMultipleOutline, mdiViewHeadline, mdiViewCompact, mdiFormatListBulleted, mdiFormatListNumberedRtl, mdiFormatListNumbered, mdiFormatLetterCaseUpper, mdiFormatText, mdiCodeBraces, mdiCog, mdiArrowExpandHorizontal, mdiText, mdiBook, mdiViewColumn, mdiMinus, mdiNewspaper, mdiFileChartOutline, mdiScaleBalance, mdiSchool, mdiLinkVariant, mdiLinkOff } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { Button } from '@/components/core/Button';
@@ -37,7 +36,6 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
 
 export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalProps) {
   const {
@@ -167,7 +165,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
       footer={
         <div className="export-modal__footer">
           <ButtonWithPanel
-            icon={mdiCog}
+            icon={"mdi mdi-cog"}
             size="sm"
             panelPosition="top"
             panelAlignment="start"
@@ -184,8 +182,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   description="Outline preserves hierarchy, flat lists all content"
                   labelPosition="left"
                   options={[
-                    { value: 'outline', icon: mdiFileTree, label: 'Outline' },
-                    { value: 'flat', icon: mdiFileDocumentOutline, label: 'Flat' },
+                    { value: 'outline', icon: "mdi mdi-file-tree", label: 'Outline' },
+                    { value: 'flat', icon: "mdi mdi-file-document-outline", label: 'Flat' },
                   ]}
                   value={layout}
                   onChange={(v) => setLayout(v as ExportLayout)}
@@ -199,9 +197,9 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Visual theme for the exported document"
                     labelPosition="left"
                     options={[
-                      { value: 'minimal', icon: mdiTextShort, label: 'Minimal' },
-                      { value: 'technical', icon: mdiBookOpenPageVariant, label: 'Technical' },
-                      { value: 'book', icon: mdiBook, label: 'Book' },
+                      { value: 'minimal', icon: "mdi mdi-text-short", label: 'Minimal' },
+                      { value: 'technical', icon: "mdi mdi-book-open-page-variant", label: 'Technical' },
+                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
                     ]}
                     value={style}
                     onChange={(v) => setStyle(v as ExportStyle)}
@@ -216,8 +214,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Spacing between elements in the output"
                     labelPosition="left"
                     options={[
-                      { value: 'comfortable', icon: mdiViewHeadline, label: 'Comfortable' },
-                      { value: 'compact', icon: mdiViewCompact, label: 'Compact' },
+                      { value: 'comfortable', icon: "mdi mdi-view-headline", label: 'Comfortable' },
+                      { value: 'compact', icon: "mdi mdi-view-compact", label: 'Compact' },
                     ]}
                     value={density}
                     onChange={(v) => setDensity(v as ExportDensity)}
@@ -232,10 +230,10 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Page width and column layout"
                     labelPosition="left"
                     options={[
-                      { value: 'full', icon: mdiArrowExpandHorizontal, label: 'Full' },
-                      { value: 'readable', icon: mdiText, label: 'Readable' },
-                      { value: 'book', icon: mdiBook, label: 'Book' },
-                      { value: 'two-column', icon: mdiViewColumn, label: '2-column' },
+                      { value: 'full', icon: "mdi mdi-arrow-expand-horizontal", label: 'Full' },
+                      { value: 'readable', icon: "mdi mdi-text", label: 'Readable' },
+                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                      { value: 'two-column', icon: "mdi mdi-view-column", label: '2-column' },
                     ]}
                     value={measure}
                     onChange={(v) => setMeasure(v as ExportMeasure)}
@@ -250,10 +248,10 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Add hierarchical numbers to headings"
                     labelPosition="left"
                     options={[
-                      { value: 'none', icon: mdiFormatListBulleted, label: 'None' },
-                      { value: 'hierarchical', icon: mdiFormatListNumberedRtl, label: 'Hierarchical' },
-                      { value: 'legal', icon: mdiFormatListNumbered, label: 'Legal' },
-                      { value: 'appendix', icon: mdiFormatLetterCaseUpper, label: 'Appendix' },
+                      { value: 'none', icon: "mdi mdi-format-list-bulleted", label: 'None' },
+                      { value: 'hierarchical', icon: "mdi mdi-format-list-numbered-rtl", label: 'Hierarchical' },
+                      { value: 'legal', icon: "mdi mdi-format-list-numbered", label: 'Legal' },
+                      { value: 'appendix', icon: "mdi mdi-format-letter-case-upper", label: 'Appendix' },
                     ]}
                     value={numbering}
                     onChange={(v) => setNumbering(v as ExportNumbering)}
@@ -268,12 +266,12 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                     description="Semantic document behaviour: page breaks, spacing, TOC"
                     labelPosition="left"
                     options={[
-                      { value: 'none', icon: mdiMinus, label: 'None' },
-                      { value: 'article', icon: mdiNewspaper, label: 'Article' },
-                      { value: 'report', icon: mdiFileChartOutline, label: 'Report' },
-                      { value: 'book', icon: mdiBook, label: 'Book' },
-                      { value: 'legal', icon: mdiScaleBalance, label: 'Legal' },
-                      { value: 'academic', icon: mdiSchool, label: 'Academic' },
+                      { value: 'none', icon: "mdi mdi-minus", label: 'None' },
+                      { value: 'article', icon: "mdi mdi-newspaper", label: 'Article' },
+                      { value: 'report', icon: "mdi mdi-file-chart-outline", label: 'Report' },
+                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                      { value: 'legal', icon: "mdi mdi-scale-balance", label: 'Legal' },
+                      { value: 'academic', icon: "mdi mdi-school", label: 'Academic' },
                     ]}
                     value={doctype}
                     onChange={(v) => setDoctype(v as ExportDoctype)}
@@ -299,8 +297,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   description="Apply rich text styles or export plain text"
                   labelPosition="left"
                   options={[
-                    { value: 'true', icon: mdiFormatText, label: 'Formatted' },
-                    { value: 'false', icon: mdiCodeBraces, label: 'Plain' },
+                    { value: 'true', icon: "mdi mdi-format-text", label: 'Formatted' },
+                    { value: 'false', icon: "mdi mdi-code-braces", label: 'Plain' },
                   ]}
                   value={formatting ? 'true' : 'false'}
                   onChange={(v) => setFormatting(v === 'true')}
@@ -313,9 +311,9 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   description="Which nodes to show properties for"
                   labelPosition="left"
                   options={[
-                    { value: 'none', icon: mdiTagOff, label: 'None' },
-                    { value: 'main', icon: mdiTagOutline, label: 'Main node' },
-                    { value: 'all', icon: mdiTagMultipleOutline, label: 'All nodes' },
+                    { value: 'none', icon: "mdi mdi-tag-off", label: 'None' },
+                    { value: 'main', icon: "mdi mdi-tag-outline", label: 'Main node' },
+                    { value: 'all', icon: "mdi mdi-tag-multiple-outline", label: 'All nodes' },
                   ]}
                   value={properties}
                   onChange={(v) => setProperties(v as ExportProperties)}
@@ -338,8 +336,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
                   description="Show raw UUIDs in links or only the display text"
                   labelPosition="left"
                   options={[
-                    { value: 'raw', icon: mdiLinkVariant, label: 'Raw' },
-                    { value: 'text', icon: mdiLinkOff, label: 'Text only' },
+                    { value: 'raw', icon: "mdi mdi-link-variant", label: 'Raw' },
+                    { value: 'text', icon: "mdi mdi-link-off", label: 'Text only' },
                   ]}
                   value={linkStyle}
                   onChange={(v) => setLinkStyle(v as ExportLinkStyle)}
@@ -354,7 +352,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
             {format !== 'pdf' && (
               <Button
                 variant="ghost"
-                icon={copied ? mdiCheck : mdiContentCopy}
+                icon={copied ? "mdi mdi-check" : "mdi mdi-content-copy"}
                 onClick={handleCopy}
                 disabled={loading || !previewContent || downloading}
               >
@@ -363,7 +361,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid }: ExportPageModalPr
             )}
             <Button
               variant="primary"
-              icon={mdiDownload}
+              icon={"mdi mdi-download"}
               onClick={handleDownload}
               disabled={downloading || (format !== 'pdf' && loading)}
             >

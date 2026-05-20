@@ -15,7 +15,6 @@ import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
-import { mdiArchiveArrowUp, mdiDelete } from '@mdi/js';
 import { useState, useCallback } from 'react';
 import { Button } from '../components/core/Button';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
@@ -67,7 +66,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       {
         id: 'unarchive',
         label: 'Unarchive',
-        icon: mdiArchiveArrowUp,
+        icon: "mdi mdi-archive-arrow-up",
         onClick: () => {
           if (confirm('Unarchive this page?')) {
             unarchiveMutation.mutate(node.id);
@@ -78,7 +77,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       {
         id: 'delete',
         label: 'Delete',
-        icon: mdiDelete,
+        icon: "mdi mdi-delete",
         onClick: () => {
           if (confirm('Delete this page permanently? This action cannot be undone.')) {
             deleteMutation.mutate(node.id);

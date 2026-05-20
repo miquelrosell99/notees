@@ -1,74 +1,12 @@
 /**
  * MDI Icons for the application
  * 
- * Uses @mdi/react and @mdi/js for Material Design Icons.
+ * Uses @mdi/font CSS webfont for Material Design Icons.
  * Provides default icons for system tags and pages.
  */
-import Icon from '@mdi/react';
-import { getMdiIconPath } from '@/utils/mdiIconMap';
-import {
-  mdiFileDocumentOutline,
-  mdiCalendarToday,
-  mdiBookOpenPageVariant,
-  mdiNotebookOutline,
-  mdiGraphOutline,
-  mdiTag,
-  mdiLink,
-  mdiClipboardTextOutline,
-  mdiPlus,
-  mdiMenu,
-  mdiMagnify,
-  mdiChevronDown,
-  mdiChevronRight,
-  mdiChevronUp,
-  mdiCircleSmall,
-  mdiHome,
-  mdiFolderOutline,
-  mdiFolderOpenOutline,
-  mdiStar,
-  mdiStarOutline,
-  mdiPinOutline,
-  mdiCheckboxMarkedOutline,
-  mdiCheckboxBlankOutline,
-  mdiCog,
-  mdiDotsHorizontal,
-  mdiPencil,
-  mdiTrashCanOutline,
-  mdiContentCopy,
-  mdiArrowLeft,
-  mdiArrowRight,
-  mdiChevronLeft,
-  mdiClose,
-  mdiCommentTextOutline,
-  mdiArchiveOutline,
-  mdiImageOutline,
-  mdiPaperclip,
-  mdiMusicNoteOutline,
-  mdiCheckboxMarkedCircleOutline,
-  mdiFileDocumentMultipleOutline,
-  mdiDatabaseOutline,
-  mdiCheck,
-  mdiAlertOutline,
-  mdiWifiOff,
-  mdiSync,
-  mdiTrayArrowDown,
-  mdiMap,
-  mdiClockOutline,
-  mdiTable,
-  mdiDrag,
-  mdiCodeTags,
-  // Graph view icons
-  mdiVectorPolygon,
-  mdiCircleOutline,
-  mdiFileTreeOutline,
-  mdiFitToScreen,
-  mdiRefresh,
-  mdiPalette,
-  mdiRestore,
-  mdiReply,
-  mdiSend,
-  mdiCheckCircleOutline,
-} from '@mdi/js';
+import { Icon } from './Icon';
+import { getMdiClass } from '@/utils/iconDom';
+export { Icon } from './Icon';
 
 // Icon size presets
 export const ICON_SIZE = {
@@ -95,254 +33,254 @@ function getSize(size: IconSize): number {
 
 // Document/Page icons
 export const PageIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFileDocumentOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-file-document-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const FolderIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFolderOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-folder-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const FolderOpenIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFolderOpenOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-folder-open-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const DatabaseIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiDatabaseOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-database-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CheckIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCheck} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-check" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const AlertIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiAlertOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-alert-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const WifiOffIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiWifiOff} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-wifi-off" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SyncIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiSync} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-sync" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ImportIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiTrayArrowDown} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-tray-arrow-down" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Calendar/Date icons
 export const CalendarIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCalendarToday} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-calendar-today" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Navigation icons
 export const AllPagesIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiBookOpenPageVariant} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-book-open-page-variant" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const JournalIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiNotebookOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-notebook-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const GraphIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiGraphOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-graph-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const MapIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiMap} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-map" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ArchiveIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiArchiveOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-archive-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const TaskIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCheckboxMarkedCircleOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-checkbox-marked-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const TemplateIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFileDocumentMultipleOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-file-document-multiple-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Tag and property icons
 export const TagIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiTag} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-tag" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const LinkIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiLink} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-link" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const PropertiesIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiClipboardTextOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-clipboard-text-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Action icons
 export const AddIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiPlus} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-plus" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const MenuIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiMenu} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-menu" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const DragHandleIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiDrag} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-drag" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SearchIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiMagnify} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-magnify" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const EditIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiPencil} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-pencil" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const DeleteIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiTrashCanOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-trash-can-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const TrashIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiTrashCanOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-trash-can-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const RestoreIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiRestore} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-restore" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CloseIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiClose} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-close" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CommentIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCommentTextOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-comment-text-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ReplyIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiReply} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-reply" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SendIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiSend} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-send" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ResolveIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCheckCircleOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-check-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ImageIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiImageOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-image-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const AttachmentIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiPaperclip} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-paperclip" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const AudioIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiMusicNoteOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-music-note-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CopyIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiContentCopy} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-content-copy" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SettingsIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCog} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-cog" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Graph view icons
 export const ForceGraphIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiVectorPolygon} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-vector-polygon" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CircleLayoutIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCircleOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const TreeLayoutIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFileTreeOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-file-tree-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const FitToScreenIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiFitToScreen} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-fit-to-screen" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const RefreshIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiRefresh} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-refresh" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const MoreIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiDotsHorizontal} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-dots-horizontal" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Navigation arrows
 export const ChevronDownIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiChevronDown} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-chevron-down" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ChevronRightIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiChevronRight} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-chevron-right" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ChevronLeftIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiChevronLeft} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-chevron-left" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ChevronUpIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiChevronUp} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-chevron-up" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const PaletteIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiPalette} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-palette" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ArrowLeftIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiArrowLeft} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-arrow-left" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ArrowRightIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiArrowRight} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-arrow-right" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Status icons
 export const BulletIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCircleSmall} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-circle-small" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const HomeIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiHome} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-home" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const StarIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiStar} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-star" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const StarOutlineIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiStarOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-star-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ClockIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiClockOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-clock-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const TableIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiTable} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-table" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CodeIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCodeTags} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-code-tags" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const PinIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiPinOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-pin-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CheckboxCheckedIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCheckboxMarkedOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-checkbox-marked-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CheckboxUncheckedIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path={mdiCheckboxBlankOutline} size={getSize(size)} className={className} color={color} title={title} />
+  <Icon path="mdi-checkbox-blank-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 /**
@@ -392,7 +330,7 @@ export function getDefaultIcon(type: keyof typeof DEFAULT_ICONS): React.Componen
  * 
  * Supports:
  * - Emoji characters (rendered as-is)
- * - MDI icon names in camelCase as exported by @mdi/js (e.g. "mdiCalendarToday")
+ * - MDI icon names in camelCase (e.g. "mdiCalendarToday")
  * - Falls back to type-based defaults (page → document, block → bullet)
  * 
  * Note: Date pages (daily/monthly/yearly) inherit icons from their type definitions.
@@ -434,8 +372,8 @@ export function NodeIcon({
 
   // If icon is provided
   if (icon) {
-    // Try to resolve it from @mdi/js (MDI icons start with mdi- or similar patterns)
-    const path = getMdiPath(icon);
+    // Try to resolve it as an MDI CSS class
+    const path = getMdiClass(icon);
     if (path) {
       return <Icon path={path} size={getSize(size)} className={className} color={color || undefined} />;
     }
@@ -472,20 +410,4 @@ export function NodeIcon({
   }
 
   return <BulletIcon size={size} className={className} color={color || undefined} />;
-}
-
-/**
- * Convert an MDI icon name to its SVG path.
- * Accepts camelCase keys (e.g. "mdiCalendarToday") and
- * Logseq/Python kebab format (e.g. "mdi:calendar-today").
- */
-function getMdiPath(iconName: string): string | null {
-  if (!iconName) return null;
-  // Handle Logseq/Python mdi:kebab-name format → @mdi/js mdiCamelName
-  if (iconName.startsWith('mdi:')) {
-    const name = iconName.slice(4);
-    const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    return getMdiIconPath(camelName);
-  }
-  return getMdiIconPath(iconName);
 }

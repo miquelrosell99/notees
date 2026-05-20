@@ -7,7 +7,6 @@
  * Previously named "Panel" - renamed to "Card" for better semantic meaning.
  */
 import { forwardRef, type ReactNode, type HTMLAttributes } from 'react';
-import { mdiClose } from '@mdi/js';
 import { Button } from './Button';
 import './Card.css';
 
@@ -80,7 +79,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     <div ref={ref} className={classes} {...rest}>
       {showCloseButton && (
         <Button
-          icon={mdiClose}
+          icon={"mdi mdi-close"}
           iconOnly
           className="card__close-btn"
           onClick={onClose}

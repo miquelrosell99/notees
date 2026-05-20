@@ -12,7 +12,6 @@
  * - Delete property action
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { mdiEyeOff, mdiCircleSmall, mdiTextBoxOutline } from '@mdi/js';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
@@ -287,9 +286,9 @@ export function PropertyConfigSection({
           <label className="property-form__label">Value icon display</label>
           <SelectionButton
             options={[
-              { value: 'hidden' as PropertyIconVisibility, icon: mdiEyeOff, label: 'Hidden' },
-              { value: 'after_bullet' as PropertyIconVisibility, icon: mdiCircleSmall, label: 'After bullet' },
-              { value: 'before_content' as PropertyIconVisibility, icon: mdiTextBoxOutline, label: 'Before text' },
+              { value: 'hidden' as PropertyIconVisibility, icon: "mdi mdi-eye-off", label: 'Hidden' },
+              { value: 'after_bullet' as PropertyIconVisibility, icon: "mdi mdi-circle-small", label: 'After bullet' },
+              { value: 'before_content' as PropertyIconVisibility, icon: "mdi mdi-text-box-outline", label: 'Before text' },
             ]}
             value={property.icon_visibility}
             onChange={async (value) => {
@@ -316,7 +315,6 @@ export function PropertyConfigSection({
           onError={setError}
         />
       )}
-
 
       <PropertyForm
         icon=""

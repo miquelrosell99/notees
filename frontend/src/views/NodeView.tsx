@@ -49,8 +49,7 @@ import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesE
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { mdiPlus, mdiChevronDown, mdiChevronLeft, mdiImageOutline, mdiTextBoxOutline, mdiFormatListBulleted, mdiViewGrid, mdiDockLeft, mdiDockRight, mdiDockTop, mdiCardOutline, mdiDotsVertical } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
 
@@ -62,6 +61,7 @@ import { uploadAsset } from '@/api/assets';
 import { getOrCreateDaily } from '@/api/nodes';
 
 import './NodeView.css';
+import { Icon } from '@/components/core/icons';
 
 // Local storage keys for collapse state
 const BANNER_COLLAPSED_KEY = 'notees:banner-collapsed';
@@ -203,7 +203,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           onAddClass={handleAddClass}
         />
         <div className="focused-block-content-add">
-          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>
         </div>
@@ -228,7 +228,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
         onAddClass={handleAddClass}
       />
       <div className="focused-block-content-add">
-        <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+        <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
           Add block
         </Button>
       </div>
@@ -954,7 +954,7 @@ export function NodeView({
               <Button 
                 variant="ghost"
                 size="sm"
-                icon={mdiCardOutline}
+                icon={"mdi mdi-card-outline"}
                 className={`card-layout-option ${useAppStore.getState().cardLayout === 'no-cover' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('no-cover')}
                 title="No cover"
@@ -962,7 +962,7 @@ export function NodeView({
               <Button 
                 variant="ghost"
                 size="sm"
-                icon={mdiDockLeft}
+                icon={"mdi mdi-dock-left"}
                 className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-left' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-left')}
                 title="Cover left"
@@ -970,7 +970,7 @@ export function NodeView({
               <Button 
                 variant="ghost"
                 size="sm"
-                icon={mdiDockRight}
+                icon={"mdi mdi-dock-right"}
                 className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-right' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-right')}
                 title="Cover right"
@@ -978,7 +978,7 @@ export function NodeView({
               <Button 
                 variant="ghost"
                 size="sm"
-                icon={mdiDockTop}
+                icon={"mdi mdi-dock-top"}
                 className={`card-layout-option ${useAppStore.getState().cardLayout === 'cover-top' ? 'card-layout-option--active' : ''}`}
                 onClick={() => useAppStore.getState().setCardLayout('cover-top')}
                 title="Cover top"
@@ -989,12 +989,12 @@ export function NodeView({
           {/* Bullet/Card mode selector - for blocks, document mode is not available */}
           <SelectionButton
             options={resolvedType === 'block' ? [
-              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+              { value: 'bullet', icon: "mdi mdi-format-list-bulleted", label: 'Bullet mode' },
+              { value: 'card', icon: "mdi mdi-view-grid", label: 'Card mode' },
             ] : [
-              { value: 'bullet', icon: mdiFormatListBulleted, label: 'Bullet mode' },
-              { value: 'document', icon: mdiTextBoxOutline, label: 'Document mode' },
-              { value: 'card', icon: mdiViewGrid, label: 'Card mode' },
+              { value: 'bullet', icon: "mdi mdi-format-list-bulleted", label: 'Bullet mode' },
+              { value: 'document', icon: "mdi mdi-text-box-outline", label: 'Document mode' },
+              { value: 'card', icon: "mdi mdi-view-grid", label: 'Card mode' },
             ]}
             value={contentDisplayMode}
             onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
@@ -1006,7 +1006,7 @@ export function NodeView({
             ref={topBarMenuBtnRef}
             variant="ghost"
             size="sm"
-            icon={mdiDotsVertical}
+            icon={"mdi mdi-dots-vertical"}
             title="More actions"
             onClick={handleTopBarMenuClick}
             className={showTopBarMenu ? 'active' : ''}
@@ -1060,7 +1060,7 @@ export function NodeView({
               aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
               aria-expanded={!isBannerCollapsed}
             >
-              <Icon path={mdiChevronDown} size={0.7} rotate={isBannerCollapsed ? 0 : 180} />
+              <Icon path={"mdi mdi-chevron-down"} size={0.7} rotate={isBannerCollapsed ? 0 : 180} />
             </button>
             
             <div 
@@ -1093,7 +1093,7 @@ export function NodeView({
                   onClick={handleSelectBannerImage}
                   title="Add banner image"
                 >
-                  <Icon path={mdiImageOutline} size={0.8} />
+                  <Icon path={"mdi mdi-image-outline"} size={0.8} />
                   <span>Add banner</span>
                 </Button>
               )}
@@ -1212,7 +1212,7 @@ export function NodeView({
                 aria-label={isCoverCollapsed ? "Expand cover image" : "Collapse cover image"}
                 aria-expanded={!isCoverCollapsed}
               >
-                <Icon path={mdiChevronLeft} size={0.7} rotate={isCoverCollapsed ? 0 : 180} />
+                <Icon path={"mdi mdi-chevron-left"} size={0.7} rotate={isCoverCollapsed ? 0 : 180} />
               </button>
               
               <div 
@@ -1243,7 +1243,7 @@ export function NodeView({
                     onClick={handleSelectCoverImage}
                     title="Add cover image"
                   >
-                    <Icon path={mdiImageOutline} size={0.8} />
+                    <Icon path={"mdi mdi-image-outline"} size={0.8} />
                   </button>
                 )}
               </div>

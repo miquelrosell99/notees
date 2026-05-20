@@ -6,10 +6,11 @@
  */
 import React, { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from '@mdi/react';
+
 import { Card } from './Card';
 import { Separator } from './Separator';
 import './ContextMenu.css';
+import { Icon } from '@/components/core/icons';
 
 export interface ContextMenuItem {
   id: string;

@@ -8,7 +8,6 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { mdiWeatherSunny, mdiWeatherNight, mdiMonitor, mdiCloseCircleOutline, mdiNumeric1, mdiNumeric2, mdiNumeric3, mdiTag, mdiShapeOutline, mdiCalendarToday, mdiInbox } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -134,9 +133,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
                 <SelectionButton
                   options={[
-                    { value: 'light', icon: mdiWeatherSunny, label: 'Light theme' },
-                    { value: 'dark', icon: mdiWeatherNight, label: 'Dark theme' },
-                    { value: 'system', icon: mdiMonitor, label: 'System theme' },
+                    { value: 'light', icon: "mdi mdi-weather-sunny", label: 'Light theme' },
+                    { value: 'dark', icon: "mdi mdi-weather-night", label: 'Dark theme' },
+                    { value: 'system', icon: "mdi mdi-monitor", label: 'System theme' },
                   ]}
                   value={theme}
                   onChange={(value) => handleThemeChange(value as ThemePreference)}
@@ -199,10 +198,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
                 <SelectionButton
                   options={[
-                    { value: '0', icon: mdiCloseCircleOutline, label: 'Disabled' },
-                    { value: '1', icon: mdiNumeric1, label: 'Level 1' },
-                    { value: '2', icon: mdiNumeric2, label: 'Level 2' },
-                    { value: '3', icon: mdiNumeric3, label: 'Level 3' },
+                    { value: '0', icon: "mdi mdi-close-circle-outline", label: 'Disabled' },
+                    { value: '1', icon: "mdi mdi-numeric1", label: 'Level 1' },
+                    { value: '2', icon: "mdi mdi-numeric2", label: 'Level 2' },
+                    { value: '3', icon: "mdi mdi-numeric3", label: 'Level 3' },
                   ]}
                   value={linkedRefsCollapseLevel.toString()}
                   onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
@@ -219,8 +218,8 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
                 <SelectionButton
                   options={[
-                    { value: 'inline-tag', icon: mdiTag, label: 'Inline tag (node link with is_tag)' },
-                    { value: 'inline-class', icon: mdiShapeOutline, label: 'Inline class (class reference)' },
+                    { value: 'inline-tag', icon: "mdi mdi-tag", label: 'Inline tag (node link with is_tag)' },
+                    { value: 'inline-class', icon: "mdi mdi-shape-outline", label: 'Inline class (class reference)' },
                   ]}
                   value={hashtagPasteMode}
                   onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
@@ -300,8 +299,8 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
                 <SelectionButton
                   options={[
-                    { value: 'today', icon: mdiCalendarToday, label: "Today's Page" },
-                    { value: 'inbox', icon: mdiInbox, label: 'Inbox' },
+                    { value: 'today', icon: "mdi mdi-calendar-today", label: "Today's Page" },
+                    { value: 'inbox', icon: "mdi mdi-inbox", label: 'Inbox' },
                   ]}
                   value={quickAddDestination}
                   onChange={(value) => handleQuickAddDestinationChange(value as QuickAddDestination)}

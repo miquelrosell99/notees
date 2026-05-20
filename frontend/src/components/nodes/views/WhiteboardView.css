@@ -79,7 +79,7 @@
 }
 
 /* SVG Overlays (Strokes, Connectors) — scoped to direct children only
-   so that SVG icons inside card elements (e.g. @mdi/react) are unaffected. */
+   so that icons inside card elements are unaffected. */
 .whiteboard-view__canvas > svg {
   position: absolute;
   inset: 0;

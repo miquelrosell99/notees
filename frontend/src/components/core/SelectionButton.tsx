@@ -5,8 +5,9 @@
  * Features an animated selection indicator that slides between options.
  */
 import { forwardRef, useRef, useEffect, useState, type HTMLAttributes } from 'react';
-import Icon from '@mdi/react';
+
 import './SelectionButton.css';
+import { Icon } from '@/components/core/icons';
 
 export type SelectionButtonSize = 'sm' | 'md' | 'lg';
 export type SelectionButtonOrientation = 'horizontal' | 'vertical';

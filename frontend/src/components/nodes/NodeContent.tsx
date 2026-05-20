@@ -20,7 +20,6 @@ import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
-import { mdiPlus } from '@mdi/js';
 import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
 import { Button } from '@/components/core/Button';
@@ -445,7 +444,7 @@ export function NodeContent({
       {/* Empty state */}
       {children.length === 0 && (
         <div className="node-content-empty">
-          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>
         </div>
@@ -454,7 +453,7 @@ export function NodeContent({
       {/* Add block button when there are children */}
       {children.length > 0 && (
         <div className="node-content-add">
-          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>
         </div>
@@ -513,7 +512,6 @@ export function NodeContent({
           allowCreate={false}
         />
       </Modal>
-
 
     </div>
   );

@@ -5,8 +5,7 @@
  * then displays a phase-based results report (same style as Logseq import).
  */
 import { useState, useCallback } from 'react';
-import { mdiAlertCircleOutline } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
@@ -15,6 +14,7 @@ import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import './RebuildLinksModal.css';
+import { Icon } from '@/components/core/icons';
 
 interface FixRawLinksModalProps {
   isOpen: boolean;
@@ -138,7 +138,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
       <div className="rebuild-links__body">
         {error && (
           <div className="rebuild-links__error">
-            <Icon path={mdiAlertCircleOutline} size={1} />
+            <Icon path={"mdi mdi-alert-circle-outline"} size={1} />
             <span>{error}</span>
           </div>
         )}
@@ -150,7 +150,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
             </p>
 
             <div className="rebuild-links__warning">
-              <Icon path={mdiAlertCircleOutline} size={0.9} />
+              <Icon path={"mdi mdi-alert-circle-outline"} size={0.9} />
               <div>
                 <strong>What this does:</strong>
                 <ul>

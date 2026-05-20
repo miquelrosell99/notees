@@ -11,7 +11,6 @@
 import { useState, useEffect, useCallback, useMemo, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $createTextNode, $createLineBreakNode, type LexicalNode } from 'lexical';
-import { mdiPencilOutline, mdiTrashCanOutline, mdiLinkVariantOff } from '@mdi/js';
 
 import { $isBlockNode } from '../nodes/BlockNode';
 import { $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
@@ -331,7 +330,7 @@ export function ContextMenuPlugin({
       {
         id: 'edit-link',
         label: 'Edit link',
-        icon: mdiPencilOutline,
+        icon: "mdi mdi-pencil-outline",
         onClick: () => {
           onPillEdit?.(linkId, refType, pillUrl, pillLabel);
           handleCloseContextMenu();
@@ -340,7 +339,7 @@ export function ContextMenuPlugin({
       {
         id: 'unlink-keep-text',
         label: 'Unlink (keep text)',
-        icon: mdiLinkVariantOff,
+        icon: "mdi mdi-link-variant-off",
         onClick: () => {
           unlinkPillKeepText(linkId);
           handleCloseContextMenu();
@@ -349,7 +348,7 @@ export function ContextMenuPlugin({
       {
         id: 'delete-link',
         label: 'Delete link',
-        icon: mdiTrashCanOutline,
+        icon: "mdi mdi-trash-can-outline",
         danger: true,
         onClick: () => {
           removePillByLinkId(linkId);

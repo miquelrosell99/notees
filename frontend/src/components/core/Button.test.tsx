@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { Button } from './Button';
-import { mdiCheck } from '@mdi/js';
 
 describe('Button', () => {
   it('renders children', () => {
@@ -24,7 +23,7 @@ describe('Button', () => {
   });
 
   it('renders with icon only', () => {
-    render(<Button icon={mdiCheck} aria-label="Check" iconOnly />);
+    render(<Button icon={"mdi mdi-check"} aria-label="Check" iconOnly />);
     const button = screen.getByLabelText('Check');
     expect(button).toBeInTheDocument();
   });

@@ -10,10 +10,10 @@
  */
 
 import type { ReactNode } from 'react';
-import { mdiLock, mdiClose } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { Button } from '@/components/core/Button';
 import './QueryBlockCard.css';
+import { Icon } from '@/components/core/icons';
 
 // ==================== Types ====================
 
@@ -68,7 +68,7 @@ export function QueryBlockCard({
           className="query-block-card__corner-button query-block-card__corner-button--system" 
           title={systemTooltip}
         >
-          <Icon path={mdiLock} size={0.55} />
+          <Icon path={"mdi mdi-lock"} size={0.55} />
         </div>
       ) : canRemove && !readOnly && onRemove ? (
         <Button
@@ -77,7 +77,7 @@ export function QueryBlockCard({
           onClick={onRemove}
           title="Remove"
           className="query-block-card__corner-button"
-          icon={mdiClose}
+          icon={"mdi mdi-close"}
           iconOnly
         />
       ) : null}

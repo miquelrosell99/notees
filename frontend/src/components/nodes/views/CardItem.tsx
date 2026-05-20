@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useState, useMemo, memo, type JSX } from 'react';
-import Icon from '@mdi/react';
+
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -69,7 +69,6 @@ import { uploadAsset } from '@/api/assets';
 import { getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
-import { mdiPlus, mdiDockRight, mdiArrowRight, mdiPencil, mdiClose, mdiChevronDown } from '@mdi/js';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
 import './CardItem.css';
@@ -78,6 +77,7 @@ import './CardItem.css';
 
 import { BlockEditor } from '@/editor/BlockEditor';
 import { PropertiesSection } from '@/components/properties/PropertiesSection';
+import { Icon } from '@/components/core/icons';
 
 interface CardTitleEditorProps {
   blockId: string;
@@ -718,7 +718,7 @@ export const NodeCard = memo(function NodeCard({
           actions={
             <>
               <Button
-                icon={mdiPencil}
+                icon={"mdi mdi-pencil"}
                 iconOnly
                 variant="ghost"
                 size="sm"
@@ -726,7 +726,7 @@ export const NodeCard = memo(function NodeCard({
                 title="Change image"
               />
               <Button
-                icon={mdiClose}
+                icon={"mdi mdi-close"}
                 iconOnly
                 variant="ghost"
                 size="sm"
@@ -791,7 +791,7 @@ export const NodeCard = memo(function NodeCard({
             aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
             aria-expanded={!isBodyCollapsed}
           >
-            <Icon path={mdiChevronDown} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
+            <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
           </button>
           <div className="node-card__title-wrapper">
             <CardTitleEditor
@@ -805,7 +805,7 @@ export const NodeCard = memo(function NodeCard({
                 variant="ghost"
                 size="sm"
                 onClick={handleOpenInSidebar}
-                icon={mdiDockRight}
+                icon={"mdi mdi-dock-right"}
                 className="node-card__action-button"
                 aria-label="Open in sidebar"
               />
@@ -815,7 +815,7 @@ export const NodeCard = memo(function NodeCard({
                 variant="ghost"
                 size="sm"
                 onClick={handleOpenInView}
-                icon={mdiArrowRight}
+                icon={"mdi mdi-arrow-right"}
                 className="node-card__action-button"
                 aria-label="Open node"
               />
@@ -839,7 +839,7 @@ export const NodeCard = memo(function NodeCard({
             <Button
               variant="ghost"
               size="xs"
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               className={`node-card__add-metadata-btn${classDetails.length > 0 ? ' node-card__action-button' : ''}`}
               title="Add class"
             >
@@ -879,7 +879,7 @@ export const NodeCard = memo(function NodeCard({
             <Button
               variant="ghost"
               size="xs"
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               className={`node-card__add-metadata-btn${tagDetails.length > 0 ? ' node-card__action-button' : ''}`}
               title="Add tag"
             >
@@ -910,7 +910,7 @@ export const NodeCard = memo(function NodeCard({
                   variant="ghost"
                   size="sm"
                   onClick={handleAddChild}
-                  icon={mdiPlus}
+                  icon={"mdi mdi-plus"}
                   className="node-card__add-block-button"
                 >
                   Add block

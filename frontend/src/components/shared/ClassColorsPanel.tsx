@@ -11,7 +11,6 @@
  * - Remove classes
  */
 import { useMemo } from 'react';
-import { mdiClose } from '@mdi/js';
 import type { Node } from '@/types';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Button } from '@/components/core/Button';
@@ -114,7 +113,7 @@ export function ClassColorsPanel({
               />,
               <Button
                 key="remove"
-                icon={mdiClose}
+                icon={"mdi mdi-close"}
                 size="xs"
                 variant="ghost"
                 onClick={(e) => {

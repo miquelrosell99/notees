@@ -12,7 +12,6 @@
  * - Delete property action in context menu
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { mdiDelete } from '@mdi/js';
 import type { Property, Node, PropertyType } from '@/types/api';
 import type { QueryAST, QueryPropertyType } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
@@ -249,7 +248,7 @@ export function PropertyView({
             />
           )}
           <Button
-            icon={mdiDelete}
+            icon={"mdi mdi-delete"}
             variant="ghost"
             size="sm"
             onClick={handleDeleteClick}

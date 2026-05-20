@@ -18,8 +18,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Icon from '@mdi/react';
-import { mdiCheck, mdiClose } from '@mdi/js';
+
 import {
   checkWorkspaceName,
   importWorkspace as importWorkspaceApi,
@@ -41,7 +40,7 @@ import { CodeTextarea } from '@/components/core/CodeTextarea';
 import { FileDropZone } from '@/components/core/FileDropZone';
 import { TaskProgress } from '@/components/core/TaskProgress';
 import { TaskReport } from '@/components/core/TaskReport';
-import { AlertIcon, SyncIcon } from '@/components/core/icons';
+import { Icon, AlertIcon, SyncIcon } from '@/components/core/icons';
 import {
   parseLogseqFolder,
   countMdBlocks,
@@ -597,7 +596,7 @@ export function ImportOptionsModal({
                 <SyncIcon size="xs" />
               ) : name.length >= 2 ? (
                 <Icon
-                  path={nameCheck?.available ? mdiCheck : mdiClose}
+                  path={nameCheck?.available ? "mdi mdi-check" : "mdi mdi-close"}
                   size={0.6}
                   color={nameCheck?.available ? 'var(--color-success)' : 'var(--color-error)'}
                 />

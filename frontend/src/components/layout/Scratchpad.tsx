@@ -7,7 +7,6 @@
  * The backend clears all scratchpad blocks on app startup.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { mdiPin, mdiPinOff, mdiSend, mdiPlus } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
@@ -269,7 +268,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
         <div className="scratchpad-actions">
           <Button
             className="scratchpad-btn"
-            icon={isPinned ? mdiPin : mdiPinOff}
+            icon={isPinned ? "mdi mdi-pin" : "mdi mdi-pin-off"}
             variant="ghost"
             size="sm"
             active={isPinned}
@@ -292,7 +291,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           />
         )}
         <div className="scratchpad-add-block">
-          <Button icon={mdiPlus} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>
         </div>
@@ -325,7 +324,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
               → {destinationLabel}
             </button>
             <Button
-              icon={mdiSend}
+              icon={"mdi mdi-send"}
               variant="primary"
               size="sm"
               onClick={handleSendAll}

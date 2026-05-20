@@ -7,7 +7,7 @@
  * Uses ListSortable for drag-and-drop reordering.
  */
 import { useState, useCallback, useMemo } from 'react';
-import Icon from '@mdi/react';
+
 import './ClassPropertiesEditor.css';
 import {
   useClassProperties,
@@ -18,16 +18,15 @@ import {
   useProperties,
   useUpdateClassProperty,
 } from '@/hooks';
-import { mdiPlus, mdiDotsVertical, mdiAsterisk } from '@mdi/js';
 import { Button } from '@/components/core/Button';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { NodeViewSection } from '@/components/nodes/NodeViewSection';
-import { PropertiesIcon } from '@/components/core/icons';
+import { Icon, PropertiesIcon } from '@/components/core/icons';
 import { ListSortable } from '@/components/core/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { useNavigationStore } from '@/stores';
 import type { Property, PropertyType, PropertyCreate } from '@/types/api';
-import { getMdiPath } from '@/utils/iconDom';
+import { getMdiClass } from '@/utils/iconDom';
 import './PropertiesSection.css';
 
 /** Default MDI icon names for each property type */
@@ -46,7 +45,7 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
 
 function getPropertyIconPath(property: Property): string | null {
   const name = property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdiFileDocumentOutline';
-  return getMdiPath(name);
+  return getMdiClass(name);
 }
 
 interface SortablePropertyItem {
@@ -206,7 +205,7 @@ export function ClassPropertiesEditor({
                       });
                     }}
                   >
-                    <Icon path={mdiAsterisk} size={0.55} />
+                    <Icon path={"mdi mdi-asterisk"} size={0.55} />
                   </button>
                   <button
                     className="class-property-menu-btn"
@@ -216,7 +215,7 @@ export function ClassPropertiesEditor({
                       setContextMenu({ property: item.property, x: e.clientX, y: e.clientY });
                     }}
                   >
-                    <Icon path={mdiDotsVertical} size={0.65} />
+                    <Icon path={"mdi mdi-dots-vertical"} size={0.65} />
                   </button>
                 </div>
               ) : null
@@ -234,7 +233,7 @@ export function ClassPropertiesEditor({
         {!readOnly && (
           <div className="properties-add-wrapper">
             <Button
-              icon={mdiPlus}
+              icon={"mdi mdi-plus"}
               className="properties-add-btn"
               onClick={() => setShowPropertyPopup(!showPropertyPopup)}
               title="Add property"

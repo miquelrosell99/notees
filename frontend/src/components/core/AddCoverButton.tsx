@@ -6,10 +6,10 @@
  * Supports drag and drop of image files.
  */
 import { useState } from 'react';
-import { mdiImagePlus } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import './AddCoverButton.css';
+import { Icon } from '@/components/core/icons';
 
 export interface AddCoverButtonProps {
   /** Callback when the button is clicked */
@@ -69,7 +69,7 @@ export function AddCoverButton({
       type="button"
       aria-label="Add cover image"
     >
-      <Icon path={mdiImagePlus} size={size === 'sm' ? 0.8 : size === 'lg' ? 1.2 : 1} />
+      <Icon path={"mdi mdi-image-plus"} size={size === 'sm' ? 0.8 : size === 'lg' ? 1.2 : 1} />
       <span className="add-cover-button__text">
         {isDragging ? 'Drop image here' : 'Add cover'}
       </span>

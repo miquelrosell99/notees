@@ -5,7 +5,6 @@
  * called by ImportOptionsModal (workspace-creation flow) without opening this modal.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { mdiImport } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { ToggleSwitch } from '@/components/core/ToggleSwitch';
@@ -209,7 +208,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
             variant="primary"
             onClick={handleImport}
             disabled={!parsed || importing}
-            icon={mdiImport}
+            icon={"mdi mdi-import"}
           >
             {importing ? 'Importing' : 'Import'}
           </Button>

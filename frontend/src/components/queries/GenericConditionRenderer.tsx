@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { mdiCursorPointer, mdiTextBoxMultipleOutline, mdiCrosshairsGps } from '@mdi/js';
 import { Dropdown } from '@/components/core/Dropdown';
 import { TextField } from '@/components/core/TextField';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -386,9 +385,9 @@ export function GenericConditionRenderer({
         value={selectionMode}
         onChange={handleModeChange}
         options={[
-          { value: 'static', label: 'Static', icon: mdiCursorPointer },
-          { value: 'current', label: 'Current Node', icon: mdiCrosshairsGps },
-          { value: 'dynamic', label: 'Dynamic', icon: mdiTextBoxMultipleOutline },
+          { value: 'static', label: 'Static', icon: "mdi mdi-cursor-pointer" },
+          { value: 'current', label: 'Current Node', icon: "mdi mdi-crosshairs-gps" },
+          { value: 'dynamic', label: 'Dynamic', icon: "mdi mdi-text-box-multiple-outline" },
         ]}
         size="sm"
         disabled={readOnly}

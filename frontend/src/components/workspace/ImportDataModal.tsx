@@ -5,7 +5,6 @@
  * and import it as blocks in the current context.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { mdiImport, mdiCodeJson, mdiAlertCircle } from '@mdi/js';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { isValidBlockCopyData, type BlockCopyData, type BlockData } from '@/utils/clipboardManager';
@@ -108,7 +107,7 @@ export function ImportDataModal({
             variant="primary"
             onClick={handleImport}
             disabled={!parsedData}
-            icon={mdiImport}
+            icon={"mdi mdi-import"}
           >
             Import {totalBlocks > 0 ? `${totalBlocks} block${totalBlocks !== 1 ? 's' : ''}` : ''}
           </Button>
@@ -118,7 +117,7 @@ export function ImportDataModal({
       <div className="import-data-modal__instructions">
             <div className="import-data-modal__icon">
               <svg viewBox="0 0 24 24" width={24} height={24}>
-                <path fill="currentColor" d={mdiCodeJson} />
+                <path fill="currentColor" d={"mdi mdi-code-json"} />
               </svg>
             </div>
             <p>
@@ -142,7 +141,7 @@ export function ImportDataModal({
           {error && (
             <div className="import-data-modal__error">
               <svg viewBox="0 0 24 24" width={16} height={16}>
-                <path fill="currentColor" d={mdiAlertCircle} />
+                <path fill="currentColor" d={"mdi mdi-alert-circle"} />
               </svg>
               <span>{error}</span>
             </div>

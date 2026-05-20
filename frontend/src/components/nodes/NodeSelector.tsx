@@ -15,7 +15,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
-import { AddIcon, NodeIcon } from '@/components/core/icons';
+import { Icon, AddIcon, NodeIcon } from '@/components/core/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { Checkbox } from '@/components/core/Checkbox';
 import { SearchField } from '@/components/core/SearchField';
@@ -23,8 +23,7 @@ import { NodeResultItem } from './NodeResultItem';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/core/SelectTrigger';
-import { mdiPlus, mdiChevronDown } from '@mdi/js';
-import Icon from '@mdi/react';
+
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -616,7 +615,7 @@ export function NodeSelector({
                 aria-label="Toggle picker"
                 aria-expanded={isPickerOpen}
               >
-                <Icon path={mdiChevronDown} size={0.7} />
+                <Icon path={"mdi mdi-chevron-down"} size={0.7} />
               </button>
             )}
           </div>
@@ -1025,7 +1024,7 @@ export function NodeSelector({
           <Button
             variant="ghost"
             size="xs"
-            icon={mdiPlus}
+            icon={"mdi mdi-plus"}
             className="node-selector__add-btn"
             onClick={() => setIsPickerOpen(true)}
             onKeyDown={(e) => {

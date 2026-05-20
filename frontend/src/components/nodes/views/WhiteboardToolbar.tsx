@@ -5,39 +5,6 @@
  * ButtonWithPanel, and SelectionButton components.
  */
 import React, { useState } from 'react';
-import {
-  mdiCursorDefaultOutline,
-  mdiRectangleOutline,
-  mdiCircleOutline,
-  mdiTriangleOutline,
-  mdiHexagonOutline,
-  mdiStarOutline,
-  mdiPencilOutline,
-  mdiMarker,
-  mdiEraserVariant,
-  mdiFormatText,
-  mdiVectorLine,
-  mdiImageOutline,
-  mdiCardOutline,
-  mdiCardPlusOutline,
-  mdiLinkVariant,
-  mdiUndo,
-  mdiRedo,
-  mdiGrid,
-  mdiMagnet,
-  mdiFitToScreen,
-  mdiPlus,
-  mdiMinus,
-  mdiLockOutline,
-  mdiLockOpenOutline,
-  mdiContentDuplicate,
-  mdiDeleteOutline,
-  mdiArrangeBringToFront,
-  mdiArrangeSendToBack,
-  mdiMapOutline,
-  mdiGroup,
-  mdiUngroup,
-} from '@mdi/js';
 import { FloatingButtonArray, ToolbarDivider } from '@/components/core/FloatingButtonArray';
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
@@ -61,32 +28,32 @@ const TOOL_GROUPS = [
   {
     label: 'Selection',
     tools: [
-      { tool: 'select' as WhiteboardTool, icon: mdiCursorDefaultOutline, label: 'Select', shortcut: 'V' },
+      { tool: 'select' as WhiteboardTool, icon: "mdi mdi-cursor-default-outline", label: 'Select', shortcut: 'V' },
     ],
   },
   {
     label: 'Shapes',
     tools: [
-      { tool: 'rectangle' as WhiteboardTool, icon: mdiRectangleOutline, label: 'Rectangle', shortcut: 'R' },
-      { tool: 'ellipse' as WhiteboardTool, icon: mdiCircleOutline, label: 'Ellipse', shortcut: 'O' },
-      { tool: 'triangle' as WhiteboardTool, icon: mdiTriangleOutline, label: 'Triangle', shortcut: '' },
-      { tool: 'hexagon' as WhiteboardTool, icon: mdiHexagonOutline, label: 'Hexagon', shortcut: '' },
-      { tool: 'star' as WhiteboardTool, icon: mdiStarOutline, label: 'Star', shortcut: '' },
+      { tool: 'rectangle' as WhiteboardTool, icon: "mdi mdi-rectangle-outline", label: 'Rectangle', shortcut: 'R' },
+      { tool: 'ellipse' as WhiteboardTool, icon: "mdi mdi-circle-outline", label: 'Ellipse', shortcut: 'O' },
+      { tool: 'triangle' as WhiteboardTool, icon: "mdi mdi-triangle-outline", label: 'Triangle', shortcut: '' },
+      { tool: 'hexagon' as WhiteboardTool, icon: "mdi mdi-hexagon-outline", label: 'Hexagon', shortcut: '' },
+      { tool: 'star' as WhiteboardTool, icon: "mdi mdi-star-outline", label: 'Star', shortcut: '' },
     ],
   },
   {
     label: 'Drawing',
     tools: [
-      { tool: 'pen' as WhiteboardTool, icon: mdiPencilOutline, label: 'Pen', shortcut: 'P' },
-      { tool: 'highlighter' as WhiteboardTool, icon: mdiMarker, label: 'Highlighter', shortcut: '' },
-      { tool: 'eraser' as WhiteboardTool, icon: mdiEraserVariant, label: 'Eraser', shortcut: 'E' },
+      { tool: 'pen' as WhiteboardTool, icon: "mdi mdi-pencil-outline", label: 'Pen', shortcut: 'P' },
+      { tool: 'highlighter' as WhiteboardTool, icon: "mdi mdi-marker", label: 'Highlighter', shortcut: '' },
+      { tool: 'eraser' as WhiteboardTool, icon: "mdi mdi-eraser-variant", label: 'Eraser', shortcut: 'E' },
     ],
   },
   {
     label: 'Other',
     tools: [
-      { tool: 'text' as WhiteboardTool, icon: mdiFormatText, label: 'Text', shortcut: 'T' },
-      { tool: 'connector' as WhiteboardTool, icon: mdiVectorLine, label: 'Connector', shortcut: 'L' },
+      { tool: 'text' as WhiteboardTool, icon: "mdi mdi-format-text", label: 'Text', shortcut: 'T' },
+      { tool: 'connector' as WhiteboardTool, icon: "mdi mdi-vector-line", label: 'Connector', shortcut: 'L' },
     ],
   },
 ];
@@ -113,12 +80,12 @@ function makeWidthIconPath(w: number, maxH = 14): string {
 
 /** Shape-tool options for the SelectionButton in the shapes panel */
 const SHAPE_TOOL_OPTIONS: SelectionButtonOption[] = [
-  { value: 'rectangle', icon: mdiRectangleOutline, label: 'Rectangle (R)' },
-  { value: 'ellipse',   icon: mdiCircleOutline,    label: 'Ellipse (O)'  },
-  { value: 'triangle',  icon: mdiTriangleOutline,   label: 'Triangle'     },
-  { value: 'hexagon',   icon: mdiHexagonOutline,    label: 'Hexagon'      },
-  { value: 'star',      icon: mdiStarOutline,       label: 'Star'         },
-  { value: 'line',      icon: mdiMinus,             label: 'Line'         },
+  { value: 'rectangle', icon: "mdi mdi-rectangle-outline", label: 'Rectangle (R)' },
+  { value: 'ellipse',   icon: "mdi mdi-circle-outline",    label: 'Ellipse (O)'  },
+  { value: 'triangle',  icon: "mdi mdi-triangle-outline",   label: 'Triangle'     },
+  { value: 'hexagon',   icon: "mdi mdi-hexagon-outline",    label: 'Hexagon'      },
+  { value: 'star',      icon: "mdi mdi-star-outline",       label: 'Star'         },
+  { value: 'line',      icon: "mdi mdi-minus",             label: 'Line'         },
 ];
 
 const PEN_WIDTH_OPTIONS: SelectionButtonOption[] = STROKE_WIDTHS.map((w) => ({
@@ -231,7 +198,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Pen */}
           <ButtonWithPanel
-            icon={mdiPencilOutline}
+            icon={"mdi mdi-pencil-outline"}
             variant="ghost"
             size="sm"
             tooltip="Pen (P)"
@@ -265,7 +232,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Highlighter */}
           <ButtonWithPanel
-            icon={mdiMarker}
+            icon={"mdi mdi-marker"}
             variant="ghost"
             size="sm"
             tooltip="Highlighter"
@@ -299,7 +266,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Eraser */}
           <ButtonWithPanel
-            icon={mdiEraserVariant}
+            icon={"mdi mdi-eraser-variant"}
             variant="ghost"
             size="sm"
             tooltip="Eraser (E)"
@@ -346,7 +313,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
           {/* Card (block vs reference) and Image */}
           <ButtonWithPanel
-            icon={mdiCardOutline}
+            icon={"mdi mdi-card-outline"}
             variant="ghost"
             size="sm"
             tooltip="Add Card"
@@ -357,14 +324,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             {(closePanel) => (
               <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
                 <ToolButton
-                  icon={mdiCardPlusOutline}
+                  icon={"mdi mdi-card-plus-outline"}
                   label="New Block"
                   shortcut=""
                   active={false}
                   onClick={() => { closePanel(); onAddCard(); }}
                 />
                 <ToolButton
-                  icon={mdiLinkVariant}
+                  icon={"mdi mdi-link-variant"}
                   label="Reference Card"
                   shortcut=""
                   active={false}
@@ -374,7 +341,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             )}
           </ButtonWithPanel>
           <ToolButton
-            icon={mdiImageOutline}
+            icon={"mdi mdi-image-outline"}
             label="Add Image"
             shortcut=""
             active={false}
@@ -387,14 +354,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       <div className="whiteboard-toolbar whiteboard-toolbar--top-left">
         <FloatingButtonArray direction="horizontal" size="sm">
           <Button
-            icon={mdiUndo}
+            icon={"mdi mdi-undo"}
             variant="ghost"
             size="sm"
             onClick={wb.undo}
             title="Undo (Ctrl+Z)"
           />
           <Button
-            icon={mdiRedo}
+            icon={"mdi mdi-redo"}
             variant="ghost"
             size="sm"
             onClick={wb.redo}
@@ -402,7 +369,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           />
           <ToolbarDivider />
           <Button
-            icon={mdiGrid}
+            icon={"mdi mdi-grid"}
             variant="ghost"
             size="sm"
             active={gridVisible}
@@ -410,7 +377,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             title="Toggle Grid (G)"
           />
           <Button
-            icon={mdiMagnet}
+            icon={"mdi mdi-magnet"}
             variant="ghost"
             size="sm"
             active={gridSnap}
@@ -419,7 +386,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           />
           <ToolbarDivider />
           <Button
-            icon={mdiMapOutline}
+            icon={"mdi mdi-map-outline"}
             variant="ghost"
             size="sm"
             active={minimapVisible}
@@ -433,7 +400,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       <div className="whiteboard-toolbar whiteboard-toolbar--bottom-right">
         <FloatingButtonArray direction="horizontal" size="sm">
           <Button
-            icon={mdiMinus}
+            icon={"mdi mdi-minus"}
             variant="ghost"
             size="sm"
             onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.max(0.1, data.viewport.zoom - 0.1) })}
@@ -447,7 +414,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             {Math.round(data.viewport.zoom * 100)}%
           </div>
           <Button
-            icon={mdiPlus}
+            icon={"mdi mdi-plus"}
             variant="ghost"
             size="sm"
             onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.min(5, data.viewport.zoom + 0.1) })}
@@ -455,7 +422,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           />
           <ToolbarDivider />
           <Button
-            icon={mdiFitToScreen}
+            icon={"mdi mdi-fit-to-screen"}
             variant="ghost"
             size="sm"
             onClick={wb.zoomToFit}
@@ -671,14 +638,14 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
   return (
     <FloatingButtonArray direction="horizontal" size="sm">
       <Button
-        icon={mdiContentDuplicate}
+        icon={"mdi mdi-content-duplicate"}
         variant="ghost"
         size="sm"
         onClick={() => wb.duplicateElements(selectedIds)}
         title="Duplicate (Ctrl+D)"
       />
       <Button
-        icon={anyLocked ? mdiLockOpenOutline : mdiLockOutline}
+        icon={anyLocked ? "mdi mdi-lock-open-outline" : "mdi mdi-lock-outline"}
         variant="ghost"
         size="sm"
         onClick={() => {
@@ -689,14 +656,14 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         title={anyLocked ? 'Unlock' : 'Lock'}
       />
       <Button
-        icon={mdiArrangeBringToFront}
+        icon={"mdi mdi-arrange-bring-to-front"}
         variant="ghost"
         size="sm"
         onClick={() => wb.bringToFront(selectedIds)}
         title="Bring to Front (])"
       />
       <Button
-        icon={mdiArrangeSendToBack}
+        icon={"mdi mdi-arrange-send-to-back"}
         variant="ghost"
         size="sm"
         onClick={() => wb.sendToBack(selectedIds)}
@@ -723,7 +690,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         <>
           <ToolbarDivider />
           <Button
-            icon={isGrouped ? mdiUngroup : mdiGroup}
+            icon={isGrouped ? "mdi mdi-ungroup" : "mdi mdi-group"}
             variant="ghost"
             size="sm"
             onClick={() => {
@@ -739,7 +706,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
       )}
       <ToolbarDivider />
       <Button
-        icon={mdiDeleteOutline}
+        icon={"mdi mdi-delete-outline"}
         variant="danger"
         size="sm"
         onClick={() => wb.removeElements(selectedIds)}
@@ -757,11 +724,11 @@ function isShapeTool(tool: WhiteboardTool): boolean {
 
 function getShapeIcon(tool: WhiteboardTool): string {
   switch (tool) {
-    case 'ellipse': return mdiCircleOutline;
-    case 'triangle': return mdiTriangleOutline;
-    case 'hexagon': return mdiHexagonOutline;
-    case 'star': return mdiStarOutline;
-    case 'line': return mdiMinus;
-    default: return mdiRectangleOutline;
+    case 'ellipse': return "mdi mdi-circle-outline";
+    case 'triangle': return "mdi mdi-triangle-outline";
+    case 'hexagon': return "mdi mdi-hexagon-outline";
+    case 'star': return "mdi mdi-star-outline";
+    case 'line': return "mdi mdi-minus";
+    default: return "mdi mdi-rectangle-outline";
   }
 }

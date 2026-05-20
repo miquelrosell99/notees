@@ -13,7 +13,6 @@ import { SelectionButton } from '@/components/core/SelectionButton';
 import { operatorNeedsValue } from './conditionConfigs';
 import { isNodeRemovable, isNodeEditable } from '@/types/queryAST';
 import type { GroupNode, ConditionNode, NotNode as ASTNotNode, LogicType } from '@/types/queryAST';
-import { mdiSetAll, mdiSetNone, mdiCloseCircleOutline } from '@mdi/js';
 import './QueryBlockBuilder.css';
 
 // ==================== Types ====================
@@ -113,9 +112,9 @@ export function QueryBlockBuilder({
     if (!groupBlock) return null;
     
     const logicOptions = [
-      { value: 'AND', icon: mdiSetAll, label: 'All conditions must match (AND)' },
-      { value: 'OR', icon: mdiSetNone, label: 'Any condition can match (OR)' },
-      { value: 'NOT', icon: mdiCloseCircleOutline, label: 'Exclude matches (NOT)' },
+      { value: 'AND', icon: "mdi mdi-set-all", label: 'All conditions must match (AND)' },
+      { value: 'OR', icon: "mdi mdi-set-none", label: 'Any condition can match (OR)' },
+      { value: 'NOT', icon: "mdi mdi-close-circle-outline", label: 'Exclude matches (NOT)' },
     ];
     
     const currentLogic = isNotBlock ? 'NOT' : groupBlock.logic;
