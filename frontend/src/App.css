@@ -52,6 +52,6 @@ svg.mdi-icon,
   display: flex;
   flex: 1;
   overflow: hidden;
-  padding: var(--container-gap);
+  padding: var(--spacing-4);
   gap: var(--container-gap);
 }

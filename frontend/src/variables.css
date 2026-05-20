@@ -105,16 +105,6 @@
   --ghost-card-opacity: 0.55;
   --tactile-press-scale: 0.88;
 
-  /* ==================== Preset Colors (Muted, Accessible for Light & Dark Mode) ==================== */
-  --color-preset-red:    #c55a55;
-  --color-preset-orange: #c98557;
-  --color-preset-yellow: #b8a23a;
-  --color-preset-green:  #4f8f6a;
-  --color-preset-teal:   #4a8a83;
-  --color-preset-blue:   #5a79c9;
-  --color-preset-purple: #8a6cc9;
-  --color-preset-pink:   #c06a9a;
-
   /* ==================== Typography ==================== */
   --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
@@ -184,7 +174,7 @@
   --motion-duration-instant: 50ms;
   --motion-duration-short: 100ms;
   --motion-duration-shorter: 150ms;
-  --motion-duration-medium: 200ms;
+  --motion-duration-medium: 250ms;
   --motion-duration-long: 300ms;
   --motion-duration-extra-long: 500ms;
 

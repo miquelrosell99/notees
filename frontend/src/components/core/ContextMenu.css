@@ -108,7 +108,7 @@ button.context-menu-item:hover:not(.disabled) {
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--shape-extra-large);
   white-space: nowrap;
   margin-left: auto;
   flex-shrink: 0;

@@ -159,7 +159,6 @@ class ExportResponse(BaseModel):
 class UserSettings(BaseModel):
     """User settings."""
     date_format: str = "YYYY-MM-DD"
-    theme: str = "light"
     default_database: Optional[str] = None
     first_day_of_week: int = 0  # 0 = Sunday, 1 = Monday, 6 = Saturday
 

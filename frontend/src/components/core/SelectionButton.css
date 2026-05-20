@@ -34,8 +34,8 @@
   background: var(--color-primary);
   border-radius: var(--shape-medium);
   transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
-              width 150ms cubic-bezier(0.4, 0, 0.2, 1),
-              height 150ms cubic-bezier(0.4, 0, 0.2, 1);
+              width 150ms var(--motion-easing-collapse),
+              height 150ms var(--motion-easing-collapse);
   z-index: 0;
   pointer-events: none;
 }

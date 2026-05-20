@@ -86,7 +86,7 @@
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--shape-button-compact);
   white-space: nowrap;
 }
 

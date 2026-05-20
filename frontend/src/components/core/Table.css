@@ -213,7 +213,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   cursor: grab;
   color: var(--color-outline);
   opacity: 0;

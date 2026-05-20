@@ -13,10 +13,10 @@
   /* Animation properties for smooth open/close */
   transform-origin: left center;
   transition: 
-    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1);
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    transform var(--motion-duration-medium) var(--motion-easing-collapse);
   will-change: width, opacity, transform;
 }
 
@@ -41,10 +41,10 @@
   /* Hide content when collapsed to prevent overflow */
   visibility: hidden;
   transition: 
-    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    transform var(--motion-duration-medium) var(--motion-easing-collapse),
     visibility 0s var(--motion-duration-medium);
 }
 
@@ -52,11 +52,11 @@
 .sidebar--expanded {
   visibility: visible;
   transition: 
-    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    margin-right var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    margin-right var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    transform var(--motion-duration-medium) var(--motion-easing-collapse),
     visibility 0s 0s;
 }
 
@@ -224,7 +224,7 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  opacity: 0.5;
+  opacity: 0.35;
   transition: opacity var(--motion-duration-short);
 }
 

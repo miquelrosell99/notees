@@ -516,17 +516,10 @@ const resolveCssColor = (varName: string, fallback: string): string => {
   return val || fallback;
 };
 
+import { PRESET_VAR_NAMES } from '@/utils/colorPresets';
+
 /** Preset color CSS variable names in order */
-const PRESET_COLOR_VARS = [
-  '--color-preset-red',
-  '--color-preset-orange',
-  '--color-preset-yellow',
-  '--color-preset-green',
-  '--color-preset-teal',
-  '--color-preset-blue',
-  '--color-preset-purple',
-  '--color-preset-pink',
-] as const;
+const PRESET_COLOR_VARS = PRESET_VAR_NAMES;
 
 /** Resolve class color palette from --color-preset-* CSS variables */
 export const getClassColorPalette = (): string[] =>
@@ -541,12 +534,12 @@ export const getNodePickerPalette = (): (string | null)[] => [
 /** Resolve date lane palette (subset of preset colors) */
 export const getDateLanePalette = (): string[] => {
   const vars = [
-    '--color-preset-red',
-    '--color-preset-purple',
-    '--color-preset-pink',
-    '--color-preset-yellow',
-    '--color-preset-orange',
-    '--color-preset-teal',
+    PRESET_VAR_NAMES[0],  // red
+    PRESET_VAR_NAMES[6],  // purple
+    PRESET_VAR_NAMES[7],  // pink
+    PRESET_VAR_NAMES[2],  // yellow
+    PRESET_VAR_NAMES[1],  // orange
+    PRESET_VAR_NAMES[4],  // teal
   ];
   return vars.map(v => resolveCssColor(v, '#808080'));
 };

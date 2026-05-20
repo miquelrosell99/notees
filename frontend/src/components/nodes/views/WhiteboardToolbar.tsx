@@ -42,6 +42,7 @@ import { FloatingButtonArray, ToolbarDivider } from '@/components/core/FloatingB
 import { Button } from '@/components/core/Button';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { ColorButton, type ColorEntry } from '@/components/core/ColorButton';
+import { PRESET_COLOR_ENTRIES } from '@/utils/colorPresets';
 import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
 import { Slider } from '@/components/core/Slider';
 import type { WhiteboardTool, PenSettings, EraserSettings, ShapeSettings, WhiteboardConnectorElement, StrokeStyle } from '@/types/whiteboard';
@@ -94,14 +95,7 @@ const TOOL_GROUPS = [
 const WB_COLOR_VARS: ColorEntry[] = [
   { cssVar: 'var(--color-on-surface)',        label: 'Default' },
   { cssVar: 'var(--color-background)',         label: 'Background' },
-  { cssVar: 'var(--color-preset-red)',         label: 'Red' },
-  { cssVar: 'var(--color-preset-orange)',      label: 'Orange' },
-  { cssVar: 'var(--color-preset-yellow)',      label: 'Yellow' },
-  { cssVar: 'var(--color-preset-green)',       label: 'Green' },
-  { cssVar: 'var(--color-preset-teal)',        label: 'Teal' },
-  { cssVar: 'var(--color-preset-blue)',        label: 'Blue' },
-  { cssVar: 'var(--color-preset-purple)',      label: 'Purple' },
-  { cssVar: 'var(--color-preset-pink)',        label: 'Pink' },
+  ...PRESET_COLOR_ENTRIES,
 ];
 
 const STROKE_WIDTHS = [1, 2, 3, 5, 8, 12];

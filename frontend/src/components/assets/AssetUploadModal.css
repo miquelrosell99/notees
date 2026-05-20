@@ -142,7 +142,7 @@
 .asset-upload-modal__preview-image {
   max-width: 100%;
   max-height: 200px;
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   object-fit: contain;
 }
 
@@ -209,7 +209,7 @@
   padding: 10px 14px;
   background: var(--color-error-container);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   color: var(--color-on-error-container);
   font-size: 13px;
 }
