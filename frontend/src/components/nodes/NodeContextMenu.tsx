@@ -17,6 +17,7 @@ import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
+import { mdiStar, mdiStarOutline } from '@mdi/js';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 
@@ -297,7 +298,7 @@ export function NodeContextMenu({
           items.push({
             id: 'favorite',
             label: isPageFavorited ? 'Remove from Favorites' : 'Add to Favorites',
-            icon: isPageFavorited ? '☆' : '★',
+            icon: isPageFavorited ? mdiStarOutline : mdiStar,
             onClick: () => {
               const store = useFavoritesStore.getState();
               if (isPageFavorited) store.removeFavorite(node.id);
