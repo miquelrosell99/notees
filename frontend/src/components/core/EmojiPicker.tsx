@@ -8,7 +8,7 @@
  *
  * Returns the emoji character or MDI icon name (e.g. "mdiCalendar")
  */
-import {
+import React, {
   useState,
   useMemo,
   useRef,
@@ -198,7 +198,7 @@ function LazyCategory({ label, items, isIcon, selectedValue, onSelect }: LazyCat
           observer.disconnect();
         }
       },
-      { rootMargin: '400px' },
+      { rootMargin: '100px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -265,7 +265,7 @@ interface ItemGridProps {
   onSelect: (item: string) => void;
 }
 
-function ItemGrid({ items, isIcon, selectedValue, onSelect }: ItemGridProps) {
+const ItemGrid = React.memo(function ItemGrid({ items, isIcon, selectedValue, onSelect }: ItemGridProps) {
   if (items.length === 0) return null;
   return (
     <div className={`ep-grid ${isIcon ? 'ep-icon-grid' : 'ep-emoji-grid'}`}>
@@ -304,7 +304,7 @@ function ItemGrid({ items, isIcon, selectedValue, onSelect }: ItemGridProps) {
       })}
     </div>
   );
-}
+});
 
 function SectionHeader({ children }: { children: ReactNode }) {
   return <div className="ep-section-header">{children}</div>;
@@ -383,7 +383,13 @@ export function EmojiPicker({
       for (const e of list) { if (e.toLowerCase().includes(q)) emojis.push(e); }
     }
     const icons = allMdiNames.filter((n) => n.toLowerCase().includes(q));
-    return { emojis: Array.from(new Set(emojis)), icons };
+    const MAX_RESULTS = 100;
+    return {
+      emojis: Array.from(new Set(emojis)).slice(0, MAX_RESULTS),
+      icons: icons.slice(0, MAX_RESULTS),
+      hasMoreEmojis: emojis.length > MAX_RESULTS,
+      hasMoreIcons: icons.length > MAX_RESULTS,
+    };
   }, [search, allMdiNames]);
 
   const handleSelect = useCallback(
@@ -466,6 +472,12 @@ const popupStyle: React.CSSProperties =
                 <SectionHeader>Icons</SectionHeader>
                 <ItemGrid items={searchResults.icons} isIcon selectedValue={value} onSelect={(e) => handleSelect(e, true)} />
               </div>
+            )}
+            {searchResults.hasMoreEmojis && (
+              <div className="ep-more-hint">100+ emojis match — type a more specific query</div>
+            )}
+            {searchResults.hasMoreIcons && (
+              <div className="ep-more-hint">100+ icons match — type a more specific query</div>
             )}
             {searchResults.emojis.length === 0 && searchResults.icons.length === 0 && (
               <div className="ep-empty">No results for &#8220;{search}&#8221;</div>
