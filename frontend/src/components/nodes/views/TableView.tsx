@@ -281,7 +281,7 @@ export const TableView = memo(function TableView({
 
         return {
           key: `property_${property.id}`,
-          label: property.icon ? `${property.icon} ${property.name}` : property.name,
+          label: property.name,
           width: '150px',
           headerNode: {
             id: property.id,
