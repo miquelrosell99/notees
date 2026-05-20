@@ -15,6 +15,7 @@ import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
+import { mdiArchiveArrowUp, mdiDelete } from '@mdi/js';
 import { useState, useCallback } from 'react';
 import { Button } from '../components/core/Button';
 import { ConfirmationModal } from '../components/core/ConfirmationModal';
@@ -66,7 +67,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       {
         id: 'unarchive',
         label: 'Unarchive',
-        icon: 'mdi mdi-archive-arrow-up',
+        icon: mdiArchiveArrowUp,
         onClick: () => {
           if (confirm('Unarchive this page?')) {
             unarchiveMutation.mutate(node.id);
@@ -77,7 +78,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       {
         id: 'delete',
         label: 'Delete',
-        icon: 'mdi mdi-delete',
+        icon: mdiDelete,
         onClick: () => {
           if (confirm('Delete this page permanently? This action cannot be undone.')) {
             deleteMutation.mutate(node.id);
@@ -105,7 +106,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         <div className="page-header-section__header">
           <div className="page-header">
             <h1 className="page-header__title">
-              <i className="mdi mdi-archive"></i> Archived Pages
+              <ArchiveIcon size="sm" /> Archived Pages
             </h1>
             <div className="page-header__actions">
               {!isLoading && nodes && nodes.length > 0 && (

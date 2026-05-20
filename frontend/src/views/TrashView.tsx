@@ -13,6 +13,7 @@ import { useNavigationStore } from '@/stores';
 import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
+import { mdiCheckboxMarkedOutline, mdiCheckboxBlankOutline } from '@mdi/js';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
@@ -115,7 +116,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
       {
         id: 'select',
         label: isSelected ? 'Deselect' : 'Select',
-        icon: isSelected ? 'mdi mdi-checkbox-marked' : 'mdi mdi-checkbox-blank-outline',
+        icon: isSelected ? mdiCheckboxMarkedOutline : mdiCheckboxBlankOutline,
         onClick: () => {
           handleNodeShiftClick(node);
           closeMenu();

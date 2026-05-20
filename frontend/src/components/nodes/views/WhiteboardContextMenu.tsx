@@ -2,6 +2,29 @@
  * WhiteboardContextMenu — Right-click context menu for whiteboard elements and canvas.
  */
 import React from 'react';
+import {
+  mdiOpenInNew,
+  mdiChevronDown,
+  mdiChevronUp,
+  mdiPencil,
+  mdiContentCopy,
+  mdiContentDuplicate,
+  mdiLockOpenOutline,
+  mdiLockOutline,
+  mdiArrangeBringToFront,
+  mdiArrangeSendToBack,
+  mdiDeleteOutline,
+  mdiCardPlusOutline,
+  mdiLinkVariant,
+  mdiFormatText,
+  mdiRectangleOutline,
+  mdiContentPaste,
+  mdiSelectAll,
+  mdiFitToScreen,
+  mdiMagnify,
+  mdiGrid,
+  mdiMagnet,
+} from '@mdi/js';
 import { ContextMenu } from '@/components/core/ContextMenu';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
@@ -52,13 +75,13 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
       items.push({
         id: 'open-node',
         label: 'Open Page',
-        icon: 'open-in-new',
+        icon: mdiOpenInNew,
         onClick: () => { onOpenNode((element as WhiteboardCardElement).nodeId); onClose(); },
       });
       items.push({
         id: 'toggle-collapse',
         label: (element as any).collapsed ? 'Expand Card' : 'Collapse Card',
-        icon: (element as any).collapsed ? 'chevron-down' : 'chevron-up',
+        icon: (element as any).collapsed ? mdiChevronDown : mdiChevronUp,
         onClick: () => { wb.updateElement(element.id, { collapsed: !(element as any).collapsed }); onClose(); },
       });
       items.push({ id: 'sep-card', label: '', separator: true });
@@ -69,7 +92,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
       items.push({
         id: 'edit-text',
         label: 'Edit Text',
-        icon: 'pencil',
+        icon: mdiPencil,
         onClick: () => { onClose(); /* editing handled by double-click */ },
       });
       items.push({ id: 'sep-shape', label: '', separator: true });
@@ -79,7 +102,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'copy',
       label: `Copy${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
-      icon: 'content-copy',
+      icon: mdiContentCopy,
       shortcut: 'Ctrl+C',
       onClick: () => { wb.copySelectedElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
     });
@@ -87,7 +110,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'duplicate',
       label: `Duplicate${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
-      icon: 'content-duplicate',
+      icon: mdiContentDuplicate,
       shortcut: 'Ctrl+D',
       onClick: () => { wb.duplicateElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
     });
@@ -95,7 +118,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'lock',
       label: element.locked ? 'Unlock' : 'Lock',
-      icon: element.locked ? 'lock-open-outline' : 'lock-outline',
+      icon: element.locked ? mdiLockOpenOutline : mdiLockOutline,
       onClick: () => {
         const ids = selectedIds.length > 0 ? selectedIds : [element.id];
         for (const id of ids) {
@@ -110,7 +133,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'bring-front',
       label: 'Bring to Front',
-      icon: 'arrange-bring-to-front',
+      icon: mdiArrangeBringToFront,
       shortcut: ']',
       onClick: () => { wb.bringToFront(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
     });
@@ -118,7 +141,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'send-back',
       label: 'Send to Back',
-      icon: 'arrange-send-to-back',
+      icon: mdiArrangeSendToBack,
       shortcut: '[',
       onClick: () => { wb.sendToBack(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
     });
@@ -128,7 +151,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'delete',
       label: `Delete${selectedCount > 1 ? ` (${selectedCount})` : ''}`,
-      icon: 'delete-outline',
+      icon: mdiDeleteOutline,
       shortcut: 'Del',
       danger: true,
       onClick: () => { wb.removeElements(selectedIds.length > 0 ? selectedIds : [element.id]); onClose(); },
@@ -138,7 +161,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'add-card',
       label: 'Add Block',
-      icon: 'card-plus-outline',
+      icon: mdiCardPlusOutline,
       onClick: () => {
         onAddCardAtPosition(position.x, position.y);
         onClose();
@@ -148,7 +171,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'add-reference-card',
       label: 'Add Reference',
-      icon: 'link-variant',
+      icon: mdiLinkVariant,
       onClick: () => {
         onAddReferenceCardAtPosition(position.x, position.y);
         onClose();
@@ -158,7 +181,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'add-text',
       label: 'Add Text',
-      icon: 'format-text',
+      icon: mdiFormatText,
       shortcut: 'T',
       onClick: () => { wb.setTool('text'); onClose(); },
     });
@@ -166,7 +189,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'add-shape',
       label: 'Add Shape',
-      icon: 'rectangle-outline',
+      icon: mdiRectangleOutline,
       shortcut: 'R',
       onClick: () => { wb.setTool('rectangle'); onClose(); },
     });
@@ -176,7 +199,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'paste',
       label: 'Paste',
-      icon: 'content-paste',
+      icon: mdiContentPaste,
       shortcut: 'Ctrl+V',
       onClick: () => { wb.pasteElements(); onClose(); },
     });
@@ -186,7 +209,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'select-all',
       label: 'Select All',
-      icon: 'select-all',
+      icon: mdiSelectAll,
       shortcut: 'Ctrl+A',
       onClick: () => { wb.selectElements(wb.data.elements.map(el => el.id)); onClose(); },
     });
@@ -194,7 +217,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'zoom-fit',
       label: 'Zoom to Fit',
-      icon: 'fit-to-screen',
+      icon: mdiFitToScreen,
       shortcut: 'Ctrl+1',
       onClick: () => { wb.zoomToFit(); onClose(); },
     });
@@ -202,7 +225,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'zoom-reset',
       label: 'Reset Zoom',
-      icon: 'magnify',
+      icon: mdiMagnify,
       shortcut: 'Ctrl+0',
       onClick: () => { wb.setViewport({ x: 0, y: 0, zoom: 1 }); onClose(); },
     });
@@ -212,7 +235,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'toggle-grid',
       label: gridVisible ? 'Hide Grid' : 'Show Grid',
-      icon: 'grid',
+      icon: mdiGrid,
       shortcut: 'G',
       onClick: () => { wb.toggleGrid(); onClose(); },
     });
@@ -220,7 +243,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
     items.push({
       id: 'toggle-snap',
       label: gridSnap ? 'Disable Snap' : 'Enable Snap',
-      icon: 'magnet',
+      icon: mdiMagnet,
       onClick: () => { wb.toggleSnap(); onClose(); },
     });
   }
