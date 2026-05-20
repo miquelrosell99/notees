@@ -10,7 +10,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
-  box-shadow: var(--elevation-3);
   overflow: hidden;
   display: flex;
   flex-direction: column;

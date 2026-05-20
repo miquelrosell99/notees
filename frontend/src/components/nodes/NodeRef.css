@@ -31,7 +31,6 @@
   background: color-mix(in srgb, var(--color-on-surface) 10%, transparent);
   border-bottom-style: solid;
   border-bottom-color: var(--color-on-surface-variant);
-  box-shadow: var(--elevation-1);
   filter: none;
 }
 
@@ -88,7 +87,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  box-shadow: var(--elevation-3);
   padding: var(--spacing-2);
   z-index: var(--z-floating);
 }

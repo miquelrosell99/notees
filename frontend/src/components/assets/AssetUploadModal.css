@@ -20,7 +20,6 @@
   max-height: 80vh;
   background: var(--color-surface);
   border-radius: var(--shape-extra-large);
-  box-shadow: var(--elevation-5);
   display: flex;
   flex-direction: column;
   overflow: hidden;
