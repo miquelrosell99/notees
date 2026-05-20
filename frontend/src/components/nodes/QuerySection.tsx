@@ -75,7 +75,7 @@ export function QuerySection({
     setIsExpanded(prev => !prev);
   }, []);
 
-  const renderHeader = (count?: number) => (
+  const renderHeader = useCallback((count?: number) => (
     <div className="node-view-section__header-content" onClick={handleToggle}>
       <Button 
         variant="ghost"
@@ -95,7 +95,7 @@ export function QuerySection({
         )}
       </div>
     </div>
-  );
+  ), [isExpanded, handleToggle, icon, title]);
 
   return (
     <QueryNodeCollection

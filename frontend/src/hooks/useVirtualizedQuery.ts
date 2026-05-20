@@ -139,10 +139,17 @@ export function useVirtualizedQuery(
 
   // Reset window when query changes
   const prevQueryRef = useRef<string>('');
-  const queryFingerprint = useMemo(
-    () => JSON.stringify({ viewId, runtimeParams, ast: preparedAST, limit, offset }),
-    [viewId, runtimeParams, preparedAST, limit, offset]
-  );
+  const queryFingerprint = useMemo(() => {
+    // Use primitive fields only to avoid expensive JSON.stringify on large ASTs
+    const astKey = preparedAST ? `${preparedAST.type}-${preparedAST.id ?? 'no-id'}` : 'none';
+    const paramsKey = runtimeParams
+      ? Object.entries(runtimeParams)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => `${k}:${String(v)}`)
+          .join('|')
+      : 'none';
+    return `${viewId}|${paramsKey}|${astKey}|${limit ?? 'all'}|${offset ?? 0}`;
+  }, [viewId, runtimeParams, preparedAST, limit, offset]);
 
   useEffect(() => {
     if (queryFingerprint !== prevQueryRef.current) {

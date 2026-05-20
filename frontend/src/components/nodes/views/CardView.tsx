@@ -28,7 +28,7 @@ import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
-import { useClasses } from '@/hooks';
+import { useClasses, useNodes, useTags } from '@/hooks';
 import { NodeCard } from './CardItem';
 import { NodeIcon } from '@/components/core/icons';
 import { sortBySequence } from '@/utils/nodeSort';
@@ -201,8 +201,10 @@ export const CardView = memo(function CardView({
     return null;
   }, [sortedNodes, groupBy, groupByProperty]);
 
-  // Fetch all classes for icon inheritance
+  // Fetch all classes, nodes, and tags for icon/metadata resolution
   const { data: allClasses } = useClasses();
+  const { data: allNodes } = useNodes();
+  const { data: allTags } = useTags();
 
   // Internal selection state when selectable but not controlled
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
@@ -214,6 +216,7 @@ export const CardView = memo(function CardView({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardRectsRef = useRef<DOMRect[]>([]);
 
   // Handle selection change for individual card
   const handleCardSelectionChange = useCallback((nodeId: number, selected: boolean) => {
@@ -229,6 +232,12 @@ export const CardView = memo(function CardView({
 
   // Handle drag start
   const handleDragStart = useCallback((index: number) => {
+    // Cache card positions at drag start to avoid layout thrashing on every mousemove
+    if (containerRef.current) {
+      cardRectsRef.current = Array.from(containerRef.current.querySelectorAll('.node-card')).map(
+        (el) => el.getBoundingClientRect()
+      );
+    }
     setDragIndex(index);
   }, []);
 
@@ -237,13 +246,13 @@ export const CardView = memo(function CardView({
     if (dragIndex === null || !sortable) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
+      const rects = cardRectsRef.current;
+      if (rects.length === 0) return;
 
-      const cards = containerRef.current.querySelectorAll('.node-card');
       let newDropTarget: number | null = null;
 
-      for (let i = 0; i < cards.length; i++) {
-        const rect = cards[i].getBoundingClientRect();
+      for (let i = 0; i < rects.length; i++) {
+        const rect = rects[i];
         if (
           e.clientX >= rect.left && e.clientX <= rect.right &&
           e.clientY >= rect.top && e.clientY <= rect.bottom
@@ -322,6 +331,8 @@ export const CardView = memo(function CardView({
                       isDropTarget={false}
                       editable={editable}
                       allClasses={allClasses}
+                      allNodes={allNodes}
+                      allTags={allTags}
                       isSelected={selectable && selectedIds?.has(node.id)}
                       onNodeClick={onNodeClick}
                       onNodeShiftClick={onNodeShiftClick}
@@ -354,6 +365,8 @@ export const CardView = memo(function CardView({
           isDropTarget={dropTargetIndex === index && dragIndex !== index}
           editable={editable}
           allClasses={allClasses}
+          allNodes={allNodes}
+          allTags={allTags}
           isSelected={selectable && selectedIds?.has(node.id)}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}

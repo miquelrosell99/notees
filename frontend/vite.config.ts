@@ -14,7 +14,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Don't precache the WASM file (large, loaded on demand)
         globIgnores: ['**/sql-wasm.wasm'],
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB (vendor-icons chunk is ~2.8 MB)
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024, // 2 MB (reduced after fixing icon tree-shaking)
         runtimeCaching: [
           {
             // Cache API responses with network-first strategy
@@ -91,7 +91,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    allowedHosts: ['atlas'],
+    host: '0.0.0.0',
+    allowedHosts: true,
+    cors: true,
     // Required for SharedArrayBuffer (crossOriginIsolated = true)
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -116,22 +118,28 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks(id) {
+        manualChunks(id: string) {
           // Split heavy vendor libraries into separate cacheable chunks
           if (id.includes('node_modules/lexical') || id.includes('node_modules/@lexical/')) {
-            return 'vendor-lexical';
+            return 'vendor-lexical'
           }
           if (id.includes('node_modules/@dnd-kit/')) {
-            return 'vendor-dnd';
+            return 'vendor-dnd'
           }
           if (id.includes('node_modules/@tanstack/')) {
-            return 'vendor-query';
+            return 'vendor-query'
           }
           if (id.includes('node_modules/@mdi/')) {
-            return 'vendor-icons';
+            return 'vendor-icons'
           }
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-            return 'vendor-react';
+            return 'vendor-react'
+          }
+          if (id.includes('node_modules/axios')) {
+            return 'vendor-http'
+          }
+          if (id.includes('node_modules/zustand')) {
+            return 'vendor-state'
           }
         },
       },

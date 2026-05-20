@@ -4,7 +4,7 @@
  * Centralized view routing - determines which view to show based on mainViewType.
  * For 'node' view type, uses NodeView which auto-detects page vs block.
  */
-import { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, Suspense } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useNode, useClasses } from '@/hooks';
 import { useSystemClasses } from '@/hooks/usePageClass';
@@ -17,10 +17,10 @@ import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
-import { AllPagesGraphView } from '../../views/AllPagesGraphView';
-import { AllPagesTimelineView } from '../../views/AllPagesTimelineView';
-import { PropertyViewFull } from '../../views/PropertyView';
-import { WhiteboardView } from '@/components/nodes/views/WhiteboardView';
+const AllPagesGraphView = React.lazy(() => import('../../views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
+const AllPagesTimelineView = React.lazy(() => import('../../views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
+const PropertyViewFull = React.lazy(() => import('../../views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
+const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNavigationStore();
@@ -94,7 +94,9 @@ export function MainContent() {
   if (mainViewType === 'graph') {
     return (
       <main className="main-content graph-content">
-        <AllPagesGraphView className="main-graph-view" />
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <AllPagesGraphView className="main-graph-view" />
+        </Suspense>
       </main>
     );
   }
@@ -102,7 +104,9 @@ export function MainContent() {
   if (mainViewType === 'timeline') {
     return (
       <main className="main-content timeline-content">
-        <AllPagesTimelineView className="main-timeline-view" />
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <AllPagesTimelineView className="main-timeline-view" />
+        </Suspense>
       </main>
     );
   }
@@ -110,11 +114,13 @@ export function MainContent() {
   if (mainViewType === 'property' && currentPropertyId) {
     return (
       <div className="main-content-wrapper">
-        <PropertyViewFull
-          propertyId={currentPropertyId}
-          onNavigateToNode={(nodeId) => openNode(nodeId)}
-          onOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'page')}
-        />
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <PropertyViewFull
+            propertyId={currentPropertyId}
+            onNavigateToNode={(nodeId: number) => openNode(nodeId)}
+            onOpenInSidebar={(nodeId: number) => addSidebarCard(nodeId, 'page')}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -138,7 +144,9 @@ export function MainContent() {
   if (isWhiteboard && currentNode) {
     return (
       <main className="main-content" style={{ padding: 0, overflow: 'hidden' }}>
-        <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
+        </Suspense>
       </main>
     );
   }

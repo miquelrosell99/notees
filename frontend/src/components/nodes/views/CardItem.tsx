@@ -42,8 +42,6 @@ import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import {
-  useNodes,
-  useTags,
   useProperties,
   useSetNodeProperty,
   useCreateNode,
@@ -259,6 +257,8 @@ export interface NodeCardProps {
   isDropTarget?: boolean;
   editable?: boolean;
   allClasses?: Node[];
+  allNodes?: Node[];
+  allTags?: Node[];
   isSelected?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
@@ -292,13 +292,11 @@ export const NodeCard = memo(function NodeCard({
   onDragStart,
   onSelectionChange,
   customContextMenu,
+  allNodes,
+  allTags,
 }: NodeCardProps): JSX.Element {
   const children = useMemo(() => node.children ?? [], [node.children]);
   const hasChildren = children.length > 0;
-
-  // Hooks for metadata resolution
-  const { data: allNodes } = useNodes();
-  const { data: allTags } = useTags();
 
   // Mutations
   const removeClass = useRemoveClass();

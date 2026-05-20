@@ -7,15 +7,15 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
 import { getSettings } from './api/workspaces';
-import { Layout } from './components/layout/Layout';
-import { LoginView } from './views/LoginView';
-import { WorkspaceManagementView } from './views/WorkspaceManagementView';
-import { EnrollmentView } from './views/EnrollmentView';
+const Layout = React.lazy(() => import('./components/layout/Layout').then(m => ({ default: m.Layout })));
+const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ default: m.LoginView })));
+const WorkspaceManagementView = React.lazy(() => import('./views/WorkspaceManagementView').then(m => ({ default: m.WorkspaceManagementView })));
+const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m => ({ default: m.EnrollmentView })));
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -229,7 +229,11 @@ function AppContent() {
       }
       window.history.replaceState(null, '', '/auth');
     }
-    return <LoginView />;
+    return (
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <LoginView />
+      </Suspense>
+    );
   }
   
   // Redirect away from /auth when authenticated
@@ -251,7 +255,9 @@ function AppContent() {
   
   if (needsEnrollment) {
     return (
-      <EnrollmentView onComplete={() => setNeedsEnrollment(false)} />
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <EnrollmentView onComplete={() => setNeedsEnrollment(false)} />
+      </Suspense>
     );
   }
   
@@ -275,14 +281,16 @@ function AppContent() {
   if (hasNoWorkspaces || hasNoActiveWorkspace || showWorkspaceManager) {
     log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showWorkspaceManager });
     return (
-      <WorkspaceManagementView 
-        onWorkspaceSelected={() => {
-          setShowWorkspaceManager(false);
-          refetchWorkspaces();
-        }}
-        showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
-        onClose={() => setShowWorkspaceManager(false)}
-      />
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <WorkspaceManagementView 
+          onWorkspaceSelected={() => {
+            setShowWorkspaceManager(false);
+            refetchWorkspaces();
+          }}
+          showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
+          onClose={() => setShowWorkspaceManager(false)}
+        />
+      </Suspense>
     );
   }
   
@@ -297,9 +305,11 @@ function AppContent() {
   
   log.debug('User authenticated, showing main layout');
   return (
-    <ErrorBoundary>
-      <Layout />
-    </ErrorBoundary>
+    <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <ErrorBoundary>
+        <Layout />
+      </ErrorBoundary>
+    </Suspense>
   );
 }
 

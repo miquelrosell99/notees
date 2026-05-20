@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useNodes, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
@@ -335,7 +335,7 @@ export function NodeView({
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
-  const { data: allNodes } = useNodes({ pages_only: true, page_size: 10000 });  // For fallback class/tag lookup
+  const { data: aliasedNodeData } = useNode(node?.aliased_id ?? null);
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode } = useNavigationStore();
@@ -372,8 +372,8 @@ export function NodeView({
   const isAlias = !!node?.aliased_id;
   const aliasedNode = useMemo(() => {
     if (!isAlias || !node?.aliased_id) return null;
-    return allNodes?.find(n => n.id === node.aliased_id) ?? null;
-  }, [isAlias, node?.aliased_id, allNodes]);
+    return aliasedNodeData ?? null;
+  }, [isAlias, node?.aliased_id, aliasedNodeData]);
   const effectiveClasses = isAlias ? (aliasedNode?.classes ?? []) : node?.classes;
   const pageClassDetails = useResolvedClassDetails(effectiveClasses);
   
@@ -381,19 +381,14 @@ export function NodeView({
   const pageTagDetails = useMemo(() => {
     if (!node?.tags || node.tags.length === 0) return [];
     return node.tags
-      .map(tagId => {
-        // First try allTags, then fallback to allNodes
-        const fromTags = allTags?.find(t => t.id === tagId);
-        if (fromTags) return fromTags;
-        return allNodes?.find(n => n.id === tagId);
-      })
+      .map(tagId => allTags?.find(t => t.id === tagId))
       .filter((t): t is Node => {
         if (t === undefined) return false;
         // Hide class definitions (they shouldn't show as tags)
         if (t.is_class) return false;
         return true;
       });
-  }, [node?.tags, allTags, allNodes]);
+  }, [node?.tags, allTags]);
   
   // Handle adding a class via NodeSelector
   const handleAddClass = useCallback((classNode: Node) => {
@@ -607,20 +602,13 @@ export function NodeView({
   const { data: extendsData } = useClassExtends(node?.is_class ? node.id : null);
 
   // Resolve extends details from IDs.
-  // Look up from allClasses first (unpaginated, all class nodes) and fall back
-  // to allNodes.  Using only allNodes risks missing parent classes when the
-  // workspace has more pages than the default page-size (50).
+  // allClasses is unpaginated and contains all class nodes.
   const extendsDetails = useMemo(() => {
     if (!extendsData || extendsData.length === 0) return [];
     return extendsData
-      .map(ext => {
-        return (
-          allClasses?.find(n => n.id === ext.extends_class_node_id) ??
-          allNodes?.find(n => n.id === ext.extends_class_node_id)
-        );
-      })
+      .map(ext => allClasses?.find(n => n.id === ext.extends_class_node_id))
       .filter((n): n is Node => n !== undefined);
-  }, [extendsData, allClasses, allNodes]);
+  }, [extendsData, allClasses]);
   
   // Check if node is used as a class — skip if queries are hidden to avoid API call
   const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.id ?? 0) : null);

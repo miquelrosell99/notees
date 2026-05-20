@@ -4,7 +4,7 @@
  * Vanilla-DOM utilities for rendering node icons.
  * Used by BlockNode (Lexical custom node) which cannot use React components.
  */
-import * as mdiIcons from '@mdi/js';
+import { getMdiIconPath } from './mdiIconMap';
 
 /**
  * Parse a raw icon field that may be a JSON-encoded object `{"icon":"...","color":"..."}`
@@ -61,11 +61,9 @@ export function getMdiPath(iconName: string): string | null {
   if (iconName.startsWith('mdi:')) {
     const name = iconName.slice(4);
     const camelName = 'mdi' + name.charAt(0).toUpperCase() + name.slice(1).replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    const path = (mdiIcons as Record<string, string>)[camelName];
-    return path || null;
+    return getMdiIconPath(camelName);
   }
-  const path = (mdiIcons as Record<string, string>)[iconName];
-  return path || null;
+  return getMdiIconPath(iconName);
 }
 
 /**
