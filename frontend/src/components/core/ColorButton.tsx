@@ -239,7 +239,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
             position: 'fixed',
             top: `${pickerPosition.top}px`,
             left: `${pickerPosition.left}px`,
-            zIndex: 10000,
+            zIndex: 10003,
           }}
         >
           <div className="color-btn-picker__grid">
