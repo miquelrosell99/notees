@@ -133,14 +133,14 @@
  *   --node-border-color: the border color
  */
 .main-content.has-node-border {
-  /* Thick left border */
-  border-left: 8px solid var(--node-border-color);
+  /* Subtle left border */
+  border-left: 3px solid var(--node-border-color);
 }
 
-/* On mobile, thin the border slightly so it doesn't steal too much width */
+/* On mobile, keep the border minimal */
 @media (max-width: 480px) {
   .main-content.has-node-border {
-    border-left-width: 4px;
+    border-left-width: 2px;
   }
 }
 
@@ -168,8 +168,8 @@
 .right-container--expanded,
 .right-sidebar--expanded {
   width: var(--right-sidebar-width);
-  min-width: 260px;
-  max-width: 360px;
+  min-width: 300px;
+  max-width: 480px;
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;

@@ -24,14 +24,14 @@
 .node-card--cover-top {
   display: grid !important;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto auto auto;
   gap: 0;
 }
 
 .node-card--no-cover {
   display: grid !important;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto auto;
   gap: 0;
 }
 
@@ -39,7 +39,7 @@
 .node-card--cover-right {
   display: grid !important;
   grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto auto;
   gap: 0;
 }
 
@@ -339,12 +339,12 @@
 }
 
 .node-card__add-metadata-btn {
-  opacity: 0.5;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  color: var(--color-on-surface-variant);
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-card__add-metadata-btn:hover {
-  opacity: 1;
+  color: var(--color-on-surface);
 }
 
 /* ─── Title wrapper ────────────────────────────────────────────── */
@@ -519,6 +519,11 @@
 
 .node-card--colored.card {
   border-left: 4px solid var(--node-border-solid);
+}
+
+/* Remove colored border in collection views — class pills already communicate color */
+.node-card-view .node-card--colored.card {
+  border-left: none;
 }
 
 /* Remove per-block color accents inside cards — the card itself is already colored */
