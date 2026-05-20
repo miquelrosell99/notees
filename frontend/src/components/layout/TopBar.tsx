@@ -12,6 +12,7 @@ import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   mdiMenu, 
   mdiCalendar, 
+  mdiCalendarToday,
   mdiDockRight,
   mdiNoteTextOutline,
   mdiCommentOutline,
@@ -274,6 +275,20 @@ export function TopBar() {
           badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
         />
         
+        {/* Today button */}
+        <Button
+          icon={mdiCalendarToday}
+          variant="ghost"
+          size="sm"
+          onClick={useCallback(async () => {
+            const result = await refetchToday();
+            if (result.data) openNode(result.data.id);
+          }, [refetchToday, openNode])}
+          aria-label="Go to today"
+          title="Go to today"
+          className="toolbar-btn"
+        />
+
         {/* Calendar button */}
         <div className="top-bar-calendar-container">
           <Button 
@@ -281,16 +296,9 @@ export function TopBar() {
             icon={mdiCalendar}
             variant="ghost"
             size="sm"
-            onClick={useCallback(async (e: React.MouseEvent) => {
-              if (e.shiftKey) {
-                const result = await refetchToday();
-                if (result.data) openNode(result.data.id);
-              } else {
-                toggleCalendar();
-              }
-            }, [refetchToday, openNode, toggleCalendar])}
+            onClick={toggleCalendar}
             aria-label="Open calendar"
-            title="Open calendar (Shift+click: go to today)"
+            title="Open calendar"
             className="toolbar-btn"
           />
           <CalendarPopup 

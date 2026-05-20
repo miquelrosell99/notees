@@ -195,9 +195,10 @@
   }
 }
 
-/* Very small screens: hide calendar to reduce header clutter (journal is in sidebar) */
+/* Very small screens: hide calendar and today button to reduce header clutter (journal is in sidebar) */
 @media (max-width: 480px) {
-  .top-bar-calendar-container {
+  .top-bar-calendar-container,
+  .toolbar-btn[aria-label="Go to today"] {
     display: none;
   }
 }
