@@ -74,7 +74,7 @@ input, textarea, select {
   font-family: inherit;
   font-size: inherit;
   caret-color: var(--color-on-surface);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-extra-large);
 }
 
 input:focus, textarea:focus, select:focus {

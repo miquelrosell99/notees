@@ -487,7 +487,6 @@
 }
 
 .node-block--card:hover {
-  box-shadow: var(--elevation-2);
 }
 
 .node-block--query {
@@ -822,7 +821,6 @@ th.node-block-table-cell {
   border-radius: var(--shape-medium);
   padding: 8px 14px;
   opacity: var(--ghost-card-opacity);
-  box-shadow: var(--elevation-2);
   font-size: 0.875rem;
   color: var(--color-on-surface);
   max-width: 280px;
@@ -879,7 +877,7 @@ th.node-block-table-cell {
 .block-drag-ghost--floating {
   opacity: 0.85;
   background: var(--color-surface-container);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  /* Design system: zero visual noise — no elevation shadows */
   border: 1px solid var(--color-outline-variant);
   max-width: 300px;
   white-space: nowrap;

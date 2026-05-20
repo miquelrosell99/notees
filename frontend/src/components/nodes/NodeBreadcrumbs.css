@@ -159,7 +159,6 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   padding: var(--spacing-1);
-  box-shadow: var(--elevation-2);
 }
 
 .node-breadcrumbs-popup-item {

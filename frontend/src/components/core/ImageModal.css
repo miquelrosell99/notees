@@ -28,7 +28,6 @@
 .image-modal-download {
   background: var(--color-surface);
   border-radius: var(--shape-full);
-  box-shadow: var(--elevation-3);
 }
 
 .image-modal-close:hover,

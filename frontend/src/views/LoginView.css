@@ -15,7 +15,6 @@
   background: var(--color-surface);
   padding: var(--spacing-8);
   border-radius: var(--shape-large);
-  box-shadow: var(--elevation-3);
   width: 100%;
   max-width: 400px;
 }

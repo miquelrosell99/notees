@@ -20,7 +20,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  box-shadow: var(--elevation-2);
 }
 
 .table-size-selector__grid {
@@ -89,7 +88,6 @@
   padding: var(--spacing-4);
   background: var(--color-surface);
   border-radius: var(--shape-large);
-  box-shadow: var(--elevation-3);
 }
 
 .table-size-modal__title {

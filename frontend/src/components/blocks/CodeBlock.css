@@ -28,7 +28,6 @@
 .code-block-language-selector {
   background: var(--color-surface);
   border-radius: var(--shape-small);
-  box-shadow: var(--elevation-1);
   min-width: 120px;
 }
 

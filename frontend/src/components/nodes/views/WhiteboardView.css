@@ -147,7 +147,6 @@
   overflow: hidden;
   border-radius: var(--shape-medium);
   background: var(--color-surface);
-  box-shadow: var(--elevation-1);
 }
 
 .whiteboard-image img {
@@ -167,7 +166,6 @@
 
 .whiteboard-element--dragging {
   cursor: grabbing;
-  box-shadow: var(--elevation-5);
   opacity: 0.95;
   transition: box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
   z-index: 1000 !important;
@@ -212,7 +210,6 @@
   background: var(--color-background);
   border: 2px solid var(--color-primary);
   border-radius: var(--shape-full);
-  box-shadow: var(--elevation-1);
   pointer-events: auto;
   z-index: 20;
   opacity: 1;
@@ -262,7 +259,6 @@
   border-radius: var(--shape-full);
   background: var(--color-background);
   border: 2px solid var(--color-primary);
-  box-shadow: var(--elevation-1);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -329,14 +325,12 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   overflow: hidden;
-  box-shadow: var(--elevation-1);
   transition:
     box-shadow var(--motion-duration-medium) var(--motion-easing-standard),
     transform var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 .whiteboard-element:hover .whiteboard-card {
-  box-shadow: var(--elevation-3);
 }
 
 .whiteboard-card__header {
@@ -419,7 +413,6 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   backdrop-filter: blur(8px);
-  box-shadow: var(--elevation-4);
   z-index: var(--wb-z-ui);
   overflow: hidden;
 }
@@ -550,7 +543,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
-  box-shadow: var(--elevation-5);
   padding: var(--spacing-1);
 }
 

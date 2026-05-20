@@ -103,7 +103,6 @@
   /* Provide a background so it isn't transparent */
   background: var(--color-surface);
   border-radius: 0 var(--shape-large) var(--shape-large) 0;
-  box-shadow: var(--elevation-3);
 }
 
 /* Override desktop collapse styles that use visibility/opacity/transform */
@@ -143,7 +142,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--elevation-3);
   z-index: var(--z-popover);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard),
               box-shadow var(--motion-duration-short) var(--motion-easing-standard);
@@ -151,5 +149,4 @@
 
 .mobile-fab:active {
   transform: scale(0.92);
-  box-shadow: var(--elevation-1);
 }

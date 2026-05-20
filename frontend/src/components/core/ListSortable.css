@@ -36,7 +36,6 @@
 
 .list-sortable__item--dragging {
   background: var(--color-surface-container-high);
-  box-shadow: var(--elevation-2);
   border-radius: var(--shape-small);
   opacity: 0.95;
 }

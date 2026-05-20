@@ -218,7 +218,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Defaults
       theme: 'system',
       oledMode: false,
-      accentColor: 'monochrome',
+      accentColor: 'sage',
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,

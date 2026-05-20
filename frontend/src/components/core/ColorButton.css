@@ -101,7 +101,6 @@
   background: var(--color-surface-container-high);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
-  box-shadow: var(--elevation-3);
   padding: 8px;
   min-width: 0;
 }

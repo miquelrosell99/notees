@@ -152,21 +152,18 @@
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .btn--primary.btn--active {
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .btn--primary:active:not(:disabled) {
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 0 0 4px var(--color-primary-container);
 }
 
 /* Ghost variant - transparent background with border on hover */

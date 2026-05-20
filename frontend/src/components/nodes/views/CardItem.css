@@ -201,7 +201,7 @@
   z-index: 20;
   background: var(--color-surface);
   border-radius: var(--shape-full);
-  box-shadow: var(--elevation-2);
+  /* Design system: zero visual noise — no elevation shadows */
   padding: 2px;
 }
 
