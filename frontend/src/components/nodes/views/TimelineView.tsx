@@ -18,6 +18,7 @@ import { getDateLanePalette } from './viewTypes';
 import { mdiCalendarRange, mdiAlphaD, mdiAlphaY, mdiAlphaS, mdiAlphaQ, mdiAlphaM } from '@mdi/js';
 import { Card } from '../../core/Card';
 import { ButtonWithPanel } from '../../core/ButtonWithPanel';
+import { CalendarIcon } from '../../core/icons';
 import { SelectionButton } from '../../core/SelectionButton';
 import { DatePropertiesPanel } from './DatePropertiesPanel';
 import { NodeCollection } from '../../nodes/NodeCollection';
@@ -377,6 +378,18 @@ export const TimelineView = memo(function TimelineView({
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
+      
+      // Draw label on hover so users know what the dot represents
+      if (isHovered) {
+        const label = event.nodes.length === 1
+          ? (event.nodes[0].display_name || event.nodes[0].name || 'Untitled')
+          : `${event.nodes.length} items`;
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--color-on-surface').trim() || '#e5e5e5';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(label, x, y - radius - 6);
+      }
     });
   }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, markerOpacity, prevVisibleDays]);
   
@@ -811,8 +824,12 @@ export const TimelineView = memo(function TimelineView({
   if (timeEvents.length === 0) {
     return (
       <div className={`node-timeline-renderer node-timeline-renderer--empty ${className}`}>
-        <div className="node-timeline-renderer__empty-message">
-          No timeline events to display
+        <div className="node-timeline-renderer__empty-state">
+          <CalendarIcon size="lg" color="var(--color-on-surface-variant)" />
+          <div className="node-timeline-renderer__empty-title">No timeline events</div>
+          <div className="node-timeline-renderer__empty-subtitle">
+            Add date properties to nodes to see them on the timeline.
+          </div>
         </div>
       </div>
     );
