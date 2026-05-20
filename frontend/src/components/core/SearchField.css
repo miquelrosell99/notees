@@ -21,7 +21,6 @@
 .search-field:focus-within {
   border-color: var(--color-outline);
   background: var(--color-surface);
-  box-shadow: var(--elevation-1);
 }
 
 .search-field__icon {

@@ -7,7 +7,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
-  box-shadow: var(--elevation-4);
   width: 340px;
   max-height: 460px;
   display: flex;

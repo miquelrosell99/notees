@@ -209,7 +209,6 @@
 
 .sidebar-favorite-item.dragging {
   background: var(--color-surface-container-high);
-  box-shadow: var(--elevation-2);
   opacity: 0.95;
   z-index: 100;
 }

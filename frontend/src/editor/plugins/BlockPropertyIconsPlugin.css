@@ -69,7 +69,6 @@
   max-width: 220px;
   background: var(--color-surface-container);
   border-radius: var(--shape-small);
-  box-shadow: var(--elevation-2);
   overflow: hidden;
   animation: prop-icon-dropdown-in var(--motion-duration-short) var(--motion-easing-standard);
 }

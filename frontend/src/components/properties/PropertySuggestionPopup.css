@@ -13,7 +13,6 @@
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  box-shadow: var(--elevation-2);
   overflow: hidden;
 }
 
