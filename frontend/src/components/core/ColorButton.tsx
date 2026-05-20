@@ -18,6 +18,7 @@ import { createPortal } from 'react-dom';
 import { mdiTrashCanOutline } from '@mdi/js';
 import { Button } from './Button';
 import { TextField } from './TextField';
+import { PRESET_COLOR_ENTRIES } from '@/utils/colorPresets';
 import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -30,17 +31,8 @@ export interface ColorEntry {
   label: string;
 }
 
-// Default built-in palette from variables.css
-const DEFAULT_COLOR_ENTRIES: ColorEntry[] = [
-  { cssVar: 'var(--color-preset-red)',    label: 'Red' },
-  { cssVar: 'var(--color-preset-orange)', label: 'Orange' },
-  { cssVar: 'var(--color-preset-yellow)', label: 'Yellow' },
-  { cssVar: 'var(--color-preset-green)',  label: 'Green' },
-  { cssVar: 'var(--color-preset-teal)',   label: 'Teal' },
-  { cssVar: 'var(--color-preset-blue)',   label: 'Blue' },
-  { cssVar: 'var(--color-preset-purple)', label: 'Purple' },
-  { cssVar: 'var(--color-preset-pink)',   label: 'Pink' },
-];
+// Default built-in palette from data-colors.css
+const DEFAULT_COLOR_ENTRIES: ColorEntry[] = PRESET_COLOR_ENTRIES;
 
 function isValidHexColor(color: string): boolean {
   return /^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);

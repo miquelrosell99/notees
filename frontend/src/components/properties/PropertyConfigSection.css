@@ -7,7 +7,7 @@
 .property-config-section__scope {
   padding: 12px 16px;
   background-color: var(--color-surface-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   font-size: 14px;
   color: var(--color-on-surface-variant);
 }
@@ -30,7 +30,7 @@
   padding: 12px 16px;
   background-color: var(--color-error-container);
   color: var(--color-error);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   font-size: 14px;
 }
 

@@ -50,7 +50,7 @@
   width: 32px;
   height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: rgba(24, 24, 32, 0.75);
   color: rgba(255, 255, 255, 0.8);
   font-size: 18px;
@@ -80,7 +80,7 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   padding: 5px 10px;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -99,7 +99,7 @@
   z-index: 20;
   pointer-events: none;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: rgba(24, 24, 32, 0.85);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
