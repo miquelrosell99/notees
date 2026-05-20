@@ -12,6 +12,13 @@
   width: 100%;
 }
 
+/* Masonry container background — makes ungrouped cards visible against the page surface */
+.node-card-view:not(.node-card-view--kanban) {
+  background: var(--color-surface-container-high);
+  padding: var(--spacing-4);
+  border-radius: var(--shape-large);
+}
+
 /* Horizontal layouts (cover-left/right) are wider per card */
 .node-card-view:has(.node-card--cover-left, .node-card--cover-right) {
   column-width: 420px;
