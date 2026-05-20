@@ -25,6 +25,10 @@ import { ExportPageModal } from '@/components/workspace/ExportPageModal';
 import { NodeSelector } from './NodeSelector';
 import api from '@/api/client';
 import type { Node, NodeUpdate } from '@/types';
+import { EmojiPicker } from '@/components/core/EmojiPicker';
+import { getMdiClass } from '@/utils/iconDom';
+import { Icon } from '@/components/core/icons';
+import { ColorButton } from '@/components/core/ColorButton';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { ContentAST } from '@/runtime/types';
@@ -122,6 +126,107 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
   );
 }
 
+/**
+ * Compact icon + color picker row for context menu
+ */
+interface IconColorPickerRowProps {
+  currentIcon: string | null;
+  currentColor: string | null;
+  isFavorited?: boolean;
+  onFavoriteToggle?: () => void;
+  onIconChange: (icon: string | null) => void;
+  onColorChange: (color: string | null) => void;
+}
+
+function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavoriteToggle, onIconChange, onColorChange }: IconColorPickerRowProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
+  const handleIconClick = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPickerPos({
+        x: Math.min(rect.left, window.innerWidth - 340),
+        y: Math.min(rect.bottom + 4, window.innerHeight - 450),
+      });
+    }
+    setShowPicker(true);
+  }, []);
+
+  const handleIconSelect = useCallback((value: string) => {
+    onIconChange(value || null);
+    setShowPicker(false);
+  }, [onIconChange]);
+
+  const renderTriggerValue = () => {
+    if (!currentIcon) {
+      return <span className="context-menu-icon-placeholder">+</span>;
+    }
+    const mdiPath = getMdiClass(currentIcon);
+    if (mdiPath) {
+      return <Icon path={mdiPath} size={0.9} />;
+    }
+    if (currentIcon.match(/^mdi[A-Z]/)) {
+      return null;
+    }
+    return <span className="context-menu-icon-emoji">{currentIcon}</span>;
+  };
+
+  return (
+    <div
+      className="context-menu-icon-color-row"
+      onMouseDown={handleMouseDown}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+    >
+      <button
+        ref={triggerRef}
+        className="context-menu-icon-btn"
+        onClick={handleIconClick}
+        type="button"
+        title="Change icon"
+      >
+        {renderTriggerValue()}
+      </button>
+      {onFavoriteToggle && (
+        <button
+          className={`context-menu-favorite-btn ${isFavorited ? 'favorited' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onFavoriteToggle();
+          }}
+          type="button"
+          title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <Icon path={isFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'} size={0.85} />
+        </button>
+      )}
+      <ColorButton
+        color={currentColor || ''}
+        size="sm"
+        showPicker
+        showNoneOption
+        onColorChange={onColorChange}
+      />
+      {showPicker && createPortal(
+        <EmojiPicker
+          value={currentIcon || ''}
+          onSelect={handleIconSelect}
+          onClose={() => setShowPicker(false)}
+          position={pickerPos}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ==================== Action Configuration ====================
 
 export type ActionScope = 'page' | 'block' | 'both';
@@ -150,7 +255,6 @@ export type ActionConfig = readonly [ActionName, ActionScope];
  * Callers can pass a custom subset/reordering via the `actions` prop.
  */
 export const DEFAULT_ACTIONS: ActionConfig[] = [
-  ['favorite',        'page'],
   ['convert-to-page', 'block'],
   ['move-to',         'both'],
   ['toggle-header',   'block'],
@@ -505,6 +609,17 @@ export function NodeContextMenu({
     updateNode.mutate({ id: node.id, data: { color } as NodeUpdate });
   }, [node.id, updateNode]);
 
+  const handleIconChange = useCallback((icon: string | null) => {
+    updateNode.mutate({ id: node.id, data: { icon } as NodeUpdate });
+  }, [node.id, updateNode]);
+
+  const handleFavoriteToggle = useCallback(() => {
+    const store = useFavoritesStore.getState();
+    if (isPageFavorited) store.removeFavorite(node.id);
+    else store.addFavorite(node.id);
+    onClose();
+  }, [node.id, isPageFavorited, onClose]);
+
   const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
@@ -515,7 +630,14 @@ export function NodeContextMenu({
     <>
       {menuVisible && createPortal(
         <div ref={menuCallbackRef} className="node-context-menu-wrapper">
-          <ColorPickerRow currentColor={node.color ?? null} onColorChange={handleColorChange} />
+          <IconColorPickerRow
+            currentIcon={node.icon ?? null}
+            currentColor={node.color ?? null}
+            isFavorited={node.is_page ? isPageFavorited : undefined}
+            onFavoriteToggle={node.is_page ? handleFavoriteToggle : undefined}
+            onIconChange={handleIconChange}
+            onColorChange={handleColorChange}
+          />
           <ContextMenu items={menuItems} position={{ x: 0, y: 0 }} onClose={onClose} containerRef={wrapperRef} inline />
         </div>,
         document.body
