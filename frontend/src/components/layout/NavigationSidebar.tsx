@@ -7,7 +7,7 @@
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
  */
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useFavoritesStore, useModalStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
@@ -43,7 +43,7 @@ interface RecentItemProps {
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
-function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProps) {
+const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProps) {
   // Fetch the node directly using useNode for real-time updates
   const { data: node } = useNode(nodeId);
   const { effectiveIcon } = useNodeDisplay(node);
@@ -65,7 +65,7 @@ function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProp
       />
     </div>
   );
-}
+});
 
 // Sortable favorite item with drag handle and Block component
 interface SortableFavoriteItemProps {
@@ -80,7 +80,7 @@ interface SortableFavoriteItemProps {
   onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
 }
 
-function SortableFavoriteItem({
+const SortableFavoriteItem = memo(function SortableFavoriteItem({
   nodeId,
   index,
   isActive,
@@ -166,7 +166,7 @@ function SortableFavoriteItem({
       />
     </div>
   );
-}
+});
 
 export function Sidebar({ collapsed }: SidebarProps) {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);

@@ -22,7 +22,7 @@
  * ├─ TimelineView (timeline)
  * └─ GraphView (graph)
  */
-import { createContext, useContext, useMemo, useCallback, useState, useEffect } from 'react';
+import { createContext, useContext, useMemo, useCallback, useState, useEffect, memo } from 'react';
 import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
@@ -95,7 +95,7 @@ const VIEW_MODE_OPTIONS: Record<NodeCollectionViewMode, { icon: string; label: s
  * 
  * Use hideToolbar=true when rendering the toolbar externally via NodeCollectionToolbar.
  */
-export function NodeCollection({
+export const NodeCollection = memo(function NodeCollection({
   nodes,
   viewId,
   view,
@@ -559,7 +559,7 @@ export function NodeCollection({
         </div>
     </NodeCollectionContext.Provider>
   );
-}
+});
 
 // ==================== View Mode Helpers ====================
 
