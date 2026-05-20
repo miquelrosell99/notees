@@ -25,6 +25,7 @@ import { NodeCollection } from '../../nodes/NodeCollection';
 import { getDateRange } from './timelineUtils/dateUtils';
 import { generateTimeEvents } from './timelineUtils/timeEvents';
 import { getZoomLevelFromScale } from './timelineUtils/zoomLevels';
+
 import './TimelineView.css';
 import './DatePropertiesPanel.css';
 
@@ -379,11 +380,9 @@ export const TimelineView = memo(function TimelineView({
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fill();
       
-      // Draw label on hover so users know what the dot represents
+      // Draw item count on hover for consistency
       if (isHovered) {
-        const label = event.nodes.length === 1
-          ? (event.nodes[0].display_name || event.nodes[0].name || 'Untitled')
-          : `${event.nodes.length} items`;
+        const label = `${event.nodes.length}`;
         ctx.font = '12px sans-serif';
         ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--color-on-surface').trim() || '#e5e5e5';
         ctx.textAlign = 'center';
@@ -409,7 +408,7 @@ export const TimelineView = memo(function TimelineView({
     ctx.clearRect(0, 0, width, height);
     
     // Get CSS variables
-    const bgColor = getComputedStyle(canvas).getPropertyValue('--color-surface-container-low').trim() || '#262626';
+    const bgColor = getComputedStyle(canvas).getPropertyValue('--color-surface').trim() || '#171717';
     const lineColor = getComputedStyle(canvas).getPropertyValue('--color-outline-variant').trim() || '#444';
     const accentColor = getComputedStyle(canvas).getPropertyValue('--color-primary').trim() || '#e5e5e5';
     
