@@ -36,7 +36,7 @@
   padding: 0;
   background: var(--color-surface);
   border: 1.5px solid var(--color-outline);
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-easing-standard), border-color var(--motion-duration-instant) var(--motion-easing-standard);
   display: block;

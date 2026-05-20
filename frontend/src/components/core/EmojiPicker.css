@@ -6,7 +6,7 @@
 .ep {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-extra-large);
   width: 340px;
   max-height: 460px;
   display: flex;
@@ -58,6 +58,7 @@
   width: 100%;
   padding: 6px 10px;
   border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-extra-large);
   background: var(--color-surface-container);
   color: var(--color-on-surface);
   font-size: 13px;
@@ -139,7 +140,7 @@
   padding: 2px;
   min-width: unset;
   min-height: unset;
-  border-radius: 5px;
+  border-radius: var(--shape-small);
   transition: background var(--motion-duration-instant) var(--motion-easing-standard), transform var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
@@ -242,7 +243,7 @@
   height: 32px;
   padding: 4px 8px;
   border: 1px dashed var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-extra-large);
   background: transparent;
   color: var(--color-on-surface-variant);
   font-size: 13px;

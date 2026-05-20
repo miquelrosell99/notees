@@ -176,11 +176,11 @@
   visibility: visible;
   margin-left: 0;
   transition: 
-    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    margin-left var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    margin-left var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    transform var(--motion-duration-medium) var(--motion-easing-collapse),
     visibility 0s 0s;
 }
 
@@ -195,11 +195,11 @@
   pointer-events: none;
   visibility: hidden;
   transition: 
-    width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    min-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    max-width var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    opacity var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
-    transform var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1),
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    max-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    transform var(--motion-duration-medium) var(--motion-easing-collapse),
     visibility 0s var(--motion-duration-medium);
 }
 
@@ -240,7 +240,7 @@
   position: relative;
   display: flex;
   flex-shrink: 0;
-  transition: margin var(--motion-duration-medium) cubic-bezier(0.4, 0, 0.2, 1);
+  transition: margin var(--motion-duration-medium) var(--motion-easing-collapse);
 }
 
 .sidebar-wrapper--right {

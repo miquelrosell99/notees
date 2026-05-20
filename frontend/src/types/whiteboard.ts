@@ -368,8 +368,10 @@ export const DEFAULT_PEN_SETTINGS: PenSettings = {
   opacity: 1,
 };
 
+import { PRESET_CSS_VARS } from '@/utils/colorPresets';
+
 export const DEFAULT_HIGHLIGHTER_SETTINGS: PenSettings = {
-  color: 'var(--color-preset-yellow)',
+  color: PRESET_CSS_VARS.yellow,
   strokeWidth: 20,
   strokeStyle: 'solid',
   opacity: 0.4,

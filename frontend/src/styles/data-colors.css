@@ -1,0 +1,22 @@
+/**
+ * Data-level semantic colors.
+ *
+ * These colors are used for node coloring, property selection options,
+ * task statuses, whiteboard tools, and other data-driven UI elements.
+ *
+ * They are intentionally isolated from variables.css to keep the core
+ * design-system tokens strictly monochrome + single functional accent.
+ * This preserves the monochrome foundation while allowing meaningful
+ * color coding at the data layer.
+ */
+
+:root {
+  --color-preset-red:    #c55a55;
+  --color-preset-orange: #c98557;
+  --color-preset-yellow: #b8a23a;
+  --color-preset-green:  #4f8f6a;
+  --color-preset-teal:   #4a8a83;
+  --color-preset-blue:   #5a79c9;
+  --color-preset-purple: #8a6cc9;
+  --color-preset-pink:   #c06a9a;
+}
