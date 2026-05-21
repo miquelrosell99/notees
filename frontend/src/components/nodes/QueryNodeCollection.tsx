@@ -195,6 +195,8 @@ export interface QueryNodeCollectionProps {
   queryAST?: QueryAST;
   /** Called when the user saves an edited query in inline mode. */
   onQueryASTChange?: (ast: QueryAST) => void;
+  /** Called when the result count changes. */
+  onCountChange?: (count: number) => void;
 
   /** Render prop - receives controls and results */
   children: (result: QueryNodeCollectionResult) => React.ReactNode;
@@ -232,6 +234,7 @@ export function QueryNodeCollection({
   can_delete = true,
   queryAST: inlineQueryAST,
   onQueryASTChange,
+  onCountChange,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
   // Inline mode: query AST comes directly, not from a NodeView.
@@ -892,6 +895,11 @@ export function QueryNodeCollection({
   }
 
   const resultCount = resultNodes.length;
+
+  // Notify parent when result count changes
+  useEffect(() => {
+    onCountChange?.(resultCount);
+  }, [resultCount, onCountChange]);
 
   // Resolve leftElement (can be static or function)
   const resolvedLeftElement = typeof leftElement === 'function' 
