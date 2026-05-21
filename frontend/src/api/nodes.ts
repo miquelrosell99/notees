@@ -916,6 +916,21 @@ export async function fixRawUuidLinks(): Promise<FixRawUuidLinksResponse> {
   return response.data;
 }
 
+/** Fix all broken_link and raw [[uuid]] references pointing to a specific UUID. */
+export interface FixLinksForUuidResponse {
+  success: boolean;
+  target_uuid: string;
+  nodes_fixed: number;
+  links_converted: number;
+  errors: string[];
+  total_errors: number;
+}
+
+export async function fixLinksForUuid(uuid: string): Promise<FixLinksForUuidResponse> {
+  const response = await api.post<FixLinksForUuidResponse>(`${BASE}/fix-links-for-uuid/${encodeURIComponent(uuid)}`);
+  return response.data;
+}
+
 // ==================== Templates ====================
 
 export interface TemplateInstantiateOptions {
