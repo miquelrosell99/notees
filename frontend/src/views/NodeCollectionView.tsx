@@ -4,7 +4,7 @@
  * Used by the Command Palette to open ad-hoc node collections
  * (e.g. "Broken links", or full search results via Ctrl+Enter).
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { QueryNodeCollection } from '@/components/nodes/QueryNodeCollection';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { useNavigationStore } from '@/stores';
@@ -23,6 +23,13 @@ interface NodeCollectionViewProps {
 export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionViewProps) {
   const { openNode, closeNodeCollection, addSidebarCard } = useNavigationStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const [resultCount, setResultCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (nodes) {
+      setResultCount(nodes.length);
+    }
+  }, [nodes]);
 
   const handleNodeClick = useCallback(
     (nodeId: number) => {
@@ -42,7 +49,12 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
     <article className="node-view node-view--page node-collection-view">
       {/* Header — title + close button */}
       <header className="node-collection-view__header">
-        <h1 className="node-collection-view__title">{title}</h1>
+        <h1 className="node-collection-view__title">
+          {title}
+          {resultCount !== null && resultCount > 0 && (
+            <span className="node-collection-view__count"> ({resultCount})</span>
+          )}
+        </h1>
         <Button
           variant="ghost"
           size="sm"
@@ -63,6 +75,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             queryAST={queryAST}
             onNodeClick={handleNodeClick}
             onBlockCreated={handleBlockCreated}
+            onCountChange={setResultCount}
             hideViewManagement
             can_create={false}
             showAddButton={false}

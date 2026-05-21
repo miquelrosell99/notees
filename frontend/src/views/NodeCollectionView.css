@@ -27,6 +27,11 @@
   line-height: 1.3;
 }
 
+.node-collection-view__count {
+  color: var(--color-on-surface-variant);
+  font-weight: 400;
+}
+
 /* Scrollable results area */
 .node-collection-view__results {
   flex: 1;
