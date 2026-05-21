@@ -18,6 +18,7 @@ import type {
   SidebarCard,
   SidebarCardType,
 } from './appStore';
+import type { QueryAST } from '@/types/queryAST';
 
 interface SidebarNode {
   id: number;
@@ -50,6 +51,11 @@ interface NavigationState {
   mainViewType: MainViewType;
   currentPropertyId: number | null;
 
+  // Temporary node collection view
+  nodeCollectionTitle: string | null;
+  nodeCollectionQueryAST: QueryAST | null;
+  nodeCollectionNodes: Node[] | null;
+
   // Actions
   setActiveNode: (node: Node | null) => void;
   setActiveNodeId: (id: number | null) => void;
@@ -60,6 +66,9 @@ interface NavigationState {
   toggleFocusMode: () => void;
   setMainViewType: (viewType: MainViewType) => void;
   openPropertyView: (propertyId: number) => void;
+  openNodeCollection: (title: string, queryAST: QueryAST) => void;
+  openNodeCollectionFromNodes: (title: string, nodes: Node[]) => void;
+  closeNodeCollection: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
@@ -88,6 +97,9 @@ export const useNavigationStore = create<NavigationState>()((set, _get) => ({
   preFocusModeSidebarCollapsed: null,
   mainViewType: 'node' as MainViewType,
   currentPropertyId: null,
+  nodeCollectionTitle: null,
+  nodeCollectionQueryAST: null,
+  nodeCollectionNodes: null,
 
   setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
   setActiveNodeId: (id) => set({ activeNodeId: id }),
@@ -116,6 +128,12 @@ export const useNavigationStore = create<NavigationState>()((set, _get) => ({
     }),
   setMainViewType: (viewType) => set({ mainViewType: viewType }),
   openPropertyView: (propertyId) => set({ mainViewType: 'property', currentPropertyId: propertyId }),
+  openNodeCollection: (title, queryAST) =>
+    set({ mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: queryAST, nodeCollectionNodes: null }),
+  openNodeCollectionFromNodes: (title, nodes) =>
+    set({ mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: null, nodeCollectionNodes: nodes }),
+  closeNodeCollection: () =>
+    set({ mainViewType: 'node', nodeCollectionTitle: null, nodeCollectionQueryAST: null, nodeCollectionNodes: null }),
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   openNodeInSidebar: (nodeId, nodeType) =>
     set({ rightSidebarOpen: true, rightSidebarContent: 'node', sidebarNode: { id: nodeId, type: nodeType } }),

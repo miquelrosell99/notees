@@ -1,0 +1,21 @@
+/* NodeCollectionView — temporary full-page query result view */
+
+.node-collection-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.node-collection-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.node-collection-view__results {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-4);
+}

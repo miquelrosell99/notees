@@ -234,8 +234,9 @@ export function QueryNodeCollection({
   onQueryASTChange,
   children,
 }: QueryNodeCollectionProps): React.ReactNode {
-  // Inline mode: query AST comes from the node's name field, not a NodeView
-  const isInlineMode = inlineQueryAST !== undefined && onQueryASTChange !== undefined;
+  // Inline mode: query AST comes directly, not from a NodeView.
+  // onQueryASTChange is optional — when absent the inline query is read-only.
+  const isInlineMode = inlineQueryAST !== undefined;
   // Compute effective capabilities
   // can_create controls both toolbar add button and card view add card
   const effectiveCanCreate = can_create && showAddButton;
@@ -767,9 +768,9 @@ export function QueryNodeCollection({
     try {
       const normalizedAST = normalizeAST(editAST);
 
-      if (isInlineMode) {
+      if (isInlineMode && onQueryASTChange) {
         // Inline mode: write back to node name instead of NodeView
-        onQueryASTChange?.(normalizedAST);
+        onQueryASTChange(normalizedAST);
       } else {
         await Promise.all([
           updateQueryMutation.mutateAsync({
