@@ -211,6 +211,7 @@ class StyleType(str, Enum):
     ITALIC = "italic"
     UNDERLINE = "underline"
     STRIKETHROUGH = "strikethrough"
+    BROKEN_LINK = "broken_link"
 
 
 class StyleOperator(str, Enum):

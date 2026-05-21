@@ -50,6 +50,14 @@ function renderNameInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
           />
         );
       }
+      case 'broken_link': {
+        const text = node.label || node.link_id.split(':')[0] || '⛓️‍💥';
+        return (
+          <span key={i} className="broken-link" title={`Broken link: ${node.link_id}`}>
+            {text}
+          </span>
+        );
+      }
       case 'strong':
         return <strong key={i}>{renderNameInlineNodes(node.children)}</strong>;
       case 'em':

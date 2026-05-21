@@ -22,7 +22,7 @@ import { InlineLink } from '../components/InlineLink';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export type InlineLinkRefType = 'node' | 'class' | 'url' | 'embed';
+export type InlineLinkRefType = 'node' | 'class' | 'url' | 'embed' | 'broken';
 
 // ─── Serialized form ──────────────────────────────────────────────
 

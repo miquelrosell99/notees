@@ -60,7 +60,8 @@ export type StyleType =
   | 'bold'
   | 'italic'
   | 'underline'
-  | 'strikethrough';
+  | 'strikethrough'
+  | 'broken_link';
 
 /**
  * Property types for property filter conditions in query AST nodes.

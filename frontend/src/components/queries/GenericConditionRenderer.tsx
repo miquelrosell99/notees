@@ -564,6 +564,7 @@ export function GenericConditionRenderer({
     { value: 'italic', label: 'ITALIC' },
     { value: 'underline', label: 'UNDERLINE' },
     { value: 'strikethrough', label: 'STRIKETHROUGH' },
+    { value: 'broken_link', label: 'BROKEN LINK' },
   ];
 
   // Get display label - dynamic for style conditions

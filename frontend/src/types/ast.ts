@@ -51,6 +51,15 @@ export interface ASTNodeLink {
   readonly label?: string | null;
 }
 
+/** Preserved reference to a node that no longer exists.
+ *  Keeps the original link_id (and optional label) so the UUID is not lost.
+ */
+export interface ASTBrokenLink {
+  readonly type: 'broken_link';
+  readonly link_id: string;
+  readonly label?: string | null;
+}
+
 // ─── Mark (formatting) nodes ───────────────────────────────────────
 
 export interface ASTStrong {
@@ -149,6 +158,7 @@ export type ASTInlineNode =
   | ASTHardBreak
   | ASTCode
   | ASTNodeLink
+  | ASTBrokenLink
   | ASTStrong
   | ASTEm
   | ASTStrikethrough
@@ -191,6 +201,6 @@ export type ASTDocument = ASTBlockNode[];
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Type guard: is the node a leaf (no children array)? */
-export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTNodeLink {
-  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'node_link';
+export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTNodeLink | ASTBrokenLink {
+  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'node_link' || node.type === 'broken_link';
 }

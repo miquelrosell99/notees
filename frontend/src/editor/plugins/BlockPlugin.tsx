@@ -2142,6 +2142,13 @@ function extractBlockContent(block: BlockNode): ContentAST {
             ? [{ type: 'text', text: displayText }]
             : [],
         });
+      } else if (rt === 'broken') {
+        const pillLabel = child.getLabel();
+        inlines.push({
+          type: 'broken_link',
+          link_id: child.getLinkId(),
+          ...(pillLabel ? { label: pillLabel } : {}),
+        });
       } else {
         const pillLabel = child.getLabel();
         const nodeLink: ASTNodeLink = {

@@ -21,6 +21,7 @@ import type {
   ASTHardBreak,
   ASTCode,
   ASTNodeLink,
+  ASTBrokenLink,
   ASTStrong,
   ASTEm,
   ASTStrikethrough,
@@ -68,6 +69,10 @@ export function code(codeText: string): ASTCode {
 
 export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
   return { type: 'node_link', link_id: linkId, ref_type: refType, label: label ?? undefined };
+}
+
+export function brokenLink(linkId: string, label?: string | null): ASTBrokenLink {
+  return { type: 'broken_link', link_id: linkId, label: label ?? undefined };
 }
 
 // ─── Link ID utilities ─────────────────────────────────────────────

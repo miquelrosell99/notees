@@ -140,6 +140,7 @@ export function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, 
       break;
     case 'node_link':
     case 'external_link':
+    case 'broken_link':
       // Placeholder — keeps character count stable
       parent.append($createTextNode('\u200B'));
       hasPills = true;
@@ -169,7 +170,7 @@ export function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, 
  */
 export function collectPillsFromAST(nodes: readonly ASTInlineNode[], out: ASTInlineNode[]): void {
   for (const n of nodes) {
-    if (n.type === 'node_link' || n.type === 'external_link') {
+    if (n.type === 'node_link' || n.type === 'external_link' || n.type === 'broken_link') {
       out.push(n);
     } else if ('children' in n && Array.isArray((n as any).children)) {
       collectPillsFromAST((n as any).children, out);
@@ -246,6 +247,13 @@ export function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): v
         ?.map((c: ASTInlineNode) => ('text' in c ? (c as any).text : ''))
         .join('') ?? '';
       inlineLink = $createInlineLinkNode(label || astPill.url, 'url', astPill.url);
+    } else if (astPill.type === 'broken_link') {
+      inlineLink = $createInlineLinkNode(
+        astPill.link_id,
+        'broken',
+        undefined,
+        astPill.label ?? undefined,
+      );
     } else {
       continue;
     }
@@ -315,6 +323,16 @@ export function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, forma
       parent.append(pill);
       break;
     }
+    case 'broken_link': {
+      const children = parent.getChildren();
+      const lastChild = children[children.length - 1];
+      if (children.length === 0 || $isInlineLinkNode(lastChild)) {
+        parent.append($createTextNode('\u200B'));
+      }
+      const pill = $createInlineLinkNode(inline.link_id, 'broken', undefined, inline.label ?? undefined);
+      parent.append(pill);
+      break;
+    }
     case 'strong': {
       // Recurse into children with bold flag added
       for (const child of inline.children) {
@@ -379,6 +397,13 @@ export function extractBlockContent(block: BlockNode): ContentAST {
           children: displayText && displayText !== url
             ? [{ type: 'text', text: displayText }]
             : [],
+        });
+      } else if (rt === 'broken') {
+        const pillLabel = child.getLabel();
+        inlines.push({
+          type: 'broken_link',
+          link_id: child.getLinkId(),
+          ...(pillLabel ? { label: pillLabel } : {}),
         });
       } else {
         const pillLabel = child.getLabel();
