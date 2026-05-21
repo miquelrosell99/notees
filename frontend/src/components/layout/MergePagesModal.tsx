@@ -54,11 +54,37 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     setError(null);
     try {
       await mergePages(sourceNode.id, targetNode.id);
-      // Invalidate all node queries: the merge updates content in any node that
-      // linked to the source (link redirections), so we can't predict which
-      // specific caches are stale.
-      queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+
+      // Remove all queries for the deleted source node so they don't refetch
+      // and fail with 404 when we invalidate everything else.
+      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.metadata(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.pageContent(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.backlinks(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.linkedRefs(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.propertyBacklinks(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.breadcrumbs(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.childrenOnly(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.aliases(sourceNode.id) });
+      if (sourceNode.uuid) {
+        queryClient.removeQueries({ queryKey: nodeKeys.byUuid(sourceNode.uuid) });
+      }
+
+      // Switch to the target page before invalidating so the old view
+      // unmounts and doesn't try to refetch the deleted source.
       openNode(targetNode.id);
+
+      // Invalidate general queries that may reference the source or target.
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'page-content'] });
+      queryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'] });
+      queryClient.invalidateQueries({ queryKey: ['pseudo-node-query'] });
+      queryClient.invalidateQueries({ queryKey: ['inline-query'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
+
       handleClose();
     } catch (e: unknown) {
       const msg =

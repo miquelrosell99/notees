@@ -736,7 +736,7 @@ class NodeService:
         return True
     
     async def restore_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
-        """Restore a soft-deleted node (and optionally its descendants).
+        """Restore a soft-deleted node and all its descendants.
         
         Args:
             node_id: The node to restore
@@ -749,8 +749,13 @@ class NodeService:
         now = utc_now()
         uid = user_id or self._user_id
         
-        await self._node_repo.restore_nodes([node_id], now, uid)
-        logger.info(f"[RESTORE] Restored node {node_id}")
+        # Get all descendant IDs including the node itself (bypass soft-delete filter)
+        descendant_ids = await self._node_repo.get_all_descendants(node_id, include_self=True)
+        if not descendant_ids:
+            descendant_ids = [node_id]
+        
+        await self._node_repo.restore_nodes(descendant_ids, now, uid)
+        logger.info(f"[RESTORE] Restored node {node_id} and {len(descendant_ids) - 1} descendants")
         return await self._node_repo.get_by_id(node_id)
     
     async def get_deleted_nodes(self) -> List[Node]:
@@ -1279,7 +1284,7 @@ class NodeService:
         logger.info(f"[MERGE] Merging node {source_id} ({source.name!r}) into {target_id} ({target.name!r})")
 
         # Step 1: Get direct children of source
-        children = await self._node_repo.get_nodes_by_parent(source_id)
+        children = await self._node_repo.get_children(source_id)
         children_ids = [c.id for c in children]
 
         # Step 2: Determine base sequence offset for appending to target
@@ -1292,7 +1297,7 @@ class NodeService:
 
         # Step 4: Update content of nodes that link to source to now link to target.
         # Collect backlink source IDs before redirecting node_link.
-        backlink_source_ids = await self._node_repo.get_backlink_sources(source_id)
+        backlink_source_ids = await self._link_service._link_repo.get_backlink_source_ids(source_id)
         backlink_source_ids = [sid for sid in backlink_source_ids if sid != target_id]
 
         if source.uuid and target.uuid:
@@ -1309,15 +1314,15 @@ class NodeService:
                     await self._node_repo.update(bsid, NodeUpdateData(name=updated))
 
         # Step 5: Redirect structural backlinks in node_link table
-        await self._node_repo.redirect_node_links(source_id, target_id)
+        await self._link_service._link_repo.redirect_link_targets(source_id, target_id)
         logger.info(f"[MERGE] Redirected node_link backlinks from {source_id} to {target_id}")
 
         # Step 5b: Redirect node-type property values that point to the source page
-        pvr_count = await self._node_repo.redirect_property_relations(source_id, target_id)
+        pvr_count = await self._node_repo.redirect_property_relation_targets(source_id, target_id)
         logger.info(f"[MERGE] Redirected {pvr_count} property_value_relation rows from {source_id} to {target_id}")
 
         # Step 5c: Delete outgoing node_links from source page itself.
-        await self._node_repo.delete_outgoing_links(source_id)
+        await self._link_service._link_repo.delete_source_links(source_id)
         logger.info(f"[MERGE] Deleted outgoing node_links from source page {source_id}")
 
         # Step 6: Soft-delete source (backlinks already redirected, children already moved)

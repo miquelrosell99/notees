@@ -126,6 +126,15 @@ class NodeHierarchyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_all_descendants(
+        self,
+        node_id: int,
+        include_self: bool = False
+    ) -> List[int]:
+        """Get all descendant IDs regardless of soft-delete status."""
+        pass
+
+    @abstractmethod
     async def find_page_by_name(
         self, name: str, parent_id: Optional[int] = None
     ) -> List[Any]:

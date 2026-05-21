@@ -113,6 +113,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
                 WHERE nl.target_id = $1 AND n.workspace_id = $2
+                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
             """, page_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]
     
@@ -179,6 +180,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
                 WHERE nl.target_id = $1 AND n.workspace_id = $2
+                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
             """, target_node_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]
     
@@ -219,6 +221,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 FROM node_link nl
                 JOIN node n ON nl.source_id = n.id
                 WHERE nl.target_id = $1 AND nl.is_inline_class = TRUE AND n.workspace_id = $2
+                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
             """, target_node_id, self._workspace_id)
             return [self._row_to_link(row) for row in rows]
 
@@ -347,6 +350,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 JOIN node owner ON pvr.node_id = owner.id
                 LEFT JOIN node page ON owner.page_id = page.id
                 WHERE pvr.target_id = ANY($1) AND p.type = 'text'
+                  AND (owner.is_deleted = FALSE OR owner.is_deleted IS NULL)
             """, target_ids)
     
     async def get_path_references(self, source_ids: List[int]) -> List[int]:
