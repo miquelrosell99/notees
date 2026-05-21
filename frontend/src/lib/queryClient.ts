@@ -3,6 +3,7 @@
  */
 import { QueryClient, QueryCache } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
+
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useUndoStore } from '@/stores/undoStore';
 
@@ -40,9 +41,10 @@ function onMutationError(error: Error) {
  * Global query error handler — only surfaces non-auth errors so routine
  * 401/403 responses (handled by the auth flow) don't spam the user.
  */
-function onQueryError(error: unknown) {
+function onQueryError(error: Error, query: unknown) {
   const status = (error as AxiosError)?.response?.status;
   if (status && (status === 401 || status === 403)) return; // handled by auth flow
+  if ((query as { meta?: { skipGlobalError?: boolean } })?.meta?.skipGlobalError) return; // suppressed by caller
   const message = getErrorMessage(error);
   useNotificationStore.getState().error('Failed to load data', message);
 }
