@@ -1,4 +1,6 @@
 """Tests for soft-delete, restore, permanent delete, and trash functionality."""
+import json
+
 import pytest
 
 from app.domain.entities import NodeUpdateData
@@ -140,18 +142,30 @@ async def test_delete_node_cascades_to_links(node_service):
 
 @pytest.mark.asyncio
 async def test_permanent_delete_replaces_links_in_content(node_service):
-    """Test that permanently deleting a node replaces [[id]] links with the node name."""
+    """Test that permanently deleting a node replaces node_link AST nodes with plain text."""
     target = await node_service.create_page("Target Page")
-    source = await node_service.create_page(f"Source with [[{target.id}]]")
+    source_page = await node_service.create_page("Source Page")
+    # Create a block (not a page) with an actual node_link AST node referencing the target
+    source_ast = json.dumps([{
+        "type": "paragraph",
+        "children": [
+            {"type": "text", "text": "Source with "},
+            {"type": "node_link", "link_id": str(target.id), "ref_type": "node"}
+        ]
+    }])
+    source_block = await node_service.create_block(source_ast, parent_id=source_page.id, sequence=0)
+    # Sync links so node_link record is created
+    await node_service.update_node_links(source_block.id, source_block.name)
 
     await node_service.delete_node(target.id)
     success = await node_service.permanently_delete_node(target.id)
     assert success is True
 
-    updated_source = await node_service.get_node(source.id)
+    updated_source = await node_service.get_node(source_block.id)
     assert updated_source is not None
     assert "Target Page" in updated_source.name
-    assert f"[[{target.id}]]" not in updated_source.name
+    # The node_link AST node should have been replaced with a text node
+    assert '"type": "node_link"' not in updated_source.name
 
 
 @pytest.mark.asyncio
