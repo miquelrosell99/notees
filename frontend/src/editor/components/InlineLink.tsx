@@ -41,6 +41,16 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     );
   }
 
+  // ─── Broken link pill — static, no fetching ─────────────────────
+  if (refType === 'broken') {
+    const text = label || linkId.split(':')[0] || '⛓️‍💥';
+    return (
+      <span className="inline-link-inner broken-link" data-ref-type="broken" title={`Broken link: ${linkId}`}>
+        <span className="inline-link-text">{text}</span>
+      </span>
+    );
+  }
+
   // ─── Node / class / embed pill — rendered by NodeRef inline variant ───
   const { nodeUuid } = parseLinkId(linkId);
 

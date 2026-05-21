@@ -800,7 +800,8 @@ class NodeService:
             updated_content = await self._remove_link_from_content(
                 source_node.name,
                 node,
-                "page"
+                "page",
+                preserve_as_broken=True,
             )
             
             if updated_content != source_node.name:
@@ -907,14 +908,16 @@ class NodeService:
         self,
         content: str,
         target_node: Node,
-        link_class: str
+        link_class: str,
+        preserve_as_broken: bool = False,
     ) -> str:
-        """Remove or replace a link in content with plain text.
+        """Remove or replace a link in content with plain text or broken_link.
 
         For AST JSON content (modern): walks the AST tree and replaces any
         node_link node referencing the target with a plain-text node whose
         text is the link's custom label (if set) or the target node's
-        plain-text name.
+        plain-text name. When preserve_as_broken is True, replaces with a
+        broken_link node instead so the original UUID is not lost.
 
         For legacy plain-text content: uses regex replacement.
         """
@@ -958,8 +961,14 @@ class NodeService:
                             ):
                                 changed = True
                                 label = node_item.get('label')
-                                replacement_text = label if label else target_text
-                                result.append({'type': 'text', 'text': replacement_text})
+                                if preserve_as_broken:
+                                    broken = {'type': 'broken_link', 'link_id': link_id}
+                                    if label:
+                                        broken['label'] = label
+                                    result.append(broken)
+                                else:
+                                    replacement_text = label if label else target_text
+                                    result.append({'type': 'text', 'text': replacement_text})
                                 continue
 
                         if 'children' in node_item:

@@ -54,3 +54,17 @@
   vertical-align: baseline;
   margin-right: 2px;
 }
+
+/* Broken link pills — red strikethrough, no hover effects */
+.inline-link-wrapper .inline-link-inner.broken-link {
+  color: var(--color-error);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-error);
+  text-decoration-style: solid;
+  cursor: not-allowed;
+}
+
+.inline-link-wrapper:hover .inline-link-inner.broken-link {
+  color: var(--color-error);
+  text-decoration-color: var(--color-error);
+}

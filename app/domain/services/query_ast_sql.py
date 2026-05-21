@@ -576,6 +576,7 @@ class QueryASTToSQL:
             'italic': 'em',
             'underline': 'underline',
             'strikethrough': 'strikethrough',
+            'broken_link': 'broken_link',
         }
         
         ast_type = STYLE_TO_AST_TYPE.get(condition.style_type.value if hasattr(condition.style_type, 'value') else condition.style_type)

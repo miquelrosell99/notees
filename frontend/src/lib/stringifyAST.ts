@@ -201,6 +201,14 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
     case 'node_link':
       return renderNodeLink(node.link_id, node.ref_type, opts, node.label);
 
+    case 'broken_link': {
+      const text = node.label || node.link_id.split(':')[0] || '';
+      if (opts.mode === StringifyMode.TEXT_ONLY) {
+        return text;
+      }
+      return `[${text}]([broken])`;
+    }
+
     default:
       // Unknown inline node — return empty string (stable, deterministic).
       return '';
