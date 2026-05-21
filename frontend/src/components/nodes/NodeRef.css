@@ -116,6 +116,15 @@
   border-radius: 2px;
 }
 
+/* Broken link indicator — shown when an inline node reference target is missing */
+.broken-link {
+  color: var(--color-error);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-error);
+  font-style: italic;
+  opacity: 0.85;
+}
+
 /* Context menu wrapper for link variant with color picker */
 .node-pill-context-menu-wrapper .context-menu {
   position: relative !important;
