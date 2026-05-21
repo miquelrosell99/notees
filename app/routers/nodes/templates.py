@@ -30,6 +30,7 @@ from .models import (
     BatchPermanentDeleteResultItem,
     BatchGetNodesRequest,
     BatchGetNodesResponse,
+    TemplateVariablesResponse,
 )
 from .helpers import (
     _get_node_service,

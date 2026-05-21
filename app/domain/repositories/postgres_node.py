@@ -576,7 +576,7 @@ class PostgresNodeRepository(
         """Get direct child IDs of a node ordered by sequence."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE ORDER BY sequence",
+                "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
                 parent_id
             )
             return [row['id'] for row in rows]

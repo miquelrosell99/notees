@@ -1473,7 +1473,7 @@ async def mark_page_opened(
     async with acquire_connection(service.pool) as conn:
         # Verify it's a page and exists
         row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND is_deleted = FALSE AND workspace_id = $2",
             node_id, service.workspace_id
         )
         
