@@ -2,7 +2,7 @@
  * BrokenLinkFixContext — provides a callback to fix broken links by creating a node.
  *
  * Used by ContextMenuPlugin (inside Lexical editors) to open the
- * CreatePageWithUuidModal with the missing UUID pre-filled.
+ * create-node-with-UUID modal with the missing UUID pre-filled.
  */
 import { createContext, useContext } from 'react';
 
