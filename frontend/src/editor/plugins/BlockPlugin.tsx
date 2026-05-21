@@ -1902,6 +1902,7 @@ function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, format:
       break;
     case 'node_link':
     case 'external_link':
+    case 'broken_link':
       // Placeholder — keeps character count stable
       parent.append($createTextNode('\u200B'));
       hasPills = true;
@@ -1931,7 +1932,7 @@ function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, format:
  */
 function collectPillsFromAST(nodes: readonly ASTInlineNode[], out: ASTInlineNode[]): void {
   for (const n of nodes) {
-    if (n.type === 'node_link' || n.type === 'external_link') {
+    if (n.type === 'node_link' || n.type === 'external_link' || n.type === 'broken_link') {
       out.push(n);
     } else if ('children' in n && Array.isArray((n as any).children)) {
       collectPillsFromAST((n as any).children, out);
@@ -2008,6 +2009,13 @@ function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): void {
         ?.map((c: ASTInlineNode) => ('text' in c ? (c as any).text : ''))
         .join('') ?? '';
       inlineLink = $createInlineLinkNode(label || astPill.url, 'url', astPill.url);
+    } else if (astPill.type === 'broken_link') {
+      inlineLink = $createInlineLinkNode(
+        astPill.link_id,
+        'broken',
+        undefined,
+        astPill.label ?? undefined,
+      );
     } else {
       continue;
     }
@@ -2107,6 +2115,11 @@ function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, format: numb
       for (const child of inline.children) {
         appendInlineNode(parent, child, format);
       }
+      break;
+    }
+    case 'broken_link': {
+      const pill = $createInlineLinkNode(inline.link_id, 'broken', undefined, inline.label ?? undefined);
+      parent.append(pill);
       break;
     }
     case 'external_link': {

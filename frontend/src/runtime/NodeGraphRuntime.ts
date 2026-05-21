@@ -1360,6 +1360,7 @@ function getInlineLength(node: ASTInlineNode): number {
     case 'hard_break':
       return 1;
     case 'node_link':
+    case 'broken_link':
       return 1; // Pills count as 1 character
     case 'code':
       return node.text.length;
