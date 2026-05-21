@@ -92,6 +92,8 @@ export function NodeNameContent({ name }: { name: string | null | undefined }) {
 
 function __useBatchedNodeByUuid(uuid: string) {
   const refNode = useReferencedNode(uuid);
-  const { data: fallback } = useNodeByUuid(!refNode ? uuid : null);
+  const { data: fallback } = useNodeByUuid(!refNode ? uuid : null, {
+    meta: { skipGlobalError: true },
+  });
   return { data: refNode ?? fallback ?? null };
 }

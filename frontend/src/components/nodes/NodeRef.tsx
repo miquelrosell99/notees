@@ -143,8 +143,14 @@ function NodeRefInline({
 
   // Resolve node: provided > uuid context > uuid fetch > batched ID fetch
   const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useNodeByUuid(!providedNode && !refNode && nodeUuid ? nodeUuid : null);
-  const { data: idFallback } = useBatchedNode(!providedNode && !refNode && !nodeUuid ? (nodeId ?? null) : null);
+  const { data: uuidFallback } = useNodeByUuid(
+    !providedNode && !refNode && nodeUuid ? nodeUuid : null,
+    { meta: { skipGlobalError: true } }
+  );
+  const { data: idFallback } = useBatchedNode(
+    !providedNode && !refNode && !nodeUuid ? (nodeId ?? null) : null,
+    { skipGlobalError: true }
+  );
   const node = providedNode ?? refNode ?? uuidFallback ?? idFallback ?? null;
 
   const { effectiveIcon, displayText: nodeDisplayText, isPage, color } = useNodeDisplay(
@@ -230,11 +236,17 @@ function NodeRefInteractive({
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
   
   // Only batch-fetch when no node is provided (need to fetch by ID)
-  const { data: fetchedNode } = useBatchedNode(providedNode ? null : (nodeId ?? null));
+  const { data: fetchedNode } = useBatchedNode(
+    providedNode ? null : (nodeId ?? null),
+    { skipGlobalError: true }
+  );
   
   // UUID resolution (for non-inline interactive links that happen to have a UUID)
   const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useNodeByUuid(!providedNode && !fetchedNode && !refNode && nodeUuid ? nodeUuid : null);
+  const { data: uuidFallback } = useNodeByUuid(
+    !providedNode && !fetchedNode && !refNode && nodeUuid ? nodeUuid : null,
+    { meta: { skipGlobalError: true } }
+  );
   
   // Use provided node directly, or fetched node for ID-only usage
   const node = providedNode ?? fetchedNode ?? refNode ?? uuidFallback;

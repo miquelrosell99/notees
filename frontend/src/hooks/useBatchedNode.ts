@@ -105,7 +105,7 @@ function queueForBatch(id: number, queryClient: QueryClient): Promise<Record<str
  * (no children, backlinks, or properties) — e.g., NodeRef, breadcrumbs,
  * link previews, table cells.
  */
-export function useBatchedNode(id: number | null) {
+export function useBatchedNode(id: number | null, meta?: Record<string, unknown>) {
   const queryClient = useQueryClient();
 
   return useQuery({
@@ -129,6 +129,7 @@ export function useBatchedNode(id: number | null) {
       }
       return failureCount < 1;
     },
+    meta,
   });
 }
 
