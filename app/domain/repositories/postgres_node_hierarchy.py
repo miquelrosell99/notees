@@ -162,3 +162,25 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                       AND n.active = TRUE AND n.is_deleted = FALSE
                 """, node_id, self._workspace_id)
             return [row['descendant_id'] for row in rows]
+
+    async def get_all_descendants(
+        self,
+        node_id: int,
+        include_self: bool = False,
+    ) -> List[int]:
+        """Get all descendant IDs of a node using the closure table,
+        regardless of soft-delete status. Used for restore operations."""
+        async with acquire_connection(self._pool) as conn:
+            if include_self:
+                rows = await conn.fetch("""
+                    SELECT np.descendant_id
+                    FROM node_path np
+                    WHERE np.ancestor_id = $1
+                """, node_id)
+            else:
+                rows = await conn.fetch("""
+                    SELECT np.descendant_id
+                    FROM node_path np
+                    WHERE np.ancestor_id = $1 AND np.depth > 0
+                """, node_id)
+            return [row['descendant_id'] for row in rows]
