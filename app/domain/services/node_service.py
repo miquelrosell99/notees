@@ -770,6 +770,8 @@ class NodeService:
         """Permanently delete a soft-deleted node (hard delete from database).
         
         This is irreversible. Only works on nodes that are already soft-deleted.
+        Before hard-deleting, it removes/replaces backlinks in surviving nodes'
+        AST content so inline links don't become orphaned.
         
         Args:
             node_id: The node to permanently delete
@@ -779,6 +781,39 @@ class NodeService:
         """
         if self._user_id:
             await self.permissions.require_node_delete(node_id)
+        
+        node = await self._node_repo.get_node_by_id_with_workspace(node_id)
+        if not node:
+            return False
+        
+        # Get all backlinks to this node (from [[nodeId]] links)
+        backlinks = await self._link_service.get_backlinks(node_id)
+        logger.info(f"[PERM_DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
+        
+        updated_nodes = set()
+        
+        for link in backlinks:
+            source_node = await self._node_repo.get_by_id(link.source_node_id)
+            if not source_node or not source_node.name:
+                continue
+            
+            updated_content = await self._remove_link_from_content(
+                source_node.name,
+                node,
+                "page"
+            )
+            
+            if updated_content != source_node.name:
+                await self._node_repo.update(
+                    link.source_node_id,
+                    NodeUpdateData(name=updated_content)
+                )
+                updated_nodes.add(link.source_node_id)
+                logger.info(f"[PERM_DELETE] Updated source node {link.source_node_id}")
+        
+        # Also handle inline class references ({{nodeId}})
+        await self._replace_inline_class_references(node, updated_nodes)
+        
         return await self._node_repo.hard_delete(node_id)
     
     async def empty_trash(self) -> int:
@@ -800,8 +835,8 @@ class NodeService:
             node_id = node.id
             logger.info(f"[EMPTY_TRASH] Attempting to hard delete node {node_id}")
             try:
-                success = await self._node_repo.hard_delete(node_id)
-                logger.info(f"[EMPTY_TRASH] hard_delete({node_id}) returned {success}")
+                success = await self.permanently_delete_node(node_id)
+                logger.info(f"[EMPTY_TRASH] permanently_delete_node({node_id}) returned {success}")
                 if success:
                     deleted_count += 1
             except PermissionDeniedError as e:
