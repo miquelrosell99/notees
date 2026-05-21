@@ -176,7 +176,8 @@ async def find_orphans(
         """,
         list(all_targets),
     )
-    existing_uuids = {r["uuid"] for r in existing_rows}
+    # asyncpg returns uuid.UUID objects — convert to strings for comparison
+    existing_uuids = {str(r["uuid"]) for r in existing_rows}
     orphaned_uuids = all_targets - existing_uuids
 
     if not orphaned_uuids:
