@@ -17,13 +17,14 @@ import { AllPagesView } from '../../views/AllPagesView';
 import { ArchivedPagesView } from '../../views/ArchivedPagesView';
 import { TrashView } from '../../views/TrashView';
 import { JournalsView } from '../../views/JournalsView';
+import { NodeCollectionView } from '../../views/NodeCollectionView';
 const AllPagesGraphView = React.lazy(() => import('../../views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
 const AllPagesTimelineView = React.lazy(() => import('../../views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
 const PropertyViewFull = React.lazy(() => import('../../views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
 
 export function MainContent() {
-  const { currentNodeId, viewMode, mainViewType, currentPropertyId, openNode, addSidebarCard } = useNavigationStore();
+  const { currentNodeId, viewMode, mainViewType, currentPropertyId, nodeCollectionTitle, nodeCollectionQueryAST, nodeCollectionNodes, openNode, addSidebarCard } = useNavigationStore();
   const queryClient = useQueryClient();
   const prevViewRef = useRef(mainViewType);
   const { systemClassIds } = useSystemClasses();
@@ -124,7 +125,19 @@ export function MainContent() {
       </div>
     );
   }
-  
+
+  if (mainViewType === 'node-collection' && (nodeCollectionQueryAST || nodeCollectionNodes)) {
+    return (
+      <main className="main-content">
+        <NodeCollectionView
+          title={nodeCollectionTitle ?? 'Results'}
+          queryAST={nodeCollectionQueryAST}
+          nodes={nodeCollectionNodes}
+        />
+      </main>
+    );
+  }
+
   // Default: node view (page or block)
   if (!currentNodeId) {
     return (

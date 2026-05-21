@@ -59,6 +59,7 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'trash': 'trash',
   'assets': 'assets',
   'property': '', // Property view uses root path
+  'node-collection': '', // Temporary view — no URL (falls back to home)
 };
 
 export interface ParsedRoute {

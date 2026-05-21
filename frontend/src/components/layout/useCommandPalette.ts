@@ -42,6 +42,8 @@ import type {
   DuplicateModalState,
   CommandDef,
 } from './CommandPalette.types';
+import { createEmptyQueryAST } from '@/types/queryAST';
+import type { QueryAST, StyleCondition } from '@/types/queryAST';
 import {
   INITIAL_MAX_PAGES,
   INITIAL_MAX_BLOCKS,
@@ -67,7 +69,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { openNode, openPropertyView } = useNavigationStore();
+  const { openNode, openPropertyView, openNodeCollection, openNodeCollectionFromNodes } = useNavigationStore();
   const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
   const { navigateToNode: _navigateToNode } = useNodeNavigation();
   const { error: notifyError, warning: notifyWarning, success: notifySuccess } = useNotifications();
@@ -204,6 +206,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       { id: 'open-random-page', label: 'Open random page', icon: 'random' },
       { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
       { id: 'toggle-local-graph', label: 'Toggle local graph', icon: 'graph', requiresPage: true },
+      { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
@@ -636,6 +639,24 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
           if (currentId) {
             useNavigationStore.getState().openLocalGraph(currentId);
           }
+        } else if (item.commandId === 'open-broken-links') {
+          const brokenLinksQuery: QueryAST = {
+            ...createEmptyQueryAST(),
+            scope: { type: 'scope', scope_type: 'entire_workspace' },
+            root_group: {
+              type: 'group',
+              logic: 'AND',
+              children: [
+                {
+                  type: 'condition',
+                  condition_type: 'style',
+                  style_type: 'broken_link',
+                  operator: 'is',
+                } as StyleCondition,
+              ],
+            },
+          };
+          openNodeCollection('Broken links', brokenLinksQuery);
         }
         onClose();
         break;
@@ -681,8 +702,19 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       }
       return;
     }
-    // Modifier+Enter triggers quick-add directly
+    // Ctrl+Enter opens all search results in a temporary NodeCollection view
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      if (searchResults && searchResults.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        openNodeCollectionFromNodes(
+          searchTerm.trim() ? `Search: "${searchTerm}"` : 'Search results',
+          searchResults,
+        );
+        onClose();
+        return;
+      }
+      // Fall back to quick-add when no search results
       const quickAddIndex = allItems.findIndex(item => item.type === 'quick-add');
       if (quickAddIndex !== -1) {
         e.preventDefault();
@@ -692,7 +724,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       }
     }
     listKeyDown(e);
-  }, [isTypingClass, listKeyDown, onClose, allItems, handleSelect]);
+  }, [isTypingClass, searchResults, searchTerm, allItems, handleSelect, listKeyDown, onClose, openNodeCollectionFromNodes]);
 
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
   const groupedItems = useMemo<GroupedItems>(() => {

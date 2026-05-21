@@ -511,6 +511,9 @@ export function CommandPalette(props: CommandPaletteProps) {
             <kbd>↵</kbd> to select
           </span>
           <span className="command-palette__footer-hint">
+            <kbd>Ctrl</kbd>+<kbd>↵</kbd> open all results
+          </span>
+          <span className="command-palette__footer-hint">
             <kbd>esc</kbd> to close
           </span>
         </div>
