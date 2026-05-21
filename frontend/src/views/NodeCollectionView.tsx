@@ -40,23 +40,18 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
 
   return (
     <article className="node-view node-view--page node-collection-view">
-      {/* Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header node-collection-view__header">
-            <h1 className="page-header__title">{title}</h1>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-close"
-              onClick={closeNodeCollection}
-              title="Close"
-            >
-              Close
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* Header — title + close button */}
+      <header className="node-collection-view__header">
+        <h1 className="node-collection-view__title">{title}</h1>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon="mdi mdi-close"
+          onClick={closeNodeCollection}
+          title="Close"
+        />
+      </header>
 
       {/* Query results */}
       <div className="node-collection-view__results">
@@ -72,12 +67,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             can_create={false}
             showAddButton={false}
           >
-            {({ controls, results }) => (
-              <>
-                {controls}
-                {results}
-              </>
-            )}
+            {({ results }) => results}
           </QueryNodeCollection>
         ) : nodes ? (
           <NodeCollection
