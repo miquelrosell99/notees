@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Revert false-positive broken_link conversions back to node_link.
+"""Revert false-positive broken_link nodes back to node_link.
 
-The original find_and_fix_orphaned_links.py had a bug: asyncpg returns
-uuid.UUID objects for UUID columns, but the script compared them to strings.
-This caused ALL node_link nodes to be incorrectly converted to broken_link.
+Scans all active nodes for `broken_link` AST nodes whose target UUID
+actually exists in the node table (false positives from the buggy
+find_and_fix_orphaned_links.py run) and converts them back to `node_link`.
 
-This script:
-1. Scans all nodes for broken_link AST nodes
-2. Checks if the target UUID exists in the node table
-3. If the target exists, converts broken_link back to node_link
-4. If the target is truly missing, keeps broken_link
+Usage:
+    # Dry-run: report candidates without fixing
+    python scripts/revert_false_positive_broken_links.py --dry-run
+
+    # Actually fix
+    python scripts/revert_false_positive_broken_links.py --fix
+
+    # Target a specific workspace
+    python scripts/revert_false_positive_broken_links.py --fix --workspace-id 5
 """
 from __future__ import annotations
 
@@ -39,7 +43,7 @@ async def get_pool():
 
 
 def extract_broken_link_targets(ast: Any) -> Set[str]:
-    """Recursively extract all link_id targets from broken_link AST nodes."""
+    """Recursively extract target UUIDs from broken_link AST nodes."""
     targets: Set[str] = set()
 
     def walk(nodes: Any) -> None:
@@ -61,13 +65,14 @@ def extract_broken_link_targets(ast: Any) -> Set[str]:
     return targets
 
 
-def fix_false_positives(
+def revert_broken_links(
     ast: List[dict],
     existing_uuids: Set[str],
 ) -> Tuple[List[dict], bool]:
-    """Convert broken_link back to node_link where the target exists.
+    """Return a new AST with false-positive broken_link nodes restored to node_link.
 
-    Returns (new_ast, changed).
+    Defaults ref_type to 'node' because broken_link does not store the original
+    ref_type.  Returns (new_ast, changed).
     """
     changed = False
 
@@ -83,7 +88,6 @@ def fix_false_positives(
                 link_id = str(node.get("link_id", ""))
                 target_uuid = link_id.split(":", 1)[0] if link_id else ""
                 if target_uuid in existing_uuids:
-                    # Target exists — convert back to node_link
                     changed = True
                     restored = {
                         "type": "node_link",
@@ -106,19 +110,93 @@ def fix_false_positives(
     return walk(ast), changed
 
 
+async def find_false_positives(
+    conn: asyncpg.Connection,
+    workspace_id: Optional[int] = None,
+) -> List[Tuple[int, str, Set[str]]]:
+    """Find nodes containing broken_link references that actually exist."""
+    if workspace_id is not None:
+        rows = await conn.fetch(
+            """
+            SELECT id, uuid, name
+            FROM node
+            WHERE workspace_id = $1
+              AND active = TRUE
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
+              AND name IS NOT NULL
+              AND name != ''
+            """,
+            workspace_id,
+        )
+    else:
+        rows = await conn.fetch(
+            """
+            SELECT id, uuid, name
+            FROM node
+            WHERE active = TRUE
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
+              AND name IS NOT NULL
+              AND name != ''
+            """
+        )
+
+    all_targets: Set[str] = set()
+    node_targets: Dict[int, Set[str]] = {}
+    ast_by_node: Dict[int, Any] = {}
+
+    for row in rows:
+        node_id = row["id"]
+        name = row["name"]
+        try:
+            ast = json.loads(name)
+            if not isinstance(ast, list):
+                continue
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        targets = extract_broken_link_targets(ast)
+        if targets:
+            all_targets.update(targets)
+            node_targets[node_id] = targets
+            ast_by_node[node_id] = ast
+
+    if not all_targets:
+        return []
+
+    existing_rows = await conn.fetch(
+        """
+        SELECT uuid FROM node WHERE uuid = ANY($1)
+        """,
+        list(all_targets),
+    )
+    existing_uuids = {str(r["uuid"]) for r in existing_rows}
+
+    if not existing_uuids:
+        return []
+
+    uuid_by_id = {row["id"]: row["uuid"] for row in rows}
+    results = []
+    for node_id, targets in node_targets.items():
+        fixable = targets & existing_uuids
+        if fixable:
+            results.append((node_id, uuid_by_id[node_id], fixable))
+
+    return results
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Revert false-positive broken_link conversions."
+        description="Revert false-positive broken_link AST nodes back to node_link."
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Report what would be reverted without modifying the database.",
+        help="Report candidates without modifying the database (default behavior).",
     )
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="Actually perform the revert.",
+        help="Actually revert false-positive broken_link nodes to node_link.",
     )
     parser.add_argument(
         "--workspace-id",
@@ -130,108 +208,32 @@ async def main() -> int:
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        print("Scanning for false-positive broken_link conversions...")
+        print("Scanning for false-positive broken_link references...")
+        candidates = await find_false_positives(conn, workspace_id=args.workspace_id)
 
-        # Fetch all active nodes with broken_link AST nodes
-        if args.workspace_id is not None:
-            rows = await conn.fetch(
-                """
-                SELECT id, uuid, name
-                FROM node
-                WHERE workspace_id = $1
-                  AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-                  AND name IS NOT NULL
-                  AND name LIKE '%broken_link%'
-                """,
-                args.workspace_id,
-            )
-        else:
-            rows = await conn.fetch(
-                """
-                SELECT id, uuid, name
-                FROM node
-                WHERE active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-                  AND name IS NOT NULL
-                  AND name LIKE '%broken_link%'
-                """
-            )
-
-        # Collect all unique target UUIDs from broken_link AST nodes
-        all_targets: Set[str] = set()
-        node_targets: Dict[int, Set[str]] = {}
-        ast_by_node: Dict[int, Any] = {}
-
-        for row in rows:
-            node_id = row["id"]
-            name = row["name"]
-            try:
-                ast = json.loads(name)
-                if not isinstance(ast, list):
-                    continue
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            targets = extract_broken_link_targets(ast)
-            if targets:
-                all_targets.update(targets)
-                node_targets[node_id] = targets
-                ast_by_node[node_id] = ast
-
-        if not all_targets:
-            print("No broken_link nodes found.")
+        if not candidates:
+            print("No false-positive broken_link references found.")
             return 0
 
-        print(f"Found {len(rows)} node(s) with broken_link AST nodes.")
-        print(f"Collected {len(all_targets)} unique target UUIDs to check.")
-
-        # Check which target UUIDs exist in the node table
-        # CRITICAL FIX: convert asyncpg UUID objects to strings
-        existing_rows = await conn.fetch(
-            "SELECT uuid FROM node WHERE uuid = ANY($1)",
-            list(all_targets),
-        )
-        existing_uuids = {str(r["uuid"]) for r in existing_rows}
-
-        print(f"Found {len(existing_uuids)} target UUID(s) that still exist in the database.")
-
-        # Build result list
-        results = []
-        for node_id in node_targets:
-            node_orphans = node_targets[node_id] - existing_uuids
-            node_restorable = node_targets[node_id] & existing_uuids
-            if node_restorable:
-                results.append((node_id, node_restorable, node_orphans))
-
-        if not results:
-            print("No false positives found (all broken_link targets are truly missing).")
-            return 0
-
-        total_restorable = sum(len(r) for _, r, _ in results)
-        total_truly_orphaned = sum(len(o) for _, _, o in results)
+        total_fixable = sum(len(uuids) for _, _, uuids in candidates)
         print(
-            f"Found {len(results)} node(s) with {total_restorable} restorable link(s) "
-            f"and {total_truly_orphaned} truly orphaned link(s).\n"
+            f"Found {len(candidates)} node(s) with {total_fixable} "
+            f"false-positive broken_link reference(s).\n"
         )
 
-        for node_id, restorable, orphaned in results:
-            print(f"  Node {node_id}:")
-            for u in sorted(restorable):
-                print(f"    -> will restore link to existing uuid {u}")
-            for u in sorted(orphaned):
-                print(f"    -> keeping broken_link for missing uuid {u}")
+        for node_id, node_uuid, uuids in candidates:
+            print(f"  Node {node_id} (uuid={node_uuid}):")
+            for u in sorted(uuids):
+                print(f"    -> target exists: {u}")
 
         if not args.fix:
-            print("\nRun with --fix to perform the revert.")
+            print("\nRun with --fix to restore these references.")
             return 0
 
-        # Fix mode
-        print("\nReverting false positives...")
+        print("\nRestoring false-positive broken_link references...")
         fixed_count = 0
-        kept_broken_count = 0
 
-        for node_id, restorable, orphaned in results:
+        for node_id, node_uuid, uuids in candidates:
             row = await conn.fetchrow(
                 "SELECT name FROM node WHERE id = $1", node_id
             )
@@ -243,7 +245,7 @@ async def main() -> int:
             except (json.JSONDecodeError, TypeError):
                 continue
 
-            new_ast, changed = fix_false_positives(ast, existing_uuids)
+            new_ast, changed = revert_broken_links(ast, uuids)
             if not changed:
                 continue
 
@@ -258,11 +260,9 @@ async def main() -> int:
                 node_id,
             )
             fixed_count += 1
-            if orphaned:
-                kept_broken_count += 1
-            print(f"  Fixed node {node_id} (restored {len(restorable)}, kept {len(orphaned)} broken)")
+            print(f"  Fixed node {node_id} (uuid={node_uuid})")
 
-        print(f"\nDone. Reverted {fixed_count} node(s). {kept_broken_count} still have some truly broken links.")
+        print(f"\nDone. Fixed {fixed_count} node(s).")
 
     await pool.close()
     return 0
