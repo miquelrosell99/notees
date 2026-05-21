@@ -166,12 +166,14 @@ export function useNodeByUuid(
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
+    meta?: Record<string, unknown>;
   }
 ) {
   return useQuery({
     queryKey: nodeKeys.byUuid(uuid ?? ''),
     queryFn: () => nodesApi.getNodeByUuid(uuid!, options),
     enabled: !!uuid,
+    meta: options?.meta,
   });
 }
 
