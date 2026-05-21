@@ -1,12 +1,14 @@
 /**
- * CreatePageWithUuidModal - Create a page with a user-specified UUID
+ * CreatePageWithUuidModal - Create a node with a user-specified UUID
  *
- * Lets the user set both the page name and a forced UUID.
- * Validates that no node with the given UUID already exists before creating.
+ * Lets the user set the node name, a forced UUID, and choose whether to create
+ * a page or a block. For blocks, a parent page is required.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
+import { ToggleSwitch } from '@/components/core/ToggleSwitch';
+import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { useCreateNode, usePageClass } from '@/hooks';
 import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
@@ -18,7 +20,7 @@ export interface CreatePageWithUuidModalProps {
   isOpen: boolean;
   /** Callback to close the modal */
   onClose: () => void;
-  /** Callback when the page is successfully created */
+  /** Callback when the node is successfully created */
   onSuccess: (node: Node) => void;
   /** Optional UUID to pre-fill instead of generating a fresh one */
   prefillUuid?: string | null;
@@ -30,8 +32,10 @@ export function CreatePageWithUuidModal({
   onSuccess,
   prefillUuid,
 }: CreatePageWithUuidModalProps) {
-  const [pageName, setPageName] = useState('');
+  const [nodeName, setNodeName] = useState('');
   const [uuid, setUuid] = useState('');
+  const [isPage, setIsPage] = useState(true);
+  const [parentId, setParentId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -41,8 +45,10 @@ export function CreatePageWithUuidModal({
   // Reset and generate a fresh UUID each time the modal opens
   useEffect(() => {
     if (isOpen) {
-      setPageName('');
+      setNodeName('');
       setUuid(prefillUuid ?? generateUUID());
+      setIsPage(true);
+      setParentId(null);
       setError(null);
       setIsCreating(false);
       setTimeout(() => nameRef.current?.focus(), 100);
@@ -54,19 +60,23 @@ export function CreatePageWithUuidModal({
   }, []);
 
   const doCreate = useCallback(async (andOpen: boolean) => {
-    const trimmedName = pageName.trim();
+    const trimmedName = nodeName.trim();
     const trimmedUuid = uuid.trim();
 
     if (!trimmedName) {
-      setError('Page name is required.');
+      setError(`${isPage ? 'Page' : 'Block'} name is required.`);
       return;
     }
     if (!isValidUuid(trimmedUuid)) {
       setError('UUID must be a valid v4 UUID (e.g. 550e8400-e29b-41d4-a716-446655440000).');
       return;
     }
-    if (!pageClassId) {
+    if (isPage && !pageClassId) {
       setError('Page class not available. Please try again.');
+      return;
+    }
+    if (!isPage && parentId == null) {
+      setError('Parent page is required for blocks.');
       return;
     }
 
@@ -89,22 +99,34 @@ export function CreatePageWithUuidModal({
         return;
       }
 
-      const newNode = await createNodeMutation.mutateAsync({
+      const payload: {
+        name: string;
+        uuid: string;
+        classes?: number[];
+        parent_id?: number | null;
+      } = {
         name: trimmedName,
         uuid: trimmedUuid,
-        classes: [pageClassId],
-      });
+      };
+
+      if (isPage) {
+        payload.classes = [pageClassId!];
+      } else {
+        payload.parent_id = parentId;
+      }
+
+      const newNode = await createNodeMutation.mutateAsync(payload);
 
       if (andOpen) {
         onSuccess(newNode);
       }
       onClose();
     } catch {
-      setError('Failed to create page. Please try again.');
+      setError(`Failed to create ${isPage ? 'page' : 'block'}. Please try again.`);
     } finally {
       setIsCreating(false);
     }
-  }, [pageName, uuid, pageClassId, isValidUuid, createNodeMutation, onSuccess, onClose]);
+  }, [nodeName, uuid, isPage, parentId, pageClassId, isValidUuid, createNodeMutation, onSuccess, onClose]);
 
   const handleCreate = useCallback(() => doCreate(false), [doCreate]);
   const handleCreateAndOpen = useCallback(() => doCreate(true), [doCreate]);
@@ -123,7 +145,7 @@ export function CreatePageWithUuidModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create page with custom UUID"
+      title="Create node with custom UUID"
       size="sm"
       footer={
         <div className="create-uuid-modal__footer">
@@ -134,7 +156,7 @@ export function CreatePageWithUuidModal({
             variant="default"
             onClick={handleCreate}
             size="sm"
-            disabled={isCreating || !pageName.trim()}
+            disabled={isCreating || !nodeName.trim()}
           >
             Create
           </Button>
@@ -142,7 +164,7 @@ export function CreatePageWithUuidModal({
             variant="primary"
             onClick={handleCreateAndOpen}
             size="sm"
-            disabled={isCreating || !pageName.trim()}
+            disabled={isCreating || !nodeName.trim()}
           >
             {isCreating ? 'Creating…' : 'Open'}
           </Button>
@@ -150,22 +172,60 @@ export function CreatePageWithUuidModal({
       }
     >
       <div className="create-uuid-modal">
+        {/* Page / Block toggle */}
+        <div className="create-uuid-modal__field">
+          <label className="create-uuid-modal__label">Type</label>
+          <ToggleSwitch
+            leftLabel="Page"
+            rightLabel="Block"
+            checked={!isPage}
+            onChange={(checked) => {
+              setIsPage(!checked);
+              setError(null);
+            }}
+            size="md"
+          />
+        </div>
+
         <div className="create-uuid-modal__field">
           <label className="create-uuid-modal__label" htmlFor="cup-name">
-            Page name
+            {isPage ? 'Page name' : 'Block name'}
           </label>
           <input
             ref={nameRef}
             id="cup-name"
             type="text"
             className="create-uuid-modal__input"
-            value={pageName}
-            onChange={(e) => { setPageName(e.target.value); setError(null); }}
+            value={nodeName}
+            onChange={(e) => { setNodeName(e.target.value); setError(null); }}
             onKeyDown={handleKeyDown}
-            placeholder="My page"
+            placeholder={isPage ? 'My page' : 'My block'}
             autoComplete="off"
           />
         </div>
+
+        {/* Parent page picker — shown only for blocks */}
+        {!isPage && (
+          <div className="create-uuid-modal__field">
+            <label className="create-uuid-modal__label">
+              Parent page
+              <span className="create-uuid-modal__required"> *</span>
+            </label>
+            <NodeSelector
+              trigger="select"
+              searchMode="pages"
+              multi={false}
+              value={parentId}
+              placeholder="Select a parent page…"
+              searchPlaceholder="Search pages…"
+              onChange={(val) => {
+                setParentId(typeof val === 'number' ? val : null);
+                setError(null);
+              }}
+              allowCreate={false}
+            />
+          </div>
+        )}
 
         <div className="create-uuid-modal__field">
           <label className="create-uuid-modal__label" htmlFor="cup-uuid">
@@ -201,4 +261,3 @@ export function CreatePageWithUuidModal({
     </Modal>
   );
 }
-

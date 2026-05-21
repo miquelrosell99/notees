@@ -19,6 +19,10 @@
   color: var(--color-on-surface-variant);
 }
 
+.create-uuid-modal__required {
+  color: var(--color-error);
+}
+
 .create-uuid-modal__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
