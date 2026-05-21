@@ -200,7 +200,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance', devOnly: true },
       { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
       { id: 'merge-pages', label: 'Merge pages', icon: 'merge' },
-      { id: 'create-page-with-uuid', label: 'Create page with custom UUID', icon: 'uuid', devOnly: true },
+      { id: 'create-page-with-uuid', label: 'Create node with custom UUID', icon: 'uuid', devOnly: true },
       { id: 'reset-views', label: 'Reset views to defaults (current node)', icon: 'maintenance', requiresPage: true, devOnly: true },
       { id: 'open-random-page', label: 'Open random page', icon: 'random' },
       { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
