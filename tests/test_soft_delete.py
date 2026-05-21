@@ -139,6 +139,22 @@ async def test_delete_node_cascades_to_links(node_service):
 
 
 @pytest.mark.asyncio
+async def test_permanent_delete_replaces_links_in_content(node_service):
+    """Test that permanently deleting a node replaces [[id]] links with the node name."""
+    target = await node_service.create_page("Target Page")
+    source = await node_service.create_page(f"Source with [[{target.id}]]")
+
+    await node_service.delete_node(target.id)
+    success = await node_service.permanently_delete_node(target.id)
+    assert success is True
+
+    updated_source = await node_service.get_node(source.id)
+    assert updated_source is not None
+    assert "Target Page" in updated_source.name
+    assert f"[[{target.id}]]" not in updated_source.name
+
+
+@pytest.mark.asyncio
 async def test_delete_node_cascades_to_properties(node_service, property_repository):
     """Test that deleting a node removes its property values."""
     from app.domain.entities import Property, PropertyType
