@@ -16,7 +16,6 @@ import { ResultItem } from './CommandPaletteResult';
 import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { DuplicatePageModal } from './DuplicatePageModal';
-import { CreatePageWithUuidModal } from './CreatePageWithUuidModal';
 import { Icon, AddIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
@@ -31,8 +30,6 @@ export function CommandPalette(props: CommandPaletteProps) {
     classPopupPosition,
     duplicateModal,
     setDuplicateModal,
-    createWithUuidModalOpen,
-    setCreateWithUuidModalOpen,
     inputRef,
     containerRef,
     isTypingClass,
@@ -534,14 +531,6 @@ export function CommandPalette(props: CommandPaletteProps) {
       />
 
     </div>
-    <CreatePageWithUuidModal
-      isOpen={createWithUuidModalOpen}
-      onClose={() => setCreateWithUuidModalOpen(false)}
-      onSuccess={(node) => {
-        setCreateWithUuidModalOpen(false);
-        openNode(node.id);
-      }}
-    />
     </>
   );
 }

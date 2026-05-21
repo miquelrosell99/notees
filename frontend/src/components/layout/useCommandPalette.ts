@@ -62,7 +62,6 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     originalClasses: [],
     parentId: null,
   });
-  const [createWithUuidModalOpen, setCreateWithUuidModalOpen] = useState(false);
   const [maxPages, setMaxPages] = useState(INITIAL_MAX_PAGES);
   const [maxBlocks, setMaxBlocks] = useState(INITIAL_MAX_BLOCKS);
   const [maxProperties, setMaxProperties] = useState(INITIAL_MAX_PROPERTIES);
@@ -603,7 +602,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
         } else if (item.commandId === 'toggle-focus-mode') {
           useNavigationStore.getState().toggleFocusMode();
         } else if (item.commandId === 'create-page-with-uuid') {
-          setCreateWithUuidModalOpen(true);
+          useModalStore.getState().setCreateWithUuidModalOpen(true);
           // Keep palette open — modal takes over; close palette so it doesn't layer underneath
           onClose();
           return;
@@ -782,8 +781,6 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     classPopupPosition,
     duplicateModal,
     setDuplicateModal,
-    createWithUuidModalOpen,
-    setCreateWithUuidModalOpen,
     inputRef,
     containerRef,
     isOpen,

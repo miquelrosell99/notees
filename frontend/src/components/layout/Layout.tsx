@@ -16,7 +16,7 @@ import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
-import { markPageOpened } from '@/api/nodes';
+import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './NavigationSidebar';
 import { MainContent } from './MainContent';
@@ -25,6 +25,7 @@ import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/components/sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
+import { BrokenLinkFixContext } from '@/contexts/BrokenLinkFixContext';
 const ImportDataModal = React.lazy(() => import('@/components/workspace/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
 const ImportLogseqModal = React.lazy(() => import('@/components/workspace/ImportLogseqModal').then(m => ({ default: m.ImportLogseqModal })));
 const ImportLogseqFolderModal = React.lazy(() => import('@/components/workspace/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
@@ -33,6 +34,7 @@ const ExportPageModal = React.lazy(() => import('@/components/workspace/ExportPa
 const RebuildLinksModal = React.lazy(() => import('@/components/maintenance/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
 const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
 const MergePagesModal = React.lazy(() => import('./MergePagesModal').then(m => ({ default: m.MergePagesModal })));
+const CreatePageWithUuidModal = React.lazy(() => import('@/components/layout/CreatePageWithUuidModal').then(m => ({ default: m.CreatePageWithUuidModal })));
 import { Card } from '@/components/core/Card';
 import './Layout.css';
 
@@ -61,10 +63,19 @@ export function Layout() {
   const setFixRawLinksModalOpen = useModalStore(s => s.setFixRawLinksModalOpen);
   const isMergePagesModalOpen = useModalStore(s => s.isMergePagesModalOpen);
   const setMergePagesModalOpen = useModalStore(s => s.setMergePagesModalOpen);
+  const isCreateWithUuidModalOpen = useModalStore(s => s.isCreateWithUuidModalOpen);
+  const setCreateWithUuidModalOpen = useModalStore(s => s.setCreateWithUuidModalOpen);
+  const createWithUuidPrefill = useModalStore(s => s.createWithUuidPrefill);
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const openNode = useNavigationStore(s => s.openNode);
+  
+  // Callback provided to all BlockEditors via context — opens the create-with-UUID modal
+  // pre-filled with the missing UUID so the user can create the target node.
+  const handleFixBrokenLink = useCallback((uuid: string) => {
+    setCreateWithUuidModalOpen(true, uuid);
+  }, [setCreateWithUuidModalOpen]);
   
   const { defaultView } = useSettingsStore();
   const createNodeMutation = useCreateNode();
@@ -220,7 +231,7 @@ export function Layout() {
 
   return (
     <RouterSync>
-      <>
+      <BrokenLinkFixContext.Provider value={handleFixBrokenLink}>
         {/* ── Chrome: MobileLayout or desktop three-column ── */}
         {isMobile ? (
           <MobileLayout currentNodeId={currentNodeId} />
@@ -364,7 +375,24 @@ export function Layout() {
             onClose={() => setMergePagesModalOpen(false)}
           />
         </Suspense>
-      </>
+
+        {/* Create Page with UUID Modal (global — opened from Command Palette or broken-link context menu) */}
+        <Suspense fallback={null}>
+          <CreatePageWithUuidModal
+            isOpen={isCreateWithUuidModalOpen}
+            prefillUuid={createWithUuidPrefill}
+            onClose={() => setCreateWithUuidModalOpen(false, null)}
+            onSuccess={(node) => {
+              setCreateWithUuidModalOpen(false, null);
+              openNode(node.id);
+              // If this was opened from a broken-link context menu, fix all references
+              if (createWithUuidPrefill) {
+                fixLinksForUuid(createWithUuidPrefill).catch(console.error);
+              }
+            }}
+          />
+        </Suspense>
+      </BrokenLinkFixContext.Provider>
     </RouterSync>
   );
 }

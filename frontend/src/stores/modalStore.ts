@@ -21,6 +21,8 @@ interface ModalState {
   showWorkspaceManager: boolean;
   isMinimapOpen: boolean;
   isScratchpadOpen: boolean;
+  isCreateWithUuidModalOpen: boolean;
+  createWithUuidPrefill: string | null;
 
   setCalendarOpen: (open: boolean) => void;
   toggleCalendar: () => void;
@@ -41,6 +43,7 @@ interface ModalState {
   setMinimapOpen: (open: boolean) => void;
   toggleScratchpad: () => void;
   setScratchpadOpen: (open: boolean) => void;
+  setCreateWithUuidModalOpen: (open: boolean, prefill?: string | null) => void;
 }
 
 export const useModalStore = create<ModalState>()((set) => ({
@@ -58,6 +61,8 @@ export const useModalStore = create<ModalState>()((set) => ({
   showWorkspaceManager: false,
   isMinimapOpen: false,
   isScratchpadOpen: false,
+  isCreateWithUuidModalOpen: false,
+  createWithUuidPrefill: null,
 
   setCalendarOpen: (open) => set({ isCalendarOpen: open }),
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
@@ -78,4 +83,5 @@ export const useModalStore = create<ModalState>()((set) => ({
   setMinimapOpen: (open) => set({ isMinimapOpen: open }),
   toggleScratchpad: () => set((s) => ({ isScratchpadOpen: !s.isScratchpadOpen })),
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
+  setCreateWithUuidModalOpen: (open, prefill = null) => set({ isCreateWithUuidModalOpen: open, createWithUuidPrefill: prefill }),
 }));

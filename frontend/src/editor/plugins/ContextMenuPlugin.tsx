@@ -25,6 +25,7 @@ import { PageContextMenu, BlockContextMenu } from '../../components/nodes/NodeCo
 import { ContextMenu, type ContextMenuItem } from '../../components/core/ContextMenu';
 import { copyRuntimeBlocksToClipboard } from '../../utils/clipboardManager';
 import { useClipboardStore } from '../../stores/clipboardStore';
+import { useModalStore } from '../../stores/modalStore';
 import { pasteBlocksAfterBlock } from './BlockCopyPastePlugin';
 import type { Node } from '../../types/api';
 
@@ -326,7 +327,7 @@ export function ContextMenuPlugin({
     const refType = contextMenu.pillRefType || 'node';
     const pillUrl = contextMenu.pillUrl;
     const pillLabel = contextMenu.pillLabel;
-    return [
+    const items: ContextMenuItem[] = [
       {
         id: 'edit-link',
         label: 'Edit link',
@@ -336,6 +337,22 @@ export function ContextMenuPlugin({
           handleCloseContextMenu();
         },
       },
+    ];
+
+    if (refType === 'broken') {
+      const { nodeUuid } = parseLinkId(linkId);
+      items.push({
+        id: 'create-node-with-uuid',
+        label: 'Create node with this UUID',
+        icon: "mdi mdi-plus-circle-outline",
+        onClick: () => {
+          useModalStore.getState().setCreateWithUuidModalOpen(true, nodeUuid);
+          handleCloseContextMenu();
+        },
+      });
+    }
+
+    items.push(
       {
         id: 'unlink-keep-text',
         label: 'Unlink (keep text)',
@@ -356,7 +373,9 @@ export function ContextMenuPlugin({
           handleCloseContextMenu();
         },
       },
-    ];
+    );
+
+    return items;
   }, [contextMenu, onPillEdit, onPillRemove, handleCloseContextMenu, removePillByLinkId, unlinkPillKeepText]);
 
   // Render context menu

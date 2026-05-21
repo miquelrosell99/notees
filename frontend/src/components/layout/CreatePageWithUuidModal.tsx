@@ -20,12 +20,15 @@ export interface CreatePageWithUuidModalProps {
   onClose: () => void;
   /** Callback when the page is successfully created */
   onSuccess: (node: Node) => void;
+  /** Optional UUID to pre-fill instead of generating a fresh one */
+  prefillUuid?: string | null;
 }
 
 export function CreatePageWithUuidModal({
   isOpen,
   onClose,
   onSuccess,
+  prefillUuid,
 }: CreatePageWithUuidModalProps) {
   const [pageName, setPageName] = useState('');
   const [uuid, setUuid] = useState('');
@@ -39,12 +42,12 @@ export function CreatePageWithUuidModal({
   useEffect(() => {
     if (isOpen) {
       setPageName('');
-      setUuid(generateUUID());
+      setUuid(prefillUuid ?? generateUUID());
       setError(null);
       setIsCreating(false);
       setTimeout(() => nameRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, prefillUuid]);
 
   const isValidUuid = useCallback((value: string) => {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());

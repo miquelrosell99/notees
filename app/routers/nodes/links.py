@@ -878,6 +878,7 @@ async def fix_raw_uuid_links(
     
     def walk_and_transform(nodes: list, uuid_to_node: dict) -> tuple:
         """Walk AST nodes, replacing text containing [[uuid]] with node_link nodes.
+        Also converts broken_link AST nodes back to node_link when their target now exists.
         
         Returns (new_nodes, count_of_links_converted).
         """
@@ -889,7 +890,22 @@ async def fix_raw_uuid_links(
                 new_nodes.append(node)
                 continue
             
-            if node.get('type') == 'text':
+            node_type = node.get('type')
+            if node_type == 'broken_link':
+                link_id = node.get('link_id', '')
+                colon_idx = link_id.find(':')
+                node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                if node_uuid in uuid_to_node:
+                    new_node = {
+                        **node,
+                        "type": "node_link",
+                        "ref_type": "node",
+                    }
+                    new_nodes.append(new_node)
+                    converted += 1
+                    continue
+                new_nodes.append(node)
+            elif node_type == 'text':
                 text_val = node.get('text', '')
                 if '[[' in text_val and uuid_pattern.search(text_val):
                     replacement = transform_text_node(text_val, uuid_to_node)
@@ -923,14 +939,14 @@ async def fix_raw_uuid_links(
         
         logger.info(f"[FIX_RAW_UUID_LINKS] Processing {len(all_nodes)} nodes")
         
-        # Step 2: First pass — collect all UUIDs referenced in raw [[uuid]] text
+        # Step 2: First pass — collect all UUIDs referenced in raw [[uuid]] text and broken_link nodes
         all_referenced_uuids = set()
         for node_row in all_nodes:
             content = node_row['name']
             if not content:
                 continue
-            # Quick check before parsing JSON
-            if '[[' not in content:
+            # Quick check before parsing JSON — look for [[uuid]] or broken_link
+            if '[[' not in content and 'broken_link' not in content:
                 continue
             try:
                 ast = json.loads(content)
@@ -939,7 +955,7 @@ async def fix_raw_uuid_links(
             except (json.JSONDecodeError, TypeError):
                 continue
             
-            # Walk the AST to find text nodes with [[uuid]] or [label]([[uuid]])
+            # Walk the AST to find text nodes with [[uuid]] or [label]([[uuid]]) and broken_link nodes
             def collect_uuids(nodes):
                 for n in nodes:
                     if not isinstance(n, dict):
@@ -950,6 +966,12 @@ async def fix_raw_uuid_links(
                             for m in uuid_pattern.finditer(text):
                                 uuid = (m.group('uuid_labeled') or m.group('uuid_bare')).lower()
                                 all_referenced_uuids.add(uuid)
+                    elif n.get('type') == 'broken_link':
+                        link_id = n.get('link_id', '')
+                        colon_idx = link_id.find(':')
+                        node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                        if re.match(_UUID_RE, node_uuid, re.IGNORECASE):
+                            all_referenced_uuids.add(node_uuid)
                     if 'children' in n:
                         collect_uuids(n['children'])
             
@@ -987,7 +1009,7 @@ async def fix_raw_uuid_links(
             content = node_row['name']
             nodes_processed += 1
             
-            if not content or '[[' not in content:
+            if not content or ('[[' not in content and 'broken_link' not in content):
                 continue
             
             try:
@@ -1041,3 +1063,219 @@ async def fix_raw_uuid_links(
     except Exception as e:
         logger.error(f"[FIX_RAW_UUID_LINKS] Fatal error: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to fix raw UUID links: {str(e)}")
+
+
+@router.post("/fix-links-for-uuid/{target_uuid}")
+async def fix_links_for_uuid(
+    target_uuid: str,
+    user: User = Depends(get_current_user),
+):
+    """Fix all broken_link and raw [[uuid]] references pointing to a specific UUID.
+    
+    After creating a node with a specific UUID, call this to convert:
+    1. broken_link AST nodes with matching link_id → node_link AST nodes
+    2. Raw [[uuid]] or [label]([[uuid]]) text → node_link AST nodes
+    
+    This is more efficient than fix-raw-uuid-links because it targets a single UUID.
+    """
+    import re
+    import json
+    import uuid as uuid_module
+    from ...logging_config import get_logger
+    logger = get_logger(__name__)
+    
+    service = await _get_node_service(user)
+    
+    # Validate UUID format
+    _UUID_RE = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    if not re.match(_UUID_RE, target_uuid, re.IGNORECASE):
+        raise HTTPException(400, f"Invalid UUID format: {target_uuid}")
+    
+    target_uuid_lower = target_uuid.lower()
+    
+    nodes_fixed = 0
+    links_converted = 0
+    errors = []
+    
+    # Regex for raw [[uuid]] and [label]([[uuid]]) in text
+    _UUID_RE_FRAGMENT = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    uuid_pattern = re.compile(
+        rf'(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{_UUID_RE_FRAGMENT})\]\]\)|\[\[(?P<uuid_bare>{_UUID_RE_FRAGMENT})\]\])',
+        re.IGNORECASE
+    )
+    
+    def _extract_uuid_and_label(match) -> tuple:
+        if match.group('uuid_labeled'):
+            return match.group('uuid_labeled').lower(), match.group('label') or None
+        return match.group('uuid_bare').lower(), None
+    
+    def transform_text_node(text_value: str) -> list:
+        parts = []
+        last_end = 0
+        
+        for match in uuid_pattern.finditer(text_value):
+            ref_uuid, label = _extract_uuid_and_label(match)
+            if ref_uuid != target_uuid_lower:
+                continue
+            
+            before = text_value[last_end:match.start()]
+            if before:
+                parts.append({"type": "text", "text": before})
+            
+            link_uuid = str(uuid_module.uuid4())
+            link_id = f"{target_uuid_lower}:{link_uuid}"
+            node_link: dict = {
+                "type": "node_link",
+                "link_id": link_id,
+                "ref_type": "node",
+            }
+            if label:
+                node_link["label"] = label
+            parts.append(node_link)
+            
+            last_end = match.end()
+        
+        if last_end < len(text_value):
+            remaining = text_value[last_end:]
+            if remaining:
+                parts.append({"type": "text", "text": remaining})
+        
+        return parts
+    
+    def walk_and_transform(nodes: list) -> tuple:
+        converted = 0
+        new_nodes = []
+        
+        for node in nodes:
+            if not isinstance(node, dict):
+                new_nodes.append(node)
+                continue
+            
+            node_type = node.get('type')
+            if node_type == 'broken_link':
+                link_id = node.get('link_id', '')
+                # Parse node UUID from link_id (format: nodeUuid:linkUuid)
+                colon_idx = link_id.find(':')
+                node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                if node_uuid == target_uuid_lower:
+                    new_node = {
+                        **node,
+                        "type": "node_link",
+                        "ref_type": "node",
+                    }
+                    new_nodes.append(new_node)
+                    converted += 1
+                    continue
+                new_nodes.append(node)
+            elif node_type == 'text':
+                text_val = node.get('text', '')
+                if '[[' in text_val and uuid_pattern.search(text_val):
+                    replacement = transform_text_node(text_val)
+                    if replacement and replacement != [node]:
+                        link_count = sum(1 for r in replacement if isinstance(r, dict) and r.get('type') == 'node_link')
+                        if link_count > 0:
+                            new_nodes.extend(replacement)
+                            converted += link_count
+                            continue
+                new_nodes.append(node)
+            elif 'children' in node:
+                child_nodes, child_converted = walk_and_transform(node['children'])
+                new_node = {**node, 'children': child_nodes}
+                new_nodes.append(new_node)
+                converted += child_converted
+            else:
+                new_nodes.append(node)
+        
+        return new_nodes, converted
+    
+    try:
+        # Find nodes that might contain references to this UUID
+        # We search for the UUID in the raw name JSONB text
+        async with acquire_connection(service.pool) as conn:
+            candidate_rows = await conn.fetch("""
+                SELECT id, name 
+                FROM node 
+                WHERE workspace_id = $1 
+                  AND active = TRUE
+                  AND name LIKE $2
+                ORDER BY id
+            """, service.workspace_id, f'%"{target_uuid_lower}"%')
+        
+        logger.info(f"[FIX_LINKS_FOR_UUID] Found {len(candidate_rows)} candidate nodes for UUID {target_uuid_lower}")
+        
+        # Also include nodes that might have raw [[uuid]] text (the UUID wouldn't be in quotes)
+        async with acquire_connection(service.pool) as conn:
+            raw_candidates = await conn.fetch("""
+                SELECT id, name 
+                FROM node 
+                WHERE workspace_id = $1 
+                  AND active = TRUE
+                  AND name LIKE $2
+                  AND id NOT IN (SELECT id FROM node WHERE workspace_id = $1 AND active = TRUE AND name LIKE $3)
+                ORDER BY id
+            """, service.workspace_id, f'%[[{target_uuid_lower}]]%', f'%"{target_uuid_lower}"%')
+        
+        candidate_ids = {r['id'] for r in candidate_rows} | {r['id'] for r in raw_candidates}
+        all_candidates = []
+        for row in candidate_rows:
+            if row['id'] in candidate_ids:
+                all_candidates.append(row)
+                candidate_ids.discard(row['id'])
+        for row in raw_candidates:
+            if row['id'] in candidate_ids:
+                all_candidates.append(row)
+        
+        logger.info(f"[FIX_LINKS_FOR_UUID] Total unique candidate nodes: {len(all_candidates)}")
+        
+        for node_row in all_candidates:
+            node_id = node_row['id']
+            content = node_row['name']
+            
+            if not content:
+                continue
+            
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+                if ast and (not isinstance(ast[0], dict) or 'type' not in ast[0]):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+            
+            try:
+                new_ast, converted = walk_and_transform(ast)
+                
+                if converted > 0:
+                    new_content = json.dumps(new_ast, ensure_ascii=False)
+                    async with acquire_connection(service.pool) as conn:
+                        await conn.execute(
+                            "UPDATE node SET name = $1, write_date = $2 WHERE id = $3 AND workspace_id = $4",
+                            new_content, datetime.now(timezone.utc), node_id, service.workspace_id
+                        )
+                    
+                    await service.update_node_links(node_id, new_content)
+                    await service.update_inline_classes(node_id, new_content)
+                    
+                    nodes_fixed += 1
+                    links_converted += converted
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[FIX_LINKS_FOR_UUID] Error processing node {node_id}: {e}")
+                continue
+        
+        logger.info(f"[FIX_LINKS_FOR_UUID] Completed for {target_uuid_lower}: {nodes_fixed} nodes fixed, {links_converted} links converted, {len(errors)} errors")
+        
+        return {
+            "success": True,
+            "target_uuid": target_uuid_lower,
+            "nodes_fixed": nodes_fixed,
+            "links_converted": links_converted,
+            "errors": errors[:50],
+            "total_errors": len(errors),
+        }
+    
+    except Exception as e:
+        logger.error(f"[FIX_LINKS_FOR_UUID] Fatal error: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to fix links for UUID: {str(e)}")
