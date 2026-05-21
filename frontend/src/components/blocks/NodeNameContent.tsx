@@ -59,6 +59,14 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
           </InlineLinkWrapper>
         );
       }
+      case 'broken_link': {
+        const text = node.label || node.link_id.split(':')[0] || '⛓️‍💥';
+        return (
+          <span key={i} className="broken-link" title={`Broken link: ${node.link_id}`}>
+            {text}
+          </span>
+        );
+      }
       case 'strong':
         return <strong key={i}>{renderInlineNodes(node.children)}</strong>;
       case 'em':

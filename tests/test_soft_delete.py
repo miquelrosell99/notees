@@ -142,7 +142,7 @@ async def test_delete_node_cascades_to_links(node_service):
 
 @pytest.mark.asyncio
 async def test_permanent_delete_replaces_links_in_content(node_service):
-    """Test that permanently deleting a node replaces node_link AST nodes with plain text."""
+    """Test that permanently deleting a node replaces node_link AST nodes with broken_link."""
     target = await node_service.create_page("Target Page")
     source_page = await node_service.create_page("Source Page")
     # Create a block (not a page) with an actual node_link AST node referencing the target
@@ -157,15 +157,18 @@ async def test_permanent_delete_replaces_links_in_content(node_service):
     # Sync links so node_link record is created
     await node_service.update_node_links(source_block.id, source_block.name)
 
-    await node_service.delete_node(target.id)
+    # Permanently delete without soft-delete first — this is what empty_trash does
+    # when nodes are already in trash from a prior operation
     success = await node_service.permanently_delete_node(target.id)
     assert success is True
 
     updated_source = await node_service.get_node(source_block.id)
     assert updated_source is not None
-    assert "Target Page" in updated_source.name
-    # The node_link AST node should have been replaced with a text node
+    # The node_link AST node should have been replaced with a broken_link node
     assert '"type": "node_link"' not in updated_source.name
+    assert '"type": "broken_link"' in updated_source.name
+    # The original link_id should be preserved for recovery
+    assert str(target.id) in updated_source.name
 
 
 @pytest.mark.asyncio
