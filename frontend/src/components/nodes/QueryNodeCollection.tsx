@@ -884,6 +884,13 @@ export function QueryNodeCollection({
     }
   }, [viewType, nodeId, pageClassId, createNodeMutation, onNodeClick, onBlockCreated]);
 
+  const resultCount = resultNodes.length;
+
+  // Notify parent when result count changes
+  useEffect(() => {
+    onCountChange?.(resultCount);
+  }, [resultCount, onCountChange]);
+
   // Loading state - return empty result (inline mode is always initialized)
   if (!isInlineMode && (viewsLoading || isInitializing)) {
     return children({
@@ -893,13 +900,6 @@ export function QueryNodeCollection({
       isLoading: true,
     });
   }
-
-  const resultCount = resultNodes.length;
-
-  // Notify parent when result count changes
-  useEffect(() => {
-    onCountChange?.(resultCount);
-  }, [resultCount, onCountChange]);
 
   // Resolve leftElement (can be static or function)
   const resolvedLeftElement = typeof leftElement === 'function' 

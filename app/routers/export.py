@@ -27,7 +27,20 @@ async def export_nodes(request: ExportRequest, user: User = Depends(get_current_
             user.id,
             node_ids=request.node_ids,
             format=request.format,
-            include_children=request.include_children
+            include_children=request.include_children,
+            layout=request.layout,
+            formatting=request.formatting,
+            style=request.style,
+            properties=request.properties,
+            density=request.density,
+            numbering=request.numbering,
+            measure=request.measure,
+            doctype=request.doctype,
+            section_break=request.section_break,
+            show_uuid=request.show_uuid,
+            link_style=request.link_style,
+            theme_mode=request.theme_mode,
+            cover_page=request.cover_page,
         )
         
         return Response(
@@ -57,6 +70,8 @@ async def export_single_node(
     section_break: bool = False,
     show_uuid: bool = False,
     link_style: str = "raw",
+    theme_mode: str = "light",
+    cover_page: bool = False,
     user: User = Depends(get_current_user)
 ):
     """Export a single node by UUID."""
@@ -86,6 +101,11 @@ async def export_single_node(
     if link_style not in ("raw", "text"):
         raise HTTPException(status_code=400, detail=f"Invalid link_style: {link_style}")
 
+    if theme_mode not in ("light", "dark"):
+        raise HTTPException(status_code=400, detail=f"Invalid theme_mode: {theme_mode}")
+
+    # cover_page is a boolean flag, no validation needed
+
     try:
         content, filename, mime_type = await _run_export(
             user.id,
@@ -103,6 +123,8 @@ async def export_single_node(
             section_break=section_break,
             show_uuid=show_uuid,
             link_style=link_style,
+            theme_mode=theme_mode,
+            cover_page=cover_page,
         )
         
         return Response(

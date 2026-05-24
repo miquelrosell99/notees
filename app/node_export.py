@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 _EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 
-EXPORT_THEMES    = {"minimal", "technical", "book"}
+EXPORT_THEMES    = {"modern", "editorial", "technical", "book"}
 EXPORT_DENSITIES = {"comfortable", "compact"}
 EXPORT_NUMBERING = {"none", "hierarchical", "legal", "appendix"}
 EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}
@@ -50,6 +50,8 @@ async def export_nodes(
     section_break: bool = False,
     show_uuid: bool = False,
     link_style: str = "raw",  # "raw" | "text"
+    theme_mode: str = "light",  # "light" | "dark"
+    cover_page: bool = False,
 ) -> tuple:
     """Export nodes to Markdown, HTML, or PDF.
 
@@ -77,14 +79,14 @@ async def export_nodes(
                 rows = await conn.fetch(
                     """
                     WITH RECURSIVE tree AS (
-                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color,
+                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color, n.class_ids,
                                0 AS depth,
                                ARRAY[n.sequence, n.id] AS path_order
                         FROM node n
                         WHERE n.workspace_id = $1 AND n.uuid::text = $2
                           AND n.is_deleted = FALSE AND n.active = TRUE
                         UNION ALL
-                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color,
+                        SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color, n.class_ids,
                                t.depth + 1,
                                t.path_order || ARRAY[n.sequence, n.id]
                         FROM node n
@@ -102,7 +104,7 @@ async def export_nodes(
                                 AND p.workspace_id = $1
                           )
                     )
-                    SELECT id, uuid, name, parent_id, is_page, color, depth
+                    SELECT id, uuid, name, parent_id, is_page, color, class_ids, depth
                     FROM tree
                     ORDER BY path_order
                     """,
@@ -111,7 +113,7 @@ async def export_nodes(
             else:
                 rows = await conn.fetch(
                     """
-                    SELECT id, uuid, name, parent_id, is_page, color
+                    SELECT id, uuid, name, parent_id, is_page, color, class_ids
                     FROM node
                     WHERE workspace_id = $1 AND uuid::text = $2
                     """,
@@ -130,6 +132,7 @@ async def export_nodes(
                     "is_page": row.get('is_page', False),
                     "color": row.get('color') or None,
                     "depth": row.get('depth', 0) if include_children else 0,
+                    "class_ids": row.get('class_ids') or [],
                 })
 
         if not nodes_data:
@@ -160,6 +163,31 @@ async def export_nodes(
                         continue
                     filtered.append(nd)
                 nodes_data = filtered
+
+        # Look up system class IDs for code / quote rendering
+        system_class_rows = await conn.fetch(
+            """
+            SELECT id, name FROM node
+            WHERE workspace_id = $1
+              AND is_class = TRUE
+              AND uuid::text IN ('00000000-0000-0000-0001-000000000008',
+                                 '00000000-0000-0000-0001-000000000006')
+            """,
+            workspace_id
+        )
+        system_class_map: Dict[int, str] = {}
+        for r in system_class_rows:
+            # name is AST JSON; extract plain text
+            ast = parse_ast(r['name'])
+            plain = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+            system_class_map[r['id']] = plain
+        code_class_id: int | None = None
+        quote_class_id: int | None = None
+        for cid, cname in system_class_map.items():
+            if cname == 'code':
+                code_class_id = cid
+            elif cname == 'quote':
+                quote_class_id = cid
 
         # Resolve node links in all ASTs
         target_uuids: set[str] = set()
@@ -426,15 +454,15 @@ async def export_nodes(
     strip_links = link_style == "text"
 
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data, strip_link_syntax=strip_links)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, theme_mode=theme_mode, cover_page=cover_page)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, theme_mode=theme_mode, cover_page=cover_page)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -494,18 +522,27 @@ def _markdown_inline_to_html(md: str) -> str:
     Tokenises the string produced by stringify_ast(PLAIN_MARKDOWN) so that:
     - User-typed text segments are HTML-escaped.
     - Markdown formatting tokens are translated to the matching HTML element.
+    - Hard breaks (two spaces + newline) become <br>.
+    - Node links ([[uuid]]) and anchor links (#uuid) are classified correctly.
     """
     import re as _re
     import html as _html
 
+    # Pre-process: hard breaks → <br>, remaining newlines → space
+    md = md.replace('  \n', '<br>\n')
+    md = md.replace('\n', ' ')
+    md = md.replace('<br> ', '<br>')
+
     TOKEN_RE = _re.compile(
         r'(`[^`]+`)'              # code — highest priority to protect contents
-        r'|(\*\*.+?\*\*)'        # bold
-        r'|(\*.+?\*)'            # italic
+        r'|(\*\*.+?\*\*)'        # bold **
+        r'|(__.+?__)'             # bold __
+        r'|(\*.+?\*)'            # italic *
+        r'|(_.+?_)'               # italic _
         r'|(~~.+?~~)'             # strikethrough
         r'|(==.+?==)'             # highlight
         r'|(<u>.+?</u>)'          # underline (already HTML from stringify)
-        r'|(\[.+?\]\([^)]+\))',  # external link
+        r'|(\[.+?\]\([^)]+\))',  # link
         _re.DOTALL,
     )
 
@@ -513,13 +550,21 @@ def _markdown_inline_to_html(md: str) -> str:
     last = 0
     for m in TOKEN_RE.finditer(md):
         if m.start() > last:
-            result.append(_html.escape(md[last:m.start()]))
+            segment = md[last:m.start()]
+            # Preserve <br> tags inserted during pre-processing
+            parts = segment.split('<br>')
+            escaped_parts = [_html.escape(p) for p in parts]
+            result.append('<br>'.join(escaped_parts))
         token = m.group(0)
         if token.startswith('`'):
             result.append(f'<code>{_html.escape(token[1:-1])}</code>')
         elif token.startswith('**'):
             result.append(f'<strong>{_html.escape(token[2:-2])}</strong>')
+        elif token.startswith('__'):
+            result.append(f'<strong>{_html.escape(token[2:-2])}</strong>')
         elif token.startswith('*'):
+            result.append(f'<em>{_html.escape(token[1:-1])}</em>')
+        elif token.startswith('_'):
             result.append(f'<em>{_html.escape(token[1:-1])}</em>')
         elif token.startswith('~~'):
             result.append(f'<s>{_html.escape(token[2:-2])}</s>')
@@ -534,13 +579,19 @@ def _markdown_inline_to_html(md: str) -> str:
                 link_text = lm.group(1)
                 if href.startswith('#'):
                     result.append(f'<a href="{_html.escape(href)}" class="node-link">{_html.escape(link_text)}</a>')
+                elif href.startswith('[[') and href.endswith(']]'):
+                    # Raw node link syntax (fallback when html_anchors=False)
+                    result.append(f'<a href="{_html.escape(href)}" class="node-link">{_html.escape(link_text)}</a>')
                 else:
                     result.append(f'<a href="{_html.escape(href)}" class="url-link">{_html.escape(link_text)}</a>')
             else:
                 result.append(_html.escape(token))
         last = m.end()
     if last < len(md):
-        result.append(_html.escape(md[last:]))
+        segment = md[last:]
+        parts = segment.split('<br>')
+        escaped_parts = [_html.escape(p) for p in parts]
+        result.append('<br>'.join(escaped_parts))
     return ''.join(result)
 
 
@@ -569,9 +620,11 @@ def _build_body_class(
     measure: str = "full",
     doctype: str = "none",
     section_break: bool = False,
+    theme_mode: str = "light",
+    cover_page: bool = False,
 ) -> str:
     """Return the body class string encoding all render axes."""
-    theme     = style if style in EXPORT_THEMES else "minimal"
+    theme = style if style in EXPORT_THEMES else "modern"
     structure = "flat" if layout == "flat" else "indented"
     dens      = density if density in EXPORT_DENSITIES else "comfortable"
     num       = numbering if numbering in EXPORT_NUMBERING else "none"
@@ -582,6 +635,10 @@ def _build_body_class(
         classes += f" doctype-{dt}"
     if section_break:
         classes += " section-break-before"
+    if cover_page:
+        classes += " cover-page"
+    if theme_mode == "dark":
+        classes += " theme-dark"
     return classes
 
 
@@ -591,6 +648,46 @@ def _html_style_tag() -> str:
     return f"<style>\n{css}\n</style>" if css else ""
 
 
+def _build_toc_html(nodes: List[Dict], title_fn, html_mod) -> str:
+    """Build a Table of Contents from page and heading nodes."""
+    entries = []
+    for node in nodes:
+        if node.get('is_page') or _is_heading_node(node):
+            entries.append({
+                'uuid': node.get('uuid', ''),
+                'text': title_fn(node),
+                'depth': node.get('depth', 0),
+            })
+    if not entries:
+        return ''
+
+    parts: list[str] = []
+    current_depth = entries[0]['depth']
+    parts.append('<ul>')
+    for e in entries:
+        depth = e['depth']
+        if depth > current_depth:
+            parts.append('<ul>')
+            current_depth = depth
+        elif depth < current_depth:
+            while current_depth > depth:
+                parts.append('</ul>')
+                current_depth -= 1
+        parts.append(f'<li><a href="#{html_mod.escape(e["uuid"])}">{html_mod.escape(e["text"])}</a></li>')
+    while current_depth >= entries[0]['depth']:
+        parts.append('</ul>')
+        current_depth -= 1
+    return f'<nav class="toc"><h2>Table of Contents</h2>{"".join(parts)}</nav>'
+
+
+def _node_is_code(node: Dict, code_class_id: int | None) -> bool:
+    return code_class_id is not None and code_class_id in (node.get('class_ids') or [])
+
+
+def _node_is_quote(node: Dict, quote_class_id: int | None) -> bool:
+    return quote_class_id is not None and quote_class_id in (node.get('class_ids') or [])
+
+
 def _export_to_markdown(
     nodes: List[Dict],
     resolver=None,
@@ -598,6 +695,8 @@ def _export_to_markdown(
     formatting: bool = True,
     properties_data: Dict[str, list] | None = None,
     strip_link_syntax: bool = False,
+    code_class_id: int | None = None,
+    quote_class_id: int | None = None,
 ) -> str:
     """Convert nodes to Markdown format."""
     if not nodes:
@@ -609,9 +708,24 @@ def _export_to_markdown(
         text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
         depth = node.get('depth', 0)
         is_page = node.get('is_page', False)
+        is_code = _node_is_code(node, code_class_id)
+        is_quote = _node_is_quote(node, quote_class_id)
 
         if formatting and node.get('color'):
             text = f"=={text}=="
+
+        def _render_md_block(content: str, indent_prefix: str = '') -> None:
+            if is_code:
+                # Code blocks: triple backticks, indented by depth
+                lines.append(f"{indent_prefix}```")
+                for code_line in content.split('\n'):
+                    lines.append(f"{indent_prefix}{code_line}")
+                lines.append(f"{indent_prefix}```")
+            elif is_quote:
+                for q_line in content.split('\n'):
+                    lines.append(f"{indent_prefix}> {q_line}")
+            else:
+                lines.append(f"{indent_prefix}{content}")
 
         if is_page and layout == "flat":
             hashes = '#' * (depth + 1)
@@ -637,7 +751,7 @@ def _export_to_markdown(
                 hashes = '#' * min(depth + 1, 6)
                 lines.append(f"{hashes} {text}")
             else:
-                lines.append(text)
+                _render_md_block(text)
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
                 if p.get('subtree'):
@@ -661,7 +775,7 @@ def _export_to_markdown(
                 lines.append(f"{hashes} {text}")
             else:
                 indent = '  ' * depth
-                lines.append(f"{indent}- {text}")
+                _render_md_block(text, indent + '- ')
             indent = '  ' * depth
             props = _props.get(node.get('uuid', ''), [])
             for p in props:
@@ -695,6 +809,10 @@ def _export_to_html(
     doctype: str = "none",
     section_break: bool = False,
     strip_link_syntax: bool = False,
+    code_class_id: int | None = None,
+    quote_class_id: int | None = None,
+    theme_mode: str = "light",
+    cover_page: bool = False,
 ) -> str:
     """Convert nodes to HTML format."""
     import html as html_mod
@@ -763,59 +881,75 @@ def _export_to_html(
             rows.append(f'<tr class="node-property"><td class="node-property-name">{icon_html}{name}</td><td class="node-property-value">{val_html}</td></tr>')
         return f'<table class="node-properties">{chr(10).join(rows)}</table>'
 
-    body_class = _build_body_class(style, layout, density, numbering, measure, doctype, section_break)
+    def _render_block(node: Dict, tag: str, classes: str = '') -> str:
+        rendered = _render(node)
+        cls = f' class="{classes}"' if classes else ''
+        return f'<{tag}{_id_attr(node)}{_color_attr(node)}{cls}>{rendered}</{tag}>'
+
+    body_class = _build_body_class(style, layout, density, numbering, measure, doctype, section_break, theme_mode, cover_page)
     style_tag  = _html_style_tag()
     head_extra = f"\n{style_tag}" if style_tag else ""
 
     if not nodes:
         return f"<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body class=\"{body_class}\"></body></html>"
 
+    toc_html = _build_toc_html(nodes, _title, html_mod)
+
+    def _render_flat_node(node: Dict) -> str:
+        rendered = _render(node)
+        depth = node.get('depth', 0)
+        is_page = node.get('is_page', False)
+        is_code = _node_is_code(node, code_class_id)
+        is_quote = _node_is_quote(node, quote_class_id)
+        props_html = _render_properties(node)
+        if is_page:
+            level = min(depth + 1, 6)
+            return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>\n  {props_html}" if props_html else f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>"
+        if _is_heading_node(node):
+            level = min(depth + 1, 6)
+            if props_html:
+                return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</h{level}>"
+            return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>"
+        if is_code:
+            code_html = f'  <pre class="code-block"><code>{rendered}</code></pre>'
+            return f"{code_html}\n  {props_html}" if props_html else code_html
+        if is_quote:
+            quote_html = f'  <blockquote{_id_attr(node)}{_color_attr(node)}>{rendered}</blockquote>'
+            return f"{quote_html}\n  {props_html}" if props_html else quote_html
+        if props_html:
+            return f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</p>"
+        return f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>"
+
     if layout == "flat":
-        lines = []
-        for node in nodes:
-            rendered = _render(node)
-            depth = node.get('depth', 0)
-            is_page = node.get('is_page', False)
-            if is_page:
-                level = min(depth + 1, 6)
-                lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
-                props_html = _render_properties(node)
-                if props_html:
-                    lines.append(f"  {props_html}")
-            else:
-                props_html = _render_properties(node)
-                if _is_heading_node(node):
-                    level = min(depth + 1, 6)
-                    if props_html:
-                        lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</h{level}>")
-                    else:
-                        lines.append(f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>")
-                elif props_html:
-                    lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</p>")
-                else:
-                    lines.append(f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>")
+        lines = [_render_flat_node(n) for n in nodes]
         title = _title(nodes[0]) if nodes[0].get('is_page') else "Notees Export"
+        body_content = f"{toc_html}\n{chr(10).join(lines)}" if toc_html else chr(10).join(lines)
         return f"""<!DOCTYPE html>
 <html>
 <head>
 <title>{html_mod.escape(title)}</title>{head_extra}
 </head>
 <body class="{body_class}">
-{chr(10).join(lines)}
+{body_content}
 </body>
 </html>"""
 
     # outline — nested <ul> based on depth; page nodes break out as headings
     lines = []
     current_depth = -1
+    ul_open_count = 0
     for node in nodes:
         rendered = _render(node)
         depth = node.get('depth', 0)
         is_page = node.get('is_page', False)
+        is_code = _node_is_code(node, code_class_id)
+        is_quote = _node_is_quote(node, quote_class_id)
 
         if is_page:
-            while current_depth >= 0:
-                lines.append('  ' * current_depth + '</ul>')
+            while ul_open_count > 0:
+                indent = '  ' * (ul_open_count - 1)
+                lines.append(f"{indent}</ul>")
+                ul_open_count -= 1
                 current_depth -= 1
             level = min(depth + 1, 6)
             indent = '  ' * depth
@@ -826,8 +960,10 @@ def _export_to_html(
             current_depth = depth
         else:
             if _is_heading_node(node):
-                while current_depth >= 0:
-                    lines.append('  ' * current_depth + '</ul>')
+                while ul_open_count > 0:
+                    indent = '  ' * (ul_open_count - 1)
+                    lines.append(f"{indent}</ul>")
+                    ul_open_count -= 1
                     current_depth -= 1
                 level = min(depth + 1, 6)
                 indent = '  ' * depth
@@ -836,16 +972,42 @@ def _export_to_html(
                 if props_html:
                     lines.append(f"{indent}{props_html}")
                 current_depth = depth
-            else:
+            elif is_code or is_quote:
+                # Code/quote blocks are rendered as <li> with special inner markup
                 if depth > current_depth:
                     for _ in range(depth - current_depth):
-                        indent = '  ' * (current_depth + 1)
+                        indent = '  ' * (ul_open_count)
                         lines.append(f"{indent}<ul>")
+                        ul_open_count += 1
                         current_depth += 1
                 elif depth < current_depth:
                     for _ in range(current_depth - depth):
-                        indent = '  ' * current_depth
+                        indent = '  ' * (ul_open_count - 1)
                         lines.append(f"{indent}</ul>")
+                        ul_open_count -= 1
+                        current_depth -= 1
+                indent = '  ' * (depth + 1)
+                props_html = _render_properties(node)
+                if is_code:
+                    inner = f'<pre class="code-block"><code>{rendered}</code></pre>'
+                else:
+                    inner = f'<blockquote>{rendered}</blockquote>'
+                if props_html:
+                    lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{inner}{props_html}</li>")
+                else:
+                    lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{inner}</li>")
+            else:
+                if depth > current_depth:
+                    for _ in range(depth - current_depth):
+                        indent = '  ' * (ul_open_count)
+                        lines.append(f"{indent}<ul>")
+                        ul_open_count += 1
+                        current_depth += 1
+                elif depth < current_depth:
+                    for _ in range(current_depth - depth):
+                        indent = '  ' * (ul_open_count - 1)
+                        lines.append(f"{indent}</ul>")
+                        ul_open_count -= 1
                         current_depth -= 1
                 indent = '  ' * (depth + 1)
                 props_html = _render_properties(node)
@@ -853,17 +1015,18 @@ def _export_to_html(
                     lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</li>")
                 else:
                     lines.append(f"{indent}<li class=\"node-block\"{_id_attr(node)}{_color_attr(node)}>{rendered}</li>")
-    while current_depth >= 0:
-        indent = '  ' * current_depth
+    while ul_open_count > 0:
+        indent = '  ' * (ul_open_count - 1)
         lines.append(f"{indent}</ul>")
-        current_depth -= 1
+        ul_open_count -= 1
 
+    body_content = f"{toc_html}\n{chr(10).join(lines)}" if toc_html else chr(10).join(lines)
     return f"""<!DOCTYPE html>
 <html>
 <head>
 <title>Notees Export</title>{head_extra}
 </head>
 <body class="{body_class}">
-{chr(10).join(lines)}
+{body_content}
 </body>
 </html>"""

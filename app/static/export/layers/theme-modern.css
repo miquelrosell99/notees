@@ -1,0 +1,365 @@
+/* =========================================================
+   THEME-MODERN  —  Clean, airy, Apple-like aesthetic
+   Inspired by Craft, Linear, and Apple Pages.
+   ========================================================= */
+
+.theme-modern {
+  --tm-font:        'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --tm-font-mono:   'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  --tm-size:        11pt;
+  --tm-line-height: 1.65;
+  --tm-color:       #1a1a1a;
+  --tm-color-h1:    #0d0d0d;
+  --tm-color-h2:    #1a1a1a;
+  --tm-color-h3:    #333;
+  --tm-color-muted: #737373;
+  --tm-color-faint: #a3a3a3;
+  --tm-border:      #e8e8e8;
+  --tm-border-light:#f2f2f2;
+  --tm-link:        #2563eb;
+  --tm-link-hover:  #1d4ed8;
+  --tm-bg-code:     #f7f7f8;
+  --tm-bg-callout:  rgba(0, 0, 0, 0.02);
+  --tm-mark:        #fef08a;
+  --tm-prop-name:   #737373;
+  --tm-prop-value:  #404040;
+  --structure-indent-border: #e8e8e8;
+
+  font-family: var(--tm-font);
+  font-size: var(--tm-size);
+  line-height: var(--tm-line-height);
+  color: var(--tm-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@page {
+  margin: 2.4cm 2.6cm;
+
+  @top-center {
+    content: string(doctitle);
+    font-family: var(--tm-font);
+    font-size: 8pt;
+    color: #a3a3a3;
+    letter-spacing: 0.02em;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-family: var(--tm-font);
+    font-size: 8.5pt;
+    color: #a3a3a3;
+  }
+}
+
+@page :first {
+  @top-center { content: none; }
+}
+
+/* --- Headings: tight, bold, with refined spacing --- */
+.theme-modern h1,
+.theme-modern h2,
+.theme-modern h3,
+.theme-modern h4,
+.theme-modern h5,
+.theme-modern h6 {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--tm-color-h1);
+  line-height: 1.2;
+  margin-top: calc(var(--rhythm) * 2.5);
+  margin-bottom: calc(var(--rhythm) * 1);
+}
+
+.theme-modern h1 {
+  font-size: 1.9rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: calc(var(--rhythm) * 1.5);
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--tm-border);
+  string-set: doctitle content();
+}
+
+.theme-modern h2 {
+  font-size: 1.4rem;
+  font-weight: 650;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--tm-border-light);
+}
+
+.theme-modern h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--tm-color-h3);
+}
+
+.theme-modern h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--tm-color-muted);
+}
+
+.theme-modern h5,
+.theme-modern h6 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--tm-color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- Paragraphs --- */
+.theme-modern p {
+  margin: calc(var(--rhythm) * 0.85) 0;
+}
+
+/* --- Blockquotes: elegant left bar + soft background --- */
+.theme-modern blockquote {
+  margin: calc(var(--rhythm) * 1.5) 0;
+  padding: 0.75rem 1rem 0.75rem 1.25rem;
+  border-left: 3px solid #d4d4d8;
+  background: linear-gradient(90deg, rgba(0,0,0,0.02) 0%, transparent 100%);
+  border-radius: 0 6px 6px 0;
+  color: var(--tm-color-muted);
+  font-style: normal;
+}
+
+.theme-modern blockquote p {
+  margin: 0.3rem 0;
+}
+
+/* --- Code: soft pill-like inline, card-like blocks --- */
+.theme-modern code {
+  font-family: var(--tm-font-mono);
+  font-size: 0.84em;
+  background: var(--tm-bg-code);
+  padding: 0.18em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--tm-border);
+  color: #c2410c;
+  font-variant-ligatures: none;
+}
+
+.theme-modern pre {
+  font-family: var(--tm-font-mono);
+  font-size: 0.82em;
+  background: var(--tm-bg-code);
+  border: 1px solid var(--tm-border);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  line-height: 1.5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.theme-modern pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* --- Links --- */
+.theme-modern a.url-link {
+  color: var(--tm-link);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.25);
+  transition: border-color 0.15s;
+}
+
+.theme-modern a.node-link {
+  color: var(--tm-link);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(37, 99, 235, 0.35);
+}
+
+/* --- Highlight --- */
+.theme-modern mark {
+  background: var(--tm-mark);
+  border-radius: 3px;
+  padding: 0.08em 0.2em;
+}
+
+/* --- Tables: clean with subtle header background --- */
+.theme-modern table {
+  font-size: 0.9em;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--tm-border);
+}
+
+.theme-modern thead {
+  background: #fafafa;
+}
+
+.theme-modern th {
+  font-weight: 600;
+  padding: 8px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--tm-border);
+  font-size: 0.88em;
+  color: var(--tm-color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.theme-modern td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--tm-border-light);
+}
+
+.theme-modern tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- Properties --- */
+.theme-modern .node-properties {
+  border: 1px solid var(--tm-border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  margin: calc(var(--rhythm) * 1.2) 0 calc(var(--rhythm) * 1.8);
+  font-size: 0.88em;
+  width: 100%;
+  background: #fafafa;
+}
+
+.theme-modern .node-property td {
+  padding: 0.35rem 0;
+}
+
+.theme-modern .node-property + .node-property td {
+  border-top: 1px solid var(--tm-border-light);
+}
+
+.theme-modern .node-property-name {
+  font-weight: 500;
+  color: var(--tm-prop-name);
+  padding-right: 1.5rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.theme-modern .node-property-value {
+  color: var(--tm-prop-value);
+}
+
+.theme-modern .node-property-empty {
+  color: var(--tm-color-faint);
+}
+
+.theme-modern hr {
+  border: none;
+  border-top: 1px solid var(--tm-border);
+  margin: calc(var(--rhythm) * 2.5) 0;
+}
+
+/* --- Callouts: modern alert style --- */
+.theme-modern .callout {
+  border-radius: 8px;
+  background: var(--tm-bg-callout);
+  border-left-width: 4px;
+  padding: 0.85rem 1rem;
+}
+
+.theme-modern .callout-note    { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+.theme-modern .callout-tip     { border-left-color: #22c55e; background: rgba(34, 197, 94, 0.05); }
+.theme-modern .callout-info    { border-left-color: #06b6d4; background: rgba(6, 182, 212, 0.05); }
+.theme-modern .callout-warning { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.05); }
+.theme-modern .callout-danger  { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+
+/* --- Tag pills --- */
+.theme-modern .tag-pill {
+  background: var(--tm-bg-code);
+  border: 1px solid var(--tm-border);
+  color: var(--tm-color-muted);
+  border-radius: 6px;
+  font-size: 0.8em;
+  font-weight: 500;
+  padding: 0.12em 0.5em;
+}
+
+/* --- Cover page --- */
+.cover-page.theme-modern h1:first-of-type {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--tm-color-h1);
+  padding-top: 30vh;
+}
+
+.cover-page.theme-modern h1:first-of-type::after {
+  width: 50px;
+  height: 3px;
+  background: var(--tm-border);
+  border-radius: 2px;
+  margin-top: 1.2rem;
+}
+
+/* --- Dark mode --- */
+.theme-modern.theme-dark {
+  --tm-color:       #e4e4e7;
+  --tm-color-h1:    #fafafa;
+  --tm-color-h2:    #f4f4f5;
+  --tm-color-h3:    #d4d4d8;
+  --tm-color-muted: #a1a1aa;
+  --tm-color-faint: #71717a;
+  --tm-border:      #27272a;
+  --tm-border-light:#3f3f46;
+  --tm-link:        #60a5fa;
+  --tm-link-hover:  #93c5fd;
+  --tm-bg-code:     #1c1c20;
+  --tm-bg-callout:  rgba(255, 255, 255, 0.03);
+  --tm-mark:        #713f12;
+  --tm-prop-name:   #a1a1aa;
+  --tm-prop-value:  #d4d4d8;
+  --structure-indent-border: #27272a;
+  background: #0a0a0a;
+}
+
+.theme-modern.theme-dark blockquote {
+  border-left-color: #3f3f46;
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+}
+
+.theme-modern.theme-dark code {
+  color: #fbbf24;
+  border-color: var(--tm-border);
+}
+
+.theme-modern.theme-dark pre {
+  color: #e4e4e7;
+}
+
+.theme-modern.theme-dark thead {
+  background: #18181b;
+}
+
+.theme-modern.theme-dark .node-properties {
+  background: #18181b;
+}
+
+.theme-modern.theme-dark mark {
+  color: #fbbf24;
+}
+
+.theme-modern.theme-dark .callout-note    { background: rgba(59, 130, 246, 0.08); }
+.theme-modern.theme-dark .callout-tip     { background: rgba(34, 197, 94, 0.08); }
+.theme-modern.theme-dark .callout-info    { background: rgba(6, 182, 212, 0.08); }
+.theme-modern.theme-dark .callout-warning { background: rgba(245, 158, 11, 0.08); }
+.theme-modern.theme-dark .callout-danger  { background: rgba(239, 68, 68, 0.08); }
+
+.theme-modern.theme-dark .cover-page h1:first-of-type::after {
+  background: var(--tm-border-light);
+}
+
+/* --- TOC --- */
+.theme-modern .toc a {
+  font-weight: 400;
+  color: var(--tm-color);
+}
+
+.theme-modern .toc a::after {
+  color: var(--tm-color-faint);
+}

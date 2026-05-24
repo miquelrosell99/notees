@@ -3,7 +3,7 @@
 
    Export styles are split into layer files:
      layers/base.css       — variables, @page, reset, base elements
-     layers/themes.css     — theme-minimal, theme-technical, theme-book
+     layers/theme-*.css    — theme-modern, theme-editorial, theme-technical, theme-book + theme-dark mode
      layers/structure.css  — structure-flat, structure-indented
      layers/density.css    — density-comfortable, density-compact
      layers/numbering.css  — numbering-none/hierarchical/legal/appendix

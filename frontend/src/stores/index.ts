@@ -68,6 +68,7 @@ export {
   type ExportMeasure,
   type ExportDoctype,
   type ExportLinkStyle,
+  type ExportThemeMode,
 } from './exportSettingsStore';
 // JSX components for feature flags are in components/core/FeatureFlag.tsx
 export {

@@ -77,8 +77,10 @@ body {
   padding: 0;
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-kerning: normal;
-  font-variant-numeric: oldstyle-nums;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
 }
 
 /* --- Headings --- */
@@ -153,6 +155,7 @@ li {
   margin: calc(var(--rhythm) * 0.33) 0;
   line-height: inherit;
   page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 /* --- Page-break grouping --- */
@@ -311,6 +314,79 @@ figcaption {
   color: var(--color-text-muted);
 }
 
+/* --- Blockquotes --- */
+blockquote {
+  margin: calc(var(--rhythm) * 1.5) 0;
+  padding: 0.5rem 0 0.5rem 1.2rem;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+blockquote p {
+  margin: 0.25rem 0;
+}
+
+blockquote p:first-child {
+  margin-top: 0;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- Callouts (base structure) --- */
+.callout {
+  margin: calc(var(--rhythm) * 1.5) 0;
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+  border-left: 4px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.02);
+  page-break-inside: avoid;
+}
+
+.callout-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.callout p {
+  margin: 0.25rem 0;
+}
+
+.callout p:first-child {
+  margin-top: 0;
+}
+
+.callout p:last-child {
+  margin-bottom: 0;
+}
+
+/* Callout flavours */
+.callout-note    { border-left-color: #5a79c9; background: rgba(90, 121, 201, 0.06); }
+.callout-tip     { border-left-color: #4caf50; background: rgba(76, 175, 80, 0.06); }
+.callout-info    { border-left-color: #2196f3; background: rgba(33, 150, 243, 0.06); }
+.callout-warning { border-left-color: #ff9800; background: rgba(255, 152, 0, 0.06); }
+.callout-danger  { border-left-color: #f44336; background: rgba(244, 67, 54, 0.06); }
+
+/* --- Tag pills --- */
+.tag-pill {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  font-size: 0.82em;
+  font-weight: 500;
+  border-radius: 999px;
+  background: var(--color-bg-code);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  vertical-align: middle;
+  margin: 0 0.15em;
+}
+
 /* --- Misc --- */
 hr {
   border: none;
@@ -351,6 +427,25 @@ div.page-break {
 .section-break-before h2 {
   break-before: page;
   page-break-before: always;
+}
+
+/* --- Cover page: first h1 becomes a standalone title page --- */
+.cover-page h1:first-of-type {
+  page-break-after: always;
+  break-after: page;
+  margin-top: 0;
+  padding-top: 25vh;
+  text-align: center;
+  border-bottom: none;
+}
+
+.cover-page h1:first-of-type::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 2px;
+  background: var(--color-border);
+  margin: 1.5rem auto 0;
 }
 
 /* Suppress break-before on the very first heading so it doesn't create a blank first page */
