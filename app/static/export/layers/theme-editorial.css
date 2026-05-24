@@ -1,0 +1,358 @@
+/* =========================================================
+   THEME-EDITORIAL  —  NYT / Medium / Aeon essay aesthetic
+   Serif body, strong sans headings, elegant pull quotes,
+   generous whitespace, refined typographic detail.
+   ========================================================= */
+
+.theme-editorial {
+  --te-font-serif:    'Source Serif Pro', 'Merriweather', 'Georgia', 'Times New Roman', serif;
+  --te-font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --te-font-mono:     'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  --te-size:          11.5pt;
+  --te-line-height:   1.7;
+  --te-color:         #222;
+  --te-color-h1:      #111;
+  --te-color-h2:      #1a1a1a;
+  --te-color-muted:   #666;
+  --te-color-faint:   #999;
+  --te-border:        #ddd;
+  --te-border-light:  #eee;
+  --te-link:          #1a1a1a;
+  --te-link-underline:#b91c1c;
+  --te-bg-code:       #fafafa;
+  --te-mark:          #fef9c3;
+  --te-prop-name:     #777;
+  --te-prop-value:    #333;
+  --structure-indent-border: #ddd;
+
+  font-family: var(--te-font-serif);
+  font-size: var(--te-size);
+  line-height: var(--te-line-height);
+  color: var(--te-color);
+  text-align: justify;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@page {
+  margin: 2.8cm 2.4cm;
+
+  @top-center {
+    content: string(doctitle);
+    font-family: var(--te-font-sans);
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #bbb;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-family: var(--te-font-sans);
+    font-size: 8pt;
+    color: #ccc;
+  }
+}
+
+@page :first {
+  @top-center { content: none; }
+}
+
+/* --- Headings: sans-serif, bold, dramatic scale --- */
+.theme-editorial h1,
+.theme-editorial h2,
+.theme-editorial h3,
+.theme-editorial h4,
+.theme-editorial h5,
+.theme-editorial h6 {
+  font-family: var(--te-font-sans);
+  font-weight: 700;
+  color: var(--te-color-h1);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  text-align: left;
+  text-transform: none;
+}
+
+.theme-editorial h1 {
+  font-size: 2.1rem;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: calc(var(--rhythm) * 2);
+  letter-spacing: -0.03em;
+  string-set: doctitle content();
+}
+
+.theme-editorial h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: calc(var(--rhythm) * 3);
+  margin-bottom: calc(var(--rhythm) * 1.2);
+  padding-bottom: 0.4rem;
+  border-bottom: 1.5px solid var(--te-border);
+}
+
+.theme-editorial h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--te-color-h2);
+  margin-top: calc(var(--rhythm) * 2.2);
+  margin-bottom: calc(var(--rhythm) * 0.9);
+}
+
+.theme-editorial h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--te-color-muted);
+}
+
+/* --- Paragraphs: generous spacing, no indent --- */
+.theme-editorial p {
+  margin: calc(var(--rhythm) * 1.1) 0;
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* --- Blockquotes: large decorative quote mark + italic --- */
+.theme-editorial blockquote {
+  margin: calc(var(--rhythm) * 2.5) calc(var(--rhythm) * 2);
+  padding: 1rem 1.5rem;
+  border-left: none;
+  position: relative;
+  font-style: italic;
+  color: var(--te-color-muted);
+  text-align: left;
+}
+
+.theme-editorial blockquote::before {
+  content: '"';
+  font-family: var(--te-font-serif);
+  font-size: 3.5rem;
+  line-height: 1;
+  color: var(--te-border);
+  position: absolute;
+  top: -0.2rem;
+  left: 0.2rem;
+}
+
+.theme-editorial blockquote p {
+  text-align: left;
+  margin: 0.4rem 0;
+  padding-left: 1.5rem;
+}
+
+/* --- Code: restrained, editorial style --- */
+.theme-editorial code {
+  font-family: var(--te-font-mono);
+  font-size: 0.82em;
+  background: var(--te-bg-code);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  color: #374151;
+  font-variant-ligatures: none;
+}
+
+.theme-editorial pre {
+  font-family: var(--te-font-mono);
+  font-size: 0.8em;
+  background: var(--te-bg-code);
+  border: 1px solid var(--te-border);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.theme-editorial pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* --- Links: underlined in editorial red, body color text --- */
+.theme-editorial a.url-link,
+.theme-editorial a.node-link {
+  color: var(--te-link);
+  text-decoration: none;
+  border-bottom: 1px solid var(--te-link-underline);
+  padding-bottom: 0.5px;
+}
+
+/* --- Highlight --- */
+.theme-editorial mark {
+  background: var(--te-mark);
+  border-radius: 2px;
+  padding: 0.08em 0.18em;
+}
+
+/* --- Tables: editorial, minimal --- */
+.theme-editorial table {
+  font-family: var(--te-font-sans);
+  font-size: 0.88em;
+  border-collapse: collapse;
+  margin: calc(var(--rhythm) * 1.5) 0;
+}
+
+.theme-editorial thead {
+  border-bottom: 2px solid var(--te-color);
+}
+
+.theme-editorial th {
+  font-weight: 600;
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--te-color-muted);
+}
+
+.theme-editorial td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--te-border-light);
+}
+
+.theme-editorial tr:last-child td {
+  border-bottom: 1px solid var(--te-border);
+}
+
+/* --- Properties: clean, sans-serif labels --- */
+.theme-editorial .node-properties {
+  border-top: 2px solid var(--te-border);
+  border-bottom: 2px solid var(--te-border);
+  padding: 0.6rem 0;
+  margin: calc(var(--rhythm) * 1.5) 0 calc(var(--rhythm) * 2);
+  font-family: var(--te-font-sans);
+  font-size: 0.85em;
+  width: 100%;
+}
+
+.theme-editorial .node-property td {
+  padding: 0.35rem 0;
+}
+
+.theme-editorial .node-property + .node-property td {
+  border-top: 1px solid var(--te-border-light);
+}
+
+.theme-editorial .node-property-name {
+  font-weight: 500;
+  color: var(--te-prop-name);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8em;
+  padding-right: 1.5rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.theme-editorial .node-property-value {
+  color: var(--te-prop-value);
+}
+
+.theme-editorial .node-property-empty {
+  color: var(--te-color-faint);
+}
+
+.theme-editorial hr {
+  border: none;
+  border-top: 1px solid var(--te-border);
+  margin: calc(var(--rhythm) * 3) 20%;
+  text-align: center;
+}
+
+/* --- Callouts: refined left border only --- */
+.theme-editorial .callout {
+  border-radius: 0;
+  background: transparent;
+  border-left-width: 3px;
+  padding: 0.6rem 1rem;
+  font-family: var(--te-font-sans);
+  font-size: 0.92em;
+}
+
+.theme-editorial .callout-note    { border-left-color: #2563eb; }
+.theme-editorial .callout-tip     { border-left-color: #16a34a; }
+.theme-editorial .callout-info    { border-left-color: #0891b2; }
+.theme-editorial .callout-warning { border-left-color: #d97706; }
+.theme-editorial .callout-danger  { border-left-color: #dc2626; }
+
+/* --- Tag pills --- */
+.theme-editorial .tag-pill {
+  font-family: var(--te-font-sans);
+  background: transparent;
+  border: 1px solid var(--te-border);
+  color: var(--te-color-muted);
+  border-radius: 4px;
+  font-size: 0.78em;
+  font-weight: 500;
+  padding: 0.1em 0.45em;
+}
+
+/* --- Cover page --- */
+.cover-page.theme-editorial h1:first-of-type {
+  font-family: var(--te-font-sans);
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--te-color-h1);
+  padding-top: 28vh;
+  text-align: center;
+}
+
+.cover-page.theme-editorial h1:first-of-type::after {
+  width: 40px;
+  height: 2px;
+  background: var(--te-border);
+  margin-top: 1.5rem;
+}
+
+/* --- Dark mode --- */
+.theme-editorial.theme-dark {
+  --te-color:         #e8e8e8;
+  --te-color-h1:      #fafafa;
+  --te-color-h2:      #f0f0f0;
+  --te-color-muted:   #888;
+  --te-color-faint:   #555;
+  --te-border:        #333;
+  --te-border-light:  #2a2a2a;
+  --te-link:          #e8e8e8;
+  --te-link-underline:#b94a48;
+  --te-bg-code:       #1a1a1a;
+  --te-mark:          #5c4d1f;
+  --te-prop-name:     #777;
+  --te-prop-value:    #ccc;
+  --structure-indent-border: #333;
+  background: #111;
+}
+
+.theme-editorial.theme-dark blockquote::before {
+  color: #444;
+}
+
+.theme-editorial.theme-dark code {
+  color: #d4d4d8;
+}
+
+.theme-editorial.theme-dark thead {
+  border-bottom-color: var(--te-color);
+}
+
+.theme-editorial.theme-dark tr:last-child td {
+  border-bottom-color: var(--te-border);
+}
+
+.theme-editorial.theme-dark mark {
+  color: #fef08a;
+}
+
+/* --- TOC --- */
+.theme-editorial .toc a {
+  font-family: var(--te-font-sans);
+  font-weight: 400;
+  color: var(--te-color);
+}
+
+.theme-editorial .toc a::after {
+  color: var(--te-color-faint);
+}

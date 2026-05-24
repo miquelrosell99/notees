@@ -1,0 +1,375 @@
+/* =========================================================
+   THEME-BOOK  —  Classic prose, warm tones, chapter breaks
+   Palatino body, small-caps headings, drop caps,
+   running headers, chapter ornaments.
+   ========================================================= */
+
+.theme-book {
+  --tb-font-body:   'Palatino Linotype', 'Book Antiqua', 'Palatino', 'Georgia', serif;
+  --tb-font-sans:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --tb-font-mono:   'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --tb-size:        11.5pt;
+  --tb-line-height: 1.65;
+  --tb-color:       #2a2a2a;
+  --tb-color-warm:  #4a4035;
+  --tb-color-muted: #7a7065;
+  --tb-color-faint: #b0a89f;
+  --tb-border:      #d6cfc7;
+  --tb-border-light:#e8e3dd;
+  --tb-link:        #5c4d3c;
+  --tb-bg-code:     #f6f4f1;
+  --tb-bg-callout:  rgba(74, 64, 53, 0.04);
+  --tb-mark:        #fef3c7;
+  --tb-prop-name:   #8a8075;
+  --tb-prop-value:  #4a4035;
+  --structure-indent-border: #d6cfc7;
+
+  font-family: var(--tb-font-body);
+  font-size: var(--tb-size);
+  line-height: var(--tb-line-height);
+  color: var(--tb-color);
+  text-align: justify;
+  hyphens: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+@page {
+  margin: 2.6cm 2.4cm;
+
+  @top-center {
+    content: string(doctitle);
+    font-family: var(--tb-font-sans);
+    font-size: 7.5pt;
+    font-style: italic;
+    color: #c0b8ad;
+    letter-spacing: 0.03em;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-family: var(--tb-font-sans);
+    font-size: 8pt;
+    color: #c0b8ad;
+  }
+}
+
+@page :first {
+  @top-center { content: none; }
+}
+
+/* --- Headings: warm, elegant --- */
+.theme-book h1,
+.theme-book h2,
+.theme-book h3,
+.theme-book h4,
+.theme-book h5,
+.theme-book h6 {
+  font-family: var(--tb-font-body);
+  color: var(--tb-color-warm);
+  line-height: 1.2;
+  text-align: left;
+}
+
+.theme-book h1 {
+  font-size: 1.9rem;
+  font-weight: 400;
+  margin-top: 0;
+  margin-bottom: calc(var(--rhythm) * 2);
+  text-align: center;
+  letter-spacing: 0.02em;
+  string-set: doctitle content();
+  page-break-before: always;
+}
+
+/* First h1 shouldn't have page break */
+.theme-book h1:first-of-type {
+  page-break-before: auto;
+}
+
+.theme-book h2 {
+  font-size: 1.35rem;
+  font-weight: 400;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  margin-top: calc(var(--rhythm) * 3);
+  margin-bottom: calc(var(--rhythm) * 1.2);
+  text-align: center;
+}
+
+.theme-book h2::after {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 1px;
+  background: var(--tb-border);
+  margin: 0.6rem auto 0;
+}
+
+.theme-book h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-style: italic;
+  margin-top: calc(var(--rhythm) * 2);
+  margin-bottom: calc(var(--rhythm) * 0.8);
+}
+
+.theme-book h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--tb-color-muted);
+}
+
+/* --- Paragraphs: generous, justified --- */
+.theme-book p {
+  margin: calc(var(--rhythm) * 0.9) 0;
+  text-align: justify;
+  text-indent: 0;
+}
+
+/* Drop cap on first paragraph after h1 */
+.theme-book h1 + p::first-letter,
+.theme-book h1 + * + p::first-letter,
+.theme-book h2 + p::first-letter {
+  float: left;
+  font-size: 3.2em;
+  line-height: 0.85;
+  padding-right: 0.08em;
+  padding-top: 0.04em;
+  font-family: var(--tb-font-body);
+  color: var(--tb-color-warm);
+}
+
+/* --- Blockquotes: warm, indented --- */
+.theme-book blockquote {
+  margin: calc(var(--rhythm) * 2) 1.5rem;
+  padding: 0.6rem 0 0.6rem 1.25rem;
+  border-left: 2px solid var(--tb-border);
+  color: var(--tb-color-muted);
+  font-style: italic;
+}
+
+.theme-book blockquote p {
+  margin: 0.3rem 0;
+}
+
+/* --- Code: warm background --- */
+.theme-book code {
+  font-family: var(--tb-font-mono);
+  font-size: 0.84em;
+  background: var(--tb-bg-code);
+  padding: 0.12em 0.35em;
+  border-radius: 3px;
+  color: #5c4d3c;
+  font-variant-ligatures: none;
+}
+
+.theme-book pre {
+  font-family: var(--tb-font-mono);
+  font-size: 0.8em;
+  background: var(--tb-bg-code);
+  border: 1px solid var(--tb-border-light);
+  border-radius: 4px;
+  padding: 0.9rem 1rem;
+  line-height: 1.45;
+}
+
+.theme-book pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* --- Links: warm, underlined --- */
+.theme-book a.url-link,
+.theme-book a.node-link {
+  color: var(--tb-link);
+  text-decoration: none;
+  border-bottom: 1px solid var(--tb-border);
+}
+
+/* --- Highlight --- */
+.theme-book mark {
+  background: var(--tb-mark);
+  border-radius: 2px;
+  padding: 0.08em 0.18em;
+}
+
+/* --- Tables: warm, elegant --- */
+.theme-book table {
+  font-size: 0.9em;
+  border-collapse: collapse;
+  margin: calc(var(--rhythm) * 1.5) auto;
+  border-top: 1px solid var(--tb-border);
+  border-bottom: 1px solid var(--tb-border);
+}
+
+.theme-book thead {
+  border-bottom: 1px solid var(--tb-border);
+}
+
+.theme-book th {
+  font-weight: 600;
+  font-family: var(--tb-font-sans);
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tb-color-muted);
+}
+
+.theme-book td {
+  padding: 7px 14px;
+  border-bottom: 0.5px solid var(--tb-border-light);
+}
+
+.theme-book tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- Properties: warm, minimal --- */
+.theme-book .node-properties {
+  border-top: 1px solid var(--tb-border);
+  border-bottom: 1px solid var(--tb-border);
+  padding: 0.5rem 0;
+  margin: calc(var(--rhythm) * 1.2) 0 calc(var(--rhythm) * 1.8);
+  font-family: var(--tb-font-sans);
+  font-size: 0.85em;
+  width: 100%;
+}
+
+.theme-book .node-property td {
+  padding: 0.3rem 0;
+}
+
+.theme-book .node-property + .node-property td {
+  border-top: 1px solid var(--tb-border-light);
+}
+
+.theme-book .node-property-name {
+  font-weight: 500;
+  font-family: var(--tb-font-sans);
+  color: var(--tb-prop-name);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.78em;
+  padding-right: 1.5rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.theme-book .node-property-value {
+  color: var(--tb-prop-value);
+}
+
+.theme-book .node-property-empty {
+  color: var(--tb-color-faint);
+}
+
+.theme-book hr {
+  border: none;
+  border-top: 1px solid var(--tb-border);
+  margin: calc(var(--rhythm) * 3) 25%;
+}
+
+/* --- Callouts: warm tinted --- */
+.theme-book .callout {
+  border-radius: 4px;
+  background: var(--tb-bg-callout);
+  border-left-width: 3px;
+  padding: 0.7rem 1rem;
+  font-size: 0.95em;
+}
+
+.theme-book .callout-note    { border-left-color: #7c6f64; background: rgba(124, 111, 100, 0.06); }
+.theme-book .callout-tip     { border-left-color: #6b8f5e; background: rgba(107, 143, 94, 0.06); }
+.theme-book .callout-info    { border-left-color: #5a8fa0; background: rgba(90, 143, 160, 0.06); }
+.theme-book .callout-warning { border-left-color: #b08d55; background: rgba(176, 141, 85, 0.06); }
+.theme-book .callout-danger  { border-left-color: #a06060; background: rgba(160, 96, 96, 0.06); }
+
+/* --- Tag pills --- */
+.theme-book .tag-pill {
+  font-family: var(--tb-font-sans);
+  background: var(--tb-bg-code);
+  border: 1px solid var(--tb-border);
+  color: var(--tb-color-muted);
+  border-radius: 999px;
+  font-size: 0.78em;
+  font-weight: 500;
+  padding: 0.1em 0.45em;
+}
+
+/* --- Cover page --- */
+.cover-page.theme-book h1:first-of-type {
+  font-size: 2.4rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: var(--tb-color-warm);
+  padding-top: 32vh;
+  text-align: center;
+  page-break-before: auto;
+}
+
+.cover-page.theme-book h1:first-of-type::after {
+  width: 30px;
+  height: 1px;
+  background: var(--tb-border);
+  margin: 1rem auto 0;
+}
+
+/* --- Dark mode --- */
+.theme-book.theme-dark {
+  --tb-color:       #d8d0c8;
+  --tb-color-warm:  #c4b8a8;
+  --tb-color-muted: #8a8075;
+  --tb-color-faint: #5a5048;
+  --tb-border:      #3d3530;
+  --tb-border-light:#2e2824;
+  --tb-link:        #b8a890;
+  --tb-bg-code:     #252019;
+  --tb-bg-callout:  rgba(196, 184, 168, 0.04);
+  --tb-mark:        #5c4d1f;
+  --tb-prop-name:   #8a8075;
+  --tb-prop-value:  #c4b8a8;
+  --structure-indent-border: #3d3530;
+  background: #1a1714;
+}
+
+.theme-book.theme-dark blockquote {
+  border-left-color: var(--tb-border);
+}
+
+.theme-book.theme-dark code {
+  color: #c4b8a8;
+}
+
+.theme-book.theme-dark table {
+  border-top-color: var(--tb-border);
+  border-bottom-color: var(--tb-border);
+}
+
+.theme-book.theme-dark thead {
+  border-bottom-color: var(--tb-border);
+}
+
+.theme-book.theme-dark mark {
+  color: #fef08a;
+}
+
+.theme-book.theme-dark .callout-note    { background: rgba(124, 111, 100, 0.1); }
+.theme-book.theme-dark .callout-tip     { background: rgba(107, 143, 94, 0.1); }
+.theme-book.theme-dark .callout-info    { background: rgba(90, 143, 160, 0.1); }
+.theme-book.theme-dark .callout-warning { background: rgba(176, 141, 85, 0.1); }
+.theme-book.theme-dark .callout-danger  { background: rgba(160, 96, 96, 0.1); }
+
+/* --- TOC --- */
+.theme-book .toc a {
+  font-family: var(--tb-font-sans);
+  font-weight: 400;
+  color: var(--tb-color-warm);
+}
+
+.theme-book .toc a::after {
+  color: var(--tb-color-faint);
+}
