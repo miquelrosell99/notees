@@ -31,7 +31,7 @@
 
 /* ---- Indented: standard nested indentation with guide lines ---- */
 .structure-indented {
-  --indent-border: #e0e0e0;
+  --indent-border: var(--structure-indent-border, #e0e0e0);
 }
 
 .structure-indented ul {

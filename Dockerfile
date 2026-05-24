@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libcairo2 \
     fonts-liberation \
+    fonts-lmodern \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

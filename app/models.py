@@ -145,6 +145,19 @@ class ExportRequest(BaseModel):
     format: ExportFormat
     include_children: bool = True
     include_backlinks: bool = False
+    layout: str = "outline"
+    formatting: bool = True
+    style: str | None = None
+    properties: str = "none"
+    density: str = "comfortable"
+    numbering: str = "none"
+    measure: str = "full"
+    doctype: str = "none"
+    section_break: bool = False
+    show_uuid: bool = False
+    link_style: str = "raw"
+    theme_mode: str = "light"
+    cover_page: bool = False
 
 
 class ExportResponse(BaseModel):

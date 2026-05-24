@@ -9,13 +9,14 @@ import { persist } from 'zustand/middleware';
 
 export type ExportFormat = 'markdown' | 'html' | 'pdf';
 export type ExportLayout = 'outline' | 'flat';
-export type ExportStyle = 'minimal' | 'technical' | 'book';
+export type ExportStyle = 'modern' | 'editorial' | 'technical' | 'book';
 export type ExportProperties = 'none' | 'main' | 'all';
 export type ExportDensity = 'comfortable' | 'compact';
 export type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
 export type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
 export type ExportDoctype = 'none' | 'article' | 'report' | 'book' | 'legal' | 'academic';
 export type ExportLinkStyle = 'raw' | 'text';
+export type ExportThemeMode = 'light' | 'dark';
 
 interface ExportSettingsState {
   format: ExportFormat;
@@ -31,6 +32,8 @@ interface ExportSettingsState {
   showUuid: boolean;
   linkStyle: ExportLinkStyle;
   cssOverrides: string;
+  themeMode: ExportThemeMode;
+  coverPage: boolean;
 
   setFormat: (format: ExportFormat) => void;
   setLayout: (layout: ExportLayout) => void;
@@ -45,6 +48,9 @@ interface ExportSettingsState {
   setShowUuid: (showUuid: boolean) => void;
   setLinkStyle: (linkStyle: ExportLinkStyle) => void;
   setCssOverrides: (cssOverrides: string) => void;
+  setThemeMode: (themeMode: ExportThemeMode) => void;
+  setCoverPage: (coverPage: boolean) => void;
+  applyPreset: (preset: 'casual' | 'editorial' | 'technical' | 'book') => void;
 }
 
 export const useExportSettingsStore = create<ExportSettingsState>()(
@@ -52,7 +58,7 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
     (set) => ({
       format: 'markdown',
       layout: 'outline',
-      style: 'minimal',
+      style: 'modern',
       properties: 'main',
       density: 'comfortable',
       numbering: 'none',
@@ -63,6 +69,8 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       showUuid: false,
       linkStyle: 'raw',
       cssOverrides: '',
+      themeMode: 'light',
+      coverPage: false,
 
       setFormat: (format) => set({ format }),
       setLayout: (layout) => set({ layout }),
@@ -77,6 +85,64 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       setShowUuid: (showUuid) => set({ showUuid }),
       setLinkStyle: (linkStyle) => set({ linkStyle }),
       setCssOverrides: (cssOverrides) => set({ cssOverrides }),
+      setThemeMode: (themeMode) => set({ themeMode }),
+      setCoverPage: (coverPage) => set({ coverPage }),
+
+      applyPreset: (preset: 'casual' | 'editorial' | 'technical' | 'book') => {
+        if (preset === 'casual') {
+          set({
+            style: 'modern',
+            density: 'comfortable',
+            measure: 'readable',
+            numbering: 'none',
+            doctype: 'article',
+            sectionBreak: false,
+            formatting: true,
+            layout: 'outline',
+            themeMode: 'light',
+            coverPage: false,
+          });
+        } else if (preset === 'editorial') {
+          set({
+            style: 'editorial',
+            density: 'comfortable',
+            measure: 'readable',
+            numbering: 'none',
+            doctype: 'article',
+            sectionBreak: false,
+            formatting: true,
+            layout: 'outline',
+            themeMode: 'light',
+            coverPage: true,
+          });
+        } else if (preset === 'technical') {
+          set({
+            style: 'technical',
+            density: 'compact',
+            measure: 'full',
+            numbering: 'hierarchical',
+            doctype: 'report',
+            sectionBreak: true,
+            formatting: true,
+            layout: 'flat',
+            themeMode: 'light',
+            coverPage: true,
+          });
+        } else if (preset === 'book') {
+          set({
+            style: 'book',
+            density: 'comfortable',
+            measure: 'book',
+            numbering: 'hierarchical',
+            doctype: 'book',
+            sectionBreak: true,
+            formatting: true,
+            layout: 'flat',
+            themeMode: 'light',
+            coverPage: true,
+          });
+        }
+      },
     }),
     {
       name: 'export-settings',

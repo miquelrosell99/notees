@@ -348,6 +348,7 @@ export function Layout() {
               isOpen={isExportPageModalOpen}
               onClose={() => setExportPageModalOpen(false)}
               nodeUuid={currentNode.uuid}
+              nodeName={currentNode.name}
             />
           </Suspense>
         )}

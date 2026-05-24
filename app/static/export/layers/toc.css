@@ -17,6 +17,9 @@
 .toc h3 {
   break-before: avoid;
   counter-reset: none;
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: calc(var(--rhythm) * 1.5);
 }
 
 /* --- TOC list structure --- */
@@ -41,37 +44,34 @@
 }
 
 .toc li {
-  margin: calc(var(--rhythm) * 0.25) 0;
+  margin: calc(var(--rhythm) * 0.35) 0;
 }
 
 /* Indent nested levels */
+.toc ul ul,
 .toc ol ol,
-.toc ul ul {
+.toc ul ol,
+.toc ol ul {
   padding-left: 1.5rem;
+  margin-top: calc(var(--rhythm) * 0.2);
 }
 
 /* --- TOC links --- */
 .toc a {
   text-decoration: none;
   color: inherit;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
 }
 
 /* Leader dots + page number (CSS Paged Media — Prince / WeasyPrint) */
 .toc a::after {
   content: leader('.') target-counter(attr(href url), page);
   font-variant-numeric: tabular-nums;
-}
-
-/* --- Theme-aware TOC styles --- */
-
-/* Minimal: subdued page numbers */
-.theme-minimal .toc a {
-  font-weight: 400;
-}
-
-.theme-minimal .toc a::after {
-  color: var(--color-text-faint);
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 0.5em;
 }
 
 /* --- Screen-only: suppress leader/page-number outside print --- */

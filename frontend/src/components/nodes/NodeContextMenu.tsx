@@ -677,6 +677,7 @@ export function NodeContextMenu({
         isOpen={showExportModal}
         onClose={() => { setShowExportModal(false); onClose(); }}
         nodeUuid={node.uuid}
+        nodeName={node.name}
       />
 
     </>

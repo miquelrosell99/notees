@@ -7,6 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
+  min-height: 420px;
 }
 
 /* ── Format tabs ── */
@@ -45,12 +46,16 @@
   color: var(--color-on-primary);
 }
 
-/* ── Preview area (markdown / html) ── */
+/* ── Preview area ── */
 .export-modal__preview-wrap {
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-height: 0;
 }
 
+/* Text preview (Markdown) */
 .export-modal__preview {
   width: 100%;
   min-height: 360px;
@@ -77,18 +82,37 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* ── Error ── */
+/* Iframe preview (HTML / PDF) */
+.export-modal__iframe-wrap {
+  flex: 1;
+  min-height: 360px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-container);
+  overflow: hidden;
+  position: relative;
+}
 
-.export-modal__error {
-  padding: var(--spacing-2) var(--spacing-3);
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  color: var(--color-error);
-  border-radius: var(--shape-small);
-  font-size: var(--font-size-sm);
+.export-modal__iframe-wrap--loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-surface-container);
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.export-modal__iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border: none;
+  background: #fff;
+  display: block;
 }
 
 /* ── PDF section ── */
-.export-modal__pdf-wrap {
+.export-modal__pdf-section {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
@@ -113,6 +137,7 @@
   padding: var(--spacing-3);
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
   color: var(--color-on-surface);
   resize: vertical;
   tab-size: 2;
@@ -147,6 +172,69 @@
   vertical-align: middle;
 }
 
+/* ── Error ── */
+.export-modal__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+/* ── Presets ── */
+.export-presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.export-presets__label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.export-presets__row {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.export-preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-1);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.export-preset-btn:hover {
+  background: var(--color-surface-container-highest);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+.export-preset-btn__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.export-preset-btn__text {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
 /* ── Footer layout ── */
 .export-modal__footer {
   display: flex;
@@ -162,8 +250,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-
-
 
 .export-modal__footer-actions {
   display: flex;
