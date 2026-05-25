@@ -183,7 +183,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
       
       // Also update page-content queries
       queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'page-content'] },
+        { queryKey: nodeKeys.pageContents() },
         updateCache,
       );
     }

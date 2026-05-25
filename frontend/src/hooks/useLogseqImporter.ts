@@ -1549,7 +1549,7 @@ export function useLogseqImporter() {
 
       queryClient.invalidateQueries({ queryKey: nodeKeys.all });
       queryClient.invalidateQueries({ queryKey: propertyKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['property-nodes'] });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.allNodes() });
 
       setReport({ phases, totalSucceeded, totalFailed });
       setImportProgress(100);

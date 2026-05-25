@@ -109,21 +109,13 @@ export function getWorkspaceExportUrl(name: string): string {
 
 /**
  * Export a workspace as a ZIP file (database + assets).
- * Downloads the file via the authenticated API client.
+ * Returns a Blob so the caller can trigger the download via UI utilities.
  */
-export async function exportWorkspaceZip(uuid: string, name: string): Promise<void> {
+export async function exportWorkspaceZip(uuid: string): Promise<Blob> {
   const response = await api.get(`/workspaces/${encodeURIComponent(uuid)}/export-zip`, {
     responseType: 'blob',
   });
-  const blob = new Blob([response.data], { type: 'application/zip' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${name}_full.zip`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  return new Blob([response.data], { type: 'application/zip' });
 }
 
 /**

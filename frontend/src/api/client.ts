@@ -12,6 +12,7 @@ const log = getLogger('api');
 // Create axios instance with default config
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },

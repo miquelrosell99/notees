@@ -77,8 +77,8 @@ function scheduleDeleteFlush(): void {
     batchDeleteNodesApi({ uuids }).then(() => {
       // Invalidate query result caches so views reflect the deletion
       sharedQueryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'], refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: ['pseudo-node-query'], refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: ['inline-query'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
     }).catch((error) => {
       console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
     });
@@ -199,7 +199,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
                 if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
               }
             }
-            for (const query of qCache.findAll({ queryKey: ['nodes', 'page-content'] })) {
+            for (const query of qCache.findAll({ queryKey: nodeKeys.pageContents() })) {
               const oldData = query.state.data as Node | undefined;
               if (oldData) {
                 const newData = insertCreatedBlock(oldData);
@@ -207,7 +207,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
               }
             }
             // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
-            for (const query of qCache.findAll({ queryKey: ['nodes', 'uuid'] })) {
+            for (const query of qCache.findAll({ queryKey: nodeKeys.uuids() })) {
               const oldData = query.state.data as Node | undefined;
               if (oldData) {
                 const newData = insertCreatedBlock(oldData);
@@ -312,7 +312,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
             if (newData !== oldData) queryClient.setQueryData(query.queryKey, newData);
           }
         }
-        for (const query of queryCache.findAll({ queryKey: ['nodes', 'page-content'] })) {
+        for (const query of queryCache.findAll({ queryKey: nodeKeys.pageContents() })) {
           const oldData = query.state.data as Node | undefined;
           if (oldData) {
             const newData = removeNode(oldData);
@@ -320,7 +320,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
           }
         }
         // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
-        for (const query of queryCache.findAll({ queryKey: ['nodes', 'uuid'] })) {
+        for (const query of queryCache.findAll({ queryKey: nodeKeys.uuids() })) {
           const oldData = query.state.data as Node | undefined;
           if (oldData) {
             const newData = removeNode(oldData);
@@ -331,8 +331,8 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
         // Also remove from flat Node[] caches (list views, query sections)
         const flatCacheKeys = [
           ['nodeViews', 'queryResults'],
-          ['pseudo-node-query'],
-          ['inline-query'],
+          nodeKeys.pseudoNodeQuery(),
+          nodeKeys.inlineQuery(),
         ] as const;
         for (const keyPrefix of flatCacheKeys) {
           for (const query of queryCache.findAll({ queryKey: keyPrefix })) {

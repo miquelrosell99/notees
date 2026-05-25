@@ -395,7 +395,7 @@ export function useSetNodeProperty() {
  */
 export function useNodesWithProperty(propertyId: number | null) {
   return useQuery({
-    queryKey: ['property-nodes', propertyId],
+    queryKey: propertyKeys.nodes(propertyId ?? 0),
     queryFn: async () => {
       if (!propertyId) return [];
       // Use the dedicated API endpoint that queries by property ID

@@ -188,7 +188,7 @@ export function useCreateNode() {
       if (variables.parent_id) {
         await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(variables.parent_id) });
         await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(variables.parent_id) });
-        await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+        await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
       }
       // NodeCreate doesn't have is_page - pages are created by classes
       // Skip page query cancellation for create operations
@@ -280,7 +280,7 @@ export function useCreateNode() {
       }
       
       // Update page-content queries
-      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      const pageContentQueries = queryCache.findAll({ queryKey: nodeKeys.pageContents() });
       for (const query of pageContentQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -292,7 +292,7 @@ export function useCreateNode() {
       }
 
       // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
-      const byUuidQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      const byUuidQueries = queryCache.findAll({ queryKey: nodeKeys.uuids() });
       for (const query of byUuidQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -348,13 +348,13 @@ export function useCreateNode() {
         );
         
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'page-content'] },
+          { queryKey: nodeKeys.pageContents() },
           (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
         );
 
         // Also update byUuid queries (e.g. Scratchpad)
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'uuid'] },
+          { queryKey: nodeKeys.uuids() },
           (oldNode) => oldNode ? replaceOptimistic(oldNode) : oldNode
         );
       } else if (variables.parent_id) {
@@ -383,7 +383,7 @@ export function useCreateNode() {
         );
         
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'page-content'] },
+          { queryKey: nodeKeys.pageContents() },
           (oldNode) => {
             if (!oldNode || oldNode.id !== variables.parent_id) return oldNode;
             return updateChildrenOptional(oldNode);
@@ -392,7 +392,7 @@ export function useCreateNode() {
 
         // Also update byUuid queries (e.g. Scratchpad)
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'uuid'] },
+          { queryKey: nodeKeys.uuids() },
           (oldNode) => {
             if (!oldNode) return oldNode;
             return updateChildrenOptional(oldNode) ?? oldNode;
@@ -422,7 +422,7 @@ export function useCreateNode() {
         });
         // Actively refetch pseudo-node queries (e.g. All Pages view)
         queryClient.invalidateQueries({
-          queryKey: ['pseudo-node-query'],
+          queryKey: nodeKeys.pseudoNodeQuery(),
           refetchType: 'active',
         });
       }
@@ -459,13 +459,13 @@ export function useCreateNode() {
         );
         
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'page-content'] },
+          { queryKey: nodeKeys.pageContents() },
           (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
         );
 
         // Also rollback byUuid queries (e.g. Scratchpad)
         queryClient.setQueriesData<Node>(
-          { queryKey: ['nodes', 'uuid'] },
+          { queryKey: nodeKeys.uuids() },
           (oldNode) => oldNode ? removeOptimistic(oldNode) : oldNode
         );
       }
@@ -485,7 +485,7 @@ export function useUpdateNode() {
     onMutate: async ({ id, data }) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
-      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
       
       // Build update object
       const buildUpdate = (): Partial<Node> => {
@@ -535,7 +535,7 @@ export function useUpdateNode() {
       }
       
       // Update page-content queries
-      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      const pageContentQueries = queryCache.findAll({ queryKey: nodeKeys.pageContents() });
       for (const query of pageContentQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -547,7 +547,7 @@ export function useUpdateNode() {
       }
 
       // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
-      const byUuidUpdateQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      const byUuidUpdateQueries = queryCache.findAll({ queryKey: nodeKeys.uuids() });
       for (const query of byUuidUpdateQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -559,7 +559,7 @@ export function useUpdateNode() {
       }
 
       // Update nodeViews queryResults (flat Node[] arrays used by QueryNodeCollection table/list view)
-      const viewQueryQueries = queryCache.findAll({ queryKey: ['nodeViews', 'queryResults'] });
+      const viewQueryQueries = queryCache.findAll({ queryKey: nodeViewKeys.queryResults() });
       for (const query of viewQueryQueries) {
         const oldData = query.state.data as Node[] | undefined;
         if (oldData && Array.isArray(oldData)) {
@@ -604,7 +604,7 @@ export function useUpdateNode() {
       // Also update nodeViews queryResults caches (flat Node[] arrays used by QueryNodeCollection)
       // This ensures table cells reflect the new name immediately after inline editing closes.
       queryClient.setQueriesData<Node[]>(
-        { queryKey: ['nodeViews', 'queryResults'] },
+        { queryKey: nodeViewKeys.queryResults() },
         (oldData) => {
           if (!oldData || !Array.isArray(oldData)) return oldData;
           return oldData.map(n => n.id === updatedNode.id ? mergeUpdate(n) : n);
@@ -672,7 +672,7 @@ export function useUpdateNode() {
       // Invalidate inline classes query to update pill display (only if color changed)
       if (variables.data.color !== undefined) {
         queryClient.invalidateQueries({ 
-          queryKey: ['inlineClasses', updatedNode.id],
+          queryKey: nodeKeys.inlineClasses(updatedNode.id),
           refetchType: 'none',
         });
       }
@@ -686,7 +686,7 @@ export function useUpdateNode() {
         // Use soft invalidation - let queries refetch on next render
         if (newParentId) {
           queryClient.invalidateQueries({ 
-            queryKey: ['nodeViews', 'queryResults'],
+            queryKey: nodeViewKeys.queryResults(),
             refetchType: 'none', // Soft invalidation
           });
         }
@@ -696,7 +696,7 @@ export function useUpdateNode() {
         const oldParentId = cachedNode?.parent_id;
         if (oldParentId && oldParentId !== newParentId) {
           queryClient.invalidateQueries({ 
-            queryKey: ['nodeViews', 'queryResults'],
+            queryKey: nodeViewKeys.queryResults(),
             refetchType: 'none', // Soft invalidation
           });
         }
@@ -786,7 +786,7 @@ function findNodeInCache(queryClient: ReturnType<typeof useQueryClient>, nodeId:
   }
   
   // Search all page-content queries
-  const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+  const pageContentQueries = queryCache.findAll({ queryKey: nodeKeys.pageContents() });
   for (const query of pageContentQueries) {
     const data = query.state.data as Node | undefined;
     if (data) {
@@ -874,10 +874,10 @@ export function useDeleteNode() {
     onMutate: async (deletedId) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
-      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
-      await queryClient.cancelQueries({ queryKey: ['nodeViews', 'queryResults'] });
-      await queryClient.cancelQueries({ queryKey: ['pseudo-node-query'] });
-      await queryClient.cancelQueries({ queryKey: ['inline-query'] });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
+      await queryClient.cancelQueries({ queryKey: nodeViewKeys.queryResults() });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.pseudoNodeQuery() });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.inlineQuery() });
       
       // Helper to remove node from tree
       // IMPORTANT: Only returns new object reference if something was actually removed
@@ -915,7 +915,7 @@ export function useDeleteNode() {
       }
       
       // Update page-content queries
-      const pageContentQueries = queryCache.findAll({ queryKey: ['nodes', 'page-content'] });
+      const pageContentQueries = queryCache.findAll({ queryKey: nodeKeys.pageContents() });
       for (const query of pageContentQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -927,7 +927,7 @@ export function useDeleteNode() {
       }
 
       // Update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
-      const byUuidDeleteQueries = queryCache.findAll({ queryKey: ['nodes', 'uuid'] });
+      const byUuidDeleteQueries = queryCache.findAll({ queryKey: nodeKeys.uuids() });
       for (const query of byUuidDeleteQueries) {
         const oldData = query.state.data as Node | undefined;
         if (oldData) {
@@ -940,9 +940,9 @@ export function useDeleteNode() {
 
       // Optimistically remove from flat Node[] caches (queryResults, pseudo-node-query, inline-query)
       const flatCacheKeys = [
-        ['nodeViews', 'queryResults'],
-        ['pseudo-node-query'],
-        ['inline-query'],
+        nodeViewKeys.queryResults(),
+        nodeKeys.pseudoNodeQuery(),
+        nodeKeys.inlineQuery(),
       ];
       for (const keyPrefix of flatCacheKeys) {
         for (const query of queryCache.findAll({ queryKey: keyPrefix })) {
@@ -1032,22 +1032,22 @@ export function useDeleteNode() {
       });
       // Invalidate page content as blocks may have been updated
       queryClient.invalidateQueries({ 
-        queryKey: ['nodes', 'page-content'],
+        queryKey: nodeKeys.pageContents(),
         refetchType: 'none',
       });
       // Actively refetch all node view query results so views update immediately
       queryClient.invalidateQueries({ 
-        queryKey: ['nodeViews', 'queryResults'],
+        queryKey: nodeViewKeys.queryResults(),
         refetchType: 'active',
       });
       // Invalidate pseudo-node queries (e.g., All Pages view)
       queryClient.invalidateQueries({ 
-        queryKey: ['pseudo-node-query'],
+        queryKey: nodeKeys.pseudoNodeQuery(),
         refetchType: 'active',
       });
       // Invalidate inline query sections (embedded QuerySection within node pages)
       queryClient.invalidateQueries({ 
-        queryKey: ['inline-query'],
+        queryKey: nodeKeys.inlineQuery(),
         refetchType: 'active',
       });
       // Invalidate graph data since nodes/links changed
@@ -1091,11 +1091,11 @@ export function useArchiveNode() {
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['pseudo-node-query'],
+        queryKey: nodeKeys.pseudoNodeQuery(),
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['nodes', 'archived'],
+        queryKey: nodeKeys.archived(),
         refetchType: 'none',
       });
       queryClient.invalidateQueries({ 
@@ -1132,11 +1132,11 @@ export function useUnarchiveNode() {
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['pseudo-node-query'],
+        queryKey: nodeKeys.pseudoNodeQuery(),
         refetchType: 'active',
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['nodes', 'archived'],
+        queryKey: nodeKeys.archived(),
         refetchType: 'none',
       });
       queryClient.invalidateQueries({ 
@@ -1159,8 +1159,8 @@ export function useMoveNode() {
     onMutate: async ({ id, parentId, position }) => {
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
-      await queryClient.cancelQueries({ queryKey: ['nodes', 'page-content'] });
-      await queryClient.cancelQueries({ queryKey: ['nodes', 'uuid'] });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.uuids() });
       
       // Find the node being moved from any cache
       let movedNode: Node | null = null;
@@ -1188,7 +1188,7 @@ export function useMoveNode() {
 
       // Also search byUuid queries (e.g. blocks under the Scratchpad page)
       if (!movedNode) {
-        const byUuidQueries = queryClient.getQueriesData<Node>({ queryKey: ['nodes', 'uuid'] });
+        const byUuidQueries = queryClient.getQueriesData<Node>({ queryKey: nodeKeys.uuids() });
         for (const [, data] of byUuidQueries) {
           if (!data) continue;
           if (data.id === id) { movedNode = data; break; }
@@ -1271,7 +1271,7 @@ export function useMoveNode() {
       
       // Also update page-content queries
       queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'page-content'] },
+        { queryKey: nodeKeys.pageContents() },
         (oldNode) => {
           if (!oldNode) return oldNode;
           
@@ -1292,7 +1292,7 @@ export function useMoveNode() {
 
       // Also update byUuid queries (e.g. Scratchpad uses useNodeByUuid with include_children)
       queryClient.setQueriesData<Node>(
-        { queryKey: ['nodes', 'uuid'] },
+        { queryKey: nodeKeys.uuids() },
         (oldNode) => {
           if (!oldNode) return oldNode;
 
@@ -1320,11 +1320,11 @@ export function useMoveNode() {
         refetchType: 'none', // Mark stale but don't refetch
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['nodes', 'page-content'],
+        queryKey: nodeKeys.pageContents(),
         refetchType: 'none',
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['nodes', 'uuid'],
+        queryKey: nodeKeys.uuids(),
         refetchType: 'none',
       });
       queryClient.invalidateQueries({ 
