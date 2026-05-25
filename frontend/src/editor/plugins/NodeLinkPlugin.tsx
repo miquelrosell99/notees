@@ -37,6 +37,9 @@ import {
 } from 'lexical';
 import { InlineLinkNode, $isInlineLinkNode, $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';
+import { parseLinkId } from '../../lib/astBuilder';
+import { copyToClipboard } from '../../utils/clipboardManager';
+import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 
 /** Pending update to apply to an InlineLinkNode (from LinkEditModal). */
 export interface PendingPillUpdate {
@@ -499,6 +502,80 @@ export function NodeLinkPlugin({
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, onPillClick]);
+
+  // ─── Copy shortcuts for selected pills ───────────────────────
+  // Ctrl+C        → copy link reference ([[uuid]] or raw URL)
+  // Shift+Ctrl+C  → copy display label
+  // Alt+Ctrl+C    → copy markdown link [label](target)
+
+  useEffect(() => {
+    const handler = async (event: KeyboardEvent) => {
+      const isMod = event.ctrlKey || event.metaKey;
+      if (!isMod || event.key.toLowerCase() !== 'c') return;
+      if (event.shiftKey && event.altKey) return;
+
+      // Only when the editor is focused
+      const rootEl = editor.getRootElement();
+      if (!rootEl || !rootEl.contains(document.activeElement)) return;
+
+      // Check if current selection is a NodeSelection on an InlineLinkNode
+      const linkNode = editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        if (!$isNodeSelection(selection)) return null;
+        for (const node of selection.getNodes()) {
+          if ($isInlineLinkNode(node)) {
+            return node;
+          }
+        }
+        return null;
+      });
+
+      if (!linkNode) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const refType = linkNode.getRefType();
+      const linkId = linkNode.getLinkId();
+      const url = linkNode.getUrl();
+      const customLabel = linkNode.getLabel();
+      const { nodeUuid } = parseLinkId(linkId);
+
+      // Compute display label (mirrors InlineLink.tsx logic)
+      let displayLabel = '';
+      if (refType === 'url') {
+        displayLabel =
+          linkId && linkId !== url
+            ? linkId
+            : (url
+                ? url.replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 50) || url
+                : 'URL');
+      } else if (refType === 'broken') {
+        displayLabel = customLabel || nodeUuid || '⛓️‍💥';
+      } else {
+        // node / class / embed
+        const runtime = getNodeGraphRuntime();
+        const targetNode = runtime.getNode(nodeUuid);
+        displayLabel = customLabel || targetNode?.name || nodeUuid;
+      }
+
+      if (!event.shiftKey && !event.altKey) {
+        // Ctrl+C — copy link reference
+        const text = refType === 'url' ? url : `[[${nodeUuid}]]`;
+        await copyToClipboard(text);
+      } else if (event.shiftKey && !event.altKey) {
+        // Shift+Ctrl+C — copy label
+        await copyToClipboard(displayLabel);
+      } else if (event.altKey && !event.shiftKey) {
+        // Alt+Ctrl+C — copy markdown link
+        const target = refType === 'url' ? url : nodeUuid;
+        await copyToClipboard(`[${displayLabel}](${target})`);
+      }
+    };
+
+    window.addEventListener('keydown', handler, { capture: true });
+    return () => window.removeEventListener('keydown', handler, { capture: true });
+  }, [editor]);
 
   return null;
 }
