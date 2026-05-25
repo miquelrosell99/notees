@@ -41,10 +41,15 @@ export function useCreateNodeActivity() {
  */
 export function useDeleteNodeActivity() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ nodeId, activityId }: { nodeId: number; activityId: number }) => 
+    mutationFn: ({ nodeId, activityId }: { nodeId: number; activityId: number }) =>
       activityApi.deleteNodeActivity(nodeId, activityId),
+    onMutate: ({ nodeId }) => {
+      // Invalidate immediately so the UI updates even if the triggering
+      // component unmounts before onSuccess fires (TanStack Query v5).
+      queryClient.invalidateQueries({ queryKey: activityKeys.forNode(nodeId) });
+    },
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: activityKeys.forNode(nodeId) });
     },

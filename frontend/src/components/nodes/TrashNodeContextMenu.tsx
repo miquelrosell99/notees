@@ -34,19 +34,25 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   // Restore mutation
   const restoreMutation = useMutation({
     mutationFn: restoreNode,
+    onMutate: () => {
+      // Close menu immediately; invalidate caches optimistically so the UI
+      // updates even if this component unmounts before onSuccess fires.
+      onClose();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      onClose();
     },
   });
-  
+
   // Permanent delete mutation
   const permanentDeleteMutation = useMutation({
     mutationFn: permanentlyDeleteNode,
+    onMutate: () => {
+      onClose();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
-      onClose();
     },
   });
   
