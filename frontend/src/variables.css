@@ -323,6 +323,11 @@
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
 
+  /* Graph view tokens */
+  --graph-node-default: #b8b8b8;
+  --graph-edge-color: rgba(212, 212, 212, 0.25);
+  --graph-bg: #0f0f0f;
+  --graph-glow-alpha: 0.08;
 }
 
 /* ==================== OLED Pure-Black Overrides ==================== */

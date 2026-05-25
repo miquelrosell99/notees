@@ -436,18 +436,43 @@ function ensureThemeObserver() {
 
 function getCssNodeDefaultColor(): [number, number, number, number] {
   if (!cssCache.nodeDefault) {
-    const hex = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-on-surface-variant').trim();
-    cssCache.nodeDefault = hex ? hexToTuple(hex) : [0.64, 0.64, 0.64, 1.0];
+    const val = getComputedStyle(document.documentElement)
+      .getPropertyValue('--graph-node-default').trim();
+    if (val && val.startsWith('#')) {
+      cssCache.nodeDefault = hexToTuple(val);
+    } else {
+      const fallback = getComputedStyle(document.documentElement)
+        .getPropertyValue('--color-on-surface-variant').trim();
+      cssCache.nodeDefault = fallback ? hexToTuple(fallback) : [0.72, 0.72, 0.72, 1.0];
+    }
   }
   return cssCache.nodeDefault;
 }
 
 function getCssEdgeColor(): [number, number, number, number] {
   if (!cssCache.edge) {
-    const hex = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-accent').trim();
-    cssCache.edge = hex ? hexToTuple(hex, 0.55) : [0.6, 0.6, 0.6, 0.55];
+    const val = getComputedStyle(document.documentElement)
+      .getPropertyValue('--graph-edge-color').trim();
+    // Handle rgba() syntax
+    if (val && val.startsWith('rgba')) {
+      const m = val.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+      if (m) {
+        cssCache.edge = [
+          parseInt(m[1]) / 255,
+          parseInt(m[2]) / 255,
+          parseInt(m[3]) / 255,
+          parseFloat(m[4]),
+        ];
+      } else {
+        cssCache.edge = [0.83, 0.83, 0.83, 0.25];
+      }
+    } else if (val && val.startsWith('#')) {
+      cssCache.edge = hexToTuple(val, 0.25);
+    } else {
+      const fallback = getComputedStyle(document.documentElement)
+        .getPropertyValue('--color-accent').trim();
+      cssCache.edge = fallback ? hexToTuple(fallback, 0.25) : [0.83, 0.83, 0.83, 0.25];
+    }
   }
   return cssCache.edge;
 }
@@ -1342,7 +1367,11 @@ export class GraphWebGLRenderer {
       this.glowInstData[base + 3] = color ? color[0] : def![0];
       this.glowInstData[base + 4] = color ? color[1] : def![1];
       this.glowInstData[base + 5] = color ? color[2] : def![2];
-      this.glowInstData[base + 6] = 0.035; // very subtle fixed alpha
+      // Read glow alpha from CSS so themes can control intensity
+      const glowAlphaStr = getComputedStyle(document.documentElement)
+        .getPropertyValue('--graph-glow-alpha').trim();
+      const glowAlpha = glowAlphaStr ? parseFloat(glowAlphaStr) : 0.08;
+      this.glowInstData[base + 6] = glowAlpha;
     }
 
     this.glowInstCount = n;
