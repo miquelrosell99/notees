@@ -22,6 +22,7 @@ import asyncio
 import json
 import os
 import sys
+import uuid as uuid_module
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -89,9 +90,13 @@ def revert_broken_links(
                 target_uuid = link_id.split(":", 1)[0] if link_id else ""
                 if target_uuid in existing_uuids:
                     changed = True
+                    # Regenerate link_uuid to avoid unique constraint collisions
+                    # when the same broken_link was duplicated across multiple nodes.
+                    new_link_uuid = str(uuid_module.uuid4())
+                    new_link_id = f"{target_uuid}:{new_link_uuid}"
                     restored = {
                         "type": "node_link",
-                        "link_id": link_id,
+                        "link_id": new_link_id,
                         "ref_type": "node",
                     }
                     if node.get("label"):

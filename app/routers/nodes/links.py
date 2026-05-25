@@ -896,10 +896,15 @@ async def fix_raw_uuid_links(
                 colon_idx = link_id.find(':')
                 node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
                 if node_uuid in uuid_to_node:
+                    # Regenerate link_uuid to avoid unique constraint collisions
+                    # when the same broken_link was duplicated across multiple nodes.
+                    new_link_uuid = str(uuid_module.uuid4())
+                    new_link_id = f"{node_uuid}:{new_link_uuid}"
                     new_node = {
                         **node,
                         "type": "node_link",
                         "ref_type": "node",
+                        "link_id": new_link_id,
                     }
                     new_nodes.append(new_node)
                     converted += 1
@@ -1158,10 +1163,15 @@ async def fix_links_for_uuid(
                 colon_idx = link_id.find(':')
                 node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
                 if node_uuid == target_uuid_lower:
+                    # Regenerate link_uuid to avoid unique constraint collisions
+                    # when the same broken_link was duplicated across multiple nodes.
+                    new_link_uuid = str(uuid_module.uuid4())
+                    new_link_id = f"{node_uuid}:{new_link_uuid}"
                     new_node = {
                         **node,
                         "type": "node_link",
                         "ref_type": "node",
+                        "link_id": new_link_id,
                     }
                     new_nodes.append(new_node)
                     converted += 1

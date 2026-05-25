@@ -114,11 +114,6 @@ export class NodeGraphRuntime {
       } else {
         // Existing node — update metadata fields but PRESERVE:
         //
-        // contentAST: the runtime is the source of truth for content
-        // during editing.  API syncs (optimistic cache updates,
-        // refetches) may carry stale / debounced content that would
-        // overwrite the user's latest edits if blindly applied.
-        //
         // parentId / orderIndex: the runtime is the source of truth
         // for structure during editing.  Indent, outdent, drag and
         // reorder update these fields optimistically; a concurrent
@@ -129,9 +124,19 @@ export class NodeGraphRuntime {
         // in-view API syncs (e.g. after a color change) we preserve
         // it, but on initial view load we use the API value so a
         // previous view's state doesn't leak.
+        //
+        // contentAST: the runtime is the source of truth during active
+        // editing.  However, when the server has a newer write_date
+        // (e.g. after a bulk fix like fix-raw-uuid-links), we accept
+        // the server's content so the UI reflects the update without
+        // requiring a page reload.
+        const serverTime = new Date(node.updatedAt).getTime();
+        const localTime = new Date(existing.updatedAt).getTime();
+        const serverIsNewer = serverTime > localTime;
+
         const merged: GraphNode = {
           ...node,
-          contentAST: existing.contentAST,
+          contentAST: serverIsNewer ? node.contentAST : existing.contentAST,
           parentId: existing.parentId,
           orderIndex: existing.orderIndex,
           collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
@@ -144,7 +149,8 @@ export class NodeGraphRuntime {
           existing.icon !== merged.icon ||
           existing.color !== merged.color ||
           existing.isDeleted !== merged.isDeleted ||
-          existing.classIds.join(',') !== merged.classIds.join(',')
+          existing.classIds.join(',') !== merged.classIds.join(',') ||
+          serverIsNewer
         ) {
           changedBlockIds.push(node.blockId);
         }
