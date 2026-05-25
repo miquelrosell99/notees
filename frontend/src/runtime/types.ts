@@ -60,6 +60,8 @@ export interface GraphNode {
   color?: string | null;
   /** Class IDs assigned to this node */
   classIds: string[];
+  /** Callout banner type if applicable */
+  calloutType?: string | null;
   /** Tag IDs */
   tagIds: string[];
   /** Timestamps */
@@ -93,6 +95,8 @@ export interface ProjectedNode {
   taskState?: string;
   /** Class IDs */
   classIds: string[];
+  /** Callout banner type (e.g. 'warning', 'note') if this block has a callout class */
+  calloutType?: string | null;
   /** Whether this node is a locked projection root (slice views) */
   isProjectionRoot: boolean;
 }

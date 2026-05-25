@@ -47,6 +47,7 @@ export interface SerializedBlockNode extends SerializedElementNode {
   isProjectionRoot: boolean;
   classIds: string[];
   isHeading: boolean;
+  calloutType: string | null;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -63,6 +64,7 @@ export class BlockNode extends ElementNode {
   __isProjectionRoot: boolean;
   __classIds: string[];
   __isHeading: boolean;
+  __calloutType: string | null;
 
   static getType(): string {
     return 'node-block';
@@ -81,6 +83,7 @@ export class BlockNode extends ElementNode {
       node.__isProjectionRoot,
       node.__classIds,
       node.__isHeading,
+      node.__calloutType,
       node.__key,
     );
   }
@@ -97,6 +100,7 @@ export class BlockNode extends ElementNode {
     isProjectionRoot: boolean = false,
     classIds: string[] = [],
     isHeading: boolean = false,
+    calloutType: string | null = null,
     key?: NodeKey,
   ) {
     super(key);
@@ -111,6 +115,7 @@ export class BlockNode extends ElementNode {
     this.__isProjectionRoot = isProjectionRoot;
     this.__classIds = classIds;
     this.__isHeading = isHeading;
+    this.__calloutType = calloutType;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -225,6 +230,16 @@ export class BlockNode extends ElementNode {
     return this;
   }
 
+  getCalloutType(): string | null {
+    return this.getLatest().__calloutType;
+  }
+
+  setCalloutType(calloutType: string | null): this {
+    const writable = this.getWritable();
+    writable.__calloutType = calloutType;
+    return this;
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────
 
   /**
@@ -268,6 +283,10 @@ export class BlockNode extends ElementNode {
       const level = Math.min(this.__depth + 1, 6);
       dom.classList.add(`node-block--heading-${level}`);
       dom.dataset.headingLevel = String(level);
+    }
+    if (this.__calloutType) {
+      dom.classList.add('node-block--callout');
+      dom.dataset.calloutType = this.__calloutType;
     }
 
     // ── Block UI container ─────────────────────────────────────
@@ -593,6 +612,16 @@ export class BlockNode extends ElementNode {
       }
     }
 
+    // Callout type — toggle banner class and data attribute
+    if (prevNode.__calloutType !== this.__calloutType) {
+      dom.classList.toggle('node-block--callout', !!this.__calloutType);
+      if (this.__calloutType) {
+        dom.dataset.calloutType = this.__calloutType;
+      } else {
+        delete dom.dataset.calloutType;
+      }
+    }
+
     // Color (CSS custom properties only — no reflow)
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
@@ -667,6 +696,7 @@ export class BlockNode extends ElementNode {
       isProjectionRoot: this.__isProjectionRoot,
       classIds: this.__classIds,
       isHeading: this.__isHeading,
+      calloutType: this.__calloutType,
     };
   }
 
@@ -683,6 +713,7 @@ export class BlockNode extends ElementNode {
       json.isProjectionRoot,
       json.classIds ?? [],
       json.isHeading ?? false,
+      json.calloutType ?? null,
     );
   }
 
@@ -722,9 +753,10 @@ export function $createBlockNode(
   isProjectionRoot: boolean = false,
   classIds: string[] = [],
   isHeading: boolean = false,
+  calloutType: string | null = null,
 ): BlockNode {
   return $applyNodeReplacement(
-    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading, calloutType),
   );
 }
 

@@ -102,6 +102,12 @@ SYSTEM_CLASSES = [
     "template",
     "comment",
     "table",
+    "warning",
+    "note",
+    "tip",
+    "info",
+    "danger",
+    "success",
 ]
 
 # Default pages created on initialization
@@ -131,6 +137,12 @@ SYSTEM_CLASS_UUIDS = {
     "template": "00000000-0000-0000-0001-000000000013",
     "comment": "00000000-0000-0000-0001-000000000014",
     "table": "00000000-0000-0000-0001-000000000015",
+    "warning": "00000000-0000-0000-0001-000000000016",
+    "note": "00000000-0000-0000-0001-000000000017",
+    "tip": "00000000-0000-0000-0001-000000000018",
+    "info": "00000000-0000-0000-0001-000000000019",
+    "danger": "00000000-0000-0000-0001-000000000020",
+    "success": "00000000-0000-0000-0001-000000000021",
 }
 
 # Default icons for system classes (MDI camelCase keys as exported by @mdi/js)
@@ -148,6 +160,12 @@ SYSTEM_CLASS_ICONS = {
     "task": "mdiCheckboxMarkedCircleOutline",
     "comment": "mdiCommentOutline",
     "table": "mdiTable",
+    "warning": "mdiAlert",
+    "note": "mdiNoteOutline",
+    "tip": "mdiLightbulbOutline",
+    "info": "mdiInformationOutline",
+    "danger": "mdiAlertCircle",
+    "success": "mdiCheckCircle",
 }
 
 # System properties with fixed UUIDs

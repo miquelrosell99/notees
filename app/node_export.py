@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 _EXPORT_CSS_DIR = Path(__file__).resolve().parent / "static" / "export"
 
-EXPORT_THEMES    = {"modern", "editorial", "technical", "book"}
+EXPORT_THEMES    = {"modern", "editorial", "technical", "book", "casual"}
 EXPORT_DENSITIES = {"comfortable", "compact"}
 EXPORT_NUMBERING = {"none", "hierarchical", "legal", "appendix"}
 EXPORT_MEASURES  = {"full", "readable", "book", "two-column"}
@@ -164,14 +164,20 @@ async def export_nodes(
                     filtered.append(nd)
                 nodes_data = filtered
 
-        # Look up system class IDs for code / quote rendering
+        # Look up system class IDs for code / quote / callout rendering
         system_class_rows = await conn.fetch(
             """
             SELECT id, name FROM node
             WHERE workspace_id = $1
               AND is_class = TRUE
               AND uuid::text IN ('00000000-0000-0000-0001-000000000008',
-                                 '00000000-0000-0000-0001-000000000006')
+                                 '00000000-0000-0000-0001-000000000006',
+                                 '00000000-0000-0000-0001-000000000016',
+                                 '00000000-0000-0000-0001-000000000017',
+                                 '00000000-0000-0000-0001-000000000018',
+                                 '00000000-0000-0000-0001-000000000019',
+                                 '00000000-0000-0000-0001-000000000020',
+                                 '00000000-0000-0000-0001-000000000021')
             """,
             workspace_id
         )
@@ -183,11 +189,14 @@ async def export_nodes(
             system_class_map[r['id']] = plain
         code_class_id: int | None = None
         quote_class_id: int | None = None
+        callout_class_map: Dict[int, str] = {}
         for cid, cname in system_class_map.items():
             if cname == 'code':
                 code_class_id = cid
             elif cname == 'quote':
                 quote_class_id = cid
+            elif cname in ('warning', 'note', 'tip', 'info', 'danger', 'success'):
+                callout_class_map[cid] = cname
 
         # Resolve node links in all ASTs
         target_uuids: set[str] = set()
@@ -454,15 +463,15 @@ async def export_nodes(
     strip_links = link_style == "text"
 
     if format == ExportFormat.MARKDOWN or format == "markdown":
-        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id)
+        content = _export_to_markdown(nodes_data, resolve_node_link, layout, formatting, properties_data, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, callout_class_map=callout_class_map)
         filename = "export.md"
         mime_type = "text/markdown"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, theme_mode=theme_mode, cover_page=cover_page)
+        content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, callout_class_map=callout_class_map, theme_mode=theme_mode, cover_page=cover_page)
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, theme_mode=theme_mode, cover_page=cover_page)
+        html_content = _export_to_html(nodes_data, resolve_node_link, layout, formatting, style, properties_data, density, numbering, measure, doctype, section_break, strip_link_syntax=strip_links, code_class_id=code_class_id, quote_class_id=quote_class_id, callout_class_map=callout_class_map, theme_mode=theme_mode, cover_page=cover_page)
         try:
             from weasyprint import HTML as WeasyprintHTML
             pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
@@ -688,6 +697,14 @@ def _node_is_quote(node: Dict, quote_class_id: int | None) -> bool:
     return quote_class_id is not None and quote_class_id in (node.get('class_ids') or [])
 
 
+def _node_callout_type(node: Dict, callout_class_map: Dict[int, str]) -> str | None:
+    class_ids = node.get('class_ids') or []
+    for cid in class_ids:
+        if cid in callout_class_map:
+            return callout_class_map[cid]
+    return None
+
+
 def _export_to_markdown(
     nodes: List[Dict],
     resolver=None,
@@ -697,6 +714,7 @@ def _export_to_markdown(
     strip_link_syntax: bool = False,
     code_class_id: int | None = None,
     quote_class_id: int | None = None,
+    callout_class_map: Dict[int, str] | None = None,
 ) -> str:
     """Convert nodes to Markdown format."""
     if not nodes:
@@ -710,6 +728,7 @@ def _export_to_markdown(
         is_page = node.get('is_page', False)
         is_code = _node_is_code(node, code_class_id)
         is_quote = _node_is_quote(node, quote_class_id)
+        callout_type = _node_callout_type(node, callout_class_map or {})
 
         if formatting and node.get('color'):
             text = f"=={text}=="
@@ -721,6 +740,10 @@ def _export_to_markdown(
                 for code_line in content.split('\n'):
                     lines.append(f"{indent_prefix}{code_line}")
                 lines.append(f"{indent_prefix}```")
+            elif callout_type:
+                lines.append(f"{indent_prefix}> [!{callout_type.upper()}]")
+                for q_line in content.split('\n'):
+                    lines.append(f"{indent_prefix}> {q_line}")
             elif is_quote:
                 for q_line in content.split('\n'):
                     lines.append(f"{indent_prefix}> {q_line}")
@@ -811,6 +834,7 @@ def _export_to_html(
     strip_link_syntax: bool = False,
     code_class_id: int | None = None,
     quote_class_id: int | None = None,
+    callout_class_map: Dict[int, str] | None = None,
     theme_mode: str = "light",
     cover_page: bool = False,
 ) -> str:
@@ -901,6 +925,7 @@ def _export_to_html(
         is_page = node.get('is_page', False)
         is_code = _node_is_code(node, code_class_id)
         is_quote = _node_is_quote(node, quote_class_id)
+        callout_type = _node_callout_type(node, callout_class_map or {})
         props_html = _render_properties(node)
         if is_page:
             level = min(depth + 1, 6)
@@ -913,6 +938,9 @@ def _export_to_html(
         if is_code:
             code_html = f'  <pre class="code-block"><code>{rendered}</code></pre>'
             return f"{code_html}\n  {props_html}" if props_html else code_html
+        if callout_type:
+            callout_html = f'  <blockquote class="callout callout--{callout_type}"{_id_attr(node)}{_color_attr(node)}>{rendered}</blockquote>'
+            return f"{callout_html}\n  {props_html}" if props_html else callout_html
         if is_quote:
             quote_html = f'  <blockquote{_id_attr(node)}{_color_attr(node)}>{rendered}</blockquote>'
             return f"{quote_html}\n  {props_html}" if props_html else quote_html
@@ -944,6 +972,7 @@ def _export_to_html(
         is_page = node.get('is_page', False)
         is_code = _node_is_code(node, code_class_id)
         is_quote = _node_is_quote(node, quote_class_id)
+        callout_type = _node_callout_type(node, callout_class_map or {})
 
         if is_page:
             while ul_open_count > 0:
@@ -972,8 +1001,8 @@ def _export_to_html(
                 if props_html:
                     lines.append(f"{indent}{props_html}")
                 current_depth = depth
-            elif is_code or is_quote:
-                # Code/quote blocks are rendered as <li> with special inner markup
+            elif is_code or is_quote or callout_type:
+                # Code/quote/callout blocks are rendered as <li> with special inner markup
                 if depth > current_depth:
                     for _ in range(depth - current_depth):
                         indent = '  ' * (ul_open_count)
@@ -990,6 +1019,8 @@ def _export_to_html(
                 props_html = _render_properties(node)
                 if is_code:
                     inner = f'<pre class="code-block"><code>{rendered}</code></pre>'
+                elif callout_type:
+                    inner = f'<blockquote class="callout callout--{callout_type}">{rendered}</blockquote>'
                 else:
                     inner = f'<blockquote>{rendered}</blockquote>'
                 if props_html:
