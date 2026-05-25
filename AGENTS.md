@@ -38,6 +38,7 @@ Key features:
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
   - Backend: `pytest tests/ -v` and `ruff check app/`
   - Frontend: `cd frontend && npm run lint` and `npm run typecheck`
+- **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 - **Prefer minimal changes**: Do not refactor unrelated code. Follow the existing file's style, even if it differs slightly from the general guidelines.
 
 ---
