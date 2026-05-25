@@ -168,7 +168,7 @@ export function NodeSelector({
   const [lastNonNullValue, setLastNonNullValue] = useState<number | null>(currentSingleValue);
   useEffect(() => {
     if (currentSingleValue !== null) {
-      setLastNonNullValue(currentSingleValue);
+      Promise.resolve().then(() => setLastNonNullValue(currentSingleValue));
     }
   }, [currentSingleValue]);
   const pinnedNodeId = !multi ? (currentSingleValue ?? lastNonNullValue) : null;
@@ -281,7 +281,7 @@ export function NodeSelector({
   const [multiMenuPos, setMultiMenuPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   useEffect(() => {
     if (!(trigger === 'select' && multi && isPickerOpen) || !arrowBtnRef.current) {
-      setMultiMenuPos(null);
+      Promise.resolve().then(() => setMultiMenuPos(null));
       return;
     }
     const rect = arrowBtnRef.current.getBoundingClientRect();

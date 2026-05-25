@@ -80,7 +80,7 @@ export function ImageNode({
   // Get the image URL from the asset node's uuid (async with token)
   useEffect(() => {
     if (!assetNodeId || !assetNode?.uuid) {
-      setImageUrl(null);
+      Promise.resolve().then(() => setImageUrl(null));
       return;
     }
 

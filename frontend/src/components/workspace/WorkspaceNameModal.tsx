@@ -38,14 +38,16 @@ export function WorkspaceNameModal({
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setName('');
-      setError(null);
+      Promise.resolve().then(() => {
+        setName('');
+        setError(null);
+      });
     }
   }, [isOpen]);
 
   // Sync external error
   useEffect(() => {
-    setError(externalError);
+    Promise.resolve().then(() => setError(externalError));
   }, [externalError]);
 
   // Debounced name check

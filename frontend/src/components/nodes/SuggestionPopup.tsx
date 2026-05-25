@@ -222,8 +222,10 @@ export function SuggestionPopup({
   
   // Reset selection and display limit when query changes
   useEffect(() => {
-    setSelectedIndex(multiSelect ? selectedCount : 0);
-    setDisplayLimit(10);
+    Promise.resolve().then(() => {
+      setSelectedIndex(multiSelect ? selectedCount : 0);
+      setDisplayLimit(10);
+    });
   }, [query, multiSelect, selectedCount]);
   
   // Handle keyboard navigation

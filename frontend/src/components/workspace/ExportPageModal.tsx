@@ -91,8 +91,10 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    Promise.resolve().then(() => {
+      setLoading(true);
+      setError(null);
+    });
 
     const params: Record<string, unknown> = {
       format: 'html',

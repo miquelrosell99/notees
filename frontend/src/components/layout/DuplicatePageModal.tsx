@@ -69,10 +69,12 @@ export function DuplicatePageModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setClassQuery('');
-      setSelectedClass(null);
-      setError(null);
-      setIsCreating(false);
+      Promise.resolve().then(() => {
+        setClassQuery('');
+        setSelectedClass(null);
+        setError(null);
+        setIsCreating(false);
+      });
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);

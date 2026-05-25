@@ -60,7 +60,7 @@ export function PropertyConfigSection({
   
   // Sync isMultiValue with property.multi when property changes
   useEffect(() => {
-    setIsMultiValue(property.multi || false);
+    Promise.resolve().then(() => setIsMultiValue(property.multi || false));
   }, [property.multi]);
   
   // Load allowed classes from property.class_filters
@@ -69,7 +69,7 @@ export function PropertyConfigSection({
       const classNodes = property.class_filters
         .map(classId => allClasses.find(c => c.id === classId))
         .filter((c): c is Node => c !== undefined);
-      setAllowedClasses(classNodes);
+      Promise.resolve().then(() => setAllowedClasses(classNodes));
     }
   }, [allClasses, property.class_filters]);
   

@@ -35,9 +35,11 @@ export function ImportDataModal({
   // Focus textarea when modal opens
   useEffect(() => {
     if (isOpen) {
-      setContent('');
-      setError(null);
-      setParsedData(null);
+      Promise.resolve().then(() => {
+        setContent('');
+        setError(null);
+        setParsedData(null);
+      });
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
@@ -45,8 +47,10 @@ export function ImportDataModal({
   // Validate content as user types
   useEffect(() => {
     if (!content.trim()) {
-      setError(null);
-      setParsedData(null);
+      Promise.resolve().then(() => {
+        setError(null);
+        setParsedData(null);
+      });
       return;
     }
 

@@ -313,18 +313,17 @@ export function QueryNodeCollection({
   // QuerySections that mount in the same render tick are merged into ONE API call.
   useEffect(() => {
     if (isInlineMode) {
-      setHasInitialized(true);
+      Promise.resolve().then(() => setHasInitialized(true));
       return;
     }
     if (nodeId > 0) {
       batchEnsureDefaults(nodeId, viewType as string).then(
-        () => setHasInitialized(true),
-        () => setHasInitialized(true)
+        () => Promise.resolve().then(() => setHasInitialized(true)),
+        () => Promise.resolve().then(() => setHasInitialized(true))
       );
     } else {
-      setHasInitialized(true);
+      Promise.resolve().then(() => setHasInitialized(true));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId, viewType, isInlineMode]);
 
   const isInitializing = !hasInitialized;

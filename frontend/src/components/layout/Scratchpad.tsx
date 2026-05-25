@@ -27,7 +27,7 @@ interface ScratchpadProps {
 }
 
 export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: ScratchpadProps) {
-  const [isPinned, setIsPinned] = useState(false);
+  const [isPinned, setIsPinned] = useState(() => localStorage.getItem('notees-scratchpad-pinned') === 'true');
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -97,7 +97,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     const children = runtime.getChildren(scratchpadPage.uuid);
     const count = children.length === 1 && !children[0]?.name ? 0 : children.length;
     onEntryCountChange?.(count);
-  }, [onEntryCountChange, scratchpadPage?.uuid, saveContent]);
+  }, [onEntryCountChange, scratchpadPage, saveContent]);
 
   const handleSendAll = useCallback(async () => {
     if (!destinationPage || !scratchpadPage || isSending) return;
@@ -137,14 +137,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     setShowDestinationPicker(false);
   }, []);
 
-  // Load pinned state
-  useEffect(() => {
-    const pinnedState = localStorage.getItem('notees-scratchpad-pinned');
-    if (pinnedState === 'true') {
-      setIsPinned(true);
-    }
-  }, []);
-
   // Position below anchor button when opened
   useEffect(() => {
     if (isOpen && anchorRef?.current) {
@@ -156,9 +148,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       if (left + popupWidth > window.innerWidth - 8) {
         left = window.innerWidth - popupWidth - 8;
       }
-      setPosition({ x: left, y: rect.bottom + gap });
+      Promise.resolve().then(() => setPosition({ x: left, y: rect.bottom + gap }));
     } else if (isOpen && !position) {
-      setPosition({ x: 100, y: 100 });
+      Promise.resolve().then(() => setPosition({ x: 100, y: 100 }));
     }
   }, [isOpen]);
 

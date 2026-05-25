@@ -73,7 +73,7 @@ export function PageHeader({
   
   // Sync with page name when it changes externally
   useEffect(() => {
-    setInputValue(nodeNameToText(page.name) || '');
+    Promise.resolve().then(() => setInputValue(nodeNameToText(page.name) || ''));
   }, [page.name]);
   
   // Adaptive font size based on title length
