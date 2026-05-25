@@ -70,14 +70,6 @@ export function SidebarLocalGraph({
   
   return (
     <div className={`graph-view-local ${className}`}>
-      <div className="graph-view-local__info">
-        <span className="graph-view-local__label">
-          {centerNode?.name || 'Local Graph'}
-        </span>
-        <span className="graph-view-local__stats">
-          {nodes.length} nodes
-        </span>
-      </div>
       <div className="graph-view-local__content">
         <GraphView
           viewId={`local-${nodeId}`}
