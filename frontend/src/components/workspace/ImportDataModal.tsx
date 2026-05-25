@@ -57,18 +57,16 @@ export function ImportDataModal({
     try {
       const data = JSON.parse(content);
       if (isValidBlockCopyData(data)) {
-        setParsedData(data);
-        setError(null);
+        Promise.resolve().then(() => { setParsedData(data); setError(null); });
       } else {
-        setParsedData(null);
-        setError('Invalid format. Expected Notees block data format.');
+        Promise.resolve().then(() => { setParsedData(null); setError('Invalid format. Expected Notees block data format.'); });
       }
     } catch (e) {
-      setParsedData(null);
+      Promise.resolve().then(() => setParsedData(null));
       if (content.trim().length > 10) {
-        setError('Invalid JSON format');
+        Promise.resolve().then(() => setError('Invalid JSON format'));
       } else {
-        setError(null);
+        Promise.resolve().then(() => setError(null));
       }
     }
   }, [content]);
