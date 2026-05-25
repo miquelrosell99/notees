@@ -159,11 +159,13 @@ Environment variables (or `.env` file):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SECRET_KEY` | (required) | JWT signing key - must be set! |
+| `POSTGRES_PASSWORD` | (required) | PostgreSQL password |
 | `ADMIN_PASSWORD` | (generated) | Initial admin password |
+| `PUID` | `1000` | Host user ID for file permissions |
+| `PGID` | `1000` | Host group ID for file permissions |
+| `TZ` | `UTC` | Container timezone |
 | `CORS_ORIGINS` | (empty) | Allowed CORS origins |
-| `ACCESS_TOKEN_EXPIRE_HOURS` | `168` | Token expiration (1 week) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `DATABASE_URL` | (required) | PostgreSQL connection string |
 
 ### Security Configuration
 
