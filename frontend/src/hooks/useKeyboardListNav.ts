@@ -8,7 +8,7 @@
  * Unlike useSearchableList, this hook does NOT manage query state —
  * components keep their own query/filter logic and just pass `totalItems`.
  */
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, type RefObject } from 'react';
+import { useState, useCallback, useRef, useEffect, type RefObject } from 'react';
 
 export interface UseKeyboardListNavOptions {
   /** Total number of selectable items */
@@ -47,9 +47,9 @@ export function useKeyboardListNav({
   const listRef = useRef<HTMLDivElement>(null);
 
   // Reset selection when total items change (useLayoutEffect to sync before paint)
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (isOpen) {
-      setSelectedIndex(0);
+      Promise.resolve().then(() => setSelectedIndex(0));
     }
   }, [totalItems, isOpen]);
 

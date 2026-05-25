@@ -33,7 +33,7 @@ export function TemplateVariableModal({
   // Reset values when the modal opens or variable list changes
   useEffect(() => {
     if (isOpen) {
-      setValues({});
+      Promise.resolve().then(() => setValues({}));
     }
   }, [isOpen, templateId]);
 

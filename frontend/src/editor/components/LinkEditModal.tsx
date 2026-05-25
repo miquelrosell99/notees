@@ -110,10 +110,12 @@ export function LinkEditModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setLinkMode(initialMode ?? (refType === 'url' ? 'url' : 'node'));
-      setSelectedNode(null);
-      setUrl(currentUrl ?? '');
-      setLabel(currentLabel ?? '');
+      Promise.resolve().then(() => {
+        setLinkMode(initialMode ?? (refType === 'url' ? 'url' : 'node'));
+        setSelectedNode(null);
+        setUrl(currentUrl ?? '');
+        setLabel(currentLabel ?? '');
+      });
     }
   }, [isOpen, currentLabel, refType, currentUrl, initialMode]);
 
