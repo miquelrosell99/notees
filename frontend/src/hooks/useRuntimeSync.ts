@@ -14,6 +14,7 @@ import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys } from './queryKeys';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 
 /** Resolve class icon from numeric class IDs using a prebuilt map */
 function resolveClassIcon(classIds: number[] | undefined, iconMap?: Map<number, string>): string | null {
@@ -57,6 +58,7 @@ export function apiNodeToGraphNode(
   idToUuidMap?: Map<number, string>,
   classIdToUuidMap?: Map<number, string>,
   classIdToIconMap?: Map<number, string>,
+  allClasses?: Node[],
 ): GraphNode {
   // Convert parent_id (server ID) to parent UUID
   let parentUuid: string | null = null;
@@ -81,8 +83,8 @@ export function apiNodeToGraphNode(
     isDeleted: node.is_deleted ?? false,
     isPage: node.is_page ?? false,
     name: stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY }),
-    icon: node.icon || resolveClassIcon(node.classes, classIdToIconMap) || null,
-    color: node.color || null,
+    icon: getEffectiveIcon(node, allClasses) ?? resolveClassIcon(node.classes, classIdToIconMap) ?? null,
+    color: getEffectiveColor(node, allClasses) ?? null,
     classIds: (node.classes || []).map(String),
     tagIds: (node.tags || []).map(String),
     calloutType: resolveCalloutType(node.classes, classIdToUuidMap),
@@ -105,7 +107,8 @@ function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
   }
   const classIdToUuidMap = buildClassIdToUuidMap();
   const classIdToIconMap = buildClassIdToIconMap();
-  return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap));
+  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+  return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined));
 }
 
 /**
@@ -127,6 +130,7 @@ export function apiNodesToGraphNodes(
   const nodeIdSet = new Set<number>();
   const classIdToUuidMap = buildClassIdToUuidMap();
   const classIdToIconMap = buildClassIdToIconMap();
+  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
 
   // Include parent/page in map so children's parent_id resolves to pageUuid
   if (pageId != null && pageUuid) {
@@ -155,7 +159,7 @@ export function apiNodesToGraphNodes(
   }
 
   const graphNodes = nodes.map(n => {
-    const gn = apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap);
+    const gn = apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined);
     // If this node was reconciled, rewrite its blockId to the runtime's blockId
     const runtimeBlockId = serverIdToRuntimeBlockId.get(n.id);
     if (runtimeBlockId) {

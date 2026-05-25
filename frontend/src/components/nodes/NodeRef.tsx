@@ -125,6 +125,7 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
     prev.node?.color === next.node?.color &&
     prev.node?.icon === next.node?.icon &&
     prev.node?.is_page === next.node?.is_page &&
+    prev.node?.classes?.join(',') === next.node?.classes?.join(',') &&
     prev.nodeId === next.nodeId &&
     prev.nodeUuid === next.nodeUuid &&
     prev.variant === next.variant &&
