@@ -124,8 +124,13 @@
   flex: none;
 }
 
+/* Ensure the view-content wrapper fills the content area */
+.node-collection--graph .node-collection__view-content {
+  height: 100%;
+}
+
 /* Ensure Card fills the aspect-ratio container */
-.node-collection--contained.node-collection--graph .node-collection__content > .card {
+.node-collection--contained.node-collection--graph .node-collection__content .card {
   height: 100%;
   box-sizing: border-box;
 }
