@@ -216,7 +216,7 @@ export function GraphView({
               };
             });
             skipClassColorsSaveRef.current++;  // skip the save-back on next render
-            setClassColors(migrated as ClassColor[]);
+            Promise.resolve().then(() => setClassColors(migrated as ClassColor[]));
           }
         } catch (e) {
           console.error('Failed to parse graph_class_colors:', e);
@@ -234,7 +234,7 @@ export function GraphView({
           const parsed = typeof savedSettings === 'string' ? JSON.parse(savedSettings) : savedSettings;
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
-            setGraphSettings(prev => ({ ...prev, ...parsed }));
+            Promise.resolve().then(() => setGraphSettings(prev => ({ ...prev, ...parsed })));
           }
         } catch (e) {
           console.error('Failed to parse graph_settings:', e);
@@ -285,7 +285,7 @@ export function GraphView({
       const saved = localStorage.getItem(getStorageKey(viewId, 'visibility_filters'));
       if (saved) {
         const parsed = JSON.parse(saved);
-        setVisibilityFilters(prev => ({ ...prev, ...parsed }));
+        Promise.resolve().then(() => setVisibilityFilters(prev => ({ ...prev, ...parsed })));
       }
     } catch (e) {
       console.error('Failed to load visibility filters:', e);

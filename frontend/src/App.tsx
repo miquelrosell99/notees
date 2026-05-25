@@ -95,8 +95,10 @@ function AppContent() {
   
   useEffect(() => {
     if (!isAuthenticated) {
-      setEnrollmentChecked(false);
-      setNeedsEnrollment(false);
+      Promise.resolve().then(() => {
+        setEnrollmentChecked(false);
+        setNeedsEnrollment(false);
+      });
       return;
     }
     
@@ -202,7 +204,7 @@ function AppContent() {
         clearScratchpad().catch(() => {});
       });
     } else {
-      setSettingsReady(false);
+      Promise.resolve().then(() => setSettingsReady(false));
     }
   }, [dbData?.active]);
   

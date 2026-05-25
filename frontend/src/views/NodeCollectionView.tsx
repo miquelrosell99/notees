@@ -27,7 +27,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
 
   useEffect(() => {
     if (nodes) {
-      setResultCount(nodes.length);
+      Promise.resolve().then(() => setResultCount(nodes.length));
     }
   }, [nodes]);
 

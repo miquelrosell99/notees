@@ -222,7 +222,6 @@ export function ButtonWithPanel({
     // Clamp horizontal
     left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronous position calculation based on DOM measurements
     if (chosenPosition === 'top') {
       // Anchor bottom edge to button top: panel grows upward, height-independent
       const bottomAnchor = viewportHeight - (rect.top - gap);

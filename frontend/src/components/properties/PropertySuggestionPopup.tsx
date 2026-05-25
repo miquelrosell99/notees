@@ -173,10 +173,12 @@ export function PropertySuggestionPopup({
   // Focus input when popup opens
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
-      setShowCreateModal(false);
-      setInitialPropertyName('');
-      setInitialPropertyScope(defaultScope ?? 'global');
+      Promise.resolve().then(() => {
+        setQuery('');
+        setShowCreateModal(false);
+        setInitialPropertyName('');
+        setInitialPropertyScope(defaultScope ?? 'global');
+      });
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen, defaultScope]);

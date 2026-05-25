@@ -44,7 +44,7 @@ Key features:
 ---
 
 The project has three main parts:
-1. **Backend** (`app/`): FastAPI (Python 3.12+)
+1. **Backend** (`app/`): FastAPI (Python 3.13+)
 2. **Frontend** (`frontend/`): React 19 + TypeScript + Vite SPA
 3. **Mobile** (`mobile/`): Android Kotlin wrapper app (WebView-based)
 
@@ -54,27 +54,27 @@ The project has three main parts:
 
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
-| Backend | FastAPI | 0.109.0 | REST API framework |
-| Backend | Uvicorn | 0.27.0 | ASGI server |
-| Backend | Pydantic | 2.5.3 | Data validation |
-| Backend | pydantic-settings | 2.1.0 | `.env` configuration |
-| Backend | PyJWT | >=2.8.0 | JWT tokens (HS256) |
+| Backend | FastAPI | 0.136.3 | REST API framework |
+| Backend | Uvicorn | 0.48.0 | ASGI server |
+| Backend | Pydantic | 2.13.4 | Data validation |
+| Backend | pydantic-settings | 2.14.1 | `.env` configuration |
+| Backend | PyJWT | 2.13.0 | JWT tokens (HS256) |
 | Backend | passlib | 1.7.4 | Password hashing (pbkdf2_sha256) |
-| Backend | asyncpg | >=0.29.0 | Async PostgreSQL driver |
-| Backend | slowapi | >=0.1.9 | Rate limiting |
-| Backend | WeasyPrint | >=62.0 | PDF generation |
-| Backend | Pillow | >=10.0.0 | Image processing |
-| Database | PostgreSQL | 16 | Primary persistent storage |
-| Frontend | React | 19.2.0 | UI framework |
-| Frontend | TypeScript | ~5.9.3 | Type safety |
-| Frontend | Vite | 7.2.4 | Build tool & dev server |
-| Frontend | Zustand | 5.0.10 | Client-side state management |
-| Frontend | TanStack Query | 5.90.17 | Server-state caching |
-| Frontend | Lexical | 0.40.0 | Rich-text block editor |
-| Frontend | Axios | 1.13.2 | HTTP client |
+| Backend | asyncpg | 0.31.0 | Async PostgreSQL driver |
+| Backend | slowapi | 0.1.9 | Rate limiting |
+| Backend | WeasyPrint | 68.1 | PDF generation |
+| Backend | Pillow | 12.2.0 | Image processing |
+| Database | PostgreSQL | 17 | Primary persistent storage |
+| Frontend | React | 19.2.6 | UI framework |
+| Frontend | TypeScript | ~6.0.3 | Type safety |
+| Frontend | Vite | 8.0.14 | Build tool & dev server |
+| Frontend | Zustand | 5.0.13 | Client-side state management |
+| Frontend | TanStack Query | 5.100.14 | Server-state caching |
+| Frontend | Lexical | 0.44.0 | Rich-text block editor |
+| Frontend | Axios | 1.16.1 | HTTP client |
 | Frontend | @dnd-kit | latest | Drag & drop |
 | Frontend | sql.js | 1.14.0 | In-browser SQLite (WASM) |
-| Mobile | Kotlin + Android SDK | 35 (minSdk 26) | WebView wrapper app |
+| Mobile | Kotlin + Android SDK | 36 (minSdk 26) | WebView wrapper app |
 | Containerization | Docker + Docker Compose | — | Deployment |
 
 ---
@@ -218,7 +218,7 @@ The backend follows a strict hexagonal architecture with three layers:
 
 ### Mobile
 
-The `mobile/` directory contains a minimal Android Kotlin app (API 26–35, minSdk 26) that wraps the frontend in a WebView. It provides:
+The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minSdk 26) that wraps the frontend in a WebView. It provides:
 - A server setup screen (`SetupActivity`).
 - A native share receiver (`ShareActivity`).
 - An `AndroidBridge` for native-to-web communication.
@@ -231,7 +231,7 @@ The `mobile/` directory contains a minimal Android Kotlin app (API 26–35, minS
 ## Build and Development Commands
 
 ### Prerequisites
-- Python 3.12+
+- Python 3.13+
 - Node.js 18+
 - PostgreSQL 16 (local or Docker)
 - Docker & Docker Compose (optional)
@@ -330,7 +330,7 @@ pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 - Markers: `slow`, `integration`
 
 **Fixtures (`tests/conftest.py`):**
-- `postgres_container`: Spins up a PostgreSQL 16-alpine container via **testcontainers** per session (requires Docker).
+- `postgres_container`: Spins up a PostgreSQL 17-alpine container via **testcontainers** per session (requires Docker).
 - `db_pool`: Initializes asyncpg pool, drops all tables, and re-creates schema before every test.
 - `test_user`: Creates a unique test user + workspace and returns auth token.
 - `client` / `authenticated_client`: `httpx.AsyncClient` against the FastAPI ASGI app.
@@ -454,15 +454,15 @@ See `.env.example` for the full template.
 ### Docker Compose (Development)
 
 The included `compose.yaml` brings up:
-- `postgres`: PostgreSQL 16 (with `fsync=off`, `synchronous_commit=off`, `full_page_writes=off` for dev speed — **never use in production**)
+- `postgres`: PostgreSQL 17 (with `fsync=off`, `synchronous_commit=off`, `full_page_writes=off` for dev speed — **never use in production**)
 - `backend`: FastAPI with hot-reload, mounted source volumes
 - `frontend`: Vite dev server on port 5173, proxying `/api` to the backend
 
 ### Production Docker
 
 `Dockerfile` is a multi-stage build:
-1. **Stage 1**: `node:20-alpine` builds the frontend.
-2. **Stage 2**: `python:3.12-slim` runs the backend with the built frontend copied into `app/static/dist`.
+1. **Stage 1**: `node:22-alpine` builds the frontend.
+2. **Stage 2**: `python:3.13-slim` runs the backend with the built frontend copied into `app/static/dist`.
 
 System dependencies in the production image include `libpango`, `libcairo2`, `fonts-liberation`, `libffi-dev`, and `libgdk-pixbuf` for WeasyPrint PDF generation. The container runs as non-root `appuser`, exposes port 8000, and has a healthcheck on `/api/auth/status`.
 
@@ -635,7 +635,7 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 - **Do not** assume `run_dev.py` or `run.py` exists at the project root. The actual entry points are `uvicorn app.main:app --reload` (backend) and `npm run dev` (frontend).
 - When building the Docker image, the frontend build stage outputs to `./dist` inside the container and is copied to `app/static/dist` in the final stage.
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
-- The `README.md` mentions SQLite and older Python/React versions — those are outdated. The actual stack is **PostgreSQL 16**, **Python 3.12+**, and **React 19.2.0**.
+- The `README.md` mentions SQLite and older Python/React versions — those are outdated. The actual stack is **PostgreSQL 17**, **Python 3.13+**, and **React 19.2.6**.
 
 ### TanStack Query v5: `onSuccess` / `onError` and Component Unmounting
 
@@ -678,21 +678,21 @@ cd frontend && npm outdated
 
 | Package | Current | Latest | Notes |
 |---------|---------|--------|-------|
-| FastAPI | 0.109.0 | 0.136.3 | Several minor versions behind |
-| Uvicorn | 0.27.0 | 0.48.0 | Significant gap; review breaking changes |
-| Pydantic | 2.5.3 | 2.13.4 | Multiple bug fixes and performance improvements |
-| asyncpg | >=0.29.0 | 0.31.0 | Generally safe to upgrade |
-| WeasyPrint | >=62.0 | 68.1 | Large gap; test PDF export thoroughly after upgrade |
-| React | 19.2.0 | 19.2.6 | Patch-level; safe to upgrade |
-| TypeScript | ~5.9.3 | 6.0.3 | Major version; review breaking changes |
-| Vite | 7.2.4 | 8.0.14 | Major version; review plugin compatibility |
-| TanStack Query | 5.90.17 | 5.100.14 | Minor versions behind; safe to upgrade |
-| Lexical | 0.40.0 | 0.44.0 | Several releases behind; test editor thoroughly |
-| Axios | 1.13.2 | 1.16.1 | Safe to upgrade |
-| Zustand | 5.0.10 | 5.0.13 | Safe to upgrade |
+| FastAPI | 0.136.3 | 0.136.3 | ✅ Up to date |
+| Uvicorn | 0.48.0 | 0.48.0 | ✅ Up to date |
+| Pydantic | 2.13.4 | 2.13.4 | ✅ Up to date |
+| asyncpg | 0.31.0 | 0.31.0 | ✅ Up to date |
+| WeasyPrint | 68.1 | 68.1 | ✅ Up to date |
+| React | 19.2.6 | 19.2.6 | ✅ Up to date |
+| TypeScript | ~6.0.3 | ~6.0.3 | ✅ Up to date |
+| Vite | 8.0.14 | 8.0.14 | ✅ Up to date |
+| TanStack Query | 5.100.14 | 5.100.14 | ✅ Up to date |
+| Lexical | 0.44.0 | 0.44.0 | ✅ Up to date |
+| Axios | 1.16.1 | 1.16.1 | ✅ Up to date |
+| Zustand | 5.0.13 | 5.0.13 | ✅ Up to date |
 
 **Upgrade rules:**
-- **Patch versions** (e.g., 5.90.17 → 5.90.20): generally safe; run tests and lint.
+- **Patch versions** (e.g., 5.100.14 → 5.100.20): generally safe; run tests and lint.
 - **Minor versions** (e.g., 0.109.0 → 0.110.0): review changelog for deprecations; run full test suite.
 - **Major versions** (e.g., Vite 7 → 8, TypeScript 5 → 6): plan carefully; check all plugin/config compatibility; run both frontend and backend tests.
 - **Never upgrade multiple major versions at once** — upgrade one dependency at a time and verify.

@@ -184,8 +184,8 @@ export function SidebarContextSections() {
     if (versionsExpanded && currentNodeId) {
       setVersionsLoading(true);
       getNodeVersions(currentNodeId, 30)
-        .then(setVersions)
-        .catch(() => setVersions([]))
+        .then(v => Promise.resolve().then(() => setVersions(v)))
+        .catch(() => Promise.resolve().then(() => setVersions([])))
         .finally(() => setVersionsLoading(false));
     }
   }, [versionsExpanded, currentNodeId]);

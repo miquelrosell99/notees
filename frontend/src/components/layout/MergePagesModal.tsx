@@ -37,10 +37,12 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   // When the modal opens, pre-select the currently open page as source
   useEffect(() => {
     if (isOpen) {
-      setError(null);
-      setIsMerging(false);
-      setTargetNode(null);
-      setSourceNode(currentNode?.is_page ? currentNode : null);
+      Promise.resolve().then(() => {
+        setError(null);
+        setIsMerging(false);
+        setTargetNode(null);
+        setSourceNode(currentNode?.is_page ? currentNode : null);
+      });
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
