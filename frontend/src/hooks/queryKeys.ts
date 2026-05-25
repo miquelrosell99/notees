@@ -29,7 +29,9 @@ export const nodeKeys = {
   byUuid: (uuid: string) => [...nodeKeys.all, 'uuid', uuid] as const,
   pageContent: (id: number) => [...nodeKeys.all, 'page-content', id] as const,
   backlinks: (id: number) => [...nodeKeys.all, 'backlinks', id] as const,
+  allBacklinks: () => [...nodeKeys.all, 'backlinks'] as const,
   linkedRefs: (id: number) => [...nodeKeys.all, 'linked-refs', id] as const,
+  allLinkedRefs: () => [...nodeKeys.all, 'linked-refs'] as const,
   propertyBacklinks: (id: number) => [...nodeKeys.all, 'property-backlinks', id] as const,
   dailyList: () => [...nodeKeys.all, 'daily-list'] as const,
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
@@ -54,6 +56,15 @@ export const nodeKeys = {
   batchProperties: (ids: number[]) => [...nodeKeys.all, 'batch-properties', ...ids.sort()] as const,
   suggestions: (classFilters?: string) => [...nodeKeys.all, 'suggestions', classFilters ?? ''] as const,
   aliases: (id: number) => [...nodeKeys.all, 'aliases', id] as const,
+  // Prefix keys for cache-wide invalidation (match all regardless of ID)
+  archived: () => [...nodeKeys.all, 'archived'] as const,
+  byClass: (classId: number) => [...nodeKeys.all, 'by-class', classId] as const,
+  textLinks: (nodeId: number) => ['textLinks', nodeId] as const,
+  inlineClasses: (nodeId: number) => ['inlineClasses', nodeId] as const,
+  pageContents: () => [...nodeKeys.all, 'page-content'] as const,
+  uuids: () => [...nodeKeys.all, 'uuid'] as const,
+  pseudoNodeQuery: () => ['pseudo-node-query'] as const,
+  inlineQuery: () => ['inline-query'] as const,
 };
 
 // ==================== Property Query Keys ====================
@@ -71,6 +82,8 @@ export const propertyKeys = {
   extendedByClasses: (classId: number) => [...propertyKeys.all, 'extended-by', classId] as const,
   available: (opts: { contextNodeId?: number; contextClassIds?: number[] }) =>
     [...propertyKeys.all, 'available', opts] as const,
+  nodes: (propertyId: number) => ['property-nodes', propertyId] as const,
+  allNodes: () => ['property-nodes'] as const,
 };
 
 // ==================== Comment Query Keys ====================

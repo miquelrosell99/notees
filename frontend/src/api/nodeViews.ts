@@ -183,30 +183,6 @@ export async function countQueryResults(
 // ==================== Utility Functions ====================
 
 /**
- * Get all NodeViews for a node grouped by view_type
- */
-export async function getNodeViewsByType(
-  nodeId: number
-): Promise<Record<string, NodeView[]>> {
-  const views = await listNodeViews(nodeId, { include_query_ast: true });
-  
-  const grouped: Record<string, NodeView[]> = {};
-  for (const view of views) {
-    if (!grouped[view.view_type]) {
-      grouped[view.view_type] = [];
-    }
-    grouped[view.view_type].push(view);
-  }
-  
-  // Sort each group by order_index
-  for (const viewType of Object.keys(grouped)) {
-    grouped[viewType].sort((a, b) => a.order_index - b.order_index);
-  }
-  
-  return grouped;
-}
-
-/**
  * Ensure a node has default views, creating them if needed via the backend
  */
 export async function ensureDefaultViews(

@@ -17,11 +17,11 @@ import {
   executeNodeViewQuery,
   executeQuery,
   countQueryResults,
-  getNodeViewsByType,
   ensureDefaultViews,
   resetNodeViews,
 } from '@/api/nodeViews';
 import type {
+  NodeView,
   NodeViewCreate,
   NodeViewUpdate,
   QueryExecuteRequest,
@@ -83,7 +83,23 @@ export function useNodeViewsByType(
 
   return useQuery({
     queryKey: nodeViewKeys.byType(nodeId),
-    queryFn: () => getNodeViewsByType(nodeId),
+    queryFn: async () => {
+      const views = await listNodeViews(nodeId, { include_query_ast: true });
+
+      const grouped: Record<string, NodeView[]> = {};
+      for (const view of views) {
+        if (!grouped[view.view_type]) {
+          grouped[view.view_type] = [];
+        }
+        grouped[view.view_type].push(view);
+      }
+
+      for (const viewType of Object.keys(grouped)) {
+        grouped[viewType].sort((a, b) => a.order_index - b.order_index);
+      }
+
+      return grouped;
+    },
     enabled: enabled && nodeId > 0,
   });
 }
