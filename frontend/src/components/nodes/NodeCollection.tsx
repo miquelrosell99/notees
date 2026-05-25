@@ -454,19 +454,24 @@ export const NodeCollection = memo(function NodeCollection({
         );
       
       case 'graph': {
-        // Graph only shows pages - convert Node to API GraphNode format
-        const graphNodes = nodes
-          .filter(n => n.is_page)
-          .map(n => ({
-            id: n.id,
-            uuid: n.uuid || '',
-            name: n.name || 'Untitled',
-            type: 'page' as const,
-            tags: [],
-            class_ids: [],
-            properties: {},
-            is_daily: n.is_daily || false,
-          }));
+        // Convert Node to API GraphNode format
+        const graphNodes = nodes.map(n => ({
+          id: n.id,
+          uuid: n.uuid || '',
+          name: n.name || 'Untitled',
+          type: (n.is_page ? 'page' : 'block') as const,
+          tags: n.tags?.map(String) ?? [],
+          class_ids: n.classes ?? [],
+          properties: Object.fromEntries(
+            Object.entries(n.properties ?? {}).map(([k, v]) => [String(k), v])
+          ),
+          is_daily: n.is_daily || false,
+          is_class: n.is_class,
+          is_monthly: n.is_monthly,
+          is_yearly: n.is_yearly,
+          icon: n.icon ?? undefined,
+          backlink_count: n.backlink_count,
+        }));
         // Include active node if provided and not already in the list
         if (activeNode && !graphNodes.some(n => n.id === activeNode.id)) {
           graphNodes.unshift({
