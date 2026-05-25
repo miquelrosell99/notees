@@ -13,6 +13,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-UTC}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     # NOTE: fsync/synchronous_commit/full_page_writes are OFF for dev speed.
     # Data WILL be lost on unclean shutdown. Never use these settings in production.
@@ -45,6 +46,7 @@ services:
     environment:
       RELOAD: "true"
       HOST: 0.0.0.0
+      TZ: ${TZ:-UTC}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}

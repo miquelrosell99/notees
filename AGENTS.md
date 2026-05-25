@@ -238,7 +238,7 @@ The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minS
 ```bash
 # Copy and configure environment
 cp .env.example .env
-# Edit .env and set SECRET_KEY, DATABASE_URL, and Postgres credentials
+# Edit .env and set SECRET_KEY and Postgres credentials
 
 # Start backend, frontend, and PostgreSQL
 docker compose up
@@ -284,7 +284,7 @@ npm run lint
 ```bash
 # Copy and configure environment
 cp .env.example .env
-# Edit .env and set SECRET_KEY, DATABASE_URL, and Postgres credentials
+# Edit .env and set SECRET_KEY and Postgres credentials
 
 # Start backend, frontend, and PostgreSQL
 docker compose up
@@ -414,7 +414,14 @@ All configuration is centralized in `app/config.py` using **pydantic-settings**.
 | Variable | Description |
 |----------|-------------|
 | `SECRET_KEY` | JWT signing key. **Must be >= 32 chars.** Generate with `python scripts/generate_secret_key.py` |
-| `DATABASE_URL` | PostgreSQL connection string. Format: `postgresql://user:pass@host:port/db` |
+| `POSTGRES_PASSWORD` | PostgreSQL password. Used by both the database container and the app. |
+
+**Docker:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUID` | `1000` | Host user ID for file ownership on bind mounts |
+| `PGID` | `1000` | Host group ID for file ownership on bind mounts |
+| `TZ` | `UTC` | Container timezone |
 
 **Important:**
 | Variable | Default | Description |
@@ -422,11 +429,7 @@ All configuration is centralized in `app/config.py` using **pydantic-settings**.
 | `ADMIN_PASSWORD` | (generated, not logged) | Initial admin password. If unset, a random password is generated on first startup. **The password is NOT shown in logs.** Set this env var to retrieve or change it. |
 | `CORS_ORIGINS` | `[]` | Comma-separated allowed origins. Never use `*` in production |
 | `ACCESS_TOKEN_EXPIRE_HOURS` | `24` | JWT token lifetime (code default). `.env.example` sets `168` for development convenience. |
-| `HOST` | `0.0.0.0` | Server bind host |
-| `PORT` | `8000` | Server bind port |
-| `RELOAD` | `true` | Uvicorn auto-reload (dev only) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `LOG_FILE` | `logs/notees.log` | Log file path |
 | `BACKUP_INTERVAL_SECONDS` | `3600` | Automatic backup interval |
 | `MAX_BACKUPS` | `50` | Max backup files to keep |
 | `POSTGRES_POOL_MIN` | `5` | Connection pool minimum size |
