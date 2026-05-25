@@ -22,6 +22,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
@@ -35,7 +36,6 @@ import type { ViewMode, NodeViewType } from '@/stores';
 // Components
 import { MainContentTopbar } from '../components/layout/MainContentTopbar';
 import { PageHeader } from '../components/nodes/PageHeader';
-import { NodeSelector } from '../components/nodes/NodeSelector';
 import { ImageNode } from '../components/nodes/ImageNode';
 import { AssetUploadModal } from '../components/assets/AssetUploadModal';
 import { NodeContent } from '../components/nodes/NodeContent';
@@ -46,6 +46,7 @@ import { QuerySection } from '../components/nodes';
 import { PropertiesSection } from '../components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '../components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesEditor';
+import { NodeMetadataSection } from '../components/nodes/NodeMetadataSection';
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
@@ -340,6 +341,7 @@ export function NodeView({
   const { pageClassId } = usePageClass();
   const { addSidebarCard, openNode } = useNavigationStore();
   const { contentDisplayMode } = useAppStore();
+  const isMobile = useIsMobile();
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -1101,8 +1103,8 @@ export function NodeView({
           </div>
           )}
           
-          {/* Grid layout: Header content on left | Cover spanning all rows on right */}
-          {showPageHeader && (
+          {/* Grid layout: Header content on left | Cover on right */}
+          {showPageHeader && (<>
           <div className="page-header-section">
             {/* Row 1: Page Header (title + icon) */}
             <div className="page-header-section__header">
@@ -1114,92 +1116,7 @@ export function NodeView({
               />
             </div>
             
-            {/* Row 2: Classes and Tags stacked */}
-            <div className="page-header-section__types-and-tags">
-              <div className="page-header-section__types">
-                <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
-                <NodeSelector
-                  nodes={pageClassDetails}
-                  searchMode="classes"
-                  emptyText={isAlias ? '' : 'Add class'}
-                  searchPlaceholder="Search classes..."
-                  onNodeClick={(n) => handleNavigateToNode(n.id)}
-                  onRemove={isAlias ? undefined : handleRemoveClass}
-                  onColorChange={isAlias ? undefined : handleNodeColorChange}
-                  onAdd={isAlias ? undefined : handleAddClass}
-                  onCreateNew={isAlias ? undefined : handleCreateClass}
-                  onConvertToClass={isAlias ? undefined : handleConvertToClass}
-                  canRemove={isAlias ? () => false : (n) => !isNonRemovableClass(n.uuid)}
-                  canAdd={isAlias ? () => false : (n) => !isBlockOnlyClass(n.uuid)}
-                />
-              </div>
-              
-              <div className="page-header-section__tags">
-                <div className="section-label">Tags:</div>
-                <NodeSelector
-                  nodes={pageTagDetails}
-                  searchMode="tags"
-                  emptyText="Add tag"
-                  searchPlaceholder="Search tags..."
-                  excludeNodeId={node.id}
-                  onNodeClick={(n) => handleNavigateToNode(n.id)}
-                  onRemove={handleRemoveTag}
-                  onColorChange={handleNodeColorChange}
-                  onAdd={handleAddTag}
-                  onCreateNew={handleCreateTag}
-                />
-              </div>
-            </div>
-
-            {/* Row 3: Aliases (only for pages) */}
-            {node.is_page && !isAlias && (
-              <div className="page-header-section__aliases">
-                <div className="section-label">Aliases:</div>
-                <NodeSelector
-                  nodes={pageAliasDetails}
-                  searchMode="aliases"
-                  emptyText="Add alias"
-                  searchPlaceholder="Search pages..."
-                  excludeNodeId={node.id}
-                  onNodeClick={handleNavigateToAlias}
-                  onRemove={handleRemoveAlias}
-                  onAdd={handleAddAlias}
-                />
-              </div>
-            )}
-            {node.is_page && isAlias && aliasedNode && (
-              <div className="page-header-section__aliases">
-                <div className="section-label">Alias of:</div>
-                <span
-                  className="alias-of-link"
-                  onClick={() => openNode(aliasedNode.id)}
-                  title={nodeNameToText(aliasedNode.name) || 'Untitled'}
-                >
-                  {nodeNameToText(aliasedNode.name) || 'Untitled'}
-                </span>
-              </div>
-            )}
-            
-            {/* Row 4: Extends (only for classes) */}
-            {node.is_class && (
-              <div className="page-header-section__extends">
-                <div className="section-label">Extends:</div>
-                <NodeSelector
-                  nodes={extendsDetails}
-                  searchMode="classes"
-                  emptyText="Add extend"
-                  searchPlaceholder="Search classes to extend..."
-                  excludeNodeId={node.id}
-                  onNodeClick={(n) => handleNavigateToNode(n.id)}
-                  onRemove={handleRemoveExtends}
-                  onColorChange={handleNodeColorChange}
-                  onAdd={handleAddExtends}
-                  onCreateNew={handleCreateExtends}
-                />
-              </div>
-            )}
-            
-            {/* Cover Image - spans rows 1-3 */}
+            {/* Cover Image */}
             <div 
               className={`node-view__cover ${isCoverDragging ? 'node-view__cover--dragging' : ''}`}
               onMouseEnter={() => setIsCoverHovered(true)}
@@ -1249,7 +1166,35 @@ export function NodeView({
               </div>
             </div>
           </div>
-          )}
+
+          <NodeMetadataSection
+            node={node}
+            pageClassDetails={pageClassDetails}
+            pageTagDetails={pageTagDetails}
+            extendsDetails={extendsDetails}
+            pageAliasDetails={pageAliasDetails}
+            aliasedNode={aliasedNode}
+            isAlias={isAlias}
+            onNavigateToNode={handleNavigateToNode}
+            onNavigateToAlias={handleNavigateToAlias}
+            onRemoveClass={handleRemoveClass}
+            onAddClass={handleAddClass}
+            onCreateClass={handleCreateClass}
+            onConvertToClass={handleConvertToClass}
+            onNodeColorChange={handleNodeColorChange}
+            canRemoveClass={isAlias ? () => false : (n: Node) => !isNonRemovableClass(n.uuid)}
+            canAddClass={isAlias ? () => false : (n: Node) => !isBlockOnlyClass(n.uuid)}
+            onRemoveTag={handleRemoveTag}
+            onAddTag={handleAddTag}
+            onCreateTag={handleCreateTag}
+            onRemoveAlias={handleRemoveAlias}
+            onAddAlias={handleAddAlias}
+            onRemoveExtends={handleRemoveExtends}
+            onAddExtends={handleAddExtends}
+            onCreateExtends={handleCreateExtends}
+            defaultExpanded={!isMobile}
+          />
+          </>)}
           
           {/* Properties Section - full width row below header section */}
           {showProperties && (
@@ -1288,7 +1233,7 @@ export function NodeView({
       
       {/* Class properties definition - only for class nodes (pages used as classes) */}
       {isClassNode && resolvedType === 'page' && (
-        <ClassPropertiesEditor classNodeId={node.id} />
+        <ClassPropertiesEditor classNodeId={node.id} defaultExpanded={!isMobile} />
       )}
       
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}

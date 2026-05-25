@@ -115,6 +115,10 @@ export const PropertiesIcon = ({ size = 'md', className, color, title }: IconPro
   <Icon path="mdi-clipboard-text-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
+export const MetadataIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path="mdi-tag-multiple-outline" size={getSize(size)} className={className} color={color} title={title} />
+);
+
 // Action icons
 export const AddIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-plus" size={getSize(size)} className={className} color={color} title={title} />

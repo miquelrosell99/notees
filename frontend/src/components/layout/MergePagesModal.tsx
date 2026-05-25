@@ -12,6 +12,7 @@ import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNode } from '@/hooks';
@@ -77,12 +78,12 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
       // Invalidate general queries that may reference the source or target.
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'page-content'] });
-      queryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'] });
-      queryClient.invalidateQueries({ queryKey: ['pseudo-node-query'] });
-      queryClient.invalidateQueries({ queryKey: ['inline-query'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
 
       handleClose();

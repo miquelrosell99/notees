@@ -15,6 +15,7 @@ import {
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
+import { downloadBlob } from '@/utils/download';
 import { useAuthStore, useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
@@ -202,7 +203,8 @@ export function WorkspaceManagementView({
 
   const handleExport = async (workspace: WorkspaceInfo) => {
     try {
-      await exportWorkspaceZip(workspace.uuid, workspace.name);
+      const blob = await exportWorkspaceZip(workspace.uuid);
+      downloadBlob(blob, `${workspace.name}_full.zip`);
     } catch (err) {
       console.error('Failed to export workspace:', err);
     }

@@ -480,7 +480,7 @@ export function useTasks(includeComplete = false) {
  */
 export function useArchivedPages() {
   return useQuery({
-    queryKey: ['nodes', 'archived'],
+    queryKey: nodeKeys.archived(),
     queryFn: () => nodesApi.getArchivedPages(),
     placeholderData: [],
   });
@@ -491,7 +491,7 @@ export function useArchivedPages() {
  */
 export function useNodesWithClass(classId: number | null) {
   return useQuery({
-    queryKey: ['nodes', 'by-class', classId],
+    queryKey: nodeKeys.byClass(classId ?? 0),
     queryFn: () => nodesApi.getNodesWithClass(classId!),
     enabled: !!classId,
     placeholderData: [],
@@ -504,7 +504,7 @@ export function useNodesWithClass(classId: number | null) {
  */
 export function useTextLinks(nodeId: number | null) {
   return useQuery({
-    queryKey: ['textLinks', nodeId],
+    queryKey: nodeKeys.textLinks(nodeId ?? 0),
     queryFn: () => nodesApi.getTextLinks(nodeId!),
     enabled: !!nodeId,
     staleTime: 30000,

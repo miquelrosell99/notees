@@ -6,7 +6,7 @@ This file contains project-specific context for AI coding agents. If you are rea
 
 ## Project Overview
 
-**Notees** is a self-hosted, privacy-first note-taking application with bidirectional linking, block-based editing, and offline support. It was developed with AI assistance and is licensed under AGPL-3.0.
+**Notees** is a self-hosted, privacy-first note-taking application with bidirectional linking, block-based editing, and offline support. The goal is to provide a powerful, user-owned alternative on par with tools like **Logseq, Obsidian, Notion, Roam Research, and Anytype**. It was developed with AI assistance and is licensed under AGPL-3.0.
 
 Key features:
 - **Bidirectional Linking**: Wiki-style `[[Page Name]]` links with automatic backlink tracking.
@@ -17,6 +17,30 @@ Key features:
 - **Offline-First**: PWA with service worker caching; works without internet.
 - **Multi-Database / Workspaces**: Separate knowledge bases per project or context.
 - **Export**: Markdown, HTML, and PDF export.
+
+---
+
+## Agent Quick Reference
+
+- **Architecture**: Backend uses strict hexagonal architecture. Domain services must only use repository interfaces, never FastAPI or asyncpg directly.
+- **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
+- **Frontend Imports**: Always use path aliases (e.g., `@/components/core/Button`). Never use relative `../../../` paths. CSS is co-located with components.
+- **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
+- **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals). Differentiation is via boolean flags (`is_page`, `is_tag`, etc.).
+- **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
+- **Outdated README**: `README.md` still mentions SQLite and older Python/React versions. Trust this file and `pyproject.toml`/`package.json` instead.
+
+---
+
+## Decision-Making & Planning
+
+- **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
+- **Always verify**: After code changes, run the relevant linter/test suite before finishing.
+  - Backend: `pytest tests/ -v` and `ruff check app/`
+  - Frontend: `cd frontend && npm run lint` and `npm run typecheck`
+- **Prefer minimal changes**: Do not refactor unrelated code. Follow the existing file's style, even if it differs slightly from the general guidelines.
+
+---
 
 The project has three main parts:
 1. **Backend** (`app/`): FastAPI (Python 3.12+)
@@ -454,6 +478,22 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 
 ## Development Conventions
 
+### Data Model at a Glance
+
+```
+workspace
+  └── node (pages, blocks, tags, properties, journals, tasks, templates, comments, assets)
+        ├── node_path (closure table: transitive ancestor/descendant relationships)
+        ├── node_link (parsed [[Page]] and ((block-uuid)) references for backlinks)
+        ├── property (schema definitions + values)
+        └── asset (files on disk under data/workspaces/{workspace_uuid}/assets/)
+```
+
+- **Everything is a Node**: One `node` table with boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, `is_system`).
+- **Closure Table**: `node_path` stores transitive parent/child relationships for fast tree queries and soft-delete cascading.
+- **Links**: `node_link` is the source of truth for backlinks; it is populated by parsing the block content AST.
+- **Workspace Isolation**: Every node, property, and asset belongs to exactly one workspace.
+
 ### Node Model
 Everything in the system is a **Node**. Differentiation happens via boolean columns and tags:
 - `is_page = true` → Page (can contain blocks and child pages)
@@ -492,11 +532,96 @@ Never call `pool.acquire()` directly in routers or services. Use:
 5. Include the router in `app/main.py`.
 6. Add tests in `tests/`.
 
-### Adding a New Frontend Component
+### Frontend Conventions
+
+- **Strict TypeScript**: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `verbatimModuleSyntax: true`.
+- **Path Aliases**: Mandatory. Use `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`. Never use relative `../../../` paths.
+- **CSS Co-location**: Each component has a `.css` file with the same base name in the same directory.
+- **Component File Extensions**: `.tsx` for React components, `.ts` for utilities.
+- **Import Boundaries**:
+  - `core/` components are domain-agnostic atoms (Button, Card, Modal). They **must never** import domain components.
+  - Domain-specific components (`blocks/`, `nodes/`, `properties/`, `queries/`) may import from `core/`, `api/`, `hooks/`, and `stores/`.
+- **Custom Hooks**: Live in `frontend/src/hooks/`.
+- **State**: Zustand for client state; TanStack Query for server state. Avoid direct fetch/XMLHttpRequest inside UI components.
+
+### Frontend Data Flow Architecture
+
+The frontend uses a **three-layer data model** with clear ownership:
+
+```
+Backend API ←→ TanStack Query (server state cache) ←→ NodeGraphRuntime (client graph) ←→ Lexical editors / UI
+```
+
+| Layer | Technology | Owns | Do NOT put here |
+|-------|-----------|------|-----------------|
+| **Server State** | TanStack Query | API responses, normalized entity cache, query keys | UI flags, ephemeral selection state, full Node objects that bypass the cache |
+| **Client Runtime** | `NodeGraphRuntime` | In-memory graph of blocks, structural intents, undo stack, projections | API calls, authentication, navigation |
+| **UI State** | Zustand stores | Navigation, modals, display preferences, keyboard shortcuts, clipboard | Server responses, query caches, full entity trees |
+
+#### Store Boundaries (Zustand)
+
+- **Zustand stores must hold only client/UI state.** Server data belongs in TanStack Query.
+- Stores that currently violate this (migrate when touched):
+  - `favoritesStore` — fetches favorites/recents manually instead of using `useQuery`.
+  - `undoStore` — accepts `QueryClient` as a parameter, coupling store layer to TanStack Query internals.
+  - `navigationStore` — `activeNode` stores a full `Node` object but is unused; components read `useNode(activeNodeId)` instead.
+- Use selectors to subscribe to only the slice you need: `useNavigationStore(s => s.openNode)` not `useNavigationStore()`.
+- Avoid imperative `useXStore.getState().action()` inside render paths; prefer the React hook subscription or use it only in event handlers.
+
+#### Query Key Discipline
+
+- **Always use factory functions** from `frontend/src/hooks/queryKeys.ts`. Never hardcode raw arrays like `['nodes', 'page-content']`.
+- Prefix factories exist for cache-wide invalidation:
+  ```ts
+  // Invalidates ALL page-content queries regardless of node ID
+  queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+  ```
+- When adding a new query, add its key factory to `queryKeys.ts` first, then use it in the hook AND in every mutation that invalidates it.
+
+#### Mutation Cache Invalidation
+
+- Use the shared `invalidateNodeCaches()` helper from `useNodeMutations.ts` for common cases (lists, pages, search, graph, etc.).
+- For tree mutations (create, update, delete, move), prefer **explicit cache iteration** over `setQueriesData` with partial key matching. The latter is unreliable for deeply nested block structures.
+- Optimistic updates must provide `onError` rollback. Snapshot the previous cache value in `onMutate` before mutating.
+
+#### API Layer Purity
+
+- `frontend/src/api/` functions must be **thin transport wrappers** only: build the URL, call axios, return `response.data`.
+- Do NOT put in the API layer:
+  - DOM manipulation (creating anchor tags for downloads)
+  - Data grouping/sorting/presentation logic
+  - Auth state helpers (localStorage access belongs in `utils/auth.ts` or the auth store)
+  - `Promise.all` orchestration of multiple unrelated endpoints (belongs in a mutation hook)
+- File downloads should use a dedicated `utils/download.ts` helper that accepts a `Blob` and triggers the browser save.
+
+#### Axios Client Configuration
+
+- `frontend/src/api/client.ts` configures a single axios instance.
+- It must have an explicit `timeout` (default 30s) to prevent hung requests.
+- Global 401 handling, request/response logging, and auth token injection live in interceptors.
+
+#### Barrel Files (Re-exports)
+
+The frontend uses a **two-level barrel file** pattern to keep import paths clean:
+
+1. **Top-level barrels** (`frontend/src/*/index.ts`) are the public API for each module.
+   - Example: `frontend/src/hooks/index.ts` re-exports everything consumers should import from `@/hooks`.
+   - Example: `frontend/src/components/core/index.ts` re-exports all core atoms.
+
+2. **Domain-specific sub-barrels** aggregate related exports from deeper files.
+   - Example: `frontend/src/hooks/useNodes.ts` is a sub-barrel that re-exports node queries, mutations, and activity hooks from `useNodeQueries.ts`, `useNodeMutations.ts`, etc.
+   - `frontend/src/hooks/index.ts` then re-exports from `useNodes.ts` (and other sub-barrels) so consumers only need `@/hooks`.
+
+**Rules:**
+- Import from the **shallowest public barrel** that exposes the symbol. `@/hooks` is preferred over `@/hooks/useStringifyAST` unless you are inside the `hooks/` module itself.
+- Do **not** use sub-barrels to re-export unrelated utilities. If a utility (e.g., `nodeNameToText`) lives in `useStringifyAST.ts`, it should be re-exported directly from `hooks/index.ts`, not routed through `useNodes.ts`.
+- When adding a new hook or utility, update the appropriate `index.ts` so it is discoverable via path aliases.
+
+#### Adding a New Frontend Component
 1. Place React components in the appropriate subdirectory under `frontend/src/components/`.
-2. Use path aliases (e.g., `@/components/core/Button`) for imports.
+2. Use path aliases (e.g., `@/components/core/Button`) for all imports.
 3. Co-locate CSS in a `.css` file with the same base name.
-4. If the component is domain-specific, it may import from `core/`, `api/`, `hooks/`, and `stores/`. **Core components must never import domain components.**
+4. Respect import boundaries: `core/` must not import domain components.
 5. Register new routes/views in `frontend/src/views/` and wire them into `MainContent` / `appStore`.
 
 ---

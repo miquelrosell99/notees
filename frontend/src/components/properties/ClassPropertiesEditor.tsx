@@ -61,6 +61,8 @@ interface ClassPropertiesEditorProps {
   className?: string;
   /** Whether the editor is read-only */
   readOnly?: boolean;
+  /** Whether the section is expanded by default */
+  defaultExpanded?: boolean;
 }
 
 /**
@@ -70,6 +72,7 @@ export function ClassPropertiesEditor({
   classNodeId,
   className = '',
   readOnly = false,
+  defaultExpanded = true,
 }: ClassPropertiesEditorProps) {
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ property: Property; x: number; y: number } | null>(null);
@@ -175,7 +178,7 @@ export function ClassPropertiesEditor({
       icon={<PropertiesIcon size="sm" />}
       count={sortableItems.length}
       className={`class-properties-section ${className}`}
-      defaultExpanded={true}
+      defaultExpanded={defaultExpanded}
       hideWhenEmpty={false}
     >
       <div className="class-properties-content">
