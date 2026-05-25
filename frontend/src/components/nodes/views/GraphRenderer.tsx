@@ -19,7 +19,7 @@
  * • Graceful fallback message when WebGL2 is unavailable.
  */
 
-import { useRef, useCallback, memo, forwardRef, useImperativeHandle } from 'react';
+import { useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { useGraphRenderer, type GraphRendererOptions } from './useGraphRenderer';
 import type { SGEConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
@@ -185,6 +185,18 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     e.preventDefault();
   }, []);
 
+  // Attach wheel listener natively (non-passive) so preventDefault works for zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      _wheel(e);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [_wheel]);
+
   if (!webgl2Available) {
     return (
       <div className={`sge-graph-view sge-graph-view--no-webgl ${className}`}>
@@ -208,7 +220,6 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
         onPointerMove={_pointerMove}
         onPointerUp={_pointerUp}
         onPointerCancel={_pointerUp}
-        onWheel={_wheel}
         onDoubleClick={_dblClick}
         onContextMenu={onContextMenu}
       />

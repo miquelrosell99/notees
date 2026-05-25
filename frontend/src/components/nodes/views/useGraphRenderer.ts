@@ -941,7 +941,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     }
   }, [canvasRef]);
 
-  const onWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const canvas  = canvasRef.current!;
     const rect    = canvas.getBoundingClientRect();
@@ -1069,7 +1069,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     _pointerDown:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerMove:  React.PointerEventHandler<HTMLCanvasElement>;
     _pointerUp:    React.PointerEventHandler<HTMLCanvasElement>;
-    _wheel:        React.WheelEventHandler<HTMLCanvasElement>;
+    _wheel:        (e: WheelEvent) => void;
     _dblClick:     React.MouseEventHandler<HTMLCanvasElement>;
   };
 }
