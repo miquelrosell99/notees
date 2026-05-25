@@ -427,7 +427,6 @@ All configuration is centralized in `app/config.py` using **pydantic-settings**.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ADMIN_PASSWORD` | (generated, not logged) | Initial admin password. If unset, a random password is generated on first startup. **The password is NOT shown in logs.** Set this env var to retrieve or change it. |
-| `CORS_ORIGINS` | `[]` | Comma-separated allowed origins. Never use `*` in production |
 | `ACCESS_TOKEN_EXPIRE_HOURS` | `24` | JWT token lifetime (code default). `.env.example` sets `168` for development convenience. |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `BACKUP_INTERVAL_SECONDS` | `3600` | Automatic backup interval |
@@ -448,7 +447,7 @@ See `.env.example` for the full template.
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
 - **Password hashing**: Uses `pbkdf2_sha256` via passlib (bcrypt was avoided to eliminate backend length limits and compatibility issues).
 - **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
-- **CORS**: Must be explicitly configured. Wildcard `*` triggers a warning and should never be used in production.
+- **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains.
 - **Rate limiting**: `slowapi` with remote-address keying is configured in `app/main.py`.
 - **Request body size limit**: 55 MB maximum (to support the 50 MB asset upload cap plus multipart overhead).
 - **User cache**: In-memory user cache with 5-minute TTL to avoid DB pool acquisition on every request.
