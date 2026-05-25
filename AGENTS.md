@@ -28,7 +28,7 @@ Key features:
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals). Differentiation is via boolean flags (`is_page`, `is_tag`, etc.).
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
-- **Outdated README**: `README.md` still mentions SQLite and older Python/React versions. Trust this file and `pyproject.toml`/`package.json` instead.
+- **Docker-first**: Development and production are both Docker-based. Local venv setup is possible but not the supported path.
 
 ---
 
@@ -231,23 +231,27 @@ The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minS
 ## Build and Development Commands
 
 ### Prerequisites
-- Python 3.13+
-- Node.js 18+
-- PostgreSQL 16 (local or Docker)
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose
 
-### Backend
+### Full Stack (Docker Compose — Recommended)
 
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+# Copy and configure environment
+cp .env.example .env
+# Edit .env and set SECRET_KEY, DATABASE_URL, and Postgres credentials
 
-# Install dependencies
+# Start backend, frontend, and PostgreSQL
+docker compose up
+
+# The frontend dev server runs on http://localhost:5173
+# The backend API runs on http://localhost:8000
+```
+
+### Backend (local debugging only)
+
+```bash
+# Not the recommended path — use Docker Compose instead
 pip install -r requirements.txt
-
-# Run with auto-reload (requires PostgreSQL running and DATABASE_URL set)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -294,6 +298,12 @@ docker compose up
 ```bash
 # Multi-stage build (builds frontend + backend image)
 docker build -t notees .
+```
+
+### Production Docker Run
+
+```bash
+docker run -p 8000:8000 --env-file .env notees
 ```
 
 ### Mobile
@@ -635,7 +645,7 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 - **Do not** assume `run_dev.py` or `run.py` exists at the project root. The actual entry points are `uvicorn app.main:app --reload` (backend) and `npm run dev` (frontend).
 - When building the Docker image, the frontend build stage outputs to `./dist` inside the container and is copied to `app/static/dist` in the final stage.
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
-- The `README.md` mentions SQLite and older Python/React versions — those are outdated. The actual stack is **PostgreSQL 17**, **Python 3.13+**, and **React 19.2.6**.
+- The `README.md` is kept up to date with the current stack. For the canonical version list, check `pyproject.toml`, `package.json`, and the AGENTS.md Technology Stack table.
 
 ### TanStack Query v5: `onSuccess` / `onError` and Component Unmounting
 
@@ -703,19 +713,6 @@ cd frontend && npm outdated
 
 ## Documentation
 
-Additional architecture and feature docs live in `docs/`:
-- `01-Architecture-Overview.md`
-- `02-Node-Model.md`
-- `03-API-Reference.md`
-- `04-Properties-System.md`
-- `05-Query-System.md`
-- `06-Links-and-Backlinks.md`
-- `07-Classes-and-Inheritance.md`
-- `08-Daily-Journals.md`
-- `09-Assets-Management.md`
-- `10-Frontend-Architecture.md`
-- `11-Editor-and-Blocks.md`
-- `12-Authentication-and-Workspaces.md`
-- `13-State-Management.md`
+Architecture documentation lives in `AGENTS.md` and inline code documentation.
 
 Refer to these when working on specific subsystems.
