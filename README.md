@@ -2,14 +2,14 @@
 
 A self-hosted, privacy-first note-taking application with bidirectional linking and offline support.
 
-![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
-![React](https://img.shields.io/badge/react-18-61dafb.svg)
-![TypeScript](https://img.shields.io/badge/typescript-5-3178c6.svg)
+![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
+![React](https://img.shields.io/badge/react-19-61dafb.svg)
+![TypeScript](https://img.shields.io/badge/typescript-6-3178c6.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 
 ## AI-Assisted Development
 
-This project was developed with the assistance of AI tools (GitHub Copilot). AI was used throughout the development process to help design architecture, write code, and solve problems.
+This project was developed with the assistance of AI tools. AI was used throughout the development process to help design architecture, write code, and solve problems.
 
 ## Features
 
@@ -25,65 +25,43 @@ This project was developed with the assistance of AI tools (GitHub Copilot). AI 
 
 ## Quick Start
 
+**Notees is deployed via Docker** for both development and production. There is no bare-metal or native deployment path.
+
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 18+
+- Docker & Docker Compose
 
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/notees.git
-cd notees
-
-# Set up Python environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Build the frontend
-cd frontend
-npm install
-npm run build
-cd ..
-
-# Run the application
-python run.py
-```
-
-Open http://localhost:8000 in your browser.
-
-### Docker
-
-The easiest way to run Notees in production:
+### Development
 
 ```bash
 # Copy environment file and configure
 cp .env.example .env
 # Edit .env and set a secure SECRET_KEY!
 
-# Build and run with Docker Compose
-docker-compose up -d
+# Start backend, frontend, and PostgreSQL
+docker compose up
 
-# View logs
-docker-compose logs -f
+# The frontend dev server runs on http://localhost:5173
+# The backend API runs on http://localhost:8000
 ```
 
-For development with hot-reload:
+### Production
 
 ```bash
-docker-compose -f docker-compose.dev.yml up
+# Copy environment file and configure
+cp .env.example .env
+# Edit .env and set a secure SECRET_KEY!
+
+# Build and run the production image
+docker build -t notees .
+docker run -p 8000:8000 --env-file .env notees
 ```
 
 **Docker files:**
 - `Dockerfile` — Production multi-stage build (builds frontend + backend)
 - `Dockerfile.dev` — Development backend with hot-reload
-- `docker-compose.yml` — Production deployment
-- `docker-compose.dev.yml` — Development with hot-reload
+- `frontend/Dockerfile.dev` — Development frontend build stage
+- `compose.yaml` — Development deployment (backend + frontend + PostgreSQL)
 - `.dockerignore` — Files to exclude from Docker builds
 
 ## Project Structure
@@ -95,18 +73,18 @@ notees/
 │   │   ├── entities/       # Domain models (Node, User)
 │   │   ├── services/       # Domain services
 │   │   └── errors.py       # Domain exceptions
-│   ├── application/        # Use cases
-│   ├── infrastructure/     # Repository implementations
+│   ├── db/                 # Database layer (asyncpg, PostgreSQL)
 │   ├── routers/            # API endpoints
 │   └── static/dist/        # Built frontend
-├── frontend/               # Frontend (React + TypeScript)
+├── frontend/               # Frontend (React 19 + TypeScript + Vite)
 │   ├── src/
 │   │   ├── components/     # React components
 │   │   ├── hooks/          # Custom React hooks
 │   │   ├── stores/         # Zustand state management
 │   │   └── types/          # TypeScript types
 │   └── vite.config.ts
-├── tests/                  # Test suite
+├── mobile/                 # Android Kotlin wrapper app (WebView)
+├── tests/                  # Backend test suite (pytest)
 └── data/                   # User data (gitignored)
 ```
 
@@ -115,10 +93,7 @@ notees/
 ### Backend
 
 ```bash
-# Run with auto-reload
-uvicorn app.main:app --reload
-
-# Run tests
+# Run tests (inside Docker or with local PostgreSQL)
 pytest tests/ -v
 ```
 
@@ -135,6 +110,9 @@ npm run typecheck
 
 # Production build
 npm run build
+
+# Linting
+npm run lint
 ```
 
 ## Architecture
@@ -185,7 +163,7 @@ Environment variables (or `.env` file):
 | `CORS_ORIGINS` | (empty) | Allowed CORS origins |
 | `ACCESS_TOKEN_EXPIRE_HOURS` | `168` | Token expiration (1 week) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `DATABASE_DIR` | `data` | Data storage directory |
+| `DATABASE_URL` | (required) | PostgreSQL connection string |
 
 ### Security Configuration
 
@@ -279,4 +257,4 @@ See the [LICENSE](LICENSE) file for the full license text.
 
 ## Acknowledgments
 
-Inspired by tools like Roam Research, Logseq, and Obsidian. Built with FastAPI, React, and SQLite.
+Inspired by tools like Roam Research, Logseq, and Obsidian. Built with FastAPI, React, and PostgreSQL.
