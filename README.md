@@ -164,7 +164,6 @@ Environment variables (or `.env` file):
 | `PUID` | `1000` | Host user ID for file permissions |
 | `PGID` | `1000` | Host group ID for file permissions |
 | `TZ` | `UTC` | Container timezone |
-| `CORS_ORIGINS` | (empty) | Allowed CORS origins |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ### Security Configuration
@@ -207,30 +206,12 @@ ADMIN_PASSWORD=your-secure-password-here
 - It will never be shown again!
 - Change this password after first login
 
-**3. CORS_ORIGINS** - Allowed frontend origins
-
-For production, set specific allowed origins (never use `*`):
-
-```bash
-# Single origin
-CORS_ORIGINS=https://your-domain.com
-
-# Multiple origins
-CORS_ORIGINS=https://your-domain.com,https://app.your-domain.com
-```
-
-For development only:
-```bash
-CORS_ORIGINS=http://localhost:5173
-```
-
 #### Security Checklist
 
 Before deploying to production:
 
 - [ ] Set strong `SECRET_KEY` (minimum 32 characters)
 - [ ] Set or note the admin password
-- [ ] Configure specific `CORS_ORIGINS` (never use `*`)
 - [ ] Enable HTTPS in production
 - [ ] Set up database backups (automatic with PostgreSQL)
 - [ ] Review rate limiting settings
