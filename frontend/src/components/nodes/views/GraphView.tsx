@@ -609,6 +609,7 @@ export function GraphView({
           tooltip="Graph settings"
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
+          usePortal={true}
         >
           <div className="visibility-panel-content">
             <div className="visibility-option">
@@ -763,6 +764,7 @@ export function GraphView({
           open={classColorsOpen}
           onOpenChange={setClassColorsOpen}
           panelClassName="class-colors-panel"
+          usePortal={true}
         >
           <ClassColorsPanel
             classColors={classColors}
@@ -780,6 +782,7 @@ export function GraphView({
           tooltip="Toggle node visibility"
           open={typeVisibilityOpen}
           onOpenChange={setTypeVisibilityOpen}
+          usePortal={true}
         >
           <div className="visibility-panel-content">
             <div className="visibility-option">
