@@ -186,9 +186,11 @@ export function GraphView({
   const visibilityFiltersLoadedRef = useRef(false);
   
   // UI panel state
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [physicsOpen, setPhysicsOpen] = useState(false);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [nodesOpen, setNodesOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   const [classColorsOpen, setClassColorsOpen] = useState(false);
-  const [typeVisibilityOpen, setTypeVisibilityOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
@@ -600,18 +602,37 @@ export function GraphView({
       {showSettings && (
       <div className="node-graph-view__top-left">
         <ButtonWithPanel
-          icon={"mdi mdi-cog"}
+          icon={"mdi mdi-tune"}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
           panelWidth={320}
-          title="Graph Settings"
-          tooltip="Graph settings"
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          title="Physics"
+          tooltip="Physics simulation"
+          open={physicsOpen}
+          onOpenChange={setPhysicsOpen}
           usePortal={true}
         >
           <div className="visibility-panel-content">
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Simulation"
+                description="Run or pause the physics simulation"
+                labelPosition="left"
+                checked={!simulationPaused}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    rendererRef.current?.resumeSimulation();
+                    setSimulationPaused(false);
+                  } else {
+                    rendererRef.current?.pauseSimulation();
+                    setSimulationPaused(true);
+                  }
+                }}
+              />
+            </div>
+
             <div className="visibility-option">
               <BooleanToggle
                 size="sm"
@@ -653,7 +674,188 @@ export function GraphView({
                 }))}
               />
             </div>
-
+          </div>
+        </ButtonWithPanel>
+        
+        <ButtonWithPanel
+          icon={"mdi mdi-filter"}
+          size="sm"
+          panelPosition="right"
+          panelAlignment="start"
+          panelWidth={280}
+          title="Nodes"
+          tooltip="Toggle node visibility"
+          open={nodesOpen}
+          onOpenChange={setNodesOpen}
+          usePortal={true}
+        >
+          <div className="visibility-panel-content">
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Class nodes"
+                description="Show nodes used as classes/types"
+                labelPosition="left"
+                checked={visibilityFilters.showClassNodes}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showClassNodes: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Day pages"
+                description="Show daily journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showDayPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showDayPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Month pages"
+                description="Show monthly journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showMonthPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showMonthPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Year pages"
+                description="Show yearly journal pages"
+                labelPosition="left"
+                checked={visibilityFilters.showYearPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showYearPages: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="System pages"
+                description="Show Inbox, Home, Archive, etc."
+                labelPosition="left"
+                checked={visibilityFilters.showSystemPages}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showSystemPages: e.target.checked
+                }))}
+              />
+            </div>
+          </div>
+        </ButtonWithPanel>
+        
+        <ButtonWithPanel
+          icon={"mdi mdi-link-variant"}
+          size="sm"
+          panelPosition="right"
+          panelAlignment="start"
+          panelWidth={280}
+          title="Links"
+          tooltip="Toggle link visibility"
+          open={linksOpen}
+          onOpenChange={setLinksOpen}
+          usePortal={true}
+        >
+          <div className="visibility-panel-content">
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Semantic analysis"
+                description="Discover links via co-occurrence"
+                labelPosition="left"
+                checked={graphDataMode === 'semantic'}
+                onChange={(e) => {
+                  const mode = e.target.checked ? 'semantic' : 'standard';
+                  setGraphDataMode(mode);
+                  if (!e.target.checked) {
+                    setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: false }));
+                  }
+                }}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Parent links"
+                description="Show parent and extends lines"
+                labelPosition="left"
+                checked={visibilityFilters.showParentLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showParentLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Reference links"
+                description="Show backlink reference lines"
+                labelPosition="left"
+                checked={visibilityFilters.showReferenceLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showReferenceLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Class links"
+                description="Show class assignment lines"
+                labelPosition="left"
+                checked={visibilityFilters.showClassLinks}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showClassLinks: e.target.checked
+                }))}
+              />
+            </div>
+            <div className="visibility-option">
+              <BooleanToggle
+                size="sm"
+                label="Semantic links"
+                description="Show inferred co-occurrence lines"
+                labelPosition="left"
+                checked={visibilityFilters.showSemanticLinks}
+                disabled={graphDataMode === 'standard'}
+                onChange={(e) => setVisibilityFilters(prev => ({
+                  ...prev,
+                  showSemanticLinks: e.target.checked
+                }))}
+              />
+            </div>
+          </div>
+        </ButtonWithPanel>
+        
+        <ButtonWithPanel
+          icon={"mdi mdi-palette"}
+          size="sm"
+          panelPosition="right"
+          panelAlignment="start"
+          panelWidth={320}
+          title="Style"
+          tooltip="Visual style"
+          open={styleOpen}
+          onOpenChange={setStyleOpen}
+          usePortal={true}
+        >
+          <div className="visibility-panel-content">
             <div className="visibility-option">
               <SelectionButton
                 size="sm"
@@ -730,36 +932,17 @@ export function GraphView({
                 />
               </div>
             )}
-
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Simulation"
-                description="Run or pause the physics simulation"
-                labelPosition="left"
-                checked={!simulationPaused}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    rendererRef.current?.resumeSimulation();
-                    setSimulationPaused(false);
-                  } else {
-                    rendererRef.current?.pauseSimulation();
-                    setSimulationPaused(true);
-                  }
-                }}
-              />
-            </div>
           </div>
         </ButtonWithPanel>
         
         <ButtonWithPanel
-          icon={"mdi mdi-palette"}
+          icon={"mdi mdi-format-color-fill"}
           size="sm"
           panelPosition="right"
           panelAlignment="start"
           panelWidth={280}
           panelMaxHeight={400}
-          title="Class Colors"
+          title="Colors"
           tooltip="Class colors"
           open={classColorsOpen}
           onOpenChange={setClassColorsOpen}
@@ -770,144 +953,6 @@ export function GraphView({
             classColors={classColors}
             onChange={handleClassColorsChange}
           />
-        </ButtonWithPanel>
-        
-        <ButtonWithPanel
-          icon={"mdi mdi-eye"}
-          size="sm"
-          panelPosition="right"
-          panelAlignment="start"
-          panelWidth={280}
-          title="Node Visibility"
-          tooltip="Toggle node visibility"
-          open={typeVisibilityOpen}
-          onOpenChange={setTypeVisibilityOpen}
-          usePortal={true}
-        >
-          <div className="visibility-panel-content">
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Class nodes"
-                description="Show nodes used as classes/types"
-                labelPosition="left"
-                checked={visibilityFilters.showClassNodes}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showClassNodes: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Class links"
-                description="Show class assignment lines"
-                labelPosition="left"
-                checked={visibilityFilters.showClassLinks}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showClassLinks: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Parent links"
-                description="Show parent and extends lines"
-                labelPosition="left"
-                checked={visibilityFilters.showParentLinks}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showParentLinks: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Reference links"
-                description="Show backlink reference lines"
-                labelPosition="left"
-                checked={visibilityFilters.showReferenceLinks}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showReferenceLinks: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Semantic links"
-                description="Fetch and show inferred co-occurrence links"
-                labelPosition="left"
-                checked={graphDataMode === 'semantic'}
-                onChange={(e) => {
-                  const mode = e.target.checked ? 'semantic' : 'standard';
-                  setGraphDataMode(mode);
-                  if (!e.target.checked) {
-                    setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: false }));
-                  } else {
-                    setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: true }));
-                  }
-                }}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Day pages"
-                description="Show daily journal pages"
-                labelPosition="left"
-                checked={visibilityFilters.showDayPages}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showDayPages: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Month pages"
-                description="Show monthly journal pages"
-                labelPosition="left"
-                checked={visibilityFilters.showMonthPages}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showMonthPages: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="Year pages"
-                description="Show yearly journal pages"
-                labelPosition="left"
-                checked={visibilityFilters.showYearPages}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showYearPages: e.target.checked
-                }))}
-              />
-            </div>
-            <div className="visibility-option">
-              <BooleanToggle
-                size="sm"
-                label="System pages"
-                description="Show Inbox, Home, Archive, etc."
-                labelPosition="left"
-                checked={visibilityFilters.showSystemPages}
-                onChange={(e) => setVisibilityFilters(prev => ({
-                  ...prev,
-                  showSystemPages: e.target.checked
-                }))}
-              />
-            </div>
-          </div>
         </ButtonWithPanel>
       </div>
       )}
