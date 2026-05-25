@@ -86,6 +86,8 @@ interface SettingsState {
   showDevOptions: boolean;
   /** First day of the week for calendar display */
   firstDayOfWeek: FirstDayOfWeek;
+  /** Whether the main content area spans the full width */
+  wideMode: boolean;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -99,6 +101,7 @@ interface SettingsState {
   setHashtagPasteMode: (mode: HashtagPasteMode) => void;
   setShowDevOptions: (show: boolean) => void;
   setFirstDayOfWeek: (day: FirstDayOfWeek) => void;
+  toggleWideMode: () => void;
 }
 
 /**
@@ -227,6 +230,7 @@ export const useSettingsStore = create<SettingsState>()(
       hashtagPasteMode: 'inline-tag',
       showDevOptions: false,
       firstDayOfWeek: 0,
+      wideMode: false,
       
       // Actions
       setTheme: (theme) => {
@@ -271,6 +275,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setFirstDayOfWeek: (firstDayOfWeek) => {
         set({ firstDayOfWeek });
+      },
+      toggleWideMode: () => {
+        set((state) => ({ wideMode: !state.wideMode }));
       },
     }),
     {

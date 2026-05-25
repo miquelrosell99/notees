@@ -166,7 +166,7 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
 
   const renderTriggerValue = () => {
     if (!currentIcon) {
-      return <span className="context-menu-icon-placeholder">+</span>;
+      return <Icon path="mdi-emoticon-happy-outline" size={0.9} />;
     }
     const mdiPath = getMdiClass(currentIcon);
     if (mdiPath) {
@@ -255,22 +255,22 @@ export type ActionConfig = readonly [ActionName, ActionScope];
  * Callers can pass a custom subset/reordering via the `actions` prop.
  */
 export const DEFAULT_ACTIONS: ActionConfig[] = [
-  ['convert-to-page', 'block'],
-  ['move-to',         'both'],
-  ['toggle-header',   'block'],
   ['copy-link',       'both'],
+  ['open-sidebar',    'both'],
   ['copy-blocks',     'both'],
   ['paste-blocks',    'both'],
-  ['open-sidebar',    'both'],
-  ['export',          'both'],
+  ['move-to',         'both'],
+  ['convert-to-page', 'block'],
+  ['toggle-header',   'block'],
   ['copy-text',       'both'],
+  ['export',          'both'],
   ['view-ast',        'both'],
   ['archive',         'both'],
   ['delete',          'both'],
 ];
 
 // A separator is inserted before these actions (when they are visible and there are preceding items)
-const SEP_BEFORE = new Set<ActionName>(['archive']);
+const SEP_BEFORE = new Set<ActionName>(['copy-text', 'view-ast', 'delete']);
 
 // ==================== Move To Submenu ====================
 
@@ -417,6 +417,7 @@ export function NodeContextMenu({
           items.push({
             id: 'move-to',
             label: 'Move to…',
+            icon: 'mdi-folder-move-outline',
             submenu: <MoveToSubmenu node={node} onClose={onClose} onParentChange={onParentChange} />,
           });
           break;
@@ -426,6 +427,7 @@ export function NodeContextMenu({
           items.push({
             id: 'convert-to-page',
             label: 'Convert to page',
+            icon: 'mdi-file-document-outline',
             onClick: () => { onConvertToPage(); onClose(); },
           });
           break;
@@ -434,6 +436,7 @@ export function NodeContextMenu({
           items.push({
             id: 'toggle-header',
             label: isHeader ? 'Remove header' : 'Set as header',
+            icon: 'mdi-format-header-pound',
             onClick: () => {
               try {
                 const ast = JSON.parse(node.name || '[]');
@@ -469,6 +472,7 @@ export function NodeContextMenu({
           items.push({
             id: 'copy-uuid',
             label: 'Copy UUID',
+            icon: 'mdi-identifier',
             onClick: () => { copyToClipboard(node.uuid); onClose(); },
           });
           break;
@@ -477,6 +481,7 @@ export function NodeContextMenu({
           items.push({
             id: 'copy-link',
             label: 'Copy link',
+            icon: 'mdi-link-variant',
             shortcut: '⌘C',
             onClick: () => { copyToClipboard(`[[${node.uuid}]]`); onClose(); },
           });
@@ -487,6 +492,7 @@ export function NodeContextMenu({
           items.push({
             id: 'copy-blocks',
             label: 'Copy',
+            icon: 'mdi-content-copy',
             shortcut: 'Ctrl+C',
             onClick: () => { onCopyBlocks(); onClose(); },
           });
@@ -498,6 +504,7 @@ export function NodeContextMenu({
           items.push({
             id: 'paste-blocks',
             label: 'Paste',
+            icon: 'mdi-content-paste',
             shortcut: 'Ctrl+V',
             onClick: () => { onPasteBlocks(); onClose(); },
           });
@@ -507,7 +514,7 @@ export function NodeContextMenu({
           items.push({
             id: 'open-sidebar',
             label: 'Open in sidebar',
-            shortcut: '⇧Click',
+            icon: 'mdi-dock-right',
             onClick: () => { addSidebarCard(node.id, node.is_page ? 'page' : 'block'); onClose(); },
           });
           break;
@@ -516,6 +523,7 @@ export function NodeContextMenu({
           items.push({
             id: 'local-graph',
             label: 'Show local graph',
+            icon: 'mdi-graph-outline',
             onClick: () => { openLocalGraph(node.id); onClose(); },
           });
           break;
@@ -524,6 +532,7 @@ export function NodeContextMenu({
           items.push({
             id: 'export',
             label: 'Export…',
+            icon: 'mdi-export',
             keepOpen: true,
             onClick: () => setShowExportModal(true),
           });
@@ -533,7 +542,7 @@ export function NodeContextMenu({
           items.push({
             id: 'copy-text',
             label: 'Copy as text',
-            shortcut: '⇧ flat',
+            icon: 'mdi-text-box-outline',
             onClick: (event?) => {
               const flat = event?.shiftKey ?? false;
               api
@@ -561,6 +570,7 @@ export function NodeContextMenu({
           items.push({
             id: 'view-ast',
             label: 'View AST',
+            icon: 'mdi-code-json',
             badge: 'DEV',
             keepOpen: true,
             onClick: () => setShowASTModal(true),
@@ -572,7 +582,7 @@ export function NodeContextMenu({
             items.push({
               id: 'archive',
               label: 'Archive',
-              danger: true,
+              icon: 'mdi-archive-arrow-down-outline',
               keepOpen: true,
               onClick: handleArchiveClick,
             });
@@ -580,6 +590,7 @@ export function NodeContextMenu({
             items.push({
               id: 'unarchive',
               label: 'Unarchive',
+              icon: 'mdi-archive-arrow-up-outline',
               onClick: () => { unarchiveNode.mutate(node.id); onClose(); },
             });
           }
@@ -589,6 +600,7 @@ export function NodeContextMenu({
           items.push({
             id: 'delete',
             label: 'Delete',
+            icon: 'mdi-delete-outline',
             danger: true,
             keepOpen: true,
             onClick: handleDeleteClick,

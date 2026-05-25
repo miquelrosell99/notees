@@ -77,7 +77,7 @@ export function Layout() {
     setCreateWithUuidModalOpen(true, uuid);
   }, [setCreateWithUuidModalOpen]);
   
-  const { defaultView } = useSettingsStore();
+  const { defaultView, wideMode } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
   const { data: currentNode } = useNode(currentNodeId);
@@ -236,7 +236,7 @@ export function Layout() {
         {isMobile ? (
           <MobileLayout currentNodeId={currentNodeId} />
         ) : (
-          <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}`}>
+          <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
             <div className="app-workspace">
               <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>

@@ -127,6 +127,7 @@ export function ImportOptionsModal({
   const [sqliteFile, setSqliteFile] = useState<File | null>(null);
   const [ednContent, setEdnContent] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [uuidOverrides, setUuidOverrides] = useState<Record<string, string>>({});
 
   // Parsing state for Logseq sources
   const [parsedExport, setParsedExport] = useState<LogseqExport | null>(null);
@@ -194,6 +195,7 @@ export function ImportOptionsModal({
       setFolderName(null);
       setFolderParseError(null);
       pendingFolderRef.current = null;
+      setUuidOverrides({});
       if (folderInputRef.current) folderInputRef.current.value = '';
       resetImport();
       resetFolderImport();
@@ -207,6 +209,7 @@ export function ImportOptionsModal({
     setFolderResult(null);
     setFolderName(null);
     setFolderParseError(null);
+    setUuidOverrides({});
     if (folderInputRef.current) folderInputRef.current.value = '';
   }, [selectedType]);
 
@@ -246,8 +249,8 @@ export function ImportOptionsModal({
     // but pendingParsedRef is already null so the guard exits early.
     const parsed = pendingParsedRef.current;
     pendingParsedRef.current = null;
-    runImport(parsed, { importMode: 'additive' });
-  }, [phase, pageClassId, importing, runImport]);
+    runImport(parsed, { importMode: 'additive', uuidOverrides });
+  }, [phase, pageClassId, importing, runImport, uuidOverrides]);
 
   // -- Start folder import once workspace is ready ------------------------
   useEffect(() => {
@@ -444,6 +447,10 @@ export function ImportOptionsModal({
       (parsedExport.standaloneBlocks ? countBlocks(parsedExport.standaloneBlocks) : 0);
     return { pageCount, journalCount, classCount, propCount, blockCount };
   })() : null;
+
+  const pagesMissingUuid = parsedExport?.pages.filter(p => !p.journal && !p.uuid) ?? [];
+  const isValidUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
 
   // -- Cancel import handler --------------------------------------------
   const handleCancelImport = useCallback(async () => {
@@ -759,6 +766,45 @@ export function ImportOptionsModal({
               <li><span>Classes</span><span>{previewCounts.classCount}</span></li>
               <li><span>Properties</span><span>{previewCounts.propCount}</span></li>
             </ul>
+          </details>
+        )}
+
+        {pagesMissingUuid.length > 0 && (
+          <div className="import-unified__warning">
+            <AlertIcon size="sm" />
+            <span>
+              {pagesMissingUuid.length} page{pagesMissingUuid.length !== 1 ? 's' : ''} missing a pre-defined UUID.
+              New UUIDs will be generated. If you re-import later, duplicates may be created.
+            </span>
+          </div>
+        )}
+
+        {pagesMissingUuid.length > 0 && (
+          <details className="import-unified__uuid-overrides">
+            <summary className="import-unified__uuid-overrides-summary">
+              Assign UUIDs
+            </summary>
+            <div className="import-unified__uuid-overrides-list">
+              {pagesMissingUuid.map(page => (
+                <div key={page.title} className="import-unified__uuid-override-row">
+                  <span className="import-unified__uuid-override-title" title={page.title}>
+                    {page.title}
+                  </span>
+                  <TextField
+                    size="sm"
+                    placeholder="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+                    value={uuidOverrides[page.title] ?? ''}
+                    onChange={(e) => {
+                      setUuidOverrides(prev => ({ ...prev, [page.title]: e.target.value }));
+                    }}
+                    error={!!uuidOverrides[page.title] && !isValidUuid(uuidOverrides[page.title])}
+                    errorMessage="Invalid UUID format"
+                    spellCheck={false}
+                    disabled={isPending}
+                  />
+                </div>
+              ))}
+            </div>
           </details>
         )}
 

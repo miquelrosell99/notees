@@ -182,6 +182,86 @@
   animation: logseq-pulse 1.5s ease-in-out infinite;
 }
 
+/* ── Warning banner ─────────────────────────────────────────── */
+
+.import-logseq__warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent);
+  color: var(--color-warning, #b45309);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+/* ── UUID overrides ─────────────────────────────────────────── */
+
+.import-logseq__uuid-overrides {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+.import-logseq__uuid-overrides-summary {
+  padding: 8px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-logseq__uuid-overrides-summary::-webkit-details-marker { display: none; }
+
+.import-logseq__uuid-overrides-summary::before {
+  content: '▶';
+  font-size: 0.55rem;
+  color: var(--color-on-surface-variant);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.import-logseq__uuid-overrides[open] .import-logseq__uuid-overrides-summary::before {
+  transform: rotate(90deg);
+}
+
+.import-logseq__uuid-overrides-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-outline-variant);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.import-logseq__uuid-override-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.import-logseq__uuid-override-title {
+  flex: 0 0 140px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-logseq__uuid-override-row .text-field {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ── Import mode selector ───────────────────────────────────── */
 
 .import-logseq__mode-selector {

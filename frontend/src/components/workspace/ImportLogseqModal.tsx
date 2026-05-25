@@ -9,8 +9,10 @@ import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { ToggleSwitch } from '@/components/core/ToggleSwitch';
 import { CodeTextarea } from '@/components/core/CodeTextarea';
+import { TextField } from '@/components/core/TextField';
 import { TaskProgress } from '@/components/core/TaskProgress';
 import { TaskReport } from '@/components/core/TaskReport';
+import { AlertIcon } from '@/components/core/icons';
 import { type LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
@@ -36,6 +38,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const [inputSource, setInputSource] = useState<InputSource>('edn');
   const [sqliteFileName, setSqliteFileName] = useState<string | null>(null);
   const [sqliteParsing, setSqliteParsing] = useState(false);
+  const [uuidOverrides, setUuidOverrides] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -50,6 +53,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
       setParsed(null);
       setSqliteFileName(null);
       setSqliteParsing(false);
+      setUuidOverrides({});
       reset();
       if (inputSource === 'edn') {
         setTimeout(() => textareaRef.current?.focus(), 0);
@@ -130,6 +134,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     setParsed(null);
     setContent('');
     setSqliteFileName(null);
+    setUuidOverrides({});
   }, []);
 
   const handleImportModeChange = (checked: boolean) => {
@@ -140,8 +145,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
 
   const handleImport = useCallback(async () => {
     if (!parsed) return;
-    await runImport(parsed, { importMode });
-  }, [parsed, importMode, runImport]);
+    await runImport(parsed, { importMode, uuidOverrides });
+  }, [parsed, importMode, uuidOverrides, runImport]);
 
   // Ctrl+Enter anywhere inside the modal = import (capture phase)
   useEffect(() => {
@@ -167,6 +172,10 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   const blockCount =
     (parsed?.pages.reduce((sum, p) => sum + countBlocks(p.blocks), 0) ?? 0)
     + (parsed?.standaloneBlocks ? countBlocks(parsed.standaloneBlocks) : 0);
+
+  const pagesMissingUuid = parsed?.pages.filter(p => !p.journal && !p.uuid) ?? [];
+  const isValidUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
 
   //  Report view 
   if (report) {
@@ -308,6 +317,45 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                 : 'Replaces existing blocks and properties with imported data'}
             </span>
           </div>
+        )}
+
+        {parsed && pagesMissingUuid.length > 0 && (
+          <div className="import-logseq__warning">
+            <AlertIcon size="sm" />
+            <span>
+              {pagesMissingUuid.length} page{pagesMissingUuid.length !== 1 ? 's' : ''} missing a pre-defined UUID.
+              New UUIDs will be generated. If you re-import later, duplicates may be created.
+            </span>
+          </div>
+        )}
+
+        {parsed && pagesMissingUuid.length > 0 && (
+          <details className="import-logseq__uuid-overrides">
+            <summary className="import-logseq__uuid-overrides-summary">
+              Assign UUIDs
+            </summary>
+            <div className="import-logseq__uuid-overrides-list">
+              {pagesMissingUuid.map(page => (
+                <div key={page.title} className="import-logseq__uuid-override-row">
+                  <span className="import-logseq__uuid-override-title" title={page.title}>
+                    {page.title}
+                  </span>
+                  <TextField
+                    size="sm"
+                    placeholder="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+                    value={uuidOverrides[page.title] ?? ''}
+                    onChange={(e) => {
+                      setUuidOverrides(prev => ({ ...prev, [page.title]: e.target.value }));
+                    }}
+                    error={!!uuidOverrides[page.title] && !isValidUuid(uuidOverrides[page.title])}
+                    errorMessage="Invalid UUID format"
+                    spellCheck={false}
+                    disabled={importing}
+                  />
+                </div>
+              ))}
+            </div>
+          </details>
         )}
 
         {(parseError || importError) && (

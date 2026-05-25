@@ -67,12 +67,14 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'unarchive',
       label: 'Unarchive',
+      icon: 'mdi-archive-arrow-up-outline',
       keepOpen: true,
       onClick: handleUnarchiveClick,
     },
     {
       id: 'copy-uuid',
       label: 'Copy UUID',
+      icon: 'mdi-identifier',
       onClick: () => {
         copyToClipboard(node.uuid);
         onClose();
@@ -81,6 +83,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'copy-link',
       label: 'Copy link',
+      icon: 'mdi-link-variant',
       onClick: () => {
         const link = `[[${node.uuid}]]`;
         copyToClipboard(link);
@@ -91,6 +94,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'open-sidebar',
       label: 'Open in sidebar',
+      icon: 'mdi-dock-right',
       onClick: () => {
         addSidebarCard(node.id, node.is_page ? 'page' : 'block');
         onClose();
@@ -99,6 +103,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'local-graph',
       label: 'Show local graph',
+      icon: 'mdi-graph-outline',
       onClick: () => {
         openLocalGraph(node.id);
         onClose();
@@ -108,6 +113,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     {
       id: 'delete',
       label: 'Delete',
+      icon: 'mdi-delete-outline',
       danger: true,
       keepOpen: true,
       onClick: handleDeleteClick,
