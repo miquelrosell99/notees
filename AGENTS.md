@@ -637,6 +637,68 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
 - The `README.md` mentions SQLite and older Python/React versions — those are outdated. The actual stack is **PostgreSQL 16**, **Python 3.12+**, and **React 19.2.0**.
 
+### TanStack Query v5: `onSuccess` / `onError` and Component Unmounting
+
+In **TanStack Query v5**, `onSuccess`, `onError`, and `onSettled` callbacks defined on `useMutation` (or passed to `.mutate()`) are **only executed while the component that owns the hook is mounted**. If the component unmounts before the mutation finishes, those callbacks are silently dropped.
+
+This is a breaking change from v4 and has caused multiple bugs where:
+- Cache invalidation never runs after a delete/archive/unarchive
+- Navigation away from a deleted page doesn't happen
+- Zustand store updates (favorites, recents) are lost
+- Modal/menu close callbacks are missed
+
+**Most at-risk patterns:**
+- Context menus that call `mutate()` then `onClose()` (e.g., `NodeContextMenu`, `TrashNodeContextMenu`, `ArchivedNodeContextMenu`)
+- Confirmation modals that close immediately after `mutate()`
+- Popovers or quick-add inputs that disappear on submit
+
+**Safe patterns:**
+1. **Move critical side effects into `onMutate`** — it runs synchronously when `mutate()` is called, before the component can unmount. Good for: optimistic Zustand updates, navigation, cache invalidation that doesn't need the server response.
+2. **Use `mutateAsync()` + `await` in the event handler** — keeps the component mounted until the mutation completes. Only use this if the UX is acceptable (the menu/modal stays open during the API call).
+3. **Global `MutationCache` callbacks** — register observers on the `QueryClient`'s `mutationCache` for side effects that must always run regardless of which component triggered the mutation.
+
+**When adding or reviewing mutations, ask:**
+- Is this mutation triggered from a modal, menu, or popover that will unmount?
+- Does `onSuccess` do anything essential (navigation, store updates, cache invalidation)?
+- If yes, move that work to `onMutate` or use a global observer.
+
+### Dependency Updates
+
+Keep dependencies reasonably current to avoid security issues and benefit from bug fixes. Check for outdated packages periodically:
+
+```bash
+# Backend
+pip list --outdated
+
+# Frontend
+cd frontend && npm outdated
+```
+
+**Current versions vs. latest (as of 2026-05-25):**
+
+| Package | Current | Latest | Notes |
+|---------|---------|--------|-------|
+| FastAPI | 0.109.0 | 0.136.3 | Several minor versions behind |
+| Uvicorn | 0.27.0 | 0.48.0 | Significant gap; review breaking changes |
+| Pydantic | 2.5.3 | 2.13.4 | Multiple bug fixes and performance improvements |
+| asyncpg | >=0.29.0 | 0.31.0 | Generally safe to upgrade |
+| WeasyPrint | >=62.0 | 68.1 | Large gap; test PDF export thoroughly after upgrade |
+| React | 19.2.0 | 19.2.6 | Patch-level; safe to upgrade |
+| TypeScript | ~5.9.3 | 6.0.3 | Major version; review breaking changes |
+| Vite | 7.2.4 | 8.0.14 | Major version; review plugin compatibility |
+| TanStack Query | 5.90.17 | 5.100.14 | Minor versions behind; safe to upgrade |
+| Lexical | 0.40.0 | 0.44.0 | Several releases behind; test editor thoroughly |
+| Axios | 1.13.2 | 1.16.1 | Safe to upgrade |
+| Zustand | 5.0.10 | 5.0.13 | Safe to upgrade |
+
+**Upgrade rules:**
+- **Patch versions** (e.g., 5.90.17 → 5.90.20): generally safe; run tests and lint.
+- **Minor versions** (e.g., 0.109.0 → 0.110.0): review changelog for deprecations; run full test suite.
+- **Major versions** (e.g., Vite 7 → 8, TypeScript 5 → 6): plan carefully; check all plugin/config compatibility; run both frontend and backend tests.
+- **Never upgrade multiple major versions at once** — upgrade one dependency at a time and verify.
+- After any upgrade, run: `pytest tests/ -v`, `ruff check app/`, `cd frontend && npm run lint && npm run build`.
+- Update this AGENTS.md table after upgrades so it stays accurate.
+
 ---
 
 ## Documentation
