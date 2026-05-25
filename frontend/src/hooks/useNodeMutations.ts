@@ -22,6 +22,7 @@ import {
   findNodeInRootTree,
 } from '@/utils/nodeTree';
 import { useFavoritesStore } from '@/stores/favoritesStore';
+import { useNavigationStore } from '@/stores/navigationStore';
 
 // ==================== Helper Functions ====================
 
@@ -882,6 +883,18 @@ export function useDeleteNode() {
       }
       favoritesStore.removeRecent(deletedId);
 
+      // If we're currently viewing the deleted node, navigate away immediately
+      // so the user doesn't stay on a page that is about to be deleted.
+      const currentNodeId = useNavigationStore.getState().currentNodeId;
+      if (currentNodeId === deletedId) {
+        useNavigationStore.setState({
+          currentNodeId: null,
+          mainViewType: 'node',
+        });
+        const wsMatch = window.location.pathname.match(/^\/([0-9a-f-]{36})/);
+        window.history.replaceState(null, '', wsMatch ? `/${wsMatch[1]}` : '/');
+      }
+
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
       await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
@@ -1133,6 +1146,15 @@ export function useUnarchiveNode() {
   
   return useMutation({
     mutationFn: (id: number) => nodesApi.unarchiveNode(id),
+    onMutate: (nodeId) => {
+      // Remove from favorites and recents immediately so the sidebar updates
+      // even if the triggering component unmounts before onSuccess fires.
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(nodeId)) {
+        favoritesStore.removeFavorite(nodeId);
+      }
+      favoritesStore.removeRecent(nodeId);
+    },
     onSuccess: (node) => {
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(node.id) },
