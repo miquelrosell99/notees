@@ -25,6 +25,8 @@ ENV/
 *.swp
 *.swo
 *~
+.clj-kondo/.cache/
+.lsp/.cache/
 
 # Logs
 logs/
@@ -38,9 +40,21 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+frontend/static/dist/
 
 # Development instance tracking
 .dev_pids.json
+
+# Cache
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+
+# Temp files
+logs.txt
+frontend/lint-errors.txt
+frontend/lint-final.txt
+.coverage
 
 .github/prompts/Base.prompt.md
 .github/copilot-instructions.md
