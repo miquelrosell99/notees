@@ -29,7 +29,6 @@
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: none;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   background-color: transparent;
   cursor: pointer;
   font-size: var(--font-size-base);
@@ -37,7 +36,7 @@
   text-align: left;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
   outline: none;
-  border-radius: 0;
+  border-radius: var(--shape-small);
 }
 
 .context-menu-item:focus-visible {
@@ -46,16 +45,7 @@
   background-color: var(--color-focus-overlay);
 }
 
-.context-menu-item:first-child {
-  border-top-left-radius: var(--shape-small);
-  border-top-right-radius: var(--shape-small);
-}
 
-.context-menu-item:last-child {
-  border-bottom: none;
-  border-bottom-left-radius: var(--shape-small);
-  border-bottom-right-radius: var(--shape-small);
-}
 
 .context-menu .context-menu-item:hover:not(.disabled),
 .context-menu .context-menu-item:focus:not(.disabled),
@@ -167,9 +157,4 @@ button.context-menu-item:hover:not(.disabled) {
 /* Custom content row — renders arbitrary React content inline in the menu */
 .context-menu-content-row {
   padding: var(--spacing-1) var(--spacing-3);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-.context-menu-content-row:last-child {
-  border-bottom: none;
 }

@@ -82,12 +82,14 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     {
       id: 'restore',
       label: 'Restore',
+      icon: 'mdi-restore',
       keepOpen: true,
       onClick: handleRestoreClick,
     },
     {
       id: 'copy-uuid',
       label: 'Copy UUID',
+      icon: 'mdi-identifier',
       onClick: () => {
         copyToClipboard(node.uuid);
         onClose();
@@ -97,6 +99,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     {
       id: 'permanent-delete',
       label: 'Delete Permanently',
+      icon: 'mdi-delete-forever-outline',
       danger: true,
       keepOpen: true,
       onClick: handlePermanentDeleteClick,

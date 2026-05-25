@@ -624,7 +624,7 @@ export function useLogseqImporter() {
 
   const runImport = useCallback(async (
     parsed: LogseqExport,
-    options: { importMode: ImportMode },
+    options: { importMode: ImportMode; uuidOverrides?: Record<string, string> },
   ) => {
     if (!parsed || !pageClassId) return;
 
@@ -1014,9 +1014,12 @@ export function useLogseqImporter() {
             group.map(async (chunk) => {
               try {
                 const batchResult = await batchCreateNodes({
-                  nodes: chunk.map(page => ({
-                    ...(page.uuid ? { uuid: page.uuid } : {}),
-                  })),
+                  nodes: chunk.map(page => {
+                    const overrideUuid = options.uuidOverrides?.[page.title];
+                    return {
+                      ...(page.uuid ? { uuid: page.uuid } : overrideUuid ? { uuid: overrideUuid } : {}),
+                    };
+                  }),
                   uuid_conflict_mode: 'return_existing',
                 }, { headers: { 'X-Bulk-Import': 'true' } });
                 for (let i = 0; i < batchResult.results.length; i++) {

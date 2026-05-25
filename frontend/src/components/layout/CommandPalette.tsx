@@ -306,6 +306,8 @@ export function CommandPalette(props: CommandPaletteProps) {
                           <Icon path={"mdi mdi-map"} size={0.7} />
                         ) : item.commandIcon === 'graph' ? (
                           <Icon path={"mdi mdi-graph-outline"} size={0.7} />
+                        ) : item.commandIcon === 'expand' ? (
+                          <Icon path={"mdi mdi-arrow-expand-horizontal"} size={0.7} />
                         ) : (
                           <Icon path={"mdi mdi-export"} size={0.7} />
                         )}

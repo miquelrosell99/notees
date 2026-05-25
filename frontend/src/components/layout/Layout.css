@@ -300,3 +300,31 @@
     padding: var(--spacing-1) var(--spacing-2);
   }
 }
+
+/* ==================== Wide Mode ==================== */
+/* When wide mode is enabled, let main view content span the full width */
+.app-canvas.wide-mode .node-view {
+  max-width: none;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+}
+
+.app-canvas.wide-mode .all-pages-view {
+  max-width: none;
+}
+
+.app-canvas.wide-mode .journals-view {
+  max-width: none;
+}
+
+.app-canvas.wide-mode .trash-view {
+  max-width: none;
+}
+
+.app-canvas.wide-mode .property-view {
+  max-width: none;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+}
+
+.app-canvas.wide-mode .archived-pages-view {
+  max-width: none;
+}

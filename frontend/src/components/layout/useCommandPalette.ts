@@ -205,6 +205,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       { id: 'open-random-page', label: 'Open random page', icon: 'random' },
       { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
       { id: 'toggle-local-graph', label: 'Toggle local graph', icon: 'graph', requiresPage: true },
+      { id: 'toggle-wide-mode', label: 'Toggle wide mode', icon: 'expand' },
       { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
@@ -633,6 +634,8 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
           }
         } else if (item.commandId === 'toggle-minimap') {
           useModalStore.getState().toggleMinimap();
+        } else if (item.commandId === 'toggle-wide-mode') {
+          useSettingsStore.getState().toggleWideMode();
         } else if (item.commandId === 'toggle-local-graph') {
           const currentId = useNavigationStore.getState().currentNodeId;
           if (currentId) {
