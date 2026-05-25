@@ -1,4 +1,5 @@
-# Data directory
+# Config and data directories
+.config/
 data/
 postgres_data/
 

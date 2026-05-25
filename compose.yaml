@@ -22,9 +22,7 @@ services:
       -c synchronous_commit=off
       -c full_page_writes=off
     volumes:
-      # Bind mount to host so data survives `docker compose down -v`
-      # NOTE: dev settings (fsync=off) are unsafe for production
-      - ./postgres_data:/var/lib/postgresql/data
+      - ./.config/notees-postgres-dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U notees -d notees"]
       interval: 5s
@@ -39,9 +37,9 @@ services:
     container_name: notees-backend-dev
     restart: unless-stopped
     volumes:
-      - ./app:/app/app              # source code (hot reload)
-      - ./data:/app/data            # assets, backups, exports — all user data on host
-      - notees_logs:/app/logs       # logs isolated in Docker volume
+      - ./app:/app/app                           # source code (hot reload)
+      - ./.config/notees-backend-dev/data:/app/data    # assets, backups, exports
+      - ./.config/notees-backend-dev/logs:/app/logs    # logs
     env_file:
       - .env
     environment:
@@ -77,5 +75,4 @@ services:
       backend:
         condition: service_healthy
 
-volumes:
-  notees_logs:
+
