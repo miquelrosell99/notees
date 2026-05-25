@@ -489,6 +489,49 @@
 .node-block--card:hover {
 }
 
+/* ─── Callout / Banner blocks ──────────────────────────────────── */
+
+.node-block--callout {
+  background: color-mix(in srgb, var(--callout-color) 6%, var(--color-surface-container));
+  border-left: 3px solid var(--callout-color);
+  border-radius: var(--shape-small);
+  padding: 6px 10px;
+  margin: 4px 0;
+}
+
+.node-block--callout .block-ui {
+  height: auto;
+  align-self: center;
+}
+
+.node-block--callout .node-block-content {
+  min-height: auto;
+}
+
+.node-block[data-callout-type="warning"] {
+  --callout-color: var(--color-preset-yellow);
+}
+
+.node-block[data-callout-type="note"] {
+  --callout-color: var(--color-preset-blue);
+}
+
+.node-block[data-callout-type="tip"] {
+  --callout-color: var(--color-preset-teal);
+}
+
+.node-block[data-callout-type="info"] {
+  --callout-color: var(--color-preset-purple);
+}
+
+.node-block[data-callout-type="danger"] {
+  --callout-color: var(--color-preset-red);
+}
+
+.node-block[data-callout-type="success"] {
+  --callout-color: var(--color-preset-green);
+}
+
 .node-block--query {
   flex-wrap: wrap;
   /* Override content-visibility: auto from .node-block — query blocks render

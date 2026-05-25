@@ -25,6 +25,29 @@ function resolveClassIcon(classIds: number[] | undefined, iconMap?: Map<number, 
   return null;
 }
 
+/** Map of system class UUIDs to callout banner types */
+const CALLOUT_UUID_TO_TYPE: Record<string, string> = {
+  [SYSTEM_CLASS_UUIDS.warning]: 'warning',
+  [SYSTEM_CLASS_UUIDS.note]: 'note',
+  [SYSTEM_CLASS_UUIDS.tip]: 'tip',
+  [SYSTEM_CLASS_UUIDS.info]: 'info',
+  [SYSTEM_CLASS_UUIDS.danger]: 'danger',
+  [SYSTEM_CLASS_UUIDS.success]: 'success',
+};
+
+/** Resolve callout type from numeric class IDs using a prebuilt map */
+function resolveCalloutType(classIds: number[] | undefined, uuidMap?: Map<number, string>): string | null {
+  if (!classIds || classIds.length === 0 || !uuidMap) return null;
+  for (const id of classIds) {
+    const uuid = uuidMap.get(id);
+    if (uuid) {
+      const type = CALLOUT_UUID_TO_TYPE[uuid];
+      if (type) return type;
+    }
+  }
+  return null;
+}
+
 /**
  * Convert an API Node to a GraphNode for the runtime.
  * Note: parentId will be set as the parent's UUID if idToUuidMap is provided.
@@ -62,6 +85,7 @@ export function apiNodeToGraphNode(
     color: node.color || null,
     classIds: (node.classes || []).map(String),
     tagIds: (node.tags || []).map(String),
+    calloutType: resolveCalloutType(node.classes, classIdToUuidMap),
     createdAt: node.create_date || new Date().toISOString(),
     updatedAt: node.write_date || new Date().toISOString(),
     version: 1,

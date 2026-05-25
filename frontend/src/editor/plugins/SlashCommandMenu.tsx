@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
-import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon, PageIcon } from '../../components/core/icons';
+import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon, PageIcon, Icon } from '../../components/core/icons';
 import './SlashCommandMenu.css';
 
 // ─── Slash Command Definitions ───────────────────────────────────
@@ -114,6 +114,42 @@ const SLASH_COMMANDS: SlashCommand[] = [
     label: 'Move to page',
     description: 'Move this block under a different page',
     icon: <PageIcon size="sm" />,
+  },
+  {
+    id: 'warning',
+    label: 'Warning callout',
+    description: 'Banner block for warnings',
+    icon: <Icon path="mdi-alert" size="sm" />,
+  },
+  {
+    id: 'note',
+    label: 'Note callout',
+    description: 'Banner block for notes',
+    icon: <Icon path="mdi-note-outline" size="sm" />,
+  },
+  {
+    id: 'tip',
+    label: 'Tip callout',
+    description: 'Banner block for tips',
+    icon: <Icon path="mdi-lightbulb-outline" size="sm" />,
+  },
+  {
+    id: 'info',
+    label: 'Info callout',
+    description: 'Banner block for information',
+    icon: <Icon path="mdi-information-outline" size="sm" />,
+  },
+  {
+    id: 'danger',
+    label: 'Danger callout',
+    description: 'Banner block for dangers',
+    icon: <Icon path="mdi-alert-circle-outline" size="sm" />,
+  },
+  {
+    id: 'success',
+    label: 'Success callout',
+    description: 'Banner block for successes',
+    icon: <Icon path="mdi-check-circle-outline" size="sm" />,
   },
 ];
 

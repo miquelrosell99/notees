@@ -597,6 +597,16 @@ export const NodeCard = memo(function NodeCard({
         if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
         break;
       }
+      case 'warning':
+      case 'note':
+      case 'tip':
+      case 'info':
+      case 'danger':
+      case 'success': {
+        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS[commandId]);
+        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        break;
+      }
       case 'image':
       case 'audio':
       case 'file':
