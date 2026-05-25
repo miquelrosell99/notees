@@ -248,6 +248,18 @@ export function NodeContent({
         }
         break;
       }
+      case 'warning':
+      case 'note':
+      case 'tip':
+      case 'info':
+      case 'danger':
+      case 'success': {
+        const classId = systemClassMap?.[commandId];
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeId: blockServerId, classId });
+        }
+        break;
+      }
       case 'image':
         setTargetBlockId(blockServerId ?? node.id);
         setConvertToAsset(true);

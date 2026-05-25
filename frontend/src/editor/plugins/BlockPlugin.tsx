@@ -304,6 +304,10 @@ export function BlockPlugin({
           if (existingClassStr !== projectedClassStr) existing.setClassIds(projected.classIds ?? []);
           // Sync nodeType (e.g. when code/query/table class is added live)
           if (existing.getNodeType() !== projected.nodeType) existing.setNodeType(projected.nodeType);
+          // Sync calloutType (e.g. when warning/note class is added live)
+          if (existing.getCalloutType() !== (projected.calloutType ?? null)) {
+            existing.setCalloutType(projected.calloutType ?? null);
+          }
           
           // Check if content has changed (e.g., from split_block or merge_blocks operation)
           // Only compare content for blocks whose content is actually populated in Lexical.
@@ -460,6 +464,7 @@ export function BlockPlugin({
             projected.isProjectionRoot,
             projected.classIds ?? [],
             isHeadingAST(projected.contentAST),
+            projected.calloutType ?? null,
           );
 
           // Populate inline content from contentAST.
