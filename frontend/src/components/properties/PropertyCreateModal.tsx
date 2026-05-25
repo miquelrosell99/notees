@@ -110,7 +110,7 @@ export function PropertyCreateModal({
       });
     } else if (initialName) {
       // Set initial name when opening
-      setName(initialName);
+      Promise.resolve().then(() => setName(initialName));
     }
   }, [isOpen, initialName, initialScope]);
   

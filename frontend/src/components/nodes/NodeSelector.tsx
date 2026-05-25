@@ -318,12 +318,12 @@ export function NodeSelector({
     if (isAnchored && anchorEl) {
       const rect = anchorEl.getBoundingClientRect();
       const left = Math.min(rect.left, window.innerWidth - 280 - 8);
-      setPickerPos({ top: rect.bottom + 4, left });
+      Promise.resolve().then(() => setPickerPos({ top: rect.bottom + 4, left }));
     } else if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setPickerPos({ top: rect.bottom + 4, left: rect.left });
+      Promise.resolve().then(() => setPickerPos({ top: rect.bottom + 4, left: rect.left }));
     } else if (!isPickerOpen) {
-      setPickerPos(null);
+      Promise.resolve().then(() => setPickerPos(null));
     }
   }, [isPickerOpen, trigger, isAnchored, anchorEl]);
 

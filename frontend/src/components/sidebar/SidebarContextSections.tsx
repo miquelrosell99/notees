@@ -182,7 +182,7 @@ export function SidebarContextSections() {
   // Fetch versions when section is expanded
   useEffect(() => {
     if (versionsExpanded && currentNodeId) {
-      setVersionsLoading(true);
+      Promise.resolve().then(() => setVersionsLoading(true));
       getNodeVersions(currentNodeId, 30)
         .then(v => Promise.resolve().then(() => setVersions(v)))
         .catch(() => Promise.resolve().then(() => setVersions([])))
