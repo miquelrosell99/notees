@@ -10,6 +10,7 @@ import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar
 import { TrashIcon } from '../components/core/icons';
 import { TrashNodeContextMenu } from '../components/nodes/TrashNodeContextMenu';
 import { useNavigationStore } from '@/stores';
+import { useFavoritesStore } from '@/stores/favoritesStore';
 import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
 import type { Node } from '@/types';
@@ -52,28 +53,41 @@ export function TrashView({ className = '' }: TrashViewProps) {
   
   const permanentDeleteMutation = useMutation({
     mutationFn: permanentlyDeleteNode,
-    onSuccess: () => {
+    onSuccess: (_data, nodeId) => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(nodeId)) {
+        favoritesStore.removeFavorite(nodeId);
+      }
+      favoritesStore.removeRecent(nodeId);
     },
   });
-  
+
   const emptyTrashMutation = useMutation({
     mutationFn: emptyTrash,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       setShowEmptyConfirm(false);
+      useFavoritesStore.getState().refresh();
     },
   });
-  
+
   const batchDeleteMutation = useMutation({
     mutationFn: (ids: number[]) => batchPermanentlyDeleteNodes({ ids }),
-    onSuccess: () => {
+    onSuccess: (_data, ids) => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       setSelectedIds(new Set());
       setShowDeleteSelectedConfirm(false);
+      const favoritesStore = useFavoritesStore.getState();
+      for (const nodeId of ids) {
+        if (favoritesStore.isFavorite(nodeId)) {
+          favoritesStore.removeFavorite(nodeId);
+        }
+        favoritesStore.removeRecent(nodeId);
+      }
     },
   });
   

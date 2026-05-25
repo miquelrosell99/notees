@@ -21,6 +21,7 @@ import {
   removeNodeFromTreeImmutable,
   findNodeInRootTree,
 } from '@/utils/nodeTree';
+import { useFavoritesStore } from '@/stores/favoritesStore';
 
 // ==================== Helper Functions ====================
 
@@ -872,6 +873,15 @@ export function useDeleteNode() {
       return { deletedNode: nodeData, tableCellInfo };
     },
     onMutate: async (deletedId) => {
+      // Immediately remove from favorites and recents so the sidebar updates
+      // even if the component that triggered the mutation unmounts before
+      // onSuccess fires (TanStack Query v5 only calls onSuccess while mounted).
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(deletedId)) {
+        favoritesStore.removeFavorite(deletedId);
+      }
+      favoritesStore.removeRecent(deletedId);
+
       // Cancel any outgoing refetches to not overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.details() });
       await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
@@ -1073,6 +1083,15 @@ export function useArchiveNode() {
   
   return useMutation({
     mutationFn: (id: number) => nodesApi.archiveNode(id),
+    onMutate: (nodeId) => {
+      // Remove from favorites and recents immediately so the sidebar updates
+      // even if the triggering component unmounts before onSuccess fires.
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(nodeId)) {
+        favoritesStore.removeFavorite(nodeId);
+      }
+      favoritesStore.removeRecent(nodeId);
+    },
     onSuccess: (node) => {
       queryClient.setQueriesData<Node>(
         { queryKey: nodeKeys.detailBase(node.id) },

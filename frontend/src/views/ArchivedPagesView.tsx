@@ -10,6 +10,7 @@ import { NodeCollectionToolbar } from '../components/nodes/NodeCollectionToolbar
 import { ArchivedNodeContextMenu } from '../components/nodes/ArchivedNodeContextMenu';
 import { ArchiveIcon } from '../components/core/icons';
 import { useNavigationStore } from '@/stores';
+import { useFavoritesStore } from '@/stores/favoritesStore';
 import api from '@/api/client';
 import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
@@ -43,11 +44,16 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   // Mutation for deleting nodes
   const deleteMutation = useMutation({
     mutationFn: deleteNode,
-    onSuccess: () => {
+    onSuccess: (_data, nodeId) => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+      const favoritesStore = useFavoritesStore.getState();
+      if (favoritesStore.isFavorite(nodeId)) {
+        favoritesStore.removeFavorite(nodeId);
+      }
+      favoritesStore.removeRecent(nodeId);
     },
   });
-  
+
   // Mutation for deleting all archived nodes
   const deleteAllMutation = useMutation({
     mutationFn: () => {
@@ -57,6 +63,13 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
       setShowDeleteAllConfirm(false);
+      const favoritesStore = useFavoritesStore.getState();
+      for (const node of nodes ?? []) {
+        if (favoritesStore.isFavorite(node.id)) {
+          favoritesStore.removeFavorite(node.id);
+        }
+        favoritesStore.removeRecent(node.id);
+      }
     },
   });
   
