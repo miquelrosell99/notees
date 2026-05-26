@@ -33,6 +33,7 @@ import type {
   ConstraintMode,
   LinkDirection,
   GraphDataMode,
+  GraphColorGroup,
 } from './viewTypes';
 import type { SGEConfig } from './SemanticGraphEngine';
 import { applyCircleLayout } from './circleLayout';
@@ -41,9 +42,8 @@ import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { ListSortable } from '@/components/core/ListSortable';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
-import { ColorButton } from '@/components/core/ColorButton';
-import { ClassColorsPanel } from '@/components/shared/ClassColorsPanel';
-import type { ClassColor } from '@/components/shared/ClassColorsPanel';
+import { GraphGroupModal } from './GraphGroupModal';
+import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css';
 
@@ -75,42 +75,6 @@ interface SelectedNodeItem {
   id: number;
   name: string;
   order: number;
-}
-
-// ─── Graph Groups (Obsidian-style query coloring) ───────────────────────────
-
-type GroupQueryType = 'tag' | 'name';
-
-interface GroupQuery {
-  type: GroupQueryType;
-  value: string;
-}
-
-interface GraphGroup {
-  id: string;
-  name: string;
-  query: GroupQuery;
-  color: string;
-}
-
-function evaluateGroup(node: ApiGraphNode, group: GraphGroup): boolean {
-  const queryValue = group.query.value.toLowerCase();
-  if (!queryValue) return false;
-
-  switch (group.query.type) {
-    case 'tag':
-      return node.tags?.some(t => t.toLowerCase().includes(queryValue)) ?? false;
-    case 'name': {
-      const displayName = (nodeNameToText(node.name) || '').toLowerCase();
-      return displayName.includes(queryValue);
-    }
-    default:
-      return false;
-  }
-}
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 9);
 }
 
 // Helper to get localStorage key for a view
@@ -237,30 +201,16 @@ export function GraphView({
   // Node radius (world units) — separate from graphSettings because it feeds directly to the renderer
   const [baseNodeRadius, setBaseNodeRadius] = useState(20);
   
-  // Class colors
-  const [classColors, setClassColors] = useState<ClassColor[]>([]);
-  const classColorsLoadedRef = useRef(false);
-  
-  // Groups (Obsidian-style query coloring)
-  const [groups, setGroups] = useState<GraphGroup[]>(() => {
-    try {
-      const saved = localStorage.getItem(getStorageKey(viewId, 'groups'));
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [editingGroup, setEditingGroup] = useState<Partial<GraphGroup> | null>(null);
-  
-  // Persist groups to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem(getStorageKey(viewId, 'groups'), JSON.stringify(groups));
-  }, [groups, viewId]);
+  // Unified color groups (QueryAST-based)
+  const [colorGroups, setColorGroups] = useState<GraphColorGroup[]>([]);
+  const colorGroupsLoadedRef = useRef(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   
   // Tracks how many state changes should be skipped by the save effects.
   // Incremented when loading from server, so the subsequent render doesn't
   // fire a no-op PUT back.
-  const skipClassColorsSaveRef = useRef(0);
+  const skipColorGroupsSaveRef = useRef(0);
   const skipGraphSettingsSaveRef = useRef(0);
   
   // Visibility filters
@@ -287,30 +237,20 @@ export function GraphView({
   useEffect(() => {
     if (!serverSettings) return;
     
-    if (!classColorsLoadedRef.current) {
-      const saved = serverSettings['graph_class_colors'];
+    if (!colorGroupsLoadedRef.current) {
+      const saved = serverSettings['graph_color_groups'];
       if (saved) {
         try {
-          // Value is stored as JSONB — it arrives as the parsed object already.
-          // Handle both formats: raw object (new) or JSON string (legacy).
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
-            // Convert raw AST class names to text
-            const migrated = parsed.map((cc: Record<string, unknown>) => {
-              const rawName = (cc.className ?? '') as string;
-              return {
-                ...cc,
-                className: nodeNameToText(rawName) || rawName || 'Untitled',
-              };
-            });
-            skipClassColorsSaveRef.current++;  // skip the save-back on next render
-            Promise.resolve().then(() => setClassColors(migrated as ClassColor[]));
+            skipColorGroupsSaveRef.current++;
+            Promise.resolve().then(() => setColorGroups(parsed as GraphColorGroup[]));
           }
         } catch (e) {
-          console.error('Failed to parse graph_class_colors:', e);
+          console.error('Failed to parse graph_color_groups:', e);
         }
       }
-      classColorsLoadedRef.current = true;
+      colorGroupsLoadedRef.current = true;
     }
     
     if (!settingsLoadedRef.current) {
@@ -332,22 +272,22 @@ export function GraphView({
     }
   }, [serverSettings]);
   
-  // Save settings (debounced) — skip save-backs triggered by initial load
+  // Save color groups (debounced) — skip save-backs triggered by initial load
   useEffect(() => {
-    if (!classColorsLoadedRef.current) return;
-    if (skipClassColorsSaveRef.current > 0) {
-      skipClassColorsSaveRef.current--;
+    if (!colorGroupsLoadedRef.current) return;
+    if (skipColorGroupsSaveRef.current > 0) {
+      skipColorGroupsSaveRef.current--;
       return;
     }
     
     const timer = setTimeout(() => {
-      setSetting('graph_class_colors', classColors).catch(e => {
-        console.error('Failed to save graph_class_colors:', e);
+      setSetting('graph_color_groups', colorGroups).catch(e => {
+        console.error('Failed to save graph_color_groups:', e);
       });
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [classColors]);
+  }, [colorGroups]);
   
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
@@ -434,11 +374,10 @@ export function GraphView({
       }
     }
 
-    // Build class-color lookup: classId → hex color string
-    const classColorMap = new Map<number, string>();
-    for (const cc of classColors) {
-      classColorMap.set(cc.classId, cc.color);
-    }
+    // Build eval context for QueryAST-based color groups
+    const evalContext = colorGroups.length > 0
+      ? buildEvalContext(sourceNodes, sourceLinks, classes ?? [])
+      : null;
 
     // Build full nodes
     const allNodes: GraphNode[] = sourceNodes.map((apiNode: ApiGraphNode) => {
@@ -448,24 +387,16 @@ export function GraphView({
       );
       const isClassNode = apiNode.is_class || classIds.has(apiNode.id);
 
-      // Class color: first matching class in the node's type list
+      // Color resolution: explicit → query groups → tag fallback
       let resolvedColor = (apiNode.properties?.color as string) || undefined;
-      if (!resolvedColor) {
-        for (const typeId of (apiNode.class_ids || [])) {
-          const cc = classColorMap.get(typeId);
-          if (cc) { resolvedColor = cc; break; }
-        }
-      }
-      // Group-based coloring (user-defined query rules)
-      if (!resolvedColor) {
-        for (const group of groups) {
-          if (evaluateGroup(apiNode, group)) {
+      if (!resolvedColor && evalContext) {
+        for (const group of colorGroups) {
+          if (evaluateQueryAST(group.query, apiNode, evalContext)) {
             resolvedColor = group.color;
             break;
           }
         }
       }
-      // Tag-based coloring fallback
       if (!resolvedColor && apiNode.tags && apiNode.tags.length > 0) {
         resolvedColor = getTagColor(apiNode.tags[0]);
       }
@@ -549,7 +480,7 @@ export function GraphView({
       .map(link => ({ source: link.source, target: link.target, type: link.type }));
     
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, classColors, groups, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode]);
+  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, colorGroups, classes, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode]);
   
   // Forward live graph-settings changes to the physics worker
   useEffect(() => {
@@ -577,11 +508,6 @@ export function GraphView({
     setSelectedNodes([]);
   }, [openNode]);
 
-  
-  // Class color handler
-  const handleClassColorsChange = useCallback((newClassColors: ClassColor[]) => {
-    setClassColors(newClassColors);
-  }, []);
   
   // Selection handlers
   const removeFromSelection = useCallback((nodeId: number) => {
@@ -711,127 +637,72 @@ export function GraphView({
           </button>
         </div>
         <SidebarSection title="Groups" icon="mdi mdi-tag-multiple" defaultOpen={false}>
-          {groups.length === 0 && !editingGroup && (
-            <p className="graph-groups-empty">No groups yet. Add one to color nodes by tag or name.</p>
+          {colorGroups.length === 0 && (
+            <p className="graph-groups-empty">No color groups. Add one to highlight pages matching any query.</p>
           )}
-          {groups.length > 0 && (
+          {colorGroups.length > 0 && (
             <div className="graph-groups-list">
-              {groups.map((group, index) => (
+              {colorGroups.map((group, index) => (
                 <div key={group.id} className="graph-group-item">
                   <div className="graph-group-dot" style={{ backgroundColor: group.color }} />
-                  <span className="graph-group-name" title={`${group.query.type}: ${group.query.value}`}>
-                    {group.name}
-                  </span>
+                  <div className="graph-group-info">
+                    <span className="graph-group-name">{group.name}</span>
+                  </div>
                   <div className="graph-group-actions">
+                    <Button
+                      icon="mdi mdi-pencil-outline"
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingGroupId(group.id);
+                        setGroupModalOpen(true);
+                      }}
+                    />
                     <Button
                       icon="mdi mdi-chevron-up"
                       size="xs"
                       variant="ghost"
                       disabled={index === 0}
                       onClick={() => {
-                        const newGroups = [...groups];
+                        const newGroups = [...colorGroups];
                         [newGroups[index - 1], newGroups[index]] = [newGroups[index], newGroups[index - 1]];
-                        setGroups(newGroups);
+                        setColorGroups(newGroups);
                       }}
                     />
                     <Button
                       icon="mdi mdi-chevron-down"
                       size="xs"
                       variant="ghost"
-                      disabled={index === groups.length - 1}
+                      disabled={index === colorGroups.length - 1}
                       onClick={() => {
-                        const newGroups = [...groups];
+                        const newGroups = [...colorGroups];
                         [newGroups[index], newGroups[index + 1]] = [newGroups[index + 1], newGroups[index]];
-                        setGroups(newGroups);
+                        setColorGroups(newGroups);
                       }}
                     />
                     <Button
                       icon="mdi mdi-trash-can-outline"
                       size="xs"
                       variant="ghost"
-                      onClick={() => setGroups(prev => prev.filter(g => g.id !== group.id))}
+                      onClick={() => setColorGroups(prev => prev.filter(g => g.id !== group.id))}
                     />
                   </div>
                 </div>
               ))}
             </div>
           )}
-
-          {editingGroup ? (
-            <div className="graph-group-form">
-              <input
-                type="text"
-                className="graph-group-input"
-                placeholder="Group name"
-                value={editingGroup.name || ''}
-                onChange={(e) => setEditingGroup(prev => prev ? { ...prev, name: e.target.value } : null)}
-              />
-              <div className="graph-group-query-row">
-                <select
-                  className="graph-group-select"
-                  value={editingGroup.query?.type || 'tag'}
-                  onChange={(e) => setEditingGroup(prev => prev ? {
-                    ...prev,
-                    query: { type: e.target.value as GroupQueryType, value: prev.query?.value || '' }
-                  } : null)}
-                >
-                  <option value="tag">Tag contains</option>
-                  <option value="name">Name contains</option>
-                </select>
-                <input
-                  type="text"
-                  className="graph-group-input"
-                  placeholder="Value"
-                  value={editingGroup.query?.value || ''}
-                  onChange={(e) => setEditingGroup(prev => prev ? {
-                    ...prev,
-                    query: { ...(prev.query || { type: 'tag' }), value: e.target.value }
-                  } : null)}
-                />
-              </div>
-              <div className="graph-group-color-row">
-                <ColorButton
-                  color={editingGroup.color || TAG_COLOR_PALETTE[0]}
-                  size="sm"
-                  showPicker
-                  onColorChange={(color) => setEditingGroup(prev => prev ? { ...prev, color: color || prev.color } : null)}
-                />
-                <div className="graph-group-form-actions">
-                  <Button size="sm" variant="ghost" onClick={() => setEditingGroup(null)}>Cancel</Button>
-                  <Button size="sm" onClick={() => {
-                    if (editingGroup.name && editingGroup.query?.value && editingGroup.color) {
-                      const newGroup: GraphGroup = {
-                        id: editingGroup.id || generateId(),
-                        name: editingGroup.name,
-                        query: editingGroup.query as GroupQuery,
-                        color: editingGroup.color,
-                      };
-                      if (editingGroup.id) {
-                        setGroups(prev => prev.map(g => g.id === editingGroup.id ? newGroup : g));
-                      } else {
-                        setGroups(prev => [...prev, newGroup]);
-                      }
-                      setEditingGroup(null);
-                    }
-                  }}>Save</Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <Button
-              icon="mdi mdi-plus"
-              size="sm"
-              variant="ghost"
-              className="graph-add-group-btn"
-              onClick={() => setEditingGroup({
-                name: '',
-                query: { type: 'tag', value: '' },
-                color: TAG_COLOR_PALETTE[0],
-              })}
-            >
-              Add group
-            </Button>
-          )}
+          <Button
+            icon="mdi mdi-plus"
+            size="sm"
+            variant="ghost"
+            className="graph-add-group-btn"
+            onClick={() => {
+              setEditingGroupId(null);
+              setGroupModalOpen(true);
+            }}
+          >
+            Add group
+          </Button>
         </SidebarSection>
 
         <SidebarSection title="Physics" icon="mdi mdi-tune" defaultOpen={false}>
@@ -1090,12 +961,7 @@ export function GraphView({
           )}
         </SidebarSection>
 
-        <SidebarSection title="Classes" icon="mdi mdi-format-color-fill" defaultOpen={false}>
-          <ClassColorsPanel
-            classColors={classColors}
-            onChange={handleClassColorsChange}
-          />
-        </SidebarSection>
+
       </div>
       )}
       
@@ -1225,6 +1091,27 @@ export function GraphView({
           title="Fit graph to view (R)"
         />
       </div>
+
+      {/* Group Editor Modal */}
+      <GraphGroupModal
+        key={editingGroupId ?? 'new-group'}
+        isOpen={groupModalOpen}
+        onClose={() => {
+          setGroupModalOpen(false);
+          setEditingGroupId(null);
+        }}
+        onSave={(group) => {
+          if (editingGroupId) {
+            setColorGroups(prev => prev.map(g => g.id === editingGroupId ? group : g));
+          } else {
+            setColorGroups(prev => [...prev, group]);
+          }
+        }}
+        initialGroup={editingGroupId ? colorGroups.find(g => g.id === editingGroupId) ?? null : null}
+        nodes={apiNodes}
+        links={apiLinks}
+        classes={classes ?? []}
+      />
     </div>
   );
 }
