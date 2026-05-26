@@ -205,8 +205,8 @@ export function PropertyForm({
           <label className="property-form__label">Values</label>
           <SelectionButton
             options={[
-              { value: 'single', icon: "mdi mdi-numeric1", label: 'Single value' },
-              { value: 'multi', icon: "mdi mdi-numeric9-plus", label: 'Multiple values' },
+              { value: 'single', icon: "mdi mdi-numeric-1", label: 'Single value' },
+              { value: 'multi', icon: "mdi mdi-numeric-9-plus", label: 'Multiple values' },
             ]}
             value={isMultiValue ? 'multi' : 'single'}
             onChange={(value) => !readOnly && onIsMultiValueChange(value === 'multi')}
