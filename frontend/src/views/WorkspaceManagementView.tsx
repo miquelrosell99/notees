@@ -22,20 +22,19 @@ import { ImportOptionsModal, type ImportResult } from '../components/workspace/I
 import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
 
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
+import { WorkspaceActionsMenu } from '../components/workspace/WorkspaceActionsMenu';
+import { WorkspaceShareModal } from '../components/workspace/WorkspaceShareModal';
 import { UserSettingsModal, SystemSettingsModal } from '../components/layout/Modals';
 import { 
   ArrowRightIcon,
   CheckIcon, 
   CloseIcon, 
-  DeleteIcon,
-  EditIcon,
 } from '../components/core/icons';
 
 import { Button } from '../components/core/Button';
 import { Card } from '../components/core/Card';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import './WorkspaceManagementView.css';
-import { Icon } from '@/components/core/icons';
 
 interface WorkspaceManagementViewProps {
   /** Called when a workspace is selected/activated */
@@ -66,6 +65,10 @@ export function WorkspaceManagementView({
     file: File | null;
   }>({ confirming: null, file: null });
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [shareModalState, setShareModalState] = useState<{
+    isOpen: boolean;
+    workspaceUuid: string | null;
+  }>({ isOpen: false, workspaceUuid: null });
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
@@ -342,37 +345,26 @@ export function WorkspaceManagementView({
                   <div className="workspace-management__card-header">
                     <div className="workspace-management__card-title">
                       <span className="workspace-management__card-name">{workspace.name}</span>
-                      {workspace.uuid === data?.active && (
-                        <span className="workspace-management__card-badge">Active</span>
-                      )}
+                      <div className="workspace-management__card-badges">
+                        {workspace.uuid === data?.active && (
+                          <span className="workspace-management__card-badge">Active</span>
+                        )}
+                        {workspace.is_shared && (
+                          <span className="workspace-management__card-badge workspace-management__card-badge--shared">Shared</span>
+                        )}
+                      </div>
                     </div>
                     <div className="workspace-management__card-actions">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleOpenRename(workspace.name)}
-                        title="Rename"
+                        onClick={() => handleSelectWorkspace(workspace)}
+                        title="Open workspace"
+                        className="workspace-management__access-btn"
                       >
-                        <EditIcon size="sm" />
+                        <ArrowRightIcon size="sm" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleExport(workspace)}
-                        title="Export"
-                      >
-                        <Icon path={"mdi mdi-export"} size={0.7} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRestoreClick(workspace.uuid)}
-                        title="Restore from dump"
-                        disabled={restoreMutation.isPending}
-                      >
-                        <Icon path={"mdi mdi-backup-restore"} size={0.7} />
-                      </Button>
-                      {deleteConfirm === workspace.uuid ? (
+                      {deleteConfirm === workspace.uuid && (
                         <>
                           <Button
                             variant="danger"
@@ -393,25 +385,18 @@ export function WorkspaceManagementView({
                             <CloseIcon size="sm" />
                           </Button>
                         </>
-                      ) : (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => setDeleteConfirm(workspace.uuid)}
-                          title="Delete"
-                          className="workspace-management__delete-btn"
-                        >
-                          <DeleteIcon size="sm" />
-                        </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSelectWorkspace(workspace)}
-                        title="Open workspace"
-                      >
-                        <ArrowRightIcon size="sm" />
-                      </Button>
+                      {deleteConfirm !== workspace.uuid && (
+                        <WorkspaceActionsMenu
+                          workspace={workspace}
+                          onRename={(w) => handleOpenRename(w.name)}
+                          onExport={handleExport}
+                          onRestore={handleRestoreClick}
+                          onShare={(w) => setShareModalState({ isOpen: true, workspaceUuid: w.uuid })}
+                          onDelete={(uuid) => setDeleteConfirm(uuid)}
+                          disabled={restoreMutation.isPending}
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="workspace-management__card-content">
@@ -512,6 +497,15 @@ export function WorkspaceManagementView({
         isOpen={isImportLogseqModalOpen}
         onClose={() => setImportLogseqModalOpen(false)}
       />
+
+      {/* Workspace Share Modal */}
+      {shareModalState.workspaceUuid && (
+        <WorkspaceShareModal
+          workspaceUuid={shareModalState.workspaceUuid}
+          isOpen={shareModalState.isOpen}
+          onClose={() => setShareModalState({ isOpen: false, workspaceUuid: null })}
+        />
+      )}
 
       {/* Deleting overlay – locks the interface during workspace deletion */}
       {deleteMutation.isPending && (
