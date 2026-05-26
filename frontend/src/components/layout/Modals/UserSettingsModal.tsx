@@ -220,9 +220,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <SelectionButton
                   options={[
                     { value: '0', icon: "mdi mdi-close-circle-outline", label: 'Disabled' },
-                    { value: '1', icon: "mdi mdi-numeric1", label: 'Level 1' },
-                    { value: '2', icon: "mdi mdi-numeric2", label: 'Level 2' },
-                    { value: '3', icon: "mdi mdi-numeric3", label: 'Level 3' },
+                    { value: '1', icon: "mdi mdi-numeric-1", label: 'Level 1' },
+                    { value: '2', icon: "mdi mdi-numeric-2", label: 'Level 2' },
+                    { value: '3', icon: "mdi mdi-numeric-3", label: 'Level 3' },
                   ]}
                   value={linkedRefsCollapseLevel.toString()}
                   onChange={(value) => handleLinkedRefsCollapseLevelChange(parseInt(value, 10))}
