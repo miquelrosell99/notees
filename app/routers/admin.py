@@ -71,7 +71,6 @@ async def update_user(
 ):
     """Update a user (admin only)."""
     async with get_connection() as conn:
-        # Prevent removing admin role from yourself
         current = await conn.fetchrow(
             'SELECT role FROM "user" WHERE id::text = $1',
             user_id,
@@ -81,6 +80,15 @@ async def update_user(
 
         if str(user_id) == str(admin_user.id) and data.role is not None and data.role != 'admin':
             raise HTTPException(status_code=400, detail="Cannot demote yourself")
+
+        # Prevent demoting the last active admin
+        if data.role is not None and current["role"] == 'admin' and data.role != 'admin':
+            other_admins = await conn.fetchval(
+                'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE AND id::text != $1',
+                user_id,
+            )
+            if other_admins == 0:
+                raise HTTPException(status_code=400, detail="Cannot demote the last admin")
 
         # Build dynamic SET clause for provided fields only
         updates: dict[str, object] = {}
@@ -144,12 +152,26 @@ async def deactivate_user(
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
 
     async with get_connection() as conn:
+        target = await conn.fetchrow(
+            'SELECT role FROM "user" WHERE id::text = $1 AND active = TRUE',
+            user_id,
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Prevent deactivating the last active admin
+        if target["role"] == 'admin':
+            other_admins = await conn.fetchval(
+                'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE AND id::text != $1',
+                user_id,
+            )
+            if other_admins == 0:
+                raise HTTPException(status_code=400, detail="Cannot deactivate the last admin")
+
         result = await conn.execute(
             'UPDATE "user" SET active = FALSE WHERE id::text = $1',
             user_id,
         )
-        if result.split()[-1] == "0":
-            raise HTTPException(status_code=404, detail="User not found")
 
     return {"success": True}
 
