@@ -275,7 +275,7 @@ export function WorkspaceManagementView({
                 className="workspace-management__system-settings"
                 variant="ghost"
                 size="sm"
-                icon={"mdi mdi-shield-cog"}
+                icon={"mdi mdi-account-cog"}
                 onClick={() => setIsSystemSettingsOpen(true)}
                 title="System Settings"
               />
