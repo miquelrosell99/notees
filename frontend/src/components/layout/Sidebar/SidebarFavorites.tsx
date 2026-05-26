@@ -1,6 +1,7 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore, useFavoritesStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import { isAxiosError } from 'axios';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { Button } from '@/components/core/Button';
@@ -35,8 +36,15 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   onRemove,
   onContextMenu,
 }: SortableFavoriteItemProps) {
-  const { data: node } = useNode(nodeId);
+  const { data: node, error } = useNode(nodeId, { meta: { skipGlobalError: true } });
   const { effectiveIcon } = useNodeDisplay(node);
+
+  // Auto-remove stale favorites for deleted nodes
+  useEffect(() => {
+    if (error && isAxiosError(error) && error.response?.status === 404) {
+      useFavoritesStore.getState().removeFavorite(nodeId);
+    }
+  }, [error, nodeId]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     // Don't navigate if clicking drag handle or remove button
@@ -61,6 +69,11 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     e.stopPropagation();
     onDragStart(index, e);
   }, [index, onDragStart]);
+
+  // Deleted node — render nothing so it auto-removes from the list
+  if (error && isAxiosError(error) && error.response?.status === 404) {
+    return null;
+  }
 
   if (!node) return (
     <div className={`sidebar-favorite-item ${isDragging ? 'dragging' : ''}`} style={style}>
