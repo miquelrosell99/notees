@@ -13,7 +13,7 @@
  * - Drag the left edge of right sidebar to resize
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
-import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
 import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
@@ -36,6 +36,7 @@ const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRa
 const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default: m.MergePagesModal })));
 const CreatePageWithUuidModal = React.lazy(() => import('@/components/layout/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
 import { Card } from '@/components/core/Card';
+import { PresentationModal } from '@/components/core/PresentationModal';
 import './Layout.css';
 
 export function Layout() {
@@ -67,6 +68,7 @@ export function Layout() {
   const setCreateWithUuidModalOpen = useModalStore(s => s.setCreateWithUuidModalOpen);
   const createWithUuidPrefill = useModalStore(s => s.createWithUuidPrefill);
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
+  const presentationNodeId = usePresentationStore(s => s.nodeId);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const openNode = useNavigationStore(s => s.openNode);
@@ -376,6 +378,9 @@ export function Layout() {
             onClose={() => setMergePagesModalOpen(false)}
           />
         </Suspense>
+
+        {/* Presentation Modal */}
+        <PresentationModal key={presentationNodeId ?? 'closed'} />
 
         {/* Create Page with UUID Modal (global — opened from Command Palette or broken-link context menu) */}
         <Suspense fallback={null}>

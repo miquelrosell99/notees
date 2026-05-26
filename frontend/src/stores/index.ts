@@ -13,6 +13,7 @@
  * Use selectors (e.g. useNavigationStore(s => s.openNode)) to avoid render cascades.
  */
 export { useAuthStore } from './authStore';
+export { usePresentationStore } from './presentationStore';
 export { useModalStore } from './modalStore';
 export { useNavigationStore } from './navigationStore';
 export { useNavigationHistoryStore } from './navigationHistoryStore';

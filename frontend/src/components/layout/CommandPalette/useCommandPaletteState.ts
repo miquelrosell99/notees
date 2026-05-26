@@ -192,6 +192,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
       { id: 'toggle-local-graph', label: 'Toggle local graph', icon: 'graph', requiresPage: true },
       { id: 'toggle-wide-mode', label: 'Toggle wide mode', icon: 'expand' },
+      { id: 'start-presentation', label: 'Start presentation', icon: 'presentation' },
       { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);

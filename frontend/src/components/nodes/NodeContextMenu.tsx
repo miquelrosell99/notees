@@ -16,7 +16,7 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useNavigationStore, useFavoritesStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useFavoritesStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 
@@ -243,6 +243,7 @@ export type ActionName =
   | 'open-sidebar'
   | 'local-graph'
   | 'export'
+  | 'presentation'
   | 'copy-text'
   | 'view-ast'
   | 'archive'
@@ -264,6 +265,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['toggle-header',   'block'],
   ['copy-text',       'both'],
   ['export',          'both'],
+  ['presentation',    'both'],
   ['view-ast',        'both'],
   ['archive',         'both'],
   ['delete',          'both'],
@@ -535,6 +537,18 @@ export function NodeContextMenu({
             icon: 'mdi-export',
             keepOpen: true,
             onClick: () => setShowExportModal(true),
+          });
+          break;
+
+        case 'presentation':
+          items.push({
+            id: 'presentation',
+            label: 'Start presentation',
+            icon: 'mdi-presentation-play',
+            onClick: () => {
+              usePresentationStore.getState().openPresentation(node.id);
+              onClose();
+            },
           });
           break;
 
