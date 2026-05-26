@@ -27,7 +27,8 @@ export type MainViewType =
   | 'assets'
   | 'property'
   | 'node-collection'
-  | 'shares';
+  | 'shares'
+  | 'inbox';
 export type NodeViewType = 'page' | 'block';
 export type SidebarTab = 'pages' | 'graph';
 export type SidebarNodeType = 'page' | 'block';

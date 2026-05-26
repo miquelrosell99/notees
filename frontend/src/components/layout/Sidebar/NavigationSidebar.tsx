@@ -181,6 +181,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
             >
               Shares
             </Button>
+
+            <Button
+              variant="ghost"
+              size="md"
+              icon={"mdi mdi-inbox-arrow-down"}
+              fullWidth
+              active={mainViewType === 'inbox'}
+              onClick={() => { setMainViewType('inbox'); closeMobileDrawer(); }}
+            >
+              Inbox
+            </Button>
           </nav>
 
           {/* Favorites Section */}

@@ -39,9 +39,60 @@ export interface PublicSharedNode {
   children: (PublicSharedNode['node'] & { depth: number })[];
 }
 
+export interface UserShare {
+  share_id: number;
+  node_id: number;
+  shared_with_user_id: number;
+  shared_with_username: string;
+  permission: 'read' | 'write';
+  created_at: string;
+  created_by: number;
+}
+
+export interface UserSharesResponse {
+  shares: UserShare[];
+}
+
+export interface ShareInboxItem {
+  share_id: number;
+  node_id: number;
+  node_uuid: string;
+  node_name: string;
+  node_icon: string | null;
+  is_page: boolean;
+  permission: 'read' | 'write';
+  shared_at: string;
+  shared_by: {
+    user_id: number;
+    username: string;
+  };
+  workspace: {
+    id: number;
+    name: string;
+    uuid: string;
+  };
+}
+
+export interface ShareInboxResponse {
+  items: ShareInboxItem[];
+}
+
+export interface WorkspaceMember {
+  user_id: number;
+  username: string;
+  user_uuid: string;
+  role: string;
+  joined_at: string | null;
+}
+
+export interface WorkspaceMembersResponse {
+  members: WorkspaceMember[];
+}
+
 const BASE = '/nodes';
 const SHARES_BASE = '/shares';
 const PUBLIC_BASE = '/public/n';
+const WORKSPACES_BASE = '/workspaces';
 
 /**
  * Create a public share for a node
@@ -57,7 +108,7 @@ export async function createShare(
 }
 
 /**
- * List shares for a node
+ * List public shares for a node
  */
 export async function listNodeShares(nodeId: number): Promise<SharesResponse> {
   const response = await api.get<SharesResponse>(`${BASE}/${nodeId}/shares`);
@@ -65,7 +116,7 @@ export async function listNodeShares(nodeId: number): Promise<SharesResponse> {
 }
 
 /**
- * List all shares in the current workspace
+ * List all public shares in the current workspace
  */
 export async function listWorkspaceShares(): Promise<SharesResponse> {
   const response = await api.get<SharesResponse>(SHARES_BASE);
@@ -73,7 +124,7 @@ export async function listWorkspaceShares(): Promise<SharesResponse> {
 }
 
 /**
- * Delete (revoke) a share
+ * Delete (revoke) a public share
  */
 export async function deleteShare(shareUuid: string): Promise<{ success: boolean }> {
   const response = await api.delete<{ success: boolean }>(`${SHARES_BASE}/${shareUuid}`);
@@ -85,5 +136,98 @@ export async function deleteShare(shareUuid: string): Promise<{ success: boolean
  */
 export async function getPublicSharedNode(shareUuid: string): Promise<PublicSharedNode> {
   const response = await api.get<PublicSharedNode>(`${PUBLIC_BASE}/${shareUuid}`);
+  return response.data;
+}
+
+// ============ Node User Shares ============
+
+/**
+ * Share a node with a specific user
+ */
+export async function createUserShare(
+  nodeId: number,
+  username: string,
+  permission: 'read' | 'write' = 'read'
+): Promise<UserShare> {
+  const response = await api.post<UserShare>(`${BASE}/${nodeId}/user-shares`, {
+    username,
+    permission,
+  });
+  return response.data;
+}
+
+/**
+ * List user shares for a node
+ */
+export async function listNodeUserShares(nodeId: number): Promise<UserSharesResponse> {
+  const response = await api.get<UserSharesResponse>(`${BASE}/${nodeId}/user-shares`);
+  return response.data;
+}
+
+/**
+ * Revoke a user share
+ */
+export async function deleteUserShare(shareId: number): Promise<{ success: boolean }> {
+  const response = await api.delete<{ success: boolean }>(`${BASE}/user-shares/${shareId}`);
+  return response.data;
+}
+
+/**
+ * Get share inbox (all nodes shared with current user)
+ */
+export async function getShareInbox(): Promise<ShareInboxResponse> {
+  const response = await api.get<ShareInboxResponse>(`${SHARES_BASE}/inbox`);
+  return response.data;
+}
+
+// ============ Workspace Members ============
+
+/**
+ * Invite a user to a workspace
+ */
+export async function inviteWorkspaceMember(
+  workspaceUuid: string,
+  username: string,
+  role: string = 'viewer'
+): Promise<{ status: string; username: string; role: string }> {
+  const response = await api.post(`${WORKSPACES_BASE}/${workspaceUuid}/members`, {
+    username,
+    role,
+  });
+  return response.data;
+}
+
+/**
+ * List workspace members
+ */
+export async function listWorkspaceMembers(workspaceUuid: string): Promise<WorkspaceMembersResponse> {
+  const response = await api.get<WorkspaceMembersResponse>(
+    `${WORKSPACES_BASE}/${workspaceUuid}/members`
+  );
+  return response.data;
+}
+
+/**
+ * Update a member's role
+ */
+export async function updateWorkspaceMember(
+  workspaceUuid: string,
+  memberUserId: number,
+  role: string
+): Promise<{ status: string; role: string }> {
+  const response = await api.put(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserId}`, {
+    role,
+  });
+  return response.data;
+}
+
+/**
+ * Remove a member from a workspace
+ */
+export async function removeWorkspaceMember(
+  workspaceUuid: string,
+  memberUserId: number
+): Promise<{ status: string }> {
+  const response = await api.delete(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserId}`);
   return response.data;
 }

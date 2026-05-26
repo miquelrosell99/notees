@@ -23,6 +23,7 @@ const AllPagesTimelineView = React.lazy(() => import('@/views/AllPagesTimelineVi
 const PropertyViewFull = React.lazy(() => import('@/views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
 const SharesView = React.lazy(() => import('@/views/SharesView').then(m => ({ default: m.SharesView })));
+const ShareInboxView = React.lazy(() => import('@/views/ShareInboxView').then(m => ({ default: m.ShareInboxView })));
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, nodeCollectionTitle, nodeCollectionQueryAST, nodeCollectionNodes, openNode, addSidebarCard } = useNavigationStore();
@@ -132,6 +133,16 @@ export function MainContent() {
       <main className="main-content">
         <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
           <SharesView />
+        </Suspense>
+      </main>
+    );
+  }
+
+  if (mainViewType === 'inbox') {
+    return (
+      <main className="main-content">
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <ShareInboxView />
         </Suspense>
       </main>
     );
