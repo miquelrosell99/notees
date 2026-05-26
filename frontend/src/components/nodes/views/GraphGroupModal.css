@@ -1,0 +1,99 @@
+/**
+ * GraphGroupModal Styles
+ */
+
+.graph-group-modal__content {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.graph-group-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.graph-group-modal__label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-on-surface-variant);
+}
+
+.graph-group-modal__color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.graph-group-modal__color-palette {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.graph-group-modal__color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.graph-group-modal__color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.graph-group-modal__color-swatch.active {
+  border-color: var(--color-on-surface);
+}
+
+.graph-group-modal__query-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.graph-group-modal__query-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.graph-group-modal__prose {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.graph-group-modal__query-builder {
+  background: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 12px;
+}
+
+.graph-group-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.graph-group-modal__match-count {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.graph-group-modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
