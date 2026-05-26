@@ -4,6 +4,7 @@ Handles workspace creation, switching, import/export, and restore.
 Uses domain types where applicable.
 """
 from fastapi import APIRouter, HTTPException, Depends, File, Form, UploadFile
+from pydantic import BaseModel
 from fastapi.responses import FileResponse
 from pathlib import Path
 import json
@@ -14,6 +15,7 @@ from ..models import WorkspaceCreate, User
 from ..domain import WorkspaceNotFoundError, DuplicateWorkspaceError
 from ..dependencies import invalidate_workspace_cache
 from .auth import get_current_user
+from ..db.connection import get_pool, acquire_connection
 
 from .. import workspace_manager as wm
 from ..workspace_io import (
@@ -243,3 +245,221 @@ async def restore_workspace(
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+
+
+
+class MemberInviteRequest(BaseModel):
+    username: str
+    role: str = "viewer"
+
+
+class MemberUpdateRequest(BaseModel):
+    role: str
+
+
+ROLE_PERMS = {
+    "viewer": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False},
+    "editor": {"can_read": True, "can_write": True, "can_create": True, "can_delete": False},
+    "admin": {"can_read": True, "can_write": True, "can_create": True, "can_delete": True},
+}
+
+
+@router.post("/{workspace_uuid}/members")
+async def invite_member(
+    workspace_uuid: str,
+    body: MemberInviteRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Invite a user to a workspace by username."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        ws_row = await conn.fetchrow(
+            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_uuid,
+        )
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if ws_row["create_uid"] != int(user.id):
+            raise HTTPException(status_code=403, detail="Only workspace owners can invite members")
+
+        target = await conn.fetchrow(
+            'SELECT id FROM "user" WHERE username = $1 AND active = TRUE',
+            body.username,
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail=f"User '{body.username}' not found")
+        target_id = target["id"]
+        if target_id == int(user.id):
+            raise HTTPException(status_code=400, detail="Cannot invite yourself")
+
+        perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
+
+        await conn.execute(
+            """
+            INSERT INTO workspace_share (
+                workspace_id, user_id, can_read, can_write, can_create, can_delete,
+                active, create_uid, write_uid
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $7)
+            ON CONFLICT (workspace_id, user_id)
+            DO UPDATE SET
+                can_read = EXCLUDED.can_read,
+                can_write = EXCLUDED.can_write,
+                can_create = EXCLUDED.can_create,
+                can_delete = EXCLUDED.can_delete,
+                active = TRUE,
+                write_uid = EXCLUDED.write_uid,
+                write_date = NOW()
+            """,
+            ws_row["id"],
+            target_id,
+            perms["can_read"],
+            perms["can_write"],
+            perms["can_create"],
+            perms["can_delete"],
+            int(user.id),
+        )
+
+        await conn.execute(
+            "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
+            ws_row["id"],
+        )
+
+    return {"status": "ok", "username": body.username, "role": body.role}
+
+
+@router.get("/{workspace_uuid}/members")
+async def list_members(
+    workspace_uuid: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """List members of a workspace."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        ws_row = await conn.fetchrow(
+            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_uuid,
+        )
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+
+        ws_id = ws_row["id"]
+        user_id = int(user.id)
+        is_owner = ws_row["create_uid"] == user_id
+
+        if not is_owner:
+            member = await conn.fetchrow(
+                "SELECT 1 FROM workspace_share WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE",
+                ws_id, user_id,
+            )
+            if not member:
+                raise HTTPException(status_code=403, detail="Not a member of this workspace")
+
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.username, u.uuid as user_uuid,
+                   gs.can_read, gs.can_write, gs.can_create, gs.can_delete,
+                   gs.create_date
+            FROM workspace_share gs
+            JOIN "user" u ON u.id = gs.user_id
+            WHERE gs.workspace_id = $1 AND gs.active = TRUE
+            ORDER BY gs.create_date DESC
+            """,
+            ws_id,
+        )
+
+        owner_row = await conn.fetchrow(
+            'SELECT id, username, uuid as user_uuid FROM "user" WHERE id = $1',
+            ws_row["create_uid"],
+        )
+
+    members = []
+    if owner_row:
+        members.append({
+            "user_id": owner_row["id"],
+            "username": owner_row["username"],
+            "user_uuid": str(owner_row["user_uuid"]),
+            "role": "owner",
+            "joined_at": None,
+        })
+    for r in rows:
+        role = "viewer"
+        if r["can_delete"]:
+            role = "admin"
+        elif r["can_write"]:
+            role = "editor"
+        members.append({
+            "user_id": r["id"],
+            "username": r["username"],
+            "user_uuid": str(r["user_uuid"]),
+            "role": role,
+            "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
+        })
+    return {"members": members}
+
+
+@router.put("/{workspace_uuid}/members/{member_user_id}")
+async def update_member(
+    workspace_uuid: str,
+    member_user_id: int,
+    body: MemberUpdateRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Update a member's role in a workspace."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        ws_row = await conn.fetchrow(
+            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_uuid,
+        )
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if ws_row["create_uid"] != int(user.id):
+            raise HTTPException(status_code=403, detail="Only workspace owners can update members")
+        if member_user_id == ws_row["create_uid"]:
+            raise HTTPException(status_code=400, detail="Cannot change owner's role")
+
+        perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
+        result = await conn.execute(
+            """
+            UPDATE workspace_share
+            SET can_read = $1, can_write = $2, can_create = $3, can_delete = $4,
+                write_uid = $5, write_date = NOW()
+            WHERE workspace_id = $6 AND user_id = $7 AND active = TRUE
+            """,
+            perms["can_read"], perms["can_write"], perms["can_create"], perms["can_delete"],
+            int(user.id), ws_row["id"], member_user_id,
+        )
+        if result.split()[-1] == "0":
+            raise HTTPException(status_code=404, detail="Member not found")
+    return {"status": "ok", "role": body.role}
+
+
+@router.delete("/{workspace_uuid}/members/{member_user_id}")
+async def remove_member(
+    workspace_uuid: str,
+    member_user_id: int,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Remove a member from a workspace."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        ws_row = await conn.fetchrow(
+            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_uuid,
+        )
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if ws_row["create_uid"] != int(user.id):
+            raise HTTPException(status_code=403, detail="Only workspace owners can remove members")
+        if member_user_id == ws_row["create_uid"]:
+            raise HTTPException(status_code=400, detail="Cannot remove owner")
+
+        await conn.execute(
+            "UPDATE workspace_share SET active = FALSE WHERE workspace_id = $1 AND user_id = $2",
+            ws_row["id"], member_user_id,
+        )
+    invalidate_workspace_cache(member_user_id)
+    return {"status": "ok"}
