@@ -36,7 +36,7 @@ export interface PublicSharedNode {
     create_date: string;
     write_date: string;
   };
-  children: PublicSharedNode['node'][];
+  children: (PublicSharedNode['node'] & { depth: number })[];
 }
 
 const BASE = '/nodes';
