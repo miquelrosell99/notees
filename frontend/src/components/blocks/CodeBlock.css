@@ -9,12 +9,15 @@
   font-size: 0.8125rem;
 }
 
-/* Header with language selector */
+/* Header with language selector + copy button */
 .code-block-header {
   position: absolute;
   top: var(--spacing-2);
   right: var(--spacing-2);
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
   pointer-events: none;
@@ -29,6 +32,11 @@
   background: var(--color-surface);
   border-radius: var(--shape-small);
   min-width: 120px;
+}
+
+.code-block-copy-btn {
+  background: var(--color-surface);
+  border-radius: var(--shape-small);
 }
 
 /* Code content */

@@ -24,20 +24,23 @@ import { NodeCollection } from '../../nodes/NodeCollection';
 import { getDateRange } from './timelineUtils/dateUtils';
 import { generateTimeEvents } from './timelineUtils/timeEvents';
 import { getZoomLevelFromScale } from './timelineUtils/zoomLevels';
+import {
+  TimelineRenderer,
+  EVENT_RADIUS_MIN,
+  EVENT_RADIUS_MAX,
+  EVENT_STACK_SPACING,
+  EVENT_OFFSET,
+  MINIMAP_HEIGHT,
+  MIN_SCALE,
+  MAX_SCALE,
+  ZOOM_SPEED_WHEEL,
+  ZOOM_SPEED_PINCH,
+} from './TimelineRenderer';
 
 import './TimelineView.css';
 import './DatePropertiesPanel.css';
 
-const EVENT_RADIUS_MIN = 4;
-const EVENT_RADIUS_MAX = 12;
-const EVENT_STACK_SPACING = 18;
-const EVENT_OFFSET = 25;
-const MINIMAP_HEIGHT = 60;
-
-const MIN_SCALE = 0.1;
-const MAX_SCALE = 10;
-const ZOOM_SPEED_WHEEL = 0.002;
-const ZOOM_SPEED_PINCH = 0.01;
+const rendererRef = new TimelineRenderer();
 
 export const TimelineView = memo(function TimelineView({
   nodes,
@@ -234,230 +237,42 @@ export const TimelineView = memo(function TimelineView({
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    const { width, height } = dimensions;
-    const { panX, scale } = transform;
-    const centerY = height / 2;
-    
-    ctx.clearRect(0, 0, width, height);
-    
-    // Draw time markers FIRST (behind timeline)
-    const textColor = getComputedStyle(canvas).getPropertyValue('--color-on-surface-variant').trim() || '#a3a3a3';
-    ctx.fillStyle = textColor;
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    
-    const totalMs = dateRange.end.getTime() - dateRange.start.getTime();
-    
-    // Calculate visible days based on scale directly
-    // When scale < 1, we're viewing more than the dateRange
-    // The visible window is: totalDays / scale
-    const totalDays = totalMs / (24 * 60 * 60 * 1000);
-    const visibleDays = totalDays / scale;
-    
-    // Calculate visible date range for marker positioning
-    const visibleStartRatio = Math.max(0, -panX / (width * scale));
-    const visibleEndRatio = Math.min(1, (-panX + width) / (width * scale));
-    
-    const visibleStart = new Date(dateRange.start.getTime() + visibleStartRatio * totalMs);
-    const visibleEnd = new Date(dateRange.start.getTime() + visibleEndRatio * totalMs);
-    
-    // Fade markers when zoom changes significantly (but always use current visibleDays for calculations)
-    const daysDiff = Math.abs(visibleDays - prevVisibleDays);
-    const thresholdChange = Math.max(10, prevVisibleDays * 0.3);  // At least 10 days or 30% change
-    
-    if (daysDiff > thresholdChange && prevVisibleDays !== 365) {  // Skip initial default value
-      if (markerOpacity === 1) {
-        setMarkerOpacity(0.3);
-      }
-      setPrevVisibleDays(visibleDays);
+
+    const result = rendererRef.drawMain(canvas, {
+      dimensions,
+      transform,
+      dateRange,
+      timeEvents,
+      eventSizes,
+      hoveredEvent,
+      selectedEvent,
+      markerOpacity,
+    });
+
+    markersRef.current = result.markers;
+
+    // Fade markers when zoom changes significantly
+    const daysDiff = Math.abs(result.visibleDays - prevVisibleDays);
+    const thresholdChange = Math.max(10, prevVisibleDays * 0.3);
+
+    if (daysDiff > thresholdChange && prevVisibleDays !== 365) {
+      if (markerOpacity === 1) setMarkerOpacity(0.3);
+      setPrevVisibleDays(result.visibleDays);
     } else if (markerOpacity < 1) {
       setMarkerOpacity(Math.min(1, markerOpacity + 0.2));
     }
-    
-    let markerInterval: number;
-    let dateFormat: (date: Date) => string;
-    
-    // Choose interval based on how many days are visible (always use current value)
-    if (visibleDays <= 10) {
-      markerInterval = 24 * 60 * 60 * 1000; // 1 day
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 90) {
-      markerInterval = 7 * 24 * 60 * 60 * 1000; // 1 week
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else if (visibleDays <= 365) {
-      markerInterval = 30 * 24 * 60 * 60 * 1000; // ~1 month
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 1460) {
-      markerInterval = 90 * 24 * 60 * 60 * 1000; // ~3 months
-      dateFormat = (d) => d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    } else if (visibleDays <= 5475) {
-      markerInterval = 365 * 24 * 60 * 60 * 1000; // 1 year
-      dateFormat = (d) => d.getFullYear().toString();
-    } else {
-      markerInterval = 3650 * 24 * 60 * 60 * 1000; // 10 years
-      dateFormat = (d) => d.getFullYear().toString();
-    }
-    
-    // Extend visible range a bit to catch markers just outside the view
-    const extendedStart = new Date(visibleStart.getTime() - markerInterval);
-    const extendedEnd = new Date(visibleEnd.getTime() + markerInterval);
-    
-    // Store markers for click detection
-    const markers: Array<{ x: number; date: Date; interval: number }> = [];
-    
-    // Draw markers
-    const firstMarker = new Date(Math.floor(extendedStart.getTime() / markerInterval) * markerInterval);
-    for (let markerDate = firstMarker; markerDate <= extendedEnd; markerDate = new Date(markerDate.getTime() + markerInterval)) {
-      const markerPos = (markerDate.getTime() - dateRange.start.getTime()) / totalMs;
-      const x = markerPos * width * scale + panX;
-      
-      if (x >= -50 && x <= width + 50) {
-        // Store marker for click detection
-        markers.push({ x, date: new Date(markerDate), interval: markerInterval });
-        // Tick mark
-        ctx.globalAlpha = markerOpacity;
-        ctx.strokeStyle = textColor + '80';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, centerY - 5);
-        ctx.lineTo(x, centerY + 5);
-        ctx.stroke();
-        
-        // Label
-        ctx.fillStyle = textColor;
-        ctx.fillText(dateFormat(markerDate), x, centerY + 10);
-        ctx.globalAlpha = 1;
-      }
-    }
-    
-    // Update markers ref for click detection
-    markersRef.current = markers;
-    
-    // Draw timeline line
-    ctx.strokeStyle = getComputedStyle(canvas).getPropertyValue('--color-outline').trim() || '#a3a3a3';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(width, centerY);
-    ctx.stroke();
-    
-    // Draw time events
-    timeEvents.forEach(event => {
-      const x = event.position * width * scale + panX;
-      if (x < -50 || x > width + 50) return;
-      
-      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
-      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
-      const y = centerY - yOffset;
-      
-      const isHovered = hoveredEvent?.id === event.id;
-      const isSelected = selectedEvent?.id === event.id;
-      
-      // Connector line
-      ctx.strokeStyle = event.color + '40';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x, centerY);
-      ctx.stroke();
-      
-      // Event circle
-      if (isSelected || isHovered) {
-        ctx.fillStyle = event.color + '40';
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 4, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-      
-      ctx.fillStyle = event.color;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Draw item count on hover for consistency
-      if (isHovered) {
-        const label = `${event.nodes.length}`;
-        ctx.font = '12px sans-serif';
-        ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('--color-on-surface').trim() || '#e5e5e5';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(label, x, y - radius - 6);
-      }
-    });
   }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, markerOpacity, prevVisibleDays]);
-  
+
   // Render minimap
   const renderMinimap = useCallback(() => {
     const canvas = minimapRef.current;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    const width = canvas.width / window.devicePixelRatio;
-    const height = MINIMAP_HEIGHT;
-    const { panX, scale } = transform;
-    const mainWidth = dimensions.width;
-    
-    ctx.clearRect(0, 0, width, height);
-    
-    // Get CSS variables
-    const bgColor = getComputedStyle(canvas).getPropertyValue('--color-surface').trim() || '#171717';
-    const lineColor = getComputedStyle(canvas).getPropertyValue('--color-outline-variant').trim() || '#444';
-    const accentColor = getComputedStyle(canvas).getPropertyValue('--color-primary').trim() || '#e5e5e5';
-    
-    // Background
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, width, height);
-    
-    // Timeline line
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
-    ctx.stroke();
-    
-    // Events (simplified)
-    timeEvents.forEach(event => {
-      const x = event.position * width;
-      ctx.fillStyle = event.color;
-      ctx.fillRect(x - 1, height / 2 - 8, 2, 16);
+
+    rendererRef.drawMinimap(canvas, {
+      timeEvents,
+      transform,
+      mainWidth: dimensions.width,
     });
-    
-    // View zone (clamped to 0-width)
-    // Convert main canvas pan/scale to minimap coordinates
-    let viewWidth = (mainWidth / scale) * (width / mainWidth);
-    let viewX = (-panX / scale) * (width / mainWidth);
-    
-    // Clamp view zone to minimap bounds
-    if (viewX < 0) {
-      viewWidth += viewX;
-      viewX = 0;
-    }
-    if (viewX + viewWidth > width) {
-      viewWidth = width - viewX;
-    }
-    viewWidth = Math.max(20, viewWidth); // Ensure minimum visible width
-    
-    ctx.strokeStyle = accentColor;
-    ctx.fillStyle = accentColor + '44';
-    ctx.lineWidth = 2;
-    ctx.fillRect(viewX, 0, viewWidth, height);
-    ctx.strokeRect(viewX, 0, viewWidth, height);
-    
-    // Resize handles (always visible)
-    const handleWidth = 8;
-    ctx.fillStyle = accentColor;
-    const leftHandleX = Math.max(handleWidth / 2, viewX);
-    const rightHandleX = Math.min(width - handleWidth / 2, viewX + viewWidth);
-    ctx.fillRect(leftHandleX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
-    ctx.fillRect(rightHandleX - handleWidth / 2, height / 2 - 15, handleWidth, 30);
   }, [dimensions, transform, timeEvents]);
   
   // Animation loop for minimap

@@ -7,10 +7,12 @@
  * - Language selector dropdown
  * - Syntax highlighting-ready structure
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Dropdown } from '@/components/core/Dropdown';
 import type { DropdownOption } from '@/components/core/Dropdown';
+import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
+import { copyToClipboard } from '@/utils/clipboardManager';
 import './CodeBlock.css';
 
 export interface CodeBlockProps {
@@ -80,21 +82,29 @@ export function CodeBlock({
   onClick,
 }: CodeBlockProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleLanguageChange = (newLang: string | null) => {
     onLanguageChange?.(newLang);
   };
-  
+
   const handleDropdownClick = (e: React.MouseEvent) => {
     // Prevent click from propagating to the code block and entering edit mode
     e.stopPropagation();
   };
 
+  const handleCopy = useCallback(async () => {
+    if (!content) return;
+    await copyToClipboard(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [content]);
+
   const displayLanguage = language || 'plaintext';
   const languageLabel = LANGUAGE_OPTIONS.find(opt => opt.value === displayLanguage)?.label ?? 'Plain Text';
 
   return (
-    <Card 
+    <Card
       className="code-block"
       variant="outlined"
       padding={false}
@@ -102,12 +112,12 @@ export function CodeBlock({
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
     >
-      {/* Language selector in top-right corner */}
-      {editable && (
-        <div 
-          className={`code-block-header${isHovered ? ' code-block-header--visible' : ''}`}
-          onClick={handleDropdownClick}
-        >
+      {/* Header with language selector + copy button (visible on hover) */}
+      <div
+        className={`code-block-header${isHovered ? ' code-block-header--visible' : ''}`}
+        onClick={handleDropdownClick}
+      >
+        {editable && (
           <Dropdown
             options={LANGUAGE_OPTIONS}
             value={displayLanguage}
@@ -117,8 +127,19 @@ export function CodeBlock({
             size="sm"
             className="code-block-language-selector"
           />
-        </div>
-      )}
+        )}
+        <Button
+          variant="ghost"
+          size="xs"
+          icon={copied ? 'mdi mdi-check' : 'mdi mdi-content-copy'}
+          title={copied ? 'Copied!' : 'Copy code'}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleCopy();
+          }}
+          className="code-block-copy-btn"
+        />
+      </div>
 
       {/* Code content */}
       <div className="code-block-content">
