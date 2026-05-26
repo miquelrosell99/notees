@@ -11,7 +11,7 @@ import './PublicShareView.css';
 export function PublicShareView() {
   const [data, setData] = useState<{
     node: { id: number; uuid: string; name: string; icon: string | null; color: string | null; is_page: boolean };
-    children: { id: number; uuid: string; name: string; icon: string | null; color: string | null; is_page: boolean }[];
+    children: { id: number; uuid: string; name: string; icon: string | null; color: string | null; is_page: boolean; depth: number }[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +90,11 @@ export function PublicShareView() {
           <p className="public-share-view__empty">This page has no content.</p>
         ) : (
           data.children.map((child) => (
-            <div key={child.id} className="public-share-view__block">
+            <div
+              key={child.id}
+              className="public-share-view__block"
+              style={{ paddingLeft: `${child.depth * 1.5}rem` }}
+            >
               <NodeInline
                 name={child.name}
                 icon={child.icon}
