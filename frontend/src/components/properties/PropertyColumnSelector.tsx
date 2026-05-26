@@ -13,7 +13,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '@/components/core/Checkbox';
-import { SearchIcon } from '@/components/core/icons';
+import { SearchIcon, DragVerticalIcon } from '@/components/core/icons';
 import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './PropertyColumnSelector.css';
@@ -87,7 +87,9 @@ function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps)
       className="property-column-selector__item property-column-selector__item--draggable"
       {...attributes}
     >
-      <span className="property-column-selector__drag-handle" {...listeners}>⋮⋮</span>
+      <span className="property-column-selector__drag-handle" {...listeners}>
+        <DragVerticalIcon size="xs" />
+      </span>
       <Checkbox
         checked={true}
         onChange={() => onToggle(property.uuid)}

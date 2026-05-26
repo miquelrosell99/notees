@@ -137,10 +137,11 @@
 
 .property-column-selector__drag-handle {
   color: var(--color-on-surface-variant);
-  font-size: 16px;
   line-height: 1;
   cursor: grab;
   user-select: none;
+  display: flex;
+  align-items: center;
 }
 
 .property-column-selector__item--draggable:active .property-column-selector__drag-handle {

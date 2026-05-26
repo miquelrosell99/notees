@@ -55,8 +55,9 @@
 }
 
 .sidebar-node-view__bullet {
-  font-size: 1rem;
   color: var(--color-primary);
+  display: flex;
+  align-items: center;
 }
 
 .sidebar-node-view__label {

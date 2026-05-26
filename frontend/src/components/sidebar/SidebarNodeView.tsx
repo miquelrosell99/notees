@@ -12,7 +12,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import type { SidebarNodeType } from '@/stores';
 import { NodeViewContent } from '@/views/NodeView';
-import { NodeIcon } from '@/components/core/icons';
+import { NodeIcon, BulletIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import './SidebarNodeView.css';
 
@@ -64,7 +64,7 @@ export function SidebarNodeView({ nodeId, nodeType, hideHeader = false }: Sideba
               </>
             ) : (
               <>
-                <span className="sidebar-node-view__bullet">•</span>
+                <BulletIcon size="xs" className="sidebar-node-view__bullet" />
                 <span className="sidebar-node-view__label">Block</span>
               </>
             )}
