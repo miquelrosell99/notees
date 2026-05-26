@@ -9,6 +9,7 @@ import {
   StarIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  DragVerticalIcon,
 } from '@/components/core/icons';
 
 interface SortableFavoriteItemProps {
@@ -80,7 +81,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         onMouseDown={handleDragHandleMouseDown}
         onClick={(e) => e.stopPropagation()}
       >
-        ⋮⋮
+        <DragVerticalIcon size="xs" />
       </span>
 
       {/* Node name in readonly mode */}
@@ -93,7 +94,6 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
           nodeUuid={node.uuid}
           showBullet={true}
           suppressColor={true}
-          draggable={true}
         />
       </div>
 
