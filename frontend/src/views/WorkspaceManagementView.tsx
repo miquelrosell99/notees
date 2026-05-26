@@ -22,7 +22,7 @@ import { ImportOptionsModal, type ImportResult } from '../components/workspace/I
 import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
 
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
-import { UserSettingsModal } from '../components/layout/UserSettingsModal';
+import { UserSettingsModal } from '../components/layout/Modals';
 import { 
   ArrowRightIcon,
   CheckIcon, 
