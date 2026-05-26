@@ -758,11 +758,15 @@ GraphView (React)
 | `graphWebGLRenderer.ts` | WebGL2 renderer: instanced nodes, glow, edges, picking |
 | `evaluateQueryAST.ts` | Client-side QueryAST evaluator for group coloring |
 | `GraphGroupModal.tsx` | Modal for creating/editing QueryAST color groups |
-| `viewTypes.ts` | `GraphNode`, `GraphLink`, `GraphColorGroup` types |
+| `graphTypes.ts` | `GraphNode`, `GraphLink`, `GraphColorGroup`, `GraphSettings` types |
+| `graphConstants.ts` | Physics & rendering constants (forces, LOD, radii, dashes) |
+| `graphHelpers.ts` | Radius calc, path finding, render skip, deduplication |
+| `graphColoring.ts` | Palette resolution, hex→rgba, node color lookup |
+| `viewTypes.ts` | Barrel re-export (backward compat) |
 
 **Adding a new graph setting:**
-1. Add to `GraphSettings` in `viewTypes.ts`
-2. Add UI control in the appropriate sidebar section
+1. Add to `GraphSettings` in `graphTypes.ts`
+2. Add UI control in `GraphSettingsSidebar.tsx`
 3. Persist via `setSetting('graph_settings', ...)`
 
 ---
