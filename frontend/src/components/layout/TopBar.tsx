@@ -108,6 +108,11 @@ export function TopBar() {
   // Pre-fetch today's note for shift+click
   const { refetch: refetchToday } = useDailyNote(new Date());
 
+  const handleGoToToday = useCallback(async () => {
+    const result = await refetchToday();
+    if (result.data) openNode(result.data.id);
+  }, [refetchToday, openNode]);
+
   const currentNodeId = useNavigationStore(s => s.currentNodeId);
   const sidebarCards = useNavigationStore(s => s.sidebarCards);
   
@@ -266,10 +271,7 @@ export function TopBar() {
           icon={"mdi mdi-calendar-today"}
           variant="ghost"
           size="sm"
-          onClick={useCallback(async () => {
-            const result = await refetchToday();
-            if (result.data) openNode(result.data.id);
-          }, [refetchToday, openNode])}
+          onClick={handleGoToToday}
           aria-label="Go to today"
           title="Go to today"
           className="toolbar-btn"

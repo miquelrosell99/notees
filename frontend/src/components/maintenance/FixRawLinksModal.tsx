@@ -13,7 +13,7 @@ import { TaskReport, type TaskPhaseResult } from '@/components/core/TaskReport';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
-import './RebuildLinksModal.css';
+import './FixRawLinksModal.css';
 import { Icon } from '@/components/core/icons';
 
 interface FixRawLinksModalProps {

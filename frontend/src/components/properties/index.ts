@@ -21,3 +21,5 @@ export { EmailPropertyCell } from './EmailPropertyCell';
 export { DatePropertyCell } from './DatePropertyCell';
 export { GanttPropertySelector } from './GanttPropertySelector';
 export type { GanttPropertySelectorProps } from './GanttPropertySelector';
+
+export { TextPropertyBlock } from './TextPropertyBlock';

@@ -102,10 +102,6 @@
 }
 
 .modal__close {
-  margin-left: auto;
-}
-
-.modal__close {
   flex-shrink: 0;
   margin-left: var(--spacing-2);
 }

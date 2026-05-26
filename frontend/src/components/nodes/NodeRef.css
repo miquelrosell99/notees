@@ -55,6 +55,17 @@
   padding: 0 3px;
 }
 
+/* Hide icon in link pills for cleaner inline look */
+.node-pill--link .pill__left-icon {
+  display: none;
+}
+
+/* Allow natural text flow in link pills */
+.node-pill--link .pill__text {
+  white-space: normal;
+  overflow: visible;
+}
+
 /* Click count badge */
 .node-pill__badge {
   display: inline-flex;

@@ -10,6 +10,6 @@ export * from './MergePagesModal';
 export * from './MobileLayout';
 export * from './NavigationSidebar';
 export * from './Scratchpad';
-export * from './SettingsModal';
+export * from './GraphSettingsModal';
 export * from './TopBar';
 export * from './UserSettingsModal';

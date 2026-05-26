@@ -31,7 +31,7 @@ import { useNavigationStore, useModalStore } from '@/stores';
 import { useFavoritesStore } from '@/stores';
 import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
-import { useLogseqImporter } from '@/hooks/useLogseqImporter';
+import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
@@ -104,14 +104,6 @@ const SOURCE_OPTIONS: RadioOption[] = [
 ];
 
 // -- Helpers ---------------------------------------------------------------
-
-function countBlocks(blocks: LogseqBlock[]): number {
-  let n = blocks.length;
-  for (const b of blocks) {
-    if (b.children) n += countBlocks(b.children);
-  }
-  return n;
-}
 
 // -- Main component --------------------------------------------------------
 

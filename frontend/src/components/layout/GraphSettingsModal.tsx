@@ -1,5 +1,5 @@
 /**
- * SettingsModal Component
+ * GraphSettingsModal Component
  * 
  * Modal for graph/workspace-level settings only.
  * User-level settings (theme, account) are in UserSettingsModal.
@@ -15,10 +15,9 @@ import type { ShortcutContext } from '@/stores/keyboardStore';
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
-import { BooleanToggle } from '@/components/core/BooleanToggle';
-import './SettingsModal.css';
+import './GraphSettingsModal.css';
 
-interface SettingsModalProps {
+interface GraphSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
@@ -34,7 +33,7 @@ const SHORTCUT_CONTEXT_LABELS: Record<ShortcutContext, string> = {
   search: 'Search',
 };
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const { dateFormat, setDateFormat } = useSettingsStore();
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
@@ -170,19 +169,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   )}
                 </div>
 
-                <div className="settings-item">
-                  <div className="settings-item__info">
-                    <label className="settings-item__label">Show daily notes</label>
-                    <p className="settings-item__description">
-                      Automatically create daily notes
-                    </p>
-                  </div>
-                  <BooleanToggle 
-                    checked={true} 
-                    onChange={() => {}}
-                    size="md"
-                  />
-                </div>
               </div>
             )}
           </div>

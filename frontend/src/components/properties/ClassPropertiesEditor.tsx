@@ -30,18 +30,7 @@ import { getMdiClass } from '@/utils/iconDom';
 import './PropertiesSection.css';
 
 /** Default MDI icon names for each property type */
-const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  text: 'mdiFormatText',
-  integer: 'mdiPound',
-  float: 'mdiDecimal',
-  boolean: 'mdiCheckboxMarkedOutline',
-  date: 'mdiCalendar',
-  selection: 'mdiFormatListBulleted',
-  node: 'mdiLink',
-  url: 'mdiLinkVariant',
-  email: 'mdiEmail',
-  image: 'mdiImage',
-};
+import { PROPERTY_TYPE_ICONS } from './constants';
 
 function getPropertyIconPath(property: Property): string | null {
   const name = property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdiFileDocumentOutline';

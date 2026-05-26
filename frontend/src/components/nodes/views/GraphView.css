@@ -387,49 +387,6 @@
   white-space: nowrap;
 }
 
-/* ─── Bottom controls ──────────────────────────────────────────────────── */
-
-.node-graph-view__bottom-center {
-  position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  opacity: 0;
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
-  pointer-events: none;
-}
-
-.node-graph-view:hover .node-graph-view__bottom-center {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Darken the mode switcher background so it doesn't glow in dark mode */
-.node-graph-view__bottom-center .selection-button {
-  background: var(--color-surface-container-high);
-  border: 1px solid var(--color-outline-variant);
-}
-
-.node-graph-view__bottom-right {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  z-index: 10;
-  opacity: 0;
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
-  pointer-events: none;
-}
-
-.node-graph-view:hover .node-graph-view__bottom-right {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* ─── Visibility options inside sidebar ────────────────────────────────── */
 
 .visibility-panel-content {
