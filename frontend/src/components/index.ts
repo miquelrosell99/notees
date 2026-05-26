@@ -9,7 +9,7 @@ export { Sidebar } from './layout/Sidebar';
 export { MainContent } from './layout/MainContent';
 export { CommandPalette } from './layout/CommandPalette';
 export type { CommandPaletteProps } from './layout/CommandPalette';
-export { GraphSettingsModal } from './layout/GraphSettingsModal';
+export { GraphSettingsModal } from './layout/Modals';
 export { Scratchpad } from './layout/Scratchpad';
 
 // Auth components

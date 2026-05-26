@@ -20,7 +20,7 @@ import { ContextMenu } from '@/components/core/ContextMenu';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
-import { UserSettingsModal } from './UserSettingsModal';
+import { UserSettingsModal } from './Modals';
 import './TopBar.css';
 
 export function TopBar() {

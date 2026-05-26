@@ -33,8 +33,8 @@ const ImportMarkdownModal = React.lazy(() => import('@/components/workspace/Impo
 const ExportPageModal = React.lazy(() => import('@/components/workspace/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
 const RebuildLinksModal = React.lazy(() => import('@/components/maintenance/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
 const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
-const MergePagesModal = React.lazy(() => import('./MergePagesModal').then(m => ({ default: m.MergePagesModal })));
-const CreatePageWithUuidModal = React.lazy(() => import('@/components/layout/CreatePageWithUuidModal').then(m => ({ default: m.CreatePageWithUuidModal })));
+const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default: m.MergePagesModal })));
+const CreatePageWithUuidModal = React.lazy(() => import('@/components/layout/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
 import { Card } from '@/components/core/Card';
 import './Layout.css';
 
