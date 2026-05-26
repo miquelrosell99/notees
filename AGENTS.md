@@ -715,6 +715,215 @@ This is a breaking change from v4 and has caused multiple bugs where:
 - Does `onSuccess` do anything essential (navigation, store updates, cache invalidation)?
 - If yes, move that work to `onMutate` or use a global observer.
 
+---
+
+## Subsystem Reference
+
+Detailed guides for complex subsystems that agents frequently need to understand or modify.
+
+---
+
+### Graph View
+
+The graph view (`frontend/src/components/nodes/views/GraphView.tsx`) is a force-directed visualization built on a custom WebGL2 instanced renderer with a physics worker.
+
+**Architecture:**
+```
+GraphView (React)
+  ├── GraphRenderer (React wrapper)
+  │     ├── graphWebGLRenderer.ts (WebGL2 instanced drawing)
+  │     └── physics worker (force simulation)
+  ├── Inline Sidebar (220px accordion)
+  │     ├── Groups (QueryAST color rules)
+  │     ├── Physics (simulation toggles)
+  │     ├── Nodes (visibility filters)
+  │     ├── Links (link type filters)
+  │     ├── Style (node sizing, layout mode)
+  │     └── Header (Graph title + collapse)
+  ├── Search Panel (top-right)
+  └── Mode Switcher (bottom-center, hover-only)
+```
+
+**Color Resolution Pipeline (evaluated per node during `useMemo`):**
+1. Explicit `node.properties.color`
+2. **QueryAST color groups** — first matching group wins; groups are ordered by priority
+3. Tag hash fallback (`getTagColor(tag)` — deterministic 8-color palette)
+4. Renderer default color
+
+**Key Files:**
+| File | Purpose |
+|------|---------|
+| `GraphView.tsx` | Main component: state, sidebar, filters, color resolution |
+| `GraphRenderer.tsx` | Canvas wrapper: handles events, labels, keyboard shortcuts |
+| `graphWebGLRenderer.ts` | WebGL2 renderer: instanced nodes, glow, edges, picking |
+| `evaluateQueryAST.ts` | Client-side QueryAST evaluator for group coloring |
+| `GraphGroupModal.tsx` | Modal for creating/editing QueryAST color groups |
+| `viewTypes.ts` | `GraphNode`, `GraphLink`, `GraphColorGroup` types |
+
+**Adding a new graph setting:**
+1. Add to `GraphSettings` in `viewTypes.ts`
+2. Add UI control in the appropriate sidebar section
+3. Persist via `setSetting('graph_settings', ...)`
+
+---
+
+### QueryAST Client-Side Evaluation
+
+The `evaluateQueryAST.ts` module lets you evaluate QueryAST queries against local node data without hitting the backend. This powers graph color groups and can be reused for any client-side filtering.
+
+**Supported Conditions:**
+| Condition | Evaluates Against | Notes |
+|-----------|------------------|-------|
+| `class` | `node.class_ids` | Supports `is`/`is_not`/`contains`/`defined`/`not_defined` |
+| `extends` | Class hierarchy | Uses `classDescendants` map from `useClasses()` |
+| `property` | `node.properties[name]` | All property operators (equals, contains, gte, etc.) |
+| `content` | `nodeNameToText(node.name)` | String matching: contains, starts_with, regex, fts |
+| `page` | `node.type === 'page'` | — |
+| `parent` | `GraphLink[]` with `type === 'parent'` | Static (specific parent IDs) or dynamic (nested group) |
+| `parent_path` | Transitive parent closure | Pre-computed via `buildTransitiveClosure()` |
+| `child` / `child_path` | Inverse of parent | Same patterns as parent |
+| `reference` | `GraphLink[]` with `type === 'reference'` | — |
+| `reference_path` | Direct references only | Transitive reference closure not pre-computed |
+| `class_path` | Ancestor classes | Approximates inherited classes |
+| `extends` | Class descendants | — |
+| `style` | — | Returns `false` (content AST not available client-side) |
+
+**Usage:**
+```typescript
+import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
+
+const ctx = buildEvalContext(nodes, links, classes);
+const matches = nodes.filter(n => evaluateQueryAST(queryAST, n, ctx));
+```
+
+**Context Pre-computation:**
+- `parentMap`, `childMap`, `referenceMap` — built from `GraphLink[]` in O(links)
+- `transitiveParentMap`, `transitiveChildMap` — BFS closures in O(nodes × avg_depth)
+- `classDescendants` — class hierarchy map from `useClasses()` data
+
+**Limitations:**
+- Structural conditions (parent, child, reference) only see **visible links**. If a parent is not in the `apiLinks` array, the child won't match.
+- `style` conditions always return `false`.
+- `reference_path` does not compute transitive reference closures.
+
+---
+
+### Block Editor (Lexical)
+
+The editor is a single `LexicalComposer` instance that projects the entire block hierarchy from `NodeGraphRuntime` as a flat list of custom `BlockNode` elements.
+
+**Custom Nodes (`frontend/src/editor/nodes/`):**
+| Node | Extends | Purpose |
+|------|---------|---------|
+| `BlockNode` | `ElementNode` | Fundamental block unit. Stores `blockId`, `depth`, `collapsed`, `nodeType`, `hasChildren`, `icon`, `color`, `classIds`. DOM is a flex wrapper with bullet, content slot, and portal targets. |
+| `InlineLinkNode` | `DecoratorNode` | Atomic inline pill referencing a node, class, URL, or embed. Renders via React portal. |
+| `BlockHeadingNode` | `BlockNode` | Header variant (`<h1>`/`<h2>`/`<h3>`). |
+| `BlockCodeNode` | `BlockNode` | Code block (`<pre><code>`) with optional `language`. |
+| `BlockTableCellNode` | `BlockNode` | Table cell with mini-editor inside. |
+
+**Key Plugins (`frontend/src/editor/plugins/`):**
+| Plugin | Purpose |
+|--------|---------|
+| `BlockPlugin` | **Core.** Syncs runtime projection into Lexical tree. Handles Enter/Backspace/Delete/Tab/Arrow keys. Implements virtualization (80+ blocks). |
+| `NodeLinkPlugin` | Manages `InlineLinkNode` pills: ZWS invariants, click/dbl-click, backspace UX, copy shortcuts. |
+| `TriggerPlugin` | Detects `/`, `@`, `+`, `#` triggers and shows popup menus. |
+| `FormattingPlugin` | Ctrl+B/I/U/E, backtick wrapping, paste-backtick conversion. |
+| `TaskCyclePlugin` | Ctrl+Enter cycles task status: none → Pending → Doing → Done → remove. |
+| `DragDropPlugin` | Drag-and-drop blocks between positions. |
+| `VirtualizationPlugin` | Viewport awareness: dehydrates off-screen blocks to ZWS placeholders. |
+
+**Content AST Format:**
+Block content is stored as JSON AST in `node.name`. The canonical builder/stringifier are:
+- `frontend/src/lib/astBuilder.ts` — `parseAST(input, mode)` with modes: `JSON`, `PLAIN`, `MARKDOWN`
+- `frontend/src/lib/stringifyAST.ts` — Stringifier with modes: `NODE_MARKDOWN`, `PLAIN_MARKDOWN`, `TEXT_ONLY`
+- `app/domain/stringify_ast.py` — Backend mirror
+
+**Mutation Flow:**
+```
+User types in Lexical
+  → BlockPlugin listener → extractBlockContent() → ContentAST
+  → handleContentChange callback
+  → runtime.applyIntent({ type: 'update_content', blockId, contentAST })
+  → onContentChangeCallback → parent component
+  → API PATCH /api/nodes/{id} with JSON AST
+```
+
+**Virtualization Threshold:** 80 blocks. Off-screen blocks become zero-width-space placeholders; visible blocks are hydrated with full AST via `IntersectionObserver` + `requestIdleCallback`.
+
+---
+
+### Service Worker / PWA
+
+The PWA uses **`vite-plugin-pwa`** with auto-generated Workbox service workers. There is **no custom service worker source code** in `frontend/src/`.
+
+**Cache Strategies:**
+| Resource | Strategy | Details |
+|----------|----------|---------|
+| SPA shell + static assets | **Precache** | JS/CSS/HTML/icons at SW install time. Hashed chunks use `revision: null`. |
+| API responses (`/api/*`) | **NetworkFirst** | 3-second timeout. Falls back to `api-cache` (100 entries, 5-min TTL). |
+| WASM (`sql-wasm.wasm`) | **CacheFirst** | 30-day TTL. Excluded from precache (~660 KB). |
+| Navigation | **Fallback to index.html** | SPA routing works offline. |
+
+**Update Flow:**
+- `registerType: 'autoUpdate'` — new SW installs silently.
+- `skipWaiting()` + `clientsClaim()` — activates immediately on next visit.
+- **No user-facing update prompt.** Updates are automatic and silent.
+
+**Current Offline State:**
+- ✅ App shell loads offline
+- ✅ Recent API calls may be served from cache (5-min window)
+- ❌ No persistent offline data layer (TanStack Query cache is not persisted to IndexedDB)
+- ❌ No `navigator.onLine` checks or offline UI states
+- ❌ `offlineMode` feature flag exists but is disabled and unused
+
+**Key Config:** `frontend/vite.config.ts` → `VitePWA({ ... })`
+
+---
+
+### Asset Upload System
+
+Assets are **nodes with `is_asset=TRUE`** and the `asset` system class. There is no separate `asset` database table.
+
+**Upload Flow:**
+```
+Frontend (drag/paste/slash command)
+  → POST /api/assets/upload (multipart/form-data, max 50 MB)
+  → Backend validates MIME type + magic bytes
+  → AssetService writes to disk atomically (temp → rename)
+  → Creates/updates node with is_asset=TRUE + asset class
+  → Generates WebP thumbnail (images only, async thread pool)
+```
+
+**Disk Layout:**
+```
+data/workspaces/{workspace_uuid}/
+  └── assets/
+        └── {asset_uuid}/
+              ├── main.{ext}      # original file
+              └── thumbnail.webp  # generated thumbnail (images)
+```
+
+**Key API Endpoints:**
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/api/assets/upload` | Upload file |
+| `GET` | `/api/assets/{uuid}` | Download file (auth via `asset_token` query param or Authorization header) |
+| `GET` | `/api/assets/{uuid}/thumbnail` | Download WebP thumbnail |
+| `GET` | `/api/assets/{uuid}/info` | Metadata |
+| `POST` | `/api/assets/{uuid}/token` | Generate 5-min JWT token for secure URLs |
+| `DELETE` | `/api/assets/{uuid}` | Delete asset node + folder |
+
+**Frontend Components:**
+- `AssetUploadModal.tsx` — Drag/drop/paste upload modal
+- `FileDropZone.tsx` — Reusable dropzone UI
+- `ImageNode.tsx` — Displays image assets
+- `assetTokens.ts` — Short-lived token cache
+
+**Gotchas:**
+- Legacy delete code in `app/routers/nodes/crud.py` still globs `assets_dir/{uuid}.*` (flat pattern), but assets now live in folders (`{uuid}/main.{ext}`). This may leave orphaned folders.
+
+---
+
 ### Dependency Updates
 
 Keep dependencies reasonably current to avoid security issues and benefit from bug fixes. Check for outdated packages periodically:
