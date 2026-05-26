@@ -91,7 +91,7 @@ export const useFavoritesStore = create<FavoritesState>()((set, get) => ({
   
   removeFavorite: async (nodeId: number) => {
     const { favorites } = get();
-    // Optimistic update
+    // Optimistic update — keep removed even if API fails (node may be deleted)
     set({ favorites: favorites.filter(f => f.nodeId !== nodeId) });
     
     try {
@@ -99,8 +99,7 @@ export const useFavoritesStore = create<FavoritesState>()((set, get) => ({
       set({ favorites: newFavorites.map(id => ({ nodeId: id })) });
     } catch (error) {
       log.error('Failed to remove favorite', error);
-      // Revert on error
-      set({ favorites });
+      // Do not revert — the node is likely deleted and should stay removed
     }
   },
   

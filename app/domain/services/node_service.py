@@ -717,6 +717,9 @@ class NodeService:
         await self._node_repo.soft_delete_nodes(all_node_ids, now, uid)
         logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
         
+        # Remove from all users' favorites
+        await self._cleanup_favorites(node_id)
+        
         # If this is an asset node, delete the asset folder
         if node.is_asset and node.uuid:
             try:
@@ -815,7 +818,12 @@ class NodeService:
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
         
-        return await self._node_repo.hard_delete(node_id)
+        result = await self._node_repo.hard_delete(node_id)
+        
+        # Remove from all users' favorites
+        await self._cleanup_favorites(node_id)
+        
+        return result
     
     async def empty_trash(self) -> int:
         """Permanently delete all soft-deleted nodes (empty trash).
@@ -1018,6 +1026,30 @@ class NodeService:
             Number of active day pages that are descendants of this node
         """
         return await self._node_repo.count_active_day_descendants(node_id)
+
+    async def _cleanup_favorites(self, node_id: int) -> None:
+        """Remove a node from all users' favorites.
+        
+        Favorites are stored as JSON arrays in setting_user(key='favorites').
+        This removes the node ID from every user's favorites list.
+        """
+        if not self._pool:
+            return
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE setting_user
+                    SET value = COALESCE(
+                        (SELECT jsonb_agg(elem)
+                         FROM jsonb_array_elements(value) AS elem
+                         WHERE (elem)::text::int != $1),
+                        '[]'::jsonb
+                    ),
+                    write_date = NOW()
+                    WHERE key = 'favorites' AND value @> to_jsonb($1)
+                """, node_id)
+        except Exception as e:
+            logger.warning(f"[DELETE] Failed to clean up favorites for node {node_id}: {e}")
 
     async def list_templates(self) -> List[Node]:
         """List all template nodes in this workspace."""
