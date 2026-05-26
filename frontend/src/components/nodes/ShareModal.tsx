@@ -68,7 +68,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
   const userShares = userData?.shares ?? [];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Share" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Share" size="md" className="share-modal__dialog">
       <div className="share-modal">
         {/* Public Links */}
         <section className="share-modal__section">
@@ -146,7 +146,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
 
         <div className="share-modal__divider" />
 
-        {/* User Shares — Table */}
+        {/* User Shares */}
         <section className="share-modal__section">
           <h3 className="share-modal__section-title">
             <Icon path="mdi mdi-account-group-outline" size={0.8} />
@@ -156,17 +156,10 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
           {userLoading ? (
             <div className="share-modal__loading">Loading…</div>
           ) : (
-            <div className="share-modal__table">
-              {/* Header */}
-              <div className="share-modal__table-header">
-                <span>Email</span>
-                <span>Permission</span>
-                <span aria-hidden="true" />
-              </div>
-
-              {/* Invite row */}
-              <div className="share-modal__table-invite">
-                <div className="share-modal__table-cell-email">
+            <>
+              {/* Invite bar */}
+              <div className="share-modal__invite-bar">
+                <div className="share-modal__invite-input-wrap">
                   <TextField
                     placeholder="Email address"
                     value={inviteEmail}
@@ -175,56 +168,56 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
                     size="sm"
                   />
                 </div>
-                <div className="share-modal__table-cell-permission">
-                  <Dropdown
-                    options={PERMISSION_OPTIONS}
-                    value={invitePermission}
-                    onChange={(val) => val && setInvitePermission(val)}
-                    size="sm"
-                  />
-                </div>
-                <div className="share-modal__table-cell-actions">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={handleInvite}
-                    disabled={createUserShare.isPending || !inviteEmail.trim()}
-                  >
-                    Invite
-                  </Button>
-                </div>
+                <Dropdown
+                  options={PERMISSION_OPTIONS}
+                  value={invitePermission}
+                  onChange={(val) => val && setInvitePermission(val)}
+                  size="sm"
+                  className="share-modal__invite-permission"
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleInvite}
+                  disabled={createUserShare.isPending || !inviteEmail.trim()}
+                >
+                  Invite
+                </Button>
               </div>
 
-              {/* Data rows */}
+              {/* People list */}
               {userShares.length === 0 ? (
-                <div className="share-modal__table-empty">No one has been invited yet.</div>
+                <div className="share-modal__people-empty">No one has been invited yet.</div>
               ) : (
-                userShares.map((share) => (
-                  <div key={share.share_id} className="share-modal__table-row">
-                    <span className="share-modal__table-cell-email">
-                      {share.shared_with_email}
-                    </span>
-                    <span className="share-modal__table-cell-permission">
-                      <Badge
-                        variant={share.permission === 'write' ? 'primary' : 'neutral'}
-                        size="xs"
-                      >
-                        {share.permission === 'write' ? 'Can edit' : 'Read only'}
-                      </Badge>
-                    </span>
-                    <span className="share-modal__table-cell-actions">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon="mdi mdi-delete-outline"
-                        title="Remove access"
-                        onClick={() => deleteUserShare.mutate(share.share_id)}
-                      />
-                    </span>
-                  </div>
-                ))
+                <div className="share-modal__people-list">
+                  {userShares.map((share) => (
+                    <div key={share.share_id} className="share-modal__people-row">
+                      <div className="share-modal__people-info">
+                        <Icon path="mdi mdi-account-circle" size={1} />
+                        <span className="share-modal__people-email">
+                          {share.shared_with_email}
+                        </span>
+                      </div>
+                      <div className="share-modal__people-actions">
+                        <Badge
+                          variant={share.permission === 'write' ? 'primary' : 'neutral'}
+                          size="sm"
+                        >
+                          {share.permission === 'write' ? 'Can edit' : 'Read only'}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="mdi mdi-delete-outline"
+                          title="Remove access"
+                          onClick={() => deleteUserShare.mutate(share.share_id)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
+            </>
           )}
         </section>
       </div>
