@@ -654,9 +654,9 @@ export interface UserLogin {
  * User update data
  */
 export interface UserUpdate {
-  name?: string;
-  surnames?: string;
-  profile_pic?: string;
+  name?: string | null;
+  surnames?: string | null;
+  profile_pic?: string | null;
 }
 
 /**
