@@ -123,9 +123,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
           <div className="system-settings__users">
             <div className="system-settings__users-header">
               <h3>User Management</h3>
-              <Button variant="primary" size="sm" icon="mdi mdi-plus" onClick={() => setShowCreateModal(true)}>
-                Add User
-              </Button>
+              <Button variant="primary" size="sm" icon="mdi mdi-plus" onClick={() => setShowCreateModal(true)} title="Add User" />
             </div>
 
             {usersLoading ? (
