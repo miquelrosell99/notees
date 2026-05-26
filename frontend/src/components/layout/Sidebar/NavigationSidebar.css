@@ -311,7 +311,7 @@
 
 .sidebar-recent-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   padding: var(--spacing-1);
   cursor: pointer;
   border-radius: var(--shape-small);
@@ -324,6 +324,14 @@
 
 .sidebar-recent-item.active {
   background: var(--color-primary-container);
+}
+
+.sidebar-recent-item__classes {
+  display: flex;
+  align-items: center;
+  padding-left: calc(18px + var(--spacing-2));
+  margin-top: 2px;
+  min-width: 0;
 }
 
 /* Loading skeleton for sidebar items */

@@ -1,8 +1,9 @@
 import { useState, useCallback, memo } from 'react';
 import { useNavigationStore, useFavoritesStore } from '@/stores';
-import { useNode, useIsMobile } from '@/hooks';
+import { useNode, useIsMobile, useResolvedClassDetails } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { NodeInline } from '@/components/blocks/NodeInline';
+import { ClassPillsRow } from '@/components/nodes/ClassPillsRow';
 import {
   ClockIcon,
   ChevronDownIcon,
@@ -19,21 +20,28 @@ interface RecentItemProps {
 const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProps) {
   const { data: node } = useNode(nodeId);
   const { effectiveIcon } = useNodeDisplay(node);
+  const classDetails = useResolvedClassDetails(node?.classes);
 
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div onContextMenu={onContextMenu}>
+    <div onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
       <NodeInline
         name={node.name}
         icon={effectiveIcon}
         isPage={node.is_page}
         nodeId={node.id}
+        nodeUuid={node.uuid}
         showBullet={true}
         onClick={onClick}
-        className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
         suppressColor={true}
+        draggable={true}
       />
+      {classDetails.length > 0 && (
+        <div className="sidebar-recent-item__classes">
+          <ClassPillsRow classes={classDetails} nodeId={node.id} readOnly={false} />
+        </div>
+      )}
     </div>
   );
 });

@@ -54,6 +54,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     allPages,
     searchResults,
     openNode,
+    refreshRandomPages,
   } = useCommandPalette(props);
 
   const { onClose } = props;
@@ -256,7 +257,20 @@ export function CommandPalette(props: CommandPaletteProps) {
                   )}
                   {browseRandom.length > 0 && (
                     <div className="command-palette__section">
-                      <div className="command-palette__section-header">Random Pages</div>
+                      <div className="command-palette__section-header command-palette__section-header--with-action">
+                        <span>Random Pages</span>
+                        <button
+                          className="command-palette__refresh-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            refreshRandomPages();
+                          }}
+                          aria-label="Refresh random pages"
+                          title="Refresh random pages"
+                        >
+                          <Icon path={"mdi mdi-refresh"} size={0.7} />
+                        </button>
+                      </div>
                       {browseRandom.map((item) => {
                         const globalIndex = indexMap.get(item)!;
                         return (

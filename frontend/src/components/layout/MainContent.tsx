@@ -22,6 +22,7 @@ const AllPagesGraphView = React.lazy(() => import('@/views/AllPagesGraphView').t
 const AllPagesTimelineView = React.lazy(() => import('@/views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
 const PropertyViewFull = React.lazy(() => import('@/views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
+const SharesView = React.lazy(() => import('@/views/SharesView').then(m => ({ default: m.SharesView })));
 
 export function MainContent() {
   const { currentNodeId, viewMode, mainViewType, currentPropertyId, nodeCollectionTitle, nodeCollectionQueryAST, nodeCollectionNodes, openNode, addSidebarCard } = useNavigationStore();
@@ -123,6 +124,16 @@ export function MainContent() {
           />
         </Suspense>
       </div>
+    );
+  }
+
+  if (mainViewType === 'shares') {
+    return (
+      <main className="main-content">
+        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+          <SharesView />
+        </Suspense>
+      </main>
     );
   }
 

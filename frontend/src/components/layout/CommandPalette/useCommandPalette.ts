@@ -170,6 +170,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     handlePrefixSelect: state.handlePrefixSelect,
     handleClassCreate: state.handleClassCreate,
     handleBackdropClick: state.handleBackdropClick,
+    refreshRandomPages: state.refreshRandomPages,
     groupedItems,
     pageClassId: state.pageClassId,
     allClasses: state.allClasses,
