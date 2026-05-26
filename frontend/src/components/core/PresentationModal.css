@@ -1,0 +1,93 @@
+.presentation-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: color-mix(in srgb, black 92%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+}
+
+.presentation-modal-actions {
+  position: fixed;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  display: flex;
+  gap: var(--spacing-2);
+  z-index: var(--z-modal);
+}
+
+.presentation-modal-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-modal);
+}
+
+.presentation-modal-nav--prev {
+  left: var(--spacing-4);
+}
+
+.presentation-modal-nav--next {
+  right: var(--spacing-4);
+}
+
+.presentation-modal-slide {
+  width: 90vw;
+  max-width: 960px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  padding: var(--spacing-8);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.presentation-modal-slide-title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.presentation-modal-slide-content {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+}
+
+.presentation-modal-slide-content .block-editor {
+  background: transparent;
+}
+
+.presentation-modal-empty {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 1.125rem;
+  padding: var(--spacing-8);
+}
+
+.presentation-modal-counter {
+  position: fixed;
+  bottom: var(--spacing-4);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--color-text-tertiary);
+  font-size: 0.875rem;
+  z-index: var(--z-modal);
+}
+
+.presentation-modal-no-children {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  padding: var(--spacing-4) 0;
+}

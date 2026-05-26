@@ -11,7 +11,7 @@ import {
   getRandomPages,
 } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
-import { useNavigationStore, useModalStore, useSettingsStore } from '@/stores';
+import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import { useCreateNode } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -242,6 +242,11 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
             useModalStore.getState().toggleMinimap();
           } else if (item.commandId === 'toggle-wide-mode') {
             useSettingsStore.getState().toggleWideMode();
+          } else if (item.commandId === 'start-presentation') {
+            const currentId = useNavigationStore.getState().currentNodeId;
+            if (currentId) {
+              usePresentationStore.getState().openPresentation(currentId);
+            }
           } else if (item.commandId === 'toggle-local-graph') {
             const currentId = useNavigationStore.getState().currentNodeId;
             if (currentId) useNavigationStore.getState().openLocalGraph(currentId);
