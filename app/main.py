@@ -75,7 +75,23 @@ async def lifespan(app: FastAPI):
     async with pool.acquire() as conn:
         await init_database(conn)  # type: ignore[arg-type]
     logger.info("Database schema initialized")
-    
+
+    # Ensure at least one admin exists (self-hosted safety net)
+    async with pool.acquire() as conn:
+        admin_count = await conn.fetchval(
+            'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE'
+        )
+        if admin_count == 0:
+            oldest_user = await conn.fetchrow(
+                'SELECT id FROM "user" WHERE active = TRUE ORDER BY create_date ASC LIMIT 1'
+            )
+            if oldest_user:
+                await conn.execute(
+                    'UPDATE "user" SET role = \'admin\', write_date = NOW() WHERE id = $1',
+                    oldest_user['id']
+                )
+                logger.info(f"Promoted user {oldest_user['id']} to admin (no admin existed)")
+
     # Ensure required directories exist
     ensure_directories()
     
