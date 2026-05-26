@@ -170,6 +170,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
             >
               Timeline View
             </Button>
+
+            <Button
+              variant="ghost"
+              size="md"
+              icon={"mdi mdi-share-variant"}
+              fullWidth
+              active={mainViewType === 'shares'}
+              onClick={() => { setMainViewType('shares'); closeMobileDrawer(); }}
+            >
+              Shares
+            </Button>
           </nav>
 
           {/* Favorites Section */}

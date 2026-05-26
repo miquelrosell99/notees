@@ -26,7 +26,8 @@ export type MainViewType =
   | 'trash'
   | 'assets'
   | 'property'
-  | 'node-collection';
+  | 'node-collection'
+  | 'shares';
 export type NodeViewType = 'page' | 'block';
 export type SidebarTab = 'pages' | 'graph';
 export type SidebarNodeType = 'page' | 'block';

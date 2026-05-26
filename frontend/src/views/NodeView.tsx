@@ -50,6 +50,7 @@ import { NodeMetadataSection } from '../components/nodes/NodeMetadataSection';
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
+import { ShareModal } from '../components/nodes/ShareModal';
 
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -638,6 +639,7 @@ export function NodeView({
   const [isCoverDragging, setIsCoverDragging] = useState(false);
   const [isBannerHovered, setIsBannerHovered] = useState(false);
   const [isCoverHovered, setIsCoverHovered] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
@@ -1003,6 +1005,15 @@ export function NodeView({
             size="sm"
           />
 
+          {/* Share button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={"mdi mdi-share-variant"}
+            title="Share"
+            onClick={() => setShowShareModal(true)}
+          />
+
           {/* 3-dot context menu button */}
           <Button
             ref={topBarMenuBtnRef}
@@ -1039,6 +1050,11 @@ export function NodeView({
     <>
       {baseHeaderContent}
       {topBarMenu}
+      <ShareModal
+        nodeId={nodeId}
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
     </>
   );
 

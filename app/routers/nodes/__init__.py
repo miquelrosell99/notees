@@ -32,6 +32,7 @@ from .links import router as links_router
 from .comments import router as comments_router
 from .settings import router as settings_router
 from .views import router as views_router
+from .shares import router as shares_router
 from ..properties.values import router as property_values_router
 
 # Re-export models for external use
@@ -113,6 +114,9 @@ router.include_router(crud_router)
 
 # Links endpoints (GET/POST/DELETE /{node_id}/text-links, backlinks, etc.)
 router.include_router(links_router)
+
+# Shares endpoints (POST/GET /{node_id}/shares)
+router.include_router(shares_router)
 
 # Comments endpoints (GET/POST/DELETE /{node_id}/comments)
 router.include_router(comments_router)

@@ -316,6 +316,16 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     }
   }, [classClassId, pageClassId, query, createNodeMutation, notifyError]);
 
+  // Refresh random pages
+  const refreshRandomPages = useCallback(async () => {
+    try {
+      const pages = await getRandomPages(5);
+      setRandomPages(pages);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -373,6 +383,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     recentAccessedPages,
     recentCreatedPages,
     randomPages,
+    refreshRandomPages,
     handleClassSelect,
     handleRemoveFilter,
     handleBooleanSelect,

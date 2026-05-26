@@ -16,6 +16,7 @@ const Layout = React.lazy(() => import('./components/layout/Layout').then(m => (
 const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ default: m.LoginView })));
 const WorkspaceManagementView = React.lazy(() => import('./views/WorkspaceManagementView').then(m => ({ default: m.WorkspaceManagementView })));
 const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m => ({ default: m.EnrollmentView })));
+const PublicShareView = React.lazy(() => import('./views/PublicShareView').then(m => ({ default: m.PublicShareView })));
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -221,6 +222,17 @@ function AppContent() {
     );
   }
   
+  // Public share links work without authentication
+  const isPublicSharePath = window.location.pathname.startsWith('/s/');
+
+  if (!isAuthenticated && isPublicSharePath) {
+    return (
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <PublicShareView />
+      </Suspense>
+    );
+  }
+
   if (!isAuthenticated) {
     log.debug('User not authenticated, showing login page');
     // Store the current URL to restore after login (if not already on /auth)

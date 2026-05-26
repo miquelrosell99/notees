@@ -90,8 +90,10 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
           icon={effectiveIcon}
           isPage={node.is_page}
           nodeId={node.id}
+          nodeUuid={node.uuid}
           showBullet={true}
           suppressColor={true}
+          draggable={true}
         />
       </div>
 

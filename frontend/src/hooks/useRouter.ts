@@ -35,6 +35,7 @@ export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   'archived': 'archived',
   'trash': 'trash',
   'assets': 'assets',
+  'shares': 'shares',
   'auth': 'auth',
 };
 
@@ -58,6 +59,7 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'archived': 'archived',
   'trash': 'trash',
   'assets': 'assets',
+  'shares': 'shares',
   'property': '', // Property view uses root path
   'node-collection': '', // Temporary view — no URL (falls back to home)
 };

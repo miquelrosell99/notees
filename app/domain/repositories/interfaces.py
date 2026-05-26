@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     )
     from ..entities import NodeLink
     from ..entities import User, UserCreateData
+    from ..entities.share import PublicShare
 
 
 class NodeCrudRepository(ABC):
@@ -926,6 +927,46 @@ class ActivityRepository(ABC):
     @abstractmethod
     async def reset_link_clicks(self, source_node_id: int, target_node_id: int) -> None:
         """Delete all click records for a source-target pair."""
+        pass
+
+
+class ShareRepository(ABC):
+    """Repository interface for public share link operations."""
+
+    @abstractmethod
+    async def create_share(
+        self,
+        node_id: int,
+        workspace_id: int,
+        created_by: int,
+        expiry_date: Optional[str] = None,
+    ) -> PublicShare:
+        """Create a new public share for a node."""
+        pass
+
+    @abstractmethod
+    async def get_share_by_uuid(self, share_uuid: str) -> Optional[PublicShare]:
+        """Get a share by its UUID token."""
+        pass
+
+    @abstractmethod
+    async def list_shares_for_node(self, node_id: int) -> List[PublicShare]:
+        """List all active shares for a node."""
+        pass
+
+    @abstractmethod
+    async def list_shares_for_workspace(self, workspace_id: int) -> List[PublicShare]:
+        """List all active shares in a workspace."""
+        pass
+
+    @abstractmethod
+    async def delete_share(self, share_uuid: str) -> bool:
+        """Revoke (soft-delete) a share by its UUID."""
+        pass
+
+    @abstractmethod
+    async def get_shared_node(self, share_uuid: str) -> Optional[Node]:
+        """Get the node associated with a valid share."""
         pass
 
 
