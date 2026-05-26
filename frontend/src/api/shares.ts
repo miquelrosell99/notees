@@ -43,7 +43,7 @@ export interface UserShare {
   share_id: number;
   node_id: number;
   shared_with_user_id: number;
-  shared_with_username: string;
+  shared_with_email: string;
   permission: 'read' | 'write';
   created_at: string;
   created_by: number;
@@ -64,7 +64,7 @@ export interface ShareInboxItem {
   shared_at: string;
   shared_by: {
     user_id: number;
-    username: string;
+    email: string;
   };
   workspace: {
     id: number;
@@ -146,11 +146,11 @@ export async function getPublicSharedNode(shareUuid: string): Promise<PublicShar
  */
 export async function createUserShare(
   nodeId: number,
-  username: string,
+  email: string,
   permission: 'read' | 'write' = 'read'
 ): Promise<UserShare> {
   const response = await api.post<UserShare>(`${BASE}/${nodeId}/user-shares`, {
-    username,
+    email,
     permission,
   });
   return response.data;
@@ -187,11 +187,11 @@ export async function getShareInbox(): Promise<ShareInboxResponse> {
  */
 export async function inviteWorkspaceMember(
   workspaceUuid: string,
-  username: string,
+  email: string,
   role: string = 'viewer'
 ): Promise<{ status: string; username: string; role: string }> {
   const response = await api.post(`${WORKSPACES_BASE}/${workspaceUuid}/members`, {
-    username,
+    email,
     role,
   });
   return response.data;

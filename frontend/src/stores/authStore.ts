@@ -14,8 +14,8 @@ interface AuthState {
   error: string | null;
   
   // Actions
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
   clearError: () => void;
@@ -30,10 +30,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
       
-      login: async (username: string, password: string) => {
+      login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.login({ username, password });
+          const response = await authApi.login({ email, password });
           authApi.storeAuth(response);
           set({
             user: response.user,
@@ -48,10 +48,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       
-      register: async (username: string, password: string) => {
+      register: async (email: string, password: string, name?: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.register({ username, password });
+          const response = await authApi.register({ email, password, name });
           authApi.storeAuth(response);
           set({
             user: response.user,

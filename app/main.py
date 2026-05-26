@@ -35,12 +35,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.types import ASGIApp, Receive, Scope, Send
-from starlette.requests import Request as StarletteRequest
-from starlette.responses import JSONResponse as StarletteJSONResponse
-
 from .domain.errors import PermissionDeniedError
 
-from . import auth
 from .backup import get_backup_scheduler
 from .config import settings, ensure_directories
 from .logging_config import setup_logging, get_logger
@@ -57,8 +53,9 @@ from .routers import (
     undo_router,
 )
 from .routers.activity import router as activity_router
-from .routers.shares import router as shares_router
+from .routers.admin import router as admin_router
 from .routers.public import router as public_router
+from .routers.shares import router as shares_router
 
 # Initialize logging
 setup_logging(level=settings.log_level, log_file=settings.log_file)
@@ -81,9 +78,6 @@ async def lifespan(app: FastAPI):
     
     # Ensure required directories exist
     ensure_directories()
-    
-    # Ensure admin user exists
-    await auth.ensure_admin_user()
     
     # Start backup scheduler
     await get_backup_scheduler().start()
@@ -299,6 +293,7 @@ app.include_router(activity_router)
 app.include_router(undo_router)
 app.include_router(shares_router)
 app.include_router(public_router)
+app.include_router(admin_router)
 
 
 # ============ Static Routes ============

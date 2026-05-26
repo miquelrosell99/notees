@@ -3,7 +3,7 @@
  */
 import api from './client';
 import { getAuthToken, setAuthToken, clearAuthToken, isAuthenticated as checkAuth, setUserData, getUserData } from '@/utils/auth';
-import type { Token, UserCreate, UserLogin, User } from '@/types';
+import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate } from '@/types';
 
 /**
  * Register a new user
@@ -26,6 +26,22 @@ export async function login(data: UserLogin): Promise<Token> {
  */
 export async function getMe(): Promise<User> {
   const response = await api.get<User>('/auth/me');
+  return response.data;
+}
+
+/**
+ * Get auth status (for first-boot detection)
+ */
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const response = await api.get<AuthStatus>('/auth/status');
+  return response.data;
+}
+
+/**
+ * Update current user profile
+ */
+export async function updateMe(data: UserUpdate): Promise<User> {
+  const response = await api.put<User>('/auth/me', data);
   return response.data;
 }
 

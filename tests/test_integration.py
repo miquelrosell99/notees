@@ -14,23 +14,23 @@ class TestAuthFlow:
     async def test_register_and_login(self, client: AsyncClient):
         """Test user registration followed by login."""
         import secrets
-        username = f"testuser_{secrets.token_hex(4)}"
+        email = f"testuser_{secrets.token_hex(4)}@example.com"
         password = "testpass123"
         
         # Register
         response = await client.post(
             "/api/auth/register",
-            json={"username": username, "password": password}
+            json={"email": email, "password": password}
         )
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        assert data["user"]["username"] == username
+        assert data["user"]["email"] == email
         
         # Login with same credentials
         response = await client.post(
             "/api/auth/login",
-            json={"username": username, "password": password}
+            json={"email": email, "password": password}
         )
         assert response.status_code == 200
         data = response.json()
@@ -43,7 +43,7 @@ class TestAuthFlow:
             headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 200
-        assert response.json()["username"] == username
+        assert response.json()["email"] == email
 
 
 class TestNodeCrudFlow:

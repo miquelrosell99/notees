@@ -20,7 +20,7 @@ import { ContextMenu } from '@/components/core/ContextMenu';
 import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
-import { UserSettingsModal } from './Modals';
+import { UserSettingsModal, SystemSettingsModal } from './Modals';
 import './TopBar.css';
 
 export function TopBar() {
@@ -43,6 +43,7 @@ export function TopBar() {
   const undoBtnRef = useRef<HTMLButtonElement>(null);
   const redoBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
   const [goToTodaySignal] = useState(0);
 
@@ -311,8 +312,9 @@ export function TopBar() {
         />
         
         {/* Account menu */}
-        <AccountMenu 
+        <AccountMenu
           onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+          onOpenSystemSettings={() => setIsSystemSettingsOpen(true)}
         />
       </div>
       </header>
@@ -328,6 +330,12 @@ export function TopBar() {
       <UserSettingsModal
         isOpen={isUserSettingsOpen}
         onClose={() => setIsUserSettingsOpen(false)}
+      />
+
+      {/* System Settings Modal */}
+      <SystemSettingsModal
+        isOpen={isSystemSettingsOpen}
+        onClose={() => setIsSystemSettingsOpen(false)}
       />
     </Card>
   );

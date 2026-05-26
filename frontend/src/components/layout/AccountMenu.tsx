@@ -18,9 +18,10 @@ import { Icon } from '@/components/core/icons';
 
 interface AccountMenuProps {
   onOpenUserSettings: () => void;
+  onOpenSystemSettings?: () => void;
 }
 
-export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
+export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: AccountMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -52,6 +53,11 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
     onOpenUserSettings();
   };
 
+  const handleSystemSettings = () => {
+    setIsOpen(false);
+    onOpenSystemSettings?.();
+  };
+
   const handleManageGraphs = () => {
     setIsOpen(false);
     setShowWorkspaceManager(true);
@@ -67,7 +73,8 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
     window.Android?.showServerSettings();
   };
 
-  const initial = user?.username?.charAt(0).toUpperCase() || '?';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+  const initial = displayName.charAt(0).toUpperCase() || '?';
 
   return (
     <div className="account-menu">
@@ -76,7 +83,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        title={user?.username || 'Account'}
+        title={displayName}
         active={isOpen}
       >
         {initial}
@@ -96,7 +103,7 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
         >
           <div className="account-menu__user-info">
             <span className="account-menu__user-avatar">{initial}</span>
-            <span className="account-menu__username">{user?.username || 'User'}</span>
+            <span className="account-menu__username">{displayName}</span>
           </div>
           <div className="account-menu__divider" />
           <button className="account-menu__item" onClick={handleUserSettings}>
@@ -107,6 +114,12 @@ export function AccountMenu({ onOpenUserSettings }: AccountMenuProps) {
             <Icon path={"mdi mdi-database-outline"} size={0.7} />
             <span>Workspaces</span>
           </button>
+          {user?.role === 'admin' && onOpenSystemSettings && (
+            <button className="account-menu__item" onClick={handleSystemSettings}>
+              <Icon path={"mdi mdi-shield-cog"} size={0.7} />
+              <span>System Settings</span>
+            </button>
+          )}
           <div className="account-menu__divider" />
           <button className="account-menu__item account-menu__item--danger" onClick={handleLogout}>
             <Icon path={"mdi mdi-logout"} size={0.7} />
