@@ -77,7 +77,7 @@ async def list_node_shares(
 
 
 class UserShareCreateRequest(BaseModel):
-    username: str
+    email: str
     permission: str = "read"  # read, write
 
 
@@ -85,7 +85,7 @@ class UserShareResponse(BaseModel):
     share_id: int
     node_id: int
     shared_with_user_id: int
-    shared_with_username: str
+    shared_with_email: str
     permission: str
     created_at: str
     created_by: int
@@ -113,11 +113,11 @@ async def create_user_share(
 
         # Resolve target user
         target = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE username = $1 AND active = TRUE',
-            body.username,
+            'SELECT id FROM "user" WHERE email = $1 AND active = TRUE',
+            body.email,
         )
         if not target:
-            raise HTTPException(status_code=404, detail=f"User '{body.username}' not found")
+            raise HTTPException(status_code=404, detail=f"User '{body.email}' not found")
         target_id = target["id"]
         if target_id == user_id:
             raise HTTPException(status_code=400, detail="Cannot share with yourself")
@@ -151,7 +151,7 @@ async def create_user_share(
         "share_id": row["id"],
         "node_id": row["node_id"],
         "shared_with_user_id": row["user_id"],
-        "shared_with_username": body.username,
+        "shared_with_email": body.email,
         "permission": "write" if row["can_write"] else "read",
         "created_at": row["create_date"].isoformat() if row["create_date"] else None,
         "created_by": row["create_uid"],
@@ -180,7 +180,7 @@ async def list_node_user_shares(
 
         rows = await conn.fetch(
             """
-            SELECT ns.id, ns.node_id, ns.user_id, u.username, ns.can_read, ns.can_write,
+            SELECT ns.id, ns.node_id, ns.user_id, u.email, ns.can_read, ns.can_write,
                    ns.create_date, ns.create_uid
             FROM node_share ns
             JOIN "user" u ON u.id = ns.user_id
@@ -196,7 +196,7 @@ async def list_node_user_shares(
                 "share_id": r["id"],
                 "node_id": r["node_id"],
                 "shared_with_user_id": r["user_id"],
-                "shared_with_username": r["username"],
+                "shared_with_email": r["email"],
                 "permission": "write" if r["can_write"] else "read",
                 "created_at": r["create_date"].isoformat() if r["create_date"] else None,
                 "created_by": r["create_uid"],

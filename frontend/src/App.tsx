@@ -17,6 +17,7 @@ const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ defa
 const WorkspaceManagementView = React.lazy(() => import('./views/WorkspaceManagementView').then(m => ({ default: m.WorkspaceManagementView })));
 const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m => ({ default: m.EnrollmentView })));
 const PublicShareView = React.lazy(() => import('./views/PublicShareView').then(m => ({ default: m.PublicShareView })));
+const OnboardingView = React.lazy(() => import('./views/OnboardingView').then(m => ({ default: m.OnboardingView })));
 import { NotificationToast } from './components/core/NotificationToast';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -28,6 +29,7 @@ import { SHORTCUT_IDS } from './stores/keyboardStore';
 import type { User } from './types/api';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
+import { getAuthStatus } from './api/auth';
 import { clearScratchpad } from './api/nodes';
 import './App.css';
 import './focus-mode.css';
@@ -81,7 +83,29 @@ function AppContent() {
 
   const { isAuthenticated, isLoading, logout } = useAuthStore();
   const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
-  
+
+  // First-boot / onboarding check
+  const [bootChecked, setBootChecked] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAuthStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setNeedsOnboarding(status.needs_onboarding);
+          setBootChecked(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNeedsOnboarding(false);
+          setBootChecked(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   // Fetch workspaces when authenticated
   const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
     queryKey: ['workspaces'],
@@ -134,7 +158,7 @@ function AppContent() {
     
     if (token && user) {
       const typedUser = user as User;
-      log.debug('Found stored auth, restoring session', { username: typedUser.username });
+      log.debug('Found stored auth, restoring session', { email: typedUser.email });
       useAuthStore.getState().setUser(typedUser);
     } else {
       log.debug('No valid stored auth found');
@@ -213,7 +237,7 @@ function AppContent() {
     log.debug('Auth state changed', { isAuthenticated, isLoading });
   }, [isAuthenticated, isLoading]);
   
-  if (isLoading) {
+  if (isLoading || !bootChecked) {
     log.debug('Showing loading screen');
     return (
       <div className="loading-screen">
@@ -221,7 +245,7 @@ function AppContent() {
       </div>
     );
   }
-  
+
   // Public share links work without authentication
   const isPublicSharePath = window.location.pathname.startsWith('/s/');
 
@@ -229,6 +253,15 @@ function AppContent() {
     return (
       <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
         <PublicShareView />
+      </Suspense>
+    );
+  }
+
+  // First-boot onboarding: create admin account before any login
+  if (needsOnboarding) {
+    return (
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <OnboardingView onComplete={() => setNeedsOnboarding(false)} />
       </Suspense>
     );
   }

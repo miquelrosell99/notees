@@ -33,7 +33,7 @@ class TestAuthEndpoints:
         """Verify login endpoint is accessible."""
         response = await client.post(
             "/api/auth/login",
-            json={"username": "nonexistent", "password": "wrong"}
+            json={"email": "nonexistent@example.com", "password": "wrong"}
         )
         # Should return 401, not 404
         assert response.status_code in [401, 422]
@@ -43,10 +43,10 @@ class TestAuthEndpoints:
         """Verify register endpoint is accessible."""
         response = await client.post(
             "/api/auth/register",
-            json={"username": "validuser", "password": "validpass123"}
+            json={"email": "validuser@example.com", "password": "validpass123"}
         )
         # Should succeed or return validation error, not 404
-        # Note: Empty username may cause 400/422/500 depending on validation
+        # Note: Empty email may cause 400/422/500 depending on validation
         assert response.status_code != 404
 
 

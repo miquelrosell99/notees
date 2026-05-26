@@ -3,3 +3,4 @@ export * from './DuplicatePageModal';
 export * from './GraphSettingsModal';
 export * from './MergePagesModal';
 export * from './UserSettingsModal';
+export * from './SystemSettingsModal';

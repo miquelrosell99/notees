@@ -90,13 +90,13 @@ export function useCreateUserShare() {
   return useMutation({
     mutationFn: ({
       nodeId,
-      username,
+      email,
       permission,
     }: {
       nodeId: number;
-      username: string;
+      email: string;
       permission: 'read' | 'write';
-    }) => createUserShare(nodeId, username, permission),
+    }) => createUserShare(nodeId, email, permission),
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.userShares(nodeId) });
     },
@@ -137,13 +137,13 @@ export function useInviteWorkspaceMember() {
   return useMutation({
     mutationFn: ({
       workspaceUuid,
-      username,
+      email,
       role,
     }: {
       workspaceUuid: string;
-      username: string;
+      email: string;
       role: string;
-    }) => inviteWorkspaceMember(workspaceUuid, username, role),
+    }) => inviteWorkspaceMember(workspaceUuid, email, role),
     onSuccess: (_, { workspaceUuid }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
     },
