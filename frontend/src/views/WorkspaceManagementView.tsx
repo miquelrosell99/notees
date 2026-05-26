@@ -22,7 +22,7 @@ import { ImportOptionsModal, type ImportResult } from '../components/workspace/I
 import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
 
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
-import { UserSettingsModal } from '../components/layout/Modals';
+import { UserSettingsModal, SystemSettingsModal } from '../components/layout/Modals';
 import { 
   ArrowRightIcon,
   CheckIcon, 
@@ -60,6 +60,7 @@ export function WorkspaceManagementView({
   }>({ isOpen: false, workspaceName: null });
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
   const [restoreState, setRestoreState] = useState<{
     confirming: string | null; // workspace uuid being confirmed
     file: File | null;
@@ -261,14 +262,24 @@ export function WorkspaceManagementView({
           </div>
           <div className="workspace-management__user-info">
             <span className="workspace-management__username">{user?.email}</span>
-            <Button 
-              className="workspace-management__user-settings" 
-              variant="ghost" 
+            <Button
+              className="workspace-management__user-settings"
+              variant="ghost"
               size="sm"
               icon={"mdi mdi-cog-outline"}
               onClick={() => setIsUserSettingsOpen(true)}
               title="User Settings"
             />
+            {user?.role === 'admin' && (
+              <Button
+                className="workspace-management__system-settings"
+                variant="ghost"
+                size="sm"
+                icon={"mdi mdi-shield-cog"}
+                onClick={() => setIsSystemSettingsOpen(true)}
+                title="System Settings"
+              />
+            )}
             <Button className="workspace-management__logout" variant="ghost" size="sm" onClick={logout}>
               Logout
             </Button>
@@ -488,6 +499,12 @@ export function WorkspaceManagementView({
       <UserSettingsModal
         isOpen={isUserSettingsOpen}
         onClose={() => setIsUserSettingsOpen(false)}
+      />
+
+      {/* System Settings Modal */}
+      <SystemSettingsModal
+        isOpen={isSystemSettingsOpen}
+        onClose={() => setIsSystemSettingsOpen(false)}
       />
 
       {/* Logseq Import Modal – rendered here so it's available before Layout mounts */}
