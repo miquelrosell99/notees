@@ -178,6 +178,22 @@ CREATE TABLE IF NOT EXISTS node_share (
 CREATE INDEX IF NOT EXISTS idx_node_share_node_id ON node_share(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 
+-- Public share links (tokenized anonymous access)
+CREATE TABLE IF NOT EXISTS node_public_share (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    created_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expiry_date TIMESTAMPTZ,
+    active BOOLEAN DEFAULT TRUE,
+    UNIQUE(node_id, uuid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_public_share_uuid ON node_public_share(uuid);
+CREATE INDEX IF NOT EXISTS idx_node_public_share_node ON node_public_share(node_id) WHERE active = TRUE;
+
 -- ============================================================
 -- PROPERTIES
 -- ============================================================

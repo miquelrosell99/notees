@@ -22,6 +22,8 @@ export interface NodeInlineProps {
   isPage?: boolean;
   /** Node ID (for bullet) */
   nodeId?: number;
+  /** Node UUID (for drag-and-drop) */
+  nodeUuid?: string;
   /** Show a bullet/icon on the left */
   showBullet?: boolean;
   /** Show the node icon (alternative to bullet) */
@@ -40,6 +42,8 @@ export interface NodeInlineProps {
   displayText?: string;
   /** Tooltip title text (shown on hover) */
   title?: string;
+  /** Make the element draggable */
+  draggable?: boolean;
 }
 
 /**
@@ -51,15 +55,16 @@ export function NodeInline({
   icon,
   isPage = false,
   nodeId,
+  nodeUuid,
   showBullet = false,
   showIcon = false,
   onClick,
   onShiftClick,
   className = '',
   propertyName,
-  suppressColor: _suppressColor = false,
   displayText: providedDisplayText,
   title,
+  draggable = false,
 }: NodeInlineProps) {
   const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
 
@@ -72,12 +77,24 @@ export function NodeInline({
     }
   }, [onClick, onShiftClick]);
 
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    if (nodeUuid) {
+      e.dataTransfer.setData(
+        'application/x-notees-node',
+        JSON.stringify({ nodeId, nodeUuid, name: providedDisplayText || displayText })
+      );
+      e.dataTransfer.effectAllowed = 'link';
+    }
+  }, [nodeUuid, nodeId, providedDisplayText, displayText]);
+
   return (
     <span
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
       onClick={handleClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
+      draggable={draggable}
+      onDragStart={handleDragStart}
       title={title ?? displayText}
     >
       {showBullet && (

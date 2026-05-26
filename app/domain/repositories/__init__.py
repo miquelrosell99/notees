@@ -1,21 +1,21 @@
 """Repository implementations package."""
 from .interfaces import (
+    ActivityRepository,
+    LinkRepository,
     NodeRepository,
     PropertyRepository,
-    LinkRepository,
-    UserRepository,
-    ActivityRepository,
     SettingsRepository,
+    ShareRepository,
+    UserRepository,
 )
-from .postgres_node import PostgresNodeRepository
-
-from .postgres_property import PostgresPropertyRepository
-from .postgres_link import PostgresLinkRepository
-from .postgres_user import PostgresUserRepository
-from .postgres_node_view import PostgresNodeViewRepository
 from .postgres_activity import PostgresActivityRepository
+from .postgres_link import PostgresLinkRepository
+from .postgres_node import PostgresNodeRepository
+from .postgres_node_view import PostgresNodeViewRepository
+from .postgres_property import PostgresPropertyRepository
 from .postgres_settings import PostgresSettingsRepository
-
+from .postgres_share import PostgresShareRepository
+from .postgres_user import PostgresUserRepository
 
 __all__ = [
     # Interfaces
@@ -25,6 +25,7 @@ __all__ = [
     "UserRepository",
     "ActivityRepository",
     "SettingsRepository",
+    "ShareRepository",
     # PostgreSQL implementations
     "PostgresNodeRepository",
     "PostgresPropertyRepository",
@@ -33,4 +34,5 @@ __all__ = [
     "PostgresNodeViewRepository",
     "PostgresActivityRepository",
     "PostgresSettingsRepository",
+    "PostgresShareRepository",
 ]

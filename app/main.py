@@ -57,6 +57,8 @@ from .routers import (
     undo_router,
 )
 from .routers.activity import router as activity_router
+from .routers.shares import router as shares_router
+from .routers.public import router as public_router
 
 # Initialize logging
 setup_logging(level=settings.log_level, log_file=settings.log_file)
@@ -295,6 +297,8 @@ app.include_router(export_router)
 app.include_router(assets_router)
 app.include_router(activity_router)
 app.include_router(undo_router)
+app.include_router(shares_router)
+app.include_router(public_router)
 
 
 # ============ Static Routes ============

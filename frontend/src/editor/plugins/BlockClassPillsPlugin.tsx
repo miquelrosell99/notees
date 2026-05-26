@@ -13,7 +13,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getRoot } from 'lexical';
 import { $isBlockNode } from '../nodes/BlockNode';
 import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import type { Node } from '@/types';
 import { useClasses, useRemoveClass } from '@/hooks';
@@ -137,13 +137,17 @@ export function BlockClassPillsPlugin({
                 node={cls}
                 className="node-block-class-pill"
                 onClick={() => onNavigateToNode?.(cls.uuid)}
-                onRemove={() => {
-                  const runtime = getNodeGraphRuntime();
-                  const graphNode = runtime.getNode(blockId);
-                  if (graphNode?.serverId) {
-                    removeClass.mutate({ nodeId: graphNode.serverId, classId: cls.id });
-                  }
-                }}
+                onRemove={
+                  isNonRemovableClass(cls.uuid)
+                    ? undefined
+                    : () => {
+                        const runtime = getNodeGraphRuntime();
+                        const graphNode = runtime.getNode(blockId);
+                        if (graphNode?.serverId) {
+                          removeClass.mutate({ nodeId: graphNode.serverId, classId: cls.id });
+                        }
+                      }
+                }
               />
             ))}
           </span>,
