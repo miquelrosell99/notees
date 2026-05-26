@@ -16,7 +16,7 @@ import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
-import { SettingsModal } from './SettingsModal';
+import { GraphSettingsModal } from './GraphSettingsModal';
 import { Card } from '@/components/core/Card';
 import { Button } from '@/components/core/Button';
 import { NodeInline } from '@/components/blocks/NodeInline';
@@ -636,7 +636,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
         isOpen={isWorkspaceModalOpen}
         onClose={() => setIsWorkspaceModalOpen(false)}
       />
-      <SettingsModal
+      <GraphSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
       />

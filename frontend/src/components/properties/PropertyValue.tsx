@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/core/Checkbox';
 import { Dropdown } from '@/components/core/Dropdown';
 import { DatePickerPopup } from '@/components/core/DatePickerPopup';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
-import { TextPropertyBlock } from '@/components/blocks/TextPropertyBlock';
+import { TextPropertyBlock } from './TextPropertyBlock';
 import { NodeIcon } from '@/components/core/icons';
 import { parseIconField } from '@/utils/iconDom';
 import { Button } from '@/components/core/Button';

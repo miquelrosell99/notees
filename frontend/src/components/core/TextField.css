@@ -9,7 +9,7 @@
 }
 
 .text-field__label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--color-on-surface-variant);
 }
@@ -18,7 +18,7 @@
   width: 100%;
   height: var(--height-lg);
   padding: var(--spacing-2) var(--spacing-3);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -55,17 +55,17 @@
 .text-field--sm {
   height: var(--height-md);
   padding: var(--spacing-1) var(--spacing-2);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 .text-field--lg {
   height: var(--height-xl);
   padding: var(--spacing-3) var(--spacing-4);
-  font-size: 1rem;
+  font-size: var(--font-size-base);
 }
 
 .text-field__error {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--color-error);
 }
 
@@ -95,9 +95,6 @@
   border-color: color-mix(in srgb, var(--color-error) 50%, var(--color-outline-variant));
 }
 
-.text-field__container--valid {
-  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-outline-variant));
-}
 
 .text-field__container--disabled {
   opacity: 0.5;

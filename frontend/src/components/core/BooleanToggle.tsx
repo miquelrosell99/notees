@@ -3,7 +3,7 @@
  * 
  * A toggle switch component for boolean values.
  */
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import './BooleanToggle.css';
 
 export type BooleanToggleSize = 'sm' | 'md' | 'lg';
@@ -40,7 +40,8 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
   },
   ref
 ) {
-  const toggleId = id || `toggle-${Math.random().toString(36).slice(2, 9)}`;
+  const generatedId = useId();
+  const toggleId = id || generatedId;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Tactile feedback on mobile

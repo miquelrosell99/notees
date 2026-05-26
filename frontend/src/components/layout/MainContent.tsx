@@ -12,15 +12,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { getEffectiveColor } from '@/utils/nodeIcon';
-import { NodeViewWrapper, NodeViewContent } from '../../views/NodeView';
-import { AllPagesView } from '../../views/AllPagesView';
-import { ArchivedPagesView } from '../../views/ArchivedPagesView';
-import { TrashView } from '../../views/TrashView';
-import { JournalsView } from '../../views/JournalsView';
-import { NodeCollectionView } from '../../views/NodeCollectionView';
-const AllPagesGraphView = React.lazy(() => import('../../views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
-const AllPagesTimelineView = React.lazy(() => import('../../views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
-const PropertyViewFull = React.lazy(() => import('../../views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
+import { NodeViewWrapper, NodeViewContent } from '@/views/NodeView';
+import { AllPagesView } from '@/views/AllPagesView';
+import { ArchivedPagesView } from '@/views/ArchivedPagesView';
+import { TrashView } from '@/views/TrashView';
+import { JournalsView } from '@/views/JournalsView';
+import { NodeCollectionView } from '@/views/NodeCollectionView';
+const AllPagesGraphView = React.lazy(() => import('@/views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
+const AllPagesTimelineView = React.lazy(() => import('@/views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
+const PropertyViewFull = React.lazy(() => import('@/views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
 
 export function MainContent() {

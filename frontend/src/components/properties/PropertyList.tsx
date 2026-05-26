@@ -25,18 +25,7 @@ import { PageContextMenu } from '@/components/nodes/NodeContextMenu';
 import './PropertyList.css';
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
-const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
-  text: 'mdiFormatText',
-  integer: 'mdiPound',
-  float: 'mdiDecimal',
-  boolean: 'mdiCheckboxMarkedOutline',
-  date: 'mdiCalendar',
-  selection: 'mdiFormatListBulleted',
-  node: 'mdiLink',
-  url: 'mdiLinkVariant',
-  email: 'mdiEmail',
-  image: 'mdiImage',
-};
+import { PROPERTY_TYPE_ICONS } from './constants';
 
 /** Get icon for a property - uses custom icon if set, otherwise default MDI icon for type */
 function getPropertyIcon(property: Property): string {

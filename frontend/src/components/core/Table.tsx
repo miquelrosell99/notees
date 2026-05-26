@@ -16,7 +16,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type React
 import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeNameContent } from '@/components/blocks/NodeNameContent';
-import { NodeCellEditable } from './NodeCellEditable';
+import { NodeCellEditable } from '@/components/nodes/NodeCellEditable';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';

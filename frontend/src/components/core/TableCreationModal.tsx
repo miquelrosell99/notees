@@ -15,6 +15,7 @@ import { TableSizeSelector, type TableGridSize } from './TableSizeSelector';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { SelectionButton } from './SelectionButton';
+import './TableSizeSelector.css';
 
 export interface TableCreationModalProps {
   /** Whether the modal is open */

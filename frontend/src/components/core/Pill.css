@@ -14,18 +14,6 @@
               transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
-/* When pill is inside a node-pill--link, override to inline text style */
-.node-pill--link .pill {
-  display: inline;
-  padding: 0 2px;
-  border-radius: var(--shape-small);
-  background: color-mix(in srgb, var(--color-on-surface) 4%, transparent);
-  font: inherit;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-}
-
 .pill:hover {
   border-color: var(--color-outline-variant);
 }
@@ -35,24 +23,12 @@
   box-shadow: none;
 }
 
-.node-pill--link .pill:hover {
-  filter: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-}
-
 .pill__left-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   line-height: 1;
-}
-
-/* Hide icon in link pills for cleaner inline look */
-.node-pill--link .pill__left-icon {
-  display: none;
 }
 
 .pill__text {
@@ -60,12 +36,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Allow natural text flow in link pills */
-.node-pill--link .pill__text {
-  white-space: normal;
-  overflow: visible;
 }
 
 .pill__right-button {

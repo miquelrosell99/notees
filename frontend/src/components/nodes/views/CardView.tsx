@@ -57,38 +57,6 @@ function sortGroupsNoneLast(groups: CardGroup[]): CardGroup[] {
   return [...others, noneGroup];
 }
 
-// ── Property grouping helper ───────────────────────────────────────────────
-
-function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
-  if (rawValue === null || rawValue === undefined) return { label: '(No value)', icon: null };
-  switch (property.type) {
-    case 'boolean': return { label: rawValue ? 'Yes' : 'No', icon: null };
-    case 'integer':
-    case 'float': return { label: String(rawValue), icon: null };
-    case 'selection': {
-      const resolveId = (v: unknown): number | null => {
-        if (typeof v === 'number') return v;
-        if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
-        return null;
-      };
-      if (Array.isArray(rawValue)) {
-        const opts = rawValue
-          .map(resolveId)
-          .filter((id): id is number => id !== null)
-          .map(id => property.options?.find(o => o.id === id));
-        const names = opts.map(o => o?.name ?? '?').join(', ');
-        const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
-        return { label: names || '(No value)', icon };
-      }
-      const optId = resolveId(rawValue);
-      if (optId === null) return { label: String(rawValue), icon: null };
-      const opt = property.options?.find(o => o.id === optId);
-      return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
-    }
-    default: return { label: String(rawValue), icon: null };
-  }
-}
-
 // ─── Component ────────────────────────────────────────────────────
 
 export const CardView = memo(function CardView({

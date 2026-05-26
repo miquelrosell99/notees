@@ -9,7 +9,7 @@ export { Sidebar } from './layout/NavigationSidebar';
 export { MainContent } from './layout/MainContent';
 export { CommandPalette } from './layout/CommandPalette';
 export type { CommandPaletteProps } from './layout/CommandPalette';
-export { SettingsModal } from './layout/SettingsModal';
+export { GraphSettingsModal } from './layout/GraphSettingsModal';
 export { Scratchpad } from './layout/Scratchpad';
 
 // Auth components
@@ -34,7 +34,7 @@ export { NodeInline } from './blocks/NodeInline';
 export type { NodeInlineProps } from './blocks/NodeInline';
 export { Bullet } from './blocks/Bullet';
 export type { BulletProps, BulletSize, BulletVariant } from './blocks/Bullet';
-export { TextPropertyBlock } from './blocks/TextPropertyBlock';
+export { TextPropertyBlock } from './properties/TextPropertyBlock';
 
 // BlockEditor (Lexical-based editor)
 export { BlockEditor } from '../editor/BlockEditor';

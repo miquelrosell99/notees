@@ -12,10 +12,6 @@
   width: 100%;
 }
 
-.dropdown-clear-btn {
-  flex-shrink: 0;
-}
-
 .dropdown {
   position: relative;
   display: inline-flex;
@@ -55,7 +51,7 @@
   display: flex;
   flex-direction: column;
   animation: dropdownFadeIn var(--motion-duration-short) var(--motion-easing-standard);
-  background: var(--color-surface) !important;
+  background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
 }
@@ -67,7 +63,7 @@
 
 /* Override Card styles when used in dropdown */
 .dropdown-menu.card {
-  background: var(--color-surface) !important;
+  background: var(--color-surface);
 }
 
 @keyframes dropdownFadeIn {
@@ -97,7 +93,7 @@
   background: var(--color-surface-variant);
   border: 1px solid transparent;
   border-radius: var(--shape-small);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface);
 }
 
@@ -121,13 +117,13 @@
   padding: var(--spacing-4);
   text-align: center;
   color: var(--color-outline);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
 }
 
 /* Group */
 .dropdown-group-label {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-outline);
   text-transform: uppercase;
@@ -147,7 +143,7 @@
   cursor: pointer;
   text-align: left;
   color: var(--color-on-surface);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -184,7 +180,7 @@
 }
 
 .dropdown-option-description {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--color-outline);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -199,7 +195,7 @@
 /* Error message */
 .dropdown-error-message {
   margin-top: var(--spacing-1);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--color-error);
 }
 
@@ -209,7 +205,3 @@
   padding: var(--spacing-1);
 }
 
-/* Delete button */
-.dropdown-delete-btn {
-  flex-shrink: 0;
-}

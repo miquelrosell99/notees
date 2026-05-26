@@ -2,13 +2,14 @@
  * RebuildLinksModal - Rebuild node_link table from AST
  *
  * Provides a confirmation dialog before running the rebuild operation,
- * then displays a results report similar to the EDN import.
+ * then displays a phase-based results report using TaskReport.
  */
 import { useState, useCallback } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
+import { TaskReport, type TaskPhaseResult } from '@/components/core/TaskReport';
 import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
@@ -18,6 +19,32 @@ import { Icon } from '@/components/core/icons';
 interface RebuildLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function buildPhases(result: RebuildLinksResponse): TaskPhaseResult[] {
+  const phases: TaskPhaseResult[] = [];
+
+  phases.push({
+    name: 'Process nodes',
+    status: result.total_errors > 0 ? 'partial' : 'success',
+    processed: result.nodes_processed,
+    created: result.links_created,
+    errors: result.errors.slice(0, 10),
+    totalErrors: result.total_errors,
+  });
+
+  if (result.inline_classes_created > 0) {
+    phases.push({
+      name: 'Inline classes',
+      status: 'success',
+      processed: result.nodes_processed,
+      created: result.inline_classes_created,
+      errors: [],
+      totalErrors: 0,
+    });
+  }
+
+  return phases;
 }
 
 export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
@@ -52,7 +79,6 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
 
   // Results view (after rebuild completes)
   if (result) {
-    const hasErrors = result.total_errors > 0;
     return (
       <Modal
         isOpen={isOpen}
@@ -65,38 +91,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
           </Button>
         }
       >
-        <div className="rebuild-links__report">
-          <div className={`rebuild-links__report-summary ${hasErrors ? 'rebuild-links__report-summary--warning' : 'rebuild-links__report-summary--success'}`}>
-            <Icon path={hasErrors ? "mdi mdi-alert-circle-outline" : "mdi mdi-check-circle-outline"} size={1.2} />
-            <div>
-              <strong>{hasErrors ? 'Rebuild completed with errors' : 'Rebuild completed successfully'}</strong>
-              <div className="rebuild-links__report-stats">
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.nodes_processed}</span>
-                  <span className="rebuild-links__stat-label">nodes processed</span>
-                </div>
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.links_created}</span>
-                  <span className="rebuild-links__stat-label">text links created</span>
-                </div>
-                <div className="rebuild-links__stat">
-                  <span className="rebuild-links__stat-value">{result.inline_classes_created}</span>
-                  <span className="rebuild-links__stat-label">inline classes created</span>
-                </div>
-                {hasErrors && (
-                  <div className="rebuild-links__stat rebuild-links__stat--error">
-                    <span className="rebuild-links__stat-value">{result.total_errors}</span>
-                    <span className="rebuild-links__stat-label">errors</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {result.errors.length > 0 && (
-            <ErrorList errors={result.errors} totalErrors={result.total_errors} />
-          )}
-        </div>
+        <TaskReport report={{ phases: buildPhases(result) }} />
       </Modal>
     );
   }
@@ -167,35 +162,3 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
     </Modal>
   );
 }
-
-function ErrorList({ errors, totalErrors }: { errors: string[]; totalErrors: number }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="rebuild-links__errors">
-      <div
-        className="rebuild-links__errors-header"
-        onClick={() => setExpanded(!expanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
-      >
-        <span><strong>{totalErrors}</strong> error{totalErrors !== 1 ? 's' : ''}</span>
-        <Icon path={expanded ? "mdi mdi-chevron-up" : "mdi mdi-chevron-down"} size={0.7} />
-      </div>
-      {expanded && (
-        <ul className="rebuild-links__errors-list">
-          {errors.map((err, i) => (
-            <li key={i}>{err}</li>
-          ))}
-          {totalErrors > errors.length && (
-            <li className="rebuild-links__errors-truncated">
-              ... and {totalErrors - errors.length} more errors
-            </li>
-          )}
-        </ul>
-      )}
-    </div>
-  );
-}
-

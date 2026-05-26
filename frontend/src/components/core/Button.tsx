@@ -82,6 +82,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const pendingEventRef = useRef<React.MouseEvent<HTMLButtonElement> | null>(null);
+
   const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     // Tactile feedback on mobile
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -90,6 +92,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     if (requiresConfirm) {
       e.preventDefault();
       e.stopPropagation();
+      pendingEventRef.current = e;
       setConfirmOpen(true);
     } else {
       onClick?.(e);
@@ -98,8 +101,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
   const handleConfirm = useCallback(() => {
     setConfirmOpen(false);
-    // Synthesize a click event so onClick receives a proper event
-    onClick?.({} as React.MouseEvent<HTMLButtonElement>);
+    const e = pendingEventRef.current;
+    pendingEventRef.current = null;
+    if (e && onClick) onClick(e);
   }, [onClick]);
 
   const handleCancel = useCallback(() => {
