@@ -170,28 +170,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
             >
               Timeline View
             </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-share-variant"}
-              fullWidth
-              active={mainViewType === 'shares'}
-              onClick={() => { setMainViewType('shares'); closeMobileDrawer(); }}
-            >
-              Shares
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-inbox-arrow-down"}
-              fullWidth
-              active={mainViewType === 'inbox'}
-              onClick={() => { setMainViewType('inbox'); closeMobileDrawer(); }}
-            >
-              Inbox
-            </Button>
           </nav>
 
           {/* Favorites Section */}
@@ -202,7 +180,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
         </div>
 
-        {/* Footer - Archived, Trash, Settings & Account */}
+        {/* Footer - Archived, Trash, Shares, Inbox, Settings */}
         <div className="sidebar-footer">
           <Button
             variant="ghost"
@@ -226,6 +204,28 @@ export function Sidebar({ collapsed }: SidebarProps) {
             title="Trash"
           >
             Trash
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
+            icon={"mdi mdi-share-variant"}
+            fullWidth
+            active={mainViewType === 'shares'}
+            onClick={() => { setMainViewType('shares'); closeMobileDrawer(); }}
+            title="Shares"
+          >
+            Shares
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
+            icon={"mdi mdi-inbox-arrow-down"}
+            fullWidth
+            active={mainViewType === 'inbox'}
+            onClick={() => { setMainViewType('inbox'); closeMobileDrawer(); }}
+            title="Inbox"
+          >
+            Inbox
           </Button>
           <Button
             variant="ghost"
