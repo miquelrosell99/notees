@@ -132,6 +132,10 @@ export const DragHandleIcon = ({ size = 'md', className, color, title }: IconPro
   <Icon path="mdi-drag" size={getSize(size)} className={className} color={color} title={title} />
 );
 
+export const DragVerticalIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path="mdi-drag-vertical" size={getSize(size)} className={className} color={color} title={title} />
+);
+
 export const SearchIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-magnify" size={getSize(size)} className={className} color={color} title={title} />
 );
