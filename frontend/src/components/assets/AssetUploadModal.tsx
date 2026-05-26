@@ -8,6 +8,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
 import { Button } from '@/components/core/Button';
 import { FileDropZone } from '@/components/core/FileDropZone';
+import { Modal } from '@/components/core/Modal';
 import './AssetUploadModal.css';
 
 interface AssetUploadModalProps {
@@ -203,17 +204,26 @@ export function AssetUploadModal({
     return 'Upload Asset';
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal asset-upload-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal__header">
-          <h2>{getModalTitle()}</h2>
-          <Button icon={"mdi mdi-close"} iconOnly className="modal__close" onClick={handleClose} size="sm" variant="ghost" aria-label="Close upload dialog" />
-        </div>
-
-        <div className="modal__content">
+    <Modal isOpen={isOpen} onClose={handleClose} title={getModalTitle()} size="md" footer={(
+      <>
+        <Button
+          variant="default"
+          onClick={handleClose}
+          disabled={isUploading}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          onClick={handleUpload}
+          disabled={!selectedFile || isUploading}
+        >
+          {isUploading ? 'Uploading...' : 'Upload'}
+        </Button>
+      </>
+    )}>
+      <>
           {!preview ? (
             <FileDropZone
               file={null}
@@ -260,26 +270,8 @@ export function AssetUploadModal({
               {error}
             </div>
           )}
-        </div>
-
-        <div className="modal__footer">
-          <Button
-            variant="default"
-            onClick={handleClose}
-            disabled={isUploading}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
-          >
-            {isUploading ? 'Uploading...' : 'Upload'}
-          </Button>
-        </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 

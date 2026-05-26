@@ -2,7 +2,6 @@
  * NodeCollection Views Index
  *
  * Exports all view mode components for NodeCollection.
- * All views now use Lexical BlockEditor internally.
  */
 
 export { ListView } from './ListView';

@@ -115,7 +115,7 @@
 }
 
 .checkbox-label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   cursor: pointer;
   user-select: none;
@@ -126,15 +126,15 @@
 }
 
 .checkbox-description {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */
 .checkbox-container--sm .checkbox-label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 .checkbox-container--lg .checkbox-label {
-  font-size: 1rem;
+  font-size: var(--font-size-base);
 }

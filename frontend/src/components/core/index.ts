@@ -23,7 +23,7 @@ export * from './InlineConfirmButton';
 export * from './ListSortable';
 export * from './LoadingSkeleton';
 export * from './Modal';
-export * from './NodeCellEditable';
+
 export * from './NotificationToast';
 export * from './Pill';
 export * from './SearchBox';

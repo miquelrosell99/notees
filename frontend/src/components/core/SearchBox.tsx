@@ -222,10 +222,12 @@ export function SearchBox<T = Node>({
   
   // Default key extractor
   const defaultGetKey = (item: T): string | number => {
-    if (typeof item === 'object' && item !== null && 'id' in item) {
-      return (item as any).id;
+    if (typeof item === 'object' && item !== null) {
+      if ('id' in item) return (item as any).id;
+      if ('name' in item) return (item as any).name;
+      if ('uuid' in item) return (item as any).uuid;
     }
-    return Math.random();
+    return String(item);
   };
   
   // Default renderer for Node type

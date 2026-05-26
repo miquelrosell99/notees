@@ -43,6 +43,7 @@ import { SelectionButton } from '@/components/core/SelectionButton';
 import { ListSortable } from '@/components/core/ListSortable';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
 import { GraphGroupModal } from './GraphGroupModal';
+import { GraphSidebarSection } from './GraphSidebarSection';
 import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css';
@@ -113,39 +114,6 @@ function buildSGEConfig(settings: GraphSettings, viewMode: 'normal' | 'circle' |
     clusterStrength: isConstrained ? 0.008 : settings.heightMode === 'hierarchy' ? 0.006 : 0.003,
     linkCountAttraction: settings.linkCountAttraction,
   };
-}
-
-/** Inline collapsible sidebar section */
-function SidebarSection({
-  title,
-  icon,
-  children,
-  defaultOpen = true,
-}: {
-  title: string;
-  icon: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="graph-sidebar-section">
-      <button
-        className="graph-sidebar-section__header"
-        onClick={() => setOpen(!open)}
-        type="button"
-      >
-        <span className={`mdi ${icon}`} />
-        <span className="graph-sidebar-section__title">{title}</span>
-        <span className={`mdi mdi-chevron-down graph-sidebar-section__chevron ${open ? 'open' : ''}`} />
-      </button>
-      {open && (
-        <div className="graph-sidebar-section__content">
-          {children}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function GraphView({ 
@@ -636,7 +604,7 @@ export function GraphView({
             <span className="mdi mdi-chevron-left" />
           </button>
         </div>
-        <SidebarSection title="Groups" icon="mdi mdi-tag-multiple" defaultOpen={false}>
+        <GraphSidebarSection title="Groups" icon="mdi mdi-tag-multiple" defaultOpen={false}>
           {colorGroups.length === 0 && (
             <p className="graph-groups-empty">No color groups. Add one to highlight pages matching any query.</p>
           )}
@@ -703,9 +671,9 @@ export function GraphView({
           >
             Add group
           </Button>
-        </SidebarSection>
+        </GraphSidebarSection>
 
-        <SidebarSection title="Physics" icon="mdi mdi-tune" defaultOpen={false}>
+        <GraphSidebarSection title="Physics" icon="mdi mdi-tune" defaultOpen={false}>
           <div className="visibility-option">
             <BooleanToggle
               size="sm"
@@ -759,9 +727,9 @@ export function GraphView({
               }))}
             />
           </div>
-        </SidebarSection>
+        </GraphSidebarSection>
 
-        <SidebarSection title="Nodes" icon="mdi mdi-filter" defaultOpen={false}>
+        <GraphSidebarSection title="Nodes" icon="mdi mdi-filter" defaultOpen={false}>
           <div className="visibility-option">
             <BooleanToggle
               size="sm"
@@ -822,9 +790,9 @@ export function GraphView({
               }))}
             />
           </div>
-        </SidebarSection>
+        </GraphSidebarSection>
 
-        <SidebarSection title="Links" icon="mdi mdi-link-variant" defaultOpen={false}>
+        <GraphSidebarSection title="Links" icon="mdi mdi-link-variant" defaultOpen={false}>
           <div className="visibility-option">
             <BooleanToggle
               size="sm"
@@ -889,9 +857,9 @@ export function GraphView({
               }))}
             />
           </div>
-        </SidebarSection>
+        </GraphSidebarSection>
 
-        <SidebarSection title="Style" icon="mdi mdi-palette" defaultOpen={false}>
+        <GraphSidebarSection title="Style" icon="mdi mdi-palette" defaultOpen={false}>
           <div className="visibility-option">
             <span className="visibility-option__label">Node sizing</span>
             <SelectionButton
@@ -959,7 +927,7 @@ export function GraphView({
               />
             </div>
           )}
-        </SidebarSection>
+        </GraphSidebarSection>
 
 
       </div>

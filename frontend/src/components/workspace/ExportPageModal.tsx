@@ -35,17 +35,6 @@ export interface ExportPageModalProps {
   nodeNames?: string[];
 }
 
-function triggerBlobDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName }: ExportPageModalProps) {
   const {
     format, setFormat,
@@ -209,7 +198,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
           { html },
           { responseType: 'blob' }
         );
-        triggerBlobDownload(pdfResponse.data as Blob, 'export.pdf');
+        downloadBlob(pdfResponse.data as Blob, 'export.pdf');
       } else {
         let response;
         if (isBatch) {
@@ -223,7 +212,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
           const match = disposition.match(/filename="?([^"]+)"?/);
           if (match) filename = match[1];
         }
-        triggerBlobDownload(response.data as Blob, filename);
+        downloadBlob(response.data as Blob, filename);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Download failed');
