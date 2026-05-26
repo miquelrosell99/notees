@@ -11,7 +11,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useProperties } from '@/hooks';
-import { SearchIcon, NodeIcon } from '@/components/core/icons';
+import { SearchIcon, NodeIcon, CheckIcon } from '@/components/core/icons';
 import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import './GroupBySelector.css';
@@ -122,7 +122,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(opt.uuid)}
             >
-              <span className="group-by-selector__check">{isActive ? '✓' : ''}</span>
+              <span className="group-by-selector__check">{isActive ? <CheckIcon size="xs" /> : null}</span>
               <span className="group-by-selector__item-content">
                 <span className="group-by-selector__item-name">{opt.name}</span>
                 {opt.type && (
@@ -147,7 +147,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(prop.uuid)}
             >
-              <span className="group-by-selector__check">{isActive ? '✓' : ''}</span>
+              <span className="group-by-selector__check">{isActive ? <CheckIcon size="xs" /> : null}</span>
               <span className="group-by-selector__item-content">
                 <span className="group-by-selector__item-name">
                   {prop.icon && <NodeIcon icon={prop.icon} size="xs" />}

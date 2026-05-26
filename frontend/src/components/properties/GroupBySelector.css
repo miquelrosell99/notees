@@ -103,10 +103,11 @@
 /* Checkmark column */
 .group-by-selector__check {
   width: 16px;
-  font-size: 12px;
   color: var(--color-primary);
   flex-shrink: 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Item content */
