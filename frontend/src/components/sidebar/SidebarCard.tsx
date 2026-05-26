@@ -13,7 +13,7 @@ import { Icon, AlertIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 
-interface SidebarCardProps {
+export interface SidebarCardProps {
   /** Card title */
   title?: ReactNode;
   /** Icon to display before the title */

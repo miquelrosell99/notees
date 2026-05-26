@@ -1,0 +1,75 @@
+.property-value-display {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  text-align: left;
+  min-width: 40px;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-value-display:hover:not(:disabled) {
+  background: var(--color-surface-container);
+}
+
+.property-value-input {
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-primary);
+  background: var(--color-surface);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  min-width: 80px;
+  max-width: 200px;
+}
+
+.property-value-input:focus {
+  outline: none;
+}
+
+.property-value-input--error {
+  border-color: var(--color-error);
+}
+
+.property-validation-error {
+  font-size: 11px;
+  color: var(--color-error);
+  margin-top: 2px;
+  padding: 0 var(--spacing-2);
+}
+
+.property-value-url {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-medium);
+}
+
+.property-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.property-link:hover {
+  text-decoration: underline;
+}
+
+.property-link-edit {
+  all: unset;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--color-on-surface-variant);
+  font-size: 0.75rem;
+  transition: opacity 0.1s;
+}
+
+.property-value-url:hover .property-link-edit {
+  opacity: 1;
+}

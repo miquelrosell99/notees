@@ -30,8 +30,6 @@ import type {
   GraphLink,
   GraphSettings,
   VisibilityFilters,
-  ConstraintMode,
-  LinkDirection,
   GraphDataMode,
   GraphColorGroup,
 } from './viewTypes';
@@ -41,9 +39,8 @@ import { applyTreeLayout } from './treeLayout';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { ListSortable } from '@/components/core/ListSortable';
-import { BooleanToggle } from '@/components/core/BooleanToggle';
 import { GraphGroupModal } from './GraphGroupModal';
-import { GraphSidebarSection } from './GraphSidebarSection';
+import { GraphSettingsSidebar } from './GraphSettingsSidebar';
 import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css';
@@ -592,345 +589,34 @@ export function GraphView({
   return (
     <div className={`node-graph-view ${showSettings && !sidebarCollapsed ? 'node-graph-view--with-sidebar' : ''} ${className}`}>
       {showSettings && !sidebarCollapsed && (
-      <div className="graph-sidebar">
-        <div className="graph-sidebar-header">
-          <span className="graph-sidebar-header__title">Graph</span>
-          <button
-            className="graph-sidebar-header__collapse"
-            onClick={() => setSidebarCollapsed(true)}
-            type="button"
-            title="Collapse sidebar"
-          >
-            <span className="mdi mdi-chevron-left" />
-          </button>
-        </div>
-        <GraphSidebarSection title="Groups" icon="mdi mdi-tag-multiple" defaultOpen={false}>
-          {colorGroups.length === 0 && (
-            <p className="graph-groups-empty">No color groups. Add one to highlight pages matching any query.</p>
-          )}
-          {colorGroups.length > 0 && (
-            <div className="graph-groups-list">
-              {colorGroups.map((group, index) => (
-                <div key={group.id} className="graph-group-item">
-                  <div className="graph-group-dot" style={{ backgroundColor: group.color }} />
-                  <div className="graph-group-info">
-                    <span className="graph-group-name">{group.name}</span>
-                  </div>
-                  <div className="graph-group-actions">
-                    <Button
-                      icon="mdi mdi-pencil-outline"
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingGroupId(group.id);
-                        setGroupModalOpen(true);
-                      }}
-                    />
-                    <Button
-                      icon="mdi mdi-chevron-up"
-                      size="xs"
-                      variant="ghost"
-                      disabled={index === 0}
-                      onClick={() => {
-                        const newGroups = [...colorGroups];
-                        [newGroups[index - 1], newGroups[index]] = [newGroups[index], newGroups[index - 1]];
-                        setColorGroups(newGroups);
-                      }}
-                    />
-                    <Button
-                      icon="mdi mdi-chevron-down"
-                      size="xs"
-                      variant="ghost"
-                      disabled={index === colorGroups.length - 1}
-                      onClick={() => {
-                        const newGroups = [...colorGroups];
-                        [newGroups[index], newGroups[index + 1]] = [newGroups[index + 1], newGroups[index]];
-                        setColorGroups(newGroups);
-                      }}
-                    />
-                    <Button
-                      icon="mdi mdi-trash-can-outline"
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => setColorGroups(prev => prev.filter(g => g.id !== group.id))}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <Button
-            icon="mdi mdi-plus"
-            size="sm"
-            variant="ghost"
-            className="graph-add-group-btn"
-            onClick={() => {
-              setEditingGroupId(null);
-              setGroupModalOpen(true);
-            }}
-          >
-            Add group
-          </Button>
-        </GraphSidebarSection>
-
-        <GraphSidebarSection title="Physics" icon="mdi mdi-tune" defaultOpen={false}>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Simulation"
-              labelPosition="left"
-              checked={!simulationPaused}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  rendererRef.current?.resumeSimulation();
-                  setSimulationPaused(false);
-                } else {
-                  rendererRef.current?.pauseSimulation();
-                  setSimulationPaused(true);
-                }
-              }}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Link-count attraction"
-              labelPosition="left"
-              checked={graphSettings.linkCountAttraction}
-              onChange={(e) => setGraphSettings(prev => ({
-                ...prev,
-                linkCountAttraction: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Central gravity"
-              labelPosition="left"
-              checked={graphSettings.centralGravity}
-              onChange={(e) => setGraphSettings(prev => ({
-                ...prev,
-                centralGravity: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Mass accumulation"
-              labelPosition="left"
-              checked={graphSettings.heightMode === 'hierarchy'}
-              onChange={(e) => setGraphSettings(prev => ({
-                ...prev,
-                heightMode: e.target.checked ? 'hierarchy' : 'references'
-              }))}
-            />
-          </div>
-        </GraphSidebarSection>
-
-        <GraphSidebarSection title="Nodes" icon="mdi mdi-filter" defaultOpen={false}>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Class nodes"
-              labelPosition="left"
-              checked={visibilityFilters.showClassNodes}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showClassNodes: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Day pages"
-              labelPosition="left"
-              checked={visibilityFilters.showDayPages}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showDayPages: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Month pages"
-              labelPosition="left"
-              checked={visibilityFilters.showMonthPages}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showMonthPages: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Year pages"
-              labelPosition="left"
-              checked={visibilityFilters.showYearPages}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showYearPages: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="System pages"
-              labelPosition="left"
-              checked={visibilityFilters.showSystemPages}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showSystemPages: e.target.checked
-              }))}
-            />
-          </div>
-        </GraphSidebarSection>
-
-        <GraphSidebarSection title="Links" icon="mdi mdi-link-variant" defaultOpen={false}>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Semantic analysis"
-              labelPosition="left"
-              checked={graphDataMode === 'semantic'}
-              onChange={(e) => {
-                const mode = e.target.checked ? 'semantic' : 'standard';
-                setGraphDataMode(mode);
-                if (!e.target.checked) {
-                  setVisibilityFilters(prev => ({ ...prev, showSemanticLinks: false }));
-                }
-              }}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Parent links"
-              labelPosition="left"
-              checked={visibilityFilters.showParentLinks}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showParentLinks: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Reference links"
-              labelPosition="left"
-              checked={visibilityFilters.showReferenceLinks}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showReferenceLinks: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Class links"
-              labelPosition="left"
-              checked={visibilityFilters.showClassLinks}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showClassLinks: e.target.checked
-              }))}
-            />
-          </div>
-          <div className="visibility-option">
-            <BooleanToggle
-              size="sm"
-              label="Semantic links"
-              labelPosition="left"
-              checked={visibilityFilters.showSemanticLinks}
-              disabled={graphDataMode === 'standard'}
-              onChange={(e) => setVisibilityFilters(prev => ({
-                ...prev,
-                showSemanticLinks: e.target.checked
-              }))}
-            />
-          </div>
-        </GraphSidebarSection>
-
-        <GraphSidebarSection title="Style" icon="mdi mdi-palette" defaultOpen={false}>
-          <div className="visibility-option">
-            <span className="visibility-option__label">Node sizing</span>
-            <SelectionButton
-              size="sm"
-              options={[
-                { value: 'uniform', icon: "mdi mdi-circle-outline", label: 'Uniform' },
-                { value: 'connections', icon: "mdi mdi-connection", label: 'Links' },
-                { value: 'mass', icon: "mdi mdi-weight", label: 'Mass' },
-                { value: 'content', icon: "mdi mdi-note", label: 'Content' }
-              ]}
-              value={graphSettings.nodeSizeMode}
-              onChange={(value) => setGraphSettings(prev => ({
-                ...prev,
-                nodeSizeMode: value as GraphSettings['nodeSizeMode']
-              }))}
-            />
-          </div>
-          <div className="visibility-option visibility-option--slider">
-            <span className="visibility-option__label">Node radius</span>
-            <div className="visibility-option__slider-row">
-              <input
-                type="range"
-                min={5}
-                max={40}
-                step={1}
-                value={baseNodeRadius}
-                onChange={(e) => setBaseNodeRadius(Number(e.target.value))}
-                className="graph-radius-slider"
-              />
-              <span className="graph-radius-value">{baseNodeRadius}</span>
-            </div>
-          </div>
-          {graphSettings.nodeSizeMode === 'connections' && (
-            <div className="visibility-option">
-              <span className="visibility-option__label">Link direction</span>
-              <SelectionButton
-                size="sm"
-                options={[
-                  { value: 'in', icon: "mdi mdi-call-received", label: 'In' },
-                  { value: 'out', icon: "mdi mdi-call-made", label: 'Out' },
-                  { value: 'all', icon: "mdi mdi-swap-horizontal", label: 'All' }
-                ]}
-                value={graphSettings.linkDirection}
-                onChange={(value) => setGraphSettings(prev => ({
-                  ...prev,
-                  linkDirection: value as LinkDirection
-                }))}
-              />
-            </div>
-          )}
-          {(viewMode === 'circle' || viewMode === 'tree') && (
-            <div className="visibility-option">
-              <span className="visibility-option__label">Layout mode</span>
-              <SelectionButton
-                size="sm"
-                options={[
-                  { value: 'physics', icon: "mdi mdi-atom", label: 'Physics' },
-                  { value: 'equidistant', icon: "mdi mdi-distribute-horizontal-center", label: 'Fixed' }
-                ]}
-                value={graphSettings.constraintMode}
-                onChange={(value) => setGraphSettings(prev => ({
-                  ...prev,
-                  constraintMode: value as ConstraintMode
-                }))}
-              />
-            </div>
-          )}
-        </GraphSidebarSection>
-
-
-      </div>
+        <GraphSettingsSidebar
+          colorGroups={colorGroups}
+          onColorGroupsChange={setColorGroups}
+          onEditGroup={(groupId) => {
+            setEditingGroupId(groupId);
+            setGroupModalOpen(true);
+          }}
+          simulationPaused={simulationPaused}
+          onToggleSimulation={(running) => {
+            if (running) {
+              rendererRef.current?.resumeSimulation();
+              setSimulationPaused(false);
+            } else {
+              rendererRef.current?.pauseSimulation();
+              setSimulationPaused(true);
+            }
+          }}
+          graphSettings={graphSettings}
+          onGraphSettingsChange={setGraphSettings}
+          visibilityFilters={visibilityFilters}
+          onVisibilityFiltersChange={setVisibilityFilters}
+          graphDataMode={graphDataMode}
+          onGraphDataModeChange={setGraphDataMode}
+          baseNodeRadius={baseNodeRadius}
+          onBaseNodeRadiusChange={setBaseNodeRadius}
+          viewMode={viewMode}
+          onCollapse={() => setSidebarCollapsed(true)}
+        />
       )}
       
       {/* Sidebar expand button (when collapsed) */}
