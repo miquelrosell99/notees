@@ -7,6 +7,7 @@ import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
 import { Badge } from '@/components/core/Badge';
+import { Icon } from '@/components/core/icons';
 import { useAuthStore } from '@/stores';
 import {
   useWorkspaceMembers,
@@ -54,6 +55,14 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
     return owner ? owner.email === currentUser?.email : false;
   }, [members, currentUser?.email]);
 
+  const currentUserMember = useMemo(() => {
+    return members.find((m) => m.email === currentUser?.email);
+  }, [members, currentUser?.email]);
+
+  const otherMembers = useMemo(() => {
+    return members.filter((m) => m.email !== currentUser?.email);
+  }, [members, currentUser?.email]);
+
   const handleInvite = useCallback(() => {
     const email = inviteEmail.trim();
     if (!email) return;
@@ -87,23 +96,16 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Share Workspace" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Share Workspace" size="md" className="workspace-share-modal__dialog">
       <div className="workspace-share-modal">
         {isLoading ? (
           <div className="workspace-share-modal__loading">Loading members…</div>
         ) : (
-          <div className="workspace-share-modal__table">
-            {/* Header */}
-            <div className="workspace-share-modal__header">
-              <span>Email</span>
-              <span>Role</span>
-              <span aria-hidden="true" />
-            </div>
-
-            {/* Invite row */}
+          <>
+            {/* Invite bar */}
             {isCurrentUserOwner && (
-              <div className="workspace-share-modal__invite-row">
-                <div className="workspace-share-modal__cell-email">
+              <div className="workspace-share-modal__invite-bar">
+                <div className="workspace-share-modal__invite-input-wrap">
                   <TextField
                     placeholder="Email address"
                     value={inviteEmail}
@@ -114,44 +116,70 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
                     errorMessage={inviteError ?? undefined}
                   />
                 </div>
-                <div className="workspace-share-modal__cell-role">
-                  <Dropdown
-                    options={ROLE_OPTIONS}
-                    value={inviteRole}
-                    onChange={(val) => val && setInviteRole(val)}
-                    size="sm"
-                  />
-                </div>
-                <div className="workspace-share-modal__cell-actions">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={handleInvite}
-                    disabled={inviteMember.isPending || !inviteEmail.trim()}
-                  >
-                    Invite
-                  </Button>
-                </div>
+                <Dropdown
+                  options={ROLE_OPTIONS}
+                  value={inviteRole}
+                  onChange={(val) => val && setInviteRole(val)}
+                  size="sm"
+                  className="workspace-share-modal__invite-role"
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleInvite}
+                  disabled={inviteMember.isPending || !inviteEmail.trim()}
+                >
+                  Invite
+                </Button>
               </div>
             )}
 
-            {/* Member rows */}
-            {members.length === 0 ? (
-              <div className="workspace-share-modal__empty">No members yet.</div>
-            ) : (
-              members.map((member) => (
-                <MemberRow
-                  key={member.user_id}
-                  member={member}
-                  isCurrentUserOwner={isCurrentUserOwner}
-                  onRoleChange={handleRoleChange}
-                  onRemove={handleRemove}
-                  isUpdating={updateMember.isPending}
-                  isRemoving={removeMember.isPending}
-                />
-              ))
+            {/* Current user */}
+            {currentUserMember && (
+              <div className="workspace-share-modal__you-row">
+                <div className="workspace-share-modal__user-info">
+                  <Icon path="mdi mdi-account-circle" size={1} />
+                  <div className="workspace-share-modal__user-details">
+                    <span className="workspace-share-modal__user-name">
+                      {currentUserMember.email}
+                    </span>
+                    <span className="workspace-share-modal__user-hint">
+                      {currentUserMember.role === 'owner' ? 'Workspace owner' : 'You'}
+                    </span>
+                  </div>
+                </div>
+                <Badge variant={ROLE_BADGE_VARIANT[currentUserMember.role] ?? 'neutral'} size="sm">
+                  {currentUserMember.role === 'owner' ? 'Owner' : currentUserMember.role}
+                </Badge>
+              </div>
             )}
-          </div>
+
+            {/* People with access */}
+            {otherMembers.length > 0 && (
+              <>
+                <div className="workspace-share-modal__section-label">
+                  People with access
+                </div>
+                <div className="workspace-share-modal__people-list">
+                  {otherMembers.map((member) => (
+                    <MemberRow
+                      key={member.user_id}
+                      member={member}
+                      isCurrentUserOwner={isCurrentUserOwner}
+                      onRoleChange={handleRoleChange}
+                      onRemove={handleRemove}
+                      isUpdating={updateMember.isPending}
+                      isRemoving={removeMember.isPending}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {members.length === 0 && (
+              <div className="workspace-share-modal__empty">No members yet.</div>
+            )}
+          </>
         )}
       </div>
     </Modal>
@@ -173,42 +201,38 @@ function MemberRow({
   isUpdating: boolean;
   isRemoving: boolean;
 }) {
-  const isOwner = member.role === 'owner';
-
   return (
-    <div className="workspace-share-modal__row">
-      <span className="workspace-share-modal__cell-email">
-        {member.email}
-      </span>
-      <span className="workspace-share-modal__cell-role">
-        {isOwner ? (
-          <Badge variant="warning" size="xs">Owner</Badge>
-        ) : isCurrentUserOwner ? (
-          <Dropdown
-            options={ROLE_OPTIONS}
-            value={member.role}
-            onChange={(val) => val && onRoleChange(member.user_id, val)}
-            size="sm"
-            disabled={isUpdating}
-          />
+    <div className="workspace-share-modal__people-row">
+      <div className="workspace-share-modal__user-info">
+        <Icon path="mdi mdi-account-circle" size={1} />
+        <span className="workspace-share-modal__user-name">{member.email}</span>
+      </div>
+      <div className="workspace-share-modal__people-actions">
+        {isCurrentUserOwner ? (
+          <>
+            <Dropdown
+              options={ROLE_OPTIONS}
+              value={member.role}
+              onChange={(val) => val && onRoleChange(member.user_id, val)}
+              size="sm"
+              disabled={isUpdating}
+              className="workspace-share-modal__role-dropdown"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-delete-outline"
+              title="Remove member"
+              onClick={() => onRemove(member.user_id)}
+              disabled={isRemoving}
+            />
+          </>
         ) : (
-          <Badge variant={ROLE_BADGE_VARIANT[member.role] ?? 'neutral'} size="xs">
+          <Badge variant={ROLE_BADGE_VARIANT[member.role] ?? 'neutral'} size="sm">
             {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
           </Badge>
         )}
-      </span>
-      <span className="workspace-share-modal__cell-actions">
-        {!isOwner && isCurrentUserOwner && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="mdi mdi-delete-outline"
-            title="Remove member"
-            onClick={() => onRemove(member.user_id)}
-            disabled={isRemoving}
-          />
-        )}
-      </span>
+      </div>
     </div>
   );
 }
