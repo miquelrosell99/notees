@@ -3,16 +3,16 @@
  *
  * Admin-only modal for system-level settings: user management, metrics.
  */
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
-
 import { Separator } from '@/components/core/Separator';
 import { useAuthStore } from '@/stores';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { listUsers, createAdminUser, updateAdminUser, deactivateAdminUser, getAdminMetrics } from '@/api/admin';
 import type { AdminUserCreate } from '@/types';
 import './SystemSettingsModal.css';
@@ -28,6 +28,57 @@ const ROLE_OPTIONS = [
   { value: 'user', label: 'User' },
   { value: 'admin', label: 'Admin' },
 ];
+
+function RowActionsMenu({
+  userEmail,
+  canDelete,
+  onDelete,
+  isDeleting,
+}: {
+  userEmail: string;
+  canDelete: boolean;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useClickOutside([menuRef, buttonRef], () => setIsOpen(false), isOpen);
+
+  const handleDelete = useCallback(() => {
+    if (window.confirm(`Delete ${userEmail}? This cannot be undone.`)) {
+      onDelete();
+    }
+    setIsOpen(false);
+  }, [userEmail, onDelete]);
+
+  return (
+    <div className="system-settings__actions-menu-wrapper">
+      <Button
+        ref={buttonRef}
+        variant="ghost"
+        size="xs"
+        icon="mdi mdi-dots-vertical"
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isDeleting}
+        title="Actions"
+      />
+      {isOpen && (
+        <div ref={menuRef} className="system-settings__actions-menu">
+          <button
+            className="system-settings__actions-menu-item system-settings__actions-menu-item--danger"
+            onClick={handleDelete}
+            disabled={!canDelete}
+          >
+            <span className="mdi mdi-trash-can" />
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SystemTab>('users');
@@ -123,7 +174,14 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
           <div className="system-settings__users">
             <div className="system-settings__users-header">
               <h3>User Management</h3>
-              <Button variant="primary" size="sm" icon="mdi mdi-plus" onClick={() => setShowCreateModal(true)} title="Add User" />
+              <Button
+                variant="primary"
+                size="sm"
+                icon="mdi mdi-plus"
+                onClick={() => setShowCreateModal(true)}
+              >
+                Add User
+              </Button>
             </div>
 
             {usersLoading ? (
@@ -135,7 +193,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
                   <span>Name</span>
                   <span>Role</span>
                   <span>Active</span>
-                  <span>Actions</span>
+                  <span aria-hidden="true" />
                 </div>
                 {usersData?.users.map((user) => {
                   const isSelf = String(user.id) === String(currentUser?.id);
@@ -165,14 +223,11 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
                         />
                       </span>
                       <span className="system-settings__cell-actions">
-                        <Button
-                          variant="danger"
-                          size="xs"
-                          icon="mdi mdi-trash-can"
-                          confirm
-                          confirmMessage={`Delete ${user.email}? This cannot be undone.`}
-                          onClick={() => deactivateUserMutation.mutate(user.id)}
-                          disabled={!canDeactivate || deactivateUserMutation.isPending}
+                        <RowActionsMenu
+                          userEmail={user.email}
+                          canDelete={canDeactivate}
+                          onDelete={() => deactivateUserMutation.mutate(user.id)}
+                          isDeleting={deactivateUserMutation.isPending}
                         />
                       </span>
                     </div>
