@@ -123,7 +123,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
           <div className="system-settings__users">
             <div className="system-settings__users-header">
               <h3>User Management</h3>
-              <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+              <Button variant="primary" size="sm" icon="mdi mdi-plus" onClick={() => setShowCreateModal(true)}>
                 Add User
               </Button>
             </div>
@@ -170,13 +170,12 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
                         <Button
                           variant="danger"
                           size="xs"
+                          icon="mdi mdi-trash-can"
                           confirm
                           confirmMessage={`Delete ${user.email}? This cannot be undone.`}
                           onClick={() => deactivateUserMutation.mutate(user.id)}
                           disabled={!canDeactivate || deactivateUserMutation.isPending}
-                        >
-                          Delete
-                        </Button>
+                        />
                       </span>
                     </div>
                   );
