@@ -59,13 +59,16 @@ export function useNode(
     include_children?: boolean;
     include_backlinks?: boolean;
     include_properties?: boolean;
+    meta?: Record<string, unknown>;
   }
 ) {
   const queryClient = useQueryClient();
+  const { meta, ...apiOptions } = options || {};
   const result = useQuery({
-    queryKey: nodeKeys.detail(id ?? 0, options),
-    queryFn: () => nodesApi.getNode(id!, options),
+    queryKey: nodeKeys.detail(id ?? 0, apiOptions),
+    queryFn: () => nodesApi.getNode(id!, apiOptions),
     enabled: !!id,
+    meta,
     // Provide data from existing parent caches while the fresh fetch loads.
     // This prevents showing empty content when navigating to a block's
     // focused view before its content save has completed on the server.
