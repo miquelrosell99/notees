@@ -630,6 +630,47 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 - Do **not** use sub-barrels to re-export unrelated utilities. If a utility (e.g., `nodeNameToText`) lives in `useStringifyAST.ts`, it should be re-exported directly from `hooks/index.ts`, not routed through `useNodes.ts`.
 - When adding a new hook or utility, update the appropriate `index.ts` so it is discoverable via path aliases.
 
+#### Frontend Widget Inventory (`frontend/src/components/core/`)
+
+Reusable UI atoms available for building features. Import via `@/components/core/<Name>`.
+
+| Widget | Purpose | Key Props |
+|--------|---------|-----------|
+| `Button` | Primary action button (filled, ghost, icon-only) | `variant`, `size`, `icon`, `onClick` |
+| `BooleanToggle` | Switch toggle with label + description | `checked`, `label`, `description`, `labelPosition` |
+| `SelectionButton` | Icon-button row for choosing from options | `options`, `value`, `size`, `labelPosition` |
+| `ColorButton` | Circular color swatch with optional picker | `color`, `size`, `showPicker`, `onColorChange` |
+| `TextField` | Labelled text input | `label`, `placeholder`, `value`, `onChange` |
+| `SearchBox` | Node search with filter + dropdown results | `filterFn`, `onSelect`, `placeholder` |
+| `Modal` | Dialog with header/content/footer slots | `isOpen`, `onClose`, `title`, `size`, `footer` |
+| `Card` | Surface container with elevation | `variant`, `padding`, `children` |
+| `Dropdown` | Menu dropdown triggered by button | `trigger`, `items`, `onSelect` |
+| `ContextMenu` | Right-click context menu | `items`, `onSelect` |
+| `Badge` | Small status/count label | `variant`, `size`, `children` |
+| `Pill` | Rounded tag/chip | `variant`, `onRemove` |
+| `ListSortable` | Drag-reorderable list | `items`, `renderText`, `renderAction`, `onReorder` |
+| `Slider` | Range input | `min`, `max`, `value`, `onChange` |
+| `Checkbox` | Checkbox with label | `checked`, `label`, `onChange` |
+| `DatePickerPopup` | Calendar date picker popup | `value`, `onChange` |
+| `LoadingSkeleton` | Placeholder loading UI | `variant`, `count` |
+| `EmptyState` | Empty content placeholder | `icon`, `title`, `description` |
+| `NotificationToast` | Temporary notification banner | `message`, `type`, `duration` |
+| `ImageModal` | Image preview modal | `src`, `isOpen`, `onClose` |
+| `Table` | Data table with sorting | `columns`, `data`, `keyExtractor` |
+| `InlineConfirmButton` | Button that turns into confirm/cancel | `onConfirm`, `label` |
+| `ButtonWithPanel` | Button that opens a pop-over panel | `icon`, `panel`, `title` |
+| `SelectTrigger` | Trigger for custom select dropdowns | `value`, `placeholder`, `onClick` |
+| `FloatingButtonArray` | FAB with child action buttons | `buttons`, `direction` |
+| `FileDropZone` | Drag-and-drop file upload zone | `onFiles`, `accept` |
+
+**Query Builder widgets** (`frontend/src/components/queries/`):
+- `ViewBuilder` — Full QueryAST editor (conditions, groups, NOT)
+- `QueryBlockBuilder` — Single query block renderer (used recursively by ViewBuilder)
+- `QueryBlockList` — List of query blocks with add/remove/reorder
+- `ProseConditionBuilder` — Prose-style condition editor
+- `ProseScopeSelector` — Scope picker (pages, workspace, current page)
+- `QuerySQLPreview` — Shows natural language, AST JSON, and SQL pseudocode
+
 #### Adding a New Frontend Component
 1. Place React components in the appropriate subdirectory under `frontend/src/components/`.
 2. Use path aliases (e.g., `@/components/core/Button`) for all imports.
