@@ -9,6 +9,8 @@ export * from './MainContentTopbar';
 export * from './MergePagesModal';
 export * from './MobileLayout';
 export * from './NavigationSidebar';
+export * from './SidebarFavorites';
+export * from './SidebarRecents';
 export * from './Scratchpad';
 export * from './GraphSettingsModal';
 export * from './TopBar';
