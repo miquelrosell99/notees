@@ -294,12 +294,36 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.workspace-management__card-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
 }
 
 .workspace-management__card-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
+}
+
+.workspace-management__card-actions .btn {
+  opacity: 0.7;
+}
+
+.workspace-management__card-actions .btn:hover {
+  opacity: 1;
+}
+
+.workspace-management__access-btn {
+  opacity: 1 !important;
+}
+
+.workspace-management__card-actions .workspace-actions-menu {
+  margin-left: var(--spacing-1);
 }
 
 .workspace-management__card-icon {
@@ -319,6 +343,11 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.workspace-management__card-badge--shared {
+  background: var(--color-tertiary);
+  color: var(--color-on-tertiary);
 }
 
 .workspace-management__card-body {
@@ -346,14 +375,6 @@
   gap: var(--spacing-1);
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
-}
-
-.workspace-management__card-actions .btn {
-  opacity: 0.7;
-}
-
-.workspace-management__card-actions .btn:hover {
-  opacity: 1;
 }
 
 .workspace-management__delete-btn:hover {

@@ -1,0 +1,91 @@
+.workspace-share-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.workspace-share-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.workspace-share-modal__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.workspace-share-modal__section-desc {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.workspace-share-modal__invite-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.workspace-share-modal__invite-input {
+  flex: 1;
+}
+
+.workspace-share-modal__role-dropdown {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.workspace-share-modal__loading,
+.workspace-share-modal__empty {
+  padding: var(--spacing-6);
+  text-align: center;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.workspace-share-modal__members-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.workspace-share-modal__member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+}
+
+.workspace-share-modal__member-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  flex: 1;
+  color: var(--color-on-surface);
+  font: var(--font-label-medium);
+}
+
+.workspace-share-modal__member-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-share-modal__member-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
