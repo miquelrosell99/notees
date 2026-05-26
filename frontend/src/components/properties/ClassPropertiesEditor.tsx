@@ -25,7 +25,7 @@ import { Icon, PropertiesIcon } from '@/components/core/icons';
 import { ListSortable } from '@/components/core/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { useNavigationStore } from '@/stores';
-import type { Property, PropertyType, PropertyCreate } from '@/types/api';
+import type { Property, PropertyCreate } from '@/types/api';
 import { getMdiClass } from '@/utils/iconDom';
 import './PropertiesSection.css';
 

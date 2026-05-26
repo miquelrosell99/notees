@@ -1,0 +1,39 @@
+.property-value-date-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  position: relative;
+}
+
+.property-value-date-display {
+  all: unset;
+  font: var(--font-body-medium);
+  cursor: pointer;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.property-value-date-display:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.property-value-date-display:disabled {
+  cursor: default;
+}
+
+.property-value-date-name {
+  color: var(--color-primary);
+}
+
+.property-value-date-clear {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.property-value-date-container:hover .property-value-date-clear {
+  opacity: 1;
+}

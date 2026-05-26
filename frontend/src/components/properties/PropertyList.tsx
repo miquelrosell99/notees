@@ -15,7 +15,7 @@
  * NOTE: Moved out of core/ - has domain knowledge (Property type)
  */
 import { useState, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import type { Property, PropertyType, Node } from '@/types/api';
+import type { Property, Node } from '@/types/api';
 import { useNavigationStore } from '@/stores';
 import { useNode } from '@/hooks';
 import { NodeInline } from '@/components/blocks/NodeInline';

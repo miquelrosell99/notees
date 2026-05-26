@@ -19,6 +19,9 @@ export { SelectionPropertyCell } from './SelectionPropertyCell';
 export { UrlPropertyCell } from './UrlPropertyCell';
 export { EmailPropertyCell } from './EmailPropertyCell';
 export { DatePropertyCell } from './DatePropertyCell';
+export { DatePropertyValue } from './DatePropertyValue';
+export { UrlPropertyValue } from './UrlPropertyValue';
+export { EmailPropertyValue } from './EmailPropertyValue';
 export { GanttPropertySelector } from './GanttPropertySelector';
 export type { GanttPropertySelectorProps } from './GanttPropertySelector';
 
