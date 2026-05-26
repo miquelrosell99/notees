@@ -267,56 +267,6 @@
   gap: 1px;
 }
 
-.graph-group-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.graph-group-input,
-.graph-group-select {
-  width: 100%;
-  padding: 5px 7px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  font-size: 12px;
-  outline: none;
-}
-
-.graph-group-input:focus,
-.graph-group-select:focus {
-  border-color: var(--color-accent);
-}
-
-.graph-group-query-row {
-  display: flex;
-  gap: 6px;
-}
-
-.graph-group-query-row .graph-group-select {
-  width: auto;
-  flex-shrink: 0;
-}
-
-.graph-group-query-row .graph-group-input {
-  flex: 1;
-}
-
-.graph-group-color-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.graph-group-form-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .graph-add-group-btn {
   justify-content: flex-start;
   width: 100%;

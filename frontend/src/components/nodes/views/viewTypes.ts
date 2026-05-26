@@ -7,6 +7,8 @@
  * - GraphView (graph settings wrapper)
  */
 
+import type { QueryAST } from '@/types/queryAST';
+
 // ==================== Core Types ====================
 
 export type GlareState = 'normal' | 'bright' | 'dim' | 'path' | 'current';
@@ -82,6 +84,16 @@ export interface ClassColor {
   className: string;
   color: string;
   order: number;
+}
+
+/**
+ * Graph color group — QueryAST + color for unified graph coloring
+ */
+export interface GraphColorGroup {
+  id: string;
+  name: string;
+  query: QueryAST;
+  color: string;
 }
 
 /**
