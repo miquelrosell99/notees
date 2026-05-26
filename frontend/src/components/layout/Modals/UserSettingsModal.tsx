@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/api/workspaces';
+import { updateMe } from '@/api/auth';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -24,7 +25,11 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
+  const [editName, setEditName] = useState(user?.name ?? '');
+  const [editSurnames, setEditSurnames] = useState(user?.surnames ?? '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const { theme, oledMode, accentColor, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
 
   if (!isOpen) return null;
@@ -32,6 +37,22 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleLogout = () => {
     logout();
     onClose();
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    setProfileError(null);
+    try {
+      const updated = await updateMe({
+        name: editName.trim() || null,
+        surnames: editSurnames.trim() || null,
+      });
+      setUser(updated);
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : 'Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleThemeChange = (newTheme: ThemePreference) => {
@@ -335,20 +356,57 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   </div>
                   <div className="settings-user-details">
                     <p className="settings-user-name">{user?.name || user?.email || 'User'}</p>
-                    <p className="settings-user-id">User ID: {user?.id || 'Unknown'}</p>
+                    <p className="settings-user-id">{user?.email || 'Unknown'}</p>
                   </div>
                 </div>
 
                 <div className="settings-account-meta">
                   <div className="settings-meta-item">
                     <span className="settings-meta-label">Account Type</span>
-                    <span className="settings-meta-value">Standard</span>
+                    <span className="settings-meta-value">{user?.role === 'admin' ? 'Admin' : 'Standard'}</span>
                   </div>
                   <div className="settings-meta-item">
                     <span className="settings-meta-label">Status</span>
                     <span className="settings-meta-value settings-meta-value--active">Active</span>
                   </div>
                 </div>
+              </div>
+
+              <Separator orientation="horizontal" size="lg" spacing="lg" />
+
+              <div className="settings-section">
+                <h4 className="settings-section__title">Edit Profile</h4>
+                <div className="settings-form-row">
+                  <label className="settings-form-label" htmlFor="profile-name">Name</label>
+                  <input
+                    id="profile-name"
+                    type="text"
+                    className="settings-form-input"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Your name"
+                  />
+                </div>
+                <div className="settings-form-row">
+                  <label className="settings-form-label" htmlFor="profile-surnames">Surnames</label>
+                  <input
+                    id="profile-surnames"
+                    type="text"
+                    className="settings-form-input"
+                    value={editSurnames}
+                    onChange={(e) => setEditSurnames(e.target.value)}
+                    placeholder="Your surnames"
+                  />
+                </div>
+                {profileError && <div className="settings-error">{profileError}</div>}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
+                >
+                  {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                </Button>
               </div>
 
               <Separator orientation="horizontal" size="lg" spacing="lg" />
