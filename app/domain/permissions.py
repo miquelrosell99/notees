@@ -188,7 +188,7 @@ class PermissionChecker:
                     self._node_cache[node_id] = perms
                 return perms
             
-            # Check node_share for explicit permissions
+            # Check node_share for explicit permissions on this node
             share_row = await conn.fetchrow("""
                 SELECT can_read, can_write, can_create, can_delete
                 FROM node_share
@@ -201,6 +201,32 @@ class PermissionChecker:
                     can_write=share_row['can_write'],
                     can_create=share_row['can_create'],
                     can_delete=share_row['can_delete'],
+                )
+                self._node_cache[node_id] = perms
+                return perms
+            
+            # Check ancestor page shares — child blocks inherit permissions
+            # from their closest parent page that has an explicit share
+            ancestor_share_row = await conn.fetchrow("""
+                SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete
+                FROM node_path np
+                JOIN node n ON n.id = np.ancestor_id
+                JOIN node_share ns ON ns.node_id = n.id
+                WHERE np.descendant_id = $1
+                  AND np.depth > 0
+                  AND n.is_page = TRUE
+                  AND ns.user_id = $2
+                  AND ns.active = TRUE
+                ORDER BY np.depth ASC
+                LIMIT 1
+            """, node_id, self._user_id)
+            
+            if ancestor_share_row:
+                perms = Permissions(
+                    can_read=ancestor_share_row['can_read'],
+                    can_write=ancestor_share_row['can_write'],
+                    can_create=ancestor_share_row['can_create'],
+                    can_delete=ancestor_share_row['can_delete'],
                 )
                 self._node_cache[node_id] = perms
                 return perms

@@ -23,6 +23,7 @@ interface ModalState {
   isScratchpadOpen: boolean;
   isCreateWithUuidModalOpen: boolean;
   createWithUuidPrefill: string | null;
+  isShareModalOpen: boolean;
 
   setCalendarOpen: (open: boolean) => void;
   toggleCalendar: () => void;
@@ -44,6 +45,7 @@ interface ModalState {
   toggleScratchpad: () => void;
   setScratchpadOpen: (open: boolean) => void;
   setCreateWithUuidModalOpen: (open: boolean, prefill?: string | null) => void;
+  setShareModalOpen: (open: boolean) => void;
 }
 
 export const useModalStore = create<ModalState>()((set) => ({
@@ -63,6 +65,7 @@ export const useModalStore = create<ModalState>()((set) => ({
   isScratchpadOpen: false,
   isCreateWithUuidModalOpen: false,
   createWithUuidPrefill: null,
+  isShareModalOpen: false,
 
   setCalendarOpen: (open) => set({ isCalendarOpen: open }),
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
@@ -84,4 +87,5 @@ export const useModalStore = create<ModalState>()((set) => ({
   toggleScratchpad: () => set((s) => ({ isScratchpadOpen: !s.isScratchpadOpen })),
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
   setCreateWithUuidModalOpen: (open, prefill = null) => set({ isCreateWithUuidModalOpen: open, createWithUuidPrefill: prefill }),
+  setShareModalOpen: (open) => set({ isShareModalOpen: open }),
 }));
