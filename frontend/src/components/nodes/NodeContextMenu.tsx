@@ -22,6 +22,7 @@ import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '@/components/workspace/ExportPageModal';
+import { ShareModal } from './ShareModal';
 import { NodeSelector } from './NodeSelector';
 import api from '@/api/client';
 import type { Node, NodeUpdate } from '@/types';
@@ -245,6 +246,7 @@ export type ActionName =
   | 'export'
   | 'presentation'
   | 'copy-text'
+  | 'share'
   | 'view-ast'
   | 'archive'
   | 'delete';
@@ -257,6 +259,7 @@ export type ActionConfig = readonly [ActionName, ActionScope];
  */
 export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['copy-link',       'both'],
+  ['share',           'both'],
   ['open-sidebar',    'both'],
   ['copy-blocks',     'both'],
   ['paste-blocks',    'both'],
@@ -345,6 +348,7 @@ export function NodeContextMenu({
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showASTModal, setShowASTModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const deleteNode = useDeleteNode();
@@ -552,6 +556,16 @@ export function NodeContextMenu({
           });
           break;
 
+        case 'share':
+          items.push({
+            id: 'share',
+            label: 'Share…',
+            icon: 'mdi mdi-share-variant-outline',
+            keepOpen: true,
+            onClick: () => setShowShareModal(true),
+          });
+          break;
+
         case 'copy-text':
           items.push({
             id: 'copy-text',
@@ -628,7 +642,7 @@ export function NodeContextMenu({
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
     onConvertToPage, onCopyBlocks, onPasteBlocks, onClose,
     addSidebarCard, openLocalGraph, updateNode, unarchiveNode,
-    showDevOptions, handleDeleteClick, handleArchiveClick,
+    showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {
@@ -646,7 +660,7 @@ export function NodeContextMenu({
     onClose();
   }, [node.id, isPageFavorited, onClose]);
 
-  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal;
+  const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showShareModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
     adjustMenuPosition(el, position);
@@ -705,7 +719,11 @@ export function NodeContextMenu({
         nodeUuid={node.uuid}
         nodeName={node.name}
       />
-
+      <ShareModal
+        nodeId={node.id}
+        isOpen={showShareModal}
+        onClose={() => { setShowShareModal(false); onClose(); }}
+      />
     </>
   );
 }

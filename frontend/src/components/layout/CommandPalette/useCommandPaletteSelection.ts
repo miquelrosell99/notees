@@ -250,6 +250,9 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           } else if (item.commandId === 'toggle-local-graph') {
             const currentId = useNavigationStore.getState().currentNodeId;
             if (currentId) useNavigationStore.getState().openLocalGraph(currentId);
+          } else if (item.commandId === 'share-page') {
+            const currentId = useNavigationStore.getState().currentNodeId;
+            if (currentId) useModalStore.getState().setShareModalOpen(true);
           } else if (item.commandId === 'open-broken-links') {
             const brokenLinksQuery: QueryAST = {
               ...createEmptyQueryAST(),

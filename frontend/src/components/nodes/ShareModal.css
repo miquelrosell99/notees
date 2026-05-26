@@ -4,6 +4,33 @@
   gap: var(--spacing-4);
 }
 
+.share-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.share-modal__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.share-modal__section-desc {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.share-modal__divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: var(--spacing-1) 0;
+}
+
 .share-modal__create {
   display: flex;
   flex-direction: column;
@@ -31,6 +58,21 @@
   font: var(--font-body-medium);
 }
 
+.share-modal__invite-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.share-modal__invite-input {
+  flex: 1;
+}
+
+.share-modal__invite-dropdown {
+  width: 140px;
+  flex-shrink: 0;
+}
+
 .share-modal__loading,
 .share-modal__empty {
   padding: var(--spacing-6);
@@ -43,7 +85,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  max-height: 320px;
+  max-height: 240px;
   overflow-y: auto;
 }
 
