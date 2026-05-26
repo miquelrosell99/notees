@@ -130,7 +130,7 @@ notees/
 │   │   │   ├── nodes/            # Node-level components (NodeCollection, PageHeader, etc.)
 │   │   │   ├── properties/       # Property editors
 │   │   │   ├── queries/          # Query builder UI
-│   │   │   ├── layout/           # App shell (Layout, Sidebar, CommandPalette, TopBar)
+│   │   │   ├── layout/           # App shell (Layout, Sidebar/, CommandPalette/, Modals/, TopBar)
 │   │   │   ├── sidebar/          # Right sidebar cards
 │   │   │   └── workspace/        # Workspace management modals
 │   │   ├── editor/               # Lexical editor (BlockEditor, plugins, custom nodes)
@@ -215,6 +215,7 @@ The backend follows a strict hexagonal architecture with three layers:
 - **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`.
 - **Optimistic UI**: Mutations update TanStack Query cache immediately and roll back on failure.
 - **View modes**: `NodeCollection` dispatches to `ListView`, `DocumentView`, `CardView`, `TableView`, `GanttView`, `GraphView`, `TimelineView`, and `WhiteboardView`.
+- **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) to keep React components focused on state while pure functions/classes handle 2D drawing.
 - **PWA**: Service worker auto-updates; precaches JS/CSS/HTML/ICO/PNG/SVG/WOFF2; network-first API caching; CacheFirst WASM caching; Web Share Target support.
 
 ### Mobile
@@ -650,6 +651,7 @@ Reusable UI atoms available for building features. Import via `@/components/core
 | `Badge` | Small status/count label | `variant`, `size`, `children` |
 | `Pill` | Rounded tag/chip | `variant`, `onRemove` |
 | `ListSortable` | Drag-reorderable list | `items`, `renderText`, `renderAction`, `onReorder` |
+| `useListDragSort` | Shared DnD hook (used by ListSortable & Sidebar favorites) | `itemCount`, `itemSelector`, `onReorder` |
 | `Slider` | Range input | `min`, `max`, `value`, `onChange` |
 | `Checkbox` | Checkbox with label | `checked`, `label`, `onChange` |
 | `DatePickerPopup` | Calendar date picker popup | `value`, `onChange` |
@@ -678,6 +680,15 @@ Reusable UI atoms available for building features. Import via `@/components/core
 3. Co-locate CSS in a `.css` file with the same base name.
 4. Respect import boundaries: `core/` must not import domain components.
 5. Register new routes/views in `frontend/src/views/` and wire them into `MainContent` / `appStore`.
+
+#### Decomposing Complex Hooks
+When a hook exceeds ~400 lines, split it into focused sub-hooks:
+- **State hook** (`useXState`) — owns `useState`, `useRef`, `useEffect`, `useMemo`, `useCallback` for local UI state and derived values.
+- **Items hook** (`useXItems`) — builds the aggregated data array from state.
+- **Selection hook** (`useXSelection`) — handles action dispatch when an item is selected.
+- **Main hook** (`useX`) — thin orchestrator that wires sub-hooks and returns the combined public API.
+
+Example: `useCommandPalette` → `useCommandPaletteState` + `useCommandPaletteItems` + `useCommandPaletteSelection`.
 
 ---
 
