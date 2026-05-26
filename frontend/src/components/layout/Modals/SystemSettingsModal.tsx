@@ -8,9 +8,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
+import { Dropdown } from '@/components/core/Dropdown';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
+
 import { Separator } from '@/components/core/Separator';
+import { useAuthStore } from '@/stores';
 import { listUsers, createAdminUser, updateAdminUser, deactivateAdminUser, getAdminMetrics } from '@/api/admin';
-import type { AdminUserCreate, AdminUserUpdate } from '@/types';
+import type { AdminUserCreate } from '@/types';
 import './SystemSettingsModal.css';
 
 interface SystemSettingsModalProps {
@@ -20,9 +24,16 @@ interface SystemSettingsModalProps {
 
 type SystemTab = 'users' | 'metrics';
 
+const ROLE_OPTIONS = [
+  { value: 'user', label: 'User' },
+  { value: 'admin', label: 'Admin' },
+];
+
 export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SystemTab>('users');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const queryClient = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['admin', 'users'],
@@ -38,11 +49,15 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
 
   const createUserMutation = useMutation({
     mutationFn: createAdminUser,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setShowCreateModal(false);
+      setNewUser({ email: '', password: '', name: '', role: 'user' });
+    },
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AdminUserUpdate }) => updateAdminUser(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<AdminUserCreate> }) => updateAdminUser(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
 
@@ -57,18 +72,21 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
     name: '',
     role: 'user',
   });
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  if (!isOpen) return null;
+  const adminCount = usersData?.users.filter((u) => u.role === 'admin' && u.active).length ?? 0;
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    createUserMutation.mutate(newUser, {
-      onSuccess: () => {
-        setNewUser({ email: '', password: '', name: '', role: 'user' });
-        setShowCreateForm(false);
-      },
-    });
+    createUserMutation.mutate(newUser);
+  };
+
+  const handleRoleChange = (userId: string, newRole: string | null) => {
+    if (!newRole) return;
+    updateUserMutation.mutate({ id: userId, data: { role: newRole } });
+  };
+
+  const handleActiveChange = (userId: string, active: boolean) => {
+    updateUserMutation.mutate({ id: userId, data: { active } });
   };
 
   const formatBytes = (bytes: number) => {
@@ -78,6 +96,8 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
   };
+
+  if (!isOpen) return null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="System Settings" size="lg">
@@ -103,123 +123,65 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
           <div className="system-settings__users">
             <div className="system-settings__users-header">
               <h3>User Management</h3>
-              <Button variant="primary" size="sm" onClick={() => setShowCreateForm(!showCreateForm)}>
-                {showCreateForm ? 'Cancel' : 'Add User'}
+              <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+                Add User
               </Button>
             </div>
-
-            {showCreateForm && (
-              <form onSubmit={handleCreateUser} className="system-settings__create-form">
-                <TextField
-                  id="new-user-email"
-                  type="email"
-                  label="Email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  required
-                />
-                <TextField
-                  id="new-user-password"
-                  type="password"
-                  label="Password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  required
-                />
-                <TextField
-                  id="new-user-name"
-                  type="text"
-                  label="Name"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                />
-                <div className="system-settings__role-select">
-                  <label>Role</label>
-                  <select
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <Button type="submit" variant="primary" size="sm" disabled={createUserMutation.isPending}>
-                  {createUserMutation.isPending ? 'Creating...' : 'Create User'}
-                </Button>
-              </form>
-            )}
 
             {usersLoading ? (
               <div className="system-settings__loading">Loading users...</div>
             ) : (
-              <table className="system-settings__users-table">
-                <thead>
-                  <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersData?.users.map((user) => (
-                    <tr key={user.id}>
-                      <td>{user.email}</td>
-                      <td>{user.name || '-'}</td>
-                      <td>
-                        <span className={`system-settings__badge system-settings__badge--${user.role}`}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`system-settings__badge system-settings__badge--${user.active ? 'active' : 'inactive'}`}>
-                          {user.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="system-settings__actions">
-                          {user.role === 'user' ? (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              onClick={() =>
-                                updateUserMutation.mutate({ id: user.id, data: { role: 'admin' } })
-                              }
-                              disabled={updateUserMutation.isPending}
-                            >
-                              Make Admin
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              onClick={() =>
-                                updateUserMutation.mutate({ id: user.id, data: { role: 'user' } })
-                              }
-                              disabled={updateUserMutation.isPending}
-                            >
-                              Demote
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => {
-                              if (window.confirm(`Deactivate ${user.email}?`)) {
-                                deactivateUserMutation.mutate(user.id);
-                              }
-                            }}
-                            disabled={deactivateUserMutation.isPending}
-                          >
-                            Deactivate
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="system-settings__table">
+                <div className="system-settings__table-header">
+                  <span>Email</span>
+                  <span>Name</span>
+                  <span>Role</span>
+                  <span>Active</span>
+                  <span>Actions</span>
+                </div>
+                {usersData?.users.map((user) => {
+                  const isSelf = String(user.id) === String(currentUser?.id);
+                  const isLastAdmin = user.role === 'admin' && adminCount <= 1;
+                  const canChangeRole = !(isSelf && user.role === 'admin') && !isLastAdmin;
+                  const canDeactivate = !(isSelf || isLastAdmin);
+
+                  return (
+                    <div key={user.id} className="system-settings__table-row">
+                      <span className="system-settings__cell-email">{user.email}</span>
+                      <span className="system-settings__cell-name">{user.name || '—'}</span>
+                      <span className="system-settings__cell-role">
+                        <Dropdown
+                          options={ROLE_OPTIONS}
+                          value={user.role}
+                          onChange={(val) => handleRoleChange(user.id, val)}
+                          disabled={!canChangeRole}
+                          size="sm"
+                        />
+                      </span>
+                      <span className="system-settings__cell-active">
+                        <BooleanToggle
+                          checked={user.active}
+                          onChange={() => handleActiveChange(user.id, !user.active)}
+                          disabled={!canDeactivate}
+                          size="sm"
+                        />
+                      </span>
+                      <span className="system-settings__cell-actions">
+                        <Button
+                          variant="danger"
+                          size="xs"
+                          confirm
+                          confirmMessage={`Delete ${user.email}? This cannot be undone.`}
+                          onClick={() => deactivateUserMutation.mutate(user.id)}
+                          disabled={!canDeactivate || deactivateUserMutation.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -268,6 +230,60 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
           </div>
         )}
       </div>
+
+      {/* Create User Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Add User"
+        size="md"
+      >
+        <form onSubmit={handleCreateUser} className="system-settings__create-form">
+          <TextField
+            label="Email"
+            type="email"
+            value={newUser.email}
+            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+            required
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={newUser.password}
+            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+            required
+          />
+          <TextField
+            label="Name"
+            value={newUser.name}
+            onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+          />
+          <div className="system-settings__field">
+            <label className="system-settings__field-label">Role</label>
+            <Dropdown
+              options={ROLE_OPTIONS}
+              value={newUser.role}
+              onChange={(val) => setNewUser({ ...newUser, role: val ?? 'user' })}
+              size="md"
+            />
+          </div>
+          {createUserMutation.isError && (
+            <div className="system-settings__error">
+              {createUserMutation.error instanceof Error
+                ? createUserMutation.error.message
+                : 'Failed to create user'}
+            </div>
+          )}
+          <div className="system-settings__create-actions">
+            <Button type="button" variant="ghost" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={createUserMutation.isPending}>
+              {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </Modal>
   );
 }
