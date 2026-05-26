@@ -18,7 +18,7 @@ import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
-import { Sidebar } from './NavigationSidebar';
+import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { MobileLayout } from './MobileLayout';

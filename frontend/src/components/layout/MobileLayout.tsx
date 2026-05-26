@@ -20,7 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { reportDrawerStateToAndroid } from '@/hooks';
-import { Sidebar } from './NavigationSidebar';
+import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import './MobileLayout.css';

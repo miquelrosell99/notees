@@ -5,7 +5,7 @@
 // Layout components
 export { Layout } from './layout/Layout';
 export { TopBar } from './layout/TopBar';
-export { Sidebar } from './layout/NavigationSidebar';
+export { Sidebar } from './layout/Sidebar';
 export { MainContent } from './layout/MainContent';
 export { CommandPalette } from './layout/CommandPalette';
 export type { CommandPaletteProps } from './layout/CommandPalette';

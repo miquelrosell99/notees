@@ -15,7 +15,7 @@ import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
-import { GraphSettingsModal } from './GraphSettingsModal';
+import { GraphSettingsModal } from '../GraphSettingsModal';
 import { Card } from '@/components/core/Card';
 import { Button } from '@/components/core/Button';
 import { PageContextMenu } from '@/components/nodes/NodeContextMenu';

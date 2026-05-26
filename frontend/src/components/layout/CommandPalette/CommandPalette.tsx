@@ -15,7 +15,7 @@ import { useCommandPalette } from './useCommandPalette';
 import { ResultItem } from './CommandPaletteResult';
 import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/components/nodes/NodeRef';
-import { DuplicatePageModal } from './DuplicatePageModal';
+import { DuplicatePageModal } from '../DuplicatePageModal';
 import { Icon, AddIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
