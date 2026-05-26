@@ -79,7 +79,7 @@ export interface ShareInboxResponse {
 
 export interface WorkspaceMember {
   user_id: number;
-  username: string;
+  email: string;
   user_uuid: string;
   role: string;
   joined_at: string | null;
