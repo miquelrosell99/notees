@@ -116,7 +116,7 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
           </button>
           {user?.role === 'admin' && onOpenSystemSettings && (
             <button className="account-menu__item" onClick={handleSystemSettings}>
-              <Icon path={"mdi mdi-shield-cog"} size={0.7} />
+              <Icon path={"mdi mdi-account-cog"} size={0.7} />
               <span>System Settings</span>
             </button>
           )}

@@ -103,23 +103,23 @@
 }
 
 .system-settings__badge--admin {
-  background: var(--color-accent-bg, #e6f0ff);
-  color: var(--color-accent, #0052cc);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
 }
 
 .system-settings__badge--user {
-  background: var(--bg-secondary, #f0f0f0);
-  color: var(--text-secondary, #666666);
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
 }
 
 .system-settings__badge--active {
-  background: var(--color-success-bg, #e6f7ed);
-  color: var(--color-success, #1a7f3e);
+  background: var(--color-success-container);
+  color: var(--color-on-success-container);
 }
 
 .system-settings__badge--inactive {
-  background: var(--color-error-bg, #fde8e8);
-  color: var(--color-error, #c53030);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
 }
 
 .system-settings__actions {
