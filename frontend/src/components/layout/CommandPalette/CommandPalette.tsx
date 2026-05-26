@@ -16,7 +16,7 @@ import { ResultItem } from './CommandPaletteResult';
 import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { DuplicatePageModal } from '../Modals';
-import { Icon, AddIcon, CalendarIcon, ImportIcon } from '@/components/core/icons';
+import { Icon, AddIcon, CalendarIcon, ImportIcon, CheckIcon, ChevronRightIcon } from '@/components/core/icons';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
 
@@ -140,10 +140,10 @@ export function CommandPalette(props: CommandPaletteProps) {
             <span className="command-palette__path-segments">
               {pathInfo.segments.map((segment, index) => (
                 <span key={index}>
-                  {index > 0 && <span className="command-palette__path-separator"> → </span>}
+                  {index > 0 && <span className="command-palette__path-separator"><ChevronRightIcon size="xs" /></span>}
                   <span className={segment.exists ? 'command-palette__path-segment--existing' : 'command-palette__path-segment--new'}>
                     {segment.name}
-                    {segment.exists && <span className="command-palette__path-indicator" title="Page exists">✓</span>}
+                    {segment.exists && <span className="command-palette__path-indicator" title="Page exists"><CheckIcon size="xs" /></span>}
                   </span>
                 </span>
               ))}
