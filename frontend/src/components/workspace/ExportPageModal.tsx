@@ -18,6 +18,7 @@ import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
 import api from '@/api/client';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { downloadBlob } from '@/utils/download';
 import './ExportPageModal.css';
 
 import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle, ExportThemeMode } from '@/stores/exportSettingsStore';

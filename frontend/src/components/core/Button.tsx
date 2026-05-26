@@ -10,7 +10,7 @@
  * - Icon + Text: <Button icon="mdi mdi-cog">Settings</Button>
  * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
  */
-import { forwardRef, useState, useCallback, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 import './Button.css';
 import { ConfirmationModal } from './ConfirmationModal';

@@ -9,7 +9,6 @@
  */
 import { useState, useCallback, useMemo, useId, memo } from 'react';
 import type { Node } from '@/types';
-import type { Property } from '@/types/api';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
@@ -17,6 +16,7 @@ import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '../../core/icons';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getPropertyGroupInfo } from './viewHelpers';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
