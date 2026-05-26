@@ -54,7 +54,7 @@ export interface ParsedFilters {
   uuidSearch: string | null;
 }
 
-export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation';
+export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation' | 'share';
 
 export interface CommandDef {
   id: string;

@@ -31,6 +31,7 @@ const ImportLogseqModal = React.lazy(() => import('@/components/workspace/Import
 const ImportLogseqFolderModal = React.lazy(() => import('@/components/workspace/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
 const ImportMarkdownModal = React.lazy(() => import('@/components/workspace/ImportMarkdownModal').then(m => ({ default: m.ImportMarkdownModal })));
 const ExportPageModal = React.lazy(() => import('@/components/workspace/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
+const ShareModal = React.lazy(() => import('@/components/nodes/ShareModal').then(m => ({ default: m.ShareModal })));
 const RebuildLinksModal = React.lazy(() => import('@/components/maintenance/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
 const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
 const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default: m.MergePagesModal })));
@@ -67,6 +68,8 @@ export function Layout() {
   const isCreateWithUuidModalOpen = useModalStore(s => s.isCreateWithUuidModalOpen);
   const setCreateWithUuidModalOpen = useModalStore(s => s.setCreateWithUuidModalOpen);
   const createWithUuidPrefill = useModalStore(s => s.createWithUuidPrefill);
+  const isShareModalOpen = useModalStore(s => s.isShareModalOpen);
+  const setShareModalOpen = useModalStore(s => s.setShareModalOpen);
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
   const presentationNodeId = usePresentationStore(s => s.nodeId);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
@@ -351,6 +354,17 @@ export function Layout() {
               onClose={() => setExportPageModalOpen(false)}
               nodeUuid={currentNode.uuid}
               nodeName={currentNode.name}
+            />
+          </Suspense>
+        )}
+
+        {/* Share Modal */}
+        {currentNodeId && (
+          <Suspense fallback={null}>
+            <ShareModal
+              nodeId={currentNodeId}
+              isOpen={isShareModalOpen}
+              onClose={() => setShareModalOpen(false)}
             />
           </Suspense>
         )}

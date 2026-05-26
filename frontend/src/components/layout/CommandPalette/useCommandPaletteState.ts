@@ -194,6 +194,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       { id: 'toggle-wide-mode', label: 'Toggle wide mode', icon: 'expand' },
       { id: 'start-presentation', label: 'Start presentation', icon: 'presentation' },
       { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
+      { id: 'share-page', label: 'Share current page', icon: 'share', requiresPage: true },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);
