@@ -170,12 +170,12 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     from app import auth
     from app.db import schema
     
-    # Use unique username per test to avoid conflicts
+    # Use unique email per test to avoid conflicts
     unique_id = secrets.token_hex(4)
-    username = f"testuser_{unique_id}"
+    email = f"testuser_{unique_id}@example.com"
     
     # Create user via auth module
-    user = await auth.create_user(username, "testpassword123")
+    user = await auth.create_user(email, "testpassword123")
     
     # Create workspace for user and seed system types
     async with db_pool.acquire() as conn:
@@ -188,11 +188,11 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
         page_class_id = page_row["id"] if page_row else None
     
     # Generate auth token
-    token = auth.create_token(user["id"], user["username"])
+    token = auth.create_token(user["id"], user["email"], user["role"])
     
     return {
         "id": user["id"],
-        "username": user["username"],
+        "email": user["email"],
         "workspace_id": workspace_id,
         "page_class_id": page_class_id,
         "token": token,

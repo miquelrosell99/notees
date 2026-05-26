@@ -2,20 +2,18 @@
 
 Handles user authentication, JWT tokens, and password hashing.
 Uses PostgreSQL for user storage.
-Default admin credentials: admin/admin
 """
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-from pathlib import Path
 import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import jwt
 from jwt import PyJWTError
 from passlib.context import CryptContext
 
 from .config import settings
-from .logging_config import get_logger
 from .db.connection import get_connection
+from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -43,22 +41,23 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: str, username: str) -> str:
+def create_token(user_id: str, email: str, role: str) -> str:
     """Create a JWT token."""
     expires_delta = timedelta(hours=settings.access_token_expire_hours)
-    expire = datetime.now(timezone.utc) + expires_delta
-    
+    expire = datetime.now(UTC) + expires_delta
+
     payload = {
         "user_id": user_id,
-        "username": username,
+        "email": email,
+        "role": role,
         "exp": expire
     }
-    
+
     token = jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
     return token
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str) -> dict | None:
     """Decode and verify a JWT token."""
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
@@ -68,9 +67,9 @@ def decode_token(token: str) -> Optional[dict]:
         return None
 
 
-async def get_user_by_id(user_id: str) -> Optional[dict]:
+async def get_user_by_id(user_id: str) -> dict | None:
     """Get a user by ID (numeric or UUID string).
-    
+
     Uses an in-memory cache to avoid hitting the DB connection pool
     on every authenticated request.
     """
@@ -80,13 +79,13 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
         user_dict, cached_at = cached
         if now - cached_at < _USER_CACHE_TTL:
             return user_dict
-    
+
     async with get_connection() as conn:
         row = await conn.fetchrow(
             '''
-            SELECT id, uuid, username, password_hash as hashed_password, 
-                   active, create_date as created_at
-            FROM "user" 
+            SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
+                   profile_pic, role, active, create_date as created_at
+            FROM "user"
             WHERE id::text = $1 OR uuid::text = $1
             ''',
             user_id
@@ -95,7 +94,11 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
             result = {
                 "id": str(row['id']),
                 "uuid": str(row['uuid']),
-                "username": row['username'],
+                "email": row['email'],
+                "name": row['name'],
+                "surnames": row['surnames'],
+                "profile_pic": row['profile_pic'],
+                "role": row['role'],
                 "hashed_password": row['hashed_password'],
                 "is_active": row['active'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
@@ -105,23 +108,27 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
     return None
 
 
-async def get_user_by_username(username: str) -> Optional[dict]:
-    """Get a user by username."""
+async def get_user_by_email(email: str) -> dict | None:
+    """Get a user by email."""
     async with get_connection() as conn:
         row = await conn.fetchrow(
             '''
-            SELECT id, uuid, username, password_hash as hashed_password, 
-                   active, create_date as created_at
-            FROM "user" 
-            WHERE username = $1
+            SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
+                   profile_pic, role, active, create_date as created_at
+            FROM "user"
+            WHERE email = $1
             ''',
-            username
+            email
         )
         if row:
             return {
                 "id": str(row['id']),
                 "uuid": str(row['uuid']),
-                "username": row['username'],
+                "email": row['email'],
+                "name": row['name'],
+                "surnames": row['surnames'],
+                "profile_pic": row['profile_pic'],
+                "role": row['role'],
                 "hashed_password": row['hashed_password'],
                 "is_active": row['active'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
@@ -129,105 +136,129 @@ async def get_user_by_username(username: str) -> Optional[dict]:
     return None
 
 
-async def create_user(username: str, password: str) -> dict:
+async def create_user(
+    email: str,
+    password: str,
+    name: str | None = None,
+    surnames: str | None = None,
+    profile_pic: str | None = None,
+    role: str = 'user',
+) -> dict:
     """Create a new user."""
-    # Check if username exists
-    existing = await get_user_by_username(username)
+    existing = await get_user_by_email(email)
     if existing:
-        logger.warning(f"Attempted to create duplicate user: {username}")
-        raise ValueError(f"Username '{username}' already exists")
-    
+        logger.warning(f"Attempted to create duplicate user: {email}")
+        raise ValueError(f"Email '{email}' already exists")
+
     hashed = hash_password(password)
-    
+
     async with get_connection() as conn:
         row = await conn.fetchrow(
             '''
-            INSERT INTO "user" (username, password_hash, active)
-            VALUES ($1, $2, TRUE)
-            RETURNING id, uuid, username, active, create_date as created_at
+            INSERT INTO "user" (email, password_hash, name, surnames, profile_pic, role, active)
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
             ''',
-            username, hashed
+            email, hashed, name, surnames, profile_pic, role
         )
         if row is None:
             raise RuntimeError("Failed to create user")
-        
+
         user = {
             "id": str(row['id']),
             "uuid": str(row['uuid']),
-            "username": row['username'],
+            "email": row['email'],
+            "name": row['name'],
+            "surnames": row['surnames'],
+            "profile_pic": row['profile_pic'],
+            "role": row['role'],
             "hashed_password": hashed,
             "is_active": row['active'],
             "created_at": row['created_at'].isoformat() if row['created_at'] else None,
         }
-        
-        logger.info(f"Created new user: {username} (ID: {user['id']})")
+
+        logger.info(f"Created new user: {email} (ID: {user['id']}, role: {role})")
         return user
 
 
-async def authenticate_user(username: str, password: str) -> Optional[dict]:
+async def update_user(user_id: str, **fields) -> dict | None:
+    """Update a user's profile fields."""
+    allowed = {'name', 'surnames', 'profile_pic'}
+    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if not updates:
+        return await get_user_by_id(user_id)
+
+    set_clauses = ', '.join(f'{k} = ${i+2}' for i, k in enumerate(updates))
+    values = list(updates.values())
+
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            f'''
+            UPDATE "user" SET {set_clauses}, write_date = NOW()
+            WHERE id::text = $1 OR uuid::text = $1
+            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
+            ''',
+            user_id, *values
+        )
+        if row:
+            # Invalidate cache
+            _user_cache.pop(user_id, None)
+            return {
+                "id": str(row['id']),
+                "uuid": str(row['uuid']),
+                "email": row['email'],
+                "name": row['name'],
+                "surnames": row['surnames'],
+                "profile_pic": row['profile_pic'],
+                "role": row['role'],
+                "is_active": row['active'],
+                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+            }
+    return None
+
+
+async def authenticate_user(email: str, password: str) -> dict | None:
     """Authenticate a user and return user data if valid."""
-    user = await get_user_by_username(username)
+    user = await get_user_by_email(email)
     if not user:
-        logger.warning(f"Authentication failed for '{username}': user not found")
+        logger.warning(f"Authentication failed for '{email}': user not found")
         return None
 
     verified = verify_password(password, user.get("hashed_password", ""))
-    logger.debug(f"Authentication attempt for user '{username}': verified={bool(verified)}")
+    logger.debug(f"Authentication attempt for user '{email}': verified={bool(verified)}")
     if not verified:
-        logger.warning(f"Authentication failed for '{username}': invalid password")
+        logger.warning(f"Authentication failed for '{email}': invalid password")
         return None
 
     if not user.get("is_active", True):
-        logger.warning(f"Authentication failed for '{username}': account inactive")
+        logger.warning(f"Authentication failed for '{email}': account inactive")
         return None
 
-    logger.info(f"Authentication successful for user '{username}' (id={user.get('id')})")
+    logger.info(f"Authentication successful for user '{email}' (id={user.get('id')})")
     return user
 
 
-async def ensure_admin_user():
-    """Ensure an admin user exists with secure credentials."""
-    import os
-    import secrets
-    
-    existing = await get_user_by_username("admin")
-    if existing:
-        return
-    
-    # Check for admin password in environment
-    admin_password = os.environ.get("ADMIN_PASSWORD")
-    
-    if admin_password:
-        await create_user("admin", admin_password)
-        logger.info("Created admin user with password from ADMIN_PASSWORD env var")
-    else:
-        # Generate secure random password
-        generated_password = secrets.token_urlsafe(16)
-        await create_user("admin", generated_password)
-        logger.info("=" * 60)
-        logger.info("ADMIN USER CREATED WITH GENERATED PASSWORD")
-        logger.info("Username: admin")
-        logger.info("A secure random password has been generated for the admin user.")
-        logger.info("The password is NOT shown in logs for security reasons.")
-        logger.info("To view or change the password, set ADMIN_PASSWORD env var")
-        logger.info("and restart the application.")
-        logger.info("=" * 60)
+async def is_first_boot() -> bool:
+    """Check if the system has no users yet (first boot)."""
+    async with get_connection() as conn:
+        count = await conn.fetchval('SELECT COUNT(*) FROM "user"')
+        return count == 0
 
 
-async def get_current_user_from_token(token: str) -> Optional[dict]:
+async def get_current_user_from_token(token: str) -> dict | None:
     """Get the current user from a token."""
     payload = decode_token(token)
     if not payload:
         return None
-    
+
     user_id = payload.get("user_id")
     if not user_id:
         return None
-    
+
     user = await get_user_by_id(user_id)
     if not user or not user.get("is_active", True):
         return None
-    
+
     return user
 
 

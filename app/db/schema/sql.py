@@ -24,12 +24,58 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS "user" (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    username VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    name VARCHAR(255),
+    surnames VARCHAR(255),
+    profile_pic TEXT,
+    role VARCHAR(20) DEFAULT 'user',
     active BOOLEAN DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration: Rename username to email and add profile fields
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'username'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'email'
+    ) THEN
+        ALTER TABLE "user" RENAME COLUMN username TO email;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'name'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN name VARCHAR(255);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'surnames'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN surnames VARCHAR(255);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'profile_pic'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN profile_pic TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user' AND column_name = 'role'
+    ) THEN
+        ALTER TABLE "user" ADD COLUMN role VARCHAR(20) DEFAULT 'user';
+    END IF;
+END $$;
 
 -- ============================================================
 -- WORKSPACES

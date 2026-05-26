@@ -623,7 +623,11 @@ export interface PropertyUpdate {
 export interface User {
   id: number;
   uuid: string;
-  username: string;
+  email: string;
+  name: string | null;
+  surnames: string | null;
+  profile_pic: string | null;
+  role: string;
   is_active: boolean;
 }
 
@@ -631,16 +635,96 @@ export interface User {
  * User creation data
  */
 export interface UserCreate {
-  username: string;
+  email: string;
   password: string;
+  name?: string;
+  surnames?: string;
+  profile_pic?: string;
 }
 
 /**
  * User login credentials
  */
 export interface UserLogin {
-  username: string;
+  email: string;
   password: string;
+}
+
+/**
+ * User update data
+ */
+export interface UserUpdate {
+  name?: string;
+  surnames?: string;
+  profile_pic?: string;
+}
+
+/**
+ * Auth status response
+ */
+export interface AuthStatus {
+  needs_onboarding: boolean;
+  authenticated: boolean;
+}
+
+/**
+ * Admin user
+ */
+export interface AdminUser {
+  id: string;
+  uuid: string;
+  email: string;
+  name: string | null;
+  surnames: string | null;
+  profile_pic: string | null;
+  role: string;
+  active: boolean;
+  created_at: string | null;
+}
+
+/**
+ * Admin user creation
+ */
+export interface AdminUserCreate {
+  email: string;
+  password: string;
+  name?: string;
+  surnames?: string;
+  profile_pic?: string;
+  role?: string;
+  active?: boolean;
+}
+
+/**
+ * Admin user update
+ */
+export interface AdminUserUpdate {
+  email?: string;
+  password?: string;
+  name?: string;
+  surnames?: string;
+  profile_pic?: string;
+  role?: string;
+  active?: boolean;
+}
+
+/**
+ * Admin metrics response
+ */
+export interface AdminMetrics {
+  nodes: {
+    total: number;
+    pages: number;
+    blocks: number;
+    daily_journals: number;
+  };
+  users: number;
+  workspaces: number;
+  shares: {
+    public: number;
+    user: number;
+  };
+  storage_used: number;
 }
 
 /**

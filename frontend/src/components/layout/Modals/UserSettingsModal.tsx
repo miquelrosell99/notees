@@ -331,10 +331,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               <div className="settings-user-card">
                 <div className="settings-user-info">
                   <div className="settings-user-avatar">
-                    {user?.username?.charAt(0).toUpperCase() || '?'}
+                    {(user?.name || user?.email || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="settings-user-details">
-                    <p className="settings-user-name">{user?.username || 'User'}</p>
+                    <p className="settings-user-name">{user?.name || user?.email || 'User'}</p>
                     <p className="settings-user-id">User ID: {user?.id || 'Unknown'}</p>
                   </div>
                 </div>

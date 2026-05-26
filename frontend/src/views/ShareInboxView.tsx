@@ -63,7 +63,7 @@ export function ShareInboxView() {
               </div>
               <div className="share-inbox-view__item-meta">
                 <span className="share-inbox-view__item-from">
-                  From <strong>@{item.shared_by.username}</strong>
+                  From <strong>@{item.shared_by.email}</strong>
                 </span>
                 <span className="share-inbox-view__item-ws">
                   in <em>{item.workspace.name}</em>

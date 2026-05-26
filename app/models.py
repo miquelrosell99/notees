@@ -14,12 +14,12 @@ Nodes have:
 Pages reference other pages with [[Page Name]], blocks with ((block-uuid)).
 Journal pages use tags: 'day', 'month', 'year' with YYYYMMdd format names.
 """
-from datetime import datetime
-from typing import Optional, List, Generic, TypeVar
-from pydantic import BaseModel, Field, field_validator
-from enum import Enum
 import uuid
-import re
+from datetime import datetime
+from enum import Enum
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, field_validator
 
 
 def generate_uuid() -> str:
@@ -38,24 +38,27 @@ class ExportFormat(str, Enum):
 
 class UserBase(BaseModel):
     """Base user model."""
-    username: str
+    email: str
 
 
 class UserCreate(UserBase):
     """User creation model."""
     password: str
-    
-    @field_validator('username')
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+
+    @field_validator('email')
     @classmethod
-    def validate_username(cls, v):
+    def validate_email(cls, v):
         if len(v) < 3:
-            raise ValueError('Username must be at least 3 characters')
-        if len(v) > 50:
-            raise ValueError('Username must be at most 50 characters')
-        if not re.match(r'^[a-zA-Z0-9_]+$', v):
-            raise ValueError('Username can only contain letters, numbers, and underscores')
+            raise ValueError('Email must be at least 3 characters')
+        if len(v) > 255:
+            raise ValueError('Email must be at most 255 characters')
+        if '@' not in v:
+            raise ValueError('Invalid email address')
         return v
-    
+
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
@@ -71,12 +74,45 @@ class UserLogin(UserBase):
     password: str
 
 
+class UserUpdate(BaseModel):
+    """User self-service update model."""
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+
+
+class AdminUserCreate(UserBase):
+    """Admin user creation model."""
+    password: str
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+    role: str = 'user'
+    active: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    """Admin user update model."""
+    email: str | None = None
+    password: str | None = None
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+    role: str | None = None
+    active: bool | None = None
+
+
 class User(UserBase):
     """Full user model."""
     id: str
+    uuid: str
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+    role: str = 'user'
     created_at: datetime
     is_active: bool = True
-    
+
     class Config:
         from_attributes = True
 
@@ -105,7 +141,7 @@ T = TypeVar('T')
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """Generic paginated response for list endpoints."""
-    items: List[T]
+    items: list[T]
     total: int
     page: int
     page_size: int
@@ -124,24 +160,24 @@ class WorkspaceCreate(BaseModel):
 
 class SyncRequest(BaseModel):
     """Request for syncing data."""
-    last_sync: Optional[datetime] = None
-    nodes: List[dict] = []
-    deleted_nodes: List[str] = []
+    last_sync: datetime | None = None
+    nodes: list[dict] = []
+    deleted_nodes: list[str] = []
 
 
 class SyncResponse(BaseModel):
     """Response from sync."""
     server_time: datetime
-    nodes: List[dict] = []
-    deleted_nodes: List[str] = []
-    conflicts: List[dict] = []
+    nodes: list[dict] = []
+    deleted_nodes: list[str] = []
+    conflicts: list[dict] = []
 
 
 # ==================== EXPORT MODELS ====================
 
 class ExportRequest(BaseModel):
     """Export request."""
-    node_ids: List[str]
+    node_ids: list[str]
     format: ExportFormat
     include_children: bool = True
     include_backlinks: bool = False
@@ -172,7 +208,7 @@ class ExportResponse(BaseModel):
 class UserSettings(BaseModel):
     """User settings."""
     date_format: str = "YYYY-MM-DD"
-    default_database: Optional[str] = None
+    default_database: str | None = None
     first_day_of_week: int = 0  # 0 = Sunday, 1 = Monday, 6 = Saturday
 
 

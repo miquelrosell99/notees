@@ -8,7 +8,7 @@ import { Button } from '../components/core/Button';
 import { TextField } from '../components/core/TextField';
 
 export function LoginView() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const { login, register, isLoading, error, clearError } = useAuthStore();
@@ -19,9 +19,9 @@ export function LoginView() {
     
     try {
       if (isRegister) {
-        await register(username, password);
+        await register(email, password);
       } else {
-        await login(username, password);
+        await login(email, password);
       }
     } catch {
       // Error is handled by store
@@ -38,14 +38,14 @@ export function LoginView() {
         
         <form onSubmit={handleSubmit} className="login-form">
           <TextField
-            id="username"
-            type="text"
-            label="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter username"
+            id="email"
+            type="email"
+            label="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter email"
             required
-            autoComplete="username"
+            autoComplete="email"
           />
           
           <TextField

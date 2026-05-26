@@ -251,7 +251,7 @@ async def restore_workspace(
 
 
 class MemberInviteRequest(BaseModel):
-    username: str
+    email: str
     role: str = "viewer"
 
 
@@ -272,7 +272,7 @@ async def invite_member(
     body: MemberInviteRequest,
     user: User = Depends(get_current_user),  # noqa: B008
 ):
-    """Invite a user to a workspace by username."""
+    """Invite a user to a workspace by email."""
     pool = await get_pool()
     async with acquire_connection(pool) as conn:
         ws_row = await conn.fetchrow(
@@ -285,11 +285,11 @@ async def invite_member(
             raise HTTPException(status_code=403, detail="Only workspace owners can invite members")
 
         target = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE username = $1 AND active = TRUE',
-            body.username,
+            'SELECT id FROM "user" WHERE email = $1 AND active = TRUE',
+            body.email,
         )
         if not target:
-            raise HTTPException(status_code=404, detail=f"User '{body.username}' not found")
+            raise HTTPException(status_code=404, detail=f"User '{body.email}' not found")
         target_id = target["id"]
         if target_id == int(user.id):
             raise HTTPException(status_code=400, detail="Cannot invite yourself")
@@ -327,7 +327,7 @@ async def invite_member(
             ws_row["id"],
         )
 
-    return {"status": "ok", "username": body.username, "role": body.role}
+    return {"status": "ok", "email": body.email, "role": body.role}
 
 
 @router.get("/{workspace_uuid}/members")
@@ -359,7 +359,7 @@ async def list_members(
 
         rows = await conn.fetch(
             """
-            SELECT u.id, u.username, u.uuid as user_uuid,
+            SELECT u.id, u.email, u.uuid as user_uuid,
                    gs.can_read, gs.can_write, gs.can_create, gs.can_delete,
                    gs.create_date
             FROM workspace_share gs
@@ -371,7 +371,7 @@ async def list_members(
         )
 
         owner_row = await conn.fetchrow(
-            'SELECT id, username, uuid as user_uuid FROM "user" WHERE id = $1',
+            'SELECT id, email, uuid as user_uuid FROM "user" WHERE id = $1',
             ws_row["create_uid"],
         )
 
@@ -379,7 +379,7 @@ async def list_members(
     if owner_row:
         members.append({
             "user_id": owner_row["id"],
-            "username": owner_row["username"],
+            "email": owner_row["email"],
             "user_uuid": str(owner_row["user_uuid"]),
             "role": "owner",
             "joined_at": None,
@@ -392,7 +392,7 @@ async def list_members(
             role = "editor"
         members.append({
             "user_id": r["id"],
-            "username": r["username"],
+            "email": r["email"],
             "user_uuid": str(r["user_uuid"]),
             "role": role,
             "joined_at": r["create_date"].isoformat() if r["create_date"] else None,

@@ -260,7 +260,7 @@ export function WorkspaceManagementView({
             )}
           </div>
           <div className="workspace-management__user-info">
-            <span className="workspace-management__username">{user?.username}</span>
+            <span className="workspace-management__username">{user?.email}</span>
             <Button 
               className="workspace-management__user-settings" 
               variant="ghost" 

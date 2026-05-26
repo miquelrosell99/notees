@@ -78,7 +78,7 @@ async def get_share_inbox(
             """
             SELECT ns.id, ns.node_id, ns.can_read, ns.can_write,
                    ns.create_date as shared_at, ns.create_uid as shared_by_id,
-                   u.username as shared_by_username,
+                   u.email as shared_by_email,
                    n.uuid as node_uuid, n.name as node_name, n.icon as node_icon,
                    n.is_page, n.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
             FROM node_share ns
@@ -105,7 +105,7 @@ async def get_share_inbox(
                 "shared_at": r["shared_at"].isoformat() if r["shared_at"] else None,
                 "shared_by": {
                     "user_id": r["shared_by_id"],
-                    "username": r["shared_by_username"],
+                    "email": r["shared_by_email"],
                 },
                 "workspace": {
                     "id": r["workspace_id"],
