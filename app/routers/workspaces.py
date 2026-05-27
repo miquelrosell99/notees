@@ -4,6 +4,7 @@ Handles workspace creation, switching, import/export, and restore.
 Uses domain types where applicable.
 """
 
+import asyncio
 import json
 import shutil
 import tempfile
@@ -17,6 +18,7 @@ from .. import workspace_manager as wm
 from ..db.connection import acquire_connection, get_pool
 from ..dependencies import invalidate_workspace_cache
 from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
+from ..export_jobs import create_job, get_job, update_job
 from ..models import User, WorkspaceCreate
 from ..workspace_io import (
     export_workspace_by_uuid,
@@ -210,6 +212,100 @@ async def export_workspace_zip_endpoint(workspace_id: str, user: User = Depends(
         return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/{workspace_id}/export-job")
+async def create_workspace_export_job(
+    workspace_id: str,
+    format: str = "dump",
+    include_assets: bool = False,
+    user: User = Depends(get_current_user),
+):
+    """Start an async workspace export job.
+
+    Returns a job ID immediately. Poll GET /export-jobs/{job_id} for progress.
+    When status is "completed", download from GET /export-jobs/{job_id}/download.
+    """
+    job = create_job()
+
+    async def _run():
+        try:
+            update_job(job.id, status="running")
+            from ..export_jobs import make_progress_callback
+
+            callback = make_progress_callback(job.id)
+
+            if format == "dump":
+                if include_assets:
+                    path = await export_workspace_zip(
+                        user.id, workspace_id, progress_callback=callback
+                    )
+                else:
+                    path = await export_workspace_by_uuid(user.id, workspace_id)
+                    update_job(job.id, progress=100, status_text="Export complete")
+            elif format in ("markdown", "text", "json"):
+                path = await export_workspace_formatted_zip(
+                    user.id, workspace_id, format, include_assets, progress_callback=callback
+                )
+            else:
+                update_job(job.id, status="failed", error=f"Invalid format: {format}")
+                return
+
+            update_job(job.id, status="completed", progress=100, result_path=str(path))
+        except Exception as exc:
+            update_job(job.id, status="failed", error=str(exc))
+
+    asyncio.create_task(_run())
+    return {"job_id": job.id}
+
+
+class ExportJobResponse(BaseModel):
+    id: str
+    status: str
+    progress: int
+    status_text: str
+    download_url: str | None = None
+    error: str | None = None
+
+
+@router.get("/export-jobs/{job_id}", response_model=ExportJobResponse)
+async def get_workspace_export_job(job_id: str, user: User = Depends(get_current_user)):
+    """Get the status of an export job."""
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Export job not found")
+
+    download_url = None
+    if job.status == "completed" and job.result_path:
+        download_url = f"/api/workspaces/export-jobs/{job.id}/download"
+
+    return ExportJobResponse(
+        id=job.id,
+        status=job.status,
+        progress=job.progress,
+        status_text=job.status_text,
+        download_url=download_url,
+        error=job.error,
+    )
+
+
+@router.get("/export-jobs/{job_id}/download")
+async def download_workspace_export_job(job_id: str, user: User = Depends(get_current_user)):
+    """Download the result of a completed export job."""
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Export job not found")
+    if job.status != "completed":
+        raise HTTPException(status_code=400, detail="Export job is not completed yet")
+    if not job.result_path:
+        raise HTTPException(status_code=500, detail="Export result missing")
+
+    path = Path(job.result_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Export file no longer available")
+
+    media_type = "application/zip" if path.suffix == ".zip" else "application/json"
+    return FileResponse(path, filename=path.name, media_type=media_type)
 
 
 @router.post("/import")

@@ -1433,6 +1433,7 @@ async def restore_workspace_from_dump(
 async def export_workspace_zip(
     user_id_str: str,
     workspace_uuid: str,
+    progress_callback = None,
 ) -> Path:
     """Export a workspace as a ZIP containing the JSON dump and all asset files.
 
@@ -1444,6 +1445,7 @@ async def export_workspace_zip(
     Args:
         user_id_str: User ID string
         workspace_uuid: UUID of the workspace to export
+        progress_callback: Optional callable(progress: int, status_text: str)
 
     Returns:
         Path to the generated ZIP file
@@ -1474,7 +1476,13 @@ async def export_workspace_zip(
         ws_name = workspace["name"]
         ws_uuid = str(workspace["uuid"])
 
-        dump_data = await export_workspace_full(conn, workspace_id)
+        if progress_callback:
+            progress_callback(5, "Fetching workspace data…")
+
+    dump_data = await export_workspace_full(conn, workspace_id)
+
+    if progress_callback:
+        progress_callback(25, "Building ZIP archive…")
 
     # Build ZIP
     export_dir = get_data_dir() / "workspaces" / ws_uuid / "export"
@@ -1482,20 +1490,33 @@ async def export_workspace_zip(
     zip_path = export_dir / f"{ws_name}_full.zip"
 
     assets_dir = get_data_dir() / "workspaces" / ws_uuid / "assets"
+    asset_folders = [f for f in assets_dir.iterdir() if f.is_dir()] if assets_dir.exists() else []
+    total_assets = sum(1 for folder in asset_folders for _ in folder.iterdir() if _.is_file())
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         # Add JSON dump
         dump_json = json.dumps(dump_data, default=str, indent=2)
         zf.writestr("dump.json", dump_json)
 
+        if progress_callback:
+            progress_callback(50, "Copying asset files…")
+
         # Add all asset files
+        copied = 0
         if assets_dir.exists():
-            for asset_folder in assets_dir.iterdir():
+            for asset_folder in asset_folders:
                 if asset_folder.is_dir():
                     for asset_file in asset_folder.iterdir():
                         if asset_file.is_file():
                             arcname = f"assets/{asset_folder.name}/{asset_file.name}"
                             zf.write(asset_file, arcname)
+                            copied += 1
+                            if progress_callback and total_assets > 0:
+                                progress = 50 + int((copied / total_assets) * 45)
+                                progress_callback(progress, f"Copying asset files ({copied}/{total_assets})…")
+
+    if progress_callback:
+        progress_callback(100, "Export complete")
 
     file_size_mb = zip_path.stat().st_size / (1024 * 1024)
     logger.info(f"Exported workspace '{ws_name}' as ZIP to {zip_path} ({file_size_mb:.2f} MB)")
@@ -1691,6 +1712,7 @@ async def export_workspace_formatted_zip(
     workspace_uuid: str,
     format: str,
     include_assets: bool = False,
+    progress_callback = None,
 ) -> Path:
     """Export all pages in a workspace as a ZIP of formatted files.
 
@@ -1705,6 +1727,7 @@ async def export_workspace_formatted_zip(
         format: One of "markdown", "text", "json"
         include_assets: Whether to include asset files in the ZIP and rewrite
             asset links in markdown exports to relative paths.
+        progress_callback: Optional callable(progress: int, status_text: str)
 
     Returns:
         Path to the generated ZIP file
@@ -1736,6 +1759,9 @@ async def export_workspace_formatted_zip(
         workspace_id = workspace["id"]
         ws_name = workspace["name"]
         ws_uuid = str(workspace["uuid"])
+
+        if progress_callback:
+            progress_callback(5, "Fetching pages…")
 
         # Fetch all pages
         page_rows = await conn.fetch(
@@ -1777,8 +1803,12 @@ async def export_workspace_formatted_zip(
                             asset_files[asset_uuid] = f
                             break
 
-    if not page_uuids:
+    total_pages = len(page_uuids)
+    if total_pages == 0:
         raise ValueError("No pages found in workspace")
+
+    if progress_callback:
+        progress_callback(10, f"Exporting {total_pages} pages…")
 
     # Export dir
     export_dir = get_data_dir() / "workspaces" / ws_uuid / "export"
@@ -1789,7 +1819,7 @@ async def export_workspace_formatted_zip(
     # Build ZIP
     ext = {"markdown": "md", "text": "txt", "json": "json"}[format]
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for node_uuid in page_uuids:
+        for i, node_uuid in enumerate(page_uuids):
             try:
                 content_bytes, _fn, _mime = await export_nodes(
                     user_id_str,
@@ -1818,11 +1848,22 @@ async def export_workspace_formatted_zip(
                 logger.warning(f"Failed to export page {node_uuid}: {exc}")
                 continue
 
+            if progress_callback:
+                progress = 10 + int(((i + 1) / total_pages) * 80)
+                progress_callback(progress, f"Exported page {i + 1} of {total_pages}…")
+
         # Include asset files in the ZIP
         if include_assets:
-            for asset_uuid, file_path in asset_files.items():
+            total_assets = len(asset_files)
+            for idx, (asset_uuid, file_path) in enumerate(asset_files.items()):
                 arcname = f"assets/{asset_uuid}/{file_path.name}"
                 zf.write(file_path, arcname)
+                if progress_callback:
+                    progress = 90 + int(((idx + 1) / total_assets) * 10)
+                    progress_callback(progress, f"Copying asset files ({idx + 1}/{total_assets})…")
+
+    if progress_callback:
+        progress_callback(100, "Export complete")
 
     return zip_path
 
