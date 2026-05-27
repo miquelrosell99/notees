@@ -16,6 +16,7 @@
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { 
   useNode, 
   useCreateNode, 
@@ -80,7 +81,7 @@ function SingleTextBlock({
   if (isLoading) {
     return (
       <div className="text-property-block text-property-block--loading">
-        <span className="text-property-block__spinner">Loading...</span>
+        <Spinner size="sm" />
       </div>
     );
   }
@@ -321,7 +322,7 @@ export function TextPropertyBlock({
   if (blockLoading && blockNodeId) {
     return (
       <div className="text-property-block text-property-block--loading">
-        <span className="text-property-block__spinner">Loading...</span>
+        <Spinner size="sm" />
       </div>
     );
   }

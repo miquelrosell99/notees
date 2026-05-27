@@ -6,6 +6,7 @@
  */
 import React, { useMemo, useEffect, useRef, Suspense } from 'react';
 import { useNavigationStore } from '@/stores';
+import { Spinner } from '@/components/core/Spinner';
 import { useNode, useClasses } from '@/hooks';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useQueryClient } from '@tanstack/react-query';
@@ -96,7 +97,7 @@ export function MainContent() {
   if (mainViewType === 'graph') {
     return (
       <main className="main-content graph-content">
-        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
           <AllPagesGraphView className="main-graph-view" />
         </Suspense>
       </main>
@@ -106,7 +107,7 @@ export function MainContent() {
   if (mainViewType === 'timeline') {
     return (
       <main className="main-content timeline-content">
-        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
           <AllPagesTimelineView className="main-timeline-view" />
         </Suspense>
       </main>
@@ -116,7 +117,7 @@ export function MainContent() {
   if (mainViewType === 'property' && currentPropertyId) {
     return (
       <div className="main-content-wrapper">
-        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
           <PropertyViewFull
             propertyId={currentPropertyId}
             onNavigateToNode={(nodeId: number) => openNode(nodeId)}
@@ -130,7 +131,7 @@ export function MainContent() {
   if (mainViewType === 'shares' || mainViewType === 'inbox') {
     return (
       <main className="main-content">
-        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
           <SharesUnifiedView initialTab={mainViewType === 'inbox' ? 'inbox' : 'shared-out'} />
         </Suspense>
       </main>
@@ -168,7 +169,7 @@ export function MainContent() {
   if (isWhiteboard && currentNode) {
     return (
       <main className="main-content" style={{ padding: 0, overflow: 'hidden' }}>
-        <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
           <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
         </Suspense>
       </main>

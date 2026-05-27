@@ -13,6 +13,7 @@ import { useExportSettingsStore } from '@/stores';
 import { Modal } from '@/components/core/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
@@ -512,7 +513,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
               onClick={handleDownload}
               disabled={downloading || loading}
             >
-              {downloading ? 'Downloading…' : 'Download'}
+              {downloading ? <Spinner size="sm" label="Downloading…" /> : 'Download'}
             </Button>
           </div>
         </div>

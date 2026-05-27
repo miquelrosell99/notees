@@ -9,6 +9,7 @@
  * - Page sections (wrapped in NodeViewSection)
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { 
   useNodeViews, 
@@ -961,7 +962,7 @@ export function QueryNodeCollection({
   const results = (
     <>
       {isQueryLoading ? (
-        <div className="query-section__loading">Loading...</div>
+        <div className="query-section__loading"><Spinner size="sm" /></div>
       ) : (
         <>
           {/* Main results - blocks only when separating, all results otherwise */}
@@ -1093,7 +1094,7 @@ export function QueryNodeCollection({
             {previewResults && (
               <div className="view-builder__result-preview">
                 {previewLoading ? (
-                  <span className="view-builder__result-loading">Calculating…</span>
+                  <span className="view-builder__result-loading"><Spinner size="sm" label="Calculating…" /></span>
                 ) : (
                   <span className="view-builder__result-count">
                     <span className="view-builder__result-dot">●</span>

@@ -2,6 +2,7 @@
  * Login view component
  */
 import { useState } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import './LoginView.css';
 import { useAuthStore } from '@/stores';
 import { Button } from '../components/core/Button';
@@ -62,7 +63,7 @@ export function LoginView() {
           {error && <div className="error-message">{error}</div>}
           
           <Button type="submit" variant="primary" fullWidth disabled={isLoading}>
-            {isLoading ? 'Loading...' : isRegister ? 'Register' : 'Sign In'}
+            {isLoading ? <Spinner size="sm" label={isRegister ? 'Registering...' : 'Signing in...'} /> : isRegister ? 'Register' : 'Sign In'}
           </Button>
         </form>
         

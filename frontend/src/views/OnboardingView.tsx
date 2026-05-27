@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import './OnboardingView.css';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
 import { TextField } from '@/components/core/TextField';
 import { register } from '@/api/auth';
 import { setAuthToken, setUserData } from '@/utils/auth';
@@ -86,7 +87,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
           {error && <div className="error-message">{error}</div>}
 
           <Button type="submit" variant="primary" fullWidth disabled={isLoading}>
-            {isLoading ? 'Creating account...' : 'Create Admin Account'}
+            {isLoading ? <Spinner size="sm" label="Creating account..." /> : 'Create Admin Account'}
           </Button>
         </form>
       </div>

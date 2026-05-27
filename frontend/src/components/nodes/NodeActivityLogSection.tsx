@@ -7,6 +7,7 @@
  * Users can delete entries but not edit them.
  */
 import { useState, useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
@@ -192,7 +193,7 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
     <div className="node-activity-log">
       <div className="node-activity-list">
         {isLoading ? (
-          <div className="node-activity-loading">Loading...</div>
+          <div className="node-activity-loading"><Spinner size="sm" /></div>
         ) : !activities || activities.length === 0 ? (
           <div className="node-activity-empty">No activity recorded</div>
         ) : (

@@ -14,6 +14,7 @@ import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/keyboardStore';
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { Modal } from '@/components/core/Modal';
+import { Spinner } from '@/components/core/Spinner';
 import { Button } from '@/components/core/Button';
 import './GraphSettingsModal.css';
 
@@ -165,7 +166,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                     ))}
                   </select>
                   {isUpdatingDateFormat && (
-                    <span className="settings-item__loading">Updating...</span>
+                    <span className="settings-item__loading"><Spinner size="sm" label="Updating..." /></span>
                   )}
                 </div>
 

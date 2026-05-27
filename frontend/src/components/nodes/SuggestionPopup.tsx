@@ -22,6 +22,7 @@
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import './SuggestionPopup.css';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
 import { parseQueryWithFilters } from '@/utils/searchFilters';
@@ -551,7 +552,7 @@ export function SuggestionPopup({
 
       <div className="suggestion-popup__list">
         {isLoading && query.length > 0 ? (
-          <div className="suggestion-popup__loading">Searching...</div>
+          <div className="suggestion-popup__loading"><Spinner size="sm" label="Searching..." /></div>
         ) : allItems.length === 0 && !showCreateOption && selectedNodes.length === 0 ? (
           <div className="suggestion-popup__empty">
             {query ? 'No matches found' : 'Start typing to search'}

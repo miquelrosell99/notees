@@ -12,6 +12,7 @@
  * - Delete property action in context menu
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import type { Property, Node, PropertyType } from '@/types/api';
 import type { QueryAST, QueryPropertyType } from '@/types/queryAST';
 import { useProperty, useDeleteProperty, useUpdateProperty } from '@/hooks';
@@ -212,7 +213,7 @@ export function PropertyView({
       header: <MainContentTopbar />,
       content: (
         <div className="property-view loading">
-          <div className="property-view-skeleton">Loading property...</div>
+          <Spinner size="md" label="Loading property..." centered />
         </div>
       )
     };

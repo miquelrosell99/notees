@@ -2,6 +2,7 @@
  * SharesUnifiedView — Combined view for Shared Out (public links) and Inbox (shares received).
  */
 import { useState, useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useNavigationStore } from '@/stores';
 import { useWorkspaceShares, useDeleteShare, useShareInbox } from '@/hooks/useShares';
 import { switchWorkspace } from '@/api/workspaces';
@@ -68,7 +69,7 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
       {activeTab === 'shared-out' && (
         <div className="shares-unified-view__panel">
           {sharesLoading ? (
-            <div className="shares-unified-view__loading">Loading shares...</div>
+            <div className="shares-unified-view__loading"><Spinner size="md" centered /></div>
           ) : shares.length === 0 ? (
             <div className="shares-unified-view__empty">
               <p>No shared links yet.</p>
@@ -124,7 +125,7 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
       {activeTab === 'inbox' && (
         <div className="shares-unified-view__panel">
           {inboxLoading ? (
-            <div className="shares-unified-view__loading">Loading inbox...</div>
+            <div className="shares-unified-view__loading"><Spinner size="md" centered /></div>
           ) : items.length === 0 ? (
             <div className="shares-unified-view__empty">
               <p>Nothing shared with you yet.</p>
