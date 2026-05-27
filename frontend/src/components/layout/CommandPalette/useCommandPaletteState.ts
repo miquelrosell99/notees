@@ -196,6 +196,9 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
       { id: 'share-page', label: 'Share current page', icon: 'share', requiresPage: true },
       { id: 'force-reexport-markdown', label: 'Force re-export all pages to markdown', icon: 'sync', devOnly: true },
+      { id: 'open-tasks', label: 'Open Tasks', icon: 'maintenance' },
+      { id: 'open-today', label: 'Open Today', icon: 'focus' },
+      { id: 'capture-task', label: 'Capture task', icon: 'import' },
     ];
     return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
   }, [showDevOptions]);

@@ -62,6 +62,8 @@ export interface GraphNode {
   classIds: string[];
   /** Callout banner type if applicable */
   calloutType?: string | null;
+  /** Task status name if applicable */
+  taskStatus?: string | null;
   /** Tag IDs */
   tagIds: string[];
   /** Timestamps */
@@ -91,8 +93,8 @@ export interface ProjectedNode {
   hasChildren: boolean;
   /** Server-side ID for API calls */
   serverId?: number;
-  /** Task state if applicable */
-  taskState?: string;
+  /** Task status if applicable */
+  taskStatus?: string | null;
   /** Class IDs */
   classIds: string[];
   /** Callout banner type (e.g. 'warning', 'note') if this block has a callout class */
