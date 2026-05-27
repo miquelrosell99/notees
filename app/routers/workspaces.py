@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import workspace_manager as wm
-from ..db.connection import acquire_connection, get_pool
+from ..db.connection import acquire_connection, clear_request_conn, get_pool
 from ..dependencies import invalidate_workspace_cache
 from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
 from ..export_jobs import create_job, get_job, update_job
@@ -224,6 +224,11 @@ async def _run_export_job(
     include_assets: bool,
 ) -> None:
     """Background task that performs the actual export."""
+    # Background tasks inherit the parent request's context variables,
+    # including the request-scoped DB connection. Clear it so we don't
+    # race with the middleware releasing the connection back to the pool.
+    clear_request_conn()
+
     try:
         update_job(job_id, status="running")
         from ..export_jobs import make_progress_callback
