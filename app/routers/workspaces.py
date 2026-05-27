@@ -3,29 +3,31 @@
 Handles workspace creation, switching, import/export, and restore.
 Uses domain types where applicable.
 """
-from fastapi import APIRouter, HTTPException, Depends, File, Form, UploadFile
-from pydantic import BaseModel
-from fastapi.responses import FileResponse
-from pathlib import Path
-import json
-import tempfile
-import shutil
 
-from ..models import WorkspaceCreate, User
-from ..domain import WorkspaceNotFoundError, DuplicateWorkspaceError
-from ..dependencies import invalidate_workspace_cache
-from .auth import get_current_user
-from ..db.connection import get_pool, acquire_connection
+import json
+import shutil
+import tempfile
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from .. import workspace_manager as wm
+from ..db.connection import acquire_connection, get_pool
+from ..dependencies import invalidate_workspace_cache
+from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
+from ..models import User, WorkspaceCreate
 from ..workspace_io import (
-    import_dump_to_new_workspace,
-    restore_workspace_from_dump,
-    export_workspace_to_file,
     export_workspace_by_uuid,
+    export_workspace_formatted_zip,
+    export_workspace_to_file,
     export_workspace_zip,
+    import_dump_to_new_workspace,
     import_workspace_from_zip,
+    restore_workspace_from_dump,
 )
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
 
@@ -53,7 +55,7 @@ async def list_workspaces(user: User = Depends(get_current_user)):
 async def check_workspace_name(name: str, user: User = Depends(get_current_user)):
     """Check if a workspace name is available."""
     workspaces = await wm.list_workspaces(user.id)
-    exists = any(w['name'] == name for w in workspaces)
+    exists = any(w["name"] == name for w in workspaces)
     return {"available": not exists, "name": name}
 
 
@@ -66,7 +68,7 @@ async def create_workspace(data: WorkspaceCreate, user: User = Depends(get_curre
         invalidate_workspace_cache(int(user.id))
         return workspace
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{workspace_id}/switch")
@@ -86,7 +88,7 @@ async def rename_workspace(name: str, data: WorkspaceCreate, user: User = Depend
         workspace = await wm.rename_workspace(user.id, name, data.name)
         return workspace
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/{uuid}")
@@ -98,47 +100,104 @@ async def delete_workspace(uuid: str, user: User = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail=f"Workspace '{uuid}' not found")
         return {"status": "ok"}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{name}/export")
-async def export_workspace(name: str, user: User = Depends(get_current_user)):
-    """Export a workspace as a comprehensive JSON dump file.
+async def export_workspace(
+    name: str,
+    format: str = "dump",
+    include_assets: bool = False,
+    user: User = Depends(get_current_user),
+):
+    """Export a workspace.
 
-    The dump includes all nodes, links, properties, property values,
-    class definitions, node views, and settings.
+    Formats:
+        - dump:     Comprehensive JSON dump (default)
+        - markdown: ZIP of all pages as .md files with YAML frontmatter
+        - text:     ZIP of all pages as .txt plain text files
+        - json:     ZIP of all pages as .json AST files
     """
     try:
-        export_path = await export_workspace_to_file(user.id, name)
+        if format == "dump":
+            export_path = await export_workspace_to_file(user.id, name)
+            return FileResponse(
+                export_path,
+                filename=export_path.name,
+                media_type="application/json",
+            )
+
+        if format not in ("markdown", "text", "json"):
+            raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
+
+        # Resolve workspace UUID from name for formatted export
+        from ..workspace_manager import _get_numeric_user_id
+
+        numeric_user_id = await _get_numeric_user_id(user.id)
+        async with acquire_connection() as conn:
+            ws = await conn.fetchrow(
+                """
+                SELECT g.uuid::text as uuid
+                FROM workspace g
+                LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
+                WHERE g.name = $2 AND g.active = TRUE
+                  AND (g.create_uid = $1 OR gs.user_id = $1)
+                """,
+                numeric_user_id,
+                name,
+            )
+        if not ws:
+            raise ValueError(f"Workspace '{name}' not found")
+
+        zip_path = await export_workspace_formatted_zip(user.id, ws["uuid"], format, include_assets=include_assets)
         return FileResponse(
-            export_path,
-            filename=export_path.name,
-            media_type="application/json"
+            zip_path,
+            filename=zip_path.name,
+            media_type="application/zip",
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/{workspace_id}/export-by-uuid")
 async def export_workspace_by_id(
-    workspace_id: str, user: User = Depends(get_current_user)
+    workspace_id: str,
+    format: str = "dump",
+    include_assets: bool = False,
+    user: User = Depends(get_current_user),
 ):
-    """Export a workspace by UUID as a comprehensive JSON dump file."""
+    """Export a workspace by UUID.
+
+    Formats:
+        - dump:     Comprehensive JSON dump (default)
+        - markdown: ZIP of all pages as .md files with YAML frontmatter
+        - text:     ZIP of all pages as .txt plain text files
+        - json:     ZIP of all pages as .json AST files
+    """
     try:
-        export_path = await export_workspace_by_uuid(user.id, workspace_id)
+        if format == "dump":
+            export_path = await export_workspace_by_uuid(user.id, workspace_id)
+            return FileResponse(
+                export_path,
+                filename=export_path.name,
+                media_type="application/json",
+            )
+
+        if format not in ("markdown", "text", "json"):
+            raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
+
+        zip_path = await export_workspace_formatted_zip(user.id, workspace_id, format, include_assets=include_assets)
         return FileResponse(
-            export_path,
-            filename=export_path.name,
-            media_type="application/json"
+            zip_path,
+            filename=zip_path.name,
+            media_type="application/zip",
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/{workspace_id}/export-zip")
-async def export_workspace_zip_endpoint(
-    workspace_id: str, user: User = Depends(get_current_user)
-):
+async def export_workspace_zip_endpoint(workspace_id: str, user: User = Depends(get_current_user)):
     """Export a workspace as a ZIP containing the JSON dump and all asset files.
 
     The ZIP includes:
@@ -148,21 +207,13 @@ async def export_workspace_zip_endpoint(
     """
     try:
         zip_path = await export_workspace_zip(user.id, workspace_id)
-        return FileResponse(
-            zip_path,
-            filename=zip_path.name,
-            media_type="application/zip"
-        )
+        return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/import")
-async def import_workspace(
-    file: UploadFile = File(...),
-    name: str = Form(...),
-    user: User = Depends(get_current_user)
-):
+async def import_workspace(file: UploadFile = File(...), name: str = Form(...), user: User = Depends(get_current_user)):
     """Import a workspace from a dump file (JSON) or full export (ZIP).
 
     Creates a brand new workspace with the specified name.
@@ -190,7 +241,7 @@ async def import_workspace(
                 workspace_name=name,
             )
         else:
-            with open(tmp_path, 'r', encoding='utf-8') as f:
+            with open(tmp_path, encoding="utf-8") as f:
                 dump_data = json.load(f)
 
             result = await import_dump_to_new_workspace(
@@ -204,9 +255,9 @@ async def import_workspace(
         invalidate_workspace_cache(int(user.id))
         return result
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON file")
+        raise HTTPException(status_code=400, detail="Invalid JSON file") from None
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -229,7 +280,7 @@ async def restore_workspace(
         tmp_path = Path(tmp.name)
 
     try:
-        with open(tmp_path, 'r', encoding='utf-8') as f:
+        with open(tmp_path, encoding="utf-8") as f:
             dump_data = json.load(f)
 
         result = await restore_workspace_from_dump(
@@ -240,14 +291,11 @@ async def restore_workspace(
         invalidate_workspace_cache(int(user.id))
         return result
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON file")
+        raise HTTPException(status_code=400, detail="Invalid JSON file") from None
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     finally:
         tmp_path.unlink(missing_ok=True)
-
-
-
 
 
 class MemberInviteRequest(BaseModel):
@@ -352,7 +400,8 @@ async def list_members(
         if not is_owner:
             member = await conn.fetchrow(
                 "SELECT 1 FROM workspace_share WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE",
-                ws_id, user_id,
+                ws_id,
+                user_id,
             )
             if not member:
                 raise HTTPException(status_code=403, detail="Not a member of this workspace")
@@ -377,26 +426,30 @@ async def list_members(
 
     members = []
     if owner_row:
-        members.append({
-            "user_id": owner_row["id"],
-            "email": owner_row["email"],
-            "user_uuid": str(owner_row["user_uuid"]),
-            "role": "owner",
-            "joined_at": None,
-        })
+        members.append(
+            {
+                "user_id": owner_row["id"],
+                "email": owner_row["email"],
+                "user_uuid": str(owner_row["user_uuid"]),
+                "role": "owner",
+                "joined_at": None,
+            }
+        )
     for r in rows:
         role = "viewer"
         if r["can_delete"]:
             role = "admin"
         elif r["can_write"]:
             role = "editor"
-        members.append({
-            "user_id": r["id"],
-            "email": r["email"],
-            "user_uuid": str(r["user_uuid"]),
-            "role": role,
-            "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
-        })
+        members.append(
+            {
+                "user_id": r["id"],
+                "email": r["email"],
+                "user_uuid": str(r["user_uuid"]),
+                "role": role,
+                "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
+            }
+        )
     return {"members": members}
 
 
@@ -429,8 +482,13 @@ async def update_member(
                 write_uid = $5, write_date = NOW()
             WHERE workspace_id = $6 AND user_id = $7 AND active = TRUE
             """,
-            perms["can_read"], perms["can_write"], perms["can_create"], perms["can_delete"],
-            int(user.id), ws_row["id"], member_user_id,
+            perms["can_read"],
+            perms["can_write"],
+            perms["can_create"],
+            perms["can_delete"],
+            int(user.id),
+            ws_row["id"],
+            member_user_id,
         )
         if result.split()[-1] == "0":
             raise HTTPException(status_code=404, detail="Member not found")
@@ -459,7 +517,8 @@ async def remove_member(
 
         await conn.execute(
             "UPDATE workspace_share SET active = FALSE WHERE workspace_id = $1 AND user_id = $2",
-            ws_row["id"], member_user_id,
+            ws_row["id"],
+            member_user_id,
         )
     invalidate_workspace_cache(member_user_id)
     return {"status": "ok"}

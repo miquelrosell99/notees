@@ -167,8 +167,10 @@ async def db_pool(database_url: str, temp_data_dir: Path):
 @pytest_asyncio.fixture(scope="function")
 async def test_user(db_pool, temp_data_dir: Path) -> dict:
     """Create a test user and workspace, return user data with auth token."""
+    import shutil
     from app import auth
     from app.db import schema
+    from app.db.connection import get_workspace_dir
     
     # Use unique email per test to avoid conflicts
     unique_id = secrets.token_hex(4)
@@ -180,6 +182,12 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     # Create workspace for user and seed system types
     async with db_pool.acquire() as conn:
         workspace_id = await schema.create_workspace_for_user(conn, int(user["id"]))
+        # Get workspace UUID for cleanup
+        ws_row = await conn.fetchrow(
+            "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
+            workspace_id,
+        )
+        workspace_uuid = ws_row["uuid"] if ws_row else None
         # Get page class ID
         page_row = await conn.fetchrow(
             "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
@@ -190,14 +198,23 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     # Generate auth token
     token = auth.create_token(user["id"], user["email"], user["role"])
     
-    return {
+    user_data = {
         "id": user["id"],
         "email": user["email"],
         "workspace_id": workspace_id,
+        "workspace_uuid": workspace_uuid,
         "page_class_id": page_class_id,
         "token": token,
-        "auth_header": {"Authorization": f"Bearer {token}"}
+        "auth_header": {"Authorization": f"Bearer {token}"},
     }
+    
+    yield user_data
+    
+    # Clean up workspace directory on disk (DB is cleaned by db_pool)
+    if workspace_uuid:
+        ws_dir = get_workspace_dir(workspace_uuid)
+        if ws_dir.exists():
+            shutil.rmtree(ws_dir)
 
 
 # ==================== HTTP CLIENT FIXTURES ====================

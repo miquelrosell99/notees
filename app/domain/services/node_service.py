@@ -2,23 +2,25 @@
 
 Orchestrates node operations with link parsing and property management.
 """
+
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemClassConstraintError, DatePageDeletionError, DuplicateNodeError, PermissionDeniedError
-from ..permissions import PermissionChecker
-from ..validation import validate_node_create, validate_node_update
-from ..stringify_ast import parse_ast, serialize_ast, stringify_ast, ParseMode, StringifyMode, StringifyOptions
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...db.connection import get_workspace_uuid
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
+from ..entities import Node, NodeCreateData, NodeUpdateData
+from ..errors import DatePageDeletionError, DuplicateNodeError, PermissionDeniedError
+from ..permissions import PermissionChecker
+from ..stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, serialize_ast, stringify_ast
+from ..validation import validate_node_create, validate_node_update
 from .class_management_service import ClassManagementService
 
 if TYPE_CHECKING:
     import asyncpg
-    from ..repositories import NodeRepository, PropertyRepository, LinkRepository
+
+    from ..repositories import NodeRepository, PropertyRepository
     from .link_service import LinkParsingService
 
 logger = get_logger(__name__)
@@ -28,25 +30,24 @@ logger = get_logger(__name__)
 MAX_HIERARCHY_DEPTH = 100
 
 
-
 class NodeService:
     """Domain service for node operations."""
-    
+
     # Optional attributes set by routers for direct pool/workspace access
     _pool: Any = None
-    _workspace_id: Optional[int] = None
-    _user_id: Optional[int] = None
-    _permissions: Optional[PermissionChecker] = None
-    
+    _workspace_id: int | None = None
+    _user_id: int | None = None
+    _permissions: PermissionChecker | None = None
+
     def __init__(
         self,
         node_repository: NodeRepository,
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
         page_class_id: int,
-        pool: Optional[asyncpg.Pool] = None,
-        workspace_id: Optional[int] = None,
-        user_id: Optional[int] = None,
+        pool: asyncpg.Pool | None = None,
+        workspace_id: int | None = None,
+        user_id: int | None = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -65,12 +66,12 @@ class NodeService:
         return self._pool
 
     @property
-    def workspace_id(self) -> Optional[int]:
+    def workspace_id(self) -> int | None:
         """Workspace ID for this service instance."""
         return self._workspace_id
 
     @property
-    def page_class_id(self) -> Optional[int]:
+    def page_class_id(self) -> int | None:
         """Page class node ID."""
         return self._page_class_id
 
@@ -89,19 +90,19 @@ class NodeService:
 
     # ── Public delegation methods ──────────────────────────────────────────
 
-    async def get_node_children(self, node_id: int) -> List[Node]:
+    async def get_node_children(self, node_id: int) -> list[Node]:
         """Get direct children of a node."""
         return await self._node_repo.get_children(node_id)
 
-    async def get_node_descendants(self, node_id: int) -> List[Node]:
+    async def get_node_descendants(self, node_id: int) -> list[Node]:
         """Get all descendants of a node (flat list, ordered by depth then sequence)."""
-        if hasattr(self._node_repo, 'get_descendants'):
+        if hasattr(self._node_repo, "get_descendants"):
             descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
             if descendant_ids:
                 return await self._node_repo.get_by_ids(descendant_ids)
             return []
         # Fallback: BFS traversal
-        result: List[Node] = []
+        result: list[Node] = []
         to_process = [node_id]
         while to_process:
             current_id = to_process.pop(0)
@@ -110,15 +111,15 @@ class NodeService:
             to_process.extend(c.id for c in children if c.id is not None)
         return result
 
-    async def get_nodes_typed_with(self, class_id: int) -> List[Node]:
+    async def get_nodes_typed_with(self, class_id: int) -> list[Node]:
         """Get all nodes that have this class assigned."""
         return await self._node_repo.get_typed_with(class_id)
 
-    async def get_nodes_by_ids(self, ids: List[int]) -> List[Node]:
+    async def get_nodes_by_ids(self, ids: list[int]) -> list[Node]:
         """Get multiple nodes by ID list."""
         return await self._node_repo.get_by_ids(ids)
 
-    async def get_node_breadcrumbs(self, node_id: int) -> List[Node]:
+    async def get_node_breadcrumbs(self, node_id: int) -> list[Node]:
         """Get ancestor chain from root to node's immediate parent."""
         return await self._node_repo.get_breadcrumbs(node_id)
 
@@ -126,7 +127,7 @@ class NodeService:
         """Get all property values for a node."""
         return await self._property_repo.get_all_property_values(node_id)
 
-    async def get_nodes_properties_batch(self, node_ids: List[int]):
+    async def get_nodes_properties_batch(self, node_ids: list[int]):
         """Get property values for multiple nodes in a single batch."""
         return await self._property_repo.get_all_property_values_batch(node_ids)
 
@@ -150,7 +151,7 @@ class NodeService:
         """Convert a raw DB row to a Node entity."""
         return self._node_repo.row_to_node(row)
 
-    async def create_raw_node(self, data: NodeCreateData, uuid: Optional[str] = None) -> Node:
+    async def create_raw_node(self, data: NodeCreateData, uuid: str | None = None) -> Node:
         """Create a node directly via repository, bypassing link parsing.
 
         Used for system-managed nodes (date pages, assets) where the UUID is
@@ -160,112 +161,110 @@ class NodeService:
             await self.permissions.require_workspace_create(self._workspace_id)
         return await self._node_repo.create(data, uuid=uuid)
 
-    async def _compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
+    async def _compute_flags_from_classes(self, class_ids: list[int]) -> dict[str, bool]:
         """Delegate to ClassManagementService."""
         return await self._class_service.compute_flags_from_classes(class_ids)
 
-    async def _update_flags_from_classes(self, node_id: int, class_ids: List[int]) -> None:
+    async def _update_flags_from_classes(self, node_id: int, class_ids: list[int]) -> None:
         """Delegate to ClassManagementService."""
         await self._class_service.update_flags_from_classes(node_id, class_ids)
-    
+
     async def _validate_page_name_uniqueness(
         self,
         name: str,
-        parent_id: Optional[int],
-        classes: List[int],
-        exclude_node_id: Optional[int] = None,
+        parent_id: int | None,
+        classes: list[int],
+        exclude_node_id: int | None = None,
     ) -> None:
         """Validate that a page name is unique per class within the same parent.
-        
+
         A page name is unique within (workspace, parent) for each class it has.
         Example:
         - "EXAMPLE PAGE" with classes [task, meeting] exists
         - Cannot create "EXAMPLE PAGE" with [task] → conflicts on "task"
-        - Cannot create "EXAMPLE PAGE" with [task, urgent] → conflicts on "task"  
+        - Cannot create "EXAMPLE PAGE" with [task, urgent] → conflicts on "task"
         - CAN create "EXAMPLE PAGE" with [project] → no class overlap
         - CAN create "EXAMPLE PAGE" with [project, meeting] → "project" is new
-        
+
         Args:
             name: Page name to check
             parent_id: Parent node ID (None for root pages)
             classes: List of class node IDs this page will have
             exclude_node_id: Node ID to exclude from check (for updates)
-            
+
         Raises:
             DuplicateNodeError: If a page with this name exists with any overlapping class
         """
         if not classes:
             # Unclassed pages can't conflict with anything
             return
-        
+
         rows = await self._node_repo.find_page_by_name(name, parent_id)
         if exclude_node_id:
-            rows = [r for r in rows if r['id'] != exclude_node_id]
-        
+            rows = [r for r in rows if r["id"] != exclude_node_id]
+
         if not rows:
             return
-        
+
         # Group by node to get each existing page's classes
-        existing_pages: Dict[int, List[tuple]] = {}
+        existing_pages: dict[int, list[tuple]] = {}
         for row in rows:
-            node_id = row['id']
+            node_id = row["id"]
             if node_id not in existing_pages:
                 existing_pages[node_id] = []
-            if row['class_id']:
-                existing_pages[node_id].append((row['class_id'], row['class_name']))
-        
+            if row["class_id"]:
+                existing_pages[node_id].append((row["class_id"], row["class_name"]))
+
         # Check each existing page for class overlap
-        for node_id, existing_classes in existing_pages.items():
+        for _node_id, existing_classes in existing_pages.items():
             existing_class_ids = {c[0] for c in existing_classes}
             overlap = set(classes) & existing_class_ids
-            
+
             if overlap:
                 # Found conflict - get class names for error message
-                conflicting_class_names = [
-                    c[1] for c in existing_classes if c[0] in overlap
-                ]
+                conflicting_class_names = [c[1] for c in existing_classes if c[0] in overlap]
                 raise DuplicateNodeError(name, conflicting_class_names)
-    
+
     async def _create_hierarchical_page(
         self,
         data: NodeCreateData,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
     ) -> Node:
         """Create a page with hierarchical path (name contains '/').
-        
+
         For a name like "Projects/Work/Q1 Planning", this will:
         1. Create or find "Projects" as a root page
         2. Create or find "Work" as a child of "Projects"
         3. Create "Q1 Planning" as a child of "Work"
         4. Return the leaf node
-        
+
         All intermediate pages inherit the classes from the original request.
         """
-        if not data.name or '/' not in data.name:
+        if not data.name or "/" not in data.name:
             raise ValueError("Name must contain '/' for hierarchical creation")
-        
+
         # Split the path into segments
-        segments = [s.strip() for s in data.name.split('/') if s.strip()]
-        
+        segments = [s.strip() for s in data.name.split("/") if s.strip()]
+
         if not segments:
             raise ValueError("Empty path after splitting")
-        
+
         # Use provided classes or default to page class
         classes = data.classes if data.classes else [self._page_class_id]
-        
+
         # Walk through segments, creating or finding each parent
-        current_parent_id: Optional[int] = None
-        
+        current_parent_id: int | None = None
+
         for i, segment in enumerate(segments):
-            is_leaf = (i == len(segments) - 1)
-            
+            is_leaf = i == len(segments) - 1
+
             # Check if a page with this name already exists at this level
             existing = await self._node_repo.find_page_by_name(segment, current_parent_id)
             row = existing[0] if existing else None
-            
+
             if row:
                 # Page exists, use it as parent for next iteration
-                current_parent_id = row['id']
+                current_parent_id = row["id"]
             else:
                 # Create new page at this level
                 page_data = NodeCreateData(
@@ -276,10 +275,10 @@ class NodeService:
                     classes=classes,
                     property_values=data.property_values if is_leaf else None,  # Only apply properties to leaf
                 )
-                
+
                 # Validate and create
                 validate_node_create(page_data.name, page_data.icon, page_data.color)
-                
+
                 # Validate uniqueness for this segment
                 if page_data.classes:
                     await self._validate_page_name_uniqueness(
@@ -287,31 +286,31 @@ class NodeService:
                         parent_id=page_data.parent_id,
                         classes=page_data.classes,
                     )
-                
+
                 new_page = await self._node_repo.create(page_data, user_id)
-                
+
                 # Parse links and inline classes for the new page
                 if new_page.name and new_page.id is not None:
                     await self._link_service.update_node_links(new_page.id, new_page.name)
                     await self._link_service.update_inline_classes(new_page.id, new_page.name)
-                
+
                 if is_leaf:
                     # This is the final node to return
                     return new_page
                 else:
                     # Use this as parent for next iteration
                     current_parent_id = new_page.id
-        
+
         # Should never reach here, but handle gracefully
         raise RuntimeError("Failed to create hierarchical page")
-    
+
     async def create_node(
         self,
         data: NodeCreateData,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
     ) -> Node:
         """Create a new node.
-        
+
         - Validates input fields
         - Validates page name uniqueness per class
         - Computes page_id for blocks
@@ -322,21 +321,21 @@ class NodeService:
         # Strip trailing spaces from name
         if data.name is not None:
             data.name = data.name.rstrip()
-        
+
         # Compute flags from classes to determine if this is a page
         flags = await self._compute_flags_from_classes(data.classes)
-        is_page = flags.get('is_page', False)
-        
+        is_page = flags.get("is_page", False)
+
         # Disable hierarchical creation for date pages
-        is_date_page = flags.get('is_day', False) or flags.get('is_month', False) or flags.get('is_year', False)
-        
+        is_date_page = flags.get("is_day", False) or flags.get("is_month", False) or flags.get("is_year", False)
+
         # Handle hierarchical page creation (name contains '/') - but not for date pages
-        if is_page and data.name and '/' in data.name and not data.parent_id and not is_date_page:
+        if is_page and data.name and "/" in data.name and not data.parent_id and not is_date_page:
             return await self._create_hierarchical_page(data, user_id)
-        
+
         # Validate input
         validate_node_create(data.name, data.icon, data.color)
-        
+
         # Validate page name uniqueness if it's a page with classes
         if is_page and data.classes:
             await self._validate_page_name_uniqueness(
@@ -344,26 +343,26 @@ class NodeService:
                 parent_id=data.parent_id,
                 classes=data.classes,
             )
-        
+
         # Create the node
         if self._user_id:
             await self.permissions.require_workspace_create(self._workspace_id)
         node = await self._node_repo.create(data, user_id)
-        
+
         # Parse and store links and inline classes from content
         if node.name and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
-        
+
         # Re-fetch to get updated version after side effects
         if node.id is not None:
             refreshed = await self._node_repo.get_by_id(node.id)
             if refreshed:
                 node = refreshed
-        
+
         # Apply Class properties if any classes have associated properties with defaults
         if node.id is not None and data.classes:
-            from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+            from ..entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
             # Gather all class-property associations for all classes at once,
             # then deduplicate property fetches so each unique property is
@@ -374,7 +373,7 @@ class NodeService:
                 all_cp_list.extend(class_properties)
 
             # Build a cache of property objects keyed by property_id
-            prop_cache: Dict[int, Any] = {}
+            prop_cache: dict[int, Any] = {}
             for cp in all_cp_list:
                 if cp.property_id not in prop_cache:
                     prop = await self._property_repo.get_by_id(cp.property_id)
@@ -385,11 +384,11 @@ class NodeService:
                 prop = prop_cache.get(cp.property_id)
                 if not prop:
                     continue
-                
+
                 # Skip if already has a value from property_values
                 if data.property_values and cp.property_id in data.property_values:
                     continue
-                
+
                 # Set default value based on property type
                 try:
                     if prop.type in SCALAR_TYPES:
@@ -401,10 +400,10 @@ class NodeService:
                             default = cp.default_float
                         elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
                             default = cp.default_boolean
-                        
+
                         if default is not None:
                             await self._property_repo.set_scalar_value(node.id, cp.property_id, default)
-                    
+
                     elif prop.type in RELATION_TYPES:
                         # Node, Text, Image, Date
                         default = None
@@ -413,40 +412,42 @@ class NodeService:
                         elif prop.type == PropertyType.TEXT and cp.default_text is not None:
                             default = cp.default_text
                         # Image and Date don't have simple defaults
-                        
+
                         if default is not None:
                             if prop.type == PropertyType.NODE:
                                 await self._property_repo.set_relation_value(node.id, cp.property_id, default)
                             else:
                                 # For TEXT, IMAGE - create a text node with the default value
                                 text_node = await self._node_repo.create(
-                                    NodeCreateData(name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id),
-                                    user_id
+                                    NodeCreateData(
+                                        name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)), parent_id=node.id
+                                    ),
+                                    user_id,
                                 )
                                 await self._property_repo.set_relation_value(node.id, cp.property_id, text_node.id)
-                    
+
                     elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
                         await self._property_repo.set_selection_value(node.id, cp.property_id, cp.default_selection_id)
-                
+
                 except Exception as e:
                     # Log but don't fail node creation if default value setting fails
                     logger.warning(f"Failed to set default value for property {cp.property_id} on node {node.id}: {e}")
-        
+
         return node
-    
+
     async def create_page(
         self,
         name: str,
-        icon: Optional[str] = None,
-        color: Optional[str] = None,
-        additional_classes: Optional[List[int]] = None,
-        user_id: Optional[int] = None,
+        icon: str | None = None,
+        color: str | None = None,
+        additional_classes: list[int] | None = None,
+        user_id: int | None = None,
     ) -> Node:
         """Create a new page (node classed as 'page')."""
         classes = [self._page_class_id]
         if additional_classes:
             classes.extend(additional_classes)
-        
+
         data = NodeCreateData(
             name=name,
             icon=icon,
@@ -454,13 +455,13 @@ class NodeService:
             classes=classes,
         )
         return await self.create_node(data, user_id)
-    
+
     async def create_block(
         self,
         name: str,
         parent_id: int,
         sequence: int = 0,
-        user_id: Optional[int] = None,
+        user_id: int | None = None,
     ) -> Node:
         """Create a new block (child node)."""
         data = NodeCreateData(
@@ -469,16 +470,16 @@ class NodeService:
             sequence=sequence,
         )
         return await self.create_node(data, user_id)
-    
+
     async def move_node(
         self,
         node_id: int,
         new_parent_id: int,
         new_sequence: int,
-        user_id: Optional[int] = None,
-    ) -> Optional[Node]:
+        user_id: int | None = None,
+    ) -> Node | None:
         """Move a node to a new parent and/or position.
-        
+
         This properly handles sibling resequencing to maintain order consistency.
         Prevents circular references by checking if new_parent is a descendant.
         Enforces maximum hierarchy depth to prevent pathological trees.
@@ -487,92 +488,92 @@ class NodeService:
         old_node = await self._node_repo.get_by_id(node_id)
         if not old_node:
             return None
-        
+
         old_parent_id = old_node.parent_id
-        
+
         # Prevent moving parent-locked nodes
         if old_node.parent_locked:
             raise ValueError("Cannot move a parent-locked node")
-        
+
         # Check for circular reference: prevent moving node to its own descendant
         if new_parent_id is not None:
             await self._check_circular_reference(node_id, new_parent_id)
-            
+
             # Check that move won't exceed maximum depth
             await self._check_max_depth(node_id, new_parent_id)
-        
+
         if self._user_id:
             await self.permissions.require_node_write(node_id)
         # Use dedicated move method for proper resequencing
         node = await self._node_repo.move(node_id, new_parent_id, new_sequence, user_id)
         if not node:
             return None
-        
+
         # Update classes path if parent changed (inherited classes may have changed)
         if new_parent_id != old_parent_id and node.id is not None:
             await self._link_service.update_classes_path(node.id)
-        
+
         return node
-    
+
     async def _check_circular_reference(self, node_id: int, new_parent_id: int) -> None:
         """Check if new_parent_id would create a circular reference.
-        
+
         A circular reference occurs if we try to move a node to be a child
         of one of its own descendants.
-        
+
         Args:
             node_id: The node being moved
             new_parent_id: The proposed new parent
-            
+
         Raises:
             ValueError: If the move would create a circular reference
         """
         if node_id == new_parent_id:
             raise ValueError("Cannot move a node to be its own parent")
-        
+
         # Use closure table (node_path) to check if new_parent is a descendant of node
         if await self._node_repo.has_circular_reference(node_id, new_parent_id):
             raise ValueError(
                 f"Cannot move node {node_id} to parent {new_parent_id}: "
                 f"would create circular reference (parent is a descendant)"
             )
-    
+
     async def _check_max_depth(self, node_id: int, new_parent_id: int) -> None:
         """Check if moving node would exceed maximum hierarchy depth.
-        
+
         Args:
             node_id: The node being moved
             new_parent_id: The proposed new parent
-            
+
         Raises:
             ValueError: If the move would exceed MAX_HIERARCHY_DEPTH
         """
         parent_depth, _ = await self._node_repo.get_depth_info(new_parent_id)
         _, subtree_depth = await self._node_repo.get_depth_info(node_id)
-        
+
         # New depth would be: parent_depth + 1 (for the move) + subtree_depth
         new_max_depth = parent_depth + 1 + subtree_depth
-        
+
         if new_max_depth > MAX_HIERARCHY_DEPTH:
             raise ValueError(
                 f"Cannot move node: would exceed maximum hierarchy depth of {MAX_HIERARCHY_DEPTH} "
                 f"(resulting depth would be {new_max_depth})"
             )
-    
+
     async def update_node(
         self,
         node_id: int,
         data: NodeUpdateData,
-        user_id: Optional[int] = None,
-        expected_version: Optional[int] = None,
-    ) -> Optional[Node]:
+        user_id: int | None = None,
+        expected_version: int | None = None,
+    ) -> Node | None:
         """Update an existing node.
-        
+
         Validates input fields.
         Validates page name uniqueness if name or classes change.
         If name changes, re-parses links.
         If parent_id changes, updates classes path (inherited classes may change).
-        
+
         Args:
             node_id: ID of node to update
             data: Update data
@@ -582,21 +583,21 @@ class NodeService:
         # Strip trailing spaces from name
         if data.name is not None:
             data.name = data.name.rstrip()
-        
+
         # Validate input
         validate_node_update(data.name, data.icon, data.color)
-        
+
         # Get the node before update
         old_node = await self._node_repo.get_by_id(node_id)
         if not old_node:
             return None
-        
+
         old_parent_id = old_node.parent_id
-        
+
         # Prevent changing parent of parent-locked nodes
         if (data.parent_id is not None or data.clear_parent) and old_node.parent_locked:
             raise ValueError("Cannot change the parent of a parent-locked node")
-        
+
         # Validate page name uniqueness if it's a page and name/parent/classes changed
         if old_node.is_page and (data.name is not None or data.parent_id is not None):
             # Need to get classes - either from update data or fetch them
@@ -604,7 +605,7 @@ class NodeService:
             if data.name is not None or data.parent_id is not None:
                 # Get current classes for this node
                 check_classes = await self._link_service._link_repo.get_inline_class_targets(node_id)
-            
+
             if check_classes:
                 await self._validate_page_name_uniqueness(
                     name=data.name if data.name is not None else old_node.name,
@@ -612,7 +613,7 @@ class NodeService:
                     classes=check_classes,
                     exclude_node_id=node_id,
                 )
-        
+
         # Guard against circular references when parent_id changes
         if data.parent_id is not None and data.parent_id != old_parent_id:
             await self._check_circular_reference(node_id, data.parent_id)
@@ -622,31 +623,31 @@ class NodeService:
         node = await self._node_repo.update(node_id, data, user_id, expected_version=expected_version)
         if not node:
             return None
-        
+
         # Re-parse links and inline classes if name changed
         if data.name is not None and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
-        
+
         # Update classes path if parent changed (inherited classes may have changed)
         if data.parent_id is not None and data.parent_id != old_parent_id:
             if node.id is not None:
                 await self._link_service.update_classes_path(node.id)
-        
+
         return node
-    
-    async def delete_node(self, node_id: int, user_id: Optional[int] = None) -> bool:
+
+    async def delete_node(self, node_id: int, user_id: int | None = None) -> bool:
         """Soft-delete a node and all its children by setting is_deleted=true.
-        
+
         Before soft-deleting, updates all nodes that link to this node:
         - [[nodeId]] links are replaced with the node's name
         - {{nodeId}} inline class references are replaced with the node's name
         - Property class/tag references are removed
-        
+
         If the node is an asset, also deletes the associated asset folder.
-        
+
         Works for both active and archived nodes.
-        
+
         Raises:
             DatePageDeletionError: If trying to delete a month/year page that has active day children
         """
@@ -656,21 +657,21 @@ class NodeService:
         node = await self._node_repo.get_node_by_id_with_workspace(node_id)
         if not node:
             return False
-        
+
         # Prevent deletion of month/year pages that have active day children
         if node.is_month or node.is_year:
             day_count = await self._count_active_day_descendants(node_id)
             if day_count > 0:
                 node_class = "month" if node.is_month else "year"
                 raise DatePageDeletionError(node_class, day_count)
-        
+
         # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
         logger.info(f"[DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
-        
+
         # Track nodes we've updated to avoid double-processing
         updated_nodes = set()
-        
+
         # Update each source node to remove/replace the link
         for link in backlinks:
             logger.info(f"[DELETE] Processing backlink from source_node_id={link.source_node_id}")
@@ -678,52 +679,53 @@ class NodeService:
             if not source_node or not source_node.name:
                 logger.warning(f"[DELETE] Source node {link.source_node_id} not found or has no name")
                 continue
-            
+
             logger.info(f"[DELETE] Source node content: {source_node.name[:100]!r}")
-            
+
             # Replace the link in the source node's content
             updated_content = await self._remove_link_from_content(
                 source_node.name,
                 node,
-                "page"  # link_type is no longer used but kept for signature compatibility
+                "page",  # link_type is no longer used but kept for signature compatibility
             )
-            
-            logger.info(f"[DELETE] Updated content: {updated_content[:100]!r} (changed={updated_content != source_node.name})")
-            
+
+            logger.info(
+                f"[DELETE] Updated content: {updated_content[:100]!r} (changed={updated_content != source_node.name})"
+            )
+
             if updated_content != source_node.name:
                 # Update without re-parsing links (to avoid infinite recursion)
-                await self._node_repo.update(
-                    link.source_node_id,
-                    NodeUpdateData(name=updated_content)
-                )
+                await self._node_repo.update(link.source_node_id, NodeUpdateData(name=updated_content))
                 updated_nodes.add(link.source_node_id)
                 logger.info(f"[DELETE] Updated source node {link.source_node_id}")
-        
+
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
-        
+
         # Remove this node from any class/tag properties
         await self._remove_node_from_class_tag_properties(node_id)
-        
+
         # Soft-delete the node and all its descendants
         from ...utils import utc_now
+
         now = utc_now()
         uid = user_id or self._user_id
-        
+
         # Get all descendant IDs using closure table
         descendant_ids = await self._node_repo.get_descendants(node_id)
         all_node_ids = [node_id] + descendant_ids
-        
+
         await self._node_repo.soft_delete_nodes(all_node_ids, now, uid)
         logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
-        
+
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
-        
+
         # If this is an asset node, delete the asset folder
         if node.is_asset and node.uuid:
             try:
                 from ...domain.services.asset_service import AssetService
+
                 # Get workspace UUID for asset storage
                 workspace_uuid = await get_workspace_uuid(self._workspace_id)
                 if workspace_uuid:
@@ -735,110 +737,109 @@ class NodeService:
             except Exception as e:
                 logger.error(f"[DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
                 # Continue with soft-delete even if asset deletion fails
-        
+
         return True
-    
-    async def restore_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
+
+    async def restore_node(self, node_id: int, user_id: int | None = None) -> Node | None:
         """Restore a soft-deleted node and all its descendants.
-        
+
         Args:
             node_id: The node to restore
             user_id: User performing the restoration
-            
+
         Returns:
             The restored node, or None if not found
         """
         from ...utils import utc_now
+
         now = utc_now()
         uid = user_id or self._user_id
-        
+
         # Get all descendant IDs including the node itself (bypass soft-delete filter)
         descendant_ids = await self._node_repo.get_all_descendants(node_id, include_self=True)
         if not descendant_ids:
             descendant_ids = [node_id]
-        
+
         await self._node_repo.restore_nodes(descendant_ids, now, uid)
         logger.info(f"[RESTORE] Restored node {node_id} and {len(descendant_ids) - 1} descendants")
         return await self._node_repo.get_by_id(node_id)
-    
-    async def get_deleted_nodes(self) -> List[Node]:
+
+    async def get_deleted_nodes(self) -> list[Node]:
         """Get all soft-deleted nodes (trash) for the current workspace.
-        
+
         Returns:
             List of deleted nodes
         """
         return await self._node_repo.get_deleted_nodes()
-    
+
     async def permanently_delete_node(self, node_id: int) -> bool:
         """Permanently delete a soft-deleted node (hard delete from database).
-        
+
         This is irreversible. Only works on nodes that are already soft-deleted.
         Before hard-deleting, it removes/replaces backlinks in surviving nodes'
         AST content so inline links don't become orphaned.
-        
+
         Args:
             node_id: The node to permanently delete
-            
+
         Returns:
             True if deleted, False if not found or not in trash
         """
         if self._user_id:
             await self.permissions.require_node_delete(node_id)
-        
+
         node = await self._node_repo.get_node_by_id_with_workspace(node_id)
         if not node:
             return False
-        
+
         # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
         logger.info(f"[PERM_DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
-        
+
         updated_nodes = set()
-        
+
         for link in backlinks:
             source_node = await self._node_repo.get_by_id(link.source_node_id)
             if not source_node or not source_node.name:
                 continue
-            
+
             updated_content = await self._remove_link_from_content(
                 source_node.name,
                 node,
                 "page",
                 preserve_as_broken=True,
             )
-            
+
             if updated_content != source_node.name:
-                await self._node_repo.update(
-                    link.source_node_id,
-                    NodeUpdateData(name=updated_content)
-                )
+                await self._node_repo.update(link.source_node_id, NodeUpdateData(name=updated_content))
                 updated_nodes.add(link.source_node_id)
                 logger.info(f"[PERM_DELETE] Updated source node {link.source_node_id}")
-        
+
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
-        
+
         result = await self._node_repo.hard_delete(node_id)
-        
+
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
-        
+
         return result
-    
+
     async def empty_trash(self) -> int:
         """Permanently delete all soft-deleted nodes (empty trash).
-        
+
         This is irreversible. All nodes in trash will be hard deleted from the database.
-        
+
         Returns:
             Number of nodes deleted
         """
         from app.logging_config import get_logger
+
         logger = get_logger(__name__)
-        
+
         trashed = await self._node_repo.get_deleted_nodes()
         logger.info(f"[EMPTY_TRASH] Found {len(trashed)} nodes in trash for workspace {self._workspace_id}")
-        
+
         deleted_count = 0
         for node in trashed:
             node_id = node.id
@@ -852,22 +853,22 @@ class NodeService:
                 # Node may have been deleted as part of a parent cascade
                 logger.info(f"[EMPTY_TRASH] Skipping node {node_id}: {e}")
                 continue
-        
+
         logger.info(f"[EMPTY_TRASH] Successfully deleted {deleted_count} of {len(trashed)} nodes")
         return deleted_count
-    
+
     async def batch_permanent_delete(
         self,
-        ids: List[int],
-    ) -> List[dict]:
+        ids: list[int],
+    ) -> list[dict]:
         """Permanently delete multiple nodes from trash by ID.
-        
+
         Each ID is processed independently — failures on one do not prevent
         the others from being deleted. Only works on nodes already in trash.
-        
+
         Returns a list of dicts: { "success": bool, "error": str|None }
         """
-        results: List[dict] = []
+        results: list[dict] = []
         for node_id in ids:
             try:
                 success = await self.permanently_delete_node(node_id)
@@ -879,39 +880,32 @@ class NodeService:
                 logger.warning(f"[BATCH_PERMANENT_DELETE] Failed to delete node {node_id}: {e}")
                 results.append({"success": False, "error": str(e)})
         return results
-    
+
     async def _replace_inline_class_references(self, node: Node, already_updated: set) -> None:
         """Replace inline class references ({{nodeId}}) with the node's name.
-        
+
         Args:
             node: The node being deleted
             already_updated: Set of node IDs already processed (to avoid double updates)
         """
         # Get all nodes that reference this node as an inline class
         inline_refs = await self._link_service._link_repo.get_inline_class_references(node.id)
-        
+
         for ref in inline_refs:
             if ref.source_id in already_updated:
                 # Already updated from backlinks processing
                 continue
-            
+
             source_node = await self._node_repo.get_by_id(ref.source_id)
             if not source_node or not source_node.name:
                 continue
-            
+
             # Replace {{nodeId}} with the node's name
-            updated_content = await self._remove_link_from_content(
-                source_node.name,
-                node,
-                "class"
-            )
-            
+            updated_content = await self._remove_link_from_content(source_node.name, node, "class")
+
             if updated_content != source_node.name:
-                await self._node_repo.update(
-                    ref.source_id,
-                    NodeUpdateData(name=updated_content)
-                )
-    
+                await self._node_repo.update(ref.source_id, NodeUpdateData(name=updated_content))
+
     async def _remove_link_from_content(
         self,
         content: str,
@@ -929,26 +923,23 @@ class NodeService:
 
         For legacy plain-text content: uses regex replacement.
         """
-        import re
         import json as _json
+        import re
 
         # ── AST JSON path (modern content) ────────────────────────────────
         try:
             ast = _json.loads(content)
             if isinstance(ast, list) and (not ast or isinstance(ast[0], dict)):
                 # Compute the target's plain-text name once (used when no custom label)
-                target_text = ''
+                target_text = ""
                 if target_node.name:
                     try:
                         target_name_ast = parse_ast(target_node.name)
-                        target_text = stringify_ast(
-                            target_name_ast,
-                            StringifyOptions(mode=StringifyMode.TEXT_ONLY)
-                        )
+                        target_text = stringify_ast(target_name_ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
                     except Exception:
-                        target_text = ''
+                        target_text = ""
 
-                target_uuid = target_node.uuid or ''
+                target_uuid = target_node.uuid or ""
                 target_id_str = str(target_node.id)
 
                 def _replace_in_nodes(nodes: list) -> tuple:
@@ -960,30 +951,27 @@ class NodeService:
                             result.append(node_item)
                             continue
 
-                        if node_item.get('type') == 'node_link':
-                            link_id = str(node_item.get('link_id', ''))
-                            node_identifier = link_id.split(':', 1)[0]
-                            if node_identifier and (
-                                node_identifier == target_uuid
-                                or node_identifier == target_id_str
-                            ):
+                        if node_item.get("type") == "node_link":
+                            link_id = str(node_item.get("link_id", ""))
+                            node_identifier = link_id.split(":", 1)[0]
+                            if node_identifier and (node_identifier == target_uuid or node_identifier == target_id_str):
                                 changed = True
-                                label = node_item.get('label')
+                                label = node_item.get("label")
                                 if preserve_as_broken:
-                                    broken = {'type': 'broken_link', 'link_id': link_id}
+                                    broken = {"type": "broken_link", "link_id": link_id}
                                     if label:
-                                        broken['label'] = label
+                                        broken["label"] = label
                                     result.append(broken)
                                 else:
                                     replacement_text = label if label else target_text
-                                    result.append({'type': 'text', 'text': replacement_text})
+                                    result.append({"type": "text", "text": replacement_text})
                                 continue
 
-                        if 'children' in node_item:
-                            new_children, child_changed = _replace_in_nodes(node_item['children'])
+                        if "children" in node_item:
+                            new_children, child_changed = _replace_in_nodes(node_item["children"])
                             if child_changed:
                                 changed = True
-                                node_item = {**node_item, 'children': new_children}
+                                node_item = {**node_item, "children": new_children}
 
                         result.append(node_item)
                     return result, changed
@@ -997,15 +985,15 @@ class NodeService:
 
         # ── Legacy plain-text / regex path ────────────────────────────────
         result = content
-        link_pattern = re.compile(r'\[\[' + str(target_node.id) + r'\]\]')
-        result = link_pattern.sub(target_node.name or '', result)
-        class_pattern = re.compile(r'\{\{' + str(target_node.id) + r'\}\}')
-        result = class_pattern.sub(target_node.name or '', result)
+        link_pattern = re.compile(r"\[\[" + str(target_node.id) + r"\]\]")
+        result = link_pattern.sub(target_node.name or "", result)
+        class_pattern = re.compile(r"\{\{" + str(target_node.id) + r"\}\}")
+        result = class_pattern.sub(target_node.name or "", result)
         return result
-    
+
     async def _remove_node_from_class_tag_properties(self, node_id: int) -> None:
         """Remove a node from any class/tag property values where it's referenced.
-        
+
         When a node used as a class or tag is deleted, remove it from all nodes
         that reference it via property values (especially NODE type properties).
         The inline text references {{nodeId}} are handled separately.
@@ -1013,15 +1001,15 @@ class NodeService:
         deleted_count = await self._property_repo.delete_relation_values_by_target(node_id)
         if deleted_count > 0:
             logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
-    
+
     async def _count_active_day_descendants(self, node_id: int) -> int:
         """Count active day pages that are descendants of this node.
-        
+
         Used to prevent deletion of month/year pages that have active daily pages.
-        
+
         Args:
             node_id: The ID of the month or year node to check
-            
+
         Returns:
             Number of active day pages that are descendants of this node
         """
@@ -1029,7 +1017,7 @@ class NodeService:
 
     async def _cleanup_favorites(self, node_id: int) -> None:
         """Remove a node from all users' favorites.
-        
+
         Favorites are stored as JSON arrays in setting_user(key='favorites').
         This removes the node ID from every user's favorites list.
         """
@@ -1037,7 +1025,8 @@ class NodeService:
             return
         try:
             async with self._pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     UPDATE setting_user
                     SET value = COALESCE(
                         (SELECT jsonb_agg(elem)
@@ -1047,15 +1036,17 @@ class NodeService:
                     ),
                     write_date = NOW()
                     WHERE key = 'favorites' AND value @> to_jsonb($1)
-                """, node_id)
+                """,
+                    node_id,
+                )
         except Exception as e:
             logger.warning(f"[DELETE] Failed to clean up favorites for node {node_id}: {e}")
 
-    async def list_templates(self) -> List[Node]:
+    async def list_templates(self) -> list[Node]:
         """List all template nodes in this workspace."""
         return await self._node_repo.list_templates()
 
-    async def extract_template_variables(self, node_id: int) -> List[str]:
+    async def extract_template_variables(self, node_id: int) -> list[str]:
         """Extract {{variable_name}} placeholders from a node and all its descendants."""
         import re
 
@@ -1065,9 +1056,9 @@ class NodeService:
         descendants = await self._node_repo.get_template_descendants(node_id)
         all_names = [template_node.name] + [d.name for d in descendants]
 
-        pattern = re.compile(r'\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}')
+        pattern = re.compile(r"\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}")
         seen: set = set()
-        variables: List[str] = []
+        variables: list[str] = []
         for name in all_names:
             if not name:
                 continue
@@ -1082,12 +1073,12 @@ class NodeService:
         self,
         template_id: int,
         user_id: int,
-        parent_id: Optional[int] = None,
-        name: Optional[str] = None,
-        variables: Optional[Dict[str, str]] = None,
+        parent_id: int | None = None,
+        name: str | None = None,
+        variables: dict[str, str] | None = None,
         as_blocks: bool = False,
-        after_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        after_id: int | None = None,
+    ) -> dict[str, Any]:
         """Create a deep copy of a template node tree.
 
         Rewrites internal link_id references and substitutes {{variable}} placeholders.
@@ -1096,7 +1087,6 @@ class NodeService:
         siblings are shifted to make room and the new blocks are sequenced
         starting after the after_id node.
         """
-        import re
         import uuid as uuid_module
 
         # 1. Load the template root
@@ -1106,7 +1096,9 @@ class NodeService:
 
         # 2. Load all descendants ordered by depth then sequence
         desc_nodes = await self._node_repo.get_template_descendants(template_id)
-        logger.info(f"[TEMPLATE] template_id={template_id}, desc_nodes count={len(desc_nodes)}, names={[n.name[:30] if n.name else '' for n in desc_nodes]}")
+        logger.info(
+            f"[TEMPLATE] template_id={template_id}, desc_nodes count={len(desc_nodes)}, names={[n.name[:30] if n.name else '' for n in desc_nodes]}"
+        )
 
         # 3. Look up the template class DB id so we can strip it from copies
         template_class_uuid = SYSTEM_CLASS_UUIDS.get("template", "")
@@ -1114,10 +1106,10 @@ class NodeService:
 
         # 4. Build old-id → new-uuid mapping for every node in the tree
         all_old_ids = [template_node.id] + [n.id for n in desc_nodes]
-        old_id_to_new_uuid: Dict[int, str] = {old_id: str(uuid_module.uuid4()) for old_id in all_old_ids}
+        old_id_to_new_uuid: dict[int, str] = {old_id: str(uuid_module.uuid4()) for old_id in all_old_ids}
 
         # old string UUID → new string UUID (for content rewriting)
-        old_uuid_to_new_uuid: Dict[str, str] = {}
+        old_uuid_to_new_uuid: dict[str, str] = {}
         old_uuid_to_new_uuid[str(template_node.uuid)] = old_id_to_new_uuid[template_node.id]
         for n in desc_nodes:
             old_uuid_to_new_uuid[str(n.uuid)] = old_id_to_new_uuid[n.id]
@@ -1132,14 +1124,14 @@ class NodeService:
                 result = result.replace(f'"link_id":"{old_uuid}"', f'"link_id":"{new_uuid}"')
             if variables:
                 for var_name, var_value in variables.items():
-                    result = result.replace('{{' + var_name + '}}', var_value)
+                    result = result.replace("{{" + var_name + "}}", var_value)
             return result
 
         # 5. Strip template class from root's class_ids
         root_classes = [c for c in list(template_node.class_ids or []) if c != template_class_db_id]
 
         # 6. Create nodes — root first (unless as_blocks), then descendants depth-first
-        old_id_to_new_id: Dict[int, int] = {}
+        old_id_to_new_id: dict[int, int] = {}
 
         # When as_blocks + after_id, compute a sequence offset so the new
         # top-level children are inserted right after the anchor block.
@@ -1148,16 +1140,13 @@ class NodeService:
             anchor_seq = await self._node_repo.get_node_sequence(after_id)
             if anchor_seq is not None:
                 # Count how many direct template children will be inserted
-                direct_count = sum(
-                    1 for n in desc_nodes
-                    if n.parent_id == template_node.id
-                )
+                direct_count = sum(1 for n in desc_nodes if n.parent_id == template_node.id)
                 # Shift existing siblings that come after the anchor
                 await self._node_repo.shift_sequences(parent_id, anchor_seq, direct_count)
                 seq_offset = anchor_seq + 1
 
         if not as_blocks:
-            root_name = substitute_content(name or template_node.name or '')
+            root_name = substitute_content(name or template_node.name or "")
             root_data = NodeCreateData(
                 name=root_name,
                 icon=template_node.icon,
@@ -1188,7 +1177,7 @@ class NodeService:
                 seq = seq + seq_offset
 
             node_data = NodeCreateData(
-                name=substitute_content(node.name or ''),
+                name=substitute_content(node.name or ""),
                 icon=node.icon,
                 color=node.color,
                 parent_id=new_parent_id,
@@ -1203,29 +1192,33 @@ class NodeService:
         if not as_blocks and template_node.id in old_id_to_new_id:
             new_root_id = old_id_to_new_id[template_node.id]
             template_props = await self._property_repo.get_all_property_values(template_node.id)
-            from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+            from ..entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
+
             for prop_id, prop_data in template_props.items():
-                prop = prop_data.get('property')
-                values = prop_data.get('values', [])
+                prop = prop_data.get("property")
+                values = prop_data.get("values", [])
                 if not prop or not values:
                     continue
                 try:
                     for val in values:
                         if prop.type in SCALAR_TYPES:
                             scalar = (
-                                val.value_integer if getattr(val, 'value_integer', None) is not None else
-                                val.value_float if getattr(val, 'value_float', None) is not None else
-                                val.value_boolean if getattr(val, 'value_boolean', None) is not None else
-                                getattr(val, 'value_text', None)
+                                val.value_integer
+                                if getattr(val, "value_integer", None) is not None
+                                else val.value_float
+                                if getattr(val, "value_float", None) is not None
+                                else val.value_boolean
+                                if getattr(val, "value_boolean", None) is not None
+                                else getattr(val, "value_text", None)
                             )
                             if scalar is not None:
                                 await self._property_repo.set_scalar_value(new_root_id, prop_id, scalar)
                         elif prop.type in RELATION_TYPES:
-                            target = getattr(val, 'target_id', None)
+                            target = getattr(val, "target_id", None)
                             if target is not None:
                                 await self._property_repo.set_relation_value(new_root_id, prop_id, target)
                         elif prop.type == PropertyType.SELECTION:
-                            sel_id = getattr(val, 'selection_line_id', None)
+                            sel_id = getattr(val, "selection_line_id", None)
                             if sel_id is not None:
                                 await self._property_repo.set_selection_value(new_root_id, prop_id, sel_id)
                 except Exception as exc:
@@ -1241,66 +1234,67 @@ class NodeService:
                     if n:
                         block_nodes.append(n)
             logger.info(f"[TEMPLATE] Returning {len(block_nodes)} blocks (from {len(desc_nodes)} desc_nodes)")
-            return {'node': None, 'blocks': block_nodes, 'as_blocks': True}
+            return {"node": None, "blocks": block_nodes, "as_blocks": True}
         else:
             root_node = await self._node_repo.get_by_id(old_id_to_new_id[template_node.id])
-            return {'node': root_node, 'blocks': [], 'as_blocks': False}
+            return {"node": root_node, "blocks": [], "as_blocks": False}
 
-    async def get_node(self, node_id: int) -> Optional[Node]:
+    async def get_node(self, node_id: int) -> Node | None:
         """Get a node by ID."""
         return await self._node_repo.get_by_id(node_id)
-    
-    async def get_node_by_uuid(self, uuid: str) -> Optional[Node]:
+
+    async def get_node_by_uuid(self, uuid: str) -> Node | None:
         """Get a node by UUID."""
         return await self._node_repo.get_by_uuid(uuid)
-    
-    async def get_node_with_properties(self, node_id: int) -> Optional[Dict[str, Any]]:
+
+    async def get_node_with_properties(self, node_id: int) -> dict[str, Any] | None:
         """Get a node with all its property values."""
         node = await self._node_repo.get_by_id(node_id)
         if not node:
             return None
-        
+
         properties = await self._property_repo.get_node_properties(node_id)
-        
+
         return {
             "node": node,
             "properties": properties,
         }
-    
-    async def get_all_pages(self) -> List[Node]:
+
+    async def get_all_pages(self) -> list[Node]:
         """Get all pages."""
         return await self._node_repo.get_all_pages()
-    
-    async def get_page_content(self, page_id: int) -> Optional[Dict[str, Any]]:
+
+    async def get_page_content(self, page_id: int) -> dict[str, Any] | None:
         """Get a page with all its blocks and properties."""
         page = await self._node_repo.get_by_id(page_id)
         if not page:
             return None
-        
+
         # Get all blocks belonging to this page
         blocks = await self._node_repo.get_page_content(page_id)
-        
+
         # Get properties for page
         page_properties = await self._property_repo.get_node_properties(page_id)
-        
+
         # Get backlinks
         backlinks = await self._link_service.get_backlinks(page_id)
-        
+
         return {
             "page": page,
             "blocks": blocks,
             "properties": page_properties,
             "backlinks": backlinks,
         }
-    
-    async def search(self, query: str, limit: int = 50) -> List[Node]:
+
+    async def search(self, query: str, limit: int = 50) -> list[Node]:
         """Search nodes by name."""
         return await self._node_repo.search(query, limit)
-    
+
     async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
         """Add a class to a node. Delegates to ClassManagementService."""
         return await self._class_service.add_class(
-            node_id, class_node_id,
+            node_id,
+            class_node_id,
             _system_call=_system_call,
             _page_name_validator=self._validate_page_name_uniqueness,
         )
@@ -1309,16 +1303,16 @@ class NodeService:
         """Remove a class from a node. Delegates to ClassManagementService."""
         return await self._class_service.remove_class(node_id, class_node_id)
 
-    async def get_node_classes(self, node_id: int) -> List[Node]:
+    async def get_node_classes(self, node_id: int) -> list[Node]:
         """Get all classes applied to a node. Delegates to ClassManagementService."""
         return await self._class_service.get_node_classes(node_id)
-    
+
     async def merge_pages(
         self,
         source_id: int,
         target_id: int,
-        user_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        user_id: int | None = None,
+    ) -> dict[str, Any]:
         """Merge source page into target page.
 
         - Moves all children (blocks) of source to target
@@ -1337,7 +1331,6 @@ class NodeService:
         Raises:
             ValueError: If nodes are invalid, same, or not pages
         """
-        import re
 
         source = await self._node_repo.get_by_id(source_id)
         target = await self._node_repo.get_by_id(target_id)
@@ -1383,8 +1376,10 @@ class NodeService:
                     continue
                 updated = self._redirect_link_in_content(
                     source_node.name,
-                    source_id, source.uuid,
-                    target_id, target.uuid,
+                    source_id,
+                    source.uuid,
+                    target_id,
+                    target.uuid,
                 )
                 if updated != source_node.name:
                     await self._node_repo.update(bsid, NodeUpdateData(name=updated))
@@ -1436,47 +1431,49 @@ class NodeService:
 
         # Legacy [[nodeId]] format
         result = re.sub(
-            r'\[\[' + str(source_id) + r'\]\]',
-            f'[[{target_id}]]',
+            r"\[\[" + str(source_id) + r"\]\]",
+            f"[[{target_id}]]",
             result,
         )
 
         # Legacy {{nodeId}} inline-class format
         result = re.sub(
-            r'\{\{' + str(source_id) + r'\}\}',
-            '{{' + str(target_id) + '}}',
+            r"\{\{" + str(source_id) + r"\}\}",
+            "{{" + str(target_id) + "}}",
             result,
         )
 
         return result
 
-    async def archive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
+    async def archive_node(self, node_id: int, user_id: int | None = None) -> Node | None:
         """Archive a node and all its descendants (set active to false)."""
         from ...utils import utc_now
+
         now = utc_now()
         uid = user_id or self._user_id
-        
+
         descendant_ids = await self._node_repo.get_descendants(node_id)
         all_node_ids = [node_id] + descendant_ids
-        
+
         await self._node_repo.archive_nodes(all_node_ids, now, uid)
         logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
         return await self._node_repo.get_by_id(node_id)
 
-    async def unarchive_node(self, node_id: int, user_id: Optional[int] = None) -> Optional[Node]:
+    async def unarchive_node(self, node_id: int, user_id: int | None = None) -> Node | None:
         """Unarchive a node and all its descendants (set active to true)."""
         from ...utils import utc_now
+
         now = utc_now()
         uid = user_id or self._user_id
-        
+
         descendant_ids = await self._node_repo.get_descendants(node_id)
         all_node_ids = [node_id] + descendant_ids
-        
+
         await self._node_repo.unarchive_nodes(all_node_ids, now, uid)
         logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
         return await self._node_repo.get_by_id(node_id)
 
-    async def get_archived_pages(self) -> List[Node]:
+    async def get_archived_pages(self) -> list[Node]:
         """Get all archived pages."""
         return await self._node_repo.get_archived_pages()
 
@@ -1484,27 +1481,27 @@ class NodeService:
 
     async def batch_create_nodes(
         self,
-        items: List[NodeCreateData],
-        user_id: Optional[int] = None,
+        items: list[NodeCreateData],
+        user_id: int | None = None,
         uuid_conflict_mode: str = "block",
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Create multiple nodes in a single batch.
-        
+
         Each item is processed independently — failures on one item do not
         prevent the others from being created.  Results are returned in the
         same order as the input list.
-        
+
         uuid_conflict_mode controls what happens when a node with the given UUID
         already exists:
           - 'block' (default): treat as an error (current behaviour).
           - 'return_existing': return the existing node instead of creating a
             new one.  Useful for import flows where the caller will merge content
             at a higher level.
-        
+
         Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None,
                                    "existing": bool }
         """
-        results: List[dict] = []
+        results: list[dict] = []
         for item in items:
             try:
                 node = await self.create_node(item, user_id=user_id)
@@ -1523,17 +1520,17 @@ class NodeService:
 
     async def batch_delete_nodes(
         self,
-        uuids: List[str],
-        user_id: Optional[int] = None,
-    ) -> List[dict]:
+        uuids: list[str],
+        user_id: int | None = None,
+    ) -> list[dict]:
         """Delete multiple nodes by UUID in a single batch.
-        
+
         Each UUID is resolved and deleted independently — failures on one
         do not prevent the others from being deleted.
-        
+
         Returns a list of dicts: { "success": bool, "error": str|None }
         """
-        results: List[dict] = []
+        results: list[dict] = []
         for uuid in uuids:
             try:
                 node = await self._node_repo.get_by_uuid(uuid)
@@ -1554,20 +1551,20 @@ class NodeService:
 
     async def batch_update_nodes(
         self,
-        items: List[dict],
-        user_id: Optional[int] = None,
-    ) -> List[dict]:
+        items: list[dict],
+        user_id: int | None = None,
+    ) -> list[dict]:
         """Update multiple nodes in a single batch.
-        
+
         Each item dict must have 'node_id' (int) and 'data' (NodeUpdateData),
         plus an optional 'expected_version' (int|None).
-        
+
         Failures on one item do not prevent the others from being updated.
         Results are returned in the same order as the input list.
-        
+
         Returns a list of dicts: { "success": bool, "node": Node|None, "error": str|None }
         """
-        results: List[dict] = []
+        results: list[dict] = []
         for item in items:
             try:
                 node = await self.update_node(

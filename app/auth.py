@@ -3,6 +3,7 @@
 Handles user authentication, JWT tokens, and password hashing.
 Uses PostgreSQL for user storage.
 """
+
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -46,12 +47,7 @@ def create_token(user_id: str, email: str, role: str) -> str:
     expires_delta = timedelta(hours=settings.access_token_expire_hours)
     expire = datetime.now(UTC) + expires_delta
 
-    payload = {
-        "user_id": user_id,
-        "email": email,
-        "role": role,
-        "exp": expire
-    }
+    payload = {"user_id": user_id, "email": email, "role": role, "exp": expire}
 
     token = jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
     return token
@@ -82,26 +78,26 @@ async def get_user_by_id(user_id: str) -> dict | None:
 
     async with get_connection() as conn:
         row = await conn.fetchrow(
-            '''
+            """
             SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
                    profile_pic, role, active, create_date as created_at
             FROM "user"
             WHERE id::text = $1 OR uuid::text = $1
-            ''',
-            user_id
+            """,
+            user_id,
         )
         if row:
             result = {
-                "id": str(row['id']),
-                "uuid": str(row['uuid']),
-                "email": row['email'],
-                "name": row['name'],
-                "surnames": row['surnames'],
-                "profile_pic": row['profile_pic'],
-                "role": row['role'],
-                "hashed_password": row['hashed_password'],
-                "is_active": row['active'],
-                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "email": row["email"],
+                "name": row["name"],
+                "surnames": row["surnames"],
+                "profile_pic": row["profile_pic"],
+                "role": row["role"],
+                "hashed_password": row["hashed_password"],
+                "is_active": row["active"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
             _user_cache[user_id] = (result, now)
             return result
@@ -112,26 +108,26 @@ async def get_user_by_email(email: str) -> dict | None:
     """Get a user by email."""
     async with get_connection() as conn:
         row = await conn.fetchrow(
-            '''
+            """
             SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
                    profile_pic, role, active, create_date as created_at
             FROM "user"
             WHERE email = $1
-            ''',
-            email
+            """,
+            email,
         )
         if row:
             return {
-                "id": str(row['id']),
-                "uuid": str(row['uuid']),
-                "email": row['email'],
-                "name": row['name'],
-                "surnames": row['surnames'],
-                "profile_pic": row['profile_pic'],
-                "role": row['role'],
-                "hashed_password": row['hashed_password'],
-                "is_active": row['active'],
-                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "email": row["email"],
+                "name": row["name"],
+                "surnames": row["surnames"],
+                "profile_pic": row["profile_pic"],
+                "role": row["role"],
+                "hashed_password": row["hashed_password"],
+                "is_active": row["active"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
     return None
 
@@ -142,7 +138,7 @@ async def create_user(
     name: str | None = None,
     surnames: str | None = None,
     profile_pic: str | None = None,
-    role: str = 'user',
+    role: str = "user",
 ) -> dict:
     """Create a new user."""
     existing = await get_user_by_email(email)
@@ -154,27 +150,32 @@ async def create_user(
 
     async with get_connection() as conn:
         row = await conn.fetchrow(
-            '''
+            """
             INSERT INTO "user" (email, password_hash, name, surnames, profile_pic, role, active)
             VALUES ($1, $2, $3, $4, $5, $6, TRUE)
             RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
-            ''',
-            email, hashed, name, surnames, profile_pic, role
+            """,
+            email,
+            hashed,
+            name,
+            surnames,
+            profile_pic,
+            role,
         )
         if row is None:
             raise RuntimeError("Failed to create user")
 
         user = {
-            "id": str(row['id']),
-            "uuid": str(row['uuid']),
-            "email": row['email'],
-            "name": row['name'],
-            "surnames": row['surnames'],
-            "profile_pic": row['profile_pic'],
-            "role": row['role'],
+            "id": str(row["id"]),
+            "uuid": str(row["uuid"]),
+            "email": row["email"],
+            "name": row["name"],
+            "surnames": row["surnames"],
+            "profile_pic": row["profile_pic"],
+            "role": row["role"],
             "hashed_password": hashed,
-            "is_active": row['active'],
-            "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+            "is_active": row["active"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
         }
 
         logger.info(f"Created new user: {email} (ID: {user['id']}, role: {role})")
@@ -183,36 +184,37 @@ async def create_user(
 
 async def update_user(user_id: str, **fields) -> dict | None:
     """Update a user's profile fields."""
-    allowed = {'name', 'surnames', 'profile_pic'}
+    allowed = {"name", "surnames", "profile_pic"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return await get_user_by_id(user_id)
 
-    set_clauses = ', '.join(f'{k} = ${i+2}' for i, k in enumerate(updates))
+    set_clauses = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
     values = list(updates.values())
 
     async with get_connection() as conn:
         row = await conn.fetchrow(
-            f'''
+            f"""
             UPDATE "user" SET {set_clauses}, write_date = NOW()
             WHERE id::text = $1 OR uuid::text = $1
             RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
-            ''',
-            user_id, *values
+            """,
+            user_id,
+            *values,
         )
         if row:
             # Invalidate cache
             _user_cache.pop(user_id, None)
             return {
-                "id": str(row['id']),
-                "uuid": str(row['uuid']),
-                "email": row['email'],
-                "name": row['name'],
-                "surnames": row['surnames'],
-                "profile_pic": row['profile_pic'],
-                "role": row['role'],
-                "is_active": row['active'],
-                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "email": row["email"],
+                "name": row["name"],
+                "surnames": row["surnames"],
+                "profile_pic": row["profile_pic"],
+                "role": row["role"],
+                "is_active": row["active"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
     return None
 

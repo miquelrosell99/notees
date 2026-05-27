@@ -11,7 +11,9 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
+import { useAutoExportStore } from '@/stores/autoExportStore';
 import { useCommentCount, useDailyNote } from '@/hooks';
+import { Icon } from '@/components/core/Icon';
 import { Button } from '@/components/core/Button';
 import type { ButtonBadge } from '@/components/core/Button';
 import { CalendarPopup } from '@/components/core/CalendarPopup';
@@ -22,6 +24,36 @@ import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal, SystemSettingsModal } from './Modals';
 import './TopBar.css';
+
+function AutoExportIndicator() {
+  const status = useAutoExportStore(s => s.status);
+  const errorMessage = useAutoExportStore(s => s.errorMessage);
+
+  if (status === 'idle') return null;
+
+  const isSpinning = status === 'exporting';
+  const isDone = status === 'done';
+  const isError = status === 'error';
+
+  const iconPath = isSpinning ? 'mdi mdi-sync' : isDone ? 'mdi mdi-check' : 'mdi mdi-alert-circle-outline';
+  const color = isError ? 'var(--color-error)' : isDone ? 'var(--color-success)' : 'var(--color-primary)';
+  const title = isSpinning ? 'Exporting to markdown...' : isDone ? 'Exported to markdown' : errorMessage || 'Export failed';
+
+  return (
+    <div
+      className="auto-export-indicator"
+      title={title}
+      aria-label={title}
+    >
+      <Icon
+        path={iconPath}
+        size={0.8}
+        color={color}
+        className={isSpinning ? 'auto-export-indicator--spin' : ''}
+      />
+    </div>
+  );
+}
 
 export function TopBar() {
   const { 
@@ -298,6 +330,9 @@ export function TopBar() {
           />
         </div>
         
+        {/* Auto-export sync indicator */}
+        <AutoExportIndicator />
+
         {/* Right sidebar toggle button */}
         <Button
           icon={"mdi mdi-dock-right"}

@@ -20,5 +20,5 @@ Architecture:
 """
 
 from .entities import *
-from .services import *
 from .errors import *
+from .services import *

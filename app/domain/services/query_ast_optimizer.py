@@ -10,26 +10,24 @@ Optimizations:
 4. Combine repeated content conditions with same operator into OR groups
 5. Deduplicate identical conditions
 """
+
 from __future__ import annotations
 
 import copy
-from typing import List, Optional, Union
 
+from ...logging_config import get_logger
 from ..entities.query_ast import (
-    QueryAST,
-    ScopeNode,
-    GroupNode,
-    NotNode,
-    ConditionNode,
     ClassCondition,
-    PropertyCondition,
+    ConditionNode,
     ContentCondition,
     FlagCondition,
+    GroupNode,
     LogicType,
+    NotNode,
+    PropertyCondition,
     PropertyOperator,
-    ContentOperator,
+    QueryAST,
 )
-from ...logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -64,9 +62,10 @@ def optimize_ast(ast: QueryAST) -> QueryAST:
 # Phase 1: Structural simplification
 # ────────────────────────────────────────────
 
+
 def _optimize_group(
     group: GroupNode,
-) -> Optional[Union[GroupNode, ConditionNode, NotNode]]:
+) -> GroupNode | ConditionNode | NotNode | None:
     """Recursively optimize a group node.
 
     Returns:
@@ -74,7 +73,7 @@ def _optimize_group(
         - A single child if the group has exactly one child (flatten)
         - The optimized group otherwise
     """
-    optimized_children: List[Union[ConditionNode, GroupNode, NotNode]] = []
+    optimized_children: list[ConditionNode | GroupNode | NotNode] = []
     seen_hashes: set = set()
 
     for child in group.children:
@@ -130,7 +129,7 @@ def _optimize_group(
     return group
 
 
-def _condition_hash(node: Union[ConditionNode, GroupNode, NotNode]) -> Optional[str]:
+def _condition_hash(node: ConditionNode | GroupNode | NotNode) -> str | None:
     """Create a deterministic hash for deduplication.
 
     Returns None for complex nodes that should not be deduped.
@@ -150,6 +149,7 @@ def _condition_hash(node: Union[ConditionNode, GroupNode, NotNode]) -> Optional[
 # ────────────────────────────────────────────
 # Phase 2: Combine repeated conditions
 # ────────────────────────────────────────────
+
 
 def _combine_property_conditions(group: GroupNode) -> None:
     """Within an AND group, combine multiple property EQUALS conditions on
@@ -258,7 +258,12 @@ def compute_ast_complexity(ast: QueryAST) -> dict:
             if isinstance(node, ClassCondition):
                 metrics["has_recursive_cte"] = True
             if isinstance(node, PropertyCondition) and node.property_name not in {
-                "uuid", "name", "id", "parent_id", "is_page", "is_favorite"
+                "uuid",
+                "name",
+                "id",
+                "parent_id",
+                "is_page",
+                "is_favorite",
             }:
                 metrics["has_property_joins"] = True
             if isinstance(node, ContentCondition):

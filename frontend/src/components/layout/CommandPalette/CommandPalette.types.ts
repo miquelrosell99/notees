@@ -30,7 +30,7 @@ export type {
   ParsedFilters,
 } from '@/utils/searchFilters';
 
-export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation' | 'share';
+export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation' | 'share' | 'sync';
 
 export interface CommandDef {
   id: string;

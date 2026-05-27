@@ -1,27 +1,27 @@
 """Class-related endpoints for nodes."""
-from fastapi import APIRouter, HTTPException, Depends
 
-from ..auth import get_current_user
+from fastapi import APIRouter, Depends, HTTPException
+
 from ...models import User
-from .models import ClassRequest
+from ..auth import get_current_user
 from .helpers import (
+    _get_class_ids_batch,
+    _get_extends_batch,
     _get_node_service,
     _get_undo_service,
     _node_to_response,
-    _get_class_ids_batch,
-    _get_extends_batch,
 )
-
+from .models import ClassRequest
 
 router = APIRouter()
 
 
 async def _get_class_service(user: User):
     """Return a :class:`ClassManagementService` wired to the user's workspace."""
-    from ...domain.services.class_management_service import ClassManagementService
-    from ...domain.repositories import PostgresNodeRepository, PostgresPropertyRepository
     from ...db.connection import get_pool
     from ...dependencies import _get_workspace_context_cached
+    from ...domain.repositories import PostgresNodeRepository, PostgresPropertyRepository
+    from ...domain.services.class_management_service import ClassManagementService
 
     pool = await get_pool()
     user_id = int(user.id)
@@ -37,10 +37,10 @@ async def list_classes(
     user: User = Depends(get_current_user),
 ):
     """List all classes (nodes that can categorize other nodes).
-    
+
     Classes are nodes that have is_class=1. This includes system classes like
     day, month, year, as well as user-defined classes.
-    
+
     Returns nodes with class_ids populated (classes can themselves be classed).
     """
     class_service = await _get_class_service(user)
@@ -52,14 +52,16 @@ async def list_classes(
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
     extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
 
-    return {"nodes": [
-        _node_to_response(
-            n,
-            classes=class_ids_map.get(n.id, []) if n.id else [],
-            extends=extends_map.get(n.id, []) if n.id else [],
-        )
-        for n in nodes
-    ]}
+    return {
+        "nodes": [
+            _node_to_response(
+                n,
+                classes=class_ids_map.get(n.id, []) if n.id else [],
+                extends=extends_map.get(n.id, []) if n.id else [],
+            )
+            for n in nodes
+        ]
+    }
 
 
 @router.get("/classes/search")
@@ -69,7 +71,7 @@ async def search_classes(
     user: User = Depends(get_current_user),
 ):
     """Search for classes by name.
-    
+
     Returns nodes with class_ids populated.
     Only returns nodes where is_class=TRUE.
     """
@@ -83,14 +85,16 @@ async def search_classes(
     class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
     extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
 
-    return {"nodes": [
-        _node_to_response(
-            n,
-            classes=class_ids_map.get(n.id, []) if n.id else [],
-            extends=extends_map.get(n.id, []) if n.id else [],
-        )
-        for n in nodes
-    ]}
+    return {
+        "nodes": [
+            _node_to_response(
+                n,
+                classes=class_ids_map.get(n.id, []) if n.id else [],
+                extends=extends_map.get(n.id, []) if n.id else [],
+            )
+            for n in nodes
+        ]
+    }
 
 
 @router.get("/classes/{class_id}/nodes")
@@ -99,7 +103,7 @@ async def get_nodes_with_class(
     user: User = Depends(get_current_user),
 ):
     """Get all nodes that have a specific class.
-    
+
     Returns nodes that have been categorized with the given class node.
     Includes nodes that are classed with subclasses of this class (inheritance).
     Uses direct array queries with class_ids column for performance.
@@ -110,10 +114,7 @@ async def get_nodes_with_class(
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(class_service.pool, class_service.workspace_id or 0, node_ids)
 
-    return {"nodes": [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else [])
-        for n in nodes
-    ]}
+    return {"nodes": [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]}
 
 
 @router.post("/{node_id}/classes")
@@ -123,52 +124,53 @@ async def add_node_class(
     user: User = Depends(get_current_user),
 ):
     """Add a class to a node."""
-    from ...domain.errors import SystemClassConstraintError
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-    from ...domain.services.node_view_service import NodeViewService
+    from ...domain.errors import SystemClassConstraintError
     from ...domain.repositories import PostgresNodeViewRepository
-    
+
     service = await _get_node_service(user)
-    
+
     # Snapshot class_ids before add
     pool = service.pool
     before_row = await pool.fetchrow(
         "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-        node_id, service.workspace_id,
+        node_id,
+        service.workspace_id,
     )
-    before_class_ids = list(before_row['class_ids'] or []) if before_row else []
-    
+    before_class_ids = list(before_row["class_ids"] or []) if before_row else []
+
     try:
         success = await service.add_class(node_id, request.class_node_id)
         if not success:
             raise HTTPException(400, "Class already present or node not found")
     except SystemClassConstraintError as e:
-        raise HTTPException(400, e.message)
-    
+        raise HTTPException(400, e.message) from e
+
     # Record for undo
     try:
         after_row = await pool.fetchrow(
             "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id, service.workspace_id,
+            node_id,
+            service.workspace_id,
         )
-        after_class_ids = list(after_row['class_ids'] or []) if after_row else []
+        after_class_ids = list(after_row["class_ids"] or []) if after_row else []
         undo = await _get_undo_service(user)
         await undo.record(
-            "add_class", "node", node_id,
+            "add_class",
+            "node",
+            node_id,
             before_state={"class_ids": before_class_ids},
             after_state={"class_ids": after_class_ids},
             description=f"Added class to node {node_id}",
         )
     except Exception:
         pass
-    
+
     # Special handling for query class: create a main_content NodeView
     added_class_node = await service.get_node(request.class_node_id)
     if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
         if service.workspace_id:
-            view_repo = PostgresNodeViewRepository(
-                service.pool, service.workspace_id, str(user.id)
-            )
+            view_repo = PostgresNodeViewRepository(service.pool, service.workspace_id, str(user.id))
             # Check if main_content view already exists for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
             if not existing_views:
@@ -181,7 +183,7 @@ async def add_node_class(
                     order_index=0,
                     is_default=True,
                 )
-    
+
     node = await service.get_node(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
@@ -196,58 +198,59 @@ async def remove_node_class_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Remove a class from a node."""
-    from ...domain.errors import SystemClassConstraintError
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+    from ...domain.errors import SystemClassConstraintError
     from ...domain.repositories import PostgresNodeViewRepository
-    
+
     service = await _get_node_service(user)
-    
+
     # Snapshot class_ids before removal
     pool = service.pool
     before_row = await pool.fetchrow(
         "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-        node_id, service.workspace_id,
+        node_id,
+        service.workspace_id,
     )
-    before_class_ids = list(before_row['class_ids'] or []) if before_row else []
-    
+    before_class_ids = list(before_row["class_ids"] or []) if before_row else []
+
     # Special handling for query class: delete the main_content NodeView before removing the class
     removed_class_node = await service.get_node(class_id)
     if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"]:
         if service.workspace_id:
-            view_repo = PostgresNodeViewRepository(
-                service.pool, service.workspace_id, str(user.id)
-            )
+            view_repo = PostgresNodeViewRepository(service.pool, service.workspace_id, str(user.id))
             # Delete all main_content views for this node
             existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
             for view in existing_views:
                 await view_repo.delete(view.id)
-    
+
     try:
-        success = await service.remove_class(node_id, class_id)
+        await service.remove_class(node_id, class_id)
     except SystemClassConstraintError as e:
-        raise HTTPException(400, e.message)
-    
+        raise HTTPException(400, e.message) from e
+
     node = await service.get_node(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
-    
+
     # Record for undo
     try:
         after_row = await pool.fetchrow(
             "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id, service.workspace_id,
+            node_id,
+            service.workspace_id,
         )
-        after_class_ids = list(after_row['class_ids'] or []) if after_row else []
+        after_class_ids = list(after_row["class_ids"] or []) if after_row else []
         undo = await _get_undo_service(user)
         await undo.record(
-            "remove_class", "node", node_id,
+            "remove_class",
+            "node",
+            node_id,
             before_state={"class_ids": before_class_ids},
             after_state={"class_ids": after_class_ids},
             description=f"Removed class from node {node_id}",
         )
     except Exception:
         pass
-    
+
     classes = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
-

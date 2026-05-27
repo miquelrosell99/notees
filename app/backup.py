@@ -3,13 +3,12 @@
 Provides automated PostgreSQL backups using pg_dump.
 Backups are stored as custom-format .dump files for efficient compression and restore.
 """
+
 import asyncio
 import os
 import sys
-import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, List
 
 from .config import settings
 from .db.connection import get_database_url
@@ -18,36 +17,36 @@ from .logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def find_pg_dump() -> Optional[str]:
+def find_pg_dump() -> str | None:
     """Find pg_dump executable on Windows."""
-    if sys.platform != 'win32':
-        return 'pg_dump'  # Assume it's in PATH on Unix
-    
+    if sys.platform != "win32":
+        return "pg_dump"  # Assume it's in PATH on Unix
+
     # Common PostgreSQL installation paths on Windows
     possible_paths = [
-        Path(os.environ.get('PROGRAMFILES', 'C:\\Program Files')) / 'PostgreSQL',
-        Path(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')) / 'PostgreSQL',
+        Path(os.environ.get("PROGRAMFILES", "C:\\Program Files")) / "PostgreSQL",
+        Path(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")) / "PostgreSQL",
     ]
-    
+
     for base_path in possible_paths:
         if base_path.exists():
             # Look for version directories (18, 17, 16, etc.)
             for version_dir in sorted(base_path.iterdir(), reverse=True):
                 if version_dir.is_dir():
-                    bin_dir = version_dir / 'bin'
-                    pg_dump_path = bin_dir / 'pg_dump.exe'
+                    bin_dir = version_dir / "bin"
+                    pg_dump_path = bin_dir / "pg_dump.exe"
                     if pg_dump_path.exists():
                         return str(pg_dump_path)
-    
-    return 'pg_dump'  # Fallback to PATH
+
+    return "pg_dump"  # Fallback to PATH
 
 
 class BackupScheduler:
     """PostgreSQL backup scheduler using pg_dump."""
-    
+
     def __init__(self, interval_seconds: int = 3600, max_backups: int = 50):
         """Initialize backup scheduler.
-        
+
         Args:
             interval_seconds: Time between backups (default: 1 hour)
             max_backups: Maximum number of backups to keep (default: 50)
@@ -56,19 +55,19 @@ class BackupScheduler:
         self.max_backups = max_backups
         self.backup_dir = Path("data/backups")
         self.running = False
-        self.task: Optional[asyncio.Task] = None
-    
+        self.task: asyncio.Task | None = None
+
     async def start(self):
         """Start the backup scheduler."""
         if self.running:
             logger.warning("Backup scheduler already running")
             return
-        
+
         self.running = True
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.task = asyncio.create_task(self._backup_loop())
         logger.info(f"Backup scheduler started (interval: {self.interval}s, max_backups: {self.max_backups})")
-    
+
     async def stop(self):
         """Stop the backup scheduler."""
         self.running = False
@@ -78,7 +77,7 @@ class BackupScheduler:
                 await self.task
             except asyncio.CancelledError:
                 logger.info("Backup scheduler stopped")
-    
+
     async def _backup_loop(self):
         """Main backup loop."""
         while self.running:
@@ -87,33 +86,34 @@ class BackupScheduler:
                 await self._cleanup_old_backups()
             except Exception as e:
                 logger.error(f"Backup failed: {e}", exc_info=True)
-            
+
             await asyncio.sleep(self.interval)
-    
+
     async def _create_backup(self):
         """Create a PostgreSQL backup using pg_dump."""
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         backup_file = self.backup_dir / f"notees_backup_{timestamp}.dump"
-        
+
         # Get database URL
         db_url = get_database_url()
-        
+
         # Find pg_dump executable
         pg_dump = find_pg_dump()
-        
+
         logger.info(f"Creating backup: {backup_file.name}")
 
         # Parse db_url to pass credentials via environment variables instead of
         # the command-line argument (credentials in argv are visible to other
         # processes via `ps` output on Linux/macOS).
         import urllib.parse as _urlparse
+
         _parsed = _urlparse.urlparse(db_url)
         pg_env = {
             **os.environ,
             "PGPASSWORD": _parsed.password or "",
-            "PGUSER":     _parsed.username or "",
-            "PGHOST":     _parsed.hostname or "localhost",
-            "PGPORT":     str(_parsed.port or 5432),
+            "PGUSER": _parsed.username or "",
+            "PGHOST": _parsed.hostname or "localhost",
+            "PGPORT": str(_parsed.port or 5432),
             "PGDATABASE": (_parsed.path or "/notees").lstrip("/"),
         }
 
@@ -122,9 +122,12 @@ class BackupScheduler:
             # Credentials come from the environment — not from the argv list.
             process = await asyncio.create_subprocess_exec(
                 pg_dump,
-                "--file", str(backup_file),
-                "--format", "custom",
-                "--compress", "9",
+                "--file",
+                str(backup_file),
+                "--format",
+                "custom",
+                "--compress",
+                "9",
                 "--verbose",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -157,11 +160,11 @@ class BackupScheduler:
             # Clean up partial backup file
             if backup_file.exists():
                 backup_file.unlink()
-    
+
     async def _cleanup_old_backups(self):
         """Remove old backups exceeding max_backups limit."""
         backups = sorted(self.backup_dir.glob("notees_backup_*.dump"), key=lambda p: p.stat().st_mtime)
-        
+
         while len(backups) > self.max_backups:
             oldest = backups.pop(0)
             try:
@@ -169,53 +172,56 @@ class BackupScheduler:
                 logger.info(f"Removed old backup: {oldest.name}")
             except Exception as e:
                 logger.error(f"Failed to remove old backup {oldest.name}: {e}")
-    
-    def list_backups(self) -> List[dict]:
+
+    def list_backups(self) -> list[dict]:
         """List all available backups.
-        
+
         Returns:
             List of backup info dicts with name, path, size, and created timestamp
         """
         backups = []
         for backup_file in sorted(self.backup_dir.glob("notees_backup_*.dump"), reverse=True):
             stat = backup_file.stat()
-            backups.append({
-                "name": backup_file.name,
-                "path": str(backup_file),
-                "size_mb": stat.st_size / (1024 * 1024),
-                "created": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-            })
+            backups.append(
+                {
+                    "name": backup_file.name,
+                    "path": str(backup_file),
+                    "size_mb": stat.st_size / (1024 * 1024),
+                    "created": datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                }
+            )
         return backups
-    
+
     async def restore_backup(self, backup_filename: str) -> bool:
         """Restore a database from a backup using pg_restore.
-        
+
         WARNING: This will drop and recreate the database. All current data will be lost.
-        
+
         Args:
             backup_filename: Name of the backup file to restore
-            
+
         Returns:
             True if restore was successful, False otherwise
         """
         backup_file = self.backup_dir / backup_filename
-        
+
         if not backup_file.exists():
             logger.error(f"Backup file not found: {backup_filename}")
             return False
-        
+
         db_url = get_database_url()
 
         logger.warning(f"Starting database restore from {backup_filename} - THIS WILL ERASE CURRENT DATA")
 
         import urllib.parse as _urlparse
+
         _parsed = _urlparse.urlparse(db_url)
         pg_env = {
             **os.environ,
             "PGPASSWORD": _parsed.password or "",
-            "PGUSER":     _parsed.username or "",
-            "PGHOST":     _parsed.hostname or "localhost",
-            "PGPORT":     str(_parsed.port or 5432),
+            "PGUSER": _parsed.username or "",
+            "PGHOST": _parsed.hostname or "localhost",
+            "PGPORT": str(_parsed.port or 5432),
             "PGDATABASE": (_parsed.path or "/notees").lstrip("/"),
         }
 
@@ -232,7 +238,7 @@ class BackupScheduler:
                 stderr=asyncio.subprocess.PIPE,
                 env=pg_env,
             )
-            
+
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
@@ -254,14 +260,14 @@ class BackupScheduler:
 
 
 # Lazy-initialized backup scheduler instance
-_backup_scheduler: Optional[BackupScheduler] = None
+_backup_scheduler: BackupScheduler | None = None
+
 
 def get_backup_scheduler() -> BackupScheduler:
     """Get or create the global backup scheduler instance."""
     global _backup_scheduler
     if _backup_scheduler is None:
         _backup_scheduler = BackupScheduler(
-            interval_seconds=settings.backup_interval_seconds,
-            max_backups=settings.max_backups
+            interval_seconds=settings.backup_interval_seconds, max_backups=settings.max_backups
         )
     return _backup_scheduler

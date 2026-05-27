@@ -1,4 +1,5 @@
 """Public share entity for tokenized anonymous node access."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
