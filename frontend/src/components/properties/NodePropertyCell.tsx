@@ -6,6 +6,7 @@ import { useNavigationStore } from '@/stores';
 import * as nodesApi from '@/api/nodes';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { ImageNode } from '@/components/nodes/ImageNode';
+import { Spinner } from '@/components/core/Spinner';
 import './PropertyCell.css';
 
 interface NodePropertyCellProps {
@@ -61,7 +62,7 @@ export function NodePropertyCell({
     if (isLoading) {
       return (
         <div className="property-cell property-cell--loading">
-          Loading...
+          <Spinner size="sm" />
         </div>
       );
     }
@@ -85,7 +86,7 @@ export function NodePropertyCell({
   if (isLoading && nodeIds.length > 0) {
     return (
       <div className="property-cell property-cell--loading">
-        Loading...
+        <Spinner size="sm" />
       </div>
     );
   }

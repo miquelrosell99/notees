@@ -3,6 +3,7 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { Modal } from '@/components/core/Modal';
+import { Spinner } from '@/components/core/Spinner';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
@@ -99,7 +100,7 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
     <Modal isOpen={isOpen} onClose={onClose} title="Share Workspace" size="md" className="workspace-share-modal__dialog">
       <div className="workspace-share-modal">
         {isLoading ? (
-          <div className="workspace-share-modal__loading">Loading members…</div>
+          <div className="workspace-share-modal__loading"><Spinner size="sm" label="Loading members…" /></div>
         ) : (
           <>
             {/* Invite bar */}

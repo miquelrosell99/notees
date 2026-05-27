@@ -23,6 +23,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import type { Node } from '@/types/api';
 import './EmbedBlock.css';
 import { Icon } from '@/components/core/icons';
+import { Spinner } from '@/components/core/Spinner';
 
 // ─── Props ───────────────────────────────────────────────────────
 
@@ -170,9 +171,9 @@ export function EmbedBlock({
           <span className="embed-block-header__icon">
             <Icon path={"mdi mdi-cube-outline"} size="14px" />
           </span>
-          <span className="embed-block-header__label">Loading embed…</span>
+          <span className="embed-block-header__label"><Spinner size="sm" label="Loading embed…" /></span>
         </div>
-        <div className="embed-block-loading">Loading…</div>
+        <div className="embed-block-loading"><Spinner size="sm" label="Loading…" /></div>
       </div>
     );
   }

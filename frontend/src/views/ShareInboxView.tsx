@@ -2,6 +2,7 @@
  * ShareInboxView — Shows all nodes shared with the current user.
  */
 import { useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useShareInbox } from '@/hooks/useShares';
 import { useNavigationStore } from '@/stores';
 import { switchWorkspace } from '@/api/workspaces';
@@ -34,7 +35,7 @@ export function ShareInboxView() {
       </div>
 
       {isLoading ? (
-        <div className="share-inbox-view__loading">Loading inbox...</div>
+        <div className="share-inbox-view__loading"><Spinner size="md" centered /></div>
       ) : items.length === 0 ? (
         <div className="share-inbox-view__empty">
           <p>Nothing shared with you yet.</p>

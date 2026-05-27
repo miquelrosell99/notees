@@ -1,5 +1,6 @@
 import { useNode } from '@/hooks';
 import { NodeInline } from '@/components/blocks/NodeInline';
+import { Spinner } from '@/components/core/Spinner';
 import './PropertyCell.css';
 
 /**
@@ -12,7 +13,7 @@ export function InlineBlock({ nodeId }: { nodeId: number }) {
   if (!blockNode) {
     return (
       <div className="property-cell property-cell--loading">
-        Loading...
+        <Spinner size="sm" />
       </div>
     );
   }

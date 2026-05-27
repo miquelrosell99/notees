@@ -13,6 +13,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { useProperties } from '@/hooks';
 import { Checkbox } from '@/components/core/Checkbox';
+import { Spinner } from '@/components/core/Spinner';
 import { SearchIcon, DragVerticalIcon } from '@/components/core/icons';
 import type { Property } from '@/types';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -191,7 +192,7 @@ export function PropertyColumnSelector({
   if (isLoading) {
     return (
       <div className="property-column-selector">
-        <div className="property-column-selector__loading">Loading properties...</div>
+        <div className="property-column-selector__loading"><Spinner size="sm" label="Loading properties..." /></div>
       </div>
     );
   }

@@ -11,6 +11,7 @@
  */
 import { useMemo } from 'react';
 import { useGraphNodes, useGraphLinks } from '@/hooks';
+import { Spinner } from '@/components/core/Spinner';
 import { GraphView } from '@/components/nodes/views/GraphView';
 import './SidebarLocalGraph.css';
 
@@ -54,7 +55,7 @@ export function SidebarLocalGraph({
   if (isLoading) {
     return (
       <div className={`graph-view-local loading ${className}`}>
-        <div className="graph-view-local__loading">Loading...</div>
+        <Spinner size="md" centered />
       </div>
     );
   }

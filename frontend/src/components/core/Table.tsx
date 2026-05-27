@@ -13,6 +13,7 @@
  * - Automatic Node cell rendering with Block component and navigation buttons
  */
 import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeNameContent } from '@/components/blocks/NodeNameContent';
@@ -631,7 +632,7 @@ export function Table<T>({
           {loading ? (
             <tr className="table-row table-row--loading">
               <td colSpan={columns.length + extraColumns} className="table-cell table-cell--loading">
-                Loading...
+                <Spinner size="sm" />
               </td>
             </tr>
           ) : sortedData.length === 0 ? (

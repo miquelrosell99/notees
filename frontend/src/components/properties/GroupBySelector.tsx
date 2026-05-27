@@ -11,6 +11,7 @@
  */
 import { useState, useMemo } from 'react';
 import { useProperties } from '@/hooks';
+import { Spinner } from '@/components/core/Spinner';
 import { SearchIcon, NodeIcon, CheckIcon } from '@/components/core/icons';
 import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
@@ -84,7 +85,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
   if (isLoading) {
     return (
       <div className="group-by-selector">
-        <div className="group-by-selector__loading">Loading properties…</div>
+        <div className="group-by-selector__loading"><Spinner size="sm" label="Loading properties…" /></div>
       </div>
     );
   }

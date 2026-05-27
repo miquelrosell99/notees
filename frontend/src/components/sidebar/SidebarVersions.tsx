@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NodeViewSection } from '@/components/nodes/NodeViewSection';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
 import { Icon } from '@/components/core/icons';
 import { getNodeVersions, restoreNodeVersion, type NodeVersion } from '@/api/nodes';
 import { useSettingsStore, formatDate } from '@/stores';
@@ -52,7 +53,7 @@ export function SidebarVersions({ nodeId }: SidebarVersionsProps) {
       hideWhenEmpty={false}
     >
       {loading ? (
-        <div className="sidebar-section-loading">Loading...</div>
+        <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : versions.length === 0 ? (
         <div className="sidebar-section-empty">No version history yet</div>
       ) : (

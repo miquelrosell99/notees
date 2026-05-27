@@ -31,6 +31,7 @@ export * from './SearchBox';
 export * from './SearchField';
 export * from './SelectTrigger';
 export * from './SelectionButton';
+export * from './Spinner';
 export * from './SelectionRadio';
 export * from './Separator';
 export * from './Slider';

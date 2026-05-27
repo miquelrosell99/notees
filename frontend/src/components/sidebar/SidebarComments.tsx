@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { NodeViewSection } from '@/components/nodes/NodeViewSection';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
 import { TextField } from '@/components/core/TextField';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { CommentIcon, AddIcon, SendIcon } from '@/components/core/icons';
@@ -129,7 +130,7 @@ export function SidebarComments({ nodeId, comments, count, loading }: SidebarCom
     >
       {quickAddOpen && <QuickAddComment nodeId={nodeId} onClose={() => setQuickAddOpen(false)} />}
       {loading ? (
-        <div className="sidebar-section-loading">Loading...</div>
+        <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (
         <CommentsList comments={comments} />
       )}

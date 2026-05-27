@@ -5,6 +5,7 @@
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
 import { useState, useRef } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   listWorkspaces, 
@@ -332,8 +333,7 @@ export function WorkspaceManagementView({
           {/* Database list */}
           {isLoading ? (
             <div className="workspace-management__loading">
-              <div className="workspace-management__spinner" />
-              <span>Loading workspaces...</span>
+              <Spinner size="lg" label="Loading workspaces..." centered />
             </div>
           ) : workspaces.length > 0 ? (
             <div className="workspace-management__grid">
@@ -524,8 +524,7 @@ export function WorkspaceManagementView({
       {deleteMutation.isPending && (
         <div className="workspace-management__deleting-overlay" aria-live="assertive" role="status">
           <div className="workspace-management__deleting-box">
-            <div className="workspace-management__spinner" />
-            <span>Deleting workspace…</span>
+            <Spinner size="lg" label="Deleting workspace…" />
           </div>
         </div>
       )}

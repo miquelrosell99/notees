@@ -7,6 +7,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
 import { FileDropZone } from '@/components/core/FileDropZone';
 import { Modal } from '@/components/core/Modal';
 import './AssetUploadModal.css';
@@ -219,7 +220,7 @@ export function AssetUploadModal({
           onClick={handleUpload}
           disabled={!selectedFile || isUploading}
         >
-          {isUploading ? 'Uploading...' : 'Upload'}
+          {isUploading ? <Spinner size="sm" label="Uploading..." /> : 'Upload'}
         </Button>
       </>
     )}>

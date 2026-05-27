@@ -2,6 +2,7 @@
  * SharesView — Centralized list of all public share links in the workspace.
  */
 import { useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useWorkspaceShares, useDeleteShare } from '@/hooks/useShares';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/core/Button';
@@ -30,7 +31,7 @@ export function SharesView() {
       </div>
 
       {isLoading ? (
-        <div className="shares-view__loading">Loading shares...</div>
+        <div className="shares-view__loading"><Spinner size="md" centered /></div>
       ) : shares.length === 0 ? (
         <div className="shares-view__empty">
           <p>No shared links yet.</p>

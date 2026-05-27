@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import { useNode } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
+import { Spinner } from '@/components/core/Spinner';
 import type { SidebarNodeType } from '@/stores';
 import { NodeViewContent } from '@/views/NodeView';
 import { NodeIcon, BulletIcon } from '@/components/core/icons';
@@ -34,7 +35,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
   if (isLoading) {
     return (
       <div className="sidebar-node-view sidebar-node-view--loading">
-        <div className="sidebar-node-view__loading">Loading...</div>
+        <Spinner size="md" centered />
       </div>
     );
   }
