@@ -9,18 +9,17 @@ Updated for workspace-based schema:
 NOTE: Sync functionality is currently a stub and needs to be redesigned
 for the shared workspace model.
 """
+
 import json
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ..models import SyncRequest, SyncResponse, User
-from .auth import get_current_user
 from ..dependencies import get_settings_repository
 from ..domain.repositories import SettingsRepository
-from ..logging_config import logger
-from ..workspace_manager import get_active_workspace_id
+from ..models import SyncRequest, User
 from ..utils import utc_now
-
+from ..workspace_manager import get_active_workspace_id
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["Sync & Settings"])
 
@@ -28,7 +27,7 @@ router = APIRouter(prefix="/api", tags=["Sync & Settings"])
 @router.post("/sync")
 async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
     """Sync endpoint - Coming soon.
-    
+
     For now, use the export/import endpoints for data transfer.
     """
     raise HTTPException(
@@ -36,8 +35,8 @@ async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
         detail={
             "message": "Sync is planned for v2.1",
             "alternative": "Use /api/export and /api/import for data transfer",
-            "docs": "/docs#/export"
-        }
+            "docs": "/docs#/export",
+        },
     )
 
 
@@ -60,9 +59,10 @@ async def set_setting(
     """Set a user setting."""
     data = await request.json()
     value = data.get("value")
-    json_value = json.dumps(value) if value is not None else 'null'
+    json_value = json.dumps(value) if value is not None else "null"
     await repo.set_user_setting(int(user.id), key, json_value, utc_now())
     return {"status": "ok"}
+
 
 @router.get("/workspace-settings")
 async def get_workspace_settings(
@@ -96,6 +96,6 @@ async def set_workspace_setting(
     workspace_id = await repo.get_workspace_id_by_uuid(active_uuid)
     if workspace_id is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    json_value = json.dumps(value) if value is not None else 'null'
+    json_value = json.dumps(value) if value is not None else "null"
     await repo.set_workspace_setting(workspace_id, key, json_value, utc_now(), user_id)
     return {"status": "ok"}

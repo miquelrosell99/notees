@@ -1,12 +1,13 @@
 """PostgreSQL implementation of SettingsRepository."""
+
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import asyncpg
 
-from .interfaces import SettingsRepository
 from ...db.connection import acquire_connection
+from .interfaces import SettingsRepository
 
 
 class PostgresSettingsRepository(SettingsRepository):
@@ -33,10 +34,13 @@ class PostgresSettingsRepository(SettingsRepository):
                 ON CONFLICT (user_id, key)
                 DO UPDATE SET value = $3::jsonb, write_date = $4, write_uid = $1
                 """,
-                user_id, key, json_value, now,
+                user_id,
+                key,
+                json_value,
+                now,
             )
 
-    async def get_workspace_id_by_uuid(self, uuid: str) -> Optional[int]:
+    async def get_workspace_id_by_uuid(self, uuid: str) -> int | None:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT id FROM workspace WHERE uuid::text = $1",
@@ -52,9 +56,7 @@ class PostgresSettingsRepository(SettingsRepository):
             )
         return {row["key"]: row["value"] for row in rows}
 
-    async def set_workspace_setting(
-        self, workspace_id: int, key: str, json_value: str, now: Any, user_id: int
-    ) -> None:
+    async def set_workspace_setting(self, workspace_id: int, key: str, json_value: str, now: Any, user_id: int) -> None:
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
@@ -64,5 +66,9 @@ class PostgresSettingsRepository(SettingsRepository):
                 ON CONFLICT (workspace_id, key)
                 DO UPDATE SET value = $3::jsonb, write_date = $4, write_uid = $5
                 """,
-                workspace_id, key, json_value, now, user_id,
+                workspace_id,
+                key,
+                json_value,
+                now,
+                user_id,
             )

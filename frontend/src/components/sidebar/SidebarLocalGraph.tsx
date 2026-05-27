@@ -10,7 +10,7 @@
  * Extracts a subgraph and passes it to GraphView in controlled mode.
  */
 import { useMemo } from 'react';
-import { useGraphNodes, useGraphLinks, useNode } from '@/hooks';
+import { useGraphNodes, useGraphLinks } from '@/hooks';
 import { GraphView } from '@/components/nodes/views/GraphView';
 import './SidebarLocalGraph.css';
 
@@ -26,7 +26,6 @@ export function SidebarLocalGraph({
   className = '' 
 }: SidebarLocalGraphProps) {
   const { data: allNodes, isLoading: nodesLoading } = useGraphNodes();
-  const { data: centerNode } = useNode(nodeId);
   
   // Fetch links touching this node (neighborhood discovery)
   const { data: touchingLinks = [], isLoading: linksLoading } = useGraphLinks(

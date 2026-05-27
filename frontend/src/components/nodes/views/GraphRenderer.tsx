@@ -191,7 +191,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
-      _wheel(e);
+      _wheel(e as unknown as React.WheelEvent<HTMLCanvasElement>);
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);

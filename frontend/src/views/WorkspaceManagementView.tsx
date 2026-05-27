@@ -11,11 +11,9 @@ import {
   switchWorkspace,
   deleteWorkspace,
   renameWorkspace,
-  exportWorkspaceZip,
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/api/workspaces';
-import { downloadBlob } from '@/utils/download';
 import { useAuthStore, useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
 import { WorkspaceModal } from '../components/workspace/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '../components/workspace/ImportOptionsModal';
@@ -24,6 +22,7 @@ import { ImportLogseqModal } from '../components/workspace/ImportLogseqModal';
 import { WorkspaceNameModal } from '../components/workspace/WorkspaceNameModal';
 import { WorkspaceActionsMenu } from '../components/workspace/WorkspaceActionsMenu';
 import { WorkspaceShareModal } from '../components/workspace/WorkspaceShareModal';
+import { WorkspaceExportModal } from '../components/workspace/WorkspaceExportModal';
 import { UserSettingsModal, SystemSettingsModal } from '../components/layout/Modals';
 import { 
   ArrowRightIcon,
@@ -69,6 +68,11 @@ export function WorkspaceManagementView({
     isOpen: boolean;
     workspaceUuid: string | null;
   }>({ isOpen: false, workspaceUuid: null });
+  const [exportModalState, setExportModalState] = useState<{
+    isOpen: boolean;
+    workspaceUuid: string | null;
+    workspaceName: string;
+  }>({ isOpen: false, workspaceUuid: null, workspaceName: '' });
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
@@ -205,13 +209,12 @@ export function WorkspaceManagementView({
     }
   };
 
-  const handleExport = async (workspace: WorkspaceInfo) => {
-    try {
-      const blob = await exportWorkspaceZip(workspace.uuid);
-      downloadBlob(blob, `${workspace.name}_full.zip`);
-    } catch (err) {
-      console.error('Failed to export workspace:', err);
-    }
+  const handleExport = (workspace: WorkspaceInfo) => {
+    setExportModalState({
+      isOpen: true,
+      workspaceUuid: workspace.uuid,
+      workspaceName: workspace.name,
+    });
   };
 
   // Handle restore: open file picker for a specific workspace
@@ -497,6 +500,16 @@ export function WorkspaceManagementView({
         isOpen={isImportLogseqModalOpen}
         onClose={() => setImportLogseqModalOpen(false)}
       />
+
+      {/* Workspace Export Modal */}
+      {exportModalState.workspaceUuid && (
+        <WorkspaceExportModal
+          isOpen={exportModalState.isOpen}
+          onClose={() => setExportModalState({ isOpen: false, workspaceUuid: null, workspaceName: '' })}
+          workspaceUuid={exportModalState.workspaceUuid}
+          workspaceName={exportModalState.workspaceName}
+        />
+      )}
 
       {/* Workspace Share Modal */}
       {shareModalState.workspaceUuid && (

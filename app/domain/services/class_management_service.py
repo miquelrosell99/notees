@@ -4,18 +4,21 @@ Owns all class-related operations: flag computation, listing, searching,
 and adding/removing classes from nodes.  Previously this logic was scattered
 across NodeService, the classes router, and the postgres_node repository.
 """
+
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Any, Callable, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import SystemClassConstraintError, DuplicateNodeError
-from ..stringify_ast import parse_ast, serialize_ast, ParseMode
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
+from ..entities import Node, NodeCreateData, NodeUpdateData
+from ..errors import SystemClassConstraintError
+from ..stringify_ast import ParseMode, parse_ast, serialize_ast
 
 if TYPE_CHECKING:
     import asyncpg
+
     from ..repositories import NodeRepository, PropertyRepository
 
 logger = get_logger(__name__)
@@ -46,7 +49,7 @@ ALL_SYSTEM_CLASS_UUIDS = set(SYSTEM_CLASS_UUIDS.values())
 CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
 
 # Maps class UUID → the boolean flag column on the node row
-CLASS_UUID_TO_FLAG: Dict[str, str] = {
+CLASS_UUID_TO_FLAG: dict[str, str] = {
     SYSTEM_CLASS_UUIDS["class"]: "is_class",
     SYSTEM_CLASS_UUIDS["page"]: "is_page",
     SYSTEM_CLASS_UUIDS["day"]: "is_day",
@@ -85,19 +88,19 @@ class ClassManagementService:
         return self._pool
 
     @property
-    def workspace_id(self) -> Optional[int]:
+    def workspace_id(self) -> int | None:
         return self._workspace_id
 
     # ------------------------------------------------------------------
     # Flag computation
     # ------------------------------------------------------------------
 
-    async def compute_flags_from_classes(self, class_ids: List[int]) -> Dict[str, bool]:
+    async def compute_flags_from_classes(self, class_ids: list[int]) -> dict[str, bool]:
         """Return the is_* flag dict implied by the given class IDs.
 
         Only system classes produce boolean flags; user-defined classes do not.
         """
-        flags: Dict[str, bool] = {}
+        flags: dict[str, bool] = {}
         if class_ids:
             class_nodes = await self._node_repo.get_by_ids(class_ids)
             for class_node in class_nodes:
@@ -105,7 +108,7 @@ class ClassManagementService:
                     flags[CLASS_UUID_TO_FLAG[class_node.uuid]] = True
         return flags
 
-    async def update_flags_from_classes(self, node_id: int, class_ids: List[int]) -> None:
+    async def update_flags_from_classes(self, node_id: int, class_ids: list[int]) -> None:
         """Recompute and persist all is_* flags for *node_id* from *class_ids*.
 
         Triggers the repository's flag-recomputation path via a classes-only update.
@@ -117,19 +120,19 @@ class ClassManagementService:
     # Listing / searching
     # ------------------------------------------------------------------
 
-    async def list_classes(self) -> List[Node]:
+    async def list_classes(self) -> list[Node]:
         """Return all class nodes in the workspace, ordered by name."""
         return await self._node_repo.list_classes()
 
-    async def search_classes(self, q: str, limit: int = 20) -> List[Node]:
+    async def search_classes(self, q: str, limit: int = 20) -> list[Node]:
         """Full-text + ILIKE search over class nodes."""
         return await self._node_repo.search_classes(q, limit)
 
-    async def get_nodes_with_class(self, class_id: int) -> List[Node]:
+    async def get_nodes_with_class(self, class_id: int) -> list[Node]:
         """Return all nodes that carry the given class (or any of its subclasses)."""
-        from .class_extension_service import ClassExtensionService
         from ..repositories import PostgresPropertyRepository
         from ..repositories.postgres_class_extend import PostgresClassExtendRepository
+        from .class_extension_service import ClassExtensionService
 
         property_repo = PostgresPropertyRepository(self._pool, self._workspace_id, 0)
         class_extend_repo = PostgresClassExtendRepository(self._pool, self._workspace_id, 0)
@@ -142,7 +145,7 @@ class ClassManagementService:
     # Node-level class queries
     # ------------------------------------------------------------------
 
-    async def get_node_classes(self, node_id: int) -> List[Node]:
+    async def get_node_classes(self, node_id: int) -> list[Node]:
         """Return all class nodes assigned to *node_id*."""
         class_ids = await self._node_repo.get_node_class_ids(node_id)
         if not class_ids:
@@ -159,7 +162,7 @@ class ClassManagementService:
         class_node_id: int,
         *,
         _system_call: bool = False,
-        _page_name_validator: Optional[Callable] = None,
+        _page_name_validator: Callable | None = None,
     ) -> bool:
         """Add *class_node_id* to *node_id*.
 
@@ -194,9 +197,7 @@ class ClassManagementService:
 
         if class_node and class_node.uuid == CLASS_CLASS_UUID:
             if not node.is_page:
-                raise SystemClassConstraintError(
-                    "The 'class' class can only be assigned to pages, not blocks."
-                )
+                raise SystemClassConstraintError("The 'class' class can only be assigned to pages, not blocks.")
 
         if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
             if node.is_page:
@@ -235,16 +236,14 @@ class ClassManagementService:
         class_node = await self._node_repo.get_by_id(class_node_id)
         if class_node and class_node.uuid in PROTECTED_DATE_CLASS_UUIDS:
             raise SystemClassConstraintError(
-                f"Cannot remove '{class_node.name}' class. "
-                "Date classes (day, month, year) are managed by the system."
+                f"Cannot remove '{class_node.name}' class. Date classes (day, month, year) are managed by the system."
             )
 
         if class_node and class_node.uuid == CLASS_CLASS_UUID:
             node = await self._node_repo.get_by_id(node_id)
             if node and node.uuid in ALL_SYSTEM_CLASS_UUIDS:
                 raise SystemClassConstraintError(
-                    f"Cannot remove 'class' from system class '{node.name}'. "
-                    "System classes must remain as classes."
+                    f"Cannot remove 'class' from system class '{node.name}'. System classes must remain as classes."
                 )
 
         current_class_ids = await self._node_repo.get_node_class_ids(node_id)
@@ -270,7 +269,7 @@ class ClassManagementService:
         Skips properties that already have values.  Logs but does not re-raise
         individual property failures so that the parent add_class call succeeds.
         """
-        from ..entities.property import PropertyType, SCALAR_TYPES, RELATION_TYPES
+        from ..entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
         class_properties = await self._property_repo.get_class_properties(class_node_id)
         for cp in class_properties:
@@ -279,7 +278,7 @@ class ClassManagementService:
                 continue
 
             existing_values = await self._property_repo.get_all_property_values(node_id)
-            if cp.property_id in existing_values and existing_values[cp.property_id].get('values'):
+            if cp.property_id in existing_values and existing_values[cp.property_id].get("values"):
                 continue
 
             try:
@@ -311,6 +310,4 @@ class ClassManagementService:
                     await self._property_repo.set_selection_value(node_id, cp.property_id, cp.default_selection_id)
 
             except Exception as exc:
-                logger.warning(
-                    f"Failed to set default value for property {cp.property_id} on node {node_id}: {exc}"
-                )
+                logger.warning(f"Failed to set default value for property {cp.property_id} on node {node_id}: {exc}")

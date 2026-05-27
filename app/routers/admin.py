@@ -2,6 +2,7 @@
 
 System-level admin endpoints for user management and metrics.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -10,6 +11,7 @@ from .. import auth
 from ..db.connection import get_connection
 from ..logging_config import get_logger
 from ..models import AdminUserCreate, AdminUserUpdate
+from ..system_settings import get_all_system_settings, get_system_setting, set_system_setting
 from .auth import require_admin
 
 logger = get_logger(__name__)
@@ -22,11 +24,11 @@ async def list_users(admin_user=Depends(require_admin)):  # noqa: B008
     """List all users."""
     async with get_connection() as conn:
         rows = await conn.fetch(
-            '''
+            """
             SELECT id, uuid, email, name, surnames, profile_pic, role, active, create_date
             FROM "user"
             ORDER BY create_date DESC
-            '''
+            """
         )
     return {
         "users": [
@@ -78,13 +80,13 @@ async def update_user(
         if not current:
             raise HTTPException(status_code=404, detail="User not found")
 
-        if str(user_id) == str(admin_user.id) and data.role is not None and data.role != 'admin':
+        if str(user_id) == str(admin_user.id) and data.role is not None and data.role != "admin":
             raise HTTPException(status_code=400, detail="Cannot demote yourself")
 
         # Prevent demoting the last active admin
-        if data.role is not None and current["role"] == 'admin' and data.role != 'admin':
+        if data.role is not None and current["role"] == "admin" and data.role != "admin":
             other_admins = await conn.fetchval(
-                'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE AND id::text != $1',
+                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE AND id::text != $1",
                 user_id,
             )
             if other_admins == 0:
@@ -93,37 +95,38 @@ async def update_user(
         # Build dynamic SET clause for provided fields only
         updates: dict[str, object] = {}
         if data.email is not None:
-            updates['email'] = data.email
+            updates["email"] = data.email
         if data.name is not None:
-            updates['name'] = data.name
+            updates["name"] = data.name
         if data.surnames is not None:
-            updates['surnames'] = data.surnames
+            updates["surnames"] = data.surnames
         if data.profile_pic is not None:
-            updates['profile_pic'] = data.profile_pic
+            updates["profile_pic"] = data.profile_pic
         if data.role is not None:
-            updates['role'] = data.role
+            updates["role"] = data.role
         if data.active is not None:
-            updates['active'] = data.active
+            updates["active"] = data.active
 
         if not updates:
             row = await conn.fetchrow(
-                '''
+                """
                 SELECT id, uuid, email, name, surnames, profile_pic, role, active, create_date
                 FROM "user" WHERE id::text = $1
-                ''',
+                """,
                 user_id,
             )
         else:
-            set_clauses = ', '.join(f'{k} = ${i + 1}' for i, k in enumerate(updates.keys()))
+            set_clauses = ", ".join(f"{k} = ${i + 1}" for i, k in enumerate(updates.keys()))
             values = list(updates.values())
             row = await conn.fetchrow(
-                f'''
+                f"""
                 UPDATE "user"
                 SET {set_clauses}, write_date = NOW()
                 WHERE id::text = ${len(values) + 1}
                 RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date
-                ''',
-                *values, user_id,
+                """,
+                *values,
+                user_id,
             )
 
         if not row:
@@ -160,15 +163,15 @@ async def deactivate_user(
             raise HTTPException(status_code=404, detail="User not found")
 
         # Prevent deactivating the last active admin
-        if target["role"] == 'admin':
+        if target["role"] == "admin":
             other_admins = await conn.fetchval(
-                'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE AND id::text != $1',
+                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE AND id::text != $1",
                 user_id,
             )
             if other_admins == 0:
                 raise HTTPException(status_code=400, detail="Cannot deactivate the last admin")
 
-        result = await conn.execute(
+        await conn.execute(
             'UPDATE "user" SET active = FALSE WHERE id::text = $1',
             user_id,
         )
@@ -181,30 +184,22 @@ async def get_metrics(admin_user=Depends(require_admin)):  # noqa: B008
     """Get system metrics."""
     async with get_connection() as conn:
         node_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE")
-        page_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = TRUE"
-        )
-        block_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = FALSE"
-        )
-        daily_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM node WHERE active = TRUE AND is_day = TRUE"
-        )
+        page_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = TRUE")
+        block_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = FALSE")
+        daily_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_day = TRUE")
         user_count = await conn.fetchval('SELECT COUNT(*) FROM "user"')
         workspace_count = await conn.fetchval("SELECT COUNT(*) FROM workspace WHERE active = TRUE")
-        public_share_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM node_public_share WHERE active = TRUE"
-        )
-        user_share_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM node_share WHERE active = TRUE"
-        )
+        public_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_public_share WHERE active = TRUE")
+        user_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_share WHERE active = TRUE")
 
     import shutil
 
     from ..config import settings
+
+    data_dir = settings.database_dir
     storage_used = 0
-    if settings.data_dir.exists():
-        storage_used = shutil.disk_usage(settings.data_dir).used
+    if data_dir.exists():
+        storage_used = shutil.disk_usage(data_dir).used
 
     return {
         "nodes": {
@@ -221,3 +216,36 @@ async def get_metrics(admin_user=Depends(require_admin)):  # noqa: B008
         },
         "storage_bytes": storage_used,
     }
+
+
+@router.get("/settings")
+async def list_system_settings(admin_user=Depends(require_admin)):  # noqa: B008
+    """Get all system settings."""
+    settings_dict = await get_all_system_settings()
+    return {"settings": settings_dict}
+
+
+@router.get("/settings/{key}")
+async def get_system_setting_endpoint(
+    key: str,
+    admin_user=Depends(require_admin),  # noqa: B008
+):
+    """Get a single system setting."""
+    value = await get_system_setting(key)
+    if value is None:
+        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
+    return {"key": key, "value": value}
+
+
+@router.put("/settings/{key}")
+async def update_system_setting(
+    key: str,
+    data: dict,
+    admin_user=Depends(require_admin),  # noqa: B008
+):
+    """Update a system setting."""
+    value = data.get("value")
+    if value is None:
+        raise HTTPException(status_code=400, detail="Missing 'value' field")
+    await set_system_setting(key, value)
+    return {"key": key, "value": value}

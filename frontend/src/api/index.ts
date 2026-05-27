@@ -9,4 +9,5 @@ export * from './workspaces';
 export * from './assets';
 export * from './assetTokens';
 export * from './activity';
+export * from './autoExport';
 export { default as api } from './client';

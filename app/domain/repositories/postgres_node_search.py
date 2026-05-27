@@ -2,9 +2,8 @@
 
 Extracted from postgres_node.py to keep that file focused on pure CRUD.
 """
-from __future__ import annotations
 
-from typing import Optional, List
+from __future__ import annotations
 
 from ...db.connection import acquire_connection
 from .postgres_node_base import _PostgresNodeBase
@@ -22,7 +21,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             ELSE COALESCE({alias}.name, '')
         END)"""
 
-    async def search(self, query: str, limit: int = 50) -> List[object]:
+    async def search(self, query: str, limit: int = 50) -> list[object]:
         """Additive multi-token search across own text, link targets, and labels.
 
         Splits the query into tokens.  For each candidate node, a combined
@@ -40,32 +39,35 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
           2. *Full-text filter* — for candidates only, build the combined
              text via an indexed LATERAL join and verify ALL tokens match.
         """
-        pt_n = self._plain_text_expr('n')
-        pt_tn = self._plain_text_expr('tn')
+        pt_n = self._plain_text_expr("n")
+        pt_tn = self._plain_text_expr("tn")
 
         async with acquire_connection(self._pool) as conn:
             if not query or not query.strip():
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT n.* FROM node n
                     WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
                     ORDER BY n.write_date DESC NULLS LAST
                     LIMIT $2
-                """, self._workspace_id, limit)
+                """,
+                    self._workspace_id,
+                    limit,
+                )
             else:
                 tokens = query.split()
-                token_patterns = [f'%{t}%' for t in tokens]
+                token_patterns = [f"%{t}%" for t in tokens]
 
                 # Params: $1=workspace_id  $2=limit  $3=full query  $4‥=token ILIKE patterns
-                tp = 4                       # index of first token param
+                tp = 4  # index of first token param
                 nt = len(tokens)
 
-                any_own   = " OR ".join(f"{pt_n}  ILIKE ${tp+i}" for i in range(nt))
-                any_tgt   = " OR ".join(f"{pt_tn} ILIKE ${tp+i}" for i in range(nt))
-                any_label = " OR ".join(f"nl.name ILIKE ${tp+i}" for i in range(nt))
-                all_full  = " AND ".join(f"nft.full_text ILIKE ${tp+i}" for i in range(nt))
+                any_own = " OR ".join(f"{pt_n}  ILIKE ${tp + i}" for i in range(nt))
+                any_tgt = " OR ".join(f"{pt_tn} ILIKE ${tp + i}" for i in range(nt))
+                any_label = " OR ".join(f"nl.name ILIKE ${tp + i}" for i in range(nt))
+                all_full = " AND ".join(f"nft.full_text ILIKE ${tp + i}" for i in range(nt))
 
-                fts_cond = ("OR n.search_vector @@ plainto_tsquery('english', $3)"
-                            if len(query) >= 3 else "")
+                fts_cond = "OR n.search_vector @@ plainto_tsquery('english', $3)" if len(query) >= 3 else ""
 
                 sql = f"""
                     WITH candidates AS (
@@ -123,17 +125,21 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
 
             return [self._row_to_node(row) for row in rows]
 
-    async def get_typed_with(self, type_node_id: int) -> List[object]:
+    async def get_typed_with(self, type_node_id: int) -> list[object]:
         """Get all nodes with a specific type."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(
+                """
                 SELECT n.* FROM node n
                 WHERE $1 = ANY(n.class_ids)
                   AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
-            """, type_node_id, self._workspace_id)
+            """,
+                type_node_id,
+                self._workspace_id,
+            )
             return [self._row_to_node(row) for row in rows]
 
-    async def get_all_pages(self, limit: Optional[int] = None, offset: int = 0) -> List[object]:
+    async def get_all_pages(self, limit: int | None = None, offset: int = 0) -> list[object]:
         """Get all active nodes tagged as 'page'."""
         from ...db.schema.constants import SYSTEM_PAGE_UUIDS
 
@@ -155,14 +161,17 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             rows = await conn.fetch(query, *params)
             return [self._row_to_node(row) for row in rows]
 
-    async def get_archived_pages(self) -> List[object]:
+    async def get_archived_pages(self) -> list[object]:
         """Get all archived nodes tagged as 'page'."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(
+                """
                 SELECT * FROM node
                 WHERE is_page = true AND active = false
                       AND (is_deleted = false OR is_deleted IS NULL)
                       AND workspace_id = $1
                 ORDER BY write_date DESC NULLS LAST
-            """, self._workspace_id)
+            """,
+                self._workspace_id,
+            )
             return [self._row_to_node(row) for row in rows]

@@ -17,57 +17,57 @@ The monolithic nodes.py has been split into:
 - comments.py: Comments endpoints
 - settings.py: Settings endpoints (date format, etc.)
 """
+
 from fastapi import APIRouter
 
-from .crud import router as crud_router
-from .batch import router as batch_router
-from .trash import router as trash_router
-from .templates import router as templates_router
-from .versions import router as versions_router
-from .daily import router as daily_router
-from .classes import router as classes_router
-from .search import router as search_router
-from .favorites import router as favorites_router
-from .links import router as links_router
-from .comments import router as comments_router
-from .settings import router as settings_router
-from .views import router as views_router
-from .shares import router as shares_router
 from ..properties.values import router as property_values_router
-
-# Re-export models for external use
-from .models import (
-    NodeResponse,
-    NodeCreateRequest,
-    NodeUpdateRequest,
-    MoveNodeRequest,
-    ClassRequest,
-    PropertyRequest,
-    BacklinkResponse,
-    LinkedReferenceResponse,
-    BreadcrumbSegment,
-    PropertyValueResponse,
-    TagLinkRequest,
-    NodeLinkResponse,
-    InlineClassResponse,
-    PropertyBacklinkResponse,
-    CommentCreateRequest,
-    DateFormatUpdateRequest,
-    BatchGetNodesRequest,
-    BatchGetNodesResponse,
-    BreadcrumbItem,
-    BreadcrumbsResponse,
-)
+from .batch import router as batch_router
+from .classes import router as classes_router
+from .comments import router as comments_router
+from .crud import router as crud_router
+from .daily import router as daily_router
+from .favorites import router as favorites_router
 
 # Re-export helpers that may be used elsewhere
 from .helpers import (
-    _get_node_service,
-    _node_to_response,
     _get_class_ids,
     _get_class_ids_batch,
+    _get_node_service,
     _get_tag_ids,
+    _node_to_response,
 )
+from .links import router as links_router
 
+# Re-export models for external use
+from .models import (
+    BacklinkResponse,
+    BatchGetNodesRequest,
+    BatchGetNodesResponse,
+    BreadcrumbItem,
+    BreadcrumbSegment,
+    BreadcrumbsResponse,
+    ClassRequest,
+    CommentCreateRequest,
+    DateFormatUpdateRequest,
+    InlineClassResponse,
+    LinkedReferenceResponse,
+    MoveNodeRequest,
+    NodeCreateRequest,
+    NodeLinkResponse,
+    NodeResponse,
+    NodeUpdateRequest,
+    PropertyBacklinkResponse,
+    PropertyRequest,
+    PropertyValueResponse,
+    TagLinkRequest,
+)
+from .search import router as search_router
+from .settings import router as settings_router
+from .shares import router as shares_router
+from .templates import router as templates_router
+from .trash import router as trash_router
+from .versions import router as versions_router
+from .views import router as views_router
 
 # Create the main router
 router = APIRouter(prefix="/api/nodes", tags=["Nodes"])

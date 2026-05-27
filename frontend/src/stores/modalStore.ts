@@ -24,6 +24,9 @@ interface ModalState {
   isCreateWithUuidModalOpen: boolean;
   createWithUuidPrefill: string | null;
   isShareModalOpen: boolean;
+  isAutoExportProgressModalOpen: boolean;
+  isWorkspaceExportModalOpen: boolean;
+  workspaceExportTargetUuid: string | null;
 
   setCalendarOpen: (open: boolean) => void;
   toggleCalendar: () => void;
@@ -45,6 +48,8 @@ interface ModalState {
   setScratchpadOpen: (open: boolean) => void;
   setCreateWithUuidModalOpen: (open: boolean, prefill?: string | null) => void;
   setShareModalOpen: (open: boolean) => void;
+  setAutoExportProgressModalOpen: (open: boolean) => void;
+  setWorkspaceExportModalOpen: (open: boolean, targetUuid?: string | null) => void;
 }
 
 export const useModalStore = create<ModalState>()((set) => ({
@@ -65,6 +70,9 @@ export const useModalStore = create<ModalState>()((set) => ({
   isCreateWithUuidModalOpen: false,
   createWithUuidPrefill: null,
   isShareModalOpen: false,
+  isAutoExportProgressModalOpen: false,
+  isWorkspaceExportModalOpen: false,
+  workspaceExportTargetUuid: null,
 
   setCalendarOpen: (open) => set({ isCalendarOpen: open }),
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
@@ -86,4 +94,6 @@ export const useModalStore = create<ModalState>()((set) => ({
   setScratchpadOpen: (open) => set({ isScratchpadOpen: open }),
   setCreateWithUuidModalOpen: (open, prefill = null) => set({ isCreateWithUuidModalOpen: open, createWithUuidPrefill: prefill }),
   setShareModalOpen: (open) => set({ isShareModalOpen: open }),
+  setAutoExportProgressModalOpen: (open) => set({ isAutoExportProgressModalOpen: open }),
+  setWorkspaceExportModalOpen: (open, targetUuid = null) => set({ isWorkspaceExportModalOpen: open, workspaceExportTargetUuid: targetUuid }),
 }));

@@ -7,7 +7,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ExportFormat = 'markdown' | 'html' | 'pdf';
+export type ExportFormat = 'markdown' | 'html' | 'pdf' | 'text' | 'json';
 export type ExportLayout = 'outline' | 'flat';
 export type ExportStyle = 'modern' | 'editorial' | 'technical' | 'book';
 export type ExportProperties = 'none' | 'main' | 'all';

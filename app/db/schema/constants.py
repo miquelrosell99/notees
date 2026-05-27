@@ -3,10 +3,10 @@
 This module contains all system constants, UUIDs, and date-related
 helper functions used throughout the application.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone, date
-from typing import Optional
+from datetime import date
 
 # Import from shared utility for consistency
 from ...utils import utc_now_iso
@@ -17,7 +17,7 @@ SCHEMA_VERSION = 1
 
 def generate_day_uuid(d: date) -> str:
     """Generate UUID for a day node.
-    
+
     Format: 00000000-0000-0000-00DD-YYYYMMDD0000
     This creates a valid UUID with the date embedded in the last segment.
     """
@@ -26,7 +26,7 @@ def generate_day_uuid(d: date) -> str:
 
 def generate_month_uuid(year: int, month: int) -> str:
     """Generate UUID for a month node.
-    
+
     Format: 00000000-0000-0000-00mm-YYYYMM000000
     """
     return f"00000000-0000-0000-00aa-{year:04d}{month:02d}000000"
@@ -34,21 +34,21 @@ def generate_month_uuid(year: int, month: int) -> str:
 
 def generate_year_uuid(year: int) -> str:
     """Generate UUID for a year node.
-    
+
     Format: 00000000-0000-0000-00yy-YYYY00000000
     """
     return f"00000000-0000-0000-00bb-{year:04d}00000000"
 
 
-def parse_date_uuid(uuid: str) -> Optional[dict]:
+def parse_date_uuid(uuid: str) -> dict | None:
     """Parse a date UUID to extract year, month, day.
-    
+
     Returns dict with 'type' ('year', 'month', 'day') and date components.
     Returns None if not a date UUID.
     """
     if not uuid or len(uuid) != 36:
         return None
-    
+
     # Check for day UUID pattern: 00000000-0000-0000-00dd-YYYYMMDD0000
     if uuid.startswith("00000000-0000-0000-00dd-"):
         try:
@@ -60,7 +60,7 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
                 return {"type": "day", "year": year, "month": month, "day": day}
         except (ValueError, IndexError):
             pass
-    
+
     # Check for month UUID pattern: 00000000-0000-0000-00aa-YYYYMM000000
     elif uuid.startswith("00000000-0000-0000-00aa-"):
         try:
@@ -71,7 +71,7 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
                 return {"type": "month", "year": year, "month": month}
         except (ValueError, IndexError):
             pass
-    
+
     # Check for year UUID pattern: 00000000-0000-0000-00bb-YYYY00000000
     elif uuid.startswith("00000000-0000-0000-00bb-"):
         try:
@@ -81,7 +81,7 @@ def parse_date_uuid(uuid: str) -> Optional[dict]:
                 return {"type": "year", "year": year}
         except (ValueError, IndexError):
             pass
-    
+
     return None
 
 
@@ -191,15 +191,15 @@ SYSTEM_PROPERTY_UUIDS = {
 
 # Task status options with their icons (icon field may be JSON with embedded color)
 TASK_STATUS_OPTIONS = [
-    {"name": "Backlog",    "icon": "mdi:dots-circle"},
-    {"name": "Pending",    "icon": "mdi:circle-outline"},
-    {"name": "Doing",      "icon": '{"icon":"mdi:circle-slice-4","color":"var(--color-preset-yellow)"}'},
-    {"name": "Reviewing",  "icon": '{"icon":"mdi:help-circle-outline","color":"var(--color-preset-blue)"}'},
-    {"name": "Done",       "icon": '{"icon":"mdi:check-circle","color":"var(--color-preset-green)"}'},
-    {"name": "Cancelled",  "icon": '{"icon":"mdi:close-circle","color":"var(--color-preset-red)"}'},
+    {"name": "Backlog", "icon": "mdi:dots-circle"},
+    {"name": "Pending", "icon": "mdi:circle-outline"},
+    {"name": "Doing", "icon": '{"icon":"mdi:circle-slice-4","color":"var(--color-preset-yellow)"}'},
+    {"name": "Reviewing", "icon": '{"icon":"mdi:help-circle-outline","color":"var(--color-preset-blue)"}'},
+    {"name": "Done", "icon": '{"icon":"mdi:check-circle","color":"var(--color-preset-green)"}'},
+    {"name": "Cancelled", "icon": '{"icon":"mdi:close-circle","color":"var(--color-preset-red)"}'},
 ]
 
-# Task priority options with their icons  
+# Task priority options with their icons
 TASK_PRIORITY_OPTIONS = [
     {"name": "Low", "icon": "mdi:chevron-down"},
     {"name": "Medium", "icon": "mdi:equal"},
@@ -220,20 +220,44 @@ TASK_RECURRENCE_OPTIONS = [
 SYSTEM_PROPERTIES = [
     {"name": "Tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
     # "classes" removed - now stored directly in node.class_ids column
-    {"name": "Show hierarchy", "type": "boolean", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"]},
+    {
+        "name": "Show hierarchy",
+        "type": "boolean",
+        "multi": False,
+        "is_system": True,
+        "uuid": SYSTEM_PROPERTY_UUIDS["show_hierarchy"],
+    },
     {"name": "Used in", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["used_in"]},
     {"name": "Cover", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["cover"]},
     {"name": "Banner", "type": "node", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["banner"]},
-    {"name": "_query_ast", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_query_ast"]},
-    {"name": "_whiteboard_data", "type": "text", "multi": False, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["_whiteboard_data"]},
-    {"name": "Description", "type": "text", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["description"]},
+    {
+        "name": "_query_ast",
+        "type": "text",
+        "multi": False,
+        "is_system": True,
+        "uuid": SYSTEM_PROPERTY_UUIDS["_query_ast"],
+    },
+    {
+        "name": "_whiteboard_data",
+        "type": "text",
+        "multi": False,
+        "is_system": True,
+        "uuid": SYSTEM_PROPERTY_UUIDS["_whiteboard_data"],
+    },
+    {
+        "name": "Description",
+        "type": "text",
+        "multi": True,
+        "is_system": True,
+        "uuid": SYSTEM_PROPERTY_UUIDS["description"],
+    },
     # "extends" removed - now stored directly in class_extend table
 ]
 
 # Default view classes for NodeViews
 DEFAULT_VIEW_CLASSES = [
     "child_pages",
-    "classed_nodes", 
+    "classed_nodes",
     "linked_references",
     "main_content",
 ]
@@ -243,5 +267,5 @@ DEFAULT_QUERY_AST = {
     "type": "query",
     "version": "1.0",
     "scope": {"type": "scope", "scope_type": "entire_workspace"},
-    "root_group": {"type": "group", "logic": "AND", "children": []}
+    "root_group": {"type": "group", "logic": "AND", "children": []},
 }

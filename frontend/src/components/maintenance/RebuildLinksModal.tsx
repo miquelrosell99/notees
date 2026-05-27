@@ -24,23 +24,20 @@ interface RebuildLinksModalProps {
 function buildPhases(result: RebuildLinksResponse): TaskPhaseResult[] {
   const phases: TaskPhaseResult[] = [];
 
+  const mainErrors = result.errors.slice(0, 10).map((msg) => ({ item: '', message: msg }));
   phases.push({
-    name: 'Process nodes',
-    status: result.total_errors > 0 ? 'partial' : 'success',
-    processed: result.nodes_processed,
-    created: result.links_created,
-    errors: result.errors.slice(0, 10),
-    totalErrors: result.total_errors,
+    label: 'Process nodes',
+    succeeded: result.links_created,
+    failed: result.total_errors,
+    errors: mainErrors,
   });
 
   if (result.inline_classes_created > 0) {
     phases.push({
-      name: 'Inline classes',
-      status: 'success',
-      processed: result.nodes_processed,
-      created: result.inline_classes_created,
+      label: 'Inline classes',
+      succeeded: result.inline_classes_created,
+      failed: 0,
       errors: [],
-      totalErrors: 0,
     });
   }
 
@@ -91,7 +88,11 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
           </Button>
         }
       >
-        <TaskReport report={{ phases: buildPhases(result) }} />
+        <TaskReport report={{
+          phases: buildPhases(result),
+          totalSucceeded: result.links_created + result.inline_classes_created,
+          totalFailed: result.total_errors,
+        }} />
       </Modal>
     );
   }

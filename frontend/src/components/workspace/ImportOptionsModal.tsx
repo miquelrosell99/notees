@@ -29,7 +29,7 @@ import {
 } from '@/api/workspaces';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useFavoritesStore } from '@/stores';
-import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
+import type { LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
 import { Modal } from '@/components/core/Modal';

@@ -1,12 +1,12 @@
 """Selection lines (options) endpoints for selection-type properties."""
-from fastapi import APIRouter, HTTPException, Depends
 
-from ..auth import get_current_user
-from ...models import User
+from fastapi import APIRouter, Depends, HTTPException
+
 from ...domain.entities import PropertyType
-from .models import SelectionLineRequest, SelectionLineUpdateRequest, SelectionLineResponse
+from ...models import User
+from ..auth import get_current_user
 from .helpers import _get_property_repo
-
+from .models import SelectionLineRequest, SelectionLineResponse, SelectionLineUpdateRequest
 
 router = APIRouter()
 
@@ -18,26 +18,28 @@ async def list_selection_lines(
 ):
     """Get all selection lines (options) for a property."""
     repo = await _get_property_repo(user)
-    
+
     prop = await repo.get_by_id(property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
-    
+
     if prop.type != PropertyType.SELECTION:
         raise HTTPException(400, "Property is not a selection type")
-    
+
     lines = await repo.get_selection_lines(property_id)
-    return {"selection_lines": [
-        SelectionLineResponse(
-            id=l.id,  # type: ignore[arg-type]  # id is set for persisted lines
-            property_id=l.property_id,
-            name=l.name,
-            icon=l.icon,
-            color=l.color,
-            order=l.order,
-        )
-        for l in lines
-    ]}
+    return {
+        "selection_lines": [
+            SelectionLineResponse(
+                id=l.id,  # type: ignore[arg-type]  # id is set for persisted lines
+                property_id=l.property_id,
+                name=l.name,
+                icon=l.icon,
+                color=l.color,
+                order=l.order,
+            )
+            for l in lines
+        ]
+    }
 
 
 @router.post("/{property_id}/selection-lines")
@@ -48,7 +50,7 @@ async def add_selection_line(
 ):
     """Add a selection line (option) to a property."""
     repo = await _get_property_repo(user)
-    
+
     try:
         line = await repo.add_selection_line(
             property_id,
@@ -58,8 +60,8 @@ async def add_selection_line(
             color=request.color,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    
+        raise HTTPException(400, str(e)) from e
+
     return SelectionLineResponse(
         id=line.id,  # type: ignore[arg-type]  # id is set for persisted lines
         property_id=line.property_id,
@@ -79,7 +81,7 @@ async def update_selection_line(
 ):
     """Update a selection line."""
     repo = await _get_property_repo(user)
-    
+
     line = await repo.update_selection_line(
         line_id,
         name=request.name,
@@ -87,10 +89,10 @@ async def update_selection_line(
         order=request.order,
         color=request.color,
     )
-    
+
     if not line:
         raise HTTPException(404, "Selection line not found")
-    
+
     return SelectionLineResponse(
         id=line.id,  # type: ignore[arg-type]  # id is set for persisted lines
         property_id=line.property_id,
@@ -109,7 +111,7 @@ async def check_can_delete_selection_line(
 ):
     """Check if a selection line can be deleted."""
     repo = await _get_property_repo(user)
-    
+
     can_delete, reason = await repo.can_delete_selection_line(line_id)
     return {"can_delete": can_delete, "reason": reason}
 
@@ -122,13 +124,13 @@ async def delete_selection_line(
 ):
     """Delete a selection line (only if not in use)."""
     repo = await _get_property_repo(user)
-    
+
     try:
         success = await repo.delete_selection_line(line_id)
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    
+        raise HTTPException(400, str(e)) from e
+
     if not success:
         raise HTTPException(404, "Selection line not found")
-    
+
     return {"status": "ok"}

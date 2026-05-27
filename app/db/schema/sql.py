@@ -499,8 +499,8 @@ CREATE INDEX IF NOT EXISTS idx_node_view_node_view_type ON node_view(node_id, vi
 CREATE INDEX IF NOT EXISTS idx_node_view_order ON node_view(node_id, view_type, order_index);
 
 -- Ensure only one default view per node+view_type combination
-CREATE UNIQUE INDEX IF NOT EXISTS idx_node_view_default_unique 
-    ON node_view(node_id, view_type) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_view_default_unique
+    ON node_view(node_id, view_type)
     WHERE is_default = TRUE;
 
 -- ============================================================
@@ -535,6 +535,14 @@ CREATE TABLE IF NOT EXISTS setting_user (
 
 CREATE INDEX IF NOT EXISTS idx_setting_user_user_id ON setting_user(user_id);
 
+-- System settings (global key-value store)
+CREATE TABLE IF NOT EXISTS setting_system (
+    key VARCHAR(255) NOT NULL PRIMARY KEY,
+    value JSONB,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Node activity log
 CREATE TABLE IF NOT EXISTS node_activity (
     id SERIAL PRIMARY KEY,
@@ -565,7 +573,7 @@ CREATE TABLE IF NOT EXISTS link_click (
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'link_click' AND column_name = 'node_link_uuid'
     ) THEN
         ALTER TABLE link_click ADD COLUMN node_link_uuid UUID;
@@ -576,7 +584,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'node_link' AND column_name = 'name'
     ) THEN
         ALTER TABLE node_link ADD COLUMN name TEXT;
@@ -691,17 +699,17 @@ BEGIN
     ) THEN
         ALTER TABLE node_link ADD COLUMN is_inline_class BOOLEAN DEFAULT FALSE;
     END IF;
-    
+
     -- Migrate data from class_inline into node_link (if class_inline still exists)
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'class_inline') THEN
         INSERT INTO node_link (source_id, target_id, workspace_id, position, is_inline_class, create_date, create_uid)
         SELECT node_id, class_id, workspace_id, position, TRUE, create_date, create_uid
         FROM class_inline;
-        
+
         -- Drop the old table
         DROP TABLE class_inline;
     END IF;
-    
+
     -- Create partial index for inline class lookups
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes WHERE indexname = 'idx_node_link_inline_class'
@@ -724,7 +732,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'property' AND column_name = 'icon_visibility'
     ) THEN
         ALTER TABLE property ADD COLUMN icon_visibility VARCHAR(50) DEFAULT 'hidden';
@@ -735,7 +743,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'node' AND column_name = 'aliased_id'
     ) THEN
         ALTER TABLE node ADD COLUMN aliased_id INTEGER REFERENCES node(id) ON DELETE SET NULL;
@@ -770,7 +778,7 @@ BEGIN
     WHERE conrelid = 'property'::regclass
       AND contype = 'c'
       AND pg_get_constraintdef(oid) LIKE '%text%image%is_multi%';
-    
+
     IF constraint_name IS NOT NULL THEN
         EXECUTE format('ALTER TABLE property DROP CONSTRAINT %I', constraint_name);
         ALTER TABLE property ADD CHECK (type NOT IN ('image') OR is_multi = FALSE);
@@ -959,7 +967,7 @@ BEGIN
     -- Always insert self-reference (every node is its own ancestor at depth 0)
     INSERT INTO node_path (ancestor_id, descendant_id, depth)
     VALUES (NEW.id, NEW.id, 0);
-    
+
     -- If node has a parent, copy all ancestor paths from parent
     -- and increment depth by 1
     IF NEW.parent_id IS NOT NULL THEN
@@ -968,7 +976,7 @@ BEGIN
         FROM node_path np
         WHERE np.descendant_id = NEW.parent_id;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -995,26 +1003,26 @@ BEGIN
             -- Ancestors that are part of the subtree (keep these)
             SELECT descendant_id FROM node_path WHERE ancestor_id = NEW.id
         );
-        
+
         -- Step 2: Insert new paths from new ancestors to moved subtree
         IF NEW.parent_id IS NOT NULL THEN
             INSERT INTO node_path (ancestor_id, descendant_id, depth)
-            SELECT 
+            SELECT
                 ancestors.ancestor_id,
                 subtree.descendant_id,
                 ancestors.depth + subtree.depth + 1
-            FROM 
+            FROM
                 -- All ancestors of the new parent (including new parent itself)
                 node_path ancestors
-            CROSS JOIN 
+            CROSS JOIN
                 -- All descendants of moved node (including itself)
                 node_path subtree
-            WHERE 
+            WHERE
                 ancestors.descendant_id = NEW.parent_id
                 AND subtree.ancestor_id = NEW.id;
         END IF;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -1027,9 +1035,9 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Delete all paths where this node is ancestor or descendant
     -- (CASCADE on FK will do this, but being explicit)
-    DELETE FROM node_path 
+    DELETE FROM node_path
     WHERE ancestor_id = OLD.id OR descendant_id = OLD.id;
-    
+
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
@@ -1048,11 +1056,11 @@ RETURNS void AS $$
 BEGIN
     -- Clear existing data
     TRUNCATE node_path;
-    
+
     -- Insert self-references for all active nodes (depth 0)
     INSERT INTO node_path (ancestor_id, descendant_id, depth)
     SELECT id, id, 0 FROM node WHERE active = TRUE;
-    
+
     -- Build full closure using recursive CTE
     -- This finds all ancestor-descendant pairs and their depths
     WITH RECURSIVE node_closure AS (
@@ -1060,9 +1068,9 @@ BEGIN
         SELECT parent_id as ancestor_id, id as descendant_id, 1 as depth
         FROM node
         WHERE parent_id IS NOT NULL AND active = TRUE
-        
+
         UNION ALL
-        
+
         -- Recursive case: extend paths through the hierarchy
         SELECT nc.ancestor_id, n.id, nc.depth + 1
         FROM node_closure nc
@@ -1071,7 +1079,7 @@ BEGIN
     )
     INSERT INTO node_path (ancestor_id, descendant_id, depth)
     SELECT ancestor_id, descendant_id, depth FROM node_closure;
-    
+
     RAISE NOTICE 'node_path table rebuilt with % entries', (SELECT COUNT(*) FROM node_path);
 END;
 $$ LANGUAGE plpgsql;
@@ -1110,7 +1118,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         n.id,
         n.uuid,
         n.name,
@@ -1127,11 +1135,11 @@ BEGIN
       AND n.active = TRUE
       -- If enter_node_id is specified, only include ancestors at or below that depth
       AND (
-          enter_node_id IS NULL 
+          enter_node_id IS NULL
           OR np.depth <= (
-              SELECT np2.depth 
-              FROM node_path np2 
-              WHERE np2.ancestor_id = enter_node_id 
+              SELECT np2.depth
+              FROM node_path np2
+              WHERE np2.ancestor_id = enter_node_id
                 AND np2.descendant_id = exit_node_id
           )
       )
@@ -1252,10 +1260,10 @@ CREATE TRIGGER node_update_workspace_write_date
 -- ============================================================
 -- EXAMPLE USAGE: BREADCRUMBS
 -- ============================================================
--- 
+--
 -- Example 1: Get full breadcrumb path from root to a document node
 --   SELECT * FROM get_breadcrumbs(123);
---   
+--
 --   This returns all ancestors from the root down to node 123:
 --   | id  | uuid | name        | is_page | depth |
 --   |-----|------|-------------|---------|-------|
@@ -1266,7 +1274,7 @@ CREATE TRIGGER node_update_workspace_write_date
 --
 -- Example 2: Get breadcrumb path starting from a specific ancestor
 --   SELECT * FROM get_breadcrumbs(123, 45);
---   
+--
 --   This returns the path from node 45 down to node 123:
 --   | id  | uuid | name        | is_page | depth |
 --   |-----|------|-------------|---------|-------|
@@ -1284,7 +1292,7 @@ CREATE TRIGGER node_update_workspace_write_date
 --
 -- Example 5: Check if node A is an ancestor of node B
 --   SELECT EXISTS(
---     SELECT 1 FROM node_path 
+--     SELECT 1 FROM node_path
 --     WHERE ancestor_id = A AND descendant_id = B
 --   );
 

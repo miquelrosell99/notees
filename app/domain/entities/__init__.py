@@ -1,5 +1,12 @@
 """Domain entities package."""
 
+from .class_extend import (
+    ClassExtend,
+)
+from .link import (
+    BacklinkInfo,
+    NodeLink,
+)
 from .node import (
     Node,
     NodeCreateData,
@@ -8,54 +15,47 @@ from .node import (
     utc_now_iso,
 )
 from .property import (
-    Property,
-    PropertyType,
-    PropertyScope,
-    PropertySelectionLine,
-    PropertyClassFilter,
+    ALWAYS_SINGLE_TYPES,
+    RELATION_TYPES,
+    SCALAR_TYPES,
     ClassProperty,
     NodeProperty,
-    PropertyValueScalar,
+    Property,
+    PropertyClassFilter,
+    PropertyScope,
+    PropertySelectionLine,
+    PropertyType,
     PropertyValueRelation,
+    PropertyValueScalar,
     PropertyValueSelection,
-    SCALAR_TYPES,
-    RELATION_TYPES,
-    ALWAYS_SINGLE_TYPES,
 )
-from .link import (
-    NodeLink,
-    BacklinkInfo,
-)
-from .class_extend import (
-    ClassExtend,
+from .query import (
+    QUERY_PLACEHOLDERS,
+    ChildBlock,
+    ChildPathBlock,
+    ClassBlock,
+    ClassPathBlock,
+    ContainerBlock,
+    ContentBlock,
+    ContentOperator,
+    NodeView,
+    NotBlock,
+    ParentBlock,
+    ParentPathBlock,
+    PropertyBlock,
+    PropertyOperator,
+    QueryAST,
+    QueryBlock,
+    QueryBlockType,
+    ReferenceBlock,
+    ReferencePathBlock,
+    UuidBlock,
 )
 from .user import (
+    AuthenticatedUser,
     User,
     UserCreateData,
     UserCredentials,
-    AuthenticatedUser,
-)
-from .query import (
-    QueryBlockType,
-    PropertyOperator,
-    ContentOperator,
-    QueryBlock,
-    ContainerBlock,
-    NotBlock,
-    ClassBlock,
-    PropertyBlock,
-    ContentBlock,
-    ReferenceBlock,
-    ReferencePathBlock,
-    ParentBlock,
-    ParentPathBlock,
-    ChildBlock,
-    ChildPathBlock,
-    ClassPathBlock,
-    UuidBlock,
-    QueryAST,
-    NodeView,
-    QUERY_PLACEHOLDERS,
 )
 
 __all__ = [

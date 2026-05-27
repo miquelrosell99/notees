@@ -1,4 +1,5 @@
 """Public API endpoints for anonymous access via share tokens."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

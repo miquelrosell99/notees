@@ -5,17 +5,21 @@ Updated for workspace-based schema:
 - Uses _get_workspace_context_cached (respects active workspace)
 - Repositories now take user_id for audit trails
 """
+
+from ...db.connection import get_pool
 from ...domain.entities import (
-    Property, PropertyValueScalar, PropertyValueRelation, PropertyValueSelection,
+    Property,
+    PropertyValueRelation,
+    PropertyValueScalar,
+    PropertyValueSelection,
 )
 from ...domain.repositories import PostgresPropertyRepository
-from ...db.connection import get_pool
 from ...models import User
 from .models import (
     PropertyResponse,
-    SelectionLineResponse,
-    ScalarValueResponse,
     RelationValueResponse,
+    ScalarValueResponse,
+    SelectionLineResponse,
     SelectionValueResponse,
 )
 
@@ -23,6 +27,7 @@ from .models import (
 async def _get_property_repo(user: User) -> PostgresPropertyRepository:
     """Get PropertyRepository for user's workspace."""
     from ...dependencies import _get_workspace_context_cached
+
     pool = await get_pool()
     user_id = int(user.id)
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)

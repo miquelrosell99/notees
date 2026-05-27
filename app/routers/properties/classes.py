@@ -1,24 +1,22 @@
 """Class properties and class extends (inheritance) endpoints."""
-from typing import cast, List
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-import asyncpg
 
-from ..auth import get_current_user
+from ...db.connection import get_pool
 from ...models import User
-from .models import ClassPropertyRequest, ClassPropertyUpdateRequest, ClassPropertyResponse
+from ..auth import get_current_user
 from .helpers import _get_property_repo
-from ...db.connection import acquire_connection, get_pool
-
+from .models import ClassPropertyRequest, ClassPropertyResponse, ClassPropertyUpdateRequest
 
 router = APIRouter()
 
 
 async def _get_extension_service(user: User):
     """Get ClassExtensionService for user's workspace (respects active workspace)."""
-    from ...domain.services.class_extension_service import ClassExtensionService
-    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
     from ...dependencies import _get_workspace_context_cached
+    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
+    from ...domain.services.class_extension_service import ClassExtensionService
 
     pool = await get_pool()
     user_id = int(user.id)
@@ -32,13 +30,14 @@ async def _get_extension_service(user: User):
 # NOTE: batch routes MUST be registered before parameterized {class_node_id}
 # routes, otherwise FastAPI tries to parse "batch" as an integer.
 
+
 class BatchClassPropertyItem(BaseModel):
     class_node_id: int
     property_id: int
 
 
 class BatchClassPropertyRequest(BaseModel):
-    items: List[BatchClassPropertyItem]
+    items: list[BatchClassPropertyItem]
 
 
 class BatchClassPropertyResultItem(BaseModel):
@@ -48,7 +47,7 @@ class BatchClassPropertyResultItem(BaseModel):
 
 
 class BatchClassPropertyResponse(BaseModel):
-    results: List[BatchClassPropertyResultItem]
+    results: list[BatchClassPropertyResultItem]
     succeeded: int
     failed: int
 
@@ -65,7 +64,7 @@ async def batch_add_class_properties(
     """
     repo = await _get_property_repo(user)
 
-    results: List[BatchClassPropertyResultItem] = []
+    results: list[BatchClassPropertyResultItem] = []
     succeeded = 0
     failed = 0
 
@@ -92,6 +91,7 @@ async def batch_add_class_properties(
 
 # ============== Class Properties ==============
 
+
 @router.get("/classes/{class_node_id}/properties")
 async def get_class_properties(
     class_node_id: int,
@@ -100,36 +100,42 @@ async def get_class_properties(
 ):
     """Get all properties that a class applies to nodes with that class."""
     repo = await _get_property_repo(user)
-    
+
     if include_inherited:
         class_properties = await repo.get_all_inherited_properties(class_node_id)
     else:
         class_properties = await repo.get_class_properties(class_node_id)
-    
+
     result = []
     for cp in class_properties:
         prop = await repo.get_by_id(cp.property_id)
         if not prop:
             continue
-        
+
         default_value = (
-            cp.default_integer or cp.default_float or cp.default_text or
-            cp.default_boolean or cp.default_node_id or cp.default_selection_id
+            cp.default_integer
+            or cp.default_float
+            or cp.default_text
+            or cp.default_boolean
+            or cp.default_node_id
+            or cp.default_selection_id
         )
-        
-        result.append(ClassPropertyResponse(
-            id=cp.id,  # type: ignore[arg-type]  # id is set for persisted records
-            class_node_id=cp.class_node_id,
-            class_node_name="",  # Would need node repo to fetch
-            property_id=cp.property_id,
-            property_name=prop.name,
-            property_type=prop.type.value,
-            sequence=cp.sequence,
-            default_value=default_value,
-            hidden=cp.hidden,
-            required=cp.required,
-        ))
-    
+
+        result.append(
+            ClassPropertyResponse(
+                id=cp.id,  # type: ignore[arg-type]  # id is set for persisted records
+                class_node_id=cp.class_node_id,
+                class_node_name="",  # Would need node repo to fetch
+                property_id=cp.property_id,
+                property_name=prop.name,
+                property_type=prop.type.value,
+                sequence=cp.sequence,
+                default_value=default_value,
+                hidden=cp.hidden,
+                required=cp.required,
+            )
+        )
+
     return {"class_properties": result}
 
 
@@ -141,11 +147,11 @@ async def add_class_property(
 ):
     """Link a property to a class."""
     repo = await _get_property_repo(user)
-    
+
     prop = await repo.get_by_id(request.property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
-    
+
     try:
         cp = await repo.add_class_property(
             class_node_id,
@@ -155,8 +161,8 @@ async def add_class_property(
             required=request.required,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    
+        raise HTTPException(400, str(e)) from e
+
     return ClassPropertyResponse(
         id=cp.id,  # type: ignore[arg-type]  # id is set for persisted records
         class_node_id=cp.class_node_id,
@@ -179,11 +185,11 @@ async def remove_class_property(
 ):
     """Remove a property from a class."""
     repo = await _get_property_repo(user)
-    
+
     success = await repo.remove_class_property(class_node_id, property_id)
     if not success:
         raise HTTPException(404, "Class property not found")
-    
+
     return {"status": "ok"}
 
 
@@ -225,7 +231,7 @@ async def update_class_property(
 
 
 class ReorderClassPropertiesRequest(BaseModel):
-    property_ids: List[int]
+    property_ids: list[int]
 
 
 @router.put("/classes/{class_node_id}/properties/reorder")
@@ -235,19 +241,20 @@ async def reorder_class_properties(
     user: User = Depends(get_current_user),
 ):
     """Reorder properties on a class by updating their sequence values.
-    
+
     Accepts an ordered list of property IDs. Each property's sequence is
     set to its position in the list.
     """
     repo = await _get_property_repo(user)
-    
+
     for seq, property_id in enumerate(request.property_ids):
         await repo.add_class_property(class_node_id, property_id, sequence=seq)
-    
+
     return {"status": "ok"}
 
 
 # ============== Class Extends (Inheritance) ==============
+
 
 @router.get("/classes/{class_node_id}/extends")
 async def get_class_extends(
@@ -255,29 +262,31 @@ async def get_class_extends(
     user: User = Depends(get_current_user),
 ):
     """Get all classes that this class extends (inherits from).
-    
+
     Returns the direct parent classes in sequence order.
     """
     extension_service = await _get_extension_service(user)
-    
+
     try:
         extends = await extension_service.get_extended_classes_with_details(class_node_id)
     except Exception as e:
-        raise HTTPException(500, f"Failed to get class extends: {str(e)}")
-    
+        raise HTTPException(500, f"Failed to get class extends: {str(e)}") from e
+
     # Return in the format expected by the frontend
     result = []
     for ext in extends:
-        result.append({
-            "id": ext.id,
-            "class_node_id": ext.target_id,
-            "class_node_name": "",  # Not needed since target is the current class
-            "extends_class_node_id": ext.source_id,
-            "extends_class_node_name": ext.source_name,
-            "extends_class_icon": ext.source_icon,
-            "sequence": ext.sequence,
-        })
-    
+        result.append(
+            {
+                "id": ext.id,
+                "class_node_id": ext.target_id,
+                "class_node_name": "",  # Not needed since target is the current class
+                "extends_class_node_id": ext.source_id,
+                "extends_class_node_name": ext.source_name,
+                "extends_class_icon": ext.source_icon,
+                "sequence": ext.sequence,
+            }
+        )
+
     return {"extends": result}
 
 
@@ -288,30 +297,30 @@ async def add_class_extends(
     user: User = Depends(get_current_user),
 ):
     """Add a class extension (inheritance) relationship.
-    
+
     Request body:
         extends_class_node_id: The class to extend (parent)
         sequence: Optional order index (default 0)
     """
     from ...domain.services.class_extension_service import CircularInheritanceError
-    
+
     extends_class_id = request.get("extends_class_node_id")
     if not extends_class_id:
         raise HTTPException(400, "extends_class_node_id is required")
-    
+
     sequence = request.get("sequence", 0)
-    
+
     extension_service = await _get_extension_service(user)
-    
+
     try:
         ext = await extension_service.add_extends(class_node_id, extends_class_id, sequence)
     except CircularInheritanceError as e:
-        raise HTTPException(400, f"Cannot add extension: {str(e)}")
+        raise HTTPException(400, f"Cannot add extension: {str(e)}") from e
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     except Exception as e:
-        raise HTTPException(500, f"Failed to add class extension: {str(e)}")
-    
+        raise HTTPException(500, f"Failed to add class extension: {str(e)}") from e
+
     return {
         "id": ext.id,
         "class_node_id": ext.target_id,
@@ -331,7 +340,7 @@ async def remove_class_extends(
 ):
     """Remove a class extension (inheritance) relationship."""
     extension_service = await _get_extension_service(user)
-    
+
     try:
         success = await extension_service.remove_extends(class_node_id, extends_class_node_id)
         if not success:
@@ -339,8 +348,8 @@ async def remove_class_extends(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to remove class extension: {str(e)}")
-    
+        raise HTTPException(500, f"Failed to remove class extension: {str(e)}") from e
+
     return {"status": "ok"}
 
 
@@ -350,31 +359,33 @@ async def get_inherited_properties_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Get all properties inherited from extended classes.
-    
+
     Returns properties with is_overridden flag indicating if they're
     also defined as dedicated class properties.
     """
     extension_service = await _get_extension_service(user)
-    
+
     try:
         inherited_props = await extension_service.get_inherited_properties(class_node_id)
     except Exception as e:
-        raise HTTPException(500, f"Failed to get inherited properties: {str(e)}")
-    
+        raise HTTPException(500, f"Failed to get inherited properties: {str(e)}") from e
+
     result = []
     for ip in inherited_props:
-        result.append({
-            "property_id": ip.property_id,
-            "property_name": ip.property_name,
-            "property_type": ip.property_type,
-            "from_class_id": ip.from_class_id,
-            "from_class_name": ip.from_class_name,
-            "sequence": ip.sequence,
-            "default_value": ip.default_value,
-            "hidden": ip.hidden,
-            "is_overridden": ip.is_overridden,
-        })
-    
+        result.append(
+            {
+                "property_id": ip.property_id,
+                "property_name": ip.property_name,
+                "property_type": ip.property_type,
+                "from_class_id": ip.from_class_id,
+                "from_class_name": ip.from_class_name,
+                "sequence": ip.sequence,
+                "default_value": ip.default_value,
+                "hidden": ip.hidden,
+                "is_overridden": ip.is_overridden,
+            }
+        )
+
     return {"inherited_properties": result}
 
 
@@ -384,16 +395,16 @@ async def get_extended_by_classes_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Get all classes that extend this class (reverse lookup).
-    
+
     Returns a flat list of classes for display in the 'Extended By' section.
     """
     extension_service = await _get_extension_service(user)
-    
+
     try:
         classes = await extension_service.get_classes_extended_by(class_node_id)
     except Exception as e:
-        raise HTTPException(500, f"Failed to get extended-by classes: {str(e)}")
-    
+        raise HTTPException(500, f"Failed to get extended-by classes: {str(e)}") from e
+
     return {"classes": classes}
 
 
@@ -404,17 +415,17 @@ async def validate_class_extends_endpoint(
     user: User = Depends(get_current_user),
 ):
     """Validate that setting these extends would not create a circular reference.
-    
+
     Returns {"valid": true} if OK, or {"valid": false, "error": "..."} if cycle detected.
     """
     from ...domain.services.class_extension_service import CircularInheritanceError
-    
+
     extension_service = await _get_extension_service(user)
-    
+
     try:
         await extension_service.validate_extends_acyclic(class_node_id, extends_ids)
         return {"valid": True}
     except CircularInheritanceError as e:
         return {"valid": False, "error": str(e), "cycle_path": e.cycle_path}
     except Exception as e:
-        raise HTTPException(500, f"Validation failed: {str(e)}")
+        raise HTTPException(500, f"Validation failed: {str(e)}") from e

@@ -36,6 +36,7 @@ const RebuildLinksModal = React.lazy(() => import('@/components/maintenance/Rebu
 const FixRawLinksModal = React.lazy(() => import('@/components/maintenance/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
 const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default: m.MergePagesModal })));
 const CreatePageWithUuidModal = React.lazy(() => import('@/components/layout/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
+const AutoExportProgressModal = React.lazy(() => import('@/components/workspace/AutoExportProgressModal').then(m => ({ default: m.AutoExportProgressModal })));
 import { Card } from '@/components/core/Card';
 import { PresentationModal } from '@/components/core/PresentationModal';
 import './Layout.css';
@@ -70,6 +71,8 @@ export function Layout() {
   const createWithUuidPrefill = useModalStore(s => s.createWithUuidPrefill);
   const isShareModalOpen = useModalStore(s => s.isShareModalOpen);
   const setShareModalOpen = useModalStore(s => s.setShareModalOpen);
+  const isAutoExportProgressModalOpen = useModalStore(s => s.isAutoExportProgressModalOpen);
+  const setAutoExportProgressModalOpen = useModalStore(s => s.setAutoExportProgressModalOpen);
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
   const presentationNodeId = usePresentationStore(s => s.nodeId);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
@@ -449,6 +452,14 @@ export function Layout() {
                 fixLinksForUuid(createWithUuidPrefill).catch(console.error);
               }
             }}
+          />
+        </Suspense>
+
+        {/* Auto-export batch progress modal */}
+        <Suspense fallback={null}>
+          <AutoExportProgressModal
+            isOpen={isAutoExportProgressModalOpen}
+            onClose={() => setAutoExportProgressModalOpen(false)}
           />
         </Suspense>
       </BrokenLinkFixContext.Provider>

@@ -459,7 +459,7 @@ export const NodeCollection = memo(function NodeCollection({
           id: n.id,
           uuid: n.uuid || '',
           name: n.name || 'Untitled',
-          type: (n.is_page ? 'page' : 'block') as const,
+          type: (n.is_page ? 'page' : 'block') as 'page' | 'block',
           tags: n.tags?.map(String) ?? [],
           class_ids: n.classes ?? [],
           properties: Object.fromEntries(
@@ -478,11 +478,16 @@ export const NodeCollection = memo(function NodeCollection({
             id: activeNode.id,
             uuid: activeNode.uuid,
             name: activeNode.name || 'Untitled',
-            type: 'page' as const,
+            type: 'page' as 'page' | 'block',
             tags: [],
             class_ids: [],
             properties: {},
             is_daily: false,
+            is_class: (activeNode as { is_class?: boolean }).is_class,
+            is_monthly: (activeNode as { is_monthly?: boolean }).is_monthly,
+            is_yearly: (activeNode as { is_yearly?: boolean }).is_yearly,
+            icon: (activeNode as { icon?: string }).icon ?? undefined,
+            backlink_count: (activeNode as { backlink_count?: number }).backlink_count,
           });
         }
         const graphContent = <GraphView nodes={graphNodes} currentNodeId={activeNode?.id ?? null} className="node-collection__graph" />;

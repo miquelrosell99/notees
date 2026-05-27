@@ -2,19 +2,17 @@
 
 Handles logging and retrieving node activity (edits, link additions, etc.)
 """
-from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .auth import get_current_user
-from ..models import User
 from ..dependencies import get_activity_repository
 from ..domain.repositories import ActivityRepository
+from ..domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
+from ..models import User
 from ..utils import utc_now
-from ..domain.stringify_ast import stringify_ast, parse_ast, StringifyOptions, StringifyMode, ParseMode
-
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/activity", tags=["Activity"])
 logger = get_logger(__name__)
@@ -22,54 +20,61 @@ logger = get_logger(__name__)
 
 # ============== Pydantic Models ==============
 
+
 class NodeActivityResponse(BaseModel):
     """Node activity response."""
+
     id: int
     node_id: int
     action: str  # created, edited, link_added, link_removed, link_inserted, archived, unarchived, type_added, type_removed, property_changed, moved
-    details: Optional[str] = None
-    target_node_id: Optional[int] = None
-    target_node_name: Optional[str] = None
-    target_node_uuid: Optional[str] = None
+    details: str | None = None
+    target_node_id: int | None = None
+    target_node_name: str | None = None
+    target_node_uuid: str | None = None
     create_date: str
 
 
 class NodeActivityCreate(BaseModel):
     """Request to create a node activity entry."""
+
     node_id: int
     action: str
-    details: Optional[str] = None
-    target_node_id: Optional[int] = None
+    details: str | None = None
+    target_node_id: int | None = None
 
 
 class LinkClickResponse(BaseModel):
     """Link click tracking response."""
+
     source_node_id: int
     target_node_id: int
-    node_link_uuid: Optional[str] = None  # UUID of the specific link instance
+    node_link_uuid: str | None = None  # UUID of the specific link instance
     click_count: int
-    last_click_date: Optional[str] = None
+    last_click_date: str | None = None
 
 
 class LinkClickHistoryResponse(BaseModel):
     """Individual link click record."""
+
     id: int
     source_node_id: int
     target_node_id: int
-    node_link_uuid: Optional[str] = None
+    node_link_uuid: str | None = None
     click_date: str
 
 
 class LinkClickRequest(BaseModel):
     """Request to track a link click."""
+
     source_node_id: int
     target_node_id: int
-    node_link_uuid: Optional[str] = None  # UUID of the specific link instance clicked
+    node_link_uuid: str | None = None  # UUID of the specific link instance clicked
 
 
 # ============== Activity Endpoints ==============
 
-@router.get("/node/{node_id}", response_model=List[NodeActivityResponse])
+
+@router.get("/node/{node_id}", response_model=list[NodeActivityResponse])
 async def get_node_activity(
     node_id: int,
     limit: int = 50,
@@ -94,14 +99,14 @@ async def get_node_activity(
 
     return [
         NodeActivityResponse(
-            id=row['id'],
-            node_id=row['node_id'],
-            action=row['action'],
-            details=row['details'],
-            target_node_id=row['target_node_id'],
-            target_node_name=_ast_to_text(row['target_node_name']),
-            target_node_uuid=str(row['target_node_uuid']) if row['target_node_uuid'] else None,
-            create_date=row['create_date'].isoformat() if row['create_date'] else "",
+            id=row["id"],
+            node_id=row["node_id"],
+            action=row["action"],
+            details=row["details"],
+            target_node_id=row["target_node_id"],
+            target_node_name=_ast_to_text(row["target_node_name"]),
+            target_node_uuid=str(row["target_node_uuid"]) if row["target_node_uuid"] else None,
+            create_date=row["create_date"].isoformat() if row["create_date"] else "",
         )
         for row in rows
     ]
@@ -115,7 +120,7 @@ async def create_node_activity(
     repo: ActivityRepository = Depends(get_activity_repository),
 ):
     """Create a new activity entry for a node.
-    
+
     Only tracks activity for page nodes (is_page=1).
     """
     is_page = await repo.get_node_is_page(node_id)
@@ -125,9 +130,7 @@ async def create_node_activity(
         raise HTTPException(400, "Activity tracking only available for page nodes")
 
     now = utc_now()
-    activity_id = await repo.create_node_activity(
-        node_id, data.action, data.details, data.target_node_id, now
-    )
+    activity_id = await repo.create_node_activity(node_id, data.action, data.details, data.target_node_id, now)
 
     target_name = None
     target_uuid = None
@@ -170,6 +173,7 @@ async def delete_node_activity(
 
 # ============== Link Click Tracking Endpoints ==============
 
+
 @router.post("/link/click", response_model=LinkClickResponse)
 async def track_link_click(
     data: LinkClickRequest,
@@ -177,7 +181,7 @@ async def track_link_click(
     repo: ActivityRepository = Depends(get_activity_repository),
 ):
     """Track a link click by inserting a new record.
-    
+
     Optionally accepts node_link_uuid to track clicks on specific link instances.
     """
     now = utc_now()
@@ -193,7 +197,7 @@ async def track_link_click(
     )
 
 
-@router.get("/link/clicks/{source_node_id}", response_model=List[LinkClickResponse])
+@router.get("/link/clicks/{source_node_id}", response_model=list[LinkClickResponse])
 async def get_link_clicks(
     source_node_id: int,
     user: User = Depends(get_current_user),
@@ -203,10 +207,10 @@ async def get_link_clicks(
     rows = await repo.get_link_clicks_aggregated(source_node_id)
     return [
         LinkClickResponse(
-            source_node_id=row['source_node_id'],
-            target_node_id=row['target_node_id'],
-            click_count=row['click_count'],
-            last_click_date=row['last_click_date'].isoformat() if row['last_click_date'] else None,
+            source_node_id=row["source_node_id"],
+            target_node_id=row["target_node_id"],
+            click_count=row["click_count"],
+            last_click_date=row["last_click_date"].isoformat() if row["last_click_date"] else None,
         )
         for row in rows
     ]
@@ -224,12 +228,12 @@ async def get_link_click(
     return LinkClickResponse(
         source_node_id=source_node_id,
         target_node_id=target_node_id,
-        click_count=row['click_count'] if row else 0,
-        last_click_date=row['last_click_date'].isoformat() if row and row['last_click_date'] else None,
+        click_count=row["click_count"] if row else 0,
+        last_click_date=row["last_click_date"].isoformat() if row and row["last_click_date"] else None,
     )
 
 
-@router.get("/link/history/{source_node_id}/{target_node_id}", response_model=List[LinkClickHistoryResponse])
+@router.get("/link/history/{source_node_id}/{target_node_id}", response_model=list[LinkClickHistoryResponse])
 async def get_link_click_history(
     source_node_id: int,
     target_node_id: int,
@@ -241,10 +245,10 @@ async def get_link_click_history(
     rows = await repo.get_link_click_history(source_node_id, target_node_id, limit)
     return [
         LinkClickHistoryResponse(
-            id=row['id'],
-            source_node_id=row['source_node_id'],
-            target_node_id=row['target_node_id'],
-            click_date=row['click_date'].isoformat() if row['click_date'] else "",
+            id=row["id"],
+            source_node_id=row["source_node_id"],
+            target_node_id=row["target_node_id"],
+            click_date=row["click_date"].isoformat() if row["click_date"] else "",
         )
         for row in rows
     ]

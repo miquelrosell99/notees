@@ -253,6 +253,8 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           } else if (item.commandId === 'share-page') {
             const currentId = useNavigationStore.getState().currentNodeId;
             if (currentId) useModalStore.getState().setShareModalOpen(true);
+          } else if (item.commandId === 'force-reexport-markdown') {
+            useModalStore.getState().setAutoExportProgressModalOpen(true);
           } else if (item.commandId === 'open-broken-links') {
             const brokenLinksQuery: QueryAST = {
               ...createEmptyQueryAST(),

@@ -9,11 +9,12 @@ Structure:
 The infrastructure layer depends on the domain layer,
 but the domain layer should NEVER depend on infrastructure.
 """
+
 from .repositories import (
     NodeRepository,
-    UserRepository,
     PostgresNodeRepository,
     PostgresUserRepository,
+    UserRepository,
 )
 
 __all__ = [

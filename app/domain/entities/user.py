@@ -1,9 +1,8 @@
 """User domain entity."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
 
 from . import generate_uuid, utc_now_iso
 
@@ -11,10 +10,10 @@ from . import generate_uuid, utc_now_iso
 @dataclass
 class User:
     """Domain entity representing a user."""
-    
+
     username: str
     password_hash: str
-    id: Optional[int] = None
+    id: int | None = None
     uuid: str = field(default_factory=generate_uuid)
     active: bool = True  # soft-delete flag
     create_date: str = field(default_factory=utc_now_iso)
@@ -29,7 +28,7 @@ class User:
 @dataclass
 class UserCreateData:
     """Data for creating a new user."""
-    
+
     username: str
     password: str  # Plain password, will be hashed
 
@@ -37,7 +36,7 @@ class UserCreateData:
 @dataclass
 class UserCredentials:
     """User credentials for authentication."""
-    
+
     username: str
     password: str
 
@@ -45,9 +44,9 @@ class UserCredentials:
 @dataclass
 class AuthenticatedUser:
     """User with authentication context."""
-    
+
     id: int
     uuid: str
     username: str
     is_active: bool
-    token: Optional[str] = None
+    token: str | None = None

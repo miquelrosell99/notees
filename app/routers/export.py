@@ -3,14 +3,14 @@
 Handles exporting nodes to various formats.
 Uses domain types where applicable.
 """
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..models import ExportRequest, ExportFormat, User
-from .auth import get_current_user
-
+from ..models import ExportFormat, ExportRequest, User
 from ..node_export import export_nodes as _run_export
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/export", tags=["Export"])
 
@@ -42,16 +42,12 @@ async def export_nodes(request: ExportRequest, user: User = Depends(get_current_
             theme_mode=request.theme_mode,
             cover_page=request.cover_page,
         )
-        
+
         return Response(
-            content=content,
-            media_type=mime_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
+            content=content, media_type=mime_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{node_uuid}")
@@ -72,13 +68,18 @@ async def export_single_node(
     link_style: str = "raw",
     theme_mode: str = "light",
     cover_page: bool = False,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Export a single node by UUID."""
     try:
         export_format = ExportFormat(format)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
+        raise HTTPException(status_code=400, detail=f"Invalid format: {format}") from None
+
+    if export_format in (ExportFormat.TEXT, ExportFormat.JSON):
+        # Text and JSON don't support layout/style/density/etc. options
+        # but we still pass them through; the converter ignores irrelevant ones.
+        pass
 
     if layout not in ("outline", "flat"):
         raise HTTPException(status_code=400, detail=f"Invalid layout: {layout}")
@@ -126,33 +127,30 @@ async def export_single_node(
             theme_mode=theme_mode,
             cover_page=cover_page,
         )
-        
+
         return Response(
-            content=content,
-            media_type=mime_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
+            content=content, media_type=mime_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/render-pdf")
 async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current_user)):
     """Render an HTML string to a PDF using WeasyPrint.
-    
+
     Falls back to returning the HTML with a Content-Type of text/html and a
     warning header when WeasyPrint is not installed, so callers can still
     present the content (e.g. let the browser print to PDF via Ctrl+P).
     """
     try:
         from weasyprint import HTML as WeasyprintHTML
+
         pdf_bytes = WeasyprintHTML(string=request.html).write_pdf()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": 'attachment; filename="export.pdf"'}
+            headers={"Content-Disposition": 'attachment; filename="export.pdf"'},
         )
     except ImportError:
         # WeasyPrint not installed — return the HTML so the client can use the
@@ -163,7 +161,7 @@ async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current
             headers={
                 "X-PDF-Fallback": "true",
                 "X-PDF-Fallback-Reason": "WeasyPrint is not installed on this server. Use your browser's Print → Save as PDF to export.",
-            }
+            },
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF rendering failed: {e}") from e

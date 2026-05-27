@@ -25,19 +25,16 @@ Notees
 Copyright (C) 2026 Miquel Rosell Tarragó
 AGPL-3.0 – see LICENSE.
 """
+
 from __future__ import annotations
 
 import json
 import re
-from enum import Enum
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from enum import Enum
 from typing import (
     Any,
-    Callable,
-    List,
-    Optional,
-    Sequence,
-    Set,
 )
 
 __all__ = [
@@ -85,21 +82,27 @@ class ParseMode(str, Enum):
 class NodeLinkResolution:
     """Result of resolving a node link."""
 
-    target_ast: List[dict]
+    target_ast: list[dict]
     """The target node's name AST."""
 
-    label: Optional[str]
+    label: str | None
     """Fallback label (may be None; AST label takes precedence)."""
 
     target_id: str
     """Opaque node identifier for cycle detection."""
 
-    is_page: Optional[bool] = None
+    is_page: bool | None = None
     """Whether the target node is a page (True) or a block (False/None)."""
+
+    is_asset: bool = False
+    """Whether the target node is an asset."""
+
+    asset_path: str | None = None
+    """Relative path to the asset file for export (e.g. './assets/uuid/filename.ext')."""
 
 
 # Callable that takes a link_id (node_link UUID) and returns resolution or None.
-NodeLinkResolver = Callable[[str], Optional[NodeLinkResolution]]
+NodeLinkResolver = Callable[[str], NodeLinkResolution | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,8 +110,8 @@ class StringifyOptions:
     """Options for stringify_ast."""
 
     mode: StringifyMode
-    max_length: Optional[int] = None
-    resolve_node_link: Optional[NodeLinkResolver] = None
+    max_length: int | None = None
+    resolve_node_link: NodeLinkResolver | None = None
     # When True (HTML export), node_link nodes emit [text](#target-uuid) so
     # _markdown_inline_to_html converts them to clickable <a> elements.
     html_anchors: bool = False
@@ -136,7 +139,7 @@ def stringify_ast(
     return result
 
 
-def parse_ast(value: Any, mode: ParseMode = ParseMode.JSON) -> List[dict]:
+def parse_ast(value: Any, mode: ParseMode = ParseMode.JSON) -> list[dict]:
     """Parse input into a validated AST document.
 
     Modes:
@@ -167,7 +170,7 @@ def parse_ast(value: Any, mode: ParseMode = ParseMode.JSON) -> List[dict]:
     return _parse_markdown(value)
 
 
-def serialize_ast(ast: List[dict]) -> str:
+def serialize_ast(ast: list[dict]) -> str:
     """Serialize an AST document to a JSON string for DB storage.
 
     This is a thin wrapper around ``json.dumps`` that pairs with
@@ -179,7 +182,7 @@ def serialize_ast(ast: List[dict]) -> str:
 # ── Document / block rendering ─────────────────────────────────────
 
 
-def _render_document(blocks: List[dict], opts: StringifyOptions) -> str:
+def _render_document(blocks: list[dict], opts: StringifyOptions) -> str:
     if not blocks:
         return ""
 
@@ -214,32 +217,28 @@ def _render_whiteboard(block: dict, opts: StringifyOptions) -> str:
     # Extract text from elements
     elements = block.get("data", {}).get("elements", [])
     if not elements:
-         return ""
+        return ""
 
     # Filter for elements with text
     text_parts = []
     # Sort elements by Y then X to maintain logical reading order
     # Group by rows (fuzzy Y sort): if Y difference is small, treat as same row
-    sorted_elements = sorted(
-        elements, 
-        key=lambda e: (e.get("y", 0) // 20, e.get("x", 0))
-    )
-    
+    sorted_elements = sorted(elements, key=lambda e: (e.get("y", 0) // 20, e.get("x", 0)))
+
     for element in sorted_elements:
         etype = element.get("type")
         text = element.get("text", "")
         if text and (etype == "text" or etype == "shape"):
             text_parts.append(text)
-            
+
     content_text = " ".join(text_parts)
     return content_text
-
 
 
 # ── Inline rendering ───────────────────────────────────────────────
 
 
-def _render_inline_sequence(nodes: List[dict], opts: StringifyOptions) -> str:
+def _render_inline_sequence(nodes: list[dict], opts: StringifyOptions) -> str:
     return "".join(_render_inline(n, opts) for n in nodes)
 
 
@@ -324,7 +323,7 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
             if opts.mode is StringifyMode.PLAIN_MARKDOWN:
                 if opts.strip_link_syntax:
                     return ast_label
-                colon = link_id.find(':')
+                colon = link_id.find(":")
                 target_uuid = link_id[:colon] if colon > 0 else link_id
                 return f"[{ast_label}]([[{target_uuid}]])"
             return ast_label
@@ -340,7 +339,7 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
             if opts.mode is StringifyMode.PLAIN_MARKDOWN:
                 if opts.strip_link_syntax:
                     return ast_label
-                colon = link_id.find(':')
+                colon = link_id.find(":")
                 target_uuid = link_id[:colon] if colon > 0 else link_id
                 return f"[{ast_label}]([[{target_uuid}]])"
             return ast_label
@@ -381,14 +380,17 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         return display
     if opts.html_anchors and opts.mode is StringifyMode.PLAIN_MARKDOWN:
         # Extract target node UUID from link_id (format: "targetUUID:linkUUID")
-        colon = link_id.find(':')
+        colon = link_id.find(":")
         target_uuid = link_id[:colon] if colon > 0 else link_id
         if target_uuid:
             return f"[{display}](#{target_uuid})"
     if opts.mode is StringifyMode.PLAIN_MARKDOWN:
         # Markdown export: [name]([[uuid]]) for all node links
-        colon = link_id.find(':')
+        colon = link_id.find(":")
         target_uuid = link_id[:colon] if colon > 0 else link_id
+        # Asset links: rewrite to relative path if asset_path is provided
+        if resolution is not None and resolution.is_asset and resolution.asset_path:
+            return f"[{display}]({resolution.asset_path})"
         return f"[{display}]([[{target_uuid}]])"
     return display
 
@@ -396,7 +398,7 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
 # ── parse_ast helpers ───────────────────────────────────────────────
 
 
-def _parse_json(value: Any) -> List[dict]:
+def _parse_json(value: Any) -> list[dict]:
     """Parse a JSON string or list into a validated AST document."""
     if isinstance(value, str):
         if not value:
@@ -422,17 +424,17 @@ def _parse_json(value: Any) -> List[dict]:
 # Nesting (e.g. **bold *and italic***) is supported one level deep.
 
 _MD_INLINE_RE = re.compile(
-    r"(?P<code>`[^`]+`)"                   # `code`
+    r"(?P<code>`[^`]+`)"  # `code`
     r"|(?P<bold_italic>\*\*\*(?P<bi>.+?)\*\*\*)"  # ***bold italic***
-    r"|(?P<bold>\*\*(?P<b>.+?)\*\*)"       # **bold**
-    r"|(?P<italic>\*(?P<i>[^*]+?)\*)"       # *italic*
-    r"|(?P<strike>~~(?P<s>.+?)~~)"          # ~~strike~~
-    r"|(?P<highlight>==(?P<h>.+?)==)"        # ==highlight==
+    r"|(?P<bold>\*\*(?P<b>.+?)\*\*)"  # **bold**
+    r"|(?P<italic>\*(?P<i>[^*]+?)\*)"  # *italic*
+    r"|(?P<strike>~~(?P<s>.+?)~~)"  # ~~strike~~
+    r"|(?P<highlight>==(?P<h>.+?)==)"  # ==highlight==
     r"|(?P<link>\[(?P<lt>[^\]]+)\]\((?P<lu>[^)]+)\))"  # [text](url)
 )
 
 
-def _parse_markdown(text: str) -> List[dict]:
+def _parse_markdown(text: str) -> list[dict]:
     """Parse inline Markdown into an AST document (one paragraph)."""
     children = _parse_md_inline(text)
     if not children:
@@ -440,9 +442,9 @@ def _parse_markdown(text: str) -> List[dict]:
     return [{"type": "paragraph", "children": children}]
 
 
-def _parse_md_inline(text: str) -> List[dict]:
+def _parse_md_inline(text: str) -> list[dict]:
     """Parse inline Markdown patterns into a list of AST inline nodes."""
-    nodes: List[dict] = []
+    nodes: list[dict] = []
     pos = 0
 
     for m in _MD_INLINE_RE.finditer(text):
@@ -458,9 +460,9 @@ def _parse_md_inline(text: str) -> List[dict]:
 
         elif m.group("bold_italic"):
             inner = m.group("bi")
-            nodes.append({"type": "strong", "children": [
-                {"type": "em", "children": [{"type": "text", "text": inner}]}
-            ]})
+            nodes.append(
+                {"type": "strong", "children": [{"type": "em", "children": [{"type": "text", "text": inner}]}]}
+            )
 
         elif m.group("bold"):
             inner = m.group("b")
@@ -481,9 +483,7 @@ def _parse_md_inline(text: str) -> List[dict]:
         elif m.group("link"):
             link_text = m.group("lt")
             url = m.group("lu")
-            nodes.append({"type": "external_link", "url": url, "children": [
-                {"type": "text", "text": link_text}
-            ]})
+            nodes.append({"type": "external_link", "url": url, "children": [{"type": "text", "text": link_text}]})
 
         pos = end
 
@@ -503,7 +503,7 @@ def _collapse_whitespace(s: str) -> str:
     return _WS_RE.sub(" ", s).strip()
 
 
-def _validate_document(doc: Any) -> List[dict]:
+def _validate_document(doc: Any) -> list[dict]:
     """Shallow validation — each element must be a dict with ``type``."""
     if not isinstance(doc, list):
         return []

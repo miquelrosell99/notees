@@ -8,13 +8,14 @@ generated SQL template avoids re-generating it on every execution.
 Cache keys are derived from the QueryAST structure (with placeholders
 intact), so different nodes reuse the same template.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from ...logging_config import get_logger
 
@@ -37,7 +38,7 @@ class QuerySQLCache:
 
     # ── public API ──────────────────────────────────
 
-    def get(self, ast_dict: Dict[str, Any], workspace_id: int) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def get(self, ast_dict: dict[str, Any], workspace_id: int) -> tuple[str, dict[str, Any]] | None:
         """Look up a cached SQL template.
 
         Returns (sql, params_template) or None on miss.
@@ -55,10 +56,10 @@ class QuerySQLCache:
 
     def put(
         self,
-        ast_dict: Dict[str, Any],
+        ast_dict: dict[str, Any],
         workspace_id: int,
         sql: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> None:
         """Store a SQL template in the cache."""
         key = self._make_key(ast_dict, workspace_id)
@@ -78,7 +79,7 @@ class QuerySQLCache:
         logger.debug("QuerySQLCache invalidated")
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Return cache statistics for observability."""
         total = self._hits + self._misses
         return {
@@ -92,7 +93,7 @@ class QuerySQLCache:
     # ── internals ───────────────────────────────────
 
     @staticmethod
-    def _make_key(ast_dict: Dict[str, Any], workspace_id: int) -> str:
+    def _make_key(ast_dict: dict[str, Any], workspace_id: int) -> str:
         """Deterministic cache key from the AST structure."""
         # Sort keys for determinism, include workspace_id
         raw = json.dumps(ast_dict, sort_keys=True, default=str) + f"|ws={workspace_id}"
@@ -102,7 +103,7 @@ class QuerySQLCache:
 class _CacheEntry:
     __slots__ = ("sql", "params", "created", "last_hit", "hit_count")
 
-    def __init__(self, sql: str, params: Dict[str, Any], created: float):
+    def __init__(self, sql: str, params: dict[str, Any], created: float):
         self.sql = sql
         self.params = params
         self.created = created
@@ -111,7 +112,7 @@ class _CacheEntry:
 
 
 # Module-level singleton so the cache persists across requests
-_global_cache: Optional[QuerySQLCache] = None
+_global_cache: QuerySQLCache | None = None
 
 
 def get_sql_cache() -> QuerySQLCache:

@@ -87,7 +87,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     });
 
     const params: Record<string, unknown> = {
-      format: 'html',
+      format: format === 'text' || format === 'json' ? format : 'html',
       include_children: true,
       layout,
       formatting,
@@ -123,15 +123,18 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     return () => {
       cancelled = true;
     };
-  }, [isOpen, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, effectiveNodeUuids, isBatch]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, effectiveNodeUuids, isBatch]);
 
-  // For Markdown tab, show plain-text body content.
+  // For Markdown/Text/JSON tabs, show plain-text body content.
   // For HTML/PDF tab, show the raw HTML or inject CSS overrides.
   const displayContent = useMemo(() => {
     if (!previewContent) return '';
     if (format === 'markdown') {
       const match = previewContent.match(/<body[^>]*>([\s\S]*?)<\/body>/);
       return match ? match[1].trim() : previewContent;
+    }
+    if (format === 'text' || format === 'json') {
+      return previewContent;
     }
     if (cssOverrides.trim()) {
       const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
@@ -143,18 +146,13 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   }, [format, previewContent, cssOverrides]);
 
   const handleCopy = useCallback(() => {
-    let text: string;
-    if (format === 'markdown') {
-      text = displayContent;
-    } else {
-      text = previewContent;
-    }
+    const text = displayContent || previewContent;
     if (!text) return;
     copyToClipboard(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [format, displayContent, previewContent]);
+  }, [displayContent, previewContent]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -208,7 +206,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
           response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
         }
         const disposition = response.headers['content-disposition'] as string | undefined;
-        let filename = `export.${format === 'markdown' ? 'md' : format}`;
+        const extMap: Record<string, string> = { markdown: 'md', html: 'html', pdf: 'pdf', text: 'txt', json: 'json' };
+        let filename = `export.${extMap[format] || format}`;
         if (disposition) {
           const match = disposition.match(/filename="?([^"]+)"?/);
           if (match) filename = match[1];
@@ -295,7 +294,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                 </div>
               </div>
 
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -326,7 +325,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   onChange={(v) => setLayout(v as ExportLayout)}
                 />
               </div>
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -344,7 +343,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -360,7 +359,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -378,7 +377,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -396,7 +395,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -416,7 +415,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
@@ -428,7 +427,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {format !== 'markdown' && (
+              {(format === 'html' || format === 'pdf') && (
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
@@ -522,7 +521,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       <div className="export-modal__body">
         {/* Format tabs */}
         <div className="export-modal__tabs" role="tablist" aria-label="Export format">
-          {(['markdown', 'html', 'pdf'] as ExportFormat[]).map((f) => (
+          {(['markdown', 'html', 'pdf', 'text', 'json'] as ExportFormat[]).map((f) => (
             <button
               key={f}
               role="tab"
@@ -532,7 +531,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
               }`}
               onClick={() => handleFormatChange(f)}
             >
-              {f === 'markdown' ? 'Markdown' : f === 'html' ? 'HTML' : 'PDF'}
+              {f === 'markdown' ? 'Markdown' : f === 'html' ? 'HTML' : f === 'pdf' ? 'PDF' : f === 'text' ? 'Text' : 'JSON'}
             </button>
           ))}
         </div>
@@ -543,13 +542,13 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
             <div className="export-modal__error">{error}</div>
           )}
 
-          {format === 'markdown' ? (
+          {format === 'markdown' || format === 'text' || format === 'json' ? (
             <textarea
               className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
               readOnly
               value={displayContent}
               spellCheck={false}
-              aria-label="Markdown preview"
+              aria-label={`${format} preview`}
             />
           ) : (
             <>

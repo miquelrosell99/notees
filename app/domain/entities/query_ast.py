@@ -12,18 +12,20 @@ Design principles:
 
 Version: 1.0
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-from typing import Optional, List, Any, Dict, Union, Literal
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-
+from enum import Enum
+from typing import Any, Literal, Union
 
 # ==================== AST Node Types ====================
 
+
 class ASTNodeType(str, Enum):
     """Types of nodes in the query AST."""
+
     QUERY = "query"
     SCOPE = "scope"
     GROUP = "group"
@@ -33,24 +35,27 @@ class ASTNodeType(str, Enum):
 
 # ==================== Scope Node ====================
 
+
 class ScopeType(str, Enum):
     """Scope types define the universe of nodes to query."""
-    ENTIRE_WORKSPACE = "entire_workspace"      # All nodes in the workspace
-    PAGES = "pages"                    # All pages in the workspace (is_page=true)
-    CURRENT_PAGE = "current_page"      # Current page being viewed
+
+    ENTIRE_WORKSPACE = "entire_workspace"  # All nodes in the workspace
+    PAGES = "pages"  # All pages in the workspace (is_page=true)
+    CURRENT_PAGE = "current_page"  # Current page being viewed
 
 
 @dataclass
 class ScopeNode:
     """Scope node - defines the starting point for query execution."""
+
     type: Literal["scope"] = "scope"
     scope_type: ScopeType = ScopeType.ENTIRE_WORKSPACE
     # For parent_path filtering (nodes inside specific pages)
-    include_descendants: Optional[bool] = None
+    include_descendants: bool | None = None
     # For negated scope filters
-    excluded_page_uuids: Optional[List[str]] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    excluded_page_uuids: list[str] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {
             "type": self.type,
@@ -61,16 +66,16 @@ class ScopeNode:
         if self.excluded_page_uuids:
             result["excluded_page_uuids"] = self.excluded_page_uuids
         return result
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> ScopeNode:
+    def from_dict(data: dict[str, Any]) -> ScopeNode:
         """Create from dictionary."""
         scope_type_value = data.get("scope_type", "entire_workspace")
-        
+
         # Handle legacy 'all' value (backwards compatibility)
         if scope_type_value == "all":
             scope_type_value = "entire_workspace"
-        
+
         return ScopeNode(
             scope_type=ScopeType(scope_type_value),
             include_descendants=data.get("include_descendants"),
@@ -80,8 +85,10 @@ class ScopeNode:
 
 # ==================== Condition Node ====================
 
+
 class ConditionType(str, Enum):
     """Types of conditions."""
+
     CLASS = "class"
     EXTENDS = "extends"
     PROPERTY = "property"
@@ -99,6 +106,7 @@ class ConditionType(str, Enum):
 
 class PropertyOperator(str, Enum):
     """Operators for property conditions."""
+
     EQUALS = "equals"
     NOT_EQUALS = "not_equals"
     GREATER_THAN = "greater_than"
@@ -116,6 +124,7 @@ class PropertyOperator(str, Enum):
 
 class ContentOperator(str, Enum):
     """Operators for content/text search conditions."""
+
     CONTAINS = "contains"
     STARTS_WITH = "starts_with"
     ENDS_WITH = "ends_with"
@@ -126,6 +135,7 @@ class ContentOperator(str, Enum):
 
 class PropertyType(str, Enum):
     """Property types."""
+
     TEXT = "text"
     NUMBER = "number"
     DATE = "date"
@@ -139,10 +149,11 @@ class PropertyType(str, Enum):
 @dataclass
 class BaseConditionNode:
     """Base for all condition nodes."""
+
     type: Literal["condition"] = "condition"
     condition_type: ConditionType = ConditionType.CONTENT
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {
             "type": self.type,
@@ -154,7 +165,7 @@ class BaseConditionNode:
                 continue  # Already added above
             if value is None:
                 continue  # Skip None values
-            
+
             # Handle nested GroupNode
             if isinstance(value, GroupNode):
                 result[key] = value.to_dict()
@@ -163,50 +174,55 @@ class BaseConditionNode:
                 result[key] = value.value
             else:
                 result[key] = value
-        
+
         return result
 
 
 @dataclass
 class ClassCondition(BaseConditionNode):
     """Class condition - filter by node class."""
+
     condition_type: Literal[ConditionType.CLASS] = ConditionType.CLASS
     class_uuid: str = ""
-    class_id: Optional[int] = None
-    operator: Optional[str] = None  # 'contains' | 'does_not_contain' | 'is' | 'is_not' | 'defined' | 'not_defined'
+    class_id: int | None = None
+    operator: str | None = None  # 'contains' | 'does_not_contain' | 'is' | 'is_not' | 'defined' | 'not_defined'
 
 
 @dataclass
 class ExtendsCondition(BaseConditionNode):
     """Extends condition - filter by classes that extend a given class."""
+
     condition_type: Literal[ConditionType.EXTENDS] = ConditionType.EXTENDS
     extends_class_uuid: str = ""  # UUID of the class being extended
-    extends_class_id: Optional[int] = None
+    extends_class_id: int | None = None
 
 
 @dataclass
 class PropertyCondition(BaseConditionNode):
     """Property condition - filter by property value."""
+
     condition_type: Literal[ConditionType.PROPERTY] = ConditionType.PROPERTY
     property_name: str = ""
-    property_uuid: Optional[str] = None
-    property_id: Optional[int] = None
+    property_uuid: str | None = None
+    property_id: int | None = None
     property_type: PropertyType = PropertyType.TEXT
     operator: PropertyOperator = PropertyOperator.EQUALS
-    value: Optional[Any] = None
+    value: Any | None = None
 
 
 @dataclass
 class ContentCondition(BaseConditionNode):
     """Content condition - filter by content/name."""
+
     condition_type: Literal[ConditionType.CONTENT] = ConditionType.CONTENT
     operator: ContentOperator = ContentOperator.CONTAINS
     value: str = ""
-    case_sensitive: Optional[bool] = None
+    case_sensitive: bool | None = None
 
 
 class StyleType(str, Enum):
     """Style types for formatting filters."""
+
     BOLD = "bold"
     ITALIC = "italic"
     UNDERLINE = "underline"
@@ -216,6 +232,7 @@ class StyleType(str, Enum):
 
 class StyleOperator(str, Enum):
     """Operators for style/formatting conditions."""
+
     IS = "is"
     IS_NOT = "is_not"
     CONTAINS = "contains"
@@ -225,6 +242,7 @@ class StyleOperator(str, Enum):
 @dataclass
 class StyleCondition(BaseConditionNode):
     """Style condition - filter by text formatting (bold, italic, underline, strikethrough)."""
+
     condition_type: Literal[ConditionType.STYLE] = ConditionType.STYLE
     style_type: StyleType = StyleType.BOLD
     operator: StyleOperator = StyleOperator.CONTAINS
@@ -233,55 +251,60 @@ class StyleCondition(BaseConditionNode):
 @dataclass
 class ReferenceCondition(BaseConditionNode):
     """Reference condition - filter by references."""
+
     condition_type: Literal[ConditionType.REFERENCE] = ConditionType.REFERENCE
     target_uuid: str = ""
-    target_id: Optional[int] = None
+    target_id: int | None = None
     # Optional nested group for filtering the referencing nodes
-    nested_group: Optional["GroupNode"] = None
+    nested_group: GroupNode | None = None
 
 
 @dataclass
 class ReferencePathCondition(BaseConditionNode):
     """Reference path condition - filter by nodes that reference nodes matching criteria.
-    
+
     A node N matches reference_path to target T if:
     - N or any ancestor of N has a reference (link) to T
     - OR T is an ancestor of N (N is inside T's hierarchy)
     """
+
     condition_type: Literal[ConditionType.REFERENCE_PATH] = ConditionType.REFERENCE_PATH
     # Static mode: specific target node(s) being referenced
-    target_uuids: Optional[List[str]] = None
-    target_ids: Optional[List[int]] = None
+    target_uuids: list[str] | None = None
+    target_ids: list[int] | None = None
     # Dynamic mode: target nodes matching criteria
-    nested_group: Optional["GroupNode"] = None
+    nested_group: GroupNode | None = None
 
 
 @dataclass
 class ParentPathCondition(BaseConditionNode):
     """Parent path condition - filter by nodes with ancestors matching criteria."""
+
     condition_type: Literal[ConditionType.PARENT_PATH] = ConditionType.PARENT_PATH
-    nested_group: Optional["GroupNode"] = None
-    max_depth: Optional[int] = None
-    operator: Optional[str] = None  # 'has_ancestor' | 'has_no_ancestor' | 'is_descendant_of' | 'is_not_descendant_of'
+    nested_group: GroupNode | None = None
+    max_depth: int | None = None
+    operator: str | None = None  # 'has_ancestor' | 'has_no_ancestor' | 'is_descendant_of' | 'is_not_descendant_of'
 
 
 @dataclass
 class ParentCondition(BaseConditionNode):
     """Parent condition - filter by direct parent node matching criteria."""
+
     condition_type: Literal[ConditionType.PARENT] = ConditionType.PARENT
     # Static mode: specific parent(s)
-    parent_uuid: Optional[str] = None  # Legacy: single parent
-    parent_uuids: Optional[List[str]] = None  # Multiple parents
-    parent_id: Optional[int] = None
-    parent_ids: Optional[List[int]] = None
+    parent_uuid: str | None = None  # Legacy: single parent
+    parent_uuids: list[str] | None = None  # Multiple parents
+    parent_id: int | None = None
+    parent_ids: list[int] | None = None
     # Dynamic mode: parent matching criteria
-    nested_group: Optional["GroupNode"] = None
-    operator: Optional[str] = None  # 'has_parent' | 'not_has_parent' | 'has_no_parent' | 'has_any_parent'
+    nested_group: GroupNode | None = None
+    operator: str | None = None  # 'has_parent' | 'not_has_parent' | 'has_no_parent' | 'has_any_parent'
 
 
 @dataclass
 class FlagCondition(BaseConditionNode):
     """Flag condition - filter by boolean flags (is_page, is_day, etc)."""
+
     condition_type: Literal[ConditionType.FLAG] = ConditionType.FLAG
     flag_name: str = ""  # e.g., "is_page", "is_day", "is_favorite"
     value: bool = True  # True to match, False to exclude
@@ -290,36 +313,39 @@ class FlagCondition(BaseConditionNode):
 @dataclass
 class PageCondition(BaseConditionNode):
     """Page condition - filter by containing page (via page_id)."""
+
     condition_type: Literal[ConditionType.PAGE] = ConditionType.PAGE
     # Static mode: specific page(s)
-    page_uuid: Optional[str] = None
-    page_uuids: Optional[List[str]] = None
-    page_id: Optional[int] = None
-    page_ids: Optional[List[int]] = None
+    page_uuid: str | None = None
+    page_uuids: list[str] | None = None
+    page_id: int | None = None
+    page_ids: list[int] | None = None
     # Dynamic mode: page matching criteria
-    nested_group: Optional["GroupNode"] = None
-    operator: Optional[str] = None  # 'is_page' | 'is_not_page' | 'has_no_page' | 'has_any_page'
+    nested_group: GroupNode | None = None
+    operator: str | None = None  # 'is_page' | 'is_not_page' | 'has_no_page' | 'has_any_page'
 
 
 @dataclass
 class ChildCondition(BaseConditionNode):
     """Child condition - filter by direct child nodes matching criteria."""
+
     condition_type: Literal[ConditionType.CHILD] = ConditionType.CHILD
     # Static mode: specific child(ren)
-    child_uuids: Optional[List[str]] = None
-    child_ids: Optional[List[int]] = None
+    child_uuids: list[str] | None = None
+    child_ids: list[int] | None = None
     # Dynamic mode: children matching criteria
-    nested_group: Optional["GroupNode"] = None
-    operator: Optional[str] = None  # 'has_child' | 'not_has_child' | 'has_no_child' | 'has_any_child'
+    nested_group: GroupNode | None = None
+    operator: str | None = None  # 'has_child' | 'not_has_child' | 'has_no_child' | 'has_any_child'
 
 
 @dataclass
 class ChildPathCondition(BaseConditionNode):
     """Child path condition - filter by nodes with descendants matching criteria."""
+
     condition_type: Literal[ConditionType.CHILD_PATH] = ConditionType.CHILD_PATH
-    nested_group: Optional["GroupNode"] = None
-    max_depth: Optional[int] = None
-    operator: Optional[str] = None  # 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant'
+    nested_group: GroupNode | None = None
+    max_depth: int | None = None
+    operator: str | None = None  # 'has_descendant' | 'not_has_descendant' | 'has_no_descendant' | 'has_any_descendant'
 
 
 # Union type for all conditions
@@ -342,8 +368,10 @@ ConditionNode = Union[
 
 # ==================== Group Node ====================
 
+
 class LogicType(str, Enum):
     """Logic type for how conditions in a group combine."""
+
     AND = "AND"
     OR = "OR"
 
@@ -351,23 +379,21 @@ class LogicType(str, Enum):
 @dataclass
 class GroupNode:
     """Group node - contains conditions and nested groups."""
+
     type: Literal["group"] = "group"
     logic: LogicType = LogicType.AND
-    children: List[Union[ConditionNode, "GroupNode", "NotNode"]] = field(default_factory=list)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    children: list[ConditionNode | GroupNode | NotNode] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "type": self.type,
             "logic": self.logic.value,
-            "children": [
-                child.to_dict() if hasattr(child, 'to_dict') else child
-                for child in self.children
-            ],
+            "children": [child.to_dict() if hasattr(child, "to_dict") else child for child in self.children],
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> GroupNode:
+    def from_dict(data: dict[str, Any]) -> GroupNode:
         """Create from dictionary."""
         children = []
         for child_data in data.get("children", []):
@@ -377,7 +403,7 @@ class GroupNode:
                 children.append(NotNode.from_dict(child_data))
             elif child_data.get("type") == "condition":
                 children.append(condition_from_dict(child_data))
-        
+
         return GroupNode(
             logic=LogicType(data.get("logic", "AND")),
             children=children,
@@ -386,51 +412,55 @@ class GroupNode:
 
 # ==================== Not Node ====================
 
+
 @dataclass
 class NotNode:
     """Not node - negates a condition or group."""
+
     type: Literal["not"] = "not"
-    child: Union[ConditionNode, GroupNode] = field(default_factory=lambda: ContentCondition())
-    
-    def to_dict(self) -> Dict[str, Any]:
+    child: ConditionNode | GroupNode = field(default_factory=lambda: ContentCondition())
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "type": self.type,
-            "child": self.child.to_dict() if hasattr(self.child, 'to_dict') else self.child,
+            "child": self.child.to_dict() if hasattr(self.child, "to_dict") else self.child,
         }
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> NotNode:
+    def from_dict(data: dict[str, Any]) -> NotNode:
         """Create from dictionary."""
         child_data = data.get("child", {})
         if child_data.get("type") == "group":
             child = GroupNode.from_dict(child_data)
         else:
             child = condition_from_dict(child_data)
-        
+
         return NotNode(child=child)
 
 
 # ==================== Query AST Root ====================
 
+
 @dataclass
 class QueryAST:
     """Query AST root - the complete query representation."""
+
     type: Literal["query"] = "query"
     version: str = "1.0"  # For future compatibility
     scope: ScopeNode = field(default_factory=ScopeNode)
     root_group: GroupNode = field(default_factory=GroupNode)
-    
+
     # Metadata
-    id: Optional[str] = None  # Stable identifier for query identity
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    description: Optional[str] = None
-    
+    id: str | None = None  # Stable identifier for query identity
+    created_at: str | None = None
+    updated_at: str | None = None
+    description: str | None = None
+
     # System queries are read-only (e.g., linked references, child pages)
-    is_system: Optional[bool] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    is_system: bool | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result = {
             "type": self.type,
@@ -449,9 +479,9 @@ class QueryAST:
         if self.is_system:
             result["is_system"] = self.is_system
         return result
-    
+
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> QueryAST:
+    def from_dict(data: dict[str, Any]) -> QueryAST:
         """Create from dictionary."""
         return QueryAST(
             version=data.get("version", "1.0"),
@@ -467,10 +497,11 @@ class QueryAST:
 
 # ==================== Helper Functions ====================
 
-def condition_from_dict(data: Dict[str, Any]) -> ConditionNode:
+
+def condition_from_dict(data: dict[str, Any]) -> ConditionNode:
     """Create a ConditionNode from dictionary based on condition_type."""
     condition_type = ConditionType(data.get("condition_type", "content"))
-    
+
     if condition_type == ConditionType.CLASS:
         return ClassCondition(
             class_uuid=data.get("class_uuid", ""),
