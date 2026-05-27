@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str | None = None
 
+    # Redis (for real-time collaboration pub/sub)
+    redis_url: str = "redis://localhost:6379/0"
+
     # CORS (if needed) - Must be explicitly configured
     cors_origins: list[str] | str = []  # Must be explicitly configured
 

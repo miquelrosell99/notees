@@ -428,6 +428,24 @@
   }
 }
 
+.node-view__collaborative-section {
+  margin: var(--spacing-4) 0;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.node-view__collaborative-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background: var(--surface-2, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+}
+
 /* Mobile: tighter spacing */
 @media (max-width: 480px) {
   .node-view-footer {
