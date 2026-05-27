@@ -86,7 +86,9 @@ export function WorkspaceExportModal({
       const { job_id } = await createExportJob(workspaceUuid, format, includeAssets);
       setJobId(job_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start export');
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const detail = axiosErr.response?.data?.detail;
+      setError(detail ?? (err instanceof Error ? err.message : 'Failed to start export'));
     }
   }, [workspaceUuid, format, includeAssets]);
 

@@ -214,6 +214,41 @@ async def export_workspace_zip_endpoint(workspace_id: str, user: User = Depends(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+async def _run_export_job(
+    job_id: str,
+    user_id: str,
+    workspace_id: str,
+    format: str,
+    include_assets: bool,
+) -> None:
+    """Background task that performs the actual export."""
+    try:
+        update_job(job_id, status="running")
+        from ..export_jobs import make_progress_callback
+
+        callback = make_progress_callback(job_id)
+
+        if format == "dump":
+            if include_assets:
+                path = await export_workspace_zip(
+                    user_id, workspace_id, progress_callback=callback
+                )
+            else:
+                path = await export_workspace_by_uuid(user_id, workspace_id)
+                update_job(job_id, progress=100, status_text="Export complete")
+        elif format in ("markdown", "text", "json"):
+            path = await export_workspace_formatted_zip(
+                user_id, workspace_id, format, include_assets, progress_callback=callback
+            )
+        else:
+            update_job(job_id, status="failed", error=f"Invalid format: {format}")
+            return
+
+        update_job(job_id, status="completed", progress=100, result_path=str(path))
+    except Exception as exc:
+        update_job(job_id, status="failed", error=str(exc))
+
+
 @router.post("/{workspace_id}/export-job")
 async def create_workspace_export_job(
     workspace_id: str,
@@ -226,37 +261,14 @@ async def create_workspace_export_job(
     Returns a job ID immediately. Poll GET /export-jobs/{job_id} for progress.
     When status is "completed", download from GET /export-jobs/{job_id}/download.
     """
-    job = create_job()
-
-    async def _run():
-        try:
-            update_job(job.id, status="running")
-            from ..export_jobs import make_progress_callback
-
-            callback = make_progress_callback(job.id)
-
-            if format == "dump":
-                if include_assets:
-                    path = await export_workspace_zip(
-                        user.id, workspace_id, progress_callback=callback
-                    )
-                else:
-                    path = await export_workspace_by_uuid(user.id, workspace_id)
-                    update_job(job.id, progress=100, status_text="Export complete")
-            elif format in ("markdown", "text", "json"):
-                path = await export_workspace_formatted_zip(
-                    user.id, workspace_id, format, include_assets, progress_callback=callback
-                )
-            else:
-                update_job(job.id, status="failed", error=f"Invalid format: {format}")
-                return
-
-            update_job(job.id, status="completed", progress=100, result_path=str(path))
-        except Exception as exc:
-            update_job(job.id, status="failed", error=str(exc))
-
-    asyncio.create_task(_run())
-    return {"job_id": job.id}
+    try:
+        job = create_job()
+        asyncio.create_task(
+            _run_export_job(job.id, user.id, workspace_id, format, include_assets)
+        )
+        return {"job_id": job.id}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 class ExportJobResponse(BaseModel):
