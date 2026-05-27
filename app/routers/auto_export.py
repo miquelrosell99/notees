@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..db.connection import _request_conn, get_connection, get_workspace_dir
+from ..db.connection import clear_request_conn, get_connection, get_workspace_dir
 from ..db.schema.init import get_or_create_user_workspace
 from ..domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
@@ -483,10 +483,10 @@ async def _run_batch_export(
     status_key: str,
 ):
     """Background task that exports all pages sequentially."""
-    # Reset request-scoped connection so we acquire fresh pool connections.
-    # Otherwise get_connection() would reuse the HTTP request's connection,
-    # causing "another operation is in progress" when the request closes.
-    reset_token = _request_conn.set(None)
+    # Background tasks inherit the parent request's context variables,
+    # including the request-scoped DB connection. Clear it so we don't
+    # race with the middleware releasing the connection back to the pool.
+    clear_request_conn()
     try:
         async with get_connection() as conn:
             rows = await conn.fetch(
@@ -538,8 +538,6 @@ async def _run_batch_export(
             _batch_status[status_key] = BatchExportStatus(
                 running=False, total=0, completed=0, current_page=None, error=str(e)
             )
-    finally:
-        _request_conn.reset(reset_token)
 
 
 @router.post("/{node_uuid}")
