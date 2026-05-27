@@ -117,6 +117,10 @@ class StringifyOptions:
     html_anchors: bool = False
     # When True, node links render as plain display text (no [[uuid]] or #anchor).
     strip_link_syntax: bool = False
+    # When False, highlight nodes render as plain text (no ==…== wrapper).
+    highlight_syntax: bool = True
+    # When False, PLAIN_MARKDOWN node links use [label](uuid) instead of [label]([[uuid]]).
+    link_target_brackets: bool = True
 
     # Internal — callers should NOT set this.
     _visited: frozenset[str] = frozenset()
@@ -271,7 +275,7 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
 
     if node_type == "highlight":
         inner = _render_inline_sequence(node.get("children", []), opts)
-        return inner if is_text else f"=={inner}=="
+        return inner if is_text else (f"=={inner}==" if opts.highlight_syntax else inner)
 
     if node_type == "underline":
         inner = _render_inline_sequence(node.get("children", []), opts)
@@ -385,13 +389,14 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
         if target_uuid:
             return f"[{display}](#{target_uuid})"
     if opts.mode is StringifyMode.PLAIN_MARKDOWN:
-        # Markdown export: [name]([[uuid]]) for all node links
         colon = link_id.find(":")
         target_uuid = link_id[:colon] if colon > 0 else link_id
         # Asset links: rewrite to relative path if asset_path is provided
         if resolution is not None and resolution.is_asset and resolution.asset_path:
             return f"[{display}]({resolution.asset_path})"
-        return f"[{display}]([[{target_uuid}]])"
+        if opts.link_target_brackets:
+            return f"[{display}]([[{target_uuid}]])"
+        return f"[{display}]({target_uuid})"
     return display
 
 
