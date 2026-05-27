@@ -14,3 +14,4 @@ export { WorkspaceModal } from './WorkspaceModal';
 export { WorkspaceNameModal } from './WorkspaceNameModal';
 export { WorkspaceSwitcher } from './WorkspaceSwitcher';
 export { AutoExportProgressModal } from './AutoExportProgressModal';
+export { WorkspaceExportModal } from './WorkspaceExportModal';
