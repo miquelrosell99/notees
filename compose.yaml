@@ -4,6 +4,19 @@
 # Usage: docker compose up
 
 services:
+  # Redis for real-time collaboration pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: notees-redis-dev
+    restart: unless-stopped
+    volumes:
+      - ./.config/notees-redis-dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # PostgreSQL database
   postgres:
     image: postgres:17-alpine
@@ -58,6 +71,8 @@ services:
       start_period: 15s
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   # Frontend with Vite dev server

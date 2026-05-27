@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useToggleCollaboration, nodeNameToText } from '@/hooks';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
@@ -51,6 +51,7 @@ import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
 import { ShareModal } from '../components/nodes/ShareModal';
+import { CollaborativeEditor } from '../collab/CollaborativeEditor';
 
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
@@ -163,7 +164,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     runtime.flushEvents();
-  }, [node.uuid, node.children]);
+  }, [node.uuid, node.id, node.children]);
 
   // In card mode, show the focused block as a bullet header (depth 0 only),
   // then its children separately as cards.
@@ -640,6 +641,7 @@ export function NodeView({
   const [isBannerHovered, setIsBannerHovered] = useState(false);
   const [isCoverHovered, setIsCoverHovered] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const toggleCollaboration = useToggleCollaboration();
   
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
@@ -1014,6 +1016,22 @@ export function NodeView({
             onClick={() => setShowShareModal(true)}
           />
 
+          {/* Collaboration toggle (pages only) */}
+          {resolvedType === 'page' && node && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={node.is_collaborative_enabled ? "mdi mdi-account-group" : "mdi mdi-account-group-outline"}
+              title={node.is_collaborative_enabled ? "Collaboration enabled" : "Enable collaboration"}
+              onClick={() => {
+                if (node?.id) {
+                  toggleCollaboration.mutate({ nodeId: node.id });
+                }
+              }}
+              className={node.is_collaborative_enabled ? 'active' : ''}
+            />
+          )}
+
           {/* 3-dot context menu button */}
           <Button
             ref={topBarMenuBtnRef}
@@ -1254,12 +1272,22 @@ export function NodeView({
       
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
       {resolvedType === 'page' ? (
-        <NodeContent
-          node={node}
-          children={blockChildren}
-          displayMode={contentDisplayMode}
-          totalChildrenCount={node.children?.length || 0}
-        />
+        node?.is_collaborative_enabled ? (
+          <div className="node-view__collaborative-section">
+            <div className="node-view__collaborative-banner">
+              <Icon path="mdi mdi-account-group" size={0.8} />
+              <span>Real-time collaboration is active</span>
+            </div>
+            <CollaborativeEditor pageUuid={node.uuid} />
+          </div>
+        ) : (
+          <NodeContent
+            node={node}
+            children={blockChildren}
+            displayMode={contentDisplayMode}
+            totalChildrenCount={node.children?.length || 0}
+          />
+        )
       ) : (
         /* Focused Block View - renders the block itself as a top-level list item */
         /* Properties for the focused block are rendered inline by BlockPropertiesPlugin */

@@ -1321,4 +1321,33 @@ CREATE INDEX IF NOT EXISTS idx_undo_log_stack
 CREATE INDEX IF NOT EXISTS idx_undo_log_redo
     ON undo_log (workspace_id, user_id, created_at DESC)
     WHERE is_undone = TRUE;
+
+-- ============================================================
+-- REAL-TIME COLLABORATION (Yjs CRDT)
+-- ============================================================
+
+-- Append-only event log of Yjs updates per page
+CREATE TABLE IF NOT EXISTS yjs_update (
+    id BIGSERIAL PRIMARY KEY,
+    page_uuid UUID NOT NULL,
+    update_bytes BYTEA NOT NULL,
+    user_uuid UUID,
+    seq BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(page_uuid, seq)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yjs_update_page_seq ON yjs_update(page_uuid, seq);
+CREATE INDEX IF NOT EXISTS idx_yjs_update_created_at ON yjs_update(created_at);
+
+-- Snapshot table for instant page hydration
+CREATE TABLE IF NOT EXISTS yjs_state_vector (
+    page_uuid UUID PRIMARY KEY,
+    snapshot_bytes BYTEA NOT NULL,
+    state_vector BYTEA NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Feature flag for per-page collaborative editing (dark launch)
+ALTER TABLE node ADD COLUMN IF NOT EXISTS is_collaborative_enabled BOOLEAN DEFAULT FALSE;
 """

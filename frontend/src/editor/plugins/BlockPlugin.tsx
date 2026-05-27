@@ -680,8 +680,9 @@ export function BlockPlugin({
     return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
       // Skip content saves triggered by external sync (runtime → Lexical)
+      // or by remote collaboration updates (Yjs → Lexical)
       // Only save when the user actually edited content
-      if (isSyncingRef.current || tags.has('runtime-sync')) return;
+      if (isSyncingRef.current || tags.has('runtime-sync') || tags.has('collaboration')) return;
 
       editorState.read(() => {
         const root = $getRoot();
