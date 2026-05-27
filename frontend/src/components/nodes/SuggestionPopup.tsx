@@ -24,6 +24,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import './SuggestionPopup.css';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
+import { parseQueryWithFilters } from '@/utils/searchFilters';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '@/components/core/icons';
 import { Checkbox } from '@/components/core/Checkbox';
@@ -110,15 +111,70 @@ export function SuggestionPopup({
   
   // Map SuggestionType to NodeSearchMode
   const searchMode: NodeSearchMode = (type === 'type' || type === 'class') ? 'classes' : type === 'tag' ? 'tags' : 'all';
-  
-  // Use shared search hook
-  const { pageResults, blockResults, isLoading, showCreateOption, hasMore } = useNodeSearch(query, {
+
+  // Fetch all classes early (needed for filter extraction)
+  const { data: allClasses = [] } = useClasses();
+
+  // Parse query for filters on the fly
+  const parsedFilters = useMemo(() => parseQueryWithFilters(query, []), [query]);
+
+  // Extract inline filters from query using regex
+  const extractedFilters = useMemo(() => {
+    const filters: {
+      uuid?: string;
+      isPage?: boolean;
+      isClass?: boolean;
+      isDaily?: boolean;
+      classFilterIds: number[];
+    } = { classFilterIds: [] };
+
+    const uuidMatch = query.match(/\buuid:([^\s]+)/);
+    if (uuidMatch) filters.uuid = uuidMatch[1];
+
+    if (/\bis_page:true\b/i.test(query)) filters.isPage = true;
+    else if (/\bis_page:false\b/i.test(query)) filters.isPage = false;
+    if (/\bis_class:true\b/i.test(query)) filters.isClass = true;
+    else if (/\bis_class:false\b/i.test(query)) filters.isClass = false;
+    if (/\bis_daily:true\b/i.test(query)) filters.isDaily = true;
+    else if (/\bis_daily:false\b/i.test(query)) filters.isDaily = false;
+
+    const classRegex = /\bclass:([^\s]+)/g;
+    let m;
+    while ((m = classRegex.exec(query)) !== null) {
+      const name = m[1].toLowerCase();
+      const matched = allClasses.find(c => nodeNameToText(c.name).toLowerCase().includes(name));
+      if (matched && !filters.classFilterIds.includes(matched.id)) {
+        filters.classFilterIds.push(matched.id);
+      }
+    }
+
+    return filters;
+  }, [query, allClasses]);
+
+  // Clean query for searching (remove filter syntax)
+  const searchQuery = useMemo(() => {
+    return query
+      .replace(/\bclass:[^\s]+\b/g, '')
+      .replace(/\buuid:[^\s]+\b/g, '')
+      .replace(/\bis_page:(?:true|false)\b/gi, '')
+      .replace(/\bis_class:(?:true|false)\b/gi, '')
+      .replace(/\bis_daily:(?:true|false)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }, [query]);
+
+  // Use shared search hook with extracted filters
+  const { pageResults, blockResults, isLoading, showCreateOption, hasMore } = useNodeSearch(searchQuery, {
     mode: searchMode,
     excludeNodeId,
-    classFilters,
+    classFilters: [...(classFilters ?? []), ...extractedFilters.classFilterIds],
     maxResults: displayLimit,
+    uuid: extractedFilters.uuid ?? parsedFilters.uuidSearch ?? undefined,
+    isPage: extractedFilters.isPage,
+    isClass: extractedFilters.isClass,
+    isDaily: extractedFilters.isDaily,
   });
-  
+
   // Date parsing for link mode
   const parsedDate = useMemo(() => type === 'link' ? parseDate(query) : null, [query, type]);
   const { data: allPagesForDate } = usePages({ includeChildren: true });
@@ -129,9 +185,6 @@ export function SuggestionPopup({
     for (const p of allPagesForDate ?? []) m.set(p.id, p);
     return m;
   }, [allPagesForDate]);
-
-  // Fetch all classes to show class names for pages
-  const { data: allClasses = [] } = useClasses();
 
   const classById = useMemo(() => {
     const m = new Map<number, Node>();
@@ -197,7 +250,7 @@ export function SuggestionPopup({
     return node.classes
       .map(classId => {
         const classNode = classById.get(classId);
-        if (!classNode || (classNode as any).uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
         return { id: classId, name };
@@ -228,6 +281,35 @@ export function SuggestionPopup({
     });
   }, [query, multiSelect, selectedCount]);
   
+  // Handle date suggestion selection
+  const handleDateSelect = useCallback(async () => {
+    if (!parsedDate || !onSelectDatePage) return;
+    try {
+      let dateNode: Node;
+      if (existingDateNode) {
+        // Page already exists, use it directly
+        dateNode = existingDateNode;
+      } else {
+        // Create the date page via API
+        if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
+          const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
+          dateNode = await getOrCreateDaily(dateStr);
+        } else if (parsedDate.type === 'month' && parsedDate.month) {
+          dateNode = await getOrCreateMonthly(parsedDate.year, parsedDate.month);
+        } else {
+          dateNode = await getOrCreateYearly(parsedDate.year);
+        }
+        // Invalidate caches
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
+      }
+      onSelectDatePage(dateNode.uuid, nodeNameToText(dateNode.name) || parsedDate.label);
+    } catch (error) {
+      console.error('Failed to create date page from suggestion:', error);
+    }
+  }, [parsedDate, onSelectDatePage, queryClient, existingDateNode]);
+  
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isOpen) return;
@@ -245,7 +327,7 @@ export function SuggestionPopup({
         setSelectedIndex(i => Math.max(i - 1, 0));
         break;
         
-      case 'Enter':
+      case 'Enter': {
         e.preventDefault();
         e.stopPropagation();
         // For + class: Ctrl+Enter adds inline pill too, plain Enter just adds to class_ids
@@ -293,6 +375,7 @@ export function SuggestionPopup({
           setDisplayLimit(prev => prev + 20);
         }
         break;
+      }
         
       case 'Escape':
         e.preventDefault();
@@ -306,36 +389,7 @@ export function SuggestionPopup({
         onClose();
         break;
     }
-  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, showMoreOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount, type, onSelectEmbed]);
-  
-  // Handle date suggestion selection
-  const handleDateSelect = useCallback(async () => {
-    if (!parsedDate || !onSelectDatePage) return;
-    try {
-      let dateNode: Node;
-      if (existingDateNode) {
-        // Page already exists, use it directly
-        dateNode = existingDateNode;
-      } else {
-        // Create the date page via API
-        if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
-          const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
-          dateNode = await getOrCreateDaily(dateStr);
-        } else if (parsedDate.type === 'month' && parsedDate.month) {
-          dateNode = await getOrCreateMonthly(parsedDate.year, parsedDate.month);
-        } else {
-          dateNode = await getOrCreateYearly(parsedDate.year);
-        }
-        // Invalidate caches
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
-      }
-      onSelectDatePage(dateNode.uuid, nodeNameToText(dateNode.name) || parsedDate.label);
-    } catch (error) {
-      console.error('Failed to create date page from suggestion:', error);
-    }
-  }, [parsedDate, onSelectDatePage, queryClient, existingDateNode]);
+  }, [isOpen, selectedIndex, totalItems, allItems, showCreateOption, showMoreOption, query, onSelect, onCreate, onClose, multiSelect, selectedCount, selectedNodes, onToggleSelect, hasDateSuggestion, dateSuggestionCount, type, onSelectEmbed, handleDateSelect]);
   
   // Attach keyboard listener
   useEffect(() => {
@@ -397,7 +451,22 @@ export function SuggestionPopup({
   }, [isOpen, position, allItems.length, selectedNodes.length, query]);
   
   if (!isOpen) return null;
-  
+
+  // Determine if any inline filters are active
+  const hasActiveFilters = extractedFilters.uuid !== undefined ||
+    extractedFilters.isPage !== undefined ||
+    extractedFilters.isClass !== undefined ||
+    extractedFilters.isDaily !== undefined ||
+    extractedFilters.classFilterIds.length > 0 ||
+    parsedFilters.uuidSearch !== null;
+
+  const filterHintParts: string[] = [];
+  if (extractedFilters.uuid ?? parsedFilters.uuidSearch) filterHintParts.push('UUID');
+  if (extractedFilters.isPage !== undefined) filterHintParts.push('Page');
+  if (extractedFilters.isClass !== undefined) filterHintParts.push('Class');
+  if (extractedFilters.isDaily !== undefined) filterHintParts.push('Daily');
+  if (extractedFilters.classFilterIds.length > 0) filterHintParts.push('Class');
+
   // Calculate indices for each section (accounting for date suggestion + selected items at top in multi-select)
   const dateIndex = 0;
   const selectedStartIndex = dateSuggestionCount;
@@ -407,7 +476,7 @@ export function SuggestionPopup({
   const createIndex = dateSuggestionCount + selectedCount + allItems.length;
   
   // Helper to get icon for item
-  const renderItemIcon = (node: Node, _isPage: boolean) => {
+  const renderItemIcon = (node: Node) => {
     if (type === 'type' || type === 'class') {
       return <NodeIcon icon={getEffectiveIcon(node, allClasses as unknown as Node[])} isPage={true} size="sm" />;
     } else if (type === 'tag') {
@@ -471,7 +540,15 @@ export function SuggestionPopup({
           </>
         )}
       </div>
-      
+
+      {hasActiveFilters && (
+        <div className="suggestion-popup__filter-hint">
+          {filterHintParts.length > 0
+            ? `${filterHintParts.join(', ')} filter active`
+            : 'Filter active'}
+        </div>
+      )}
+
       <div className="suggestion-popup__list">
         {isLoading && query.length > 0 ? (
           <div className="suggestion-popup__loading">Searching...</div>
@@ -526,7 +603,7 @@ export function SuggestionPopup({
                           className="suggestion-popup__checkbox"
                         />
                       }
-                      iconOverride={renderItemIcon(node, node.is_page)}
+                      iconOverride={renderItemIcon(node)}
                     />
                   );
                 })}
@@ -551,7 +628,7 @@ export function SuggestionPopup({
                       isHighlighted={globalIndex === selectedIndex}
                       onClick={() => onSelect(item.node, false)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                      iconOverride={renderItemIcon(item.node, item.node.is_page)}
+                      iconOverride={renderItemIcon(item.node)}
                       after={
                         aliasedName ? (
                           <span className="suggestion-popup__item-alias">
@@ -644,7 +721,7 @@ export function SuggestionPopup({
                           />
                         ) : undefined
                       }
-                      iconOverride={renderItemIcon(item.node, item.node.is_page)}
+                      iconOverride={renderItemIcon(item.node)}
                       after={
                         aliasedName ? (
                           <span className="suggestion-popup__item-alias">

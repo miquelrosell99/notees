@@ -49,6 +49,17 @@
   font-size: 12px;
 }
 
+.suggestion-popup__filter-hint {
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font: var(--font-label-small);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .suggestion-popup__list {
   flex: 1;
   overflow-y: auto;
