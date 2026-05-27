@@ -128,9 +128,12 @@ export function WorkspaceExportModal({
       {downloading ? (
         <div className="workspace-export__progress-overlay">
           <SyncIcon size="lg" className="workspace-export__progress-spin" />
+          <div className="workspace-export__progress-track">
+            <div className="workspace-export__progress-fill" />
+          </div>
           <p className="workspace-export__progress-label">{progressLabel}</p>
         </div>
-      ) : (
+      ) :(
         <div className="workspace-export__body">
           {/* Format selection */}
           <div className="workspace-export__field-group">
