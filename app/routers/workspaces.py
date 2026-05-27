@@ -19,6 +19,7 @@ from ..db.connection import acquire_connection, get_pool
 from ..dependencies import invalidate_workspace_cache
 from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
 from ..export_jobs import create_job, get_job, update_job
+from ..logging_config import get_logger
 from ..models import User, WorkspaceCreate
 from ..workspace_io import (
     export_workspace_by_uuid,
@@ -32,6 +33,7 @@ from ..workspace_io import (
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
+logger = get_logger(__name__)
 
 
 def _workspace_error_to_http(error: Exception) -> HTTPException:
@@ -246,6 +248,7 @@ async def _run_export_job(
 
         update_job(job_id, status="completed", progress=100, result_path=str(path))
     except Exception as exc:
+        logger.error(f"Export job {job_id} failed: {exc}", exc_info=True)
         update_job(job_id, status="failed", error=str(exc))
 
 
@@ -263,11 +266,13 @@ async def create_workspace_export_job(
     """
     try:
         job = create_job()
+        logger.info(f"Created export job {job.id} for workspace {workspace_id} (format={format}, assets={include_assets})")
         asyncio.create_task(
             _run_export_job(job.id, user.id, workspace_id, format, include_assets)
         )
         return {"job_id": job.id}
     except Exception as exc:
+        logger.error(f"Failed to create export job: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
