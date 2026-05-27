@@ -36,6 +36,23 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
 
   const textareaMapRef = useRef<Map<number, HTMLTextAreaElement>>(new Map());
   const prevBlocksRef = useRef(draftBlocks);
+  const hasFocusedOnOpenRef = useRef(false);
+
+  // Focus first textarea when modal opens
+  useEffect(() => {
+    if (!isOpen) {
+      hasFocusedOnOpenRef.current = false;
+      return;
+    }
+    if (hasFocusedOnOpenRef.current) return;
+    hasFocusedOnOpenRef.current = true;
+    requestAnimationFrame(() => {
+      const firstBlock = draftBlocks[0];
+      if (firstBlock) {
+        textareaMapRef.current.get(firstBlock.id)?.focus();
+      }
+    });
+  }, [isOpen, draftBlocks]);
 
   // Auto-focus newly added or refocus after removal
   useEffect(() => {

@@ -11,10 +11,11 @@ import { Button } from '@/components/core/Button';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { useTodayNote, usePages, useCreateNode, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
+import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
 import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { useSettingsStore } from '@/stores';
+import { generateUUID } from '@/utils/uuid';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { Node as ApiNode } from '@/types';
 import './Scratchpad.css';
@@ -36,7 +37,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { quickAddDestination } = useSettingsStore();
-  const createNodeMutation = useCreateNode();
   const moveNodeMutation = useMoveNode();
   const deleteNode = useDeleteNode();
   const { handleContentChange: saveContent } = useContentSave();
@@ -63,20 +63,41 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const meaningfulCount = childCount === 1 && !scratchpadPage?.children?.[0]?.name ? 0 : childCount;
   const hasContent = childCount > 0;
 
-  // Auto-create an empty block when scratchpad is empty so users can start typing immediately
+  // Auto-create an empty block when scratchpad is empty so users can start typing immediately.
+  // We create via the runtime (not direct API) so the block appears instantly and is focused.
+  // useBlockPersist (active BlockEditor singleton) handles background persistence.
   const autoCreatedRef = useRef(false);
+  const didCheckOnMountRef = useRef(false);
   useEffect(() => {
-    if (scratchpadPage && childCount === 0 && !autoCreatedRef.current && !createNodeMutation.isPending) {
-      autoCreatedRef.current = true;
-      createNodeMutation.mutate({
-        name: '',
-        parent_id: scratchpadPage.id,
-      });
-    }
+    if (!scratchpadPage) return;
     if (childCount > 0) {
       autoCreatedRef.current = false;
+      return;
     }
-  }, [scratchpadPage, childCount, createNodeMutation]);
+    if (autoCreatedRef.current) return;
+
+    const runtime = getNodeGraphRuntime();
+    runtime.registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
+
+    if (!didCheckOnMountRef.current) {
+      didCheckOnMountRef.current = true;
+      if (runtime.getChildren(scratchpadPage.uuid).length > 0) {
+        autoCreatedRef.current = true;
+        return;
+      }
+    }
+
+    autoCreatedRef.current = true;
+    const blockId = generateUUID();
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: scratchpadPage.uuid,
+      afterBlockId: null,
+      blockId,
+      contentAST: [],
+    });
+    runtime.requestFocus(blockId);
+  }, [scratchpadPage, childCount]);
 
   useEffect(() => {
     onEntryCountChange?.(meaningfulCount);
@@ -159,11 +180,19 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   const handleAddBlock = useCallback(() => {
     if (!scratchpadPage) return;
-    createNodeMutation.mutate({
-      name: '',
-      parent_id: scratchpadPage.id,
+    const runtime = getNodeGraphRuntime();
+    runtime.registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
+    const children = runtime.getChildren(scratchpadPage.uuid);
+    const blockId = generateUUID();
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: scratchpadPage.uuid,
+      afterBlockId: children.length > 0 ? children[children.length - 1].blockId : null,
+      blockId,
+      contentAST: [],
     });
-  }, [scratchpadPage, createNodeMutation]);
+    runtime.requestFocus(blockId);
+  }, [scratchpadPage]);
 
   const handleDestinationSelect = useCallback((node: ApiNode) => {
     setCustomDestination(node);
