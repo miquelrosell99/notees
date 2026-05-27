@@ -62,6 +62,15 @@ function getFileExtension(format: ExportFormat, includeAssets: boolean): string 
   return 'zip';
 }
 
+function getFormatCode(format: ExportFormat): string {
+  switch (format) {
+    case 'dump': return 'dump';
+    case 'markdown': return 'md';
+    case 'text': return 'txt';
+    case 'json': return 'json';
+  }
+}
+
 export function WorkspaceExportModal({
   isOpen,
   onClose,
@@ -123,9 +132,10 @@ export function WorkspaceExportModal({
       const doDownload = async () => {
         try {
           const blob = await downloadExportJob(job.id);
-          const suffix = format === 'dump' ? 'dump' : format;
+          const fmtCode = getFormatCode(format);
           const ext = getFileExtension(format, includeAssets);
-          const filename = `${workspaceName}_${suffix}.${ext}`;
+          const timestamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+          const filename = `${workspaceName}_${fmtCode}_${timestamp}.${ext}`;
           downloadBlob(blob, filename);
           handleClose();
         } catch (err) {

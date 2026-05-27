@@ -1487,7 +1487,8 @@ async def export_workspace_zip(
     # Build ZIP
     export_dir = get_data_dir() / "workspaces" / ws_uuid / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = export_dir / f"{ws_name}_full.zip"
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    zip_path = export_dir / f"{ws_name}_dump_{timestamp}.zip"
 
     assets_dir = get_data_dir() / "workspaces" / ws_uuid / "assets"
     asset_folders = [f for f in assets_dir.iterdir() if f.is_dir()] if assets_dir.exists() else []
@@ -1776,7 +1777,6 @@ async def export_workspace_formatted_zip(
         )
 
         page_uuids = [row["uuid"] for row in page_rows]
-        page_titles = {row["uuid"]: _extract_plain_text(row["name"]) for row in page_rows}
 
         # Fetch all assets for path mapping if needed
         asset_path_map: dict[str, str] = {}
@@ -1814,7 +1814,8 @@ async def export_workspace_formatted_zip(
     export_dir = get_data_dir() / "workspaces" / ws_uuid / "export"
     export_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    zip_path = export_dir / f"{ws_name}-{format}-{timestamp}.zip"
+    fmt_code = {"markdown": "md", "text": "txt", "json": "json"}[format]
+    zip_path = export_dir / f"{ws_name}_{fmt_code}_{timestamp}.zip"
 
     # Build ZIP
     ext = {"markdown": "md", "text": "txt", "json": "json"}[format]
@@ -1827,10 +1828,12 @@ async def export_workspace_formatted_zip(
                     format=format,
                     include_children=True,
                     layout="outline",
-                    formatting=True,
+                    formatting=False,
                     properties="none",
                     link_style="raw",
                     asset_path_map=asset_path_map if include_assets and format == "markdown" else None,
+                    highlight_syntax=False,
+                    link_target_brackets=False,
                 )
                 content = content_bytes.decode("utf-8")
 
@@ -1841,8 +1844,7 @@ async def export_workspace_formatted_zip(
                     frontmatter = _build_yaml_frontmatter(metadata)
                     content = frontmatter + content
 
-                safe_title = _sanitize_filename(page_titles.get(node_uuid, node_uuid)[:64])
-                filename = f"{safe_title}_{node_uuid[:8]}.{ext}"
+                filename = f"{node_uuid}.{ext}"
                 zf.writestr(filename, content)
             except Exception as exc:
                 logger.warning(f"Failed to export page {node_uuid}: {exc}")
