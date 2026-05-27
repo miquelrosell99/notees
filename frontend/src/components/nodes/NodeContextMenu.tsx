@@ -239,6 +239,7 @@ export type ActionName =
   | 'toggle-header'
   | 'copy-uuid'
   | 'copy-link'
+  | 'open-main-view'
   | 'copy-blocks'
   | 'paste-blocks'
   | 'open-sidebar'
@@ -257,8 +258,9 @@ export type ActionConfig = readonly [ActionName, ActionScope];
  * Default action list. Order determines menu order.
  * Callers can pass a custom subset/reordering via the `actions` prop.
  */
-export const DEFAULT_ACTIONS: ActionConfig[] = [
+const DEFAULT_ACTIONS: ActionConfig[] = [
   ['copy-link',       'both'],
+  ['open-main-view',  'both'],
   ['share',           'both'],
   ['open-sidebar',    'both'],
   ['copy-blocks',     'both'],
@@ -355,7 +357,7 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
-  const { addSidebarCard, openLocalGraph } = useNavigationStore();
+  const { addSidebarCard, openLocalGraph, openNode } = useNavigationStore();
   const { showDevOptions } = useSettingsStore();
   const favorites = useFavoritesStore((state) => state.favorites);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);
@@ -490,6 +492,15 @@ export function NodeContextMenu({
             icon: 'mdi-link-variant',
             shortcut: '⌘C',
             onClick: () => { copyToClipboard(`[[${node.uuid}]]`); onClose(); },
+          });
+          break;
+
+        case 'open-main-view':
+          items.push({
+            id: 'open-main-view',
+            label: 'Open in main view',
+            icon: 'mdi-open-in-new',
+            onClick: () => { openNode(node.id); onClose(); },
           });
           break;
 
@@ -641,7 +652,7 @@ export function NodeContextMenu({
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
     onConvertToPage, onCopyBlocks, onPasteBlocks, onClose,
-    addSidebarCard, openLocalGraph, updateNode, unarchiveNode,
+    addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
   ]);
 

@@ -24,6 +24,8 @@ export interface SidebarCardProps {
   children: ReactNode;
   /** Close handler */
   onClose?: () => void;
+  /** Open-in-main-view handler */
+  onOpen?: () => void;
   /** Additional CSS class */
   className?: string;
   /** Whether to show the header */
@@ -38,6 +40,10 @@ export interface SidebarCardProps {
   onRetry?: () => void;
   /** Whether the card starts collapsed */
   defaultCollapsed?: boolean;
+  /** Whether the card header is draggable */
+  draggable?: boolean;
+  /** Drag start handler for the card header */
+  onHeaderDragStart?: (e: React.DragEvent) => void;
 }
 
 export function SidebarCard({
@@ -46,6 +52,7 @@ export function SidebarCard({
   subtitle,
   children,
   onClose,
+  onOpen,
   className = '',
   showHeader = true,
   scrollable = true,
@@ -53,6 +60,8 @@ export function SidebarCard({
   error,
   onRetry,
   defaultCollapsed = false,
+  draggable = false,
+  onHeaderDragStart,
 }: SidebarCardProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   if (loading) {
@@ -103,7 +112,11 @@ export function SidebarCard({
       radius="md"
     >
       {showHeader && (title || onClose) && (
-        <div className="sidebar-card__header">
+        <div
+          className="sidebar-card__header"
+          draggable={draggable}
+          onDragStart={onHeaderDragStart}
+        >
           <button
             className="sidebar-card__collapse-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -120,6 +133,17 @@ export function SidebarCard({
               {subtitle && <p className="sidebar-card__subtitle">{subtitle}</p>}
             </div>
           </div>
+          {onOpen && (
+            <Button
+              icon={"mdi mdi-open-in-new"}
+              iconOnly
+              className="sidebar-card__open-btn"
+              onClick={onOpen}
+              title="Open in main view"
+              size="sm"
+              variant="ghost"
+            />
+          )}
           {onClose && (
             <Button
               icon={"mdi mdi-close"}
