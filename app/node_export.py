@@ -57,6 +57,7 @@ async def export_nodes(
     asset_path_map: dict[str, str] | None = None,
     highlight_syntax: bool = True,
     link_target_brackets: bool = True,
+    skip_root: bool = False,
 ) -> tuple:
     """Export nodes to Markdown, HTML, PDF, Text, or JSON.
 
@@ -151,6 +152,15 @@ async def export_nodes(
 
         if not nodes_data:
             raise ValueError("No nodes found to export")
+
+        # Optionally skip the root page node (used by workspace batch export where
+        # each page gets its own file and the title is already in YAML frontmatter).
+        if skip_root and include_children:
+            nodes_data = [nd for nd in nodes_data if nd.get("depth", 0) > 0]
+            for nd in nodes_data:
+                nd["depth"] = max(0, nd["depth"] - 1)
+            if not nodes_data:
+                raise ValueError("No child nodes found to export")
 
         # Filter out text property value blocks (post-query safety net)
         if include_children and len(nodes_data) > 1:

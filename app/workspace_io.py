@@ -1834,6 +1834,7 @@ async def export_workspace_formatted_zip(
                     asset_path_map=asset_path_map if include_assets and format == "markdown" else None,
                     highlight_syntax=False,
                     link_target_brackets=False,
+                    skip_root=True,
                 )
                 content = content_bytes.decode("utf-8")
 
@@ -1910,6 +1911,9 @@ async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str) -> dict:
         "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
         "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
     }
+
+    if node_row["color"]:
+        metadata["color"] = node_row["color"]
 
     # Ancestors
     ancestor_rows = await conn.fetch(
