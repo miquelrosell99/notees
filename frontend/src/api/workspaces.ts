@@ -139,6 +139,52 @@ export async function exportWorkspaceFormat(
   return new Blob([response.data], { type: 'application/zip' });
 }
 
+// ── Export jobs (async with progress) ──────────────────────
+
+export interface ExportJob {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  status_text: string;
+  download_url: string | null;
+  error: string | null;
+}
+
+/**
+ * Start an async workspace export job.
+ */
+export async function createExportJob(
+  uuid: string,
+  format: 'dump' | 'markdown' | 'text' | 'json',
+  includeAssets: boolean = false,
+): Promise<{ job_id: string }> {
+  const response = await api.post(
+    `/workspaces/${encodeURIComponent(uuid)}/export-job`,
+    null,
+    { params: { format, include_assets: includeAssets } },
+  );
+  return response.data;
+}
+
+/**
+ * Poll an export job for progress.
+ */
+export async function getExportJob(jobId: string): Promise<ExportJob> {
+  const response = await api.get(`/workspaces/export-jobs/${encodeURIComponent(jobId)}`);
+  return response.data;
+}
+
+/**
+ * Download a completed export job result.
+ */
+export async function downloadExportJob(jobId: string): Promise<Blob> {
+  const response = await api.get(
+    `/workspaces/export-jobs/${encodeURIComponent(jobId)}/download`,
+    { responseType: 'blob' },
+  );
+  return new Blob([response.data], { type: 'application/zip' });
+}
+
 /**
  * Get all settings for the current workspace
  */

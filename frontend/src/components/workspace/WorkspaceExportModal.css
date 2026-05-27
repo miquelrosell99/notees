@@ -46,7 +46,14 @@
   color: var(--color-on-surface-variant);
 }
 
-/* Indeterminate progress bar */
+.workspace-export__progress-percent {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Determinate progress bar */
 .workspace-export__progress-track {
   width: 100%;
   max-width: 280px;
@@ -58,16 +65,9 @@
 
 .workspace-export__progress-fill {
   height: 100%;
-  width: 40%;
   background: var(--color-primary);
   border-radius: var(--shape-full);
-  animation: workspace-export-indeterminate 1.5s ease-in-out infinite;
-}
-
-@keyframes workspace-export-indeterminate {
-  0% { transform: translateX(-120%); }
-  50% { transform: translateX(100%); }
-  100% { transform: translateX(220%); }
+  transition: width var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* ── Footer ──────────────────────────────────────────────── */
