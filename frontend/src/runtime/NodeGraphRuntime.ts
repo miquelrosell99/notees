@@ -406,7 +406,7 @@ export class NodeGraphRuntime {
         this.execUpdateContent(intent.blockId, intent.contentAST);
         break;
       case 'split_block':
-        this.execSplitBlock(intent.blockId, intent.atOffset, intent.newBlockId);
+        this.execSplitBlock(intent.blockId, intent.atOffset, intent.newBlockId, intent.forceSibling);
         break;
       case 'merge_blocks':
         this.execMergeBlocks(intent.sourceBlockId, intent.targetBlockId);
@@ -462,7 +462,7 @@ export class NodeGraphRuntime {
     this.scheduleEmit(blockId, null);
   }
 
-  private execSplitBlock(blockId: string, atOffset: number, newBlockId: string): void {
+  private execSplitBlock(blockId: string, atOffset: number, newBlockId: string, forceSibling?: boolean): void {
     const node = this.nodes.get(blockId);
     if (!node) return;
 
@@ -481,17 +481,17 @@ export class NodeGraphRuntime {
     let newParentId: string | null;
     let orderIndex: number;
 
-    if (hasChildren) {
+    if (hasChildren && !forceSibling) {
       // Block has children: create new block as FIRST CHILD
       newParentId = blockId;
       orderIndex = 0;
-      
+
       // Shift all existing children down
       for (const child of children) {
         child.orderIndex += 1;
       }
     } else {
-      // Block has no children: create new block as SIBLING
+      // Block has no children (or forceSibling): create new block as SIBLING
       newParentId = node.parentId;
       const siblings = newParentId ? (this.childrenIndex.get(newParentId) || []) : [];
       const myIndex = siblings.indexOf(blockId);
