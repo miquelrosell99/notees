@@ -1,0 +1,68 @@
+/**
+ * QuickAddModal Styles
+ */
+.quick-add-content {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.quick-add-textarea {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 44px;
+  margin-bottom: var(--spacing-2);
+  font-family: inherit;
+}
+
+.quick-add-textarea:last-child {
+  margin-bottom: 0;
+}
+
+.quick-add-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.quick-add-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.quick-add-destination {
+  display: flex;
+  gap: var(--spacing-1);
+}
+
+.quick-add-destination-btn {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.quick-add-destination-btn:hover {
+  background: var(--color-surface-container);
+}
+
+.quick-add-destination-btn.active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-color: var(--color-primary);
+}

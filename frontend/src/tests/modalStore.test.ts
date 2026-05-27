@@ -4,7 +4,7 @@ import { useModalStore } from '@/stores/modalStore';
 beforeEach(() => {
   useModalStore.setState({
     isCalendarOpen: false,
-    isQuickAddOpen: false,
+
     isCommandPaletteOpen: false,
     isImportDataModalOpen: false,
     isImportLogseqModalOpen: false,
@@ -26,11 +26,6 @@ describe('modalStore — setters', () => {
     expect(useModalStore.getState().isCalendarOpen).toBe(true);
     useModalStore.getState().setCalendarOpen(false);
     expect(useModalStore.getState().isCalendarOpen).toBe(false);
-  });
-
-  it('setQuickAddOpen sets isQuickAddOpen', () => {
-    useModalStore.getState().setQuickAddOpen(true);
-    expect(useModalStore.getState().isQuickAddOpen).toBe(true);
   });
 
   it('setCommandPaletteOpen sets isCommandPaletteOpen', () => {
@@ -103,11 +98,6 @@ describe('modalStore — toggles', () => {
     expect(useModalStore.getState().isCalendarOpen).toBe(false);
   });
 
-  it('toggleQuickAdd flips isQuickAddOpen', () => {
-    useModalStore.getState().toggleQuickAdd();
-    expect(useModalStore.getState().isQuickAddOpen).toBe(true);
-  });
-
   it('toggleCommandPalette flips isCommandPaletteOpen', () => {
     useModalStore.getState().toggleCommandPalette();
     expect(useModalStore.getState().isCommandPaletteOpen).toBe(true);
@@ -130,7 +120,7 @@ describe('modalStore — isolation', () => {
   it('opening one modal does not affect others', () => {
     useModalStore.getState().setCalendarOpen(true);
     const state = useModalStore.getState();
-    expect(state.isQuickAddOpen).toBe(false);
+
     expect(state.isCommandPaletteOpen).toBe(false);
     expect(state.showWorkspaceManager).toBe(false);
   });

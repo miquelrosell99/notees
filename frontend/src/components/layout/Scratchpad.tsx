@@ -11,7 +11,7 @@ import { Button } from '@/components/core/Button';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { BlockEditor } from '@/editor/BlockEditor';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { useTodayNote, usePages, useCreateNode, useNodeByUuid, useMoveNode } from '@/hooks';
+import { useTodayNote, usePages, useCreateNode, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
 import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { useSettingsStore } from '@/stores';
@@ -38,6 +38,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const { quickAddDestination } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const moveNodeMutation = useMoveNode();
+  const deleteNode = useDeleteNode();
   const { handleContentChange: saveContent } = useContentSave();
 
   // Fetch the Scratchpad system page by its fixed UUID
@@ -123,6 +124,38 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       setIsSending(false);
     }
   }, [destinationPage, scratchpadPage, isSending, moveNodeMutation, onEntryCountChange]);
+
+  const handleSendAllRef = useRef(handleSendAll);
+  useEffect(() => {
+    handleSendAllRef.current = handleSendAll;
+  });
+
+  const handleClearAll = useCallback(async () => {
+    if (!scratchpadPage?.children?.length) return;
+    flushAllContentSaves();
+    for (const child of scratchpadPage.children) {
+      await deleteNode.mutateAsync(child.id);
+    }
+    onEntryCountChange?.(0);
+  }, [scratchpadPage, deleteNode, onEntryCountChange]);
+
+  // Ctrl+Enter when panel is open and focused sends all blocks
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const active = document.activeElement;
+        if (containerRef.current?.contains(active)) {
+          e.preventDefault();
+          handleSendAllRef.current();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const handleAddBlock = useCallback(() => {
     if (!scratchpadPage) return;
@@ -256,8 +289,16 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       style={{ left: position.x, top: position.y }}
     >
       <div className="scratchpad-header" onMouseDown={handleMouseDown}>
-        <span className="scratchpad-title">Scratchpad</span>
+        <span className="scratchpad-title">Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}</span>
         <div className="scratchpad-actions">
+          <Button
+            className="scratchpad-btn"
+            icon="mdi mdi-delete-sweep"
+            variant="ghost"
+            size="sm"
+            onClick={handleClearAll}
+            title="Clear all"
+          />
           <Button
             className="scratchpad-btn"
             icon={isPinned ? "mdi mdi-pin" : "mdi mdi-pin-off"}

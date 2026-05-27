@@ -19,6 +19,7 @@ const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m 
 const PublicShareView = React.lazy(() => import('./views/PublicShareView').then(m => ({ default: m.PublicShareView })));
 const OnboardingView = React.lazy(() => import('./views/OnboardingView').then(m => ({ default: m.OnboardingView })));
 import { NotificationToast } from './components/core/NotificationToast';
+import { QuickAddModal } from './components/layout/QuickAddModal';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
@@ -82,7 +83,8 @@ function AppContent() {
   useAndroidBridge();
 
   const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleScratchpad, toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
+  const { toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   // First-boot / onboarding check
   const [bootChecked, setBootChecked] = useState(false);
@@ -171,23 +173,23 @@ function AppContent() {
   
   // Register keyboard shortcut handlers when authenticated
   // Use refs to avoid re-registering when callbacks change identity
-  const toggleScratchpadRef = useRef(toggleScratchpad);
   const toggleCalendarRef = useRef(toggleCalendar);
+  const setQuickAddOpenRef = useRef(setIsQuickAddOpen);
   
   // Keep refs updated
   useEffect(() => {
-    toggleScratchpadRef.current = toggleScratchpad;
     toggleCalendarRef.current = toggleCalendar;
-  });
+    setQuickAddOpenRef.current = setIsQuickAddOpen;
+  }, [toggleCalendar, setIsQuickAddOpen]);
   
   useEffect(() => {
     if (!isAuthenticated) return;
     
     const { registerHandler } = useKeyboardStore.getState();
     
-    // Scratchpad shortcut (Ctrl/Cmd + N)
+    // Quick Add shortcut (Ctrl/Cmd + N)
     const unregisterQuickAdd = registerHandler('quickAdd', () => {
-      toggleScratchpadRef.current();
+      setQuickAddOpenRef.current((prev) => !prev);
     });
     
     // Calendar shortcut (Ctrl/Cmd + Shift + D)
@@ -352,11 +354,14 @@ function AppContent() {
   
   log.debug('User authenticated, showing main layout');
   return (
-    <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
-      <ErrorBoundary>
-        <Layout />
-      </ErrorBoundary>
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+        <ErrorBoundary>
+          <Layout />
+        </ErrorBoundary>
+      </Suspense>
+      <QuickAddModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
+    </>
   );
 }
 
