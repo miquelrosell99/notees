@@ -11,6 +11,11 @@ import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import {
+  buildTasksQueryAST,
+  buildTodayQueryAST,
+  buildUpcomingQueryAST,
+} from '@/utils/taskQueries';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
@@ -72,6 +77,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const {
     mainViewType,
     setMainViewType,
+    openNodeCollection,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore();
@@ -140,7 +146,10 @@ export function Sidebar({ collapsed }: SidebarProps) {
     { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
     { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
     { icon: "mdi mdi-inbox-arrow-down", label: 'Inbox', view: 'inbox' as const },
-  ], []);
+    { icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', action: () => { openNodeCollection('Tasks', buildTasksQueryAST()); } },
+    { icon: "mdi mdi-calendar-today", label: 'Today', action: () => { openNodeCollection('Today', buildTodayQueryAST()); } },
+    { icon: "mdi mdi-calendar-arrow-right", label: 'Upcoming', action: () => { openNodeCollection('Upcoming', buildUpcomingQueryAST()); } },
+  ], [openNodeCollection]);
 
   const bottomNavItems = useMemo(() => [
     { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
@@ -170,13 +179,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
             <nav className="sidebar-nav">
               {topNavItems.map((item) => (
                 <Button
-                  key={item.view}
+                  key={item.view ?? item.label}
                   variant="ghost"
                   size="md"
                   icon={item.icon}
                   fullWidth
-                  active={mainViewType === item.view}
-                  onClick={() => { setMainViewType(item.view); closeMobileDrawer(); }}
+                  active={item.view ? mainViewType === item.view : false}
+                  onClick={() => {
+                    if (item.action) {
+                      item.action();
+                    } else if (item.view) {
+                      setMainViewType(item.view);
+                    }
+                    closeMobileDrawer();
+                  }}
                   title={item.label}
                 >
                   {item.label}

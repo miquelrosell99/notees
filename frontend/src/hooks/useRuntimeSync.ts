@@ -13,8 +13,9 @@ import { parseAST } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys } from './queryKeys';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
+import { propertyKeys } from './queryKeys';
 
 /** Resolve class icon from numeric class IDs using a prebuilt map */
 function resolveClassIcon(classIds: number[] | undefined, iconMap?: Map<number, string>): string | null {
@@ -88,6 +89,7 @@ export function apiNodeToGraphNode(
     classIds: (node.classes || []).map(String),
     tagIds: (node.tags || []).map(String),
     calloutType: resolveCalloutType(node.classes, classIdToUuidMap),
+    taskStatus: resolveTaskStatus(node),
     createdAt: node.create_date || new Date().toISOString(),
     updatedAt: node.write_date || new Date().toISOString(),
     version: 1,
@@ -243,6 +245,21 @@ function buildClassIdToIconMap(): Map<number, string> {
     if (cls.icon) map.set(cls.id, cls.icon);
   }
   return map;
+}
+
+/**
+ * Resolve task status name from a node's properties.
+ * Looks up the task_status property value in the node's cached properties
+ * and maps the selection option ID to its display name.
+ */
+function resolveTaskStatus(node: Node): string | null {
+  const allProperties = queryClient.getQueryData<{ id: number; uuid: string; options?: { id: number; name: string }[] }[]>(propertyKeys.lists());
+  const statusProp = allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
+  if (!statusProp || !node.properties) return null;
+  const selId = node.properties[statusProp.id];
+  if (typeof selId !== 'number') return null;
+  const option = statusProp.options?.find(o => o.id === selId);
+  return option?.name ?? null;
 }
 
 function inferNodeType(node: Node, classIdToUuidMap?: Map<number, string>): GraphNodeType {

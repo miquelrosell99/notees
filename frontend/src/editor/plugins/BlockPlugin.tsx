@@ -311,6 +311,10 @@ export function BlockPlugin({
           if (existing.getCalloutType() !== (projected.calloutType ?? null)) {
             existing.setCalloutType(projected.calloutType ?? null);
           }
+          // Sync taskStatus (e.g. when task class is added or status changes)
+          if (existing.getTaskStatus() !== (projected.taskStatus ?? null)) {
+            existing.setTaskStatus(projected.taskStatus ?? null);
+          }
           
           // Check if content has changed (e.g., from split_block or merge_blocks operation)
           // Only compare content for blocks whose content is actually populated in Lexical.
@@ -468,6 +472,7 @@ export function BlockPlugin({
             projected.classIds ?? [],
             isHeadingAST(projected.contentAST),
             projected.calloutType ?? null,
+            projected.taskStatus ?? null,
           );
 
           // Populate inline content from contentAST.

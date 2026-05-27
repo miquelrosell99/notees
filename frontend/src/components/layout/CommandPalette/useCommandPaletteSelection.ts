@@ -3,6 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { QueryAST, StyleCondition } from '@/types/queryAST';
 import { createEmptyQueryAST } from '@/types/queryAST';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import {
+  buildTasksQueryAST,
+  buildTodayQueryAST,
+} from '@/utils/taskQueries';
 import {
   listNodes,
   getOrCreateDaily,
@@ -25,6 +30,7 @@ interface UseCommandPaletteSelectionParams {
   pageNameForCreation: string;
   selectedClasses: Node[];
   pageClassId: number | null | undefined;
+  allClasses: Node[] | undefined;
   destinationPage: Node | undefined;
   onSelect?: (node: Node) => void;
   onClose: () => void;
@@ -43,6 +49,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     pageNameForCreation,
     selectedClasses,
     pageClassId,
+    allClasses,
     destinationPage,
     onSelect,
     onClose,
@@ -273,6 +280,31 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
               },
             };
             openNodeCollection('Broken links', brokenLinksQuery);
+          } else if (item.commandId === 'open-tasks') {
+            openNodeCollection('Tasks', buildTasksQueryAST());
+          } else if (item.commandId === 'open-today') {
+            openNodeCollection('Today', buildTodayQueryAST());
+          } else if (item.commandId === 'capture-task') {
+            if (!pageClassId) {
+              notifyWarning('Setup incomplete', 'Page class not found. Please reload the app.');
+              onClose();
+              return;
+            }
+            const taskClassId = allClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.task)?.id;
+            if (!taskClassId) {
+              notifyWarning('Setup incomplete', 'Task class not found. Please reload the app.');
+              onClose();
+              return;
+            }
+            try {
+              const newNode = await createNodeMutation.mutateAsync({
+                name: 'New Task',
+                classes: [pageClassId, taskClassId],
+              });
+              openNode(newNode.id);
+            } catch {
+              notifyError('Failed to create task', 'Please try again.');
+            }
           }
           onClose();
         };
@@ -296,7 +328,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     }
   }, [
     allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId,
-    destinationPage, onSelect, openNode, openPropertyView, openNodeCollection, createNodeMutation,
+    allClasses, destinationPage, onSelect, openNode, openPropertyView, openNodeCollection, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
     setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,
     notifyError, notifyWarning, notifySuccess,

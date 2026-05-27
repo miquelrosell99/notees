@@ -48,6 +48,7 @@ export interface SerializedBlockNode extends SerializedElementNode {
   classIds: string[];
   isHeading: boolean;
   calloutType: string | null;
+  taskStatus: string | null;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -65,6 +66,7 @@ export class BlockNode extends ElementNode {
   __classIds: string[];
   __isHeading: boolean;
   __calloutType: string | null;
+  __taskStatus: string | null;
 
   static getType(): string {
     return 'node-block';
@@ -84,6 +86,7 @@ export class BlockNode extends ElementNode {
       node.__classIds,
       node.__isHeading,
       node.__calloutType,
+      node.__taskStatus,
       node.__key,
     );
   }
@@ -101,6 +104,7 @@ export class BlockNode extends ElementNode {
     classIds: string[] = [],
     isHeading: boolean = false,
     calloutType: string | null = null,
+    taskStatus: string | null = null,
     key?: NodeKey,
   ) {
     super(key);
@@ -116,6 +120,7 @@ export class BlockNode extends ElementNode {
     this.__classIds = classIds;
     this.__isHeading = isHeading;
     this.__calloutType = calloutType;
+    this.__taskStatus = taskStatus;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -240,6 +245,16 @@ export class BlockNode extends ElementNode {
     return this;
   }
 
+  getTaskStatus(): string | null {
+    return this.getLatest().__taskStatus;
+  }
+
+  setTaskStatus(taskStatus: string | null): this {
+    const writable = this.getWritable();
+    writable.__taskStatus = taskStatus;
+    return this;
+  }
+
   // ─── DOM ──────────────────────────────────────────────────────
 
   /**
@@ -288,6 +303,10 @@ export class BlockNode extends ElementNode {
       dom.classList.add('node-block--callout');
       dom.dataset.calloutType = this.__calloutType;
     }
+    if (this.__taskStatus) {
+      dom.classList.add('node-block--task');
+      dom.dataset.taskStatus = this.__taskStatus;
+    }
 
     // ── Block UI container ─────────────────────────────────────
     // Non-editable area for bullet, property icons, class pills.
@@ -333,8 +352,15 @@ export class BlockNode extends ElementNode {
     outerRing.className = 'bullet-outer-ring';
     bulletContainer.appendChild(outerRing);
     
-    // Bullet dot or icon
-    if (this.__icon) {
+    // Bullet dot or icon or task checkbox
+    if (this.__taskStatus) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'bullet-checkbox';
+      checkbox.checked = this.__taskStatus === 'Done';
+      checkbox.dataset.blockId = this.__blockId;
+      bulletContainer.appendChild(checkbox);
+    } else if (this.__icon) {
       bulletContainer.appendChild(createIconElement(this.__icon));
     } else {
       const dot = document.createElement('span');
@@ -380,6 +406,11 @@ export class BlockNode extends ElementNode {
       classPills.style.display = 'none';
     }
     afterContentUI.appendChild(classPills);
+
+    // Task badges container — React portal target for TaskBadgesPlugin
+    const taskBadges = document.createElement('div');
+    taskBadges.className = 'node-block-task-badges';
+    afterContentUI.appendChild(taskBadges);
 
     // Query toolbar container — React portal target for QueryBlockPlugin
     // to render filter/view controls inline with class pills
@@ -622,6 +653,47 @@ export class BlockNode extends ElementNode {
       }
     }
 
+    // Task status — toggle task class, data attribute, and checkbox
+    if (prevNode.__taskStatus !== this.__taskStatus) {
+      dom.classList.toggle('node-block--task', !!this.__taskStatus);
+      if (this.__taskStatus) {
+        dom.dataset.taskStatus = this.__taskStatus;
+      } else {
+        delete dom.dataset.taskStatus;
+      }
+
+      const bulletContainer = dom.querySelector('.bullet-container');
+      if (bulletContainer) {
+        const oldDot = bulletContainer.querySelector('.bullet-dot');
+        const oldIcon = bulletContainer.querySelector('.bullet-icon');
+        const oldCheckbox = bulletContainer.querySelector('.bullet-checkbox');
+        if (oldDot) oldDot.remove();
+        if (oldIcon) oldIcon.remove();
+        if (oldCheckbox) oldCheckbox.remove();
+
+        if (this.__taskStatus) {
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'bullet-checkbox';
+          checkbox.checked = this.__taskStatus === 'Done';
+          checkbox.dataset.blockId = this.__blockId;
+          bulletContainer.appendChild(checkbox);
+        } else if (this.__icon) {
+          bulletContainer.appendChild(createIconElement(this.__icon));
+        } else {
+          const dot = document.createElement('span');
+          dot.className = 'bullet-dot';
+          bulletContainer.appendChild(dot);
+        }
+      }
+    } else if (this.__taskStatus && prevNode.__taskStatus === this.__taskStatus) {
+      // Status didn't change but may need to update checked state if blockId remapped
+      const checkbox = dom.querySelector('.bullet-checkbox') as HTMLInputElement | null;
+      if (checkbox) {
+        checkbox.checked = this.__taskStatus === 'Done';
+      }
+    }
+
     // Color (CSS custom properties only — no reflow)
     if (prevNode.__color !== this.__color) {
       if (this.__color) {
@@ -697,6 +769,7 @@ export class BlockNode extends ElementNode {
       classIds: this.__classIds,
       isHeading: this.__isHeading,
       calloutType: this.__calloutType,
+      taskStatus: this.__taskStatus,
     };
   }
 
@@ -714,6 +787,7 @@ export class BlockNode extends ElementNode {
       json.classIds ?? [],
       json.isHeading ?? false,
       json.calloutType ?? null,
+      json.taskStatus ?? null,
     );
   }
 
@@ -754,9 +828,10 @@ export function $createBlockNode(
   classIds: string[] = [],
   isHeading: boolean = false,
   calloutType: string | null = null,
+  taskStatus: string | null = null,
 ): BlockNode {
   return $applyNodeReplacement(
-    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading, calloutType),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading, calloutType, taskStatus),
   );
 }
 

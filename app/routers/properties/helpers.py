@@ -79,7 +79,7 @@ def _scalar_value_to_response(val: PropertyValueScalar) -> ScalarValueResponse:
         value_boolean=val.value_boolean,
         value_float=val.value_float,
         value_integer=val.value_integer,
-        order=val.order,
+        order=getattr(val, "order", 0),
     )
 
 
@@ -92,7 +92,7 @@ def _relation_value_to_response(val: PropertyValueRelation) -> RelationValueResp
         property_id=val.property_id,
         node_id=val.node_id,
         target_node_id=val.target_id,
-        order=val.order,
+        order=getattr(val, "order", 0),
     )
 
 
@@ -105,5 +105,5 @@ def _selection_value_to_response(val: PropertyValueSelection) -> SelectionValueR
         property_id=val.property_id,
         node_id=val.node_id,
         selection_line_id=val.selection_line_id,
-        order=val.order,
+        order=getattr(val, "order", 0),
     )
