@@ -114,7 +114,7 @@ export function getWorkspaceExportUrl(name: string): string {
 export async function exportWorkspaceZip(uuid: string): Promise<Blob> {
   const response = await api.get(`/workspaces/${encodeURIComponent(uuid)}/export-zip`, {
     responseType: 'blob',
-    timeout: 300000, // 5 min — large workspaces with assets can take a while
+    timeout: 0, // no timeout — exports can take arbitrarily long for large workspaces
   });
   return new Blob([response.data], { type: 'application/zip' });
 }
@@ -133,7 +133,7 @@ export async function exportWorkspaceFormat(
     {
       params: { format, include_assets: includeAssets },
       responseType: 'blob',
-      timeout: 300000, // 5 min — large workspaces with assets can take a while
+      timeout: 0, // no timeout — exports can take arbitrarily long for large workspaces
     },
   );
   return new Blob([response.data], { type: 'application/zip' });
