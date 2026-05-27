@@ -6,8 +6,11 @@
   max-height: 100%;
 }
 
-/* Reset breadcrumb spacing when used as sidebar card title */
-.sidebar-card-node--block .sidebar-card__title .node-breadcrumbs {
-  margin: 0;
-  padding: 0;
+.sidebar-card-node__title-link {
+  cursor: pointer;
+  color: var(--color-on-surface);
+}
+
+.sidebar-card-node__title-link:hover {
+  color: var(--color-primary);
 }

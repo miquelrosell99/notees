@@ -75,7 +75,8 @@ export function Layout() {
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const openNode = useNavigationStore(s => s.openNode);
-  
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
   // Callback provided to all BlockEditors via context — opens the create-with-UUID modal
   // pre-filled with the missing UUID so the user can create the target node.
   const handleFixBrokenLink = useCallback((uuid: string) => {
@@ -176,6 +177,44 @@ export function Layout() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handleGlobalKeyDown]);
+
+  // Native drop handler for sidebar cards / items dragged to the main workspace
+  useEffect(() => {
+    const el = workspaceRef.current;
+    if (!el) return;
+
+    const handleDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('application/x-notees-node')) {
+        e.preventDefault();
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes('application/x-notees-node')) return;
+      if (e.altKey) return;
+
+      const data = e.dataTransfer.getData('application/x-notees-node');
+      if (!data) return;
+
+      try {
+        const nodeInfo = JSON.parse(data) as { nodeId?: number };
+        if (nodeInfo?.nodeId) {
+          openNode(nodeInfo.nodeId);
+          e.preventDefault();
+        }
+      } catch {
+        // ignore malformed drag data
+      }
+    };
+
+    el.addEventListener('dragover', handleDragOver);
+    el.addEventListener('drop', handleDrop);
+
+    return () => {
+      el.removeEventListener('dragover', handleDragOver);
+      el.removeEventListener('drop', handleDrop);
+    };
+  }, [openNode]);
   
   // Sidebar resize handlers
   const handleLeftSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -243,7 +282,7 @@ export function Layout() {
         ) : (
           <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
-            <div className="app-workspace">
+            <div className="app-workspace" ref={workspaceRef}>
               <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
                 <Sidebar collapsed={isSidebarCollapsed} />
                 {!isSidebarCollapsed && (
@@ -301,7 +340,7 @@ export function Layout() {
               ) => {
                 for (const blockData of blockDataList) {
                   const newNode = await createNodeMutation.mutateAsync({
-                    name: (blockData as any).content || '',
+                    name: blockData.name || '',
                     parent_id: parentId,
                   });
                   

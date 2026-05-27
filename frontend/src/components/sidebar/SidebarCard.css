@@ -145,6 +145,32 @@
   white-space: nowrap;
 }
 
+.sidebar-card__open-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  font-size: 1rem;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.sidebar-card__open-btn:hover {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.sidebar-card__open-btn:active {
+  transform: scale(var(--tactile-press-scale));
+}
+
 .sidebar-card__close-btn {
   width: 28px;
   height: 28px;
