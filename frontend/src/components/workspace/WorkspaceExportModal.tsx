@@ -12,7 +12,7 @@ import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
 import { SelectionRadio, type RadioOption } from '@/components/core/SelectionRadio';
-import { exportWorkspaceFormat } from '@/api/workspaces';
+import { exportWorkspaceFormat, exportWorkspaceZip } from '@/api/workspaces';
 import { downloadBlob } from '@/utils/download';
 import './WorkspaceExportModal.css';
 
@@ -72,9 +72,13 @@ export function WorkspaceExportModal({
     setDownloading(true);
     setError(null);
     try {
-      const blob = await exportWorkspaceFormat(workspaceUuid, format, includeAssets);
+      // Dump format: plain JSON without assets, ZIP with assets
+      const isDumpWithAssets = format === 'dump' && includeAssets;
+      const blob = isDumpWithAssets
+        ? await exportWorkspaceZip(workspaceUuid)
+        : await exportWorkspaceFormat(workspaceUuid, format, includeAssets);
       const suffix = format === 'dump' ? 'dump' : format;
-      const ext = format === 'dump' ? 'json' : 'zip';
+      const ext = isDumpWithAssets ? 'zip' : format === 'dump' ? 'json' : 'zip';
       const filename = `${workspaceName}_${suffix}.${ext}`;
       downloadBlob(blob, filename);
       onClose();
@@ -130,7 +134,9 @@ export function WorkspaceExportModal({
             description={
               format === 'markdown'
                 ? 'Include asset files in the ZIP and rewrite links to use relative paths.'
-                : 'Include asset files in the ZIP when available.'
+                : format === 'dump'
+                  ? 'Include asset files in a ZIP alongside the JSON dump.'
+                  : 'Include asset files in the ZIP when available.'
             }
             labelPosition="left"
             checked={includeAssets}
