@@ -25,7 +25,7 @@ import { useNotifications } from '@/stores/notificationStore';
 
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { parseQueryWithFilters } from './CommandPalette.utils';
+import { parseQueryWithFilters } from '@/utils/searchFilters';
 import type { AppliedFilter, DuplicateModalState, CommandDef } from './CommandPalette.types';
 import {
   INITIAL_MAX_PAGES,
