@@ -52,6 +52,8 @@ import { QueryBlockPlugin } from './plugins/QueryBlockPlugin';
 import { BlockCodePlugin } from './plugins/BlockCodePlugin';
 import { EmbedBlockPlugin } from './plugins/EmbedBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
+import { TaskCheckboxPlugin } from './plugins/TaskCheckboxPlugin';
+import { TaskBadgesPlugin } from './plugins/TaskBadgesPlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
@@ -786,6 +788,12 @@ export function BlockEditor({
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />
+
+        {/* Click checkbox to toggle task status */}
+        <TaskCheckboxPlugin />
+
+        {/* Inline task badges (overdue, today, priority) */}
+        <TaskBadgesPlugin />
 
         {/* Ctrl+L / Ctrl+Shift+L / Ctrl+Alt+L open the link-creation modal */}
         <CreateLinkPlugin

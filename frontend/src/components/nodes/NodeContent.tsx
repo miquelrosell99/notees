@@ -248,6 +248,13 @@ export function NodeContent({
         }
         break;
       }
+      case 'task': {
+        const classId = systemClassMap?.task;
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeId: blockServerId, classId });
+        }
+        break;
+      }
       case 'warning':
       case 'note':
       case 'tip':

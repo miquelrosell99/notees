@@ -43,11 +43,6 @@ async def _handle_closed_date_automation(
     if not closed_date_prop or closed_date_prop.id is None:
         return
 
-    # Only act if closed_date property is assigned to this node
-    existing_props = await repo.get_all_property_values(node_id)
-    if closed_date_prop.id not in existing_props:
-        return
-
     # Determine which selection option was chosen
     if selection_value is None or selection_value == "":
         selected_id = None
@@ -128,12 +123,17 @@ async def _handle_recurrence_automation(
 
     # Get the recurrence value
     recurrence_values = existing_props[recurrence_prop.id]
-    if not recurrence_values or not recurrence_values.get("value"):
+    if not recurrence_values or not recurrence_values.get("values"):
         return
 
     # Get the selection line name for the recurrence
-    rec_val = recurrence_values["value"]
-    rec_id = int(rec_val[0]) if isinstance(rec_val, list) else int(rec_val)
+    rec_values_list = recurrence_values["values"]
+    if not rec_values_list:
+        return
+    rec_val = rec_values_list[0]
+    rec_id = getattr(rec_val, "selection_line_id", None)
+    if rec_id is None:
+        return
     rec_lines = await repo.get_selection_lines(recurrence_prop.id)
     rec_line = next((l for l in rec_lines if l.id == rec_id), None)
     if not rec_line:
@@ -202,13 +202,14 @@ async def _handle_recurrence_automation(
             continue
 
         date_values = existing_props[date_prop.id]
-        if not date_values or not date_values.get("value"):
+        if not date_values or not date_values.get("values"):
             continue
 
         # Get the current day node to extract the date
-        target_id = date_values["value"]
-        if isinstance(target_id, list):
-            target_id = target_id[0] if target_id else None
+        date_values_list = date_values["values"]
+        if not date_values_list:
+            continue
+        target_id = getattr(date_values_list[0], "target_id", None)
         if not target_id:
             continue
 
@@ -554,7 +555,7 @@ async def set_relation_value(
     repo = await _get_property_repo(user)
 
     try:
-        val = await repo.set_relation_value(node_id, property_id, request.target_node_id, request.order)
+        val = await repo.set_relation_value(node_id, property_id, request.target_node_id)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -632,7 +633,7 @@ async def set_selection_value(
     repo = await _get_property_repo(user)
 
     try:
-        val = await repo.set_selection_value(node_id, property_id, request.selection_line_id, request.order)
+        val = await repo.set_selection_value(node_id, property_id, request.selection_line_id)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -722,6 +723,7 @@ async def batch_set_property_values(
     others from being set.  Returns per-item results.
     """
     repo = await _get_property_repo(user)
+    node_service = await _get_node_service(user)
 
     # Pre-fetch all referenced properties once to avoid N lookups
     prop_ids = list({item.property_id for item in request.items})
@@ -768,6 +770,17 @@ async def batch_set_property_values(
                     await repo.set_selection_value(item.node_id, item.property_id, item.value)
                 else:
                     raise ValueError(f"Selection property expects int or list, got {type(item.value)}")
+
+                # Run task automations for selection properties
+                if prop.uuid == SYSTEM_PROPERTY_UUIDS["task_status"]:
+                    try:
+                        await _handle_closed_date_automation(item.node_id, prop, item.value, repo, node_service)
+                    except Exception as e:
+                        logger.warning(f"[CLOSED_DATE] Batch automation failed for node {item.node_id}: {e}")
+                    try:
+                        await _handle_recurrence_automation(item.node_id, prop, item.value, repo, node_service)
+                    except Exception as e:
+                        logger.warning(f"[RECURRENCE] Batch automation failed for node {item.node_id}: {e}")
 
             results.append(BatchSetPropertyResultItem(index=i, success=True))
             succeeded += 1

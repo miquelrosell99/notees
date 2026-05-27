@@ -452,6 +452,72 @@ async def list_templates(
     return {"templates": result, "total": len(result)}
 
 
+
+
+@router.get("/tasks")
+async def list_tasks(
+    include_complete: bool = False,
+    user: User = Depends(get_current_user),
+):
+    """List all task nodes in the current workspace.
+
+    Tasks are nodes that have the 'task' system class assigned.
+    By default, excludes tasks with status 'Done' or 'Cancelled'.
+    """
+    from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
+
+    service = await _get_node_service(user)
+    pool = service.pool
+    workspace_id = service.workspace_id or 0
+
+    # Find the task class node ID
+    task_class_node = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["task"])
+    if not task_class_node or task_class_node.id is None:
+        return {"nodes": []}
+
+    # Get all nodes with the task class
+    nodes = await service.get_nodes_typed_with(task_class_node.id)
+
+    # Batch load class_ids and tags
+    node_ids = [n.id for n in nodes if n.id is not None]
+    class_ids_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
+    tag_ids_map = await _get_related_ids_batch(pool, workspace_id, node_ids, "tags")
+
+    # If filtering out completed tasks, batch-load task_status property
+    if not include_complete and node_ids:
+        status_prop = await service.property_repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_status"])
+        if status_prop and status_prop.id is not None:
+            batch_props = await service.get_nodes_properties_batch(node_ids)
+            lines = await service.property_repo.get_selection_lines(status_prop.id)
+            closed_line_ids = {line.id for line in lines if line.name in {"Done", "Cancelled"}}
+
+            filtered_nodes = []
+            for n in nodes:
+                if n.id is None:
+                    continue
+                prop_data = batch_props.get(n.id, {})
+                status_data = prop_data.get(status_prop.id)
+                if status_data and status_data.get("values"):
+                    val = status_data["values"][0]
+                    sel_id = getattr(val, "selection_line_id", None)
+                    if sel_id in closed_line_ids:
+                        continue
+                filtered_nodes.append(n)
+            nodes = filtered_nodes
+
+    # Build response
+    result = []
+    for n in nodes:
+        if n.id is None:
+            continue
+        result.append(_node_to_response(
+            n,
+            classes=class_ids_map.get(n.id, []),
+            tags=tag_ids_map.get(n.id, []),
+        ))
+
+    return {"nodes": result}
+
 @router.post("/scratchpad/clear")
 async def clear_scratchpad(
     request: Request,

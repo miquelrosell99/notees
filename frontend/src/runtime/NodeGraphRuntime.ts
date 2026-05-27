@@ -986,6 +986,7 @@ export class NodeGraphRuntime {
       hasChildren: (children?.length ?? 0) > 0 || (node.hasServerChildren ?? false),
       serverId: node.serverId,
       classIds: node.classIds,
+      taskStatus: node.taskStatus ?? null,
       isProjectionRoot: false,
     };
   }

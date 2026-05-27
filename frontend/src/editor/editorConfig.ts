@@ -31,6 +31,8 @@
  *   ThreadLinePlugin    — visual guide line, positions relative to BlockNode
  *   AutoWrapPlugin      — wraps orphaned content into a BlockNode
  *   TaskCyclePlugin     — cycles task status on BlockNode
+ *   TaskCheckboxPlugin  — toggles task status on checkbox click
+ *   TaskBadgesPlugin    — renders overdue/today/priority badges on task blocks
  *   PasteBlocksPlugin   — creates block hierarchy on paste
  *   TriggerPlugin       — /@ + # triggers; needs block ID for positioning popups
  *   CreateLinkPlugin    — depends on NodeLinkPlugin (inserts an InlineLinkNode)

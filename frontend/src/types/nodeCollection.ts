@@ -27,6 +27,7 @@ export type NodeCollectionViewMode =
   | 'list'      // Bullet list with indentation (outline)
   | 'document'  // Flat list without bullets (document style)
   | 'card'      // Card grid layout
+  | 'kanban'    // Kanban board (grouped card view)
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'graph'     // Graph visualization

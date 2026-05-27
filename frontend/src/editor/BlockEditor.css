@@ -816,6 +816,80 @@ th.node-block-table-cell {
   background: var(--color-surface-container);
 }
 
+/* ─── Task checkbox ───────────────────────────────────────────── */
+
+.bullet-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary, var(--color-on-surface));
+  flex-shrink: 0;
+}
+
+/* ─── Task badges ─────────────────────────────────────────────── */
+
+.node-block-task-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.node-block-task-badges:empty {
+  display: none;
+}
+
+.task-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--shape-small);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.task-badge--overdue {
+  background: color-mix(in srgb, var(--color-preset-red) 12%, transparent);
+  color: var(--color-preset-red);
+}
+
+.task-badge--today {
+  background: color-mix(in srgb, var(--color-preset-orange) 12%, transparent);
+  color: var(--color-preset-orange);
+}
+
+.task-badge--priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.task-badge__dot--high {
+  background: var(--color-preset-red);
+}
+
+.task-badge__dot--medium {
+  background: var(--color-preset-yellow);
+}
+
+.task-badge__dot--low {
+  background: var(--color-preset-green);
+}
+
 /* ─── Inline formatting ───────────────────────────────────────── */
 
 .notees-text-bold {

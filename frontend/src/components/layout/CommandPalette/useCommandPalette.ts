@@ -42,6 +42,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     pageNameForCreation: state.pageNameForCreation,
     selectedClasses: state.selectedClasses,
     pageClassId: state.pageClassId,
+    allClasses: state.allClasses,
     destinationPage: state.destinationPage,
     onSelect,
     onClose,

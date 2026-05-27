@@ -80,6 +80,12 @@ const SLASH_COMMANDS: SlashCommand[] = [
     icon: <CodeIcon size="sm" />,
   },
   {
+    id: 'task',
+    label: 'Task',
+    description: 'Convert block to task',
+    icon: <Icon path="mdi-checkbox-marked-circle-outline" size="sm" />,
+  },
+  {
     id: 'comment',
     label: 'Add comment',
     description: 'Add a comment to this block',
