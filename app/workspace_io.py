@@ -1834,14 +1834,13 @@ async def export_workspace_formatted_zip(
                     asset_path_map=asset_path_map if include_assets and format == "markdown" else None,
                     highlight_syntax=False,
                     link_target_brackets=False,
-                    skip_root=True,
                 )
                 content = content_bytes.decode("utf-8")
 
                 if format == "markdown":
                     # Add YAML frontmatter
                     async with get_connection() as conn:
-                        metadata = await _fetch_page_metadata(conn, workspace_id, node_uuid)
+                        metadata = await _fetch_page_metadata(conn, workspace_id, node_uuid, include_title=True)
                     frontmatter = _build_yaml_frontmatter(metadata)
                     content = frontmatter + content
 
@@ -1890,7 +1889,7 @@ def _sanitize_filename(name: str) -> str:
     return _re.sub(r"[^\w\-_.]", "_", name).strip("_") or "untitled"
 
 
-async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str) -> dict:
+async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str, include_title: bool = True) -> dict:
     """Fetch minimal metadata for a page's YAML frontmatter."""
     node_row = await conn.fetchrow(
         """
@@ -1905,12 +1904,14 @@ async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str) -> dict:
     if not node_row:
         raise ValueError(f"Node not found: {node_uuid}")
 
-    metadata = {
+    metadata: dict = {
         "uuid": str(node_row["uuid"]),
-        "title": _extract_plain_text(node_row["name"]),
         "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
         "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
     }
+
+    if include_title:
+        metadata["title"] = _extract_plain_text(node_row["name"])
 
     if node_row["color"]:
         metadata["color"] = node_row["color"]
