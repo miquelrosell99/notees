@@ -350,6 +350,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             mode="list"
             onContentChange={handleContentChange}
             hideProperties
+            enterCreatesSiblings
           />
         )}
         <div className="scratchpad-add-block">

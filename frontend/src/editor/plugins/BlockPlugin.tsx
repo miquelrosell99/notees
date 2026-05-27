@@ -142,6 +142,8 @@ export interface BlockPluginProps {
   onNavigateUpFromTop?: () => void;
   /** Whether to skip page nodes in projection (default: true) */
   skipPages?: boolean;
+  /** Whether Enter always creates sibling blocks instead of first children (default: false) */
+  enterCreatesSiblings?: boolean;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -167,6 +169,7 @@ export function BlockPlugin({
   onEnterAtRoot,
   onNavigateUpFromTop,
   skipPages,
+  enterCreatesSiblings = false,
 }: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -1176,6 +1179,7 @@ export function BlockPlugin({
             blockId,
             atOffset: cursorOffset,
             newBlockId,
+            forceSibling: enterCreatesSiblings,
           });
         }
         // Flush runtime events immediately so the new block is synced
