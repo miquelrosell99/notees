@@ -9,7 +9,7 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useModalStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
@@ -23,10 +23,39 @@ import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
+import { ChevronDownIcon, ChevronRightIcon } from '@/components/core/icons';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
   collapsed: boolean;
+}
+
+const SIDEBAR_TOP_EXPANDED_KEY = 'notees:sidebar-top-expanded';
+const SIDEBAR_BOTTOM_EXPANDED_KEY = 'notees:sidebar-bottom-expanded';
+
+function useSidebarSectionState(key: string, defaultValue: boolean = true) {
+  const [expanded, setExpanded] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+
+  const toggle = useCallback(() => {
+    setExpanded((prev: boolean) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // Ignore localStorage errors
+      }
+      return next;
+    });
+  }, [key]);
+
+  return [expanded, toggle] as const;
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
@@ -36,6 +65,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [trashContextMenuPos, setTrashContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
+  const [topExpanded, toggleTopExpanded] = useSidebarSectionState(SIDEBAR_TOP_EXPANDED_KEY, true);
+  const [bottomExpanded, toggleBottomExpanded] = useSidebarSectionState(SIDEBAR_BOTTOM_EXPANDED_KEY, true);
   const queryClient = useQueryClient();
 
   const {
@@ -103,140 +134,101 @@ export function Sidebar({ collapsed }: SidebarProps) {
     },
   ], []);
 
+  const topNavItems = useMemo(() => [
+    { icon: "mdi mdi-notebook-outline", label: 'Journal', view: 'journals' as const },
+    { icon: "mdi mdi-book-open-page-variant", label: 'All Pages', view: 'all-pages' as const },
+    { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
+    { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
+    { icon: "mdi mdi-inbox-arrow-down", label: 'Inbox', view: 'inbox' as const },
+  ], []);
+
+  const bottomNavItems = useMemo(() => [
+    { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
+    { icon: "mdi mdi-trash-can-outline", label: 'Trash', view: 'trash' as const, onContextMenu: handleTrashContextMenu },
+    { icon: "mdi mdi-cog", label: 'Settings', action: () => setIsSettingsModalOpen(true) },
+  ], [handleTrashContextMenu]);
+
   return (
     <>
       <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
         {/* Graph Switcher at Top */}
         <div className="sidebar-header">
-          <WorkspaceSwitcher onAddWorkspace={() => setIsWorkspaceModalOpen(true)} />
+          <WorkspaceSwitcher />
         </div>
 
-        {/* Main Navigation */}
-        <div className="sidebar-content">
+        {/* Top Navigation - Collapsible, not scrollable */}
+        <div className="sidebar-nav-section">
+          <button
+            className="sidebar-section-header"
+            onClick={toggleTopExpanded}
+            title={topExpanded ? 'Collapse navigation' : 'Expand navigation'}
+          >
+            {topExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+            <h3 className="sidebar-section-title">Navigation</h3>
+          </button>
           <nav className="sidebar-nav">
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-magnify"}
-              fullWidth
-              onClick={() => {
-                useModalStore.getState().setCommandPaletteOpen(true);
-                closeMobileDrawer();
-              }}
-            >
-              Search
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-notebook-outline"}
-              fullWidth
-              active={mainViewType === 'journals'}
-              onClick={() => { setMainViewType('journals'); closeMobileDrawer(); }}
-            >
-              Journal
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-book-open-page-variant"}
-              fullWidth
-              active={mainViewType === 'all-pages'}
-              onClick={() => { setMainViewType('all-pages'); closeMobileDrawer(); }}
-            >
-              All Pages
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-graph-outline"}
-              fullWidth
-              active={mainViewType === 'graph'}
-              onClick={() => { setMainViewType('graph'); closeMobileDrawer(); }}
-            >
-              Graph View
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="md"
-              icon={"mdi mdi-timeline-clock-outline"}
-              fullWidth
-              active={mainViewType === 'timeline'}
-              onClick={() => { setMainViewType('timeline'); closeMobileDrawer(); }}
-            >
-              Timeline View
-            </Button>
+            {topNavItems.map((item) => (
+              <Button
+                key={item.view}
+                variant="ghost"
+                size="md"
+                icon={item.icon}
+                fullWidth={topExpanded}
+                iconOnly={!topExpanded}
+                active={mainViewType === item.view}
+                onClick={() => { setMainViewType(item.view); closeMobileDrawer(); }}
+                title={item.label}
+              >
+                {item.label}
+              </Button>
+            ))}
           </nav>
+        </div>
 
+        {/* Scrollable middle content - only favorites and recents */}
+        <div className="sidebar-content">
           {/* Favorites Section */}
           <SidebarFavorites onContextMenu={handleFavoriteContextMenu} />
 
           {/* Recents Section */}
           <SidebarRecents onContextMenu={handleRecentContextMenu} />
-
         </div>
 
-        {/* Footer - Archived, Trash, Shares, Inbox, Settings */}
-        <div className="sidebar-footer">
-          <Button
-            variant="ghost"
-            size="md"
-            icon={"mdi mdi-archive"}
-            fullWidth
-            onClick={() => { setMainViewType('archived'); closeMobileDrawer(); }}
-            active={mainViewType === 'archived'}
-            title="Archived"
+        {/* Bottom Footer - Collapsible, not scrollable */}
+        <div className="sidebar-footer-section">
+          <button
+            className="sidebar-section-header"
+            onClick={toggleBottomExpanded}
+            title={bottomExpanded ? 'Collapse tools' : 'Expand tools'}
           >
-            Archived
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            icon={"mdi mdi-trash-can-outline"}
-            fullWidth
-            onClick={() => { setMainViewType('trash'); closeMobileDrawer(); }}
-            onContextMenu={handleTrashContextMenu}
-            active={mainViewType === 'trash'}
-            title="Trash"
-          >
-            Trash
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            icon={"mdi mdi-share-variant"}
-            fullWidth
-            active={mainViewType === 'shares'}
-            onClick={() => { setMainViewType('shares'); closeMobileDrawer(); }}
-            title="Shares"
-          >
-            Shares
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            icon={"mdi mdi-inbox-arrow-down"}
-            fullWidth
-            active={mainViewType === 'inbox'}
-            onClick={() => { setMainViewType('inbox'); closeMobileDrawer(); }}
-            title="Inbox"
-          >
-            Inbox
-          </Button>
-          <Button
-            variant="ghost"
-            size="md"
-            icon={"mdi mdi-cog"}
-            fullWidth
-            onClick={() => { setIsSettingsModalOpen(true); closeMobileDrawer(); }}
-            title="Graph Settings"
-          >
-            Settings
-          </Button>
+            {bottomExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+            <h3 className="sidebar-section-title">More</h3>
+          </button>
+          <div className="sidebar-footer">
+            {bottomNavItems.map((item) => (
+              <Button
+                key={item.label}
+                variant="ghost"
+                size="md"
+                icon={item.icon}
+                fullWidth={bottomExpanded}
+                iconOnly={!bottomExpanded}
+                active={item.view ? mainViewType === item.view : false}
+                onClick={() => {
+                  if (item.action) {
+                    item.action();
+                  } else if (item.view) {
+                    setMainViewType(item.view);
+                  }
+                  closeMobileDrawer();
+                }}
+                onContextMenu={item.onContextMenu}
+                title={item.label}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </Card>
 

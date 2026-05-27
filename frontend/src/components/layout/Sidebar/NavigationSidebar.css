@@ -68,6 +68,11 @@
   box-sizing: border-box;
 }
 
+/* ==================== Sidebar Nav Section ==================== */
+.sidebar-nav-section {
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
 /* ==================== Sidebar Content ==================== */
 .sidebar-content {
   flex: 1;
@@ -80,7 +85,8 @@
 .sidebar-nav {
   padding: var(--spacing-2);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 2px;
 }
 
@@ -425,14 +431,26 @@
   white-space: nowrap;
 }
 
+/* ==================== Sidebar Footer Section ==================== */
+.sidebar-footer-section {
+  margin-top: auto;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
 /* ==================== Sidebar Footer ==================== */
 .sidebar-footer {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 2px;
   padding: var(--spacing-2);
-  border-top: 1px solid var(--color-outline-variant);
-  margin-top: auto;
+}
+
+/* Smooth width transition for sidebar buttons */
+.sidebar-nav .btn,
+.sidebar-footer .btn {
+  transition: width var(--motion-duration-short) var(--motion-easing-standard),
+              flex var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .new-page-btn {

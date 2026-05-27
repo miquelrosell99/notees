@@ -14,11 +14,7 @@ import { Dropdown, type DropdownOption } from '@/components/core/Dropdown';
 import './WorkspaceSwitcher.css';
 import { Icon } from '@/components/core/icons';
 
-interface WorkspaceSwitcherProps {
-  onAddWorkspace: () => void;
-}
-
-export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
+export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
   const { setShowWorkspaceManager } = useModalStore();
 
@@ -54,15 +50,17 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     },
   });
 
+  const workspaces = data?.workspaces;
+
   // Convert workspaces to dropdown options
   const options: DropdownOption<string>[] = useMemo(() => {
-    if (!data?.workspaces) return [];
-    return data.workspaces.map(w => ({
+    if (!workspaces) return [];
+    return workspaces.map(w => ({
       value: w.uuid,
       label: w.name,
       icon: "mdi mdi-database-outline",
     }));
-  }, [data?.workspaces]);
+  }, [workspaces]);
 
   const handleChange = useCallback((value: string | null) => {
     if (!value || value === data?.active) return;
@@ -91,16 +89,6 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           searchable
           size="sm"
           renderOption={renderOption}
-          searchExtra={
-            <Button
-              icon={"mdi mdi-plus"}
-              iconOnly
-              size="xs"
-              variant="ghost"
-              title="Create Workspace"
-              onClick={onAddWorkspace}
-            />
-          }
           footer={
             <button
               className="workspace-switcher__manage-btn"
@@ -113,10 +101,10 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
           className="workspace-switcher__dropdown"
         />
         <Button
-          className="workspace-switcher__add-btn"
-          onClick={() => onAddWorkspace()}
-          title="Create new graph"
-          icon={"mdi mdi-plus"}
+          className="workspace-switcher__search-btn"
+          onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
+          title="Search"
+          icon={"mdi mdi-magnify"}
           iconOnly
           size="sm"
           variant="ghost"
@@ -125,4 +113,3 @@ export function WorkspaceSwitcher({ onAddWorkspace }: WorkspaceSwitcherProps) {
     </div>
   );
 }
-
