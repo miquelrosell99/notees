@@ -10,6 +10,7 @@
  * Uses the same dropdown pattern as NodeSelector for consistency.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useQuery } from '@tanstack/react-query';
 import { useAvailableProperties } from '@/hooks';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
@@ -230,7 +231,7 @@ export function PropertySuggestionPopup({
         />
         <div className="property-suggestion-popup__options">
         {isLoading && query.length > 0 ? (
-          <div className="property-suggestion-popup__loading">Searching...</div>
+          <div className="property-suggestion-popup__loading"><Spinner size="sm" label="Searching..." /></div>
         ) : filteredProperties.length === 0 && !showCreateOption ? (
           <div className="property-suggestion-popup__no-results">
             {query ? 'No matches found' : 'Start typing to search'}

@@ -4,6 +4,7 @@
  * Works without authentication. Fetches node data via public API.
  */
 import { useState, useEffect } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { getPublicSharedNode } from '@/api/shares';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import './PublicShareView.css';
@@ -54,7 +55,7 @@ export function PublicShareView() {
   if (loading) {
     return (
       <div className="public-share-view public-share-view--centered">
-        <div className="public-share-view__spinner">Loading shared page...</div>
+        <Spinner size="lg" label="Loading shared page..." centered />
       </div>
     );
   }

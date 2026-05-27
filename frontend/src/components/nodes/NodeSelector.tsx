@@ -10,6 +10,7 @@
  * consistent everywhere nodes are selected.
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { createPortal } from 'react-dom';
 import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
@@ -828,7 +829,7 @@ export function NodeSelector({
             )}
             <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
-                <div className="node-selector__loading">Searching...</div>
+                <div className="node-selector__loading"><Spinner size="sm" label="Searching..." /></div>
               ) : multiDropdownItems.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                 <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
@@ -977,7 +978,7 @@ export function NodeSelector({
             {/* Results List */}
             <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
-                <div className="node-selector__loading">Searching...</div>
+                <div className="node-selector__loading"><Spinner size="sm" label="Searching..." /></div>
               ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                 <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
@@ -1140,7 +1141,7 @@ export function NodeSelector({
         )}
         <div className="node-selector__options">
           {isLoading && searchQuery.length > 0 ? (
-            <div className="node-selector__loading">Searching...</div>
+            <div className="node-selector__loading"><Spinner size="sm" label="Searching..." /></div>
           ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
             <div className="node-selector__no-results">
               {searchQuery ? 'No matches found' : 'Start typing to search'}
@@ -1293,7 +1294,7 @@ export function NodeSelector({
         )}
         <div className="node-selector__options">
           {isLoading && searchQuery.length > 0 ? (
-            <div className="node-selector__loading">Searching...</div>
+            <div className="node-selector__loading"><Spinner size="sm" label="Searching..." /></div>
           ) : filteredResults.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
             <div className="node-selector__no-results">
               {searchQuery ? 'No matches found' : 'Start typing to search'}
@@ -1457,7 +1458,7 @@ export function NodeSelector({
               )}
               <div className="node-selector__options">
                 {isLoading && searchQuery.length > 0 ? (
-                  <div className="node-selector__loading">Searching...</div>
+                  <div className="node-selector__loading"><Spinner size="sm" label="Searching..." /></div>
                 ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                   <div className="node-selector__no-results">
                     {searchQuery ? 'No matches found' : 'Start typing to search'}

@@ -1,0 +1,54 @@
+/* Spinner — reusable loading indicator */
+
+.spinner-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+.spinner-wrapper--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: inherit;
+}
+
+.spinner {
+  display: inline-block;
+  border-radius: var(--shape-full);
+  border-style: solid;
+  border-color: var(--color-outline-variant);
+  border-top-color: var(--color-on-surface-variant);
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner--sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.spinner--md {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+
+.spinner--lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+.spinner-label {
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

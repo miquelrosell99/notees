@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/core/Button';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { NodeViewSection } from '@/components/nodes/NodeViewSection';
+import { Spinner } from '@/components/core/Spinner';
 import { Icon, PropertiesIcon } from '@/components/core/icons';
 import { ListSortable } from '@/components/core/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu';
@@ -158,7 +159,7 @@ export function ClassPropertiesEditor({
   }, [contextMenu, openPropertyView, handleRemoveProperty]);
 
   if (isLoading) {
-    return <div className={`properties-view class-definition-variant loading ${className}`}>Loading...</div>;
+    return <div className={`properties-view class-definition-variant loading ${className}`}><Spinner size="sm" /></div>;
   }
 
   return (

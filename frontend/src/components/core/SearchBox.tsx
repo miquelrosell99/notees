@@ -5,6 +5,7 @@
  * by accepting custom search functions and renderers.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -322,7 +323,7 @@ export function SearchBox<T = Node>({
           }}
         >
           {isLoading && (
-            <div className="search-loading">Searching...</div>
+            <div className="search-loading"><Spinner size="sm" label="Searching..." /></div>
           )}
           
           {!isLoading && totalItems === 0 && (

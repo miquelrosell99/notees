@@ -3,6 +3,7 @@
  */
 import { useState, useCallback } from 'react';
 import { Modal } from '@/components/core/Modal';
+import { Spinner } from '@/components/core/Spinner';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
@@ -101,7 +102,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
           </div>
 
           {publicLoading ? (
-            <div className="share-modal__loading">Loading links…</div>
+            <div className="share-modal__loading"><Spinner size="sm" label="Loading links…" /></div>
           ) : shares.length === 0 ? (
             <div className="share-modal__empty">No public links yet.</div>
           ) : (
@@ -154,7 +155,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
           </h3>
 
           {userLoading ? (
-            <div className="share-modal__loading">Loading…</div>
+            <div className="share-modal__loading"><Spinner size="sm" /></div>
           ) : (
             <>
               {/* Invite bar */}

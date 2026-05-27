@@ -19,6 +19,7 @@ const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m 
 const PublicShareView = React.lazy(() => import('./views/PublicShareView').then(m => ({ default: m.PublicShareView })));
 const OnboardingView = React.lazy(() => import('./views/OnboardingView').then(m => ({ default: m.OnboardingView })));
 import { NotificationToast } from './components/core/NotificationToast';
+import { Spinner } from './components/core/Spinner';
 import { QuickAddModal } from './components/layout/QuickAddModal';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
@@ -243,7 +244,7 @@ function AppContent() {
     log.debug('Showing loading screen');
     return (
       <div className="loading-screen">
-        <div className="loading-spinner">Loading...</div>
+        <Spinner size="lg" centered />
       </div>
     );
   }
@@ -253,7 +254,7 @@ function AppContent() {
 
   if (!isAuthenticated && isPublicSharePath) {
     return (
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <PublicShareView />
       </Suspense>
     );
@@ -262,7 +263,7 @@ function AppContent() {
   // First-boot onboarding: create admin account before any login
   if (needsOnboarding) {
     return (
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <OnboardingView onComplete={() => setNeedsOnboarding(false)} />
       </Suspense>
     );
@@ -279,7 +280,7 @@ function AppContent() {
       window.history.replaceState(null, '', '/auth');
     }
     return (
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <LoginView />
       </Suspense>
     );
@@ -297,14 +298,14 @@ function AppContent() {
   if (!enrollmentChecked) {
     return (
       <div className="loading-screen">
-        <div className="loading-spinner">Loading...</div>
+        <Spinner size="lg" centered />
       </div>
     );
   }
   
   if (needsEnrollment) {
     return (
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <EnrollmentView onComplete={() => setNeedsEnrollment(false)} />
       </Suspense>
     );
@@ -318,7 +319,7 @@ function AppContent() {
     log.debug('Loading workspaces...');
     return (
       <div className="loading-screen">
-        <div className="loading-spinner">Loading...</div>
+        <Spinner size="lg" centered />
       </div>
     );
   }
@@ -330,7 +331,7 @@ function AppContent() {
   if (hasNoWorkspaces || hasNoActiveWorkspace || showWorkspaceManager) {
     log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showWorkspaceManager });
     return (
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <WorkspaceManagementView 
           onWorkspaceSelected={() => {
             setShowWorkspaceManager(false);
@@ -347,7 +348,7 @@ function AppContent() {
   if (!settingsReady) {
     return (
       <div className="loading-screen">
-        <div className="loading-spinner">Loading...</div>
+        <Spinner size="lg" centered />
       </div>
     );
   }
@@ -355,7 +356,7 @@ function AppContent() {
   log.debug('User authenticated, showing main layout');
   return (
     <>
-      <Suspense fallback={<div className="loading-screen"><div className="loading-spinner">Loading...</div></div>}>
+      <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
         <ErrorBoundary>
           <Layout />
         </ErrorBoundary>

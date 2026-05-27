@@ -7,6 +7,7 @@
  */
 import { useMemo } from 'react';
 import { useProperties } from '@/hooks';
+import { Spinner } from '@/components/core/Spinner';
 import type { Property } from '@/types';
 
 import './GanttPropertySelector.css';
@@ -57,7 +58,7 @@ export function GanttPropertySelector({
   if (isLoading) {
     return (
       <div className="gantt-property-selector">
-        <div className="gantt-property-selector__loading">Loading properties…</div>
+        <div className="gantt-property-selector__loading"><Spinner size="sm" label="Loading properties…" /></div>
       </div>
     );
   }

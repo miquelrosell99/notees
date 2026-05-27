@@ -12,6 +12,7 @@ import './SidebarCard.css';
 import { Icon, AlertIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
+import { Spinner } from '@/components/core/Spinner';
 
 export interface SidebarCardProps {
   /** Card title */
@@ -74,8 +75,7 @@ export function SidebarCard({
         radius="md"
       >
         <div className="sidebar-card__loader">
-          <div className="sidebar-card__spinner" />
-          <span>Loading...</span>
+          <Spinner size="md" centered />
         </div>
       </Card>
     );

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NodeViewSection } from '@/components/nodes/NodeViewSection';
 import { ClockIcon } from '@/components/core/icons';
+import { Spinner } from '@/components/core/Spinner';
 import { NodeActivityLogSection } from '@/components/nodes/NodeActivityLogSection';
 
 interface SidebarActivityProps {
@@ -25,7 +26,7 @@ export function SidebarActivity({ nodeId, count, loading }: SidebarActivityProps
       hideWhenEmpty={false}
     >
       {loading ? (
-        <div className="sidebar-section-loading">Loading...</div>
+        <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (
         <NodeActivityLogSection nodeId={nodeId} />
       )}

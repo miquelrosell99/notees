@@ -6,6 +6,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
+import { Spinner } from '@/components/core/Spinner';
 import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
@@ -185,7 +186,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
             </div>
 
             {usersLoading ? (
-              <div className="system-settings__loading">Loading users...</div>
+              <div className="system-settings__loading"><Spinner size="sm" label="Loading users..." /></div>
             ) : (
               <div className="system-settings__table">
                 <div className="system-settings__table-header">
@@ -277,7 +278,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
                 </div>
               </div>
             ) : (
-              <div className="system-settings__loading">Loading metrics...</div>
+              <div className="system-settings__loading"><Spinner size="sm" label="Loading metrics..." /></div>
             )}
           </div>
         )}

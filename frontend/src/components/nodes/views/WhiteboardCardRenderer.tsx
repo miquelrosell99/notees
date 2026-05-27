@@ -8,6 +8,7 @@
  *   'reference' — Uses the referenced node's nodeId to display that node as a card.
  */
 import React, { useMemo, useCallback } from 'react';
+import { Spinner } from '@/components/core/Spinner';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNode } from '@/hooks/useNodes';
 import { NodeCard } from './CardItem';
@@ -57,7 +58,7 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
   if (!node) {
     return (
       <div className="whiteboard-card">
-        <span style={{ opacity: 0.5, fontStyle: 'italic', padding: '8px' }}>Loading...</span>
+        <Spinner size="sm" />
       </div>
     );
   }
