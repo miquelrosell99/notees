@@ -1,12 +1,12 @@
 """Domain services package."""
 
-from .node_service import NodeService
-from .link_service import LinkParsingService
-from .hierarchy_service import HierarchyService
-from .query_service import QueryExecutor
-from .query_ast_sql import QueryASTToSQL
-from .node_view_service import NodeViewService
 from .class_management_service import ClassManagementService
+from .hierarchy_service import HierarchyService
+from .link_service import LinkParsingService
+from .node_service import NodeService
+from .node_view_service import NodeViewService
+from .query_ast_sql import QueryASTToSQL
+from .query_service import QueryExecutor
 
 __all__ = [
     "NodeService",

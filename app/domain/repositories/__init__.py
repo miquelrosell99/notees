@@ -1,4 +1,5 @@
 """Repository implementations package."""
+
 from .interfaces import (
     ActivityRepository,
     LinkRepository,

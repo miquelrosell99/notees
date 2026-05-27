@@ -20,37 +20,43 @@ Provides REST API for:
 - Sync for offline support
 - Automatic backups
 """
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.exceptions import RequestValidationError
-from contextlib import asynccontextmanager
-from pathlib import Path
+
 import mimetypes
+import os
+import sys
 import time
 import traceback
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Receive, Scope, Send
-from .domain.errors import PermissionDeniedError
 
 from .backup import get_backup_scheduler
-from .config import settings, ensure_directories
-from .logging_config import setup_logging, get_logger
-from .db.connection import init_pool, close_pool
+from .cleanup import get_cleanup_scheduler
+from .config import ensure_directories, settings
+from .db.connection import close_pool, init_pool
 from .db.schema import init_database
+from .domain.errors import PermissionDeniedError
+from .logging_config import get_logger, setup_logging
 from .routers import (
+    assets_router,
     auth_router,
-    workspaces_router,
+    auto_export_router,
+    export_router,
     nodes_router,
     properties_router,
     sync_router,
-    export_router,
-    assets_router,
     undo_router,
+    workspaces_router,
 )
 from .routers.activity import router as activity_router
 from .routers.admin import router as admin_router
@@ -66,11 +72,11 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Initialize database and services on startup."""
     logger.info("Starting Notees application...")
-    
+
     # Initialize PostgreSQL connection pool
     pool = await init_pool()
     logger.info("PostgreSQL connection pool initialized")
-    
+
     # Initialize database schema
     async with pool.acquire() as conn:
         await init_database(conn)  # type: ignore[arg-type]
@@ -78,34 +84,42 @@ async def lifespan(app: FastAPI):
 
     # Warn if no admin exists so the instance owner knows how to fix it
     async with pool.acquire() as conn:
-        admin_count = await conn.fetchval(
-            'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE'
-        )
+        admin_count = await conn.fetchval("SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE")
         if admin_count == 0:
             logger.warning(
-                "No admin user found. To create an admin, run: "
-                "python scripts/promote_user_to_admin.py <email>"
+                "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
             )
 
     # Ensure required directories exist
     ensure_directories()
-    
-    # Start backup scheduler
-    await get_backup_scheduler().start()
-    
+
+    # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
+    _in_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
+    if not _in_test:
+        # Start backup scheduler
+        await get_backup_scheduler().start()
+
+        # Start cleanup scheduler
+        await get_cleanup_scheduler().start()
+
     logger.info("Notees application started successfully")
-    
+
     yield
-    
+
     logger.info("Shutting down Notees application...")
-    
-    # Stop backup scheduler
-    await get_backup_scheduler().stop()
-    
+
+    _in_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
+    if not _in_test:
+        # Stop cleanup scheduler
+        await get_cleanup_scheduler().stop()
+
+        # Stop backup scheduler
+        await get_backup_scheduler().stop()
+
     # Close PostgreSQL connection pool
     await close_pool()
     logger.info("PostgreSQL connection pool closed")
-    
+
     logger.info("Notees application stopped")
 
 
@@ -115,7 +129,7 @@ app = FastAPI(
     version="2.0.0",
     description="A self-hosted note-taking app with bidirectional linking",
     lifespan=lifespan,
-    redirect_slashes=True  # Redirect /api/nodes to /api/nodes/
+    redirect_slashes=True,  # Redirect /api/nodes to /api/nodes/
 )
 
 # Configure rate limiting
@@ -132,22 +146,22 @@ MAX_REQUEST_BODY_SIZE = 55 * 1024 * 1024  # 55 MB
 
 class LimitUploadSizeMiddleware:
     """ASGI middleware that limits the total request body size.
-    
+
     Handles both Content-Length and chunked transfer encoding by counting
     bytes as they are received.
     """
-    
+
     def __init__(self, app: ASGIApp, max_size: int) -> None:
         self.app = app
         self.max_size = max_size
-    
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        
+
         total_size = 0
-        
+
         async def wrapped_receive() -> dict:
             nonlocal total_size
             message = await receive()
@@ -155,19 +169,23 @@ class LimitUploadSizeMiddleware:
                 body_chunk = message.get("body", b"")
                 total_size += len(body_chunk)
                 if total_size > self.max_size:
-                    await send({
-                        "type": "http.response.start",
-                        "status": 413,
-                        "headers": [(b"content-type", b"application/json")],
-                    })
-                    await send({
-                        "type": "http.response.body",
-                        "body": f'"detail":"Request body too large. Maximum size is {self.max_size // (1024 * 1024)} MB."'.encode(),
-                    })
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 413,
+                            "headers": [(b"content-type", b"application/json")],
+                        }
+                    )
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": f'"detail":"Request body too large. Maximum size is {self.max_size // (1024 * 1024)} MB."'.encode(),
+                        }
+                    )
                     # After sending 413, stop processing further
                     raise RuntimeError("Request body size exceeded")
             return message
-        
+
         await self.app(scope, wrapped_receive, send)
 
 
@@ -192,49 +210,49 @@ async def health_check():
 
 # Exception handler for validation errors to log details
 
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     """Log validation errors for debugging."""
     logger.error(f"Validation error on {request.method} {request.url.path}: {exc.errors()}")
-    return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors()}
-    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 
 @app.exception_handler(PermissionDeniedError)
 async def permission_denied_exception_handler(request, exc: PermissionDeniedError):
     """Return HTTP 403 for permission denied errors."""
     logger.warning(f"Permission denied on {request.method} {request.url.path}: {exc.message}")
-    return JSONResponse(
-        status_code=403,
-        content={"detail": exc.message, "code": exc.code}
-    )
+    return JSONResponse(status_code=403, content={"detail": exc.message, "code": exc.code})
 
 
 # Request logging middleware with per-request connection
 from .db.connection import request_connection
 
+
 @app.middleware("http")
 async def log_requests(request, call_next):
     """Log all incoming requests with timing and per-request DB connection.
-    
+
     Wraps each API request in a request-scoped connection so all repository
     calls within the request share one pooled connection instead of each
     method call independently acquiring/releasing from the pool.
     """
     start_time = time.perf_counter()
-    
+
     # Skip logging for static assets
     path = request.url.path
-    is_static = path.startswith('/assets/') or path.startswith('/static/') or path.endswith(('.js', '.css', '.ico', '.svg', '.png', '.jpg'))
-    
+    is_static = (
+        path.startswith("/assets/")
+        or path.startswith("/static/")
+        or path.endswith((".js", ".css", ".ico", ".svg", ".png", ".jpg"))
+    )
+
     if not is_static:
         logger.debug(f"→ {request.method} {path}")
-    
+
     try:
         # Wrap API requests in a per-request connection to avoid pool contention
-        if path.startswith('/api/'):
+        if path.startswith("/api/"):
             async with request_connection():
                 response = await call_next(request)
         else:
@@ -243,9 +261,9 @@ async def log_requests(request, call_next):
         logger.error(f"Exception in {request.method} {path}: {e}")
         logger.error(traceback.format_exc())
         raise
-    
+
     duration_ms = (time.perf_counter() - start_time) * 1000
-    
+
     if not is_static:
         status = response.status_code
         if status >= 500:
@@ -254,10 +272,10 @@ async def log_requests(request, call_next):
             logger.warning(f"<- {status} {request.method} {path} ({duration_ms:.1f}ms)")
         else:
             logger.debug(f"<- {status} {request.method} {path} ({duration_ms:.1f}ms)")
-    
+
     # Static assets (JS/CSS chunks with content-hash filenames) are safe to
     # cache long-term. Everything else (API, index.html) must not be cached.
-    is_hashed_asset = path.startswith('/assets/')
+    is_hashed_asset = path.startswith("/assets/")
     if is_hashed_asset:
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers.pop("Pragma", None)
@@ -299,6 +317,7 @@ app.include_router(nodes_router)
 app.include_router(properties_router)
 app.include_router(sync_router)
 app.include_router(export_router)
+app.include_router(auto_export_router)
 app.include_router(assets_router)
 app.include_router(activity_router)
 app.include_router(undo_router)
@@ -308,6 +327,7 @@ app.include_router(admin_router)
 
 
 # ============ Static Routes ============
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -359,13 +379,14 @@ async def service_worker():
 
 # ============ SPA Fallback (must be last) ============
 
+
 @app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
 async def spa_fallback(full_path: str):
     """Serve index.html for any non-API route to enable client-side routing."""
     # Don't handle API routes - let them 404 properly or redirect
     if full_path.startswith("api/") or full_path == "api":
         raise HTTPException(status_code=404, detail="Not found")
-    
+
     # Avoid intercepting static/assets/manifest/sw
     if full_path.startswith(("static", "assets")) or full_path in {"manifest.json", "sw.js"}:
         raise HTTPException(status_code=404, detail="Not found")
@@ -378,4 +399,5 @@ async def spa_fallback(full_path: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

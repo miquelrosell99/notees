@@ -1,54 +1,42 @@
 """Batch operations for nodes."""
-from typing import Optional, List, Dict
 
-from fastapi import APIRouter, HTTPException, Depends, Path, Request
+from fastapi import APIRouter, Depends, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ...logging_config import get_logger
+
 logger = get_logger(__name__)
 
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError, OptimisticLockError, DuplicateNodeError, SystemClassConstraintError
-from ..auth import get_current_user
 from ...models import User
+from ..auth import get_current_user
+from .helpers import (
+    _apply_node_extras,
+    _get_class_ids_batch,
+    _get_node_service,
+    _get_related_ids_batch,
+    _node_to_response,
+    extract_properties_dict,
+)
 from .models import (
-    NodeResponse,
-    NodeCreateRequest,
-    NodeUpdateRequest,
+    BatchGetNodesRequest,
+    BatchGetNodesResponse,
     BatchNodeCreateRequest,
     BatchNodeCreateResponse,
     BatchNodeCreateResultItem,
-    BatchNodeUpdateRequest,
-    BatchNodeUpdateResponse,
-    BatchNodeUpdateResultItem,
     BatchNodeDeleteRequest,
     BatchNodeDeleteResponse,
     BatchNodeDeleteResultItem,
-    BatchPermanentDeleteRequest,
-    BatchPermanentDeleteResponse,
-    BatchPermanentDeleteResultItem,
-    BatchGetNodesRequest,
-    BatchGetNodesResponse,
-)
-from .helpers import (
-    _get_node_service,
-    _get_undo_service,
-    _node_snapshot,
-    _node_to_response,
-    _get_class_ids,
-    _get_tag_ids,
-    _get_class_ids_batch,
-    _get_alias_ids,
-    _get_related_ids_batch,
-    extract_properties_dict,
-    _resolve_referenced_display_names,
-    _name_text,
-    _apply_node_extras,
+    BatchNodeUpdateRequest,
+    BatchNodeUpdateResponse,
+    BatchNodeUpdateResultItem,
+    NodeResponse,
 )
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
+
 
 def _bulk_import_cost(request: Request) -> int:
     """Return 0 for bulk-import requests so they don't count toward the rate limit."""
@@ -65,36 +53,39 @@ async def batch_create_nodes(
     user: User = Depends(get_current_user),
 ):
     """Create multiple nodes in a single batch.
-    
+
     Accepts an array of node definitions and creates them sequentially.
     Each node is processed independently — a failure on one node does not
     prevent the others from being created.  Useful for Logseq / bulk imports.
     """
     from ...logging_config import get_logger
+
     logger = get_logger(__name__)
-    
+
     service = await _get_node_service(user)
-    
+
     # Build NodeCreateData list
     create_items = []
     for item in body.nodes:
-        create_items.append(NodeCreateData(
-            name=item.name,
-            icon=item.icon,
-            color=item.color,
-            parent_id=item.parent_id,
-            sequence=item.sequence,
-            classes=list(item.classes),
-            property_values=item.properties,
-            uuid=item.uuid,
-        ))
-    
+        create_items.append(
+            NodeCreateData(
+                name=item.name,
+                icon=item.icon,
+                color=item.color,
+                parent_id=item.parent_id,
+                sequence=item.sequence,
+                classes=list(item.classes),
+                property_values=item.properties,
+                uuid=item.uuid,
+            )
+        )
+
     raw_results = await service.batch_create_nodes(
         create_items,
         user_id=int(user.id),
         uuid_conflict_mode=body.uuid_conflict_mode,
     )
-    
+
     results = []
     created = 0
     failed = 0
@@ -106,20 +97,24 @@ async def batch_create_nodes(
             else:
                 created += 1
             classes = list(body.nodes[i].classes)
-            results.append(BatchNodeCreateResultItem(
-                index=i,
-                success=True,
-                node=_node_to_response(r["node"], classes=classes),
-                existing=r.get("existing", False),
-            ))
+            results.append(
+                BatchNodeCreateResultItem(
+                    index=i,
+                    success=True,
+                    node=_node_to_response(r["node"], classes=classes),
+                    existing=r.get("existing", False),
+                )
+            )
         else:
             failed += 1
-            results.append(BatchNodeCreateResultItem(
-                index=i,
-                success=False,
-                error=r["error"],
-            ))
-    
+            results.append(
+                BatchNodeCreateResultItem(
+                    index=i,
+                    success=False,
+                    error=r["error"],
+                )
+            )
+
     logger.info(f"[BATCH_CREATE] {created} created, {existing} existing, {failed} failed out of {len(body.nodes)}")
     return BatchNodeCreateResponse(results=results, created=created, failed=failed)
 
@@ -132,23 +127,24 @@ async def batch_update_nodes(
     user: User = Depends(get_current_user),
 ):
     """Update multiple nodes in a single batch.
-    
+
     Each item identifies the node by `id` or `uuid` (at least one required).
     Failures on one node do not prevent others from being updated.
     Useful for Logseq / bulk imports where many blocks need content updates.
     """
     from ...logging_config import get_logger
+
     logger = get_logger(__name__)
-    
+
     service = await _get_node_service(user)
-    
+
     # Resolve node IDs and build update items
     update_items = []
     resolve_errors = []  # Track items that can't even be resolved
-    
+
     for i, item in enumerate(body.nodes):
         node_id = item.id
-        
+
         # If no id provided, try to resolve from uuid
         if node_id is None and item.uuid:
             resolved = await service.get_node_by_uuid(item.uuid)
@@ -160,7 +156,7 @@ async def batch_update_nodes(
         elif node_id is None:
             resolve_errors.append((i, "Either 'id' or 'uuid' must be provided"))
             continue
-        
+
         data = NodeUpdateData(
             name=item.name,
             icon=item.icon,
@@ -173,33 +169,37 @@ async def batch_update_nodes(
             sequence=item.sequence,
             collapsed=item.collapsed,
         )
-        
-        update_items.append({
-            "node_id": node_id,
-            "data": data,
-            "expected_version": item.expected_version,
-            "original_index": i,
-            "classes": item.classes,
-            "properties": item.properties,
-        })
-    
+
+        update_items.append(
+            {
+                "node_id": node_id,
+                "data": data,
+                "expected_version": item.expected_version,
+                "original_index": i,
+                "classes": item.classes,
+                "properties": item.properties,
+            }
+        )
+
     # Execute batch update via service
     raw_results = await service.batch_update_nodes(update_items, user_id=int(user.id))
-    
+
     # Build response, interleaving resolve errors and update results
     results = []
     updated = 0
     failed = 0
-    
+
     # First add resolve errors
     for idx, error in resolve_errors:
         failed += 1
-        results.append(BatchNodeUpdateResultItem(
-            index=idx,
-            success=False,
-            error=error,
-        ))
-    
+        results.append(
+            BatchNodeUpdateResultItem(
+                index=idx,
+                success=False,
+                error=error,
+            )
+        )
+
     # Then add update results
     for j, r in enumerate(raw_results):
         original_index = update_items[j]["original_index"]
@@ -214,22 +214,26 @@ async def batch_update_nodes(
                 except Exception as extras_err:
                     logger.warning(f"[BATCH_UPDATE] extras failed for node {node_id}: {extras_err}")
             updated += 1
-            results.append(BatchNodeUpdateResultItem(
-                index=original_index,
-                success=True,
-                node=_node_to_response(r["node"]),
-            ))
+            results.append(
+                BatchNodeUpdateResultItem(
+                    index=original_index,
+                    success=True,
+                    node=_node_to_response(r["node"]),
+                )
+            )
         else:
             failed += 1
-            results.append(BatchNodeUpdateResultItem(
-                index=original_index,
-                success=False,
-                error=r["error"],
-            ))
-    
+            results.append(
+                BatchNodeUpdateResultItem(
+                    index=original_index,
+                    success=False,
+                    error=r["error"],
+                )
+            )
+
     # Sort by original index for consistent ordering
     results.sort(key=lambda r: r.index)
-    
+
     logger.info(f"[BATCH_UPDATE] {updated} updated, {failed} failed out of {len(body.nodes)}")
     return BatchNodeUpdateResponse(results=results, updated=updated, failed=failed)
 
@@ -242,38 +246,44 @@ async def batch_delete_nodes(
     user: User = Depends(get_current_user),
 ):
     """Delete multiple nodes by UUID in a single batch.
-    
+
     Accepts an array of UUIDs and soft-deletes each node independently.
     A failure on one node does not prevent the others from being deleted.
     """
     from ...logging_config import get_logger
+
     logger = get_logger(__name__)
-    
+
     service = await _get_node_service(user)
     raw_results = await service.batch_delete_nodes(body.uuids)
-    
+
     results = []
     deleted = 0
     failed = 0
     for i, r in enumerate(raw_results):
         if r["success"]:
             deleted += 1
-            results.append(BatchNodeDeleteResultItem(
-                index=i,
-                uuid=body.uuids[i],
-                success=True,
-            ))
+            results.append(
+                BatchNodeDeleteResultItem(
+                    index=i,
+                    uuid=body.uuids[i],
+                    success=True,
+                )
+            )
         else:
             failed += 1
-            results.append(BatchNodeDeleteResultItem(
-                index=i,
-                uuid=body.uuids[i],
-                success=False,
-                error=r["error"],
-            ))
-    
+            results.append(
+                BatchNodeDeleteResultItem(
+                    index=i,
+                    uuid=body.uuids[i],
+                    success=False,
+                    error=r["error"],
+                )
+            )
+
     logger.info(f"[BATCH_DELETE] {deleted} deleted, {failed} failed out of {len(body.uuids)}")
     return BatchNodeDeleteResponse(results=results, deleted=deleted, failed=failed)
+
 
 @router.post("/batch-get", name="batch_get_nodes")
 async def batch_get_nodes(
@@ -281,52 +291,55 @@ async def batch_get_nodes(
     user: User = Depends(get_current_user),
 ):
     """Fetch multiple nodes by ID in a single call.
-    
+
     Returns a dictionary of node_id -> NodeResponse for all found nodes.
     Missing or inaccessible nodes are silently omitted.
     Includes tags, classes, backlink counts, and optionally properties for each node.
-    
+
     This is much more efficient than making N individual GET requests,
     especially for pages with many inline links or NodePill components.
     """
     service = await _get_node_service(user)
     pool = service.pool
     workspace_id = service.workspace_id or 0
-    
+
     # Fetch all nodes in a single query
     nodes = await service.get_nodes_by_ids(request.ids)
-    
+
     if not nodes:
         return BatchGetNodesResponse(nodes={})
-    
+
     node_ids = [n.id for n in nodes if n.id is not None]
-    
+
     # Batch-fetch metadata for all nodes in parallel
     class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
-    tag_map = await _get_related_ids_batch(pool, workspace_id, node_ids, 'tags')
-    
+    tag_map = await _get_related_ids_batch(pool, workspace_id, node_ids, "tags")
+
     # Batch-fetch backlink counts
-    backlink_counts: Dict[int, int] = {}
+    backlink_counts: dict[int, int] = {}
     if node_ids:
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT target_id, COUNT(*) as count 
-                FROM node_link 
+            rows = await conn.fetch(
+                """
+                SELECT target_id, COUNT(*) as count
+                FROM node_link
                 WHERE target_id = ANY($1)
                 GROUP BY target_id
-            """, node_ids)
+            """,
+                node_ids,
+            )
             for row in rows:
-                backlink_counts[row['target_id']] = row['count']
-    
+                backlink_counts[row["target_id"]] = row["count"]
+
     # Batch-fetch properties if requested (3 queries total, not N)
-    node_properties_map: Dict[int, Dict[str, any]] = {}
+    node_properties_map: dict[int, dict[str, any]] = {}
     if request.include_properties and node_ids:
         batch_result = await service.get_nodes_properties_batch(node_ids)
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
-    
+
     # Build response dict
-    result: Dict[str, NodeResponse] = {}
+    result: dict[str, NodeResponse] = {}
     for node in nodes:
         if node.id is None:
             continue
@@ -340,6 +353,5 @@ async def batch_get_nodes(
         if request.include_properties and nid in node_properties_map:
             response.properties = node_properties_map[nid]
         result[str(nid)] = response
-    
-    return BatchGetNodesResponse(nodes=result)
 
+    return BatchGetNodesResponse(nodes=result)

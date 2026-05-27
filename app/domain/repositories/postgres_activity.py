@@ -1,40 +1,43 @@
 """PostgreSQL implementation of ActivityRepository."""
+
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any
 
 import asyncpg
 
-from .interfaces import ActivityRepository
-from .base import BasePostgresRepository
 from ...db.connection import acquire_connection
+from .base import BasePostgresRepository
+from .interfaces import ActivityRepository
 
 
 class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
     """Handles node_activity and link_click tables."""
 
-    def __init__(self, pool: asyncpg.Pool, workspace_id: int, user_id: Optional[int] = None):
+    def __init__(self, pool: asyncpg.Pool, workspace_id: int, user_id: int | None = None):
         super().__init__(pool, workspace_id, user_id)
 
     async def verify_node_in_workspace(self, node_id: int) -> bool:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT id FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id,
+                node_id,
+                self._workspace_id,
             )
         return row is not None
 
-    async def get_node_is_page(self, node_id: int) -> Optional[bool]:
+    async def get_node_is_page(self, node_id: int) -> bool | None:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT is_page FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id, self._workspace_id,
+                node_id,
+                self._workspace_id,
             )
         if row is None:
             return None
         return bool(row["is_page"])
 
-    async def get_node_activity(self, node_id: int, limit: int) -> List[Any]:
+    async def get_node_activity(self, node_id: int, limit: int) -> list[Any]:
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -54,7 +57,9 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 ORDER BY a.create_date DESC
                 LIMIT $3
                 """,
-                node_id, self._workspace_id, limit,
+                node_id,
+                self._workspace_id,
+                limit,
             )
         return list(rows)
 
@@ -62,8 +67,8 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         self,
         node_id: int,
         action: str,
-        details: Optional[str],
-        target_node_id: Optional[int],
+        details: str | None,
+        target_node_id: int | None,
         now: Any,
     ) -> int:
         async with acquire_connection(self._pool) as conn:
@@ -73,15 +78,20 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 VALUES ($1, $2, $3, $4, $5)
                 RETURNING id
                 """,
-                node_id, action, details, target_node_id, now,
+                node_id,
+                action,
+                details,
+                target_node_id,
+                now,
             )
         return activity_id
 
-    async def get_target_node(self, target_node_id: int) -> Optional[tuple]:
+    async def get_target_node(self, target_node_id: int) -> tuple | None:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT name, uuid FROM node WHERE id = $1 AND workspace_id = $2",
-                target_node_id, self._workspace_id,
+                target_node_id,
+                self._workspace_id,
             )
         if row is None:
             return None
@@ -91,14 +101,15 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 "DELETE FROM node_activity WHERE id = $1 AND node_id = $2",
-                activity_id, node_id,
+                activity_id,
+                node_id,
             )
 
     async def track_link_click(
         self,
         source_node_id: int,
         target_node_id: int,
-        node_link_uuid: Optional[str],
+        node_link_uuid: str | None,
         now: Any,
         user_id: int,
     ) -> int:
@@ -109,7 +120,11 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                     (source_node_id, target_node_id, node_link_uuid, click_date, user_id)
                 VALUES ($1, $2, $3, $4, $5)
                 """,
-                source_node_id, target_node_id, node_link_uuid, now, user_id,
+                source_node_id,
+                target_node_id,
+                node_link_uuid,
+                now,
+                user_id,
             )
             if node_link_uuid:
                 row = await conn.fetchrow(
@@ -122,11 +137,12 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                     SELECT COUNT(*) AS count FROM link_click
                     WHERE source_node_id = $1 AND target_node_id = $2
                     """,
-                    source_node_id, target_node_id,
+                    source_node_id,
+                    target_node_id,
                 )
         return int(row["count"]) if row else 1
 
-    async def get_link_clicks_aggregated(self, source_node_id: int) -> List[Any]:
+    async def get_link_clicks_aggregated(self, source_node_id: int) -> list[Any]:
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -143,7 +159,7 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
             )
         return list(rows)
 
-    async def get_link_click(self, source_node_id: int, target_node_id: int) -> Optional[Any]:
+    async def get_link_click(self, source_node_id: int, target_node_id: int) -> Any | None:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
@@ -151,13 +167,12 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 FROM link_click
                 WHERE source_node_id = $1 AND target_node_id = $2
                 """,
-                source_node_id, target_node_id,
+                source_node_id,
+                target_node_id,
             )
         return row
 
-    async def get_link_click_history(
-        self, source_node_id: int, target_node_id: int, limit: int
-    ) -> List[Any]:
+    async def get_link_click_history(self, source_node_id: int, target_node_id: int, limit: int) -> list[Any]:
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -167,7 +182,9 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 ORDER BY click_date DESC
                 LIMIT $3
                 """,
-                source_node_id, target_node_id, limit,
+                source_node_id,
+                target_node_id,
+                limit,
             )
         return list(rows)
 
@@ -175,5 +192,6 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 "DELETE FROM link_click WHERE source_node_id = $1 AND target_node_id = $2",
-                source_node_id, target_node_id,
+                source_node_id,
+                target_node_id,
             )

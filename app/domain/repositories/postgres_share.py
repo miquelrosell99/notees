@@ -1,4 +1,5 @@
 """PostgreSQL implementation of ShareRepository."""
+
 from __future__ import annotations
 
 import json
@@ -113,7 +114,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
 
     @staticmethod
     def _row_to_node(row: asyncpg.Record) -> Node:
-        classes_path = row.get('classes_path', [])
+        classes_path = row.get("classes_path", [])
         if classes_path is None:
             classes_path = []
         elif isinstance(classes_path, str):
@@ -121,42 +122,42 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                 classes_path = json.loads(classes_path)
             except (json.JSONDecodeError, TypeError):
                 classes_path = []
-        class_ids = row.get('class_ids', [])
+        class_ids = row.get("class_ids", [])
         if class_ids is None:
             class_ids = []
         return Node(
-            id=row['id'],
-            uuid=str(row['uuid']),
-            workspace_id=row.get('workspace_id'),
-            name=row['name'],
-            icon=row.get('icon'),
-            color=row.get('color'),
-            parent_id=row.get('parent_id'),
-            page_id=row.get('page_id'),
-            sequence=row.get('sequence', 0),
-            collapsed=row.get('collapsed', False),
-            active=row.get('active', True),
-            is_shared=row.get('is_shared', False),
-            is_deleted=row.get('is_deleted', False),
-            deleted_at=normalize_timestamp(row.get('deleted_at')) or None,
-            is_class=row.get('is_class', False),
-            is_page=row.get('is_page', False),
-            is_day=row.get('is_day', False),
-            is_month=row.get('is_month', False),
-            is_year=row.get('is_year', False),
-            is_asset=row.get('is_asset', False),
-            is_template=row.get('is_template', False),
-            is_comment=row.get('is_comment', False),
-            parent_locked=row.get('parent_locked', False),
-            open_date=normalize_timestamp(row.get('open_date')) or None,
-            create_date=normalize_timestamp(row.get('create_date', '')),
-            write_date=normalize_timestamp(row.get('write_date', '')),
-            create_uid=row.get('create_uid'),
-            write_uid=row.get('write_uid'),
+            id=row["id"],
+            uuid=str(row["uuid"]),
+            workspace_id=row.get("workspace_id"),
+            name=row["name"],
+            icon=row.get("icon"),
+            color=row.get("color"),
+            parent_id=row.get("parent_id"),
+            page_id=row.get("page_id"),
+            sequence=row.get("sequence", 0),
+            collapsed=row.get("collapsed", False),
+            active=row.get("active", True),
+            is_shared=row.get("is_shared", False),
+            is_deleted=row.get("is_deleted", False),
+            deleted_at=normalize_timestamp(row.get("deleted_at")) or None,
+            is_class=row.get("is_class", False),
+            is_page=row.get("is_page", False),
+            is_day=row.get("is_day", False),
+            is_month=row.get("is_month", False),
+            is_year=row.get("is_year", False),
+            is_asset=row.get("is_asset", False),
+            is_template=row.get("is_template", False),
+            is_comment=row.get("is_comment", False),
+            parent_locked=row.get("parent_locked", False),
+            open_date=normalize_timestamp(row.get("open_date")) or None,
+            create_date=normalize_timestamp(row.get("create_date", "")),
+            write_date=normalize_timestamp(row.get("write_date", "")),
+            create_uid=row.get("create_uid"),
+            write_uid=row.get("write_uid"),
             class_ids=class_ids,
             classes_path=classes_path,
-            version=row.get('version', 1),
-            aliased_id=row.get('aliased_id'),
+            version=row.get("version", 1),
+            aliased_id=row.get("aliased_id"),
         )
 
     async def get_shared_node(self, share_uuid: str) -> Node | None:

@@ -77,6 +77,7 @@
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -203,6 +204,8 @@
   position: relative;
   will-change: transform;
   cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .sidebar-favorite-item:hover {
@@ -313,6 +316,7 @@
 .sidebar-recents-list {
   padding-top: 0;
   padding-left: var(--spacing-2);
+  flex-direction: column;
 }
 
 .sidebar-recent-item {
@@ -322,6 +326,8 @@
   cursor: pointer;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .sidebar-recent-item:hover {

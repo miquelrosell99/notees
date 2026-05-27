@@ -23,6 +23,7 @@ import {
 } from '@/utils/nodeTree';
 import { useFavoritesStore } from '@/stores/favoritesStore';
 import { useNavigationStore } from '@/stores/navigationStore';
+import { scheduleAutoExport } from '@/utils/autoExport';
 
 // ==================== Helper Functions ====================
 
@@ -749,6 +750,16 @@ export function useUpdateNode() {
           invalidateNodeCaches(queryClient, {
             nodeId: updatedNode.parent_id,
           });
+        }
+
+        // Trigger auto-export to markdown for the containing page
+        if (updatedNode.is_page && updatedNode.uuid) {
+          scheduleAutoExport(updatedNode.uuid);
+        } else if (updatedNode.page_id) {
+          const pageNode = findNodeInCache(queryClient, updatedNode.page_id);
+          if (pageNode?.uuid) {
+            scheduleAutoExport(pageNode.uuid);
+          }
         }
       }
     },

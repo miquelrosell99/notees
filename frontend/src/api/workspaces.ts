@@ -119,6 +119,25 @@ export async function exportWorkspaceZip(uuid: string): Promise<Blob> {
 }
 
 /**
+ * Export a workspace in a specific format (dump, markdown, text, json).
+ * Returns a Blob so the caller can trigger the download.
+ */
+export async function exportWorkspaceFormat(
+  uuid: string,
+  format: 'dump' | 'markdown' | 'text' | 'json',
+  includeAssets: boolean = false,
+): Promise<Blob> {
+  const response = await api.get(
+    `/workspaces/${encodeURIComponent(uuid)}/export-by-uuid`,
+    {
+      params: { format, include_assets: includeAssets },
+      responseType: 'blob',
+    },
+  );
+  return new Blob([response.data], { type: 'application/zip' });
+}
+
+/**
  * Get all settings for the current workspace
  */
 export async function getSettings(): Promise<Record<string, string>> {

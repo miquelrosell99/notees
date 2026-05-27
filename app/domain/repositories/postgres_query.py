@@ -3,21 +3,21 @@
 Executes queries using QueryASTToSQL for SQL generation.
 Handles parameter substitution, SQL execution, and result formatting.
 """
+
 from __future__ import annotations
 
-import re
 import time
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Union
+from typing import Any
 
-from ..entities.query_ast import QueryAST
-from ..services.query_ast_sql import QueryASTToSQL
-from ..services.query_ast_optimizer import optimize_ast, compute_ast_complexity
-from ..services.query_sql_cache import get_sql_cache
-from .interfaces import QueryRepository
-from .base import BasePostgresRepository
 from ...db.connection import acquire_connection
 from ...logging_config import get_logger
+from ..entities.query_ast import QueryAST
+from ..services.query_ast_optimizer import compute_ast_complexity, optimize_ast
+from ..services.query_ast_sql import QueryASTToSQL
+from ..services.query_sql_cache import get_sql_cache
+from .base import BasePostgresRepository
+from .interfaces import QueryRepository
 
 logger = get_logger(__name__)
 
@@ -25,31 +25,37 @@ logger = get_logger(__name__)
 class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
     """Executes generated queries and returns results."""
 
-    def __init__(self, pool, workspace_id: int, user_id: Optional[str] = None):
+    def __init__(self, pool, workspace_id: int, user_id: str | None = None):
         super().__init__(pool, workspace_id, int(user_id) if user_id else None)
         self._sql_cache = get_sql_cache()
 
-    def _substitute_params(self, query_ast: QueryAST, runtime_params: Dict[str, Any]) -> QueryAST:
+    def _substitute_params(self, query_ast: QueryAST, runtime_params: dict[str, Any]) -> QueryAST:
         """Substitute runtime parameters in QueryAST."""
         import copy
+
         logger.info(f"[_substitute_params] runtime_params={runtime_params}")
         query_ast = copy.deepcopy(query_ast)
 
-        if hasattr(query_ast.scope, 'excluded_page_uuids') and query_ast.scope.excluded_page_uuids:
+        if hasattr(query_ast.scope, "excluded_page_uuids") and query_ast.scope.excluded_page_uuids:
             query_ast.scope.excluded_page_uuids = [
-                self._resolve_placeholder(uuid, runtime_params)
-                for uuid in query_ast.scope.excluded_page_uuids
+                self._resolve_placeholder(uuid, runtime_params) for uuid in query_ast.scope.excluded_page_uuids
             ]
 
         self._substitute_in_group(query_ast.root_group, runtime_params)
         return query_ast
 
-    def _substitute_in_group(self, group, runtime_params: Dict[str, Any]):
+    def _substitute_in_group(self, group, runtime_params: dict[str, Any]):
         """Recursively substitute parameters in a group."""
         from ..entities.query_ast import (
-            GroupNode, ClassCondition, ExtendsCondition, ReferenceCondition,
-            ReferencePathCondition, NotNode,
-            PropertyCondition, ParentCondition, ContentCondition
+            ClassCondition,
+            ContentCondition,
+            ExtendsCondition,
+            GroupNode,
+            NotNode,
+            ParentCondition,
+            PropertyCondition,
+            ReferenceCondition,
+            ReferencePathCondition,
         )
 
         logger.debug(f"[_substitute_in_group] Processing group with {len(group.children)} children")
@@ -64,23 +70,29 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                 elif isinstance(child.child, ClassCondition):
                     child.child.class_uuid = self._resolve_placeholder(child.child.class_uuid, runtime_params)
                 elif isinstance(child.child, ExtendsCondition):
-                    child.child.extends_class_uuid = self._resolve_placeholder(child.child.extends_class_uuid, runtime_params)
+                    child.child.extends_class_uuid = self._resolve_placeholder(
+                        child.child.extends_class_uuid, runtime_params
+                    )
                 elif isinstance(child.child, ReferenceCondition):
                     child.child.target_uuid = self._resolve_placeholder(child.child.target_uuid, runtime_params)
                 elif isinstance(child.child, ReferencePathCondition):
                     if child.child.target_uuids:
-                        child.child.target_uuids = [self._resolve_placeholder(u, runtime_params) for u in child.child.target_uuids]
+                        child.child.target_uuids = [
+                            self._resolve_placeholder(u, runtime_params) for u in child.child.target_uuids
+                        ]
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
-                elif isinstance(child.child, ContentCondition):
-                    child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
-                elif isinstance(child.child, PropertyCondition):
+                elif isinstance(child.child, ContentCondition) or isinstance(child.child, PropertyCondition):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, ParentCondition):
                     if child.child.parent_uuid:
-                        logger.info(f"[_substitute_in_group] NOT>ParentCondition parent_uuid before: {child.child.parent_uuid}")
+                        logger.info(
+                            f"[_substitute_in_group] NOT>ParentCondition parent_uuid before: {child.child.parent_uuid}"
+                        )
                         child.child.parent_uuid = self._resolve_placeholder(child.child.parent_uuid, runtime_params)
-                        logger.info(f"[_substitute_in_group] NOT>ParentCondition parent_uuid after: {child.child.parent_uuid}")
+                        logger.info(
+                            f"[_substitute_in_group] NOT>ParentCondition parent_uuid after: {child.child.parent_uuid}"
+                        )
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
             elif isinstance(child, ClassCondition):
@@ -94,9 +106,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                     child.target_uuids = [self._resolve_placeholder(u, runtime_params) for u in child.target_uuids]
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
-            elif isinstance(child, PropertyCondition):
-                child.value = self._resolve_placeholder(child.value, runtime_params)
-            elif isinstance(child, ContentCondition):
+            elif isinstance(child, PropertyCondition) or isinstance(child, ContentCondition):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
                 logger.info(f"[_substitute_in_group] ParentCondition found, parent_uuid={child.parent_uuid}")
@@ -107,43 +117,43 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
 
-    def _resolve_placeholder(self, value: str, runtime_params: Dict[str, Any]) -> str:
+    def _resolve_placeholder(self, value: str, runtime_params: dict[str, Any]) -> str:
         """Resolve a single placeholder value."""
-        if not isinstance(value, str) or not value.startswith('{'):
+        if not isinstance(value, str) or not value.startswith("{"):
             return value
 
-        if '{current_node_name}' in value:
-            name_value = runtime_params.get('current_node_name', '')
+        if "{current_node_name}" in value:
+            name_value = runtime_params.get("current_node_name", "")
             if not name_value:
-                logger.warning(f"Placeholder {{current_node_name}} used but no runtime value provided")
-            return value.replace('{current_node_name}', name_value)
-        elif '{current_node_uuid}' in value:
-            uuid_value = runtime_params.get('current_node_uuid', '')
+                logger.warning("Placeholder {current_node_name} used but no runtime value provided")
+            return value.replace("{current_node_name}", name_value)
+        elif "{current_node_uuid}" in value:
+            uuid_value = runtime_params.get("current_node_uuid", "")
             if not uuid_value:
-                logger.warning(f"Placeholder {{current_node_uuid}} used but no runtime value provided")
-            return value.replace('{current_node_uuid}', uuid_value)
-        elif '{current_node_id}' in value:
-            id_value = runtime_params.get('current_node_id', '')
+                logger.warning("Placeholder {current_node_uuid} used but no runtime value provided")
+            return value.replace("{current_node_uuid}", uuid_value)
+        elif "{current_node_id}" in value:
+            id_value = runtime_params.get("current_node_id", "")
             if not id_value:
-                logger.warning(f"Placeholder {{current_node_id}} used but no runtime value provided")
-            return value.replace('{current_node_id}', str(id_value))
-        elif '{current_user_id}' in value:
-            user_value = self._user_id or runtime_params.get('current_user_id', '')
+                logger.warning("Placeholder {current_node_id} used but no runtime value provided")
+            return value.replace("{current_node_id}", str(id_value))
+        elif "{current_user_id}" in value:
+            user_value = self._user_id or runtime_params.get("current_user_id", "")
             if not user_value:
-                logger.warning(f"Placeholder {{current_user_id}} used but no runtime value provided")
-            return value.replace('{current_user_id}', str(user_value))
+                logger.warning("Placeholder {current_user_id} used but no runtime value provided")
+            return value.replace("{current_user_id}", str(user_value))
 
         return value
 
     async def execute_query(
         self,
-        query: Union[Dict[str, Any], QueryAST],
-        runtime_params: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        order_by: Optional[str] = None,
-        enrich: Optional[Dict[str, bool]] = None,
-    ) -> Dict[str, Any]:
+        query: dict[str, Any] | QueryAST,
+        runtime_params: dict[str, Any] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        order_by: str | None = None,
+        enrich: dict[str, bool] | None = None,
+    ) -> dict[str, Any]:
         """Execute a query and return results with optional pagination metadata."""
         t_start = time.monotonic()
 
@@ -158,7 +168,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         query_ast = optimize_ast(query_ast)
         ast_metrics_after = compute_ast_complexity(query_ast)
 
-        current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
+        current_node_uuid = runtime_params.get("current_node_uuid") if runtime_params else None
         sql, params, cache_hit = self._generate_sql_cached(query_ast, current_node_uuid)
 
         params_list = []
@@ -189,7 +199,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                 count_sql = f"SELECT COUNT(*) as count FROM ({base_sql}) subq"
                 count_params = list(params.values())
                 count_row = await conn.fetchrow(count_sql, *count_params)
-                total_count = count_row['count'] if count_row else 0
+                total_count = count_row["count"] if count_row else 0
 
         t_sql_end = time.monotonic()
 
@@ -221,7 +231,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             f"depth={ast_metrics_after['max_depth']}"
         )
 
-        response: Dict[str, Any] = {
+        response: dict[str, Any] = {
             "nodes": results,
             "metrics": metrics,
         }
@@ -232,12 +242,12 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
 
     async def execute_query_legacy(
         self,
-        query: Union[Dict[str, Any], QueryAST],
-        runtime_params: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        order_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        query: dict[str, Any] | QueryAST,
+        runtime_params: dict[str, Any] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        order_by: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Legacy execute_query that returns a flat list of node dicts."""
         result = await self.execute_query(
             query=query,
@@ -251,23 +261,23 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
     def _generate_sql_cached(
         self,
         query_ast: QueryAST,
-        current_node_uuid: Optional[str],
+        current_node_uuid: str | None,
     ) -> tuple:
         """Generate SQL, using cache for repeated AST structures."""
         generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
         sql, params = generator.generate(query_ast)
         return sql, params, False
 
-    def _rows_to_dicts(self, rows) -> List[Dict[str, Any]]:
+    def _rows_to_dicts(self, rows) -> list[dict[str, Any]]:
         """Convert asyncpg Row objects to plain dicts."""
         results = []
         for row in rows:
             node_dict = dict(row)
-            if 'uuid' in node_dict:
-                node_dict['uuid'] = str(node_dict['uuid'])
-            if 'page_uuid' in node_dict and node_dict['page_uuid']:
-                node_dict['page_uuid'] = str(node_dict['page_uuid'])
-            for key in ('create_date', 'write_date', 'open_date'):
+            if "uuid" in node_dict:
+                node_dict["uuid"] = str(node_dict["uuid"])
+            if "page_uuid" in node_dict and node_dict["page_uuid"]:
+                node_dict["page_uuid"] = str(node_dict["page_uuid"])
+            for key in ("create_date", "write_date", "open_date"):
                 if key in node_dict and node_dict[key]:
                     if isinstance(node_dict[key], datetime):
                         node_dict[key] = node_dict[key].isoformat()
@@ -276,8 +286,8 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
 
     async def count_query_results(
         self,
-        query: Union[Dict[str, Any], QueryAST],
-        runtime_params: Optional[Dict[str, Any]] = None,
+        query: dict[str, Any] | QueryAST,
+        runtime_params: dict[str, Any] | None = None,
     ) -> int:
         """Count results for a query without fetching all data."""
         if isinstance(query, dict):
@@ -288,7 +298,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         query_ast = optimize_ast(query_ast)
 
-        current_node_uuid = runtime_params.get('current_node_uuid') if runtime_params else None
+        current_node_uuid = runtime_params.get("current_node_uuid") if runtime_params else None
         generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
         sql, params_dict = generator.generate(query_ast)
 
@@ -304,4 +314,4 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(count_sql, *params)
 
-        return row['count'] if row else 0
+        return row["count"] if row else 0

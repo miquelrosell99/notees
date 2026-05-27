@@ -1,0 +1,90 @@
+.workspace-export-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+}
+
+.workspace-export-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.workspace-export-modal__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.workspace-export-modal__formats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.workspace-export-modal__format-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+
+.workspace-export-modal__format-card:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-surface-hover);
+}
+
+.workspace-export-modal__format-card--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.workspace-export-modal__format-icon {
+  font-size: 1.25rem;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.workspace-export-modal__format-card--active .workspace-export-modal__format-icon {
+  color: var(--color-primary);
+}
+
+.workspace-export-modal__format-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.workspace-export-modal__format-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.workspace-export-modal__format-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.workspace-export-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.workspace-export-modal__error {
+  padding: 0.75rem 1rem;
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}

@@ -2,6 +2,7 @@
 
 Handles user registration, login, and token management.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from slowapi import Limiter
@@ -62,7 +63,7 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa: B008
     """Require admin role."""
-    if user.role != 'admin':
+    if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
@@ -87,7 +88,7 @@ async def register(request: Request, user_data: UserCreate):
 
     # If this is the first user, make them admin
     is_first = await auth.is_first_boot()
-    role = 'admin' if is_first else 'user'
+    role = "admin" if is_first else "user"
 
     user = await auth.create_user(
         email=user_data.email,

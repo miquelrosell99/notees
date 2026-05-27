@@ -1,11 +1,12 @@
 """Undo / Redo API router."""
+
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..auth import get_current_user
-from ...models import User
 from ...db.connection import get_pool
 from ...dependencies import _get_workspace_context_cached
 from ...domain.services.undo_service import UndoService
+from ...models import User
+from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/undo", tags=["undo"])
 

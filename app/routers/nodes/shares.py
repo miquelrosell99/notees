@@ -1,4 +1,5 @@
 """Public share link endpoints for nodes (node-scoped)."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
@@ -73,9 +74,6 @@ async def list_node_shares(
     return {"shares": [_share_to_response(s) for s in shares]}
 
 
-
-
-
 class UserShareCreateRequest(BaseModel):
     email: str
     permission: str = "read"  # read, write
@@ -106,7 +104,8 @@ async def create_user_share(
         # Verify node exists in workspace
         node_row = await conn.fetchrow(
             "SELECT id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
-            node_id, workspace_id,
+            node_id,
+            workspace_id,
         )
         if not node_row:
             raise HTTPException(status_code=404, detail="Node not found")
@@ -138,7 +137,10 @@ async def create_user_share(
                 write_date = NOW()
             RETURNING id, node_id, user_id, can_read, can_write, create_date, create_uid
             """,
-            node_id, target_id, can_write, user_id,
+            node_id,
+            target_id,
+            can_write,
+            user_id,
         )
 
         # Mark node as shared
@@ -171,7 +173,8 @@ async def list_node_user_shares(
     async with acquire_connection(pool) as conn:
         node_row = await conn.fetchrow(
             "SELECT create_uid FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
-            node_id, workspace_id,
+            node_id,
+            workspace_id,
         )
         if not node_row:
             raise HTTPException(status_code=404, detail="Node not found")
@@ -225,7 +228,8 @@ async def revoke_user_share(
             JOIN node n ON n.id = ns.node_id
             WHERE ns.id = $1 AND ns.active = TRUE AND n.workspace_id = $2
             """,
-            share_id, workspace_id,
+            share_id,
+            workspace_id,
         )
         if not share_row:
             raise HTTPException(status_code=404, detail="Share not found")
