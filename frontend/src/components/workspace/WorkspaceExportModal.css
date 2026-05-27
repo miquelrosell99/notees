@@ -20,6 +20,32 @@
   letter-spacing: 0.05em;
 }
 
+/* ── Progress overlay ─────────────────────────────────────── */
+
+.workspace-export__progress-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-8, 48px) var(--spacing-4);
+}
+
+@keyframes workspace-export-spin {
+  to { transform: rotate(360deg); }
+}
+
+.workspace-export__progress-spin {
+  animation: workspace-export-spin 1.2s linear infinite;
+  color: var(--color-primary);
+}
+
+.workspace-export__progress-label {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-on-surface-variant);
+}
+
 /* ── Footer ──────────────────────────────────────────────── */
 
 .workspace-export__footer {
