@@ -1,5 +1,5 @@
 .shares-view {
-  padding: var(--spacing-6);
+  padding: var(--spacing-12) var(--spacing-6) var(--spacing-6);
   max-width: 960px;
   margin: 0 auto;
 }
