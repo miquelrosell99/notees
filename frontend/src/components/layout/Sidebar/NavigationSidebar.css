@@ -249,11 +249,17 @@
   color: var(--color-on-surface);
 }
 
-/* Block container within favorite item */
-.sidebar-favorite-block {
+/* Block container within favorite/recent items */
+.sidebar-favorite-block,
+.sidebar-recent-block {
   flex: 1;
   min-width: 0;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.sidebar-recent-block {
+  width: 100%;
 }
 
 /* Remove button */
@@ -316,7 +322,6 @@
 .sidebar-recents-list {
   padding-top: 0;
   padding-left: var(--spacing-2);
-  flex-direction: column;
 }
 
 .sidebar-recent-item {

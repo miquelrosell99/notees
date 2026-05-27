@@ -24,17 +24,19 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onConte
 
   return (
     <div onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
-      <NodeInline
-        name={node.name}
-        icon={effectiveIcon}
-        isPage={node.is_page}
-        nodeId={node.id}
-        nodeUuid={node.uuid}
-        showBullet={true}
-        onClick={onClick}
-        suppressColor={true}
-        draggable={true}
-      />
+      <div className="sidebar-recent-block">
+        <NodeInline
+          name={node.name}
+          icon={effectiveIcon}
+          isPage={node.is_page}
+          nodeId={node.id}
+          nodeUuid={node.uuid}
+          showBullet={true}
+          onClick={onClick}
+          suppressColor={true}
+          draggable={true}
+        />
+      </div>
     </div>
   );
 });
@@ -75,7 +77,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
         <h3 className="sidebar-section-title">Recents</h3>
       </button>
       {expanded && (
-        <nav className="sidebar-nav sidebar-recents-list">
+        <div className="sidebar-recents-list">
           {recents.length === 0 ? (
             <div className="sidebar-empty-message">
               No recent pages yet.
@@ -91,7 +93,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
               />
             ))
           )}
-        </nav>
+        </div>
       )}
     </div>
   );
