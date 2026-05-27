@@ -8,7 +8,7 @@ import { create } from 'zustand';
 
 interface ModalState {
   isCalendarOpen: boolean;
-  isQuickAddOpen: boolean;
+
   isCommandPaletteOpen: boolean;
   isImportDataModalOpen: boolean;
   isImportLogseqModalOpen: boolean;
@@ -27,8 +27,7 @@ interface ModalState {
 
   setCalendarOpen: (open: boolean) => void;
   toggleCalendar: () => void;
-  setQuickAddOpen: (open: boolean) => void;
-  toggleQuickAdd: () => void;
+
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
   setImportDataModalOpen: (open: boolean) => void;
@@ -50,7 +49,7 @@ interface ModalState {
 
 export const useModalStore = create<ModalState>()((set) => ({
   isCalendarOpen: false,
-  isQuickAddOpen: false,
+
   isCommandPaletteOpen: false,
   isImportDataModalOpen: false,
   isImportLogseqModalOpen: false,
@@ -69,8 +68,7 @@ export const useModalStore = create<ModalState>()((set) => ({
 
   setCalendarOpen: (open) => set({ isCalendarOpen: open }),
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
-  setQuickAddOpen: (open) => set({ isQuickAddOpen: open }),
-  toggleQuickAdd: () => set((s) => ({ isQuickAddOpen: !s.isQuickAddOpen })),
+
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
   toggleCommandPalette: () => set((s) => ({ isCommandPaletteOpen: !s.isCommandPaletteOpen })),
   setImportDataModalOpen: (open) => set({ isImportDataModalOpen: open }),
