@@ -5,7 +5,7 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  padding-top: var(--spacing-4);
+  padding-top: var(--spacing-12);
 }
 
 /* Header row — title + close button, matching AllPagesView / TrashView pattern */
