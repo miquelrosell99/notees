@@ -166,23 +166,24 @@ export function Sidebar({ collapsed }: SidebarProps) {
             {topExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
             <h3 className="sidebar-section-title">Navigation</h3>
           </button>
-          <nav className="sidebar-nav">
-            {topNavItems.map((item) => (
-              <Button
-                key={item.view}
-                variant="ghost"
-                size="md"
-                icon={item.icon}
-                fullWidth={topExpanded}
-                iconOnly={!topExpanded}
-                active={mainViewType === item.view}
-                onClick={() => { setMainViewType(item.view); closeMobileDrawer(); }}
-                title={item.label}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </nav>
+          {topExpanded && (
+            <nav className="sidebar-nav">
+              {topNavItems.map((item) => (
+                <Button
+                  key={item.view}
+                  variant="ghost"
+                  size="md"
+                  icon={item.icon}
+                  fullWidth
+                  active={mainViewType === item.view}
+                  onClick={() => { setMainViewType(item.view); closeMobileDrawer(); }}
+                  title={item.label}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </nav>
+          )}
         </div>
 
         {/* Scrollable middle content - only favorites and recents */}
@@ -204,31 +205,32 @@ export function Sidebar({ collapsed }: SidebarProps) {
             {bottomExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
             <h3 className="sidebar-section-title">More</h3>
           </button>
-          <div className="sidebar-footer">
-            {bottomNavItems.map((item) => (
-              <Button
-                key={item.label}
-                variant="ghost"
-                size="md"
-                icon={item.icon}
-                fullWidth={bottomExpanded}
-                iconOnly={!bottomExpanded}
-                active={item.view ? mainViewType === item.view : false}
-                onClick={() => {
-                  if (item.action) {
-                    item.action();
-                  } else if (item.view) {
-                    setMainViewType(item.view);
-                  }
-                  closeMobileDrawer();
-                }}
-                onContextMenu={item.onContextMenu}
-                title={item.label}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
+          {bottomExpanded && (
+            <div className="sidebar-footer">
+              {bottomNavItems.map((item) => (
+                <Button
+                  key={item.label}
+                  variant="ghost"
+                  size="md"
+                  icon={item.icon}
+                  fullWidth
+                  active={item.view ? mainViewType === item.view : false}
+                  onClick={() => {
+                    if (item.action) {
+                      item.action();
+                    } else if (item.view) {
+                      setMainViewType(item.view);
+                    }
+                    closeMobileDrawer();
+                  }}
+                  onContextMenu={item.onContextMenu}
+                  title={item.label}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </Card>
 
