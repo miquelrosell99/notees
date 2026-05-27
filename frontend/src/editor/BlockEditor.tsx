@@ -155,6 +155,8 @@ export interface BlockEditorProps {
   draftMode?: boolean;
   /** Whether to skip page nodes in projection (default: true) */
   skipPages?: boolean;
+  /** Whether Enter always creates sibling blocks instead of first children (default: false) */
+  enterCreatesSiblings?: boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -195,6 +197,7 @@ export function BlockEditor({
   hideProperties = false,
   draftMode = false,
   skipPages,
+  enterCreatesSiblings = false,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -267,23 +270,26 @@ export function BlockEditor({
       );
       return derivedRootId;
     }
+    if (pageUuid) return pageUuid;
     return externalRootBlockId || '';
   }, [filteredNodes, externalRootBlockId, pageId, pageUuid]);
 
   // Sync runtime state imperatively — runs once per dependency change,
   // synchronously before paint so Lexical has data on first render.
   useLayoutEffect(() => {
+    const runtime = getNodeGraphRuntime();
+
+    // Always register parent serverId when page is known so useBlockPersist
+    // can resolve it for new blocks created before/without API children.
+    if (pageId != null && pageUuid) {
+      runtime.registerParentServerId(pageUuid, pageId);
+    }
+
     if (!filteredNodes || filteredNodes.length === 0) return;
 
-    const runtime = getNodeGraphRuntime();
     const { graphNodes, rootBlockId: derivedRootId } = apiNodesToGraphNodes(
       filteredNodes, pageId, pageUuid,
     );
-
-    // Register parent serverId so useBlockPersist can resolve it for new blocks
-    if (pageId != null && derivedRootId) {
-      runtime.registerParentServerId(derivedRootId, pageId);
-    }
 
     // Upsert FIRST so that new/real nodes are already present in the
     // runtime before we remove stale ones. Both calls emit events
@@ -662,6 +668,7 @@ export function BlockEditor({
           onEnterAtRoot={onEnterAtRoot}
           onNavigateUpFromTop={onNavigateUpFromTop}
           skipPages={skipPages}
+          enterCreatesSiblings={enterCreatesSiblings}
         />
 
         {/* Pill plugin */}

@@ -113,7 +113,7 @@ export type ProjectionDiffOp =
 /** Intent to mutate the graph - emitted by editors, consumed by runtime */
 export type MutationIntent =
   | { type: 'update_content'; blockId: string; contentAST: ContentAST }
-  | { type: 'split_block'; blockId: string; atOffset: number; newBlockId: string }
+  | { type: 'split_block'; blockId: string; atOffset: number; newBlockId: string; forceSibling?: boolean }
   | { type: 'merge_blocks'; sourceBlockId: string; targetBlockId: string }
   | { type: 'create_block'; parentId: string; afterBlockId: string | null; blockId: string; contentAST: ContentAST; nodeType?: GraphNodeType }
   | { type: 'delete_block'; blockId: string }
