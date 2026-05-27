@@ -50,6 +50,17 @@ def get_request_conn() -> asyncpg.Connection | None:
     return _request_conn.get()
 
 
+def clear_request_conn() -> None:
+    """Clear the request-scoped connection for the current task.
+
+    Background tasks spawned with ``asyncio.create_task`` inherit the
+    caller's context variables, including the request-scoped DB connection.
+    They MUST call this before using ``get_connection()`` to avoid racing
+    with the parent request's middleware cleanup.
+    """
+    _request_conn.set(None)
+
+
 @asynccontextmanager
 async def request_connection() -> AsyncIterator[asyncpg.Connection]:
     """Acquire a connection for the lifetime of an HTTP request.
