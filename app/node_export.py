@@ -55,6 +55,8 @@ async def export_nodes(
     theme_mode: str = "light",  # "light" | "dark"
     cover_page: bool = False,
     asset_path_map: dict[str, str] | None = None,
+    highlight_syntax: bool = True,
+    link_target_brackets: bool = True,
 ) -> tuple:
     """Export nodes to Markdown, HTML, PDF, Text, or JSON.
 
@@ -494,6 +496,8 @@ async def export_nodes(
             code_class_id=code_class_id,
             quote_class_id=quote_class_id,
             callout_class_map=callout_class_map,
+            highlight_syntax=highlight_syntax,
+            link_target_brackets=link_target_brackets,
         )
         filename = "export.md"
         mime_type = "text/markdown"

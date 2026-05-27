@@ -23,6 +23,8 @@ def _stringify_node(
     mode: StringifyMode,
     resolver,
     strip_link_syntax: bool = False,
+    highlight_syntax: bool = True,
+    link_target_brackets: bool = True,
 ) -> str:
     """Stringify a single node's AST to text."""
     ast = node_data.get("_ast") or parse_ast(node_data.get("name", ""))
@@ -30,6 +32,8 @@ def _stringify_node(
         mode=mode,
         resolve_node_link=resolver,
         strip_link_syntax=strip_link_syntax,
+        highlight_syntax=highlight_syntax,
+        link_target_brackets=link_target_brackets,
     )
     return stringify_ast(ast, opts)
 
@@ -64,6 +68,8 @@ class MarkdownConverter:
         code_class_id: int | None = None,
         quote_class_id: int | None = None,
         callout_class_map: dict[int, str] | None = None,
+        highlight_syntax: bool = True,
+        link_target_brackets: bool = True,
     ) -> str:
         """Convert nodes to Markdown format."""
         if not nodes:
@@ -72,7 +78,12 @@ class MarkdownConverter:
         _props = properties_data or {}
         lines = []
         for node in nodes:
-            text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
+            text = _stringify_node(
+                node, StringifyMode.PLAIN_MARKDOWN, resolver,
+                strip_link_syntax=strip_link_syntax,
+                highlight_syntax=highlight_syntax,
+                link_target_brackets=link_target_brackets,
+            )
             depth = node.get("depth", 0)
             is_page = node.get("is_page", False)
             is_code = _node_is_code(node, code_class_id)
@@ -113,7 +124,10 @@ class MarkdownConverter:
                         lines.append(f"{p['name']}::")
                         for sub_nd in p["subtree"]:
                             sub_text = _stringify_node(
-                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax
+                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver,
+                                strip_link_syntax=strip_link_syntax,
+                                highlight_syntax=highlight_syntax,
+                                link_target_brackets=link_target_brackets,
                             )
                             if formatting and sub_nd.get("color"):
                                 sub_text = f"=={sub_text}=="
@@ -137,7 +151,10 @@ class MarkdownConverter:
                         lines.append(f"{p['name']}::")
                         for sub_nd in p["subtree"]:
                             sub_text = _stringify_node(
-                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax
+                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver,
+                                strip_link_syntax=strip_link_syntax,
+                                highlight_syntax=highlight_syntax,
+                                link_target_brackets=link_target_brackets,
                             )
                             if formatting and sub_nd.get("color"):
                                 sub_text = f"=={sub_text}=="
@@ -164,7 +181,10 @@ class MarkdownConverter:
                         lines.append(f"{indent}  {p['name']}::")
                         for sub_nd in p["subtree"]:
                             sub_text = _stringify_node(
-                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax
+                                sub_nd, StringifyMode.PLAIN_MARKDOWN, resolver,
+                                strip_link_syntax=strip_link_syntax,
+                                highlight_syntax=highlight_syntax,
+                                link_target_brackets=link_target_brackets,
                             )
                             if formatting and sub_nd.get("color"):
                                 sub_text = f"=={sub_text}=="
