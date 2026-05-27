@@ -1,4 +1,6 @@
 import type { Node, Property } from '@/types';
+import type { ParsedDate } from '@/utils/dateParser';
+import type { FilterPrefixConfig } from '@/utils/searchFilters';
 
 export interface CommandPaletteProps {
   /** Whether the palette is open */
@@ -16,43 +18,17 @@ export interface SearchResult {
   breadcrumb?: string;
 }
 
-/**
- * Filter prefix configuration for the command palette.
- * Supports: class dropdown, text input (uuid), and boolean dropdowns.
- */
-export interface FilterPrefixConfig {
-  prefix: string;
-  label: string;
-  description: string;
-  type: 'class' | 'text' | 'boolean';
-  options?: string[]; // For boolean type
-}
+// Re-export filter types from shared location
+export {
+  FILTER_PREFIXES,
+  parseQueryWithFilters,
+} from '@/utils/searchFilters';
 
-export const FILTER_PREFIXES: FilterPrefixConfig[] = [
-  { prefix: 'uuid', label: 'UUID', description: 'Find node by UUID', type: 'text' },
-  { prefix: 'class', label: 'Class', description: 'Filter by class', type: 'class' },
-  { prefix: 'is_page', label: 'Is Page', description: 'Filter pages or blocks', type: 'boolean', options: ['true', 'false'] },
-  { prefix: 'is_class', label: 'Is Class', description: 'Filter class definitions', type: 'boolean', options: ['true', 'false'] },
-  { prefix: 'is_daily', label: 'Is Daily', description: 'Filter daily notes', type: 'boolean', options: ['true', 'false'] },
-];
-
-/** An applied filter (shown as a pill below the input) */
-export type AppliedFilter =
-  | { type: 'class'; classNode: Node }
-  | { type: 'boolean'; prefix: string; label: string; value: boolean };
-
-export interface ParsedFilters {
-  /** Remaining search text after removing filter syntax */
-  searchTerm: string;
-  /** Active filter being typed (prefix:value in progress) */
-  activeFilter: { prefix: string; value: string; config: FilterPrefixConfig } | null;
-  /** Whether user is actively typing a filter value */
-  isTypingFilter: boolean;
-  /** Matching prefix suggestions (when user types partial prefix without colon) */
-  suggestedPrefixes: FilterPrefixConfig[];
-  /** UUID being searched for (when query is uuid:value) */
-  uuidSearch: string | null;
-}
+export type {
+  FilterPrefixConfig,
+  AppliedFilter,
+  ParsedFilters,
+} from '@/utils/searchFilters';
 
 export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation' | 'share';
 
@@ -82,7 +58,7 @@ export interface ItemEntry {
   type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more' | 'filter-prefix' | 'boolean-option';
   result?: SearchResult;
   label?: string;
-  parsedDate?: import('@/utils/dateParser').ParsedDate;
+  parsedDate?: ParsedDate;
   existingNode?: Node;
   commandId?: string;
   commandIcon?: CommandIcon;

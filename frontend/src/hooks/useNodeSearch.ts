@@ -36,6 +36,14 @@ export interface NodeSearchFilters {
   maxResults?: number;
   /** Node ID to pin at the top of results (current value in single-select pickers) */
   pinnedNodeId?: number | null;
+  /** UUID to search for directly */
+  uuid?: string;
+  /** Filter to pages only */
+  isPage?: boolean;
+  /** Filter to class definitions */
+  isClass?: boolean;
+  /** Filter to daily notes */
+  isDaily?: boolean;
 }
 
 export interface NodeSearchItem {
@@ -89,6 +97,10 @@ export function useNodeSearch(
     excludeNodeId,
     maxResults = 10,
     pinnedNodeId,
+    uuid,
+    isPage,
+    isClass,
+    isDaily,
   } = filters;
 
   // Debounce the search query to avoid firing API on every keystroke
@@ -98,13 +110,24 @@ export function useNodeSearch(
   const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
 
   // Core search queries - pass class_filters to backend for server-side filtering
-  const { data: searchResults, isLoading: isSearchLoading } = useSearch(debouncedQuery, classFiltersParam ? { classFilters: classFiltersParam } : undefined);
+  const searchFilterOptions = {
+    ...(classFiltersParam ? { classFilters: classFiltersParam } : {}),
+    ...(uuid ? { uuid } : {}),
+    ...(isPage !== undefined ? { isPage } : {}),
+    ...(isClass !== undefined ? { isClass } : {}),
+    ...(isDaily !== undefined ? { isDaily } : {}),
+  };
+  const hasSearchFilters = Object.keys(searchFilterOptions).length > 0;
+  const { data: searchResults, isLoading: isSearchLoading } = useSearch(
+    debouncedQuery,
+    hasSearchFilters ? searchFilterOptions : undefined
+  );
   const { data: allPages } = usePages();
   // Suggestions for empty-query state: recently created + recently linked
   const useSuggestionsForEmpty = mode === 'pages' || mode === 'all';
   const { data: suggestions } = useSuggestions(
     classFiltersParam,
-    useSuggestionsForEmpty,
+    useSuggestionsForEmpty && !uuid && isPage === undefined && isClass === undefined && isDaily === undefined,
   );
   // Filtered pages query for when class_filters are present (empty-query case)
   const { data: filteredPages } = useQuery({
@@ -385,6 +408,7 @@ export function useNodeSearch(
     excludeNodeId,
     maxResults,
     pinnedNodeId,
+    query,
   ]);
 
   // Combined results for easy iteration

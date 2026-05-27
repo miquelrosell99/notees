@@ -427,3 +427,103 @@
   padding: var(--spacing-2) var(--spacing-3);
 }
 
+/* ==================== Filter Pills ==================== */
+
+.node-selector__filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+}
+
+.node-selector__filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-full);
+  font: var(--font-label-small);
+  white-space: nowrap;
+}
+
+.node-selector__filter-pill-label {
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.node-selector__filter-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__filter-pill-remove:hover {
+  opacity: 1;
+  background: var(--color-hover-overlay);
+}
+
+/* ==================== Filter Suggestions ==================== */
+
+.node-selector__filter-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.node-selector__filter-suggestion:hover,
+.node-selector__filter-suggestion--highlighted {
+  background: var(--color-surface-container-high);
+}
+
+.node-selector__filter-prefix {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--color-primary);
+  font: var(--font-label-small);
+}
+
+.node-selector__filter-value {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-small);
+}
+
+/* Filter suggestion variant of node result item */
+.node-result-item--filter-suggestion {
+  opacity: 0.9;
+}
+
+.node-result-item--filter-suggestion:hover,
+.node-result-item--filter-suggestion.node-result-item--highlighted {
+  background: var(--color-primary-container);
+}

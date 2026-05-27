@@ -25,6 +25,7 @@ import { Card } from '@/components/core/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/core/SelectTrigger';
 
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
+import { parseQueryWithFilters, type AppliedFilter, type FilterPrefixConfig } from '@/utils/searchFilters';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
@@ -126,6 +127,7 @@ export function NodeSelector({
   const isAnchored = anchorEl != null;
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -161,6 +163,74 @@ export function NodeSelector({
   // Use either nodes prop or resolved nodes from value
   const nodes = nodesProp ?? resolvedNodesFromValue;
 
+  // For parent hierarchy display on page items
+  const { data: allPages = [] } = usePages();
+  const { data: allClasses = [] } = useClasses();
+
+  // Parse query for filter prefix syntax
+  const parsedFilters = useMemo(
+    () => parseQueryWithFilters(searchQuery, appliedFilters),
+    [searchQuery, appliedFilters]
+  );
+
+  // Derive class filters from applied class filters + prop classFilters
+  const derivedClassFilters = useMemo(() => {
+    const appliedClassIds = appliedFilters
+      .filter((f): f is AppliedFilter & { type: 'class' } => f.type === 'class')
+      .map(f => f.classNode.id);
+    return [...(classFilters ?? []), ...appliedClassIds];
+  }, [appliedFilters, classFilters]);
+
+  // Derive boolean filters from applied boolean filters
+  const derivedBooleanFilters = useMemo(() => {
+    const filters: { isPage?: boolean; isClass?: boolean; isDaily?: boolean } = {};
+    for (const f of appliedFilters) {
+      if (f.type === 'boolean') {
+        if (f.prefix === 'is_page') filters.isPage = f.value;
+        else if (f.prefix === 'is_class') filters.isClass = f.value;
+        else if (f.prefix === 'is_daily') filters.isDaily = f.value;
+      }
+    }
+    return filters;
+  }, [appliedFilters]);
+
+  // Build filter suggestion items when user is typing a filter
+  type FilterSuggestionItem =
+    | { type: 'class'; node: Node }
+    | { type: 'boolean'; prefix: string; label: string; value: boolean }
+    | { type: 'prefix'; config: FilterPrefixConfig };
+
+  const filterSuggestions = useMemo<FilterSuggestionItem[]>(() => {
+    if (parsedFilters.suggestedPrefixes.length > 0) {
+      return parsedFilters.suggestedPrefixes.map(config => ({ type: 'prefix' as const, config }));
+    }
+    if (!parsedFilters.isTypingFilter || !parsedFilters.activeFilter) return [];
+
+    const { activeFilter } = parsedFilters;
+    if (activeFilter.config.type === 'class') {
+      const query = activeFilter.value.toLowerCase();
+      return (allClasses ?? [])
+        .filter(c => nodeNameToText(c.name).toLowerCase().includes(query))
+        .slice(0, 5)
+        .map(node => ({ type: 'class' as const, node }));
+    }
+
+    if (activeFilter.config.type === 'boolean') {
+      const options = activeFilter.config.options ?? [];
+      const value = activeFilter.value.toLowerCase();
+      return options
+        .filter(opt => opt.startsWith(value))
+        .map(opt => ({
+          type: 'boolean' as const,
+          prefix: activeFilter.prefix,
+          label: activeFilter.config.label,
+          value: opt === 'true',
+        }));
+    }
+
+    return [];
+  }, [parsedFilters, allClasses]);
+
   // Track pinned node ID for single-value pickers:
   // - Current value if set
   // - Last non-null value if cleared during the same picker session
@@ -174,25 +244,26 @@ export function NodeSelector({
   const pinnedNodeId = !multi ? (currentSingleValue ?? lastNonNullValue) : null;
 
   // Use shared search hook (same as SuggestionPopup)
-  const { allResults, isLoading, showCreateOption: searchShowCreate, hasMore } = useNodeSearch(searchQuery, {
-    mode: searchMode,
-    classFilters,
-    excludeNodeId,
-    maxResults: displayLimit,
-    pinnedNodeId: pinnedNodeId ?? undefined,
-  });
+  const { allResults, isLoading, showCreateOption: searchShowCreate, hasMore } = useNodeSearch(
+    parsedFilters.searchTerm,
+    {
+      mode: searchMode,
+      classFilters: derivedClassFilters,
+      excludeNodeId,
+      maxResults: displayLimit,
+      pinnedNodeId: pinnedNodeId ?? undefined,
+      uuid: parsedFilters.uuidSearch ?? undefined,
+      ...derivedBooleanFilters,
+    }
+  );
 
   // Secondary search for page conversion candidates (always called to respect hooks rules;
   // results only used when onConvertToClass is provided and there's an active query)
-  const { allResults: pageConvertResults } = useNodeSearch(searchQuery, {
+  const { allResults: pageConvertResults } = useNodeSearch(parsedFilters.searchTerm, {
     mode: 'pages',
     maxResults: 5,
     excludeNodeId,
   });
-
-  // For parent hierarchy display on page items
-  const { data: allPages = [] } = usePages();
-  const { data: allClasses = [] } = useClasses();
 
   // Built-in create support — hooks must be called unconditionally
   const createNodeMutation = useCreateNode();
@@ -241,15 +312,15 @@ export function NodeSelector({
   }, [searchResults, assignedIds, canAdd]);
 
   // Only show create option if a create handler is available and there's a query
-  const showCreateOption = effectiveCreateNew && searchShowCreate && searchQuery.trim().length > 0;
+  const showCreateOption = effectiveCreateNew && searchShowCreate && searchQuery.trim().length > 0 && filterSuggestions.length === 0;
 
   // Non-class pages matching the search query, offered as "convert to class" candidates
   const convertCandidates = useMemo(() => {
-    if (!onConvertToClass || !searchQuery.trim()) return [];
+    if (!onConvertToClass || !parsedFilters.searchTerm.trim()) return [];
     return pageConvertResults
       .map(r => r.node)
       .filter(n => !n.is_class && !assignedIds.has(n.id));
-  }, [onConvertToClass, searchQuery, pageConvertResults, assignedIds]);
+  }, [onConvertToClass, parsedFilters.searchTerm, pageConvertResults, assignedIds]);
 
   // For multi-select dropdown: selected nodes first, then unselected search results
   const multiDropdownItems = useMemo(() => {
@@ -265,10 +336,10 @@ export function NodeSelector({
   }, [multi, searchResults, assignedIds, canAdd, nodes]);
 
   // Total selectable items (include "show more" row when results are truncated)
-  const showMoreOption = hasMore && !multi;
+  const showMoreOption = hasMore && !multi && filterSuggestions.length === 0;
   const totalItems = multi
-    ? multiDropdownItems.length + (showCreateOption ? 1 : 0)
-    : filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
+    ? filterSuggestions.length + multiDropdownItems.length + (showCreateOption ? 1 : 0)
+    : filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
 
   // Position menu for 'select' single mode with viewport flip
   const menuPosition = useViewportFlip(
@@ -349,6 +420,7 @@ export function NodeSelector({
       ) {
         setIsPickerOpen(false);
         setSearchQuery('');
+        setAppliedFilters([]);
       }
     };
 
@@ -359,6 +431,7 @@ export function NodeSelector({
         } else {
           setIsPickerOpen(false);
           setSearchQuery('');
+          setAppliedFilters([]);
         }
       }
     };
@@ -369,7 +442,7 @@ export function NodeSelector({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isPickerOpen, trigger, isAnchored, onClose]);
+  }, [isPickerOpen, trigger, isAnchored, onClose, anchorEl]);
 
   // Focus search input when picker opens
   // Include pickerPos in deps because in pill-row mode the picker only renders
@@ -399,6 +472,7 @@ export function NodeSelector({
     if (!multi || trigger === 'pill-row') {
       setIsPickerOpen(false);
       setSearchQuery('');
+      setAppliedFilters([]);
     }
   }, [onChange, onAdd, multi, trigger, value, assignedIds]);
 
@@ -443,6 +517,7 @@ export function NodeSelector({
     
     setIsPickerOpen(false);
     setSearchQuery('');
+    setAppliedFilters([]);
   }, [searchQuery, effectiveCreateNew, handleAdd]);
 
   const handleClearAll = useCallback((e: React.MouseEvent) => {
@@ -466,29 +541,73 @@ export function NodeSelector({
     setDisplayLimit(trigger === 'select' ? 15 : 10);
   }, [trigger]);
 
+  // Filter suggestion handlers
+  const handleAddClassFilter = useCallback((classNode: Node) => {
+    setAppliedFilters(prev => {
+      if (prev.some(f => f.type === 'class' && f.classNode.id === classNode.id)) return prev;
+      return [...prev, { type: 'class' as const, classNode }];
+    });
+    setSearchQuery(prev => prev.replace(/\S+:\S*$/, '').trim());
+  }, []);
+
+  const handleAddBooleanFilter = useCallback((prefix: string, label: string, value: boolean) => {
+    setAppliedFilters(prev => {
+      const existing = prev.findIndex(f => f.type === 'boolean' && f.prefix === prefix);
+      const newFilter = { type: 'boolean' as const, prefix, label, value };
+      if (existing >= 0) {
+        return prev.map((f, i) => i === existing ? newFilter : f);
+      }
+      return [...prev, newFilter];
+    });
+    setSearchQuery(prev => prev.replace(/\S+:\S*$/, '').trim());
+  }, []);
+
+  const handlePrefixSelect = useCallback((prefix: string) => {
+    setSearchQuery(prev => prev.replace(/\S+$/, '') + prefix + ':');
+  }, []);
+
+  const handleRemoveFilter = useCallback((index: number) => {
+    setAppliedFilters(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
   // Keyboard list navigation
   const handleSelectByIndex = useCallback((index: number) => {
+    if (index < filterSuggestions.length) {
+      const item = filterSuggestions[index];
+      if (item.type === 'class') {
+        handleAddClassFilter(item.node);
+      } else if (item.type === 'boolean') {
+        handleAddBooleanFilter(item.prefix, item.label, item.value);
+      } else if (item.type === 'prefix') {
+        handlePrefixSelect(item.config.prefix);
+      }
+      return;
+    }
+
+    const adjustedIndex = index - filterSuggestions.length;
+
     if (multi) {
-      if (index < multiDropdownItems.length) {
-        handleToggle(multiDropdownItems[index]);
+      if (adjustedIndex < multiDropdownItems.length) {
+        handleToggle(multiDropdownItems[adjustedIndex]);
       } else if (showCreateOption) {
         handleCreateNew();
       }
     } else {
-      if (index < filteredResults.length) {
-        handleAdd(filteredResults[index]);
-      } else if (index < filteredResults.length + convertCandidates.length) {
-        const convertNode = convertCandidates[index - filteredResults.length];
+      if (adjustedIndex < filteredResults.length) {
+        handleAdd(filteredResults[adjustedIndex]);
+      } else if (adjustedIndex < filteredResults.length + convertCandidates.length) {
+        const convertNode = convertCandidates[adjustedIndex - filteredResults.length];
         onConvertToClass?.(convertNode);
         setIsPickerOpen(false);
         setSearchQuery('');
-      } else if (showMoreOption && index === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0)) {
+        setAppliedFilters([]);
+      } else if (showMoreOption && adjustedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0)) {
         handleShowMore();
       } else if (showCreateOption) {
         handleCreateNew();
       }
     }
-  }, [multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass]);
+  }, [filterSuggestions, multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass, handleAddClassFilter, handleAddBooleanFilter, handlePrefixSelect]);
 
   const handleClosePicker = useCallback(() => {
     if (isAnchored) {
@@ -496,6 +615,7 @@ export function NodeSelector({
     } else {
       setIsPickerOpen(false);
       setSearchQuery('');
+      setAppliedFilters([]);
     }
   }, [isAnchored, onClose]);
 
@@ -680,26 +800,87 @@ export function NodeSelector({
               placeholder={effectiveCreateNew ? 'Search or create...' : searchPlaceholder}
               className="node-selector__search-field"
             />
+            {appliedFilters.length > 0 && (
+              <div className="node-selector__filter-pills">
+                {appliedFilters.map((filter, fi) => (
+                  <span key={`${filter.type}-${fi}`} className="node-selector__filter-pill">
+                    {filter.type === 'class' ? (
+                      <>
+                        <span className="node-selector__filter-pill-label">class:</span>
+                        <span>{nodeNameToText(filter.classNode.name)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="node-selector__filter-pill-label">{filter.prefix}:</span>
+                        <span>{filter.value ? 'true' : 'false'}</span>
+                      </>
+                    )}
+                    <button
+                      className="node-selector__filter-pill-remove"
+                      onClick={() => handleRemoveFilter(fi)}
+                      aria-label="Remove filter"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
                 <div className="node-selector__loading">Searching...</div>
-              ) : multiDropdownItems.length === 0 && !showCreateOption ? (
+              ) : multiDropdownItems.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                 <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
                 </div>
               ) : (
                 <>
+                  {filterSuggestions.map((item, index) => {
+                    const isHighlighted = index === selectedIndex;
+                    if (item.type === 'class') {
+                      return (
+                        <NodeResultItem
+                          key={`filter-class-${item.node.id}`}
+                          node={item.node}
+                          isHighlighted={isHighlighted}
+                          onClick={() => handleAddClassFilter(item.node)}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          className="node-result-item--filter-suggestion"
+                          iconOverride={<span className="node-selector__filter-prefix">class:</span>}
+                        />
+                      );
+                    }
+                    return (
+                      <button
+                        key={`filter-${item.type}-${item.type === 'boolean' ? item.prefix : item.config.prefix}`}
+                        className={`node-selector__filter-suggestion ${isHighlighted ? 'node-selector__filter-suggestion--highlighted' : ''}`}
+                        onClick={() => item.type === 'boolean'
+                          ? handleAddBooleanFilter(item.prefix, item.label, item.value)
+                          : handlePrefixSelect(item.config.prefix)
+                        }
+                        onMouseEnter={() => setSelectedIndex(index)}
+                      >
+                        <span className="node-selector__filter-prefix">
+                          {item.type === 'boolean' ? `${item.prefix}:` : item.config.label}
+                        </span>
+                        <span className="node-selector__filter-value">
+                          {item.type === 'boolean' ? (item.value ? 'true' : 'false') : item.config.description}
+                        </span>
+                      </button>
+                    );
+                  })}
                   {multiDropdownItems.map((node, index) => {
                     const isAssigned = assignedIds.has(node.id);
+                    const globalIndex = filterSuggestions.length + index;
                     return (
                       <NodeResultItem
                         key={node.id}
                         node={node}
                         parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
                         displayClasses={getDisplayClasses(node)}
-                        isHighlighted={index === selectedIndex}
+                        isHighlighted={globalIndex === selectedIndex}
                         onClick={() => handleToggle(node)}
-                        onMouseEnter={() => setSelectedIndex(index)}
+                        onMouseEnter={() => setSelectedIndex(globalIndex)}
                         allClasses={allClasses}
                         after={
                           <Checkbox
@@ -716,9 +897,9 @@ export function NodeSelector({
                     <NodeResultItem
                       key="__create"
                       node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                      isHighlighted={selectedIndex === multiDropdownItems.length}
+                      isHighlighted={selectedIndex === filterSuggestions.length + multiDropdownItems.length}
                       onClick={handleCreateNew}
-                      onMouseEnter={() => setSelectedIndex(multiDropdownItems.length)}
+                      onMouseEnter={() => setSelectedIndex(filterSuggestions.length + multiDropdownItems.length)}
                       className="node-result-item--create"
                       iconOverride={<AddIcon size="sm" />}
                     />
@@ -765,35 +946,100 @@ export function NodeSelector({
               />
             </div>
             
+            {/* Filter pills */}
+            {appliedFilters.length > 0 && (
+              <div className="node-selector__filter-pills">
+                {appliedFilters.map((filter, fi) => (
+                  <span key={`${filter.type}-${fi}`} className="node-selector__filter-pill">
+                    {filter.type === 'class' ? (
+                      <>
+                        <span className="node-selector__filter-pill-label">class:</span>
+                        <span>{nodeNameToText(filter.classNode.name)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="node-selector__filter-pill-label">{filter.prefix}:</span>
+                        <span>{filter.value ? 'true' : 'false'}</span>
+                      </>
+                    )}
+                    <button
+                      className="node-selector__filter-pill-remove"
+                      onClick={() => handleRemoveFilter(fi)}
+                      aria-label="Remove filter"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            
             {/* Results List */}
             <div className="node-selector__list">
               {isLoading && searchQuery.length > 0 ? (
                 <div className="node-selector__loading">Searching...</div>
-              ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
+              ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                 <div className="node-selector__empty">
                   {searchQuery ? 'No matches found' : 'Start typing to search'}
                 </div>
               ) : (
                 <>
-                  {filteredResults.map((node, index) => (
-                    <NodeResultItem
-                      key={node.id}
-                      node={node}
-                      parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
-                      displayClasses={getDisplayClasses(node)}
-                      isHighlighted={index === selectedIndex}
-                      isSelected={assignedIds.has(node.id)}
-                      onClick={() => handleAdd(node)}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                      allClasses={allClasses}
-                    />
-                  ))}
+                  {filterSuggestions.map((item, index) => {
+                    const isHighlighted = index === selectedIndex;
+                    if (item.type === 'class') {
+                      return (
+                        <NodeResultItem
+                          key={`filter-class-${item.node.id}`}
+                          node={item.node}
+                          isHighlighted={isHighlighted}
+                          onClick={() => handleAddClassFilter(item.node)}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          className="node-result-item--filter-suggestion"
+                          iconOverride={<span className="node-selector__filter-prefix">class:</span>}
+                        />
+                      );
+                    }
+                    return (
+                      <button
+                        key={`filter-${item.type}-${item.type === 'boolean' ? item.prefix : item.config.prefix}`}
+                        className={`node-selector__filter-suggestion ${isHighlighted ? 'node-selector__filter-suggestion--highlighted' : ''}`}
+                        onClick={() => item.type === 'boolean'
+                          ? handleAddBooleanFilter(item.prefix, item.label, item.value)
+                          : handlePrefixSelect(item.config.prefix)
+                        }
+                        onMouseEnter={() => setSelectedIndex(index)}
+                      >
+                        <span className="node-selector__filter-prefix">
+                          {item.type === 'boolean' ? `${item.prefix}:` : item.config.label}
+                        </span>
+                        <span className="node-selector__filter-value">
+                          {item.type === 'boolean' ? (item.value ? 'true' : 'false') : item.config.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {filteredResults.map((node, index) => {
+                    const globalIndex = filterSuggestions.length + index;
+                    return (
+                      <NodeResultItem
+                        key={node.id}
+                        node={node}
+                        parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                        displayClasses={getDisplayClasses(node)}
+                        isHighlighted={globalIndex === selectedIndex}
+                        isSelected={assignedIds.has(node.id)}
+                        onClick={() => handleAdd(node)}
+                        onMouseEnter={() => setSelectedIndex(globalIndex)}
+                        allClasses={allClasses}
+                      />
+                    );
+                  })}
 
                   {convertCandidates.length > 0 && (
                     <>
                       <div className="node-selector__section-label">Convert to class</div>
                       {convertCandidates.map((node, index) => {
-                        const idx = filteredResults.length + index;
+                        const idx = filterSuggestions.length + filteredResults.length + index;
                         return (
                           <NodeResultItem
                             key={`convert-${node.id}`}
@@ -801,7 +1047,7 @@ export function NodeSelector({
                             parentPath={buildParentPath(node)}
                             displayClasses={getDisplayClasses(node)}
                             isHighlighted={idx === selectedIndex}
-                            onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                            onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
                             onMouseEnter={() => setSelectedIndex(idx)}
                             allClasses={allClasses}
                             className="node-result-item--convert"
@@ -815,18 +1061,18 @@ export function NodeSelector({
                     <NodeResultItem
                       key="__create"
                       node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                      isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
+                      isHighlighted={selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length}
                       onClick={handleCreateNew}
-                      onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
+                      onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length)}
                       className="node-result-item--create"
                       iconOverride={<AddIcon size="sm" />}
                     />
                   )}
                   {showMoreOption && (
                     <button
-                      className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                      className={`node-selector__show-more ${selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
                       onClick={handleShowMore}
-                      onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                      onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
                     >
                       Show more results
                     </button>
@@ -836,13 +1082,15 @@ export function NodeSelector({
             </div>
             
             {/* Footer with hint */}
-            {classFilters && classFilters.length > 0 && (
+            {(classFilters && classFilters.length > 0) || appliedFilters.length > 0 ? (
               <div className="node-selector__footer">
                 <span className="node-selector__hint">
-                  Filtered by {classFilters.length} class{classFilters.length > 1 ? 'es' : ''}
+                  {appliedFilters.length > 0
+                    ? `${appliedFilters.length} filter${appliedFilters.length > 1 ? 's' : ''} active`
+                    : `Filtered by ${classFilters!.length} class${classFilters!.length > 1 ? 'es' : ''}`}
                 </span>
               </div>
-            )}
+            ) : null}
           </Card>,
           document.body
         )}
@@ -864,32 +1112,95 @@ export function NodeSelector({
           onKeyDown={handleKeyDown}
           autoFocus
         />
+        {appliedFilters.length > 0 && (
+          <div className="node-selector__filter-pills">
+            {appliedFilters.map((filter, fi) => (
+              <span key={`${filter.type}-${fi}`} className="node-selector__filter-pill">
+                {filter.type === 'class' ? (
+                  <>
+                    <span className="node-selector__filter-pill-label">class:</span>
+                    <span>{nodeNameToText(filter.classNode.name)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="node-selector__filter-pill-label">{filter.prefix}:</span>
+                    <span>{filter.value ? 'true' : 'false'}</span>
+                  </>
+                )}
+                <button
+                  className="node-selector__filter-pill-remove"
+                  onClick={() => handleRemoveFilter(fi)}
+                  aria-label="Remove filter"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="node-selector__options">
           {isLoading && searchQuery.length > 0 ? (
             <div className="node-selector__loading">Searching...</div>
-          ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
+          ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
             <div className="node-selector__no-results">
               {searchQuery ? 'No matches found' : 'Start typing to search'}
             </div>
           ) : (
             <>
-              {filteredResults.map((node, index) => (
-                <NodeResultItem
-                  key={node.id}
-                  node={node}
-                  parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
-                  displayClasses={getDisplayClasses(node)}
-                  isHighlighted={index === selectedIndex}
-                  onClick={() => handleAdd(node)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  allClasses={allClasses}
-                />
-              ))}
+              {filterSuggestions.map((item, index) => {
+                const isHighlighted = index === selectedIndex;
+                if (item.type === 'class') {
+                  return (
+                    <NodeResultItem
+                      key={`filter-class-${item.node.id}`}
+                      node={item.node}
+                      isHighlighted={isHighlighted}
+                      onClick={() => handleAddClassFilter(item.node)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className="node-result-item--filter-suggestion"
+                      iconOverride={<span className="node-selector__filter-prefix">class:</span>}
+                    />
+                  );
+                }
+                return (
+                  <button
+                    key={`filter-${item.type}-${item.type === 'boolean' ? item.prefix : item.config.prefix}`}
+                    className={`node-selector__filter-suggestion ${isHighlighted ? 'node-selector__filter-suggestion--highlighted' : ''}`}
+                    onClick={() => item.type === 'boolean'
+                      ? handleAddBooleanFilter(item.prefix, item.label, item.value)
+                      : handlePrefixSelect(item.config.prefix)
+                    }
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <span className="node-selector__filter-prefix">
+                      {item.type === 'boolean' ? `${item.prefix}:` : item.config.label}
+                    </span>
+                    <span className="node-selector__filter-value">
+                      {item.type === 'boolean' ? (item.value ? 'true' : 'false') : item.config.description}
+                    </span>
+                  </button>
+                );
+              })}
+              {filteredResults.map((node, index) => {
+                const globalIndex = filterSuggestions.length + index;
+                return (
+                  <NodeResultItem
+                    key={node.id}
+                    node={node}
+                    parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                    displayClasses={getDisplayClasses(node)}
+                    isHighlighted={globalIndex === selectedIndex}
+                    onClick={() => handleAdd(node)}
+                    onMouseEnter={() => setSelectedIndex(globalIndex)}
+                    allClasses={allClasses}
+                  />
+                );
+              })}
               {convertCandidates.length > 0 && (
                 <>
                   <div className="node-selector__section-label">Convert to class</div>
                   {convertCandidates.map((node, index) => {
-                    const idx = filteredResults.length + index;
+                    const idx = filterSuggestions.length + filteredResults.length + index;
                     return (
                       <NodeResultItem
                         key={`convert-${node.id}`}
@@ -897,7 +1208,7 @@ export function NodeSelector({
                         parentPath={buildParentPath(node)}
                         displayClasses={getDisplayClasses(node)}
                         isHighlighted={idx === selectedIndex}
-                        onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                        onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
                         onMouseEnter={() => setSelectedIndex(idx)}
                         allClasses={allClasses}
                         className="node-result-item--convert"
@@ -910,18 +1221,18 @@ export function NodeSelector({
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                  isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
+                  isHighlighted={selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length}
                   onClick={handleCreateNew}
-                  onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
+                  onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length)}
                   className="node-result-item--create"
                   iconOverride={<AddIcon size="sm" />}
                 />
               )}
               {showMoreOption && (
                 <button
-                  className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                  className={`node-selector__show-more ${selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
                   onClick={handleShowMore}
-                  onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                  onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
                 >
                   Show more results
                 </button>
@@ -954,43 +1265,106 @@ export function NodeSelector({
           onKeyDown={handleKeyDown}
           autoFocus
         />
+        {appliedFilters.length > 0 && (
+          <div className="node-selector__filter-pills">
+            {appliedFilters.map((filter, fi) => (
+              <span key={`${filter.type}-${fi}`} className="node-selector__filter-pill">
+                {filter.type === 'class' ? (
+                  <>
+                    <span className="node-selector__filter-pill-label">class:</span>
+                    <span>{nodeNameToText(filter.classNode.name)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="node-selector__filter-pill-label">{filter.prefix}:</span>
+                    <span>{filter.value ? 'true' : 'false'}</span>
+                  </>
+                )}
+                <button
+                  className="node-selector__filter-pill-remove"
+                  onClick={() => handleRemoveFilter(fi)}
+                  aria-label="Remove filter"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="node-selector__options">
           {isLoading && searchQuery.length > 0 ? (
             <div className="node-selector__loading">Searching...</div>
-          ) : filteredResults.length === 0 && !showCreateOption ? (
+          ) : filteredResults.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
             <div className="node-selector__no-results">
               {searchQuery ? 'No matches found' : 'Start typing to search'}
             </div>
           ) : (
             <>
-              {filteredResults.map((node, index) => (
-                <NodeResultItem
-                  key={node.id}
-                  node={node}
-                  parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
-                  displayClasses={getDisplayClasses(node)}
-                  isHighlighted={index === selectedIndex}
-                  onClick={() => handleAdd(node)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  allClasses={allClasses}
-                />
-              ))}
+              {filterSuggestions.map((item, index) => {
+                const isHighlighted = index === selectedIndex;
+                if (item.type === 'class') {
+                  return (
+                    <NodeResultItem
+                      key={`filter-class-${item.node.id}`}
+                      node={item.node}
+                      isHighlighted={isHighlighted}
+                      onClick={() => handleAddClassFilter(item.node)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className="node-result-item--filter-suggestion"
+                      iconOverride={<span className="node-selector__filter-prefix">class:</span>}
+                    />
+                  );
+                }
+                return (
+                  <button
+                    key={`filter-${item.type}-${item.type === 'boolean' ? item.prefix : item.config.prefix}`}
+                    className={`node-selector__filter-suggestion ${isHighlighted ? 'node-selector__filter-suggestion--highlighted' : ''}`}
+                    onClick={() => item.type === 'boolean'
+                      ? handleAddBooleanFilter(item.prefix, item.label, item.value)
+                      : handlePrefixSelect(item.config.prefix)
+                    }
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <span className="node-selector__filter-prefix">
+                      {item.type === 'boolean' ? `${item.prefix}:` : item.config.label}
+                    </span>
+                    <span className="node-selector__filter-value">
+                      {item.type === 'boolean' ? (item.value ? 'true' : 'false') : item.config.description}
+                    </span>
+                  </button>
+                );
+              })}
+              {filteredResults.map((node, index) => {
+                const globalIndex = filterSuggestions.length + index;
+                return (
+                  <NodeResultItem
+                    key={node.id}
+                    node={node}
+                    parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                    displayClasses={getDisplayClasses(node)}
+                    isHighlighted={globalIndex === selectedIndex}
+                    onClick={() => handleAdd(node)}
+                    onMouseEnter={() => setSelectedIndex(globalIndex)}
+                    allClasses={allClasses}
+                  />
+                );
+              })}
               {showCreateOption && (
                 <NodeResultItem
                   key="__create"
                   node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                  isHighlighted={selectedIndex === filteredResults.length}
+                  isHighlighted={selectedIndex === filterSuggestions.length + filteredResults.length}
                   onClick={handleCreateNew}
-                  onMouseEnter={() => setSelectedIndex(filteredResults.length)}
+                  onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length)}
                   className="node-result-item--create"
                   iconOverride={<AddIcon size="sm" />}
                 />
               )}
               {showMoreOption && (
                 <button
-                  className={`node-selector__show-more ${selectedIndex === filteredResults.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                  className={`node-selector__show-more ${selectedIndex === filterSuggestions.length + filteredResults.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
                   onClick={handleShowMore}
-                  onMouseEnter={() => setSelectedIndex(filteredResults.length + (showCreateOption ? 1 : 0))}
+                  onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + (showCreateOption ? 1 : 0))}
                 >
                   Show more results
                 </button>
@@ -1055,32 +1429,95 @@ export function NodeSelector({
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}
               />
+              {appliedFilters.length > 0 && (
+                <div className="node-selector__filter-pills">
+                  {appliedFilters.map((filter, fi) => (
+                    <span key={`${filter.type}-${fi}`} className="node-selector__filter-pill">
+                      {filter.type === 'class' ? (
+                        <>
+                          <span className="node-selector__filter-pill-label">class:</span>
+                          <span>{nodeNameToText(filter.classNode.name)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="node-selector__filter-pill-label">{filter.prefix}:</span>
+                          <span>{filter.value ? 'true' : 'false'}</span>
+                        </>
+                      )}
+                      <button
+                        className="node-selector__filter-pill-remove"
+                        onClick={() => handleRemoveFilter(fi)}
+                        aria-label="Remove filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="node-selector__options">
                 {isLoading && searchQuery.length > 0 ? (
                   <div className="node-selector__loading">Searching...</div>
-                ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption ? (
+                ) : filteredResults.length === 0 && convertCandidates.length === 0 && !showCreateOption && filterSuggestions.length === 0 ? (
                   <div className="node-selector__no-results">
                     {searchQuery ? 'No matches found' : 'Start typing to search'}
                   </div>
                 ) : (
                   <>
-                    {filteredResults.map((node, index) => (
-                      <NodeResultItem
-                        key={node.id}
-                        node={node}
-                        parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
-                        displayClasses={getDisplayClasses(node)}
-                        isHighlighted={index === selectedIndex}
-                        onClick={() => handleAdd(node)}
-                        onMouseEnter={() => setSelectedIndex(index)}
-                        allClasses={allClasses}
-                      />
-                    ))}
+                    {filterSuggestions.map((item, index) => {
+                      const isHighlighted = index === selectedIndex;
+                      if (item.type === 'class') {
+                        return (
+                          <NodeResultItem
+                            key={`filter-class-${item.node.id}`}
+                            node={item.node}
+                            isHighlighted={isHighlighted}
+                            onClick={() => handleAddClassFilter(item.node)}
+                            onMouseEnter={() => setSelectedIndex(index)}
+                            className="node-result-item--filter-suggestion"
+                            iconOverride={<span className="node-selector__filter-prefix">class:</span>}
+                          />
+                        );
+                      }
+                      return (
+                        <button
+                          key={`filter-${item.type}-${item.type === 'boolean' ? item.prefix : item.config.prefix}`}
+                          className={`node-selector__filter-suggestion ${isHighlighted ? 'node-selector__filter-suggestion--highlighted' : ''}`}
+                          onClick={() => item.type === 'boolean'
+                            ? handleAddBooleanFilter(item.prefix, item.label, item.value)
+                            : handlePrefixSelect(item.config.prefix)
+                          }
+                          onMouseEnter={() => setSelectedIndex(index)}
+                        >
+                          <span className="node-selector__filter-prefix">
+                            {item.type === 'boolean' ? `${item.prefix}:` : item.config.label}
+                          </span>
+                          <span className="node-selector__filter-value">
+                            {item.type === 'boolean' ? (item.value ? 'true' : 'false') : item.config.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {filteredResults.map((node, index) => {
+                      const globalIndex = filterSuggestions.length + index;
+                      return (
+                        <NodeResultItem
+                          key={node.id}
+                          node={node}
+                          parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
+                          displayClasses={getDisplayClasses(node)}
+                          isHighlighted={globalIndex === selectedIndex}
+                          onClick={() => handleAdd(node)}
+                          onMouseEnter={() => setSelectedIndex(globalIndex)}
+                          allClasses={allClasses}
+                        />
+                      );
+                    })}
                     {convertCandidates.length > 0 && (
                       <>
                         <div className="node-selector__section-label">Convert to class</div>
                         {convertCandidates.map((node, index) => {
-                          const idx = filteredResults.length + index;
+                          const idx = filterSuggestions.length + filteredResults.length + index;
                           return (
                             <NodeResultItem
                               key={`convert-${node.id}`}
@@ -1088,7 +1525,7 @@ export function NodeSelector({
                               parentPath={buildParentPath(node)}
                               displayClasses={getDisplayClasses(node)}
                               isHighlighted={idx === selectedIndex}
-                              onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); }}
+                              onClick={() => { onConvertToClass!(node); setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
                               onMouseEnter={() => setSelectedIndex(idx)}
                               allClasses={allClasses}
                               className="node-result-item--convert"
@@ -1101,18 +1538,18 @@ export function NodeSelector({
                       <NodeResultItem
                         key="__create"
                         node={{ name: `Create "${searchQuery.trim()}"` } as Node}
-                        isHighlighted={selectedIndex === filteredResults.length + convertCandidates.length}
+                        isHighlighted={selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length}
                         onClick={handleCreateNew}
-                        onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length)}
+                        onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length)}
                         className="node-result-item--create"
                         iconOverride={<AddIcon size="xs" />}
                       />
                     )}
                     {showMoreOption && (
                       <button
-                        className={`node-selector__show-more ${selectedIndex === filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
+                        className={`node-selector__show-more ${selectedIndex === filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) ? 'node-selector__show-more--highlighted' : ''}`}
                         onClick={handleShowMore}
-                        onMouseEnter={() => setSelectedIndex(filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
+                        onMouseEnter={() => setSelectedIndex(filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0))}
                       >
                         Show more results
                       </button>
