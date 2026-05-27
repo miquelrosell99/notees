@@ -1,19 +1,21 @@
 /**
  * WorkspaceExportModal — Modal for exporting a workspace in various formats.
  *
- * Supports:
- *   - Notees Dump (comprehensive JSON, or ZIP with assets)
- *   - Markdown (ZIP of .md files with optional assets)
- *   - Plain Text (ZIP of .txt files)
- *   - JSON AST (ZIP of .json AST files)
+ * Uses an async job pattern: creates a job, polls for progress, then downloads.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
 import { SelectionRadio, type RadioOption } from '@/components/core/SelectionRadio';
 import { SyncIcon } from '@/components/core/icons';
-import { exportWorkspaceFormat, exportWorkspaceZip } from '@/api/workspaces';
+import {
+  createExportJob,
+  getExportJob,
+  downloadExportJob,
+  type ExportJob,
+} from '@/api/workspaces';
 import { downloadBlob } from '@/utils/download';
 import './WorkspaceExportModal.css';
 
@@ -55,6 +57,11 @@ function getFormatOptions(includeAssets: boolean): RadioOption[] {
   ];
 }
 
+function getFileExtension(format: ExportFormat, includeAssets: boolean): string {
+  if (format === 'dump' && !includeAssets) return 'json';
+  return 'zip';
+}
+
 export function WorkspaceExportModal({
   isOpen,
   onClose,
@@ -63,7 +70,7 @@ export function WorkspaceExportModal({
 }: WorkspaceExportModalProps) {
   const [format, setFormat] = useState<ExportFormat>('dump');
   const [includeAssets, setIncludeAssets] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const formatOptions = useMemo(() => getFormatOptions(includeAssets), [includeAssets]);
@@ -73,67 +80,113 @@ export function WorkspaceExportModal({
     setError(null);
   }, []);
 
-  const handleDownload = useCallback(async () => {
-    setDownloading(true);
+  const handleStartExport = useCallback(async () => {
     setError(null);
     try {
-      // Dump format: plain JSON without assets, ZIP with assets
-      const isDumpWithAssets = format === 'dump' && includeAssets;
-      const blob = isDumpWithAssets
-        ? await exportWorkspaceZip(workspaceUuid)
-        : await exportWorkspaceFormat(workspaceUuid, format, includeAssets);
-      const suffix = format === 'dump' ? 'dump' : format;
-      const ext = isDumpWithAssets ? 'zip' : format === 'dump' ? 'json' : 'zip';
-      const filename = `${workspaceName}_${suffix}.${ext}`;
-      downloadBlob(blob, filename);
-      onClose();
+      const { job_id } = await createExportJob(workspaceUuid, format, includeAssets);
+      setJobId(job_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed');
-    } finally {
-      setDownloading(false);
+      setError(err instanceof Error ? err.message : 'Failed to start export');
     }
-  }, [workspaceUuid, workspaceName, format, includeAssets, onClose]);
+  }, [workspaceUuid, format, includeAssets]);
+
+  const handleReset = useCallback(() => {
+    setJobId(null);
+    setError(null);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    handleReset();
+    onClose();
+  }, [handleReset, onClose]);
+
+  // Poll job status when we have an active job
+  const { data: job } = useQuery<ExportJob>({
+    queryKey: ['export-job', jobId],
+    queryFn: () => getExportJob(jobId!),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 500;
+      if (data.status === 'completed' || data.status === 'failed') return false;
+      return 500;
+    },
+  });
+
+  // Handle job state transitions (completed → download, failed → error)
+  useEffect(() => {
+    if (!job) return;
+
+    if (job.status === 'completed') {
+      const doDownload = async () => {
+        try {
+          const blob = await downloadExportJob(job.id);
+          const suffix = format === 'dump' ? 'dump' : format;
+          const ext = getFileExtension(format, includeAssets);
+          const filename = `${workspaceName}_${suffix}.${ext}`;
+          downloadBlob(blob, filename);
+          handleClose();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Download failed');
+          setJobId(null);
+        }
+      };
+      doDownload();
+    }
+
+    if (job.status === 'failed') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync local state with polled job result
+      setError(job.error ?? 'Export failed');
+      setJobId(null);
+    }
+  }, [job, format, includeAssets, workspaceName, handleClose]);
+
+  const isExporting = !!jobId && job && job.status !== 'completed' && job.status !== 'failed';
 
   const progressLabel = useMemo(() => {
-    if (format === 'dump' && includeAssets) return 'Creating dump with assets…';
-    if (format === 'dump') return 'Creating JSON dump…';
-    if (format === 'markdown') return 'Building Markdown archive…';
-    if (format === 'text') return 'Building plain-text archive…';
-    return 'Building JSON archive…';
-  }, [format, includeAssets]);
+    if (!job) return 'Starting export…';
+    return job.status_text;
+  }, [job]);
+
+  const progressValue = job?.progress ?? 0;
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Export Workspace"
       size="md"
       className="workspace-export"
       footer={
         <div className="workspace-export__footer">
-          <Button variant="default" onClick={onClose} disabled={downloading}>
-            Cancel
+          <Button variant="default" onClick={handleClose} disabled={isExporting}>
+            {isExporting ? 'Cancel' : 'Close'}
           </Button>
-          <Button
-            variant="primary"
-            icon="mdi mdi-download"
-            onClick={handleDownload}
-            disabled={downloading}
-          >
-            {downloading ? 'Exporting…' : 'Export'}
-          </Button>
+          {!jobId && (
+            <Button
+              variant="primary"
+              icon="mdi mdi-download"
+              onClick={handleStartExport}
+            >
+              Export
+            </Button>
+          )}
         </div>
       }
     >
-      {downloading ? (
+      {isExporting ? (
         <div className="workspace-export__progress-overlay">
           <SyncIcon size="lg" className="workspace-export__progress-spin" />
           <div className="workspace-export__progress-track">
-            <div className="workspace-export__progress-fill" />
+            <div
+              className="workspace-export__progress-fill"
+              style={{ width: `${Math.min(Math.max(progressValue, 0), 100)}%` }}
+            />
           </div>
           <p className="workspace-export__progress-label">{progressLabel}</p>
+          <span className="workspace-export__progress-percent">{progressValue}%</span>
         </div>
-      ) :(
+      ) : (
         <div className="workspace-export__body">
           {/* Format selection */}
           <div className="workspace-export__field-group">
@@ -143,7 +196,7 @@ export function WorkspaceExportModal({
               value={format}
               onChange={handleFormatChange}
               layout="vertical"
-              disabled={downloading}
+              disabled={isExporting}
             />
           </div>
 
