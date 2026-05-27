@@ -11,8 +11,10 @@ import { useState, useCallback } from 'react';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { SelectionRadio, type RadioOption } from '@/components/core/SelectionRadio';
 import { exportWorkspaceFormat } from '@/api/workspaces';
 import { downloadBlob } from '@/utils/download';
+import './WorkspaceExportModal.css';
 
 export interface WorkspaceExportModalProps {
   isOpen: boolean;
@@ -23,37 +25,30 @@ export interface WorkspaceExportModalProps {
 
 type ExportFormat = 'dump' | 'markdown' | 'text' | 'json';
 
-interface FormatOption {
-  value: ExportFormat;
-  label: string;
-  description: string;
-  icon: string;
-}
-
-const FORMAT_OPTIONS: FormatOption[] = [
+const FORMAT_OPTIONS: RadioOption[] = [
   {
     value: 'dump',
     label: 'Notees Dump',
     description: 'Full JSON dump with all nodes, links, properties, and settings. Best for backups.',
-    icon: 'mdi mdi-database-export',
+    badge: 'json',
   },
   {
     value: 'markdown',
     label: 'Markdown',
     description: 'All pages as .md files with YAML frontmatter. Great for portability.',
-    icon: 'mdi mdi-language-markdown',
+    badge: 'zip',
   },
   {
     value: 'text',
     label: 'Plain Text',
     description: 'All pages as .txt files. Simple and readable.',
-    icon: 'mdi mdi-text',
+    badge: 'zip',
   },
   {
     value: 'json',
     label: 'JSON AST',
     description: 'All pages as .json files with raw AST. Useful for data migration.',
-    icon: 'mdi mdi-code-json',
+    badge: 'zip',
   },
 ];
 
@@ -68,8 +63,8 @@ export function WorkspaceExportModal({
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFormatChange = useCallback((f: ExportFormat) => {
-    setFormat(f);
+  const handleFormatChange = useCallback((f: string) => {
+    setFormat(f as ExportFormat);
     setError(null);
   }, []);
 
@@ -90,17 +85,16 @@ export function WorkspaceExportModal({
     }
   }, [workspaceUuid, workspaceName, format, includeAssets, onClose]);
 
-  const selectedFormat = FORMAT_OPTIONS.find((f) => f.value === format);
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Export workspace: ${workspaceName}`}
+      title="Export Workspace"
       size="md"
+      className="workspace-export"
       footer={
-        <div className="workspace-export-modal__footer">
-          <Button variant="ghost" onClick={onClose} disabled={downloading}>
+        <div className="workspace-export__footer">
+          <Button variant="default" onClick={onClose} disabled={downloading}>
             Cancel
           </Button>
           <Button
@@ -109,41 +103,32 @@ export function WorkspaceExportModal({
             onClick={handleDownload}
             disabled={downloading}
           >
-            {downloading ? 'Exporting…' : 'Download'}
+            {downloading ? 'Exporting…' : 'Export'}
           </Button>
         </div>
       }
     >
-      <div className="workspace-export-modal__body">
-        <div className="workspace-export-modal__section">
-          <label className="workspace-export-modal__label">Export format</label>
-          <div className="workspace-export-modal__formats" role="radiogroup" aria-label="Export format">
-            {FORMAT_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                role="radio"
-                aria-checked={format === option.value}
-                className={`workspace-export-modal__format-card${
-                  format === option.value ? ' workspace-export-modal__format-card--active' : ''
-                }`}
-                onClick={() => handleFormatChange(option.value)}
-              >
-                <span className={`workspace-export-modal__format-icon ${option.icon}`} />
-                <div className="workspace-export-modal__format-info">
-                  <span className="workspace-export-modal__format-name">{option.label}</span>
-                  <span className="workspace-export-modal__format-desc">{option.description}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+      <div className="workspace-export__body">
+        {/* Format selection */}
+        <div className="workspace-export__field-group">
+          <span className="workspace-export__section-label">Export format</span>
+          <SelectionRadio
+            options={FORMAT_OPTIONS}
+            value={format}
+            onChange={handleFormatChange}
+            layout="vertical"
+            disabled={downloading}
+          />
         </div>
 
-        <div className="workspace-export-modal__section">
+        {/* Options */}
+        <div className="workspace-export__field-group">
+          <span className="workspace-export__section-label">Options</span>
           <BooleanToggle
             size="sm"
             label="Include assets"
             description={
-              selectedFormat?.value === 'markdown'
+              format === 'markdown'
                 ? 'Include asset files in the ZIP and rewrite links to use relative paths.'
                 : 'Include asset files in the ZIP when available.'
             }
@@ -153,8 +138,9 @@ export function WorkspaceExportModal({
           />
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="workspace-export-modal__error">{error}</div>
+          <div className="workspace-export__error">{error}</div>
         )}
       </div>
     </Modal>
