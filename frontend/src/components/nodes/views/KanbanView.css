@@ -1,0 +1,132 @@
+/* KanbanView styles */
+
+.kanban-view {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.5rem;
+  min-height: 200px;
+}
+
+/* Column */
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  max-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  transition: background 0.15s ease;
+}
+
+.kanban-column--over {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+
+.kanban-column--collapsed {
+  min-width: auto;
+  width: 48px;
+  align-items: center;
+}
+
+.kanban-column--collapsed .kanban-column__header {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+}
+
+.kanban-column--collapsed .kanban-column__count {
+  writing-mode: horizontal-tb;
+  transform: rotate(90deg);
+}
+
+.kanban-column__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-sm);
+}
+
+.kanban-column__header:hover {
+  background: var(--surface-hover);
+}
+
+.kanban-column__icon {
+  flex-shrink: 0;
+}
+
+.kanban-column__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanban-column__count {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  background: var(--surface-elevated);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+}
+
+.kanban-column__collapse-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.kanban-column:hover .kanban-column__collapse-btn {
+  opacity: 1;
+}
+
+.kanban-column--collapsed .kanban-column__collapse-btn {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+/* Cards container */
+.kanban-column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  min-height: 40px;
+}
+
+/* Card wrapper */
+.kanban-card-wrapper {
+  cursor: grab;
+}
+
+.kanban-card-wrapper:active {
+  cursor: grabbing;
+}
+
+.kanban-card-wrapper--dragging {
+  opacity: 0.4;
+}
+
+.kanban-card-wrapper--overlay {
+  opacity: 1;
+  box-shadow: var(--shadow-lg);
+  transform: rotate(2deg);
+}
+
+/* Add button */
+.kanban-view__add-btn {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 10;
+}

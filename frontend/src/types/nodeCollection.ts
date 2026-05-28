@@ -30,6 +30,8 @@ export type NodeCollectionViewMode =
   | 'kanban'    // Kanban board (grouped card view)
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
+  | 'calendar'  // Calendar month/week view
+  | 'chart'     // Bar/pie chart aggregation view
   | 'graph'     // Graph visualization
   | 'timeline'; // Timeline with date-based circular nodes
 
@@ -459,6 +461,28 @@ export interface NodeGanttViewProps extends NodeCollectionViewBaseProps {
   groupBy?: string;
 
   /** Property to group by when groupBy is a property UUID */
+  groupByProperty?: Property;
+}
+
+/**
+ * Props for NodeCalendarView (calendar mode)
+ */
+export interface NodeCalendarViewProps extends NodeCollectionViewBaseProps {
+  /** Property to use for the start date of each event */
+  startDateProperty?: Property;
+
+  /** Property to use for the end date of each event (optional) */
+  endDateProperty?: Property;
+
+  /** Called when the add button is clicked (or when user clicks empty day cell) */
+  onAdd?: () => void;
+}
+
+/**
+ * Props for NodeChartView (chart mode)
+ */
+export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
+  /** Property to group nodes by for aggregation */
   groupByProperty?: Property;
 }
 

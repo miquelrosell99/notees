@@ -30,7 +30,7 @@ import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
 import './TableView.css';
-
+import { registerView } from './registry';
 // Virtual column UUIDs (match PropertyColumnSelector)
 const CLASSES_VIRTUAL_UUID = '__classes__';
 const CREATED_VIRTUAL_UUID = '__created__';
@@ -43,6 +43,8 @@ interface NodeTableColumn {
   width?: string;
   headerNode?: { id: number; uuid: string; name: string; icon: string | null };
   render?: (node: Node) => ReactNode;
+  sortable?: boolean;
+  sortFn?: (a: Node, b: Node) => number;
 }
 
 /**
@@ -61,7 +63,7 @@ function getDefaultColumns(): NodeTableColumn[] {
 
 /**
  * Convert NodeTableColumn to TableColumn<Node>
- * Adds sorting support for known column keys.
+ * Adds sorting support for known column keys and property columns.
  */
 function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
   return nodeColumns.map(col => ({
@@ -77,8 +79,8 @@ function convertColumns(nodeColumns: NodeTableColumn[]): TableColumn<Node>[] {
     // Enable automatic node cell rendering for name column
     renderNodeCell: col.key === 'name',
     // Column-specific sort config
-    sortable: col.key === 'name' || col.key === 'write_date' || col.key === 'create_date' || col.key === 'sequence',
-    sortFn: getSortFnForColumn(col.key),
+    sortable: col.sortable ?? (col.key === 'name' || col.key === 'write_date' || col.key === 'create_date' || col.key === 'sequence'),
+    sortFn: col.sortFn ?? getSortFnForColumn(col.key),
   }));
 }
 
@@ -288,6 +290,37 @@ export const TableView = memo(function TableView({
             name: property.name,
             icon: property.icon,
           },
+          sortable: true,
+          sortFn: (a: Node, b: Node): number => {
+            const aVal = a.properties?.[property.id];
+            const bVal = b.properties?.[property.id];
+            // Handle nulls
+            if (aVal == null && bVal == null) return 0;
+            if (aVal == null) return 1;
+            if (bVal == null) return -1;
+            // Type-aware comparison
+            switch (property.type) {
+              case 'integer':
+              case 'float':
+                return (aVal as number) - (bVal as number);
+              case 'boolean':
+                return (aVal ? 1 : 0) - (bVal ? 1 : 0);
+              case 'selection': {
+                const getOptionName = (v: unknown): string => {
+                  if (typeof v === 'number') {
+                    return property.options?.find(o => o.id === v)?.name ?? String(v);
+                  }
+                  if (v && typeof v === 'object' && 'id' in v) {
+                    return property.options?.find(o => o.id === (v as { id: number }).id)?.name ?? String(v);
+                  }
+                  return String(v);
+                };
+                return getOptionName(aVal).localeCompare(getOptionName(bVal));
+              }
+              default:
+                return String(aVal).localeCompare(String(bVal));
+            }
+          },
           render: (node: Node): ReactNode => {
             const value = node.properties?.[property.id];
             return (
@@ -385,6 +418,7 @@ export const TableView = memo(function TableView({
           onNodeOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'block')}
           nodeEditable={editable}
           defaultSort={defaultSort}
+          virtualized={nodes.length > 200}
         />
       )}
 
@@ -398,4 +432,12 @@ export const TableView = memo(function TableView({
       )}
     </>
   );
+});
+
+registerView({
+  id: 'table',
+  label: 'Table',
+  icon: 'mdi mdi-table',
+  component: TableView,
+  capabilities: { propertyColumns: true },
 });

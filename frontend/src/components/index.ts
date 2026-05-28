@@ -118,8 +118,9 @@ export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
 export type { NodeActivity } from './nodes/NodeActivityLogSection';
 
 // NodeCollection - Universal node collection system
-export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './nodes/NodeCollection';
+export { NodeCollection, useNodeCollectionContext } from './nodes/NodeCollection';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './nodes/NodeCollection';
+export { getViewModeOptions } from './nodes/views';
 
 // NodeCollection view mode components
 export { ListView } from './nodes/views/ListView';

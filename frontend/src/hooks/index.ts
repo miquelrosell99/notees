@@ -39,3 +39,5 @@ export * from './useAndroidBridge';
 export * from './useStringifyAST';
 export * from './useListDragSort';
 export * from './useShares';
+export * from './useInView';
+export * from './useCanvasViewport';

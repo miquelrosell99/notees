@@ -22,7 +22,7 @@ import { sortBySequence } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
 import { NodeBreadcrumbs } from '../NodeBreadcrumbs';
 import './ListView.css';
-
+import { registerView } from './registry';
 // ── Group type ───────────────────────────────────────────────────────────────
 
 /** A group of nodes with either a page header or a property-value header */
@@ -499,6 +499,14 @@ export const ListView = memo(function ListView({
       />
     </div>
   );
+});
+
+registerView({
+  id: 'list',
+  label: 'List',
+  icon: 'mdi mdi-format-list-bulleted',
+  component: ListView,
+  capabilities: { groupBy: true },
 });
 
 // ==================== ListViewGroup ====================
