@@ -141,7 +141,8 @@
 }
 
 /* Ensure the view-content wrapper fills the content area */
-.node-collection--graph .node-collection__view-content {
+.node-collection--graph .node-collection__view-content,
+.node-collection--timeline .node-collection__view-content {
   height: 100%;
 }
 
