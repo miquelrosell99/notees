@@ -639,8 +639,10 @@ function cleanToRawOffset(rawText: string, cleanIdx: number): number {
   let rawIdx = 0;
   let cleanCount = 0;
   for (const char of rawText) {
-    if (cleanCount === cleanIdx) return rawIdx;
-    if (char !== '\u200B') cleanCount++;
+    if (char !== '\u200B') {
+      if (cleanCount === cleanIdx) return rawIdx;
+      cleanCount++;
+    }
     rawIdx++;
   }
   return rawIdx;

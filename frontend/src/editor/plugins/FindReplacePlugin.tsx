@@ -1,9 +1,10 @@
 /**
  * FindReplacePlugin — Page-scoped find & replace.
  *
- * - Ctrl+F / Cmd+F: open widget
- * - Ctrl+H / Cmd+H: toggle replace section (when open)
  * - Escape when widget open: close widget
+ *
+ * The actual Ctrl+F / Ctrl+H shortcut is handled by the Command Registry
+ * at the NodeView level so it works even when the editor is not focused.
  */
 
 import { useEffect, type JSX } from 'react';
@@ -18,28 +19,30 @@ import {
   $isTextNode,
 } from 'lexical';
 import { useFindReplaceStore } from '../../stores/findReplaceStore';
+import { useEditorRegistry } from '../../stores/editorRegistry';
 import { FindReplaceWidget } from './FindReplaceWidget';
-import { useInputContext } from '../../stores/inputContext';
 
 export function FindReplacePlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const isOpen = useFindReplaceStore((s) => s.isOpen);
+  const primaryEditor = useEditorRegistry((s) => s.primaryEditor);
 
+  // Register this editor as the primary editor for find/replace
+  useEffect(() => {
+    useEditorRegistry.getState().setPrimaryEditor(editor);
+    return () => {
+      const current = useEditorRegistry.getState().primaryEditor;
+      if (current === editor) {
+        useEditorRegistry.getState().setPrimaryEditor(null);
+      }
+    };
+  }, [editor]);
+
+  // Escape closes the widget when the editor is focused
   useEffect(() => {
     return editor.registerCommand(
       KEY_DOWN_COMMAND,
       (event: KeyboardEvent) => {
-        const isMod = event.ctrlKey || event.metaKey;
-        if (isMod && event.key.toLowerCase() === 'f') {
-          event.preventDefault();
-          useFindReplaceStore.getState().open();
-          return true;
-        }
-        if (isOpen && isMod && event.key.toLowerCase() === 'h') {
-          event.preventDefault();
-          useFindReplaceStore.getState().toggleReplaceExpanded();
-          return true;
-        }
         if (isOpen && event.key === 'Escape') {
           event.preventDefault();
           useFindReplaceStore.getState().close();
@@ -51,19 +54,9 @@ export function FindReplacePlugin(): JSX.Element | null {
     );
   }, [editor, isOpen]);
 
-  // Close widget when editor loses focus to a modal/dialog
-  useEffect(() => {
-    if (!isOpen) return;
-    const check = () => {
-      if (useInputContext.getState().modalOpen) {
-        useFindReplaceStore.getState().close();
-      }
-    };
-    const id = setInterval(check, 200);
-    return () => clearInterval(id);
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  // Only render the widget in the primary editor so we don't get duplicates
+  // when multiple BlockEditors are on the page (card mode, embeds, etc.)
+  if (!isOpen || editor !== primaryEditor) return null;
 
   return <FindReplaceWidget editor={editor} />;
 }

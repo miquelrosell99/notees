@@ -26,7 +26,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
-import { useKeyboardShortcut, SHORTCUT_IDS } from '@/hooks/useKeyboardShortcuts';
+import { useFindReplaceStore } from '@/stores/findReplaceStore';
+import { useKeyboardShortcut, SHORTCUT_IDS, useCommand, COMMAND_IDS } from '@/hooks/useKeyboardShortcuts';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { generateUUID } from '@/utils/uuid';
@@ -139,6 +140,21 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
   useBlockPersist();
+
+  // Register page-level keyboard commands
+  useCommand(COMMAND_IDS.FIND, () => {
+    useFindReplaceStore.getState().open();
+  }, { label: 'Find in Page' });
+
+  useCommand(COMMAND_IDS.FIND_TOGGLE_REPLACE, () => {
+    const state = useFindReplaceStore.getState();
+    if (state.isOpen) {
+      state.toggleReplaceExpanded();
+    } else {
+      state.open();
+      state.toggleReplaceExpanded();
+    }
+  }, { label: 'Toggle Replace' });
 
   // Handle add block (adds child to the focused block)
   const handleAddBlock = useCallback(() => {

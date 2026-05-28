@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
+import { useCommand, COMMAND_IDS } from '@/hooks/useKeyboardShortcuts';
 import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
@@ -161,25 +162,14 @@ export function Layout() {
     }
   }, [defaultView, todayNote, setMainViewType, openNode, currentNodeId, mainViewType]);
 
-  // Global keyboard shortcut handler
-  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
-    // Ctrl/Cmd + K to open command palette
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      setCommandPaletteOpen(true);
-    }
-    // Ctrl/Cmd + Shift + I to open import data modal
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'I') {
-      e.preventDefault();
-      setImportDataModalOpen(true);
-    }
-  }, [setCommandPaletteOpen, setImportDataModalOpen]);
+  // Register commands in the Command Registry
+  useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {
+    setCommandPaletteOpen(true);
+  }, { label: 'Open Command Palette' });
 
-  // Register global keyboard shortcuts
-  useEffect(() => {
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [handleGlobalKeyDown]);
+  useCommand(COMMAND_IDS.IMPORT_DATA, () => {
+    setImportDataModalOpen(true);
+  }, { label: 'Import Data' });
 
   // Native drop handler for sidebar cards / items dragged to the main workspace
   useEffect(() => {
