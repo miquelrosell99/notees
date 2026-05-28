@@ -144,6 +144,8 @@ export interface BlockPluginProps {
   skipPages?: boolean;
   /** Whether Enter always creates sibling blocks instead of first children (default: false) */
   enterCreatesSiblings?: boolean;
+  /** Map of block UUID -> backlink count for showing inline backlink badges */
+  backlinkCounts?: Map<string, number>;
 }
 
 // ─── Plugin component ─────────────────────────────────────────────
@@ -170,6 +172,7 @@ export function BlockPlugin({
   onNavigateUpFromTop,
   skipPages,
   enterCreatesSiblings = false,
+  backlinkCounts,
 }: BlockPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const blockIdToKeyMap = useRef(new Map<string, string>());
@@ -473,6 +476,7 @@ export function BlockPlugin({
             isHeadingAST(projected.contentAST),
             projected.calloutType ?? null,
             projected.taskStatus ?? null,
+            backlinkCounts?.get(projected.blockId) ?? 0,
           );
 
           // Populate inline content from contentAST.

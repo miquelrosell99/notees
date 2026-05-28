@@ -105,6 +105,25 @@ export const ListView = memo(function ListView({
     return sortBySequence(result);
   }, [nodes, pagesOnly]);
 
+  // Extract backlink counts from all nodes (including children)
+  const backlinkCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    const collect = (n: Node) => {
+      if (n.uuid && (n.backlink_count ?? 0) > 0) {
+        map.set(n.uuid, n.backlink_count!);
+      }
+      if (n.children) {
+        for (const child of n.children) {
+          collect(child);
+        }
+      }
+    };
+    for (const n of nodes) {
+      collect(n);
+    }
+    return map;
+  }, [nodes]);
+
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
     if (node.aliased_id) {
@@ -298,6 +317,7 @@ export const ListView = memo(function ListView({
                 className="node-list-view__editor"
                 hideProperties={hideProperties}
                 skipPages={false}
+                backlinkCounts={backlinkCounts}
               />
             </div>
           </div>
@@ -351,6 +371,7 @@ export const ListView = memo(function ListView({
               pageUuid={pageUuid}
               showBreadcrumbs={showBreadcrumbs}
               hideProperties={hideProperties}
+              backlinkCounts={backlinkCounts}
             />
           );
         })}
@@ -377,6 +398,7 @@ export const ListView = memo(function ListView({
                 pageUuid={pageUuid}
                 className="node-list-view__editor"
                 hideProperties={hideProperties}
+                backlinkCounts={backlinkCounts}
               />
             </div>
           </div>
@@ -465,6 +487,7 @@ export const ListView = memo(function ListView({
                 pageUuid={pageUuid}
                 className="node-list-view__editor"
                 hideProperties={hideProperties}
+                backlinkCounts={backlinkCounts}
               />
             </div>
           );
@@ -496,6 +519,7 @@ export const ListView = memo(function ListView({
         hideProperties={hideProperties}
         maxDepth={maxDepth}
         skipPages={!pagesOnly}
+        backlinkCounts={backlinkCounts}
       />
     </div>
   );
@@ -535,6 +559,7 @@ function ListViewGroup({
   pageUuid,
   showBreadcrumbs = false,
   hideProperties = false,
+  backlinkCounts,
 }: {
   group: NodeGroup;
   groupKey: string;
@@ -555,6 +580,7 @@ function ListViewGroup({
   pageUuid?: string;
   showBreadcrumbs?: boolean;
   hideProperties?: boolean;
+  backlinkCounts?: Map<string, number>;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -630,6 +656,7 @@ function ListViewGroup({
                     pageUuid={pageUuid}
                     className="node-list-view__editor"
                     hideProperties={hideProperties}
+                    backlinkCounts={backlinkCounts}
                   />
                 </div>
               );
@@ -649,9 +676,10 @@ function ListViewGroup({
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
               pageId={pageId}
-              pageUuid={pageUuid}
+                pageUuid={pageUuid}
               className="node-list-view__editor"
               hideProperties={hideProperties}
+              backlinkCounts={backlinkCounts}
             />
           )}
         </div>

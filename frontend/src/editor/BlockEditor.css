@@ -890,6 +890,44 @@ th.node-block-table-cell {
   background: var(--color-preset-green);
 }
 
+/* ─── Backlink count badge ────────────────────────────────────── */
+
+.node-block-backlink-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border: none;
+  border-radius: var(--shape-small);
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--motion-duration-short), color var(--motion-duration-short), transform var(--motion-duration-short);
+}
+
+.node-block-backlink-count:hover {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  transform: scale(1.1);
+}
+
+.node-block-backlinks-preview {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--motion-duration-medium) var(--motion-easing-standard);
+  margin-left: calc(var(--node-block-depth, 0) * 24px + 28px);
+}
+
+.node-block--backlinks-expanded .node-block-backlinks-preview {
+  max-height: 600px;
+}
+
 /* ─── Inline formatting ───────────────────────────────────────── */
 
 .notees-text-bold {

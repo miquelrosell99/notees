@@ -250,12 +250,15 @@ export function useBacklinks(nodeId: number | null) {
 /**
  * Hook to fetch linked references with context
  */
-export function useLinkedReferences(nodeId: number | null) {
+export function useLinkedReferences(
+  nodeId: number | null,
+  params?: { limit?: number; offset?: number }
+) {
   return useQuery({
-    queryKey: nodeKeys.linkedRefs(nodeId ?? 0),
-    queryFn: () => nodesApi.getLinkedReferences(nodeId!),
+    queryKey: nodeKeys.linkedRefs(nodeId ?? 0, params),
+    queryFn: () => nodesApi.getLinkedReferences(nodeId!, params),
     enabled: !!nodeId,
-    placeholderData: [],
+    placeholderData: (previousData) => previousData,
   });
 }
 
