@@ -22,6 +22,7 @@ export interface PublicSharedNode {
     id: number;
     uuid: string;
     name: string;
+    display_name: string;
     icon: string | null;
     color: string | null;
     is_page: boolean;
