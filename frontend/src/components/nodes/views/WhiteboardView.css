@@ -114,6 +114,11 @@
   box-sizing: border-box;
 }
 
+.whiteboard-element--search-match {
+  outline: 2px solid var(--color-tertiary);
+  outline-offset: 2px;
+}
+
 /* Text elements */
 .whiteboard-text {
   width: 100%;
@@ -580,3 +585,94 @@
 /* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
 .wb-ss-dashed { stroke-dasharray: 8 4; }
 .wb-ss-dotted { stroke-dasharray: 2 4; }
+
+/* ─── Align / Distribute floating panel ─── */
+.wb-align-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-2);
+  z-index: var(--wb-z-overlay);
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.wb-align-panel__row {
+  display: flex;
+  gap: 4px;
+}
+
+.wb-align-panel__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--motion-duration-short);
+}
+
+.wb-align-panel__btn:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.wb-align-panel__divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: 2px 0;
+}
+
+/* ─── Canvas search bar ─── */
+.wb-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-2);
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.wb-search-bar__input {
+  width: 180px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: 14px;
+}
+
+.wb-search-bar__input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.wb-search-bar__count {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ─── Keyboard shortcuts modal ─── */
+.wb-shortcuts-modal {
+  animation: wb-fade-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@keyframes wb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.wb-shortcuts-modal__content {
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}

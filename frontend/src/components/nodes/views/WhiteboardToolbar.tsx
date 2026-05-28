@@ -39,6 +39,14 @@ const TOOL_GROUPS = [
       { tool: 'triangle' as WhiteboardTool, icon: "mdi mdi-triangle-outline", label: 'Triangle', shortcut: '' },
       { tool: 'hexagon' as WhiteboardTool, icon: "mdi mdi-hexagon-outline", label: 'Hexagon', shortcut: '' },
       { tool: 'star' as WhiteboardTool, icon: "mdi mdi-star-outline", label: 'Star', shortcut: '' },
+      { tool: 'diamond' as WhiteboardTool, icon: "mdi mdi-rhombus-outline", label: 'Diamond', shortcut: '' },
+      { tool: 'cylinder' as WhiteboardTool, icon: "mdi mdi-database-outline", label: 'Cylinder', shortcut: '' },
+      { tool: 'cloud' as WhiteboardTool, icon: "mdi mdi-cloud-outline", label: 'Cloud', shortcut: '' },
+      { tool: 'parallelogram' as WhiteboardTool, icon: "mdi mdi-parallelogram", label: 'Parallelogram', shortcut: '' },
+      { tool: 'trapezoid' as WhiteboardTool, icon: "mdi mdi-trapezoid", label: 'Trapezoid', shortcut: '' },
+      { tool: 'cross' as WhiteboardTool, icon: "mdi mdi-plus-box-outline", label: 'Cross', shortcut: '' },
+      { tool: 'heart' as WhiteboardTool, icon: "mdi mdi-heart-outline", label: 'Heart', shortcut: '' },
+      { tool: 'document' as WhiteboardTool, icon: "mdi mdi-file-document-outline", label: 'Document', shortcut: '' },
     ],
   },
   {
@@ -80,12 +88,20 @@ function makeWidthIconPath(w: number, maxH = 14): string {
 
 /** Shape-tool options for the SelectionButton in the shapes panel */
 const SHAPE_TOOL_OPTIONS: SelectionButtonOption[] = [
-  { value: 'rectangle', icon: "mdi mdi-rectangle-outline", label: 'Rectangle (R)' },
-  { value: 'ellipse',   icon: "mdi mdi-circle-outline",    label: 'Ellipse (O)'  },
-  { value: 'triangle',  icon: "mdi mdi-triangle-outline",   label: 'Triangle'     },
-  { value: 'hexagon',   icon: "mdi mdi-hexagon-outline",    label: 'Hexagon'      },
-  { value: 'star',      icon: "mdi mdi-star-outline",       label: 'Star'         },
-  { value: 'line',      icon: "mdi mdi-minus",             label: 'Line'         },
+  { value: 'rectangle',     icon: "mdi mdi-rectangle-outline",     label: 'Rectangle (R)' },
+  { value: 'ellipse',       icon: "mdi mdi-circle-outline",        label: 'Ellipse (O)'  },
+  { value: 'triangle',      icon: "mdi mdi-triangle-outline",      label: 'Triangle'     },
+  { value: 'hexagon',       icon: "mdi mdi-hexagon-outline",       label: 'Hexagon'      },
+  { value: 'star',          icon: "mdi mdi-star-outline",          label: 'Star'         },
+  { value: 'diamond',       icon: "mdi mdi-rhombus-outline",       label: 'Diamond'      },
+  { value: 'cylinder',      icon: "mdi mdi-database-outline",      label: 'Cylinder'     },
+  { value: 'cloud',         icon: "mdi mdi-cloud-outline",         label: 'Cloud'        },
+  { value: 'parallelogram', icon: "mdi mdi-parallelogram",         label: 'Parallelogram' },
+  { value: 'trapezoid',     icon: "mdi mdi-trapezoid",             label: 'Trapezoid'    },
+  { value: 'cross',         icon: "mdi mdi-plus-box-outline",      label: 'Cross'        },
+  { value: 'heart',         icon: "mdi mdi-heart-outline",         label: 'Heart'        },
+  { value: 'document',      icon: "mdi mdi-file-document-outline", label: 'Document'     },
+  { value: 'line',          icon: "mdi mdi-minus",                 label: 'Line'         },
 ];
 
 const PEN_WIDTH_OPTIONS: SelectionButtonOption[] = STROKE_WIDTHS.map((w) => ({
@@ -719,7 +735,9 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function isShapeTool(tool: WhiteboardTool): boolean {
-  return ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'line'].includes(tool);
+  return ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'line',
+          'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid',
+          'cross', 'heart', 'document'].includes(tool);
 }
 
 function getShapeIcon(tool: WhiteboardTool): string {
@@ -728,6 +746,14 @@ function getShapeIcon(tool: WhiteboardTool): string {
     case 'triangle': return "mdi mdi-triangle-outline";
     case 'hexagon': return "mdi mdi-hexagon-outline";
     case 'star': return "mdi mdi-star-outline";
+    case 'diamond': return "mdi mdi-rhombus-outline";
+    case 'cylinder': return "mdi mdi-database-outline";
+    case 'cloud': return "mdi mdi-cloud-outline";
+    case 'parallelogram': return "mdi mdi-parallelogram";
+    case 'trapezoid': return "mdi mdi-trapezoid";
+    case 'cross': return "mdi mdi-plus-box-outline";
+    case 'heart': return "mdi mdi-heart-outline";
+    case 'document': return "mdi mdi-file-document-outline";
     case 'line': return "mdi mdi-minus";
     default: return "mdi mdi-rectangle-outline";
   }
