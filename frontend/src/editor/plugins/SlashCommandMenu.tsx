@@ -6,6 +6,11 @@
  */
 
 import { useState, useRef, useEffect, useMemo, type JSX, type ReactNode } from 'react';
+import {
+  KEY_DOWN_COMMAND,
+  COMMAND_PRIORITY_CRITICAL,
+  type LexicalEditor,
+} from 'lexical';
 import { CommentIcon, ImageIcon, AttachmentIcon, AudioIcon, LinkIcon, TagIcon, BulletIcon, DatabaseIcon, TableIcon, CodeIcon, PropertiesIcon, PageIcon, Icon } from '../../components/core/icons';
 import './SlashCommandMenu.css';
 
@@ -166,6 +171,8 @@ export interface SlashCommandMenuProps {
   position: { top: number; left: number };
   onSelect: (value: string, metadata?: unknown) => void;
   onClose: () => void;
+  /** Optional Lexical editor instance. When provided, keyboard navigation is handled via Lexical commands at COMMAND_PRIORITY_CRITICAL instead of document listeners. */
+  lexicalEditor?: LexicalEditor;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -175,6 +182,7 @@ export function SlashCommandMenu({
   position,
   onSelect,
   onClose,
+  lexicalEditor,
 }: SlashCommandMenuProps): JSX.Element {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,7 +218,7 @@ export function SlashCommandMenu({
   useEffect(() => {
     let mounted = true;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       if (!mounted) return;
 
       switch (e.key) {
@@ -248,12 +256,25 @@ export function SlashCommandMenu({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown, true);
+    if (lexicalEditor) {
+      return lexicalEditor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event: KeyboardEvent) => {
+          const handledKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'];
+          if (!handledKeys.includes(event.key)) return false;
+          handler(event);
+          return true;
+        },
+        COMMAND_PRIORITY_CRITICAL,
+      );
+    }
+
+    document.addEventListener('keydown', handler, true);
     return () => {
       mounted = false;
-      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('keydown', handler, true);
     };
-  }, [selectedIndex, filteredCommands, onSelect, onClose]);
+  }, [selectedIndex, filteredCommands, onSelect, onClose, lexicalEditor]);
 
   // Close on click outside
   useEffect(() => {
