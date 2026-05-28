@@ -126,6 +126,7 @@ async def export_single_node(
             link_style=link_style,
             theme_mode=theme_mode,
             cover_page=cover_page,
+            frontmatter=export_format == ExportFormat.MARKDOWN,
         )
 
         return Response(
