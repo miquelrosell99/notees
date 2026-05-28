@@ -23,6 +23,7 @@ import { SlashCommandMenu } from './SlashCommandMenu';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { generateUUID } from '../../utils/uuid';
+import { useInputContext } from '../../stores/inputContext';
 import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
 
@@ -230,6 +231,15 @@ export function TriggerPlugin({
     );
   }, [editor, trigger.isOpen]);
 
+  // ─── Track popup state in InputContext ─────────────────────
+
+  useEffect(() => {
+    if (trigger.isOpen) {
+      useInputContext.getState().enterPopup();
+      return () => useInputContext.getState().leavePopup();
+    }
+  }, [trigger.isOpen]);
+
   // ─── Handle selection ──────────────────────────────────────
 
   const handleSelect = useCallback((value: string, _metadata?: unknown) => {
@@ -392,7 +402,7 @@ export function TriggerPlugin({
         
         if (addInline) {
           // Ctrl+Enter: Add to class_ids AND insert inline pill
-          editor.update(() => {
+          editor.read(() => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return;
 
@@ -747,13 +757,18 @@ function getCaretCoordinates(editor: LexicalEditor): { top: number; left: number
   const rootEl = editor.getRootElement();
   if (!rootEl) return { top: 0, left: 0 };
 
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return { top: 0, left: 0 };
+  const nativeSelection = window.getSelection();
+  if (!nativeSelection || nativeSelection.rangeCount === 0) return { top: 0, left: 0 };
 
-  const range = selection.getRangeAt(0).cloneRange();
-  range.collapse(true);
+  const range = nativeSelection.getRangeAt(0);
+  // Validate that the native selection belongs to our editor — if focus
+  // has moved to a modal or other element, ignore it.
+  if (!rootEl.contains(range.startContainer)) return { top: 0, left: 0 };
 
-  const rect = range.getBoundingClientRect();
+  const cloned = range.cloneRange();
+  cloned.collapse(true);
+
+  const rect = cloned.getBoundingClientRect();
   return {
     top: rect.bottom + window.scrollY,
     left: rect.left + window.scrollX,

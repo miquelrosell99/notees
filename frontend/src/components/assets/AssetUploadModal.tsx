@@ -127,7 +127,7 @@ export function AssetUploadModal({
   // Handle initial file (e.g. from paste)
   useEffect(() => {
     if (isOpen && initialFile) {
-      Promise.resolve().then(() => handleFile(initialFile));
+      handleFile(initialFile);
     }
   }, [isOpen, initialFile, handleFile]);
 

@@ -239,7 +239,7 @@ export function NodeSelector({
   const [lastNonNullValue, setLastNonNullValue] = useState<number | null>(currentSingleValue);
   useEffect(() => {
     if (currentSingleValue !== null) {
-      Promise.resolve().then(() => setLastNonNullValue(currentSingleValue));
+      setLastNonNullValue(currentSingleValue);
     }
   }, [currentSingleValue]);
   const pinnedNodeId = !multi ? (currentSingleValue ?? lastNonNullValue) : null;
@@ -353,7 +353,7 @@ export function NodeSelector({
   const [multiMenuPos, setMultiMenuPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
   useEffect(() => {
     if (!(trigger === 'select' && multi && isPickerOpen) || !arrowBtnRef.current) {
-      Promise.resolve().then(() => setMultiMenuPos(null));
+      setMultiMenuPos(null);
       return;
     }
     const rect = arrowBtnRef.current.getBoundingClientRect();
@@ -390,12 +390,12 @@ export function NodeSelector({
     if (isAnchored && anchorEl) {
       const rect = anchorEl.getBoundingClientRect();
       const left = Math.min(rect.left, window.innerWidth - 280 - 8);
-      Promise.resolve().then(() => setPickerPos({ top: rect.bottom + 4, left }));
+      setPickerPos({ top: rect.bottom + 4, left });
     } else if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      Promise.resolve().then(() => setPickerPos({ top: rect.bottom + 4, left: rect.left }));
+      setPickerPos({ top: rect.bottom + 4, left: rect.left });
     } else if (!isPickerOpen) {
-      Promise.resolve().then(() => setPickerPos(null));
+      setPickerPos(null);
     }
   }, [isPickerOpen, trigger, isAnchored, anchorEl]);
 

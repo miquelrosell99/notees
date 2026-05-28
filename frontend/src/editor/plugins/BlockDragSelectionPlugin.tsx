@@ -14,6 +14,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $setSelection } from 'lexical';
 import { selectBlockWithChildren, clearBlockSelection } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
+import { useInputContext } from '../../stores/inputContext';
 
 export interface BlockDragSelectionPluginProps {
   editorId: string;
@@ -62,6 +63,8 @@ export function BlockDragSelectionPlugin({
     if (!rootEl) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Don't start drag selection when a modal/popup is open
+      if (useInputContext.getState().isOverlayOpen) return;
       const target = e.target as HTMLElement;
       
       // Ignore clicks on bullets or collapse arrows
@@ -219,6 +222,9 @@ export function BlockDragSelectionPlugin({
 
       // If editor has focus, let Lexical handle it
       if (rootEl.contains(document.activeElement)) return;
+
+      // Don't delete blocks while a dialog/menu is open
+      if (document.activeElement?.closest('[role="dialog"]') || document.activeElement?.closest('[role="menu"]')) return;
 
       e.preventDefault();
       const blockIds = [...selectedBlocks.current];

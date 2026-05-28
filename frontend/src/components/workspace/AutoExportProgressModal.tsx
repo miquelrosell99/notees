@@ -114,17 +114,15 @@ export function AutoExportProgressModal({ isOpen, onClose }: AutoExportProgressM
 
   useEffect(() => {
     if (isOpen && phase === 'idle') {
-      Promise.resolve().then(() => startExport());
+      startExport();
     }
     if (!isOpen) {
       clearPoll();
-      Promise.resolve().then(() => {
-        setPhase('idle');
+      setPhase('idle');
         setProgress(0);
         setStatusText('');
         setError(undefined);
-        setReport(undefined);
-      });
+        setReport(undefined);;
     }
     return () => clearPoll();
   }, [isOpen, phase, startExport, clearPoll]);

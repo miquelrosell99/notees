@@ -477,6 +477,9 @@ export function BlockCopyPastePlugin({
       const rootEl = editor.getRootElement();
       if (rootEl?.contains(document.activeElement)) return;
 
+      // Don't copy blocks while a dialog/menu is open
+      if (document.activeElement?.closest('[role="dialog"]') || document.activeElement?.closest('[role="menu"]')) return;
+
       const ids = selectedBlockIdsRef.current;
       if (ids.length === 0) return;
 

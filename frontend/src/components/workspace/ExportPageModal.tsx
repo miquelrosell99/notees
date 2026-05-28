@@ -88,10 +88,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     }
 
     let cancelled = false;
-    Promise.resolve().then(() => {
-      setLoading(true);
-      setError(null);
-    });
+    setLoading(true);
+      setError(null);;
 
     const params: Record<string, unknown> = {
       format: format === 'html' || format === 'pdf' ? 'html' : format,

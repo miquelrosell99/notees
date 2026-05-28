@@ -49,7 +49,7 @@ export function useKeyboardListNav({
   // Reset selection when total items change (useLayoutEffect to sync before paint)
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => setSelectedIndex(0));
+      setSelectedIndex(0);
     }
   }, [totalItems, isOpen]);
 
