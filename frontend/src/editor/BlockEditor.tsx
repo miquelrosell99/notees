@@ -55,6 +55,7 @@ import { EmbedBlockPlugin } from './plugins/EmbedBlockPlugin';
 import { TaskCyclePlugin } from './plugins/TaskCyclePlugin';
 import { TaskCheckboxPlugin } from './plugins/TaskCheckboxPlugin';
 import { TaskBadgesPlugin } from './plugins/TaskBadgesPlugin';
+import { BlockBacklinksPlugin } from './plugins/BlockBacklinksPlugin';
 import { VirtualizationPlugin } from './plugins/VirtualizationPlugin';
 import { PasteImagePlugin } from './plugins/PasteImagePlugin';
 import { PasteBlocksPlugin } from './plugins/PasteBlocksPlugin';
@@ -163,6 +164,8 @@ export interface BlockEditorProps {
   enterCreatesSiblings?: boolean;
   /** If true, registers this editor as the primary page editor for global commands like find/replace */
   registerAsPrimary?: boolean;
+  /** Map of block UUID -> backlink count for showing inline backlink badges */
+  backlinkCounts?: Map<string, number>;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -204,6 +207,7 @@ export function BlockEditor({
   draftMode = false,
   skipPages,
   enterCreatesSiblings = false,
+  backlinkCounts,
 }: BlockEditorProps): JSX.Element {
   const generatedId = useId();
   const editorId = externalEditorId || `editor-${generatedId}`;
@@ -675,6 +679,7 @@ export function BlockEditor({
           onNavigateUpFromTop={onNavigateUpFromTop}
           skipPages={skipPages}
           enterCreatesSiblings={enterCreatesSiblings}
+          backlinkCounts={backlinkCounts}
         />
 
         {/* Pill plugin */}
@@ -801,6 +806,9 @@ export function BlockEditor({
 
         {/* Inline task badges (overdue, today, priority) */}
         <TaskBadgesPlugin />
+
+        {/* Block backlink counts + inline linked references preview */}
+        <BlockBacklinksPlugin />
 
         {/* Ctrl+L / Ctrl+Shift+L / Ctrl+Alt+L open the link-creation modal */}
         <CreateLinkPlugin

@@ -349,11 +349,18 @@ export async function getBacklinks(
 /**
  * Get linked references to a node with context
  */
-export async function getLinkedReferences(nodeId: number): Promise<LinkedReference[]> {
+export async function getLinkedReferences(
+  nodeId: number,
+  params?: { limit?: number; offset?: number }
+): Promise<{ linked_references: LinkedReference[]; total_count: number }> {
+  const query = new URLSearchParams();
+  if (params?.limit !== undefined) query.set('limit', String(params.limit));
+  if (params?.offset !== undefined) query.set('offset', String(params.offset));
+  const qs = query.toString();
   const data = await nodeQueryWorkerClient.get<LinkedReferencesResponse>(
-    `/api/nodes/${nodeId}/linked-references`,
+    `/api/nodes/${nodeId}/linked-references${qs ? '?' + qs : ''}`,
   );
-  return data.linked_references ?? [];
+  return { linked_references: data.linked_references ?? [], total_count: data.total_count ?? 0 };
 }
 
 /**

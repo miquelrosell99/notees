@@ -397,16 +397,21 @@ async def get_backlinks(
 @router.get("/{node_id}/linked-references")
 async def get_linked_references(
     node_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    count: bool = False,
     user: User = Depends(get_current_user),
 ):
-    """Get linked references to a node with context, including children hierarchy."""
+    """Get linked references to a node with context, including children hierarchy.
+
+    Supports pagination via `limit` and `offset`. Use `?count=true` for a fast
+    count-only response.
+    """
     service = await _get_node_service(user)
 
     backlinks = await service.get_backlinks(node_id)
 
     # Deduplicate by source_node_id, preferring direct backlinks to the target node.
-    # A block that links to both the target page and one of its descendants would
-    # otherwise appear twice in linked references.
     seen_source_ids: dict[int, BacklinkInfo] = {}
     for link in backlinks:
         existing = seen_source_ids.get(link.source_node_id)
@@ -414,11 +419,21 @@ async def get_linked_references(
             seen_source_ids[link.source_node_id] = link
     backlinks = list(seen_source_ids.values())
 
+    total_count = len(backlinks)
+
+    if count:
+        return {"linked_references": [], "total_count": total_count}
+
+    # Clamp pagination
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    paginated = backlinks[offset:offset + limit]
+
     # Collect all source node IDs for batch type fetching
     source_node_ids = []
     sources_data = []  # Store (source, children, source_page, link) tuples
 
-    for link in backlinks:
+    for link in paginated:
         source = await service.get_node(link.source_node_id)
         if not source:
             continue
@@ -448,14 +463,12 @@ async def get_linked_references(
     for source, children, source_page, link in sources_data:
         # Extract context around the link
         context = source.name or ""
-        # Use position from the inner NodeLink object
         position = link.link.position if link.link else 0
         if position > 0 and len(context) > 100:
             start = max(0, position - 50)
             end = min(len(context), position + 50)
             context = "..." + context[start:end] + "..."
 
-        # Convert breadcrumb path from link service
         breadcrumb_segments = (
             [
                 BreadcrumbSegment(node_id=seg[0], name=seg[1], is_property=seg[2] if len(seg) > 2 else False)
@@ -465,12 +478,10 @@ async def get_linked_references(
             else []
         )
 
-        # Convert source node to response with children and classes
         source_classes = class_ids_map.get(source.id, []) if source.id else []
         source_response = _node_to_response(source, classes=source_classes)
         source_response.children = _build_children_response(children) if children else []
 
-        # Add properties if they were loaded
         if source.id and source.id in node_properties_map:
             source_response.properties = node_properties_map[source.id]
 
@@ -487,7 +498,7 @@ async def get_linked_references(
             )
         )
 
-    return {"linked_references": result}
+    return {"linked_references": result, "total_count": total_count}
 
 
 @router.get("/{node_id}/inline-classes")

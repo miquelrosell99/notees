@@ -30,7 +30,8 @@ export const nodeKeys = {
   pageContent: (id: number) => [...nodeKeys.all, 'page-content', id] as const,
   backlinks: (id: number) => [...nodeKeys.all, 'backlinks', id] as const,
   allBacklinks: () => [...nodeKeys.all, 'backlinks'] as const,
-  linkedRefs: (id: number) => [...nodeKeys.all, 'linked-refs', id] as const,
+  linkedRefs: (id: number, params?: { limit?: number; offset?: number }) =>
+    [...nodeKeys.all, 'linked-refs', id, params ?? {}] as const,
   allLinkedRefs: () => [...nodeKeys.all, 'linked-refs'] as const,
   propertyBacklinks: (id: number) => [...nodeKeys.all, 'property-backlinks', id] as const,
   dailyList: () => [...nodeKeys.all, 'daily-list'] as const,

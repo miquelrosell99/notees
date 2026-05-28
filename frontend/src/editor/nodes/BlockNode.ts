@@ -49,6 +49,7 @@ export interface SerializedBlockNode extends SerializedElementNode {
   isHeading: boolean;
   calloutType: string | null;
   taskStatus: string | null;
+  backlinkCount: number;
 }
 
 // ─── Node class ───────────────────────────────────────────────────
@@ -67,6 +68,7 @@ export class BlockNode extends ElementNode {
   __isHeading: boolean;
   __calloutType: string | null;
   __taskStatus: string | null;
+  __backlinkCount: number;
 
   static getType(): string {
     return 'node-block';
@@ -87,6 +89,7 @@ export class BlockNode extends ElementNode {
       node.__isHeading,
       node.__calloutType,
       node.__taskStatus,
+      node.__backlinkCount,
       node.__key,
     );
   }
@@ -105,6 +108,7 @@ export class BlockNode extends ElementNode {
     isHeading: boolean = false,
     calloutType: string | null = null,
     taskStatus: string | null = null,
+    backlinkCount: number = 0,
     key?: NodeKey,
   ) {
     super(key);
@@ -121,6 +125,7 @@ export class BlockNode extends ElementNode {
     this.__isHeading = isHeading;
     this.__calloutType = calloutType;
     this.__taskStatus = taskStatus;
+    this.__backlinkCount = backlinkCount;
   }
 
   // ─── Getters/Setters ─────────────────────────────────────────
@@ -411,6 +416,26 @@ export class BlockNode extends ElementNode {
     const taskBadges = document.createElement('div');
     taskBadges.className = 'node-block-task-badges';
     afterContentUI.appendChild(taskBadges);
+
+    // Backlink count badge — rendered directly (no portal needed for simple badge)
+    if (this.__backlinkCount > 0) {
+      const backlinkBadge = document.createElement('button');
+      backlinkBadge.className = 'node-block-backlink-count';
+      backlinkBadge.type = 'button';
+      backlinkBadge.textContent = String(this.__backlinkCount);
+      backlinkBadge.title = `${this.__backlinkCount} linked reference${this.__backlinkCount !== 1 ? 's' : ''}`;
+      backlinkBadge.dataset.blockId = this.__blockId;
+      afterContentUI.appendChild(backlinkBadge);
+    }
+
+    // Backlinks preview container — portal target for BlockBacklinksPlugin
+    if (this.__backlinkCount > 0) {
+      const backlinksPreview = document.createElement('div');
+      backlinksPreview.className = 'node-block-backlinks-preview';
+      backlinksPreview.contentEditable = 'false';
+      setDOMUnmanaged(backlinksPreview);
+      dom.appendChild(backlinksPreview);
+    }
 
     // Query toolbar container — React portal target for QueryBlockPlugin
     // to render filter/view controls inline with class pills
@@ -735,6 +760,39 @@ export class BlockNode extends ElementNode {
       }
     }
 
+    // Backlink count — update badge text and add/remove badge/preview container
+    if (prevNode.__backlinkCount !== this.__backlinkCount) {
+      const existingBadge = dom.querySelector('.node-block-backlink-count') as HTMLElement | null;
+      const existingPreview = dom.querySelector('.node-block-backlinks-preview');
+      if (this.__backlinkCount > 0) {
+        if (existingBadge) {
+          existingBadge.textContent = String(this.__backlinkCount);
+          existingBadge.title = `${this.__backlinkCount} linked reference${this.__backlinkCount !== 1 ? 's' : ''}`;
+        } else {
+          const afterContent = dom.querySelector('.block-ui--after-content');
+          if (afterContent) {
+            const backlinkBadge = document.createElement('button');
+            backlinkBadge.className = 'node-block-backlink-count';
+            backlinkBadge.type = 'button';
+            backlinkBadge.textContent = String(this.__backlinkCount);
+            backlinkBadge.title = `${this.__backlinkCount} linked reference${this.__backlinkCount !== 1 ? 's' : ''}`;
+            backlinkBadge.dataset.blockId = this.__blockId;
+            afterContent.appendChild(backlinkBadge);
+          }
+        }
+        if (!existingPreview) {
+          const backlinksPreview = document.createElement('div');
+          backlinksPreview.className = 'node-block-backlinks-preview';
+          backlinksPreview.contentEditable = 'false';
+          setDOMUnmanaged(backlinksPreview);
+          dom.appendChild(backlinksPreview);
+        }
+      } else {
+        if (existingBadge) existingBadge.remove();
+        if (existingPreview) existingPreview.remove();
+      }
+    }
+
     // NEVER return true — DOM structure is stable, only attributes/classes change
     return false;
   }
@@ -770,6 +828,7 @@ export class BlockNode extends ElementNode {
       isHeading: this.__isHeading,
       calloutType: this.__calloutType,
       taskStatus: this.__taskStatus,
+      backlinkCount: this.__backlinkCount,
     };
   }
 
@@ -788,6 +847,7 @@ export class BlockNode extends ElementNode {
       json.isHeading ?? false,
       json.calloutType ?? null,
       json.taskStatus ?? null,
+      json.backlinkCount ?? 0,
     );
   }
 
@@ -829,9 +889,10 @@ export function $createBlockNode(
   isHeading: boolean = false,
   calloutType: string | null = null,
   taskStatus: string | null = null,
+  backlinkCount: number = 0,
 ): BlockNode {
   return $applyNodeReplacement(
-    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading, calloutType, taskStatus),
+    new BlockNode(blockId, depth, collapsed, nodeType, hasChildren, icon, color, blockName, isProjectionRoot, classIds, isHeading, calloutType, taskStatus, backlinkCount),
   );
 }
 

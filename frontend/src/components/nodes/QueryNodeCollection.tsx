@@ -455,11 +455,19 @@ export function QueryNodeCollection({
     enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
   });
 
+  // Pagination for linked references
+  const LINKED_REFS_PAGE_SIZE = 50;
+  const [linkedRefsOffset, setLinkedRefsOffset] = useState(0);
+
   // For linked_references, use dedicated API to get full metadata
   const {
     data: linkedReferencesData,
     isLoading: linkedReferencesLoading,
-  } = useLinkedReferences(viewType === 'linked_references' ? nodeId : null);
+    isFetching: linkedRefsFetching,
+  } = useLinkedReferences(
+    viewType === 'linked_references' ? nodeId : null,
+    { limit: LINKED_REFS_PAGE_SIZE, offset: linkedRefsOffset }
+  );
 
   // Get collapse level setting for linked references
   const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
@@ -469,7 +477,7 @@ export function QueryNodeCollection({
   const dedupedLinkedRefs = useMemo(() => {
     if (!linkedReferencesData) return [];
     const seen = new Set<number>();
-    return linkedReferencesData.filter((ref) => {
+    return linkedReferencesData.linked_references.filter((ref) => {
       if (seen.has(ref.source_node.id)) return false;
       seen.add(ref.source_node.id);
       return true;
@@ -644,6 +652,11 @@ export function QueryNodeCollection({
       setRenderWindow(WINDOW_SIZE);
     }
   }, [resultNodes.length]);
+
+  // Reset linked refs pagination when node changes
+  useEffect(() => {
+    setLinkedRefsOffset(0);
+  }, [nodeId]);
   
   // Windowed result set — bypass windowing in gantt mode so all items are available for date-range computation and filtering
   const windowedResultNodes = useMemo(() => {
@@ -653,10 +666,17 @@ export function QueryNodeCollection({
   }, [resultNodes, renderWindow, collectionViewMode]);
   
   const hasMoreResults = collectionViewMode !== 'gantt' && renderWindow < resultNodes.length;
-  
+
   const handleLoadMore = useCallback(() => {
-    setRenderWindow(prev => Math.min(prev + WINDOW_SIZE, resultNodes.length));
-  }, [resultNodes.length]);
+    if (viewType === 'linked_references') {
+      setLinkedRefsOffset(prev => prev + LINKED_REFS_PAGE_SIZE);
+    } else {
+      setRenderWindow(prev => Math.min(prev + WINDOW_SIZE, resultNodes.length));
+    }
+  }, [viewType, resultNodes.length]);
+
+  const linkedRefsTotalCount = linkedReferencesData?.total_count ?? 0;
+  const hasMoreLinkedRefs = viewType === 'linked_references' && linkedRefsOffset + LINKED_REFS_PAGE_SIZE < linkedRefsTotalCount;
 
   // Always separate blocks and pages
   // In list/document view they render as separate sections; other views show all together
@@ -1012,6 +1032,19 @@ export function QueryNodeCollection({
                 onClick={handleLoadMore}
               >
                 Show more ({resultNodes.length - renderWindow} remaining)
+              </Button>
+            </div>
+          )}
+          {/* Load more button for paginated linked references */}
+          {hasMoreLinkedRefs && (
+            <div className="query-section__load-more">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLoadMore}
+                disabled={linkedRefsFetching}
+              >
+                Show more ({linkedRefsTotalCount - linkedRefsOffset - LINKED_REFS_PAGE_SIZE} remaining)
               </Button>
             </div>
           )}
