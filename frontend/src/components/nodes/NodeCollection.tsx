@@ -239,7 +239,8 @@ export const NodeCollection = memo(function NodeCollection({
   };
 
   // Determine which view modes are available
-  const effectiveViewModes = availableViewModes ?? DEFAULT_VIEW_MODES_ORDER;
+  // Empty array means "all modes" — only filter when explicit modes are provided
+  const effectiveViewModes = availableViewModes?.length ? availableViewModes : DEFAULT_VIEW_MODES_ORDER;
   const showViewSwitcher = effectiveViewModes.length > 1 && onViewModeChange;
 
   // Look up view definition from registry

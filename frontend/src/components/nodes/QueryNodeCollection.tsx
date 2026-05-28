@@ -971,7 +971,7 @@ export function QueryNodeCollection({
             viewId={activeView?.id}
             view={activeView ?? undefined}
             viewMode={collectionViewMode}
-            availableViewModes={['list', 'table', 'card', 'kanban', 'document', 'gantt', 'calendar', 'chart', 'graph', 'timeline']}
+            availableViewModes={[]}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             onContentChange={saveContent}
@@ -1028,7 +1028,7 @@ export function QueryNodeCollection({
                 viewId={activeView?.id}
                 view={activeView ?? undefined}
                 viewMode={collectionViewMode}
-                availableViewModes={['list', 'table', 'card', 'kanban', 'document', 'gantt', 'calendar', 'chart', 'graph', 'timeline']}
+                availableViewModes={[]}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
                 onContentChange={saveContent}
