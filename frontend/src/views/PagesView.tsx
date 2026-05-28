@@ -1,69 +1,122 @@
 /**
- * Pages View - hub for All Pages, Graph, and Timeline views
+ * Pages View - hub for all pages with view mode switching
  *
- * Replaces the individual sidebar items with a single hub
- * that contains tabs for each view mode.
+ * Uses NodeCollection directly with multiple view modes (list, document, card,
+ * table, graph, timeline). List view shows the full pages tree hierarchy.
  */
-import React, { useState, Suspense } from 'react';
-import { AllPagesView } from './AllPagesView';
-import { Spinner } from '@/components/core/Spinner';
+import { useState, useCallback } from 'react';
+import { usePages, useContentSave } from '@/hooks';
+import { useNavigationStore, useModalStore, useAppStore } from '@/stores';
+import { NodeCollection } from '@/components/nodes/NodeCollection';
+import { NodeCollectionToolbar } from '@/components/nodes/NodeCollectionToolbar';
+import { SearchBox } from '@/components/core/SearchBox';
 import { Button } from '@/components/core/Button';
+import { Spinner } from '@/components/core/Spinner';
+import { PageIcon } from '@/components/core/icons';
+import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import type { Node } from '@/types';
 import './PagesView.css';
 
-const AllPagesGraphView = React.lazy(() => import('./AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
-const AllPagesTimelineView = React.lazy(() => import('./AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
+const PSEUDO_NODE_ID = 0;
+const PSEUDO_VIEW_TYPE = 'all_pages';
 
-type PagesTab = 'all-pages' | 'graph' | 'timeline';
-
-const TABS: { id: PagesTab; label: string; icon: string }[] = [
-  { id: 'all-pages', label: 'All Pages', icon: 'mdi mdi-book-open-page-variant' },
-  { id: 'graph', label: 'Graph', icon: 'mdi mdi-graph-outline' },
-  { id: 'timeline', label: 'Timeline', icon: 'mdi mdi-timeline-clock-outline' },
+const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
+  'list',
+  'document',
+  'card',
+  'table',
+  'graph',
+  'timeline',
 ];
 
 export function PagesView() {
-  const [activeTab, setActiveTab] = useState<PagesTab>('all-pages');
+  const { openNode } = useNavigationStore();
+  const { setCommandPaletteOpen } = useModalStore();
+  const getNodeViewMode = useAppStore((state) => state.getNodeViewMode);
+  const setNodeViewMode = useAppStore((state) => state.setNodeViewMode);
+  const { handleContentChange: saveContent } = useContentSave();
+
+  const persistedViewMode = getNodeViewMode(PSEUDO_NODE_ID, PSEUDO_VIEW_TYPE);
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(
+    persistedViewMode ?? 'list'
+  );
+
+  const handleViewModeChange = useCallback((mode: NodeCollectionViewMode) => {
+    setViewMode(mode);
+    setNodeViewMode(PSEUDO_NODE_ID, PSEUDO_VIEW_TYPE, mode);
+  }, [setNodeViewMode]);
+
+  const { data: pages, isLoading } = usePages({
+    includeChildren: true,
+    rootOnly: true,
+  });
+
+  const handleSearchSelect = useCallback((node: Node) => {
+    openNode(node.id);
+  }, [openNode]);
 
   return (
     <article className="node-view node-view--page pages-view">
-      {/* Page Header with Tabs */}
+      {/* Page Header */}
       <div className="page-header-section">
         <div className="page-header-section__header">
           <div className="page-header pages-view__header">
-            <h1 className="page-header__title">Pages</h1>
-            <nav className="pages-view__tabs" role="tablist" aria-label="Pages view modes">
-              {TABS.map((tab) => (
-                <Button
-                  key={tab.id}
-                  variant="ghost"
-                  size="sm"
-                  icon={tab.icon}
-                  active={activeTab === tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  title={tab.label}
-                >
-                  {tab.label}
-                </Button>
-              ))}
-            </nav>
+            <h1 className="page-header__title">
+              <PageIcon size="sm" className="pages-view__title-icon" />
+              Pages
+            </h1>
+            <div className="pages-view__header-actions">
+              <NodeCollectionToolbar
+                viewMode={viewMode}
+                availableViewModes={AVAILABLE_VIEW_MODES}
+                onViewModeChange={handleViewModeChange}
+                hideToolbarControls={false}
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                icon={"mdi mdi-plus"}
+                onClick={() => setCommandPaletteOpen(true)}
+                title="New page (Ctrl+K)"
+              >
+                New page
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Search */}
+      <div className="pages-view__search">
+        <SearchBox
+          placeholder="Search pages..."
+          onSelect={handleSearchSelect}
+        />
+      </div>
+
       {/* Content */}
       <div className="pages-view__content">
-        {activeTab === 'all-pages' && <AllPagesView />}
-        {activeTab === 'graph' && (
-          <Suspense fallback={<div className="pages-view__loading"><Spinner size="lg" centered /></div>}>
-            <AllPagesGraphView className="pages-view__graph" />
-          </Suspense>
-        )}
-        {activeTab === 'timeline' && (
-          <Suspense fallback={<div className="pages-view__loading"><Spinner size="lg" centered /></div>}>
-            <AllPagesTimelineView className="pages-view__timeline" />
-          </Suspense>
+        {isLoading ? (
+          <div className="pages-view__loading">
+            <Spinner size="lg" centered />
+          </div>
+        ) : (
+          <NodeCollection
+            nodes={pages || []}
+            viewMode={viewMode}
+            availableViewModes={AVAILABLE_VIEW_MODES}
+            onViewModeChange={handleViewModeChange}
+            pagesOnly={true}
+            hideProperties={true}
+            showBreadcrumbs={false}
+            hideToolbar={true}
+            editable={true}
+            onContentChange={saveContent}
+            onNodeClick={(node) => openNode(node.id)}
+            showEmpty={true}
+            emptyMessage="No pages found"
+            className="pages-view__node-collection"
+          />
         )}
       </div>
     </article>

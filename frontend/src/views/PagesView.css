@@ -16,20 +16,34 @@
   flex-wrap: wrap;
 }
 
-.pages-view__tabs {
+.pages-view__title-icon {
+  margin-right: var(--spacing-2);
+  vertical-align: middle;
+  color: var(--color-primary);
+}
+
+.pages-view__header-actions {
   display: flex;
-  gap: var(--spacing-1);
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.pages-view__search {
+  flex-shrink: 0;
+  margin-bottom: var(--spacing-3);
 }
 
 .pages-view__content {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.pages-view__graph,
-.pages-view__timeline {
-  height: 100%;
+.pages-view__node-collection {
+  flex: 1;
+  min-height: 0;
 }
 
 .pages-view__loading {
