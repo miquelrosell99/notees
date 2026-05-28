@@ -160,6 +160,12 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
       }
       return `\`${node.text}\``;
 
+    case 'math':
+      if (opts.mode === StringifyMode.TEXT_ONLY) {
+        return node.expression;
+      }
+      return node.displayMode ? `$$${node.expression}$$` : `$${node.expression}$`;
+
     case 'strong':
       if (opts.mode === StringifyMode.TEXT_ONLY) {
         return renderInlineSequence(node.children, opts);

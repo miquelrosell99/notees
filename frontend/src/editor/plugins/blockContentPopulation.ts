@@ -14,6 +14,10 @@ import {
   $createInlineLinkNode,
   $isInlineLinkNode,
 } from '../nodes/InlineLinkNode';
+import {
+  $createMathNode,
+  $isMathNode,
+} from '../nodes/MathNode';
 import type { BlockNode } from '../nodes/BlockNode';
 import type { ContentAST } from '../../runtime/types';
 import type { ASTInlineNode, ASTNodeLink } from '@/types/ast';
@@ -57,7 +61,7 @@ export function populateBlockContent(block: BlockNode, contentAST: ContentAST): 
   // Ensure trailing cursor node after pill / line break
   const children = block.getChildren();
   const lastChild = children[children.length - 1];
-  if (lastChild && ($isInlineLinkNode(lastChild) || $isLineBreakNode(lastChild))) {
+  if (lastChild && ($isInlineLinkNode(lastChild) || $isMathNode(lastChild) || $isLineBreakNode(lastChild))) {
     block.append($createTextNode('\u200B'));
   }
 }
@@ -93,7 +97,7 @@ export function populateBlockContentLight(block: BlockNode, contentAST: ContentA
   // Trailing cursor node
   const children = block.getChildren();
   const lastChild = children[children.length - 1];
-  if (lastChild && $isLineBreakNode(lastChild)) {
+  if (lastChild && ($isMathNode(lastChild) || $isLineBreakNode(lastChild))) {
     block.append($createTextNode('\u200B'));
   }
 
@@ -141,6 +145,7 @@ export function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, 
     case 'node_link':
     case 'external_link':
     case 'broken_link':
+    case 'math':
       // Placeholder — keeps character count stable
       parent.append($createTextNode('\u200B'));
       hasPills = true;
@@ -170,7 +175,7 @@ export function appendInlineNodeLight(parent: BlockNode, inline: ASTInlineNode, 
  */
 export function collectPillsFromAST(nodes: readonly ASTInlineNode[], out: ASTInlineNode[]): void {
   for (const n of nodes) {
-    if (n.type === 'node_link' || n.type === 'external_link' || n.type === 'broken_link') {
+    if (n.type === 'node_link' || n.type === 'external_link' || n.type === 'broken_link' || n.type === 'math') {
       out.push(n);
     } else if ('children' in n && Array.isArray((n as any).children)) {
       collectPillsFromAST((n as any).children, out);
@@ -232,7 +237,7 @@ export function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): v
     // `appendInlineNode` adds one when the pill would be the first child
     // or immediately follows another InlineLinkNode.
     const prev = zwsNode.getPreviousSibling();
-    const needsPreZWS = !prev || $isInlineLinkNode(prev);
+    const needsPreZWS = !prev || $isInlineLinkNode(prev) || $isMathNode(prev);
 
     let inlineLink;
     if (astPill.type === 'node_link') {
@@ -254,6 +259,8 @@ export function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): v
         undefined,
         astPill.label ?? undefined,
       );
+    } else if (astPill.type === 'math') {
+      inlineLink = $createMathNode(astPill.expression, astPill.displayMode ?? false);
     } else {
       continue;
     }
@@ -267,7 +274,7 @@ export function upgradeBlockContent(block: BlockNode, contentAST: ContentAST): v
   // --- Ensure trailing ZWS after last pill / line break ---
   const finalChildren = block.getChildren();
   const last = finalChildren[finalChildren.length - 1];
-  if (last && ($isInlineLinkNode(last) || $isLineBreakNode(last))) {
+  if (last && ($isInlineLinkNode(last) || $isMathNode(last) || $isLineBreakNode(last))) {
     block.append($createTextNode('\u200B'));
   }
 }
@@ -316,7 +323,7 @@ export function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, forma
       // Use zero-width space to prevent Lexical from removing the text node
       const children = parent.getChildren();
       const lastChild = children[children.length - 1];
-      if (children.length === 0 || $isInlineLinkNode(lastChild)) {
+      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isMathNode(lastChild)) {
         parent.append($createTextNode('\u200B'));
       }
       const pill = $createInlineLinkNode(inline.link_id, inline.ref_type, undefined, inline.label ?? undefined);
@@ -326,11 +333,21 @@ export function appendInlineNode(parent: BlockNode, inline: ASTInlineNode, forma
     case 'broken_link': {
       const children = parent.getChildren();
       const lastChild = children[children.length - 1];
-      if (children.length === 0 || $isInlineLinkNode(lastChild)) {
+      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isMathNode(lastChild)) {
         parent.append($createTextNode('\u200B'));
       }
       const pill = $createInlineLinkNode(inline.link_id, 'broken', undefined, inline.label ?? undefined);
       parent.append(pill);
+      break;
+    }
+    case 'math': {
+      const children = parent.getChildren();
+      const lastChild = children[children.length - 1];
+      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isMathNode(lastChild)) {
+        parent.append($createTextNode('\u200B'));
+      }
+      const mathNode = $createMathNode(inline.expression, inline.displayMode ?? false);
+      parent.append(mathNode);
       break;
     }
     case 'strong': {
@@ -415,6 +432,8 @@ export function extractBlockContent(block: BlockNode): ContentAST {
         };
         inlines.push(nodeLink);
       }
+    } else if ($isMathNode(child)) {
+      inlines.push({ type: 'math', expression: child.getExpression(), displayMode: child.getDisplayMode() });
     } else if ($isLineBreakNode(child)) {
       inlines.push({ type: 'hard_break' });
     } else {

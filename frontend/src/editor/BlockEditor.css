@@ -926,6 +926,7 @@ th.node-block-table-cell {
 
 /* Inline link styles — shared */
 @import '../styles/inline-link.css';
+@import '../styles/math.css';
 
 /* ─── Ghost card (drag preview) ────────────────────────────────── */
 

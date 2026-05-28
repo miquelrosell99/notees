@@ -12,7 +12,10 @@ import { NodeRef } from '@/components/nodes/NodeRef';
 import { useNavigationStore } from '@/stores';
 import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import '@/styles/inline-link.css';
+import '@/styles/math.css';
 
 /**
  * Clickable wrapper that mimics the block editor's inline-link-wrapper.
@@ -39,6 +42,20 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
       {children}
     </span>
   );
+}
+
+function renderMath(expression: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(expression, {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+    });
+  } catch {
+    return displayMode
+      ? `<div class="katex-error">$$${expression.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}$$</div>`
+      : `<span class="katex-error">$${expression.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}$</span>`;
+  }
 }
 
 function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
@@ -85,6 +102,16 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
         );
       case 'hard_break':
         return <br key={i} />;
+      case 'math': {
+        const html = renderMath(node.expression, node.displayMode ?? false);
+        return (
+          <span
+            key={i}
+            className={node.displayMode ? 'math-wrapper math-wrapper--display' : 'math-wrapper'}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      }
       default:
         return null;
     }

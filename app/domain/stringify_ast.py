@@ -75,7 +75,7 @@ class ParseMode(str, Enum):
     """Wrap plain text as-is in a single text node (no formatting)."""
 
     MARKDOWN = "MARKDOWN"
-    """Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, [text](url)."""
+    """Parse inline Markdown: **bold**, *italic*, `code`, ~~strike~~, ==highlight==, [text](url), $math$, $$display math$$."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +269,10 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
         t = node.get("text", "")
         return t if is_text else f"`{t}`"
 
+    if node_type == "math":
+        expr = node.get("expression", "")
+        return expr if is_text else f"$${expr}$$" if node.get("displayMode") else f"${expr}$"
+
     if node_type == "strikethrough":
         inner = _render_inline_sequence(node.get("children", []), opts)
         return inner if is_text else f"~~{inner}~~"
@@ -429,7 +433,9 @@ def _parse_json(value: Any) -> list[dict]:
 # Nesting (e.g. **bold *and italic***) is supported one level deep.
 
 _MD_INLINE_RE = re.compile(
-    r"(?P<code>`[^`]+`)"  # `code`
+    r"(?P<display_math>\$\$(?P<dm>.+?)\$\$)"  # $$display math$$
+    r"|(?P<inline_math>\$(?P<im>[^$\s][^$]*?)\$)"  # $inline math$
+    r"|(?P<code>`[^`]+`)"  # `code`
     r"|(?P<bold_italic>\*\*\*(?P<bi>.+?)\*\*\*)"  # ***bold italic***
     r"|(?P<bold>\*\*(?P<b>.+?)\*\*)"  # **bold**
     r"|(?P<italic>\*(?P<i>[^*]+?)\*)"  # *italic*
@@ -459,7 +465,13 @@ def _parse_md_inline(text: str) -> list[dict]:
         if start > pos:
             nodes.append({"type": "text", "text": text[pos:start]})
 
-        if m.group("code"):
+        if m.group("display_math"):
+            nodes.append({"type": "math", "expression": m.group("dm"), "displayMode": True})
+
+        elif m.group("inline_math"):
+            nodes.append({"type": "math", "expression": m.group("im"), "displayMode": False})
+
+        elif m.group("code"):
             raw = m.group("code")
             nodes.append({"type": "code", "text": raw[1:-1]})
 

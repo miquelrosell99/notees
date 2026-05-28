@@ -1,0 +1,27 @@
+/* ─── Math formula styles ───────────────────────────────────────── */
+
+.math-wrapper {
+  display: inline;
+  cursor: default;
+  user-select: none;
+}
+
+.math-wrapper--display {
+  display: block;
+  text-align: center;
+  margin: 0.5em 0;
+}
+
+.math-inner {
+  display: inline;
+}
+
+.math-inner--display {
+  display: block;
+}
+
+.katex-error {
+  color: var(--color-error, #d32f2f);
+  font-family: var(--font-family-mono, monospace);
+  font-size: 0.875em;
+}

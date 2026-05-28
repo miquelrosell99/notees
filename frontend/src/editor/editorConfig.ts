@@ -57,6 +57,7 @@
 
 import { BlockNode } from './nodes/BlockNode';
 import { InlineLinkNode } from './nodes/InlineLinkNode';
+import { MathNode } from './nodes/MathNode';
 import { BlockHeadingNode } from './nodes/BlockHeadingNode';
 import { BlockCodeNode } from './nodes/BlockCodeNode';
 import { BlockTableCellNode } from './nodes/BlockTableCellNode';
@@ -67,6 +68,7 @@ import type { ContentAST } from '../runtime/types';
 export const EDITOR_NODES = [
   BlockNode,
   InlineLinkNode,
+  MathNode,
   BlockHeadingNode,
   BlockCodeNode,
   BlockTableCellNode,

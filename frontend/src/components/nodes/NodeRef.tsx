@@ -25,11 +25,28 @@ import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/types/ast';
 import type { Node } from '@/types';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import '@/styles/math.css';
 import './NodeRef.css';
 
 // Tracks nesting depth to prevent infinite recursion when a referenced node's
 // name itself contains node links (which in turn might contain more node links).
 const NodeRefDepth = createContext(0);
+
+function renderMath(expression: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(expression, {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+    });
+  } catch {
+    return displayMode
+      ? `<div class="katex-error">$$${expression.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}$$</div>`
+      : `<span class="katex-error">$${expression.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}$</span>`;
+  }
+}
 
 // Renders AST inline nodes as React without click-handler wrappers.
 // Used by NodeRefInline to resolve inner node links in a referenced node's name.
@@ -70,6 +87,16 @@ function renderNameInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
         return <u key={i}>{renderNameInlineNodes(node.children)}</u>;
       case 'hard_break':
         return <br key={i} />;
+      case 'math': {
+        const html = renderMath(node.expression, node.displayMode ?? false);
+        return (
+          <span
+            key={i}
+            className={node.displayMode ? 'math-wrapper math-wrapper--display' : 'math-wrapper'}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      }
       default:
         return null;
     }
