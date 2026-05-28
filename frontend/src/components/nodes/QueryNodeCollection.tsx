@@ -971,7 +971,7 @@ export function QueryNodeCollection({
             viewId={activeView?.id}
             view={activeView ?? undefined}
             viewMode={collectionViewMode}
-            availableViewModes={['list', 'table', 'card', 'graph', 'gantt']}
+            availableViewModes={['list', 'table', 'card', 'kanban', 'document', 'gantt', 'calendar', 'chart', 'graph', 'timeline']}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             onContentChange={saveContent}
@@ -980,7 +980,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
@@ -1028,7 +1028,7 @@ export function QueryNodeCollection({
                 viewId={activeView?.id}
                 view={activeView ?? undefined}
                 viewMode={collectionViewMode}
-                availableViewModes={['list', 'table', 'card', 'graph', 'gantt']}
+                availableViewModes={['list', 'table', 'card', 'kanban', 'document', 'gantt', 'calendar', 'chart', 'graph', 'timeline']}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
                 onContentChange={saveContent}
