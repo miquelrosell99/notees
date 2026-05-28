@@ -64,6 +64,7 @@ import { LinkEditModal, type LinkEditResult } from './components/LinkEditModal';
 import * as nodesApi from '@/api/nodes';
 
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
+
 import { apiNodesToGraphNodes } from '../hooks/useRuntimeSync';
 import { useStructureSync } from '../hooks/useStructureSync';
 import { useBlockPersist } from '../hooks/useBlockPersist';
@@ -160,6 +161,8 @@ export interface BlockEditorProps {
   skipPages?: boolean;
   /** Whether Enter always creates sibling blocks instead of first children (default: false) */
   enterCreatesSiblings?: boolean;
+  /** If true, registers this editor as the primary page editor for global commands like find/replace */
+  registerAsPrimary?: boolean;
 }
 
 // ─── Shared content serializer ────────────────────────────────────
@@ -790,7 +793,7 @@ export function BlockEditor({
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />
 
-        {/* Page find & replace */}
+          {/* Page find & replace */}
         <FindReplacePlugin />
 
         {/* Click checkbox to toggle task status */}
@@ -847,3 +850,4 @@ export function BlockEditor({
     </div>
   );
 }
+
