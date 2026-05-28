@@ -66,7 +66,15 @@ export type ShapeType =
   | 'arrow-right'
   | 'arrow-left'
   | 'arrow-up'
-  | 'arrow-down';
+  | 'arrow-down'
+  | 'diamond'
+  | 'cylinder'
+  | 'cloud'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'cross'
+  | 'heart'
+  | 'document';
 
 export type ConnectorEndpoint = {
   type: 'element';
@@ -265,6 +273,14 @@ export type WhiteboardTool =
   | 'triangle'
   | 'hexagon'
   | 'star'
+  | 'diamond'
+  | 'cylinder'
+  | 'cloud'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'cross'
+  | 'heart'
+  | 'document'
   | 'arrow'
   | 'line'
   | 'pen'
