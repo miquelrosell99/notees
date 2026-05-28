@@ -13,7 +13,7 @@ import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './DocumentView.css';
-
+import { registerView } from './registry';
 /**
  * DocumentView - Document view using Lexical editor
  *
@@ -153,4 +153,12 @@ export const DocumentView = memo(function DocumentView({
       />
     </div>
   );
+});
+
+registerView({
+  id: 'document',
+  label: 'Document',
+  icon: 'mdi mdi-file-document-outline',
+  component: DocumentView,
+  capabilities: {},
 });

@@ -23,8 +23,9 @@ export type { QueryNodeCollectionProps, QueryNodeCollectionResult } from './Quer
 export { QuerySection } from './QuerySection';
 export type { QuerySectionProps } from './QuerySection';
 
-export { NodeCollection, useNodeCollectionContext, getViewModeOptions } from './NodeCollection';
+export { NodeCollection, useNodeCollectionContext } from './NodeCollection';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';
+export { getViewModeOptions } from './views';
 
 export { NodeCollectionToolbar } from './NodeCollectionToolbar';
 export { NodeMetadataSection } from './NodeMetadataSection';

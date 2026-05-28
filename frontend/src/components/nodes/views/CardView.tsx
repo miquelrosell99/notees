@@ -33,9 +33,24 @@ import { getPropertyGroupInfo } from './viewHelpers';
 import { NodeIcon } from '@/components/core/icons';
 import { sortBySequence } from '@/utils/nodeSort';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useInView } from '@/hooks/useInView';
 
 import './CardView.css';
 
+/** Lazy wrapper around NodeCard that only mounts the expensive BlockEditor when visible */
+function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
+  const { ref, inView } = useInView({ rootMargin: '200px', once: true });
+  return (
+    <div ref={ref} className="node-card-lazy-wrapper">
+      {inView ? (
+        <NodeCard {...props} />
+      ) : (
+        <div className="node-card-placeholder" style={{ minHeight: 120 }} />
+      )}
+    </div>
+  );
+}
+import { registerView } from './registry';
 // ── Group type ───────────────────────────────────────────────────────────────
 
 interface CardGroup {
@@ -289,27 +304,26 @@ export const CardView = memo(function CardView({
               </div>
               <div className="node-card-view__kanban-cards">
                 {group.nodes.map((node, index) => (
-                  <div key={node.id} className="node-card-view__kanban-card-wrapper">
-                    <NodeCard
-                      node={node}
-                      index={index}
-                      layout={layout}
-                      sortable={false}
-                      isDragging={false}
-                      isDropTarget={false}
-                      editable={editable}
-                      allClasses={allClasses}
-                      allNodes={allNodes}
-                      allTags={allTags}
-                      isSelected={selectable && selectedIds?.has(node.id)}
-                      onNodeClick={onNodeClick}
-                      onNodeShiftClick={onNodeShiftClick}
-                      onContentChange={onContentChange}
-                      onDragStart={handleDragStart}
-                      onSelectionChange={selectable ? handleCardSelectionChange : undefined}
-                      customContextMenu={customContextMenu}
-                    />
-                  </div>
+                  <LazyNodeCard
+                    key={node.id}
+                    node={node}
+                    index={index}
+                    layout={layout}
+                    sortable={false}
+                    isDragging={false}
+                    isDropTarget={false}
+                    editable={editable}
+                    allClasses={allClasses}
+                    allNodes={allNodes}
+                    allTags={allTags}
+                    isSelected={selectable && selectedIds?.has(node.id)}
+                    onNodeClick={onNodeClick}
+                    onNodeShiftClick={onNodeShiftClick}
+                    onContentChange={onContentChange}
+                    onDragStart={handleDragStart}
+                    onSelectionChange={selectable ? handleCardSelectionChange : undefined}
+                    customContextMenu={customContextMenu}
+                  />
                 ))}
               </div>
             </div>
@@ -323,7 +337,7 @@ export const CardView = memo(function CardView({
   return (
     <div className={gridClassName} ref={containerRef}>
       {sortedNodes.map((node, index) => (
-        <NodeCard
+        <LazyNodeCard
           key={node.id}
           node={node}
           index={index}
@@ -347,4 +361,12 @@ export const CardView = memo(function CardView({
 
     </div>
   );
+});
+
+registerView({
+  id: 'card',
+  label: 'Cards',
+  icon: 'mdi mdi-view-grid',
+  component: CardView,
+  capabilities: { groupBy: true, cardLayout: true },
 });

@@ -39,7 +39,7 @@ import {
 
 import './TimelineView.css';
 import './DatePropertiesPanel.css';
-
+import { registerView } from './registry';
 const rendererRef = new TimelineRenderer();
 
 export const TimelineView = memo(function TimelineView({
@@ -733,4 +733,12 @@ export const TimelineView = memo(function TimelineView({
       )}
     </div>
   );
+});
+
+registerView({
+  id: 'timeline',
+  label: 'Timeline',
+  icon: 'mdi mdi-timeline-clock-outline',
+  component: TimelineView,
+  capabilities: { errorBoundary: true },
 });
