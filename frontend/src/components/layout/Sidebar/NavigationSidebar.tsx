@@ -1,9 +1,9 @@
 /**
- * Sidebar component with graph switcher, navigation, favorites, and recents
+ * Sidebar component with workspace switcher, navigation, favorites, and recents
  *
- * Matches the UI shown in screenshots with:
- * - Graph switcher at top
- * - Journal, Inbox, All Pages, Graph View navigation
+ * Features:
+ * - Workspace switcher at top
+ * - Journal, Inbox, Pages (hub), Whiteboards, Tasks navigation
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
  */
@@ -165,9 +165,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
   const topNavItems = useMemo(() => {
     const items: Array<{ icon: string; label: string; view?: string; action?: () => void }> = [
-      { icon: "mdi mdi-book-open-page-variant", label: 'All Pages', view: 'all-pages' as const },
-      { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
-      { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
+      { icon: "mdi mdi-book-open-page-variant", label: 'Pages', view: 'pages' as const },
     ];
     if (showWhiteboards) {
       items.push({ icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const });
@@ -234,27 +232,33 @@ export function Sidebar({ collapsed }: SidebarProps) {
                   Inbox
                 </Button>
               )}
-              {topNavItems.map((item) => (
-                <Button
-                  key={item.view ?? item.label}
-                  variant="ghost"
-                  size="md"
-                  icon={item.icon}
-                  fullWidth
-                  active={item.view ? mainViewType === item.view : false}
-                  onClick={() => {
-                    if (item.action) {
-                      item.action();
-                    } else if (item.view) {
-                      setMainViewType(item.view as MainViewType);
-                    }
-                    closeMobileDrawer();
-                  }}
-                  title={item.label}
-                >
-                  {item.label}
-                </Button>
-              ))}
+              {topNavItems.map((item) => {
+                const isPagesItem = item.view === 'pages';
+                const isActive = isPagesItem
+                  ? mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'
+                  : item.view ? mainViewType === item.view : false;
+                return (
+                  <Button
+                    key={item.view ?? item.label}
+                    variant="ghost"
+                    size="md"
+                    icon={item.icon}
+                    fullWidth
+                    active={isActive}
+                    onClick={() => {
+                      if (item.action) {
+                        item.action();
+                      } else if (item.view) {
+                        setMainViewType(item.view as MainViewType);
+                      }
+                      closeMobileDrawer();
+                    }}
+                    title={item.label}
+                  >
+                    {item.label}
+                  </Button>
+                );
+              })}
             </nav>
           )}
         </div>
