@@ -20,6 +20,7 @@ import { BooleanToggle } from '@/components/core/BooleanToggle';
 import api from '@/api/client';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { downloadBlob } from '@/utils/download';
+import QRCode from 'qrcode';
 import './ExportPageModal.css';
 
 import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle, ExportThemeMode } from '@/stores/exportSettingsStore';
@@ -62,6 +63,10 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrGenerating, setQrGenerating] = useState(false);
 
   const effectiveNodeUuids = useMemo(() => {
     if (nodeUuids && nodeUuids.length > 0) return nodeUuids;
@@ -221,6 +226,30 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       setDownloading(false);
     }
   }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, effectiveNodeUuids, isBatch, cssOverrides]);
+
+  const handleGenerateQr = useCallback(async () => {
+    const text = displayContent || previewContent;
+    if (!text) return;
+    setQrGenerating(true);
+    setQrError(null);
+    try {
+      const dataUrl = await QRCode.toDataURL(text, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      setQrDataUrl(dataUrl);
+      setQrModalOpen(true);
+    } catch (e: unknown) {
+      setQrError(e instanceof Error ? e.message : 'Failed to generate QR code');
+      setQrModalOpen(true);
+    } finally {
+      setQrGenerating(false);
+    }
+  }, [displayContent, previewContent]);
 
   const title = useMemo(() => {
     if (isBatch) {
@@ -499,6 +528,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
             <Button variant="ghost" onClick={onClose} disabled={downloading}>
               Cancel
             </Button>
+            {format !== 'pdf' && (
+              <Button
+                variant="ghost"
+                icon={qrGenerating ? undefined : "mdi mdi-qrcode"}
+                onClick={handleGenerateQr}
+                disabled={loading || !previewContent || downloading || qrGenerating}
+              >
+                {qrGenerating ? <Spinner size="sm" label="Generating…" /> : 'QR Code'}
+              </Button>
+            )}
             <Button
               variant="ghost"
               icon={copied ? "mdi mdi-check" : "mdi mdi-content-copy"}
@@ -590,6 +629,27 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        title="QR Code"
+        size="sm"
+      >
+        <div className="export-modal__qr-content">
+          {qrError ? (
+            <div className="export-modal__qr-error">{qrError}</div>
+          ) : qrDataUrl ? (
+            <img
+              src={qrDataUrl}
+              alt="QR Code"
+              className="export-modal__qr-image"
+            />
+          ) : (
+            <Spinner size="md" label="Generating QR code…" />
+          )}
+        </div>
+      </Modal>
     </Modal>
   );
 }
