@@ -457,6 +457,50 @@ class QueryASTToSQL:
 
                 return None
 
+            # Relation type queries (node, date, etc.) use property_value_relation
+            if condition.property_type in (PropertyType.NODE, PropertyType.DATE):
+                if condition.operator == "equals":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text = %({value_param})s
+                    )"""
+
+                elif condition.operator == "not_equals":
+                    return f"""NOT EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text = %({value_param})s
+                    )"""
+
+                elif condition.operator == "greater_than":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text > %({value_param})s
+                    )"""
+
+                elif condition.operator == "less_than":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text < %({value_param})s
+                    )"""
+
+                return None
+
             if condition.operator == "equals":
                 # Check in property_value_scalar table
                 return f"""EXISTS (

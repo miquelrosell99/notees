@@ -19,6 +19,8 @@ import { ArchivedPagesView } from '@/views/ArchivedPagesView';
 import { TrashView } from '@/views/TrashView';
 import { JournalsView } from '@/views/JournalsView';
 import { NodeCollectionView } from '@/views/NodeCollectionView';
+import { WhiteboardsView } from '@/views/WhiteboardsView';
+import { TasksView } from '@/views/TasksView';
 const AllPagesGraphView = React.lazy(() => import('@/views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
 const AllPagesTimelineView = React.lazy(() => import('@/views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
 const PropertyViewFull = React.lazy(() => import('@/views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
@@ -90,6 +92,22 @@ export function MainContent() {
     return (
       <main className="main-content">
         <JournalsView />
+      </main>
+    );
+  }
+
+  if (mainViewType === 'whiteboards') {
+    return (
+      <main className="main-content">
+        <WhiteboardsView />
+      </main>
+    );
+  }
+
+  if (mainViewType === 'tasks') {
+    return (
+      <main className="main-content">
+        <TasksView />
       </main>
     );
   }

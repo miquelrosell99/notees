@@ -2,104 +2,328 @@
  * Task Query Utilities
  *
  * QueryAST builders for common task-based views.
+ * All queries exclude tasks with status 'Done' or 'Cancelled'.
  */
 import {
-  createEmptyQueryAST,
   createClassCondition,
   createPropertyCondition,
 } from '@/types/queryAST';
-import type { QueryAST } from '@/types/queryAST';
+import type { QueryAST, PropertyCondition } from '@/types/queryAST';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
-import { generateDateUuid } from '@/utils/dateParser';
+import { dateToDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 
 /**
- * Build a QueryAST that finds all nodes with class = task.
+ * Create conditions to exclude completed tasks (Done / Cancelled).
  */
-export function buildTasksQueryAST(): QueryAST {
-  const ast = createEmptyQueryAST();
-  ast.scope.scope_type = 'entire_workspace';
-  ast.root_group.children.push(createClassCondition(SYSTEM_CLASS_UUIDS.task));
-  return ast;
+function notCompletedConditions(): PropertyCondition[] {
+  return [
+    createPropertyCondition(
+      'task_status',
+      'not_equals',
+      'Done',
+      'select',
+      SYSTEM_PROPERTY_UUIDS.task_status,
+    ),
+    createPropertyCondition(
+      'task_status',
+      'not_equals',
+      'Cancelled',
+      'select',
+      SYSTEM_PROPERTY_UUIDS.task_status,
+    ),
+  ];
 }
 
-function dateToParsedDate(date: Date) {
+/**
+ * Build a QueryAST that finds all non-completed task nodes.
+ */
+export function buildTasksQueryAST(): QueryAST {
   return {
-    type: 'day' as const,
-    year: date.getFullYear(),
-    month: date.getMonth() + 1,
-    day: date.getDate(),
-    label: '',
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+      ],
+    },
   };
 }
 
 /**
- * Build a QueryAST that finds tasks where deadline OR scheduled
- * relation points to today's day-node UUID.
+ * Build a QueryAST that finds tasks scheduled or deadlined for exactly today.
  */
 export function buildTodayQueryAST(): QueryAST {
-  const todayUuid = generateDateUuid(dateToParsedDate(new Date()));
-  const ast = createEmptyQueryAST();
-  ast.scope.scope_type = 'entire_workspace';
-  ast.root_group.logic = 'AND';
-  ast.root_group.children.push(createClassCondition(SYSTEM_CLASS_UUIDS.task));
-  ast.root_group.children.push({
-    type: 'group',
-    logic: 'OR',
-    children: [
-      createPropertyCondition(
-        'Scheduled',
-        'equals',
-        todayUuid,
-        'node',
-        SYSTEM_PROPERTY_UUIDS.task_scheduled,
-      ),
-      createPropertyCondition(
-        'Deadline',
-        'equals',
-        todayUuid,
-        'node',
-        SYSTEM_PROPERTY_UUIDS.task_deadline,
-      ),
-    ],
-  });
-  return ast;
+  const todayUuid = getTodayDayUuid();
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        {
+          type: 'group',
+          logic: 'OR',
+          children: [
+            createPropertyCondition(
+              'task_scheduled',
+              'equals',
+              todayUuid,
+              'date',
+              SYSTEM_PROPERTY_UUIDS.task_scheduled,
+            ),
+            createPropertyCondition(
+              'task_deadline',
+              'equals',
+              todayUuid,
+              'date',
+              SYSTEM_PROPERTY_UUIDS.task_deadline,
+            ),
+          ],
+        },
+      ],
+    },
+  };
 }
 
 /**
- * Build a QueryAST that finds tasks where deadline OR scheduled
- * is in the next 7 days.
+ * Build a QueryAST that finds tasks scheduled or deadlined
+ * within the next N days (inclusive of today).
  */
-export function buildUpcomingQueryAST(): QueryAST {
-  const uuids: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    uuids.push(generateDateUuid(dateToParsedDate(d)));
-  }
+export function buildUpcomingQueryAST(days = 7): QueryAST {
+  const todayUuid = getTodayDayUuid();
+  const future = new Date();
+  future.setDate(future.getDate() + days + 1);
+  const futureUuid = dateToDayUuid(future);
 
-  const ast = createEmptyQueryAST();
-  ast.scope.scope_type = 'entire_workspace';
-  ast.root_group.logic = 'AND';
-  ast.root_group.children.push(createClassCondition(SYSTEM_CLASS_UUIDS.task));
-  ast.root_group.children.push({
-    type: 'group',
-    logic: 'OR',
-    children: [
-      createPropertyCondition(
-        'Scheduled',
-        'in',
-        uuids,
-        'node',
-        SYSTEM_PROPERTY_UUIDS.task_scheduled,
-      ),
-      createPropertyCondition(
-        'Deadline',
-        'in',
-        uuids,
-        'node',
-        SYSTEM_PROPERTY_UUIDS.task_deadline,
-      ),
-    ],
-  });
-  return ast;
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        {
+          type: 'group',
+          logic: 'OR',
+          children: [
+            {
+              type: 'group',
+              logic: 'AND',
+              children: [
+                createPropertyCondition(
+                  'task_scheduled',
+                  'is_not_empty',
+                  undefined,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_scheduled,
+                ),
+                createPropertyCondition(
+                  'task_scheduled',
+                  'greater_than',
+                  todayUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_scheduled,
+                ),
+                createPropertyCondition(
+                  'task_scheduled',
+                  'less_than',
+                  futureUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_scheduled,
+                ),
+              ],
+            },
+            {
+              type: 'group',
+              logic: 'AND',
+              children: [
+                createPropertyCondition(
+                  'task_deadline',
+                  'is_not_empty',
+                  undefined,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_deadline,
+                ),
+                createPropertyCondition(
+                  'task_deadline',
+                  'greater_than',
+                  todayUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_deadline,
+                ),
+                createPropertyCondition(
+                  'task_deadline',
+                  'less_than',
+                  futureUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_deadline,
+                ),
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Build a QueryAST that finds tasks scheduled or deadlined
+ * for today or earlier (overdue + today).
+ */
+export function buildTodayOverdueQueryAST(): QueryAST {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowUuid = dateToDayUuid(tomorrow);
+
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        {
+          type: 'group',
+          logic: 'OR',
+          children: [
+            {
+              type: 'group',
+              logic: 'AND',
+              children: [
+                createPropertyCondition(
+                  'task_scheduled',
+                  'is_not_empty',
+                  undefined,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_scheduled,
+                ),
+                createPropertyCondition(
+                  'task_scheduled',
+                  'less_than',
+                  tomorrowUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_scheduled,
+                ),
+              ],
+            },
+            {
+              type: 'group',
+              logic: 'AND',
+              children: [
+                createPropertyCondition(
+                  'task_deadline',
+                  'is_not_empty',
+                  undefined,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_deadline,
+                ),
+                createPropertyCondition(
+                  'task_deadline',
+                  'less_than',
+                  tomorrowUuid,
+                  'date',
+                  SYSTEM_PROPERTY_UUIDS.task_deadline,
+                ),
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Build a QueryAST that finds tasks scheduled after today (future).
+ */
+export function buildFutureQueryAST(): QueryAST {
+  const todayUuid = getTodayDayUuid();
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        createPropertyCondition(
+          'task_scheduled',
+          'greater_than',
+          todayUuid,
+          'date',
+          SYSTEM_PROPERTY_UUIDS.task_scheduled,
+        ),
+      ],
+    },
+  };
+}
+
+/**
+ * Build a QueryAST that finds tasks scheduled before today (overdue only).
+ */
+export function buildOverdueQueryAST(): QueryAST {
+  const todayUuid = getTodayDayUuid();
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        createPropertyCondition(
+          'task_scheduled',
+          'less_than',
+          todayUuid,
+          'date',
+          SYSTEM_PROPERTY_UUIDS.task_scheduled,
+        ),
+      ],
+    },
+  };
+}
+
+/**
+ * Build a QueryAST that finds tasks scheduled for a specific day.
+ */
+export function buildScheduledForDayQueryAST(dayUuid: string): QueryAST {
+  return {
+    type: 'query',
+    version: '1.0',
+    scope: { type: 'scope', scope_type: 'entire_workspace' },
+    root_group: {
+      type: 'group',
+      logic: 'AND',
+      children: [
+        createClassCondition(SYSTEM_CLASS_UUIDS.task),
+        ...notCompletedConditions(),
+        createPropertyCondition(
+          'task_scheduled',
+          'equals',
+          dayUuid,
+          'date',
+          SYSTEM_PROPERTY_UUIDS.task_scheduled,
+        ),
+      ],
+    },
+  };
 }

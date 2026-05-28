@@ -11,11 +11,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
-import {
-  buildTasksQueryAST,
-  buildTodayQueryAST,
-  buildUpcomingQueryAST,
-} from '@/utils/taskQueries';
+
 import { nodeKeys } from '@/hooks/useNodes';
 import { emptyTrash } from '@/api/nodes';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
@@ -146,10 +142,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
     { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
     { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
     { icon: "mdi mdi-inbox-arrow-down", label: 'Inbox', view: 'inbox' as const },
-    { icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', action: () => { openNodeCollection('Tasks', buildTasksQueryAST()); } },
-    { icon: "mdi mdi-calendar-today", label: 'Today', action: () => { openNodeCollection('Today', buildTodayQueryAST()); } },
-    { icon: "mdi mdi-calendar-arrow-right", label: 'Upcoming', action: () => { openNodeCollection('Upcoming', buildUpcomingQueryAST()); } },
-  ], [openNodeCollection]);
+    { icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const },
+    { icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', view: 'tasks' as const },
+  ] as Array<{ icon: string; label: string; view?: string; action?: () => void }>, [openNodeCollection]);
 
   const bottomNavItems = useMemo(() => [
     { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
@@ -189,7 +184,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     if (item.action) {
                       item.action();
                     } else if (item.view) {
-                      setMainViewType(item.view);
+                      setMainViewType(item.view as import('@/stores/appStore').MainViewType);
                     }
                     closeMobileDrawer();
                   }}
@@ -235,7 +230,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     if (item.action) {
                       item.action();
                     } else if (item.view) {
-                      setMainViewType(item.view);
+                      setMainViewType(item.view as import('@/stores/appStore').MainViewType);
                     }
                     closeMobileDrawer();
                   }}

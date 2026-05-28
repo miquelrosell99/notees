@@ -88,16 +88,14 @@ def _flatten_inline_nodes(nodes: list[dict[str, Any]], base_attrs: dict[str, Any
     return result
 
 
-def _ast_to_ytext(nodes: list[dict[str, Any]]) -> y_py.YText:
-    """Convert AST inline nodes to a Y.Text with formatting attributes."""
-    ytext = y_py.YText()
+def _ast_to_ytext(nodes: list[dict[str, Any]], ytext: y_py.YText, txn: y_py.YTransaction) -> None:
+    """Populate an integrated Y.Text with AST inline nodes and formatting attributes."""
     flattened = _flatten_inline_nodes(nodes)
     offset = 0
     for text, attrs in flattened:
         if text:
-            ytext.insert(offset, text, attrs)
+            ytext.insert(txn, offset, text, attrs)
             offset += len(text)
-    return ytext
 
 
 def _ytext_to_ast_nodes(ytext: y_py.YText) -> list[dict[str, Any]]:
@@ -128,45 +126,48 @@ def build_yjs_doc_from_page_blocks(page_name: str, blocks: list[dict[str, Any]])
     """
     doc = y_py.YDoc()
 
-    # Meta map
-    meta = doc.get_map("meta")
-    try:
-        title_ast = json.loads(page_name) if page_name else []
-        if not isinstance(title_ast, list):
-            title_ast = []
-    except json.JSONDecodeError:
-        title_ast = [{"type": "paragraph", "children": [{"type": "text", "text": page_name or ""}]}]
-
-    title_text = _ast_to_ytext(title_ast)
-    meta.set("title", title_text)
-
-    # Blocks array
-    y_blocks = doc.get_array("blocks")
-
-    # Sort blocks by sequence
-    sorted_blocks = sorted(blocks, key=lambda b: b.get("sequence", 0))
-
-    for block in sorted_blocks:
-        block_map = y_py.YMap()
-        block_uuid = str(block.get("uuid", ""))
-        block_map.set("id", block_uuid)
-        block_map.set("type", "paragraph")  # Default; we could infer from AST
-
-        # Parse block content AST
-        name = block.get("name", "")
+    with doc.begin_transaction() as txn:
+        # Meta map
+        meta = doc.get_map("meta")
         try:
-            block_ast = json.loads(name) if name else []
-            if not isinstance(block_ast, list):
-                block_ast = []
+            title_ast = json.loads(page_name) if page_name else []
+            if not isinstance(title_ast, list):
+                title_ast = []
         except json.JSONDecodeError:
-            block_ast = [{"type": "paragraph", "children": [{"type": "text", "text": name or ""}]}]
+            title_ast = [{"type": "paragraph", "children": [{"type": "text", "text": page_name or ""}]}]
 
-        # Flatten to Y.Text
-        block_content = _ast_to_ytext(block_ast)
-        block_map.set("content", block_content)
-        block_map.set("collapsed", bool(block.get("collapsed", False)))
+        title_text = y_py.YText()
+        meta.set(txn, "title", title_text)
+        _ast_to_ytext(title_ast, title_text, txn)
 
-        y_blocks.append(block_map)
+        # Blocks array
+        y_blocks = doc.get_array("blocks")
+
+        # Sort blocks by sequence
+        sorted_blocks = sorted(blocks, key=lambda b: b.get("sequence", 0))
+
+        for block in sorted_blocks:
+            block_map = y_py.YMap({})
+            y_blocks.append(txn, block_map)
+
+            block_uuid = str(block.get("uuid", ""))
+            block_map.set(txn, "id", block_uuid)
+            block_map.set(txn, "type", "paragraph")  # Default; we could infer from AST
+
+            # Parse block content AST
+            name = block.get("name", "")
+            try:
+                block_ast = json.loads(name) if name else []
+                if not isinstance(block_ast, list):
+                    block_ast = []
+            except json.JSONDecodeError:
+                block_ast = [{"type": "paragraph", "children": [{"type": "text", "text": name or ""}]}]
+
+            # Flatten to Y.Text
+            block_content = y_py.YText()
+            block_map.set(txn, "content", block_content)
+            _ast_to_ytext(block_ast, block_content, txn)
+            block_map.set(txn, "collapsed", bool(block.get("collapsed", False)))
 
     return doc
 

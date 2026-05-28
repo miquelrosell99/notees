@@ -57,6 +57,8 @@ import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '../components/core/SelectionButton';
 
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
+import { buildScheduledForDayQueryAST, buildOverdueQueryAST } from '@/utils/taskQueries';
+import { isDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesContext';
 import type { Asset } from '../api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
@@ -1351,6 +1353,42 @@ export function NodeView({
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               hideViewManagement={true}
             />
+          )}
+          
+          {/* Daily page task sections */}
+          {isDayUuid(node.uuid) && (
+            <>
+              <QuerySection
+                nodeId={node.id}
+                nodeUuid={node.uuid}
+                nodeName={node.name}
+                viewType="classed_nodes"
+                title="Scheduled Tasks"
+                icon={<span className="mdi mdi-calendar-check" />}
+                hideWhenEmpty={true}
+                defaultExpanded={true}
+                queryAST={buildScheduledForDayQueryAST(node.uuid)}
+                hideViewManagement={true}
+                onNodeClick={(targetNodeId) => openNode(targetNodeId)}
+                onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+              />
+              {node.uuid === getTodayDayUuid() && (
+                <QuerySection
+                  nodeId={node.id}
+                  nodeUuid={node.uuid}
+                  nodeName={node.name}
+                  viewType="classed_nodes"
+                  title="Overdue Tasks"
+                  icon={<span className="mdi mdi-calendar-alert" />}
+                  hideWhenEmpty={true}
+                  defaultExpanded={true}
+                  queryAST={buildOverdueQueryAST()}
+                  hideViewManagement={true}
+                  onNodeClick={(targetNodeId) => openNode(targetNodeId)}
+                  onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+                />
+              )}
+            </>
           )}
           
           {/* Linked References - shows all references to this node (universal for all nodes) */}
