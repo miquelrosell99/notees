@@ -29,6 +29,13 @@ export interface ASTCode {
   readonly text: string;
 }
 
+/** Inline math formula (LaTeX). Stored without delimiters. */
+export interface ASTMath {
+  readonly type: 'math';
+  readonly expression: string;
+  readonly displayMode?: boolean;
+}
+
 /**
  * Inline node link.
  *
@@ -157,6 +164,7 @@ export type ASTInlineNode =
   | ASTText
   | ASTHardBreak
   | ASTCode
+  | ASTMath
   | ASTNodeLink
   | ASTBrokenLink
   | ASTStrong
@@ -201,6 +209,6 @@ export type ASTDocument = ASTBlockNode[];
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Type guard: is the node a leaf (no children array)? */
-export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTNodeLink | ASTBrokenLink {
-  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'node_link' || node.type === 'broken_link';
+export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTMath | ASTNodeLink | ASTBrokenLink {
+  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'math' || node.type === 'node_link' || node.type === 'broken_link';
 }

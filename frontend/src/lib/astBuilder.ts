@@ -20,6 +20,7 @@ import type {
   ASTText,
   ASTHardBreak,
   ASTCode,
+  ASTMath,
   ASTNodeLink,
   ASTBrokenLink,
   ASTStrong,
@@ -47,7 +48,7 @@ export const ParseMode = {
   JSON: 'JSON',
   /** Wrap plain text as-is in a single text node (no formatting). */
   PLAIN: 'PLAIN',
-  /** Parse inline Markdown: **bold**, *italic*, ~~strike~~, ==highlight==, __underline__, [text](url). Backtick-wrapped code like `code` is kept as plain text. */
+  /** Parse inline Markdown: **bold**, *italic*, ~~strike~~, ==highlight==, __underline__, [text](url), $math$, $$display math$$. Backtick-wrapped code like `code` is kept as plain text. */
   MARKDOWN: 'MARKDOWN',
 } as const;
 
@@ -65,6 +66,10 @@ export function hardBreak(): ASTHardBreak {
 
 export function code(codeText: string): ASTCode {
   return { type: 'code', text: codeText };
+}
+
+export function math(expression: string, displayMode = false): ASTMath {
+  return { type: 'math', expression, displayMode };
 }
 
 export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
@@ -254,7 +259,7 @@ function validateDocument(doc: unknown): ASTDocument {
  * corrupts the outer call's position → infinite re-matching → OOM.
  */
 function makeMdInlineRE(): RegExp {
-  return /(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<underline>__(?<u>.+?)__)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
+  return /(?<display_math>\$\$(?<dm>.+?)\$\$)|(?<inline_math>\$(?<im>[^$\s][^$]*?)\$)|(?<code>`[^`]+`)|(?<bold_italic>\*\*\*(?<bi>.+?)\*\*\*)|(?<bold>\*\*(?<b>.+?)\*\*)|(?<italic>\*(?<i>[^*]+?)\*)|(?<strike>~~(?<s>.+?)~~)|(?<highlight>==(?<h>.+?)==)|(?<underline>__(?<u>.+?)__)|(?<link>\[(?<lt>[^\]]+)\]\((?<lu>[^)]+)\))/g;
 }
 
 function parseMdDocument(input: string): ASTDocument {
@@ -280,7 +285,11 @@ function parseMdInline(input: string): ASTInlineNode[] {
       nodes.push(text(input.slice(pos, start)));
     }
 
-    if (m.groups?.code) {
+    if (m.groups?.display_math) {
+      nodes.push(math(m.groups.dm!, true));
+    } else if (m.groups?.inline_math) {
+      nodes.push(math(m.groups.im!, false));
+    } else if (m.groups?.code) {
       // Inline code: strip backticks and emit a proper code AST node
       nodes.push(code(m.groups.code.slice(1, -1)));
     } else if (m.groups?.bold_italic) {
@@ -324,7 +333,7 @@ function parseMdInline(input: string): ASTInlineNode[] {
  * Quick-check regex: does a string contain any markdown syntax?
  * Used to skip the full conversion when there's nothing to convert.
  */
-const MD_QUICK_CHECK = /[*~`=]|\[.+\]\(/;
+const MD_QUICK_CHECK = /[*~`=$]|\[.+\]\(/;
 
 /**
  * Walk an ASTDocument and convert markdown syntax inside text nodes
