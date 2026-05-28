@@ -11,8 +11,8 @@ import './PublicShareView.css';
 
 export function PublicShareView() {
   const [data, setData] = useState<{
-    node: { id: number; uuid: string; name: string; icon: string | null; color: string | null; is_page: boolean };
-    children: { id: number; uuid: string; name: string; icon: string | null; color: string | null; is_page: boolean; depth: number }[];
+    node: { id: number; uuid: string; name: string; display_name: string; icon: string | null; color: string | null; is_page: boolean };
+    children: { id: number; uuid: string; name: string; display_name: string; icon: string | null; color: string | null; is_page: boolean; depth: number }[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +79,7 @@ export function PublicShareView() {
         <div className="public-share-view__badge">Shared publicly</div>
         <NodeInline
           name={data.node.name}
+          displayText={data.node.display_name}
           icon={data.node.icon}
           isPage={data.node.is_page}
           nodeId={data.node.id}
@@ -98,6 +99,7 @@ export function PublicShareView() {
             >
               <NodeInline
                 name={child.name}
+                displayText={child.display_name}
                 icon={child.icon}
                 isPage={child.is_page}
                 nodeId={child.id}

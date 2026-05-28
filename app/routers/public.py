@@ -8,6 +8,7 @@ from ..db.connection import acquire_connection, get_pool
 from ..domain.repositories import PostgresNodeRepository, PostgresShareRepository
 from ..domain.services.share_service import ShareService
 from ..logging_config import get_logger
+from .nodes.helpers import _name_text, _resolve_referenced_display_names
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/public", tags=["Public"])
@@ -20,12 +21,13 @@ async def _get_public_share_service(workspace_id: int) -> ShareService:
     return ShareService(share_repo, node_repo, workspace_id, 0)
 
 
-def _node_to_public_dict(node, depth: int = 0) -> dict:
+def _node_to_public_dict(node, depth: int = 0, display_name: str = "") -> dict:
     """Serialize a node for public access (minimal fields)."""
     return {
         "id": node.id,
         "uuid": node.uuid,
         "name": node.name,
+        "display_name": display_name,
         "icon": node.icon,
         "color": node.color,
         "is_page": node.is_page,
@@ -94,30 +96,38 @@ async def get_shared_node(
             share.workspace_id,
         )
 
-    children = [dict(r) for r in rows]
+    # Resolve display names for nodes that contain inline links
+    rows_as_dicts = [{"name": node.name, "uuid": node.uuid}] + [dict(r) for r in rows]
+    resolved = await _resolve_referenced_display_names(pool, share.workspace_id, rows_as_dicts)
+
+    node_display_name = resolved.get(node.uuid) or _name_text(node.name, max_len=1000) or "Untitled"
+
+    children = []
+    for r in rows:
+        uuid_str = str(r["uuid"])
+        child_display_name = resolved.get(uuid_str) or _name_text(r["name"], max_len=1000) or "Untitled"
+        children.append({
+            "id": r["id"],
+            "uuid": uuid_str,
+            "name": r["name"],
+            "display_name": child_display_name,
+            "icon": r.get("icon"),
+            "color": r.get("color"),
+            "is_page": r["is_page"],
+            "is_class": r.get("is_class", False),
+            "is_day": r.get("is_day", False),
+            "is_month": r.get("is_month", False),
+            "is_year": r.get("is_year", False),
+            "is_template": r.get("is_template", False),
+            "parent_id": r["parent_id"],
+            "sequence": r["sequence"],
+            "class_ids": r.get("class_ids", []),
+            "create_date": r["create_date"].isoformat() if r.get("create_date") else None,
+            "write_date": r["write_date"].isoformat() if r.get("write_date") else None,
+            "depth": r["depth"],
+        })
 
     return {
-        "node": _node_to_public_dict(node),
-        "children": [
-            {
-                "id": c["id"],
-                "uuid": c["uuid"],
-                "name": c["name"],
-                "icon": c.get("icon"),
-                "color": c.get("color"),
-                "is_page": c["is_page"],
-                "is_class": c.get("is_class", False),
-                "is_day": c.get("is_day", False),
-                "is_month": c.get("is_month", False),
-                "is_year": c.get("is_year", False),
-                "is_template": c.get("is_template", False),
-                "parent_id": c["parent_id"],
-                "sequence": c["sequence"],
-                "class_ids": c.get("class_ids", []),
-                "create_date": c["create_date"].isoformat() if c.get("create_date") else None,
-                "write_date": c["write_date"].isoformat() if c.get("write_date") else None,
-                "depth": c["depth"],
-            }
-            for c in children
-        ],
+        "node": _node_to_public_dict(node, display_name=node_display_name),
+        "children": children,
     }
