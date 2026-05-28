@@ -153,6 +153,15 @@ async def export_nodes(
         if not nodes_data:
             raise ValueError("No nodes found to export")
 
+        # Determine which nodes should have properties fetched BEFORE any
+        # stripping/filtering so that "main" always refers to the originally
+        # requested root nodes, not whatever happens to be at depth 0 later.
+        property_target_nodes: list[dict] = []
+        if properties == "main":
+            property_target_nodes = [nd for nd in nodes_data if nd.get("depth", 0) == 0]
+        elif properties == "all":
+            property_target_nodes = nodes_data
+
         # Automatically skip the root page node for Markdown exports.
         # Pages are files: the title belongs in YAML frontmatter, not as a bullet.
         # Blocks are content: the block itself must appear in the output.
@@ -264,11 +273,10 @@ async def export_nodes(
                 asset_path=asset_path_map.get(node_uuid) if asset_path_map else None,
             )
 
-        # Fetch properties for page nodes if requested
+        # Fetch properties for target nodes if requested
         properties_data: dict[str, list] = {}
-        if properties in ("main", "all"):
-            target_nodes = [nd for nd in nodes_data if nd.get("depth", 0) == 0] if properties == "main" else nodes_data
-            page_node_ids = [nd["id"] for nd in target_nodes if nd.get("id")]
+        if property_target_nodes:
+            page_node_ids = [nd["id"] for nd in property_target_nodes if nd.get("id")]
             if page_node_ids:
                 prop_rows = await conn.fetch(
                     """
@@ -513,7 +521,9 @@ async def export_nodes(
         )
         if frontmatter and node_ids:
             root_uuid = node_ids[0]
-            metadata = await _fetch_page_metadata(conn, workspace_id, root_uuid, include_title=True)
+            metadata = await _fetch_page_metadata(
+                conn, workspace_id, root_uuid, include_title=True, include_properties=properties != "none"
+            )
             content = _build_yaml_frontmatter(metadata) + content
         filename = "export.md"
         mime_type = "text/markdown"
@@ -1335,7 +1345,9 @@ def _build_yaml_frontmatter(data: dict) -> str:
     return "\n".join(lines) + "\n\n"
 
 
-async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str, include_title: bool = True) -> dict:
+async def _fetch_page_metadata(
+    conn, workspace_id: int, node_uuid: str, include_title: bool = True, include_properties: bool = True
+) -> dict:
     """Fetch minimal metadata for a page's YAML frontmatter."""
     node_row = await conn.fetchrow(
         """
@@ -1404,63 +1416,64 @@ async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str, include_
         ]
 
     # Properties
-    prop_rows = await conn.fetch(
-        """
-        SELECT p.name AS property_name, p.type AS property_type, p.is_multi,
-               pvs.value_text, pvs.value_boolean, pvs.value_float, pvs.value_integer,
-               psl.name AS selection_value,
-               pvr.target_id AS relation_target_id,
-               rel.uuid::text AS relation_target_uuid, rel.name AS relation_target_name
-        FROM node_property np
-        JOIN property p ON p.id = np.property_id
-        LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
-        LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-        LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
-        LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
-        LEFT JOIN node rel ON rel.id = pvr.target_id
-        WHERE np.node_id = $1 AND p.active = TRUE
-        ORDER BY p.name
-        """,
-        node_row["id"],
-    )
-    props_agg: dict[str, dict] = {}
-    for row in prop_rows:
-        prop_name = row["property_name"]
-        prop_type = row["property_type"]
-        if prop_name not in props_agg:
-            props_agg[prop_name] = {"type": prop_type, "values": []}
-        value = None
-        if prop_type == "integer" and row["value_integer"] is not None:
-            value = row["value_integer"]
-        elif prop_type == "float" and row["value_float"] is not None:
-            value = row["value_float"]
-        elif prop_type == "boolean" and row["value_boolean"] is not None:
-            value = bool(row["value_boolean"])
-        elif prop_type == "date" and row["value_text"] is not None:
-            value = row["value_text"]
-        elif prop_type == "selection" and row["selection_value"] is not None:
-            value = row["selection_value"]
-        elif prop_type in ("node", "text") and row["relation_target_id"] is not None:
-            value = {
-                "uuid": str(row["relation_target_uuid"]) if row["relation_target_uuid"] else None,
-                "name": _extract_plain_text(row["relation_target_name"]),
-            }
-        if value is not None and value not in props_agg[prop_name]["values"]:
-            props_agg[prop_name]["values"].append(value)
+    if include_properties:
+        prop_rows = await conn.fetch(
+            """
+            SELECT p.name AS property_name, p.type AS property_type, p.is_multi,
+                   pvs.value_text, pvs.value_boolean, pvs.value_float, pvs.value_integer,
+                   psl.name AS selection_value,
+                   pvr.target_id AS relation_target_id,
+                   rel.uuid::text AS relation_target_uuid, rel.name AS relation_target_name
+            FROM node_property np
+            JOIN property p ON p.id = np.property_id
+            LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+            LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+            LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
+            LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
+            LEFT JOIN node rel ON rel.id = pvr.target_id
+            WHERE np.node_id = $1 AND p.active = TRUE
+            ORDER BY p.name
+            """,
+            node_row["id"],
+        )
+        props_agg: dict[str, dict] = {}
+        for row in prop_rows:
+            prop_name = row["property_name"]
+            prop_type = row["property_type"]
+            if prop_name not in props_agg:
+                props_agg[prop_name] = {"type": prop_type, "values": []}
+            value = None
+            if prop_type == "integer" and row["value_integer"] is not None:
+                value = row["value_integer"]
+            elif prop_type == "float" and row["value_float"] is not None:
+                value = row["value_float"]
+            elif prop_type == "boolean" and row["value_boolean"] is not None:
+                value = bool(row["value_boolean"])
+            elif prop_type == "date" and row["value_text"] is not None:
+                value = row["value_text"]
+            elif prop_type == "selection" and row["selection_value"] is not None:
+                value = row["selection_value"]
+            elif prop_type in ("node", "text") and row["relation_target_id"] is not None:
+                value = {
+                    "uuid": str(row["relation_target_uuid"]) if row["relation_target_uuid"] else None,
+                    "name": _extract_plain_text(row["relation_target_name"]),
+                }
+            if value is not None and value not in props_agg[prop_name]["values"]:
+                props_agg[prop_name]["values"].append(value)
 
-    if props_agg:
-        props_out = {}
-        for prop_name, prop_data in props_agg.items():
-            values = prop_data["values"]
-            prop_type = prop_data["type"]
-            if not values:
-                continue
-            if len(values) == 1 and prop_type != "text":
-                props_out[prop_name] = values[0]
-            else:
-                props_out[prop_name] = values
-        if props_out:
-            metadata["properties"] = props_out
+        if props_agg:
+            props_out = {}
+            for prop_name, prop_data in props_agg.items():
+                values = prop_data["values"]
+                prop_type = prop_data["type"]
+                if not values:
+                    continue
+                if len(values) == 1 and prop_type != "text":
+                    props_out[prop_name] = values[0]
+                else:
+                    props_out[prop_name] = values
+            if props_out:
+                metadata["properties"] = props_out
 
     if node_row["icon"]:
         metadata["icon"] = node_row["icon"]

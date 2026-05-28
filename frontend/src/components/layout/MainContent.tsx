@@ -14,7 +14,6 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { NodeViewWrapper, NodeViewContent } from '@/views/NodeView';
-import { AllPagesView } from '@/views/AllPagesView';
 import { PagesView } from '@/views/PagesView';
 import { ArchivedPagesView } from '@/views/ArchivedPagesView';
 import { TrashView } from '@/views/TrashView';
@@ -76,7 +75,7 @@ export function MainContent() {
   if (mainViewType === 'all-pages') {
     return (
       <main className="main-content">
-        <AllPagesView />
+        <PagesView />
       </main>
     );
   }
