@@ -93,7 +93,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     });
 
     const params: Record<string, unknown> = {
-      format: format === 'text' || format === 'json' ? format : 'html',
+      format: format === 'html' || format === 'pdf' ? 'html' : format,
       include_children: true,
       layout,
       formatting,
@@ -135,11 +135,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   // For HTML/PDF tab, show the raw HTML or inject CSS overrides.
   const displayContent = useMemo(() => {
     if (!previewContent) return '';
-    if (format === 'markdown') {
-      const match = previewContent.match(/<body[^>]*>([\s\S]*?)<\/body>/);
-      return match ? match[1].trim() : previewContent;
-    }
-    if (format === 'text' || format === 'json') {
+    if (format === 'markdown' || format === 'text' || format === 'json') {
       return previewContent;
     }
     if (cssOverrides.trim()) {

@@ -19,7 +19,6 @@ from typing import Any
 import asyncpg
 
 from .db.connection import get_connection, get_data_dir
-from .domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from .logging_config import get_logger
 from .workspace_manager import _active_workspaces, _get_numeric_user_id
 
@@ -1735,7 +1734,11 @@ async def export_workspace_formatted_zip(
     """
     import zipfile
 
-    from .node_export import export_nodes
+    from .node_export import (
+        _build_yaml_frontmatter,
+        _fetch_page_metadata,
+        export_nodes,
+    )
 
     numeric_user_id = await _get_numeric_user_id(user_id_str)
     if not numeric_user_id:
@@ -1870,253 +1873,8 @@ async def export_workspace_formatted_zip(
     return zip_path
 
 
-def _extract_plain_text(name: str | None) -> str:
-    """Extract plain text from a node's name (AST JSON or plain text)."""
-    if not name:
-        return "untitled"
-    try:
-        ast = parse_ast(name)
-        opts = StringifyOptions(mode=StringifyMode.TEXT_ONLY)
-        return stringify_ast(ast, opts) or "untitled"
-    except Exception:
-        return name.strip() or "untitled"
-
-
 def _sanitize_filename(name: str) -> str:
     """Sanitize a string for use as a filename."""
     import re as _re
 
     return _re.sub(r"[^\w\-_.]", "_", name).strip("_") or "untitled"
-
-
-async def _fetch_page_metadata(conn, workspace_id: int, node_uuid: str, include_title: bool = True) -> dict:
-    """Fetch minimal metadata for a page's YAML frontmatter."""
-    node_row = await conn.fetchrow(
-        """
-        SELECT id, uuid::text as uuid, name, is_page, is_day, is_month, is_year,
-               color, icon, class_ids, parent_id, create_date, write_date
-        FROM node
-        WHERE workspace_id = $1 AND uuid::text = $2
-        """,
-        workspace_id,
-        node_uuid,
-    )
-    if not node_row:
-        raise ValueError(f"Node not found: {node_uuid}")
-
-    metadata: dict = {
-        "uuid": str(node_row["uuid"]),
-        "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
-        "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
-    }
-
-    if include_title:
-        metadata["title"] = _extract_plain_text(node_row["name"])
-
-    if node_row["color"]:
-        metadata["color"] = node_row["color"]
-
-    # Ancestors
-    ancestor_rows = await conn.fetch(
-        """
-        SELECT n.uuid::text as uuid, n.name
-        FROM node_path np
-        JOIN node n ON n.id = np.ancestor_id
-        WHERE np.descendant_id = $1 AND np.depth > 0
-        ORDER BY np.depth DESC
-        """,
-        node_row["id"],
-    )
-    if ancestor_rows:
-        metadata["parents"] = [
-            {"uuid": str(row["uuid"]), "title": _extract_plain_text(row["name"])} for row in ancestor_rows
-        ]
-
-    # Tags
-    tag_rows = await conn.fetch(
-        """
-        SELECT n.uuid::text as uuid, n.name
-        FROM node_link nl
-        JOIN node n ON n.id = nl.target_id
-        WHERE nl.source_id = $1 AND nl.is_tag = TRUE AND nl.property_id IS NULL
-        ORDER BY nl.position
-        """,
-        node_row["id"],
-    )
-    if tag_rows:
-        metadata["tags"] = [{"uuid": str(row["uuid"]), "name": _extract_plain_text(row["name"])} for row in tag_rows]
-
-    # Classes
-    class_ids = list(node_row["class_ids"] or [])
-    if class_ids:
-        class_rows = await conn.fetch(
-            "SELECT id, uuid::text as uuid, name FROM node WHERE id = ANY($1) AND active = TRUE",
-            class_ids,
-        )
-        metadata["classes"] = [
-            {"uuid": str(row["uuid"]), "name": _extract_plain_text(row["name"])} for row in class_rows
-        ]
-
-    # Properties
-    prop_rows = await conn.fetch(
-        """
-        SELECT p.name AS property_name, p.type AS property_type, p.is_multi,
-               pvs.value_text, pvs.value_boolean, pvs.value_float, pvs.value_integer,
-               psl.name AS selection_value,
-               pvr.target_id AS relation_target_id,
-               rel.uuid::text AS relation_target_uuid, rel.name AS relation_target_name
-        FROM node_property np
-        JOIN property p ON p.id = np.property_id
-        LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
-        LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-        LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
-        LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
-        LEFT JOIN node rel ON rel.id = pvr.target_id
-        WHERE np.node_id = $1 AND p.active = TRUE
-        ORDER BY p.name
-        """,
-        node_row["id"],
-    )
-    props_agg: dict[str, dict] = {}
-    for row in prop_rows:
-        prop_name = row["property_name"]
-        prop_type = row["property_type"]
-        if prop_name not in props_agg:
-            props_agg[prop_name] = {"type": prop_type, "values": []}
-        value = None
-        if prop_type == "integer" and row["value_integer"] is not None:
-            value = row["value_integer"]
-        elif prop_type == "float" and row["value_float"] is not None:
-            value = row["value_float"]
-        elif prop_type == "boolean" and row["value_boolean"] is not None:
-            value = bool(row["value_boolean"])
-        elif prop_type == "date" and row["value_text"] is not None:
-            value = row["value_text"]
-        elif prop_type == "selection" and row["selection_value"] is not None:
-            value = row["selection_value"]
-        elif prop_type in ("node", "text") and row["relation_target_id"] is not None:
-            value = {
-                "uuid": str(row["relation_target_uuid"]) if row["relation_target_uuid"] else None,
-                "name": _extract_plain_text(row["relation_target_name"]),
-            }
-        if value is not None and value not in props_agg[prop_name]["values"]:
-            props_agg[prop_name]["values"].append(value)
-
-    if props_agg:
-        props_out = {}
-        for prop_name, prop_data in props_agg.items():
-            values = prop_data["values"]
-            prop_type = prop_data["type"]
-            if not values:
-                continue
-            if len(values) == 1 and prop_type != "text":
-                props_out[prop_name] = values[0]
-            else:
-                props_out[prop_name] = values
-        if props_out:
-            metadata["properties"] = props_out
-
-    if node_row["icon"]:
-        metadata["icon"] = node_row["icon"]
-
-    return metadata
-
-
-def _yaml_scalar(value: str) -> str:
-    """Escape a string for YAML."""
-    if not value:
-        return '""'
-    if "\n" in value:
-        return "|\n" + "\n".join("  " + line for line in value.split("\n"))
-    if any(c in value for c in [":", "#", "{", "}", "[", "]", ",", "&", "*", "!", "|", ">", "'", '"', "%", "@", "`"]):
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    return value
-
-
-def _yaml_lines(value, indent: int = 0):
-    """Yield YAML lines for a value at the given indentation level."""
-    prefix = "  " * indent
-    if value is None:
-        yield prefix + "null"
-    elif isinstance(value, bool):
-        yield prefix + ("true" if value else "false")
-    elif isinstance(value, (int, float)):
-        yield prefix + str(value)
-    elif isinstance(value, str):
-        yield prefix + _yaml_scalar(value)
-    elif isinstance(value, list):
-        if not value:
-            yield prefix + "[]"
-        else:
-            for item in value:
-                if isinstance(item, dict) and item or isinstance(item, list) and item:
-                    first = True
-                    for line in _yaml_lines(item, indent + 1):
-                        if first:
-                            yield prefix + "- " + line[len(prefix + "  ") :]
-                            first = False
-                        else:
-                            yield line
-                else:
-                    scalar = (
-                        _yaml_scalar(item)
-                        if isinstance(item, str)
-                        else "true"
-                        if item is True
-                        else "false"
-                        if item is False
-                        else "null"
-                        if item is None
-                        else str(item)
-                    )
-                    yield prefix + "- " + scalar
-    elif isinstance(value, dict):
-        if not value:
-            yield prefix + "{}"
-        else:
-            for k, v in value.items():
-                if isinstance(v, (dict, list)) and v:
-                    yield prefix + k + ":"
-                    for line in _yaml_lines(v, indent + 1):
-                        yield line
-                else:
-                    scalar = (
-                        _yaml_scalar(v)
-                        if isinstance(v, str)
-                        else "true"
-                        if v is True
-                        else "false"
-                        if v is False
-                        else "null"
-                        if v is None
-                        else str(v)
-                    )
-                    yield prefix + k + ": " + scalar
-    else:
-        yield prefix + str(value)
-
-
-def _build_yaml_frontmatter(data: dict) -> str:
-    """Build a YAML frontmatter block from a dict."""
-    lines = ["---"]
-    for key, value in data.items():
-        if isinstance(value, (dict, list)) and value:
-            lines.append(key + ":")
-            for line in _yaml_lines(value, 1):
-                lines.append(line)
-        else:
-            scalar = (
-                _yaml_scalar(value)
-                if isinstance(value, str)
-                else "true"
-                if value is True
-                else "false"
-                if value is False
-                else "null"
-                if value is None
-                else str(value)
-            )
-            lines.append(key + ": " + scalar)
-    lines.append("---")
-    return "\n".join(lines) + "\n\n"
