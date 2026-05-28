@@ -237,58 +237,26 @@ export function TriggerPlugin({
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
 
-      let anchorNode = selection.anchor.getNode();
-
-      // For link/type/tag triggers, validate anchor and compute offset
-      // from trigger state.  During an async create-new-node flow the
-      // Lexical selection may have drifted (e.g. due to a concurrent
-      // refetch / syncProjection), so we fall back to the saved anchor
-      // key rather than trusting the current selection.
-      let cursorClean: number;
       if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
         const triggerChar =
           trigger.type === 'link' ? '@' : trigger.type === 'type' ? '+' : '#';
 
-        const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): node is import('lexical').TextNode => {
-          if (!node || !$isTextNode(node)) return false;
-          const t = node.getTextContent().replace(/\u200B/g, '');
-          return trigger.triggerOffset < t.length && t[trigger.triggerOffset] === triggerChar;
-        };
+        const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
+        if (!resolved) return;
 
-        if (!isValidAnchor(anchorNode)) {
-          // Selection drifted — try the saved anchor from when the trigger opened
-          const saved = triggerAnchorKeyRef.current
-            ? $getNodeByKey(triggerAnchorKeyRef.current)
-            : null;
-          if (isValidAnchor(saved)) {
-            anchorNode = saved!;
-          } else {
-            // Trigger text is gone; bail out rather than corrupt a random block
-            return;
-          }
-        }
-
-        // Compute cursor from trigger state (reliable across async gaps)
-        cursorClean = trigger.triggerOffset + 1 + trigger.query.length;
-      } else {
-        // Slash commands: compute from selection offset (synchronous flow)
+        const { anchorNode, triggerOffset } = resolved;
         const rawText = anchorNode.getTextContent();
-        const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-        cursorClean = selection.anchor.offset - zwsBefore;
-      }
+        const startRaw = cleanToRawOffset(rawText, triggerOffset);
+        const endClean = triggerOffset + 1 + trigger.query.length;
+        const endRaw = cleanToRawOffset(rawText, endClean);
 
-      const rawText = anchorNode.getTextContent();
-      // Strip ZWS so that trigger offsets (computed from clean text) align
-      const text = rawText.replace(/\u200B/g, '');
+        selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
+        selection.focus.set(anchorNode.getKey(), endRaw, 'text');
+        selection.removeText();
 
-      // Remove trigger text
-      const beforeTrigger = text.slice(0, trigger.triggerOffset);
-      const afterCursor = text.slice(cursorClean);
-
-      if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
-        // Replace with a Pill
-        // Use zero-width space if empty to prevent Lexical from removing the text node
-        (anchorNode as any).setTextContent(beforeTrigger || '\u200B');
+        if (anchorNode.getTextContent() === '') {
+          anchorNode.setTextContent('\u200B');
+        }
 
         const pill = $createInlineLinkNode(
           value,
@@ -297,121 +265,114 @@ export function TriggerPlugin({
 
         anchorNode.insertAfter(pill);
 
-        // Always add a text node after pill for proper cursor navigation
-        // Use zero-width space if empty to prevent Lexical from removing the text node
-        const afterNode = $createTextNode(afterCursor || '\u200B');
+        const afterNode = $createTextNode('\u200B');
         pill.insertAfter(afterNode);
         afterNode.selectStart();
 
-        // Don't call onLinkSelect here - that's for clicking existing pills,
-        // not for inserting new ones. Calling it would trigger navigation.
-        // onLinkSelect?.(value);
-      } else if (trigger.type === 'slash') {
-        // For type/tag slash commands, re-trigger those popups
-        if (value === 'embed') {
-          // Remove trigger text and open the + popup in embed mode
-          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-          (anchorNode as any).setTextContent(newText);
-          const newOffset = beforeTrigger.length;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+        return;
+      }
 
-          // Capture the host block ID before re-opening
-          const embedBlockNode = findParentNodeBlock(anchorNode);
-          if (embedBlockNode) {
-            embedHostBlockIdRef.current = embedBlockNode.getBlockId();
-          }
+      // Slash commands
+      const anchorNode = selection.anchor.getNode();
+      const rawText = anchorNode.getTextContent();
+      const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
+      const cursorClean = selection.anchor.offset - zwsBefore;
+      const text = rawText.replace(/\u200B/g, '');
+      const beforeTrigger = text.slice(0, trigger.triggerOffset);
+      const afterCursor = text.slice(cursorClean);
 
-          // Open + trigger in embed mode after the update
-          setTimeout(() => {
-            const coords = getCaretCoordinates(editor);
-            setTrigger({
-              isOpen: true,
-              type: 'link',
-              query: '',
-              triggerOffset: 0,
-              position: coords,
-              embedMode: true,
-            });
-          }, 0);
-          // Don't close trigger normally — we're reopening it
-          return;
-        } else if (value === 'template') {
-          // Remove trigger text and open the link popup in template mode
-          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-          (anchorNode as any).setTextContent(newText);
-          const newOffset = beforeTrigger.length;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+      if (value === 'embed') {
+        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+        (anchorNode as any).setTextContent(newText);
+        const newOffset = beforeTrigger.length;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
 
-          // Capture host block server ID for instantiation
-          let templateBlockServerId: number | undefined;
-          const tplBlockNode = findParentNodeBlock(anchorNode);
-          if (tplBlockNode) {
+        const embedBlockNode = findParentNodeBlock(anchorNode);
+        if (embedBlockNode) {
+          embedHostBlockIdRef.current = embedBlockNode.getBlockId();
+        }
+
+        setTimeout(() => {
+          const coords = getCaretCoordinates(editor);
+          setTrigger({
+            isOpen: true,
+            type: 'link',
+            query: '',
+            triggerOffset: 0,
+            position: coords,
+            embedMode: true,
+          });
+        }, 0);
+        return;
+      } else if (value === 'template') {
+        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+        (anchorNode as any).setTextContent(newText);
+        const newOffset = beforeTrigger.length;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+        let templateBlockServerId: number | undefined;
+        const tplBlockNode = findParentNodeBlock(anchorNode);
+        if (tplBlockNode) {
+          const runtime = getNodeGraphRuntime();
+          const gn = runtime.getNode(tplBlockNode.getBlockId());
+          templateBlockServerId = gn?.serverId;
+        }
+
+        setTimeout(() => {
+          const coords = getCaretCoordinates(editor);
+          setTrigger({
+            isOpen: true,
+            type: 'link',
+            query: '',
+            triggerOffset: 0,
+            position: coords,
+            templateMode: true,
+            classFilters: templateClassFilters,
+            templateBlockServerId,
+          });
+        }, 0);
+        return;
+      } else if (value === 'type') {
+        const newText = beforeTrigger + '+' + afterCursor;
+        (anchorNode as any).setTextContent(newText || '\u200B');
+        const newOffset = beforeTrigger.length + 1;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+      } else if (value === 'tag') {
+        const newText = beforeTrigger + '#' + afterCursor;
+        (anchorNode as any).setTextContent(newText || '\u200B');
+        const newOffset = beforeTrigger.length + 1;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+      } else {
+        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
+        (anchorNode as any).setTextContent(newText);
+        const newOffset = beforeTrigger.length;
+        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
+
+        if (onSlashCommand) {
+          const blockNode = findParentNodeBlock(anchorNode);
+          let blockServerId: number | undefined;
+          let isPageBlock = false;
+          if (blockNode) {
             const runtime = getNodeGraphRuntime();
-            const gn = runtime.getNode(tplBlockNode.getBlockId());
-            templateBlockServerId = gn?.serverId;
+            const graphNode = runtime.getNode(blockNode.getBlockId());
+            blockServerId = graphNode?.serverId;
+            isPageBlock = graphNode?.isPage ?? false;
           }
-
-          setTimeout(() => {
-            const coords = getCaretCoordinates(editor);
-            setTrigger({
-              isOpen: true,
-              type: 'link',
-              query: '',
-              triggerOffset: 0,
-              position: coords,
-              templateMode: true,
-              classFilters: templateClassFilters,
-              templateBlockServerId,
-            });
-          }, 0);
-          // Don't close trigger normally — we're reopening it
-          return;
-        } else if (value === 'type') {
-          const newText = beforeTrigger + '+' + afterCursor;
-          (anchorNode as any).setTextContent(newText || '\u200B');
-          const newOffset = beforeTrigger.length + 1;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-        } else if (value === 'tag') {
-          const newText = beforeTrigger + '#' + afterCursor;
-          (anchorNode as any).setTextContent(newText || '\u200B');
-          const newOffset = beforeTrigger.length + 1;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-        } else {
-          // Action-type slash commands: remove trigger text and fire callback
-          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-          (anchorNode as any).setTextContent(newText);
-          const newOffset = beforeTrigger.length;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-          // Resolve the parent block's server ID and page status
-          if (onSlashCommand) {
-            const blockNode = findParentNodeBlock(anchorNode);
-            let blockServerId: number | undefined;
-            let isPageBlock = false;
-            if (blockNode) {
-              const runtime = getNodeGraphRuntime();
-              const graphNode = runtime.getNode(blockNode.getBlockId());
-              blockServerId = graphNode?.serverId;
-              isPageBlock = graphNode?.isPage ?? false;
-            }
-            // Node links are not allowed in page-typed blocks
-            if ((value === 'link' || value === 'blocklink') && isPageBlock) {
-              return;
-            }
-            // Defer callback to after the editor update completes
-            setTimeout(() => onSlashCommand(value, blockServerId), 0);
+          if ((value === 'link' || value === 'blocklink') && isPageBlock) {
+            return;
           }
+          setTimeout(() => onSlashCommand(value, blockServerId), 0);
         }
       }
     });
 
     setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [editor, trigger, onSlashCommand]);
+  }, [editor, trigger, onSlashCommand, templateClassFilters]);
 
   const handleClose = useCallback(() => {
     setTrigger(prev => ({ ...prev, isOpen: false }));
@@ -457,26 +418,27 @@ export function TriggerPlugin({
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return;
 
-            const anchorNode = selection.anchor.getNode();
-            const rawText = anchorNode.getTextContent();
-            const text = rawText.replace(/\u200B/g, '');
-            const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-            const cursorClean = selection.anchor.offset - zwsBefore;
+            const triggerChar = '+';
+            const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
+            if (!resolved) return;
 
-            // Remove trigger text
-            const beforeTrigger = text.slice(0, trigger.triggerOffset);
-            const afterCursor = text.slice(cursorClean);
-            
-            // Just set the text without the trigger, no Pill
-            const newText = beforeTrigger + afterCursor;
-            (anchorNode as any).setTextContent(newText || '\u200B');
-            
-            // Position cursor where trigger was
-            const newOffset = beforeTrigger.length;
+            const { anchorNode, triggerOffset } = resolved;
+            const rawText = anchorNode.getTextContent();
+            const startRaw = cleanToRawOffset(rawText, triggerOffset);
+            const endRaw = cleanToRawOffset(rawText, triggerOffset + 1 + trigger.query.length);
+
+            selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
+            selection.focus.set(anchorNode.getKey(), endRaw, 'text');
+            selection.removeText();
+
+            if (anchorNode.getTextContent() === '') {
+              anchorNode.setTextContent('\u200B');
+            }
+
+            const newOffset = startRaw;
             selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
             selection.focus.set(anchorNode.getKey(), newOffset, 'text');
 
-            // Resolve the parent block's server ID for the onAddClass call
             const blockNode = findParentNodeBlock(anchorNode);
             if (blockNode) {
               const runtime = getNodeGraphRuntime();
@@ -485,7 +447,6 @@ export function TriggerPlugin({
             }
           });
 
-          // Add class to block's class_ids
           if (blockServerId != null) {
             onAddClass(blockServerId, node.id);
           }
@@ -496,16 +457,20 @@ export function TriggerPlugin({
         editor.update(() => {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return;
-          const anchorNode = selection.anchor.getNode();
+          const triggerChar = '+';
+          const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
+          if (!resolved) return;
+          const { anchorNode, triggerOffset } = resolved;
           const rawText = anchorNode.getTextContent();
-          const text = rawText.replace(/\u200B/g, '');
-          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-          const cursorClean = selection.anchor.offset - zwsBefore;
-          const beforeTrigger = text.slice(0, trigger.triggerOffset);
-          const afterCursor = text.slice(cursorClean);
-          const newText = beforeTrigger + afterCursor;
-          (anchorNode as any).setTextContent(newText || '\u200B');
-          const newOffset = beforeTrigger.length;
+          const startRaw = cleanToRawOffset(rawText, triggerOffset);
+          const endRaw = cleanToRawOffset(rawText, triggerOffset + 1 + trigger.query.length);
+          selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
+          selection.focus.set(anchorNode.getKey(), endRaw, 'text');
+          selection.removeText();
+          if (anchorNode.getTextContent() === '') {
+            anchorNode.setTextContent('\u200B');
+          }
+          const newOffset = startRaw;
           selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
           selection.focus.set(anchorNode.getKey(), newOffset, 'text');
         });
@@ -549,20 +514,30 @@ export function TriggerPlugin({
 
     // Alt+Enter: insert as embed sibling (for regular @ link trigger)
     const handleSelectEmbed = (node: Node) => {
-      // Remove the + trigger text first (doesn't apply in embedMode — already cleaned)
       if (!trigger.embedMode) {
         editor.update(() => {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return;
-          const anchorNode = selection.anchor.getNode();
+          const triggerChar = '@';
+          const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
+          if (!resolved) return;
+          const { anchorNode, triggerOffset } = resolved;
           const rawText = anchorNode.getTextContent();
-          const text = rawText.replace(/\u200B/g, '');
+          const startRaw = cleanToRawOffset(rawText, triggerOffset);
           const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
           const cursorClean = selection.anchor.offset - zwsBefore;
-          const beforeTrigger = text.slice(0, trigger.triggerOffset);
-          const afterCursor = text.slice(cursorClean);
-          const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-          (anchorNode as any).setTextContent(newText);
+          const endRaw = cleanToRawOffset(rawText, cursorClean);
+
+          selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
+          selection.focus.set(anchorNode.getKey(), endRaw, 'text');
+          selection.removeText();
+
+          const remaining = anchorNode.getTextContent().slice(startRaw).trimStart();
+          const before = anchorNode.getTextContent().slice(0, startRaw);
+          anchorNode.setTextContent((before + remaining) || '\u200B');
+          const newOffset = before.length;
+          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
+          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
         });
       }
       insertEmbedSibling(node.uuid);
@@ -579,27 +554,36 @@ export function TriggerPlugin({
     const classQuery = parsedLinkQuery?.classQuery ?? '';
 
     const handleClassSelect = (classNode: Node) => {
-      // Remove the +classQuery from editor text
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
-        const anchorNode = selection.anchor.getNode();
+        const triggerChar = '@';
+        const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
+        if (!resolved) return;
+        const { anchorNode, triggerOffset } = resolved;
         const rawText = anchorNode.getTextContent();
         const text = rawText.replace(/\u200B/g, '');
+        const afterTriggerChar = text.slice(triggerOffset + 1);
+        const plusIdx = afterTriggerChar.indexOf('+');
+        if (plusIdx === -1) return;
+
+        const startRaw = cleanToRawOffset(rawText, triggerOffset + 1 + plusIdx);
         const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
         const cursorClean = selection.anchor.offset - zwsBefore;
-        const afterTriggerChar = text.slice(trigger.triggerOffset + 1);
-        const atIdx = afterTriggerChar.indexOf('+');
-        if (atIdx === -1) return;
-        const keepBefore = text.slice(0, trigger.triggerOffset + 1 + atIdx);
-        const afterCursor = text.slice(cursorClean);
-        const newText = keepBefore + afterCursor;
-        (anchorNode as any).setTextContent(newText || '\u200B');
-        const newOffset = keepBefore.length;
+        const endRaw = cleanToRawOffset(rawText, cursorClean);
+
+        selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
+        selection.focus.set(anchorNode.getKey(), endRaw, 'text');
+        selection.removeText();
+
+        if (anchorNode.getTextContent() === '') {
+          anchorNode.setTextContent('\u200B');
+        }
+
+        const newOffset = startRaw;
         selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
         selection.focus.set(anchorNode.getKey(), newOffset, 'text');
       });
-      // Add class to class filters
       setTrigger(prev => ({
         ...prev,
         classFilters: [...(prev.classFilters ?? []).filter(id => id !== classNode.id), classNode.id],
@@ -623,6 +607,7 @@ export function TriggerPlugin({
         isTypingClass={trigger.type === 'link' ? isTypingClass : undefined}
         classQuery={trigger.type === 'link' ? classQuery : undefined}
         onClassSelect={trigger.type === 'link' ? handleClassSelect : undefined}
+        lexicalEditor={editor}
       />
     );
   }
@@ -633,11 +618,72 @@ export function TriggerPlugin({
       position={trigger.position}
       onSelect={handleSelect}
       onClose={handleClose}
+      lexicalEditor={editor}
     />
   );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
+
+function cleanToRawOffset(rawText: string, cleanIdx: number): number {
+  let rawIdx = 0;
+  let cleanCount = 0;
+  for (const char of rawText) {
+    if (cleanCount === cleanIdx) return rawIdx;
+    if (char !== '\u200B') cleanCount++;
+    rawIdx++;
+  }
+  return rawIdx;
+}
+
+function resolveTriggerAnchor(
+  selection: ReturnType<typeof $getSelection>,
+  trigger: TriggerState,
+  triggerChar: string,
+  triggerAnchorKeyRef: { current: string | null },
+): { anchorNode: import('lexical').TextNode; triggerOffset: number } | null {
+  if (!$isRangeSelection(selection)) return null;
+
+  let anchorNode = selection.anchor.getNode();
+
+  const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): node is import('lexical').TextNode => {
+    if (!node || !$isTextNode(node)) return false;
+    const t = node.getTextContent().replace(/\u200B/g, '');
+    return trigger.triggerOffset < t.length && t[trigger.triggerOffset] === triggerChar;
+  };
+
+  if (isValidAnchor(anchorNode)) {
+    return { anchorNode, triggerOffset: trigger.triggerOffset };
+  }
+
+  const saved = triggerAnchorKeyRef.current ? $getNodeByKey(triggerAnchorKeyRef.current) : null;
+  if (isValidAnchor(saved)) {
+    return { anchorNode: saved!, triggerOffset: trigger.triggerOffset };
+  }
+
+  const blockNode = findParentNodeBlock(anchorNode);
+  if (!blockNode) return null;
+
+  let foundNode: import('lexical').TextNode | null = null;
+  let foundOffset = -1;
+  blockNode.getChildren().forEach(child => {
+    if ($isTextNode(child) && foundNode === null) {
+      const t = child.getTextContent().replace(/\u200B/g, '');
+      const pattern = triggerChar + trigger.query;
+      const idx = t.lastIndexOf(pattern);
+      if (idx !== -1) {
+        foundNode = child;
+        foundOffset = idx;
+      }
+    }
+  });
+
+  if (foundNode) {
+    return { anchorNode: foundNode, triggerOffset: foundOffset };
+  }
+
+  return null;
+}
 
 interface TriggerMatch {
   type: TriggerType;

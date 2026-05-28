@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useMemo, type JSX } from 'react';
+import type { LexicalEditor } from 'lexical';
 import type { TriggerType } from './TriggerPlugin';
 import { SuggestionPopup, type SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
@@ -37,6 +38,8 @@ export interface TriggerSuggestionPopupProps {
   classQuery?: string;
   /** Called when a class is selected from the class sub-picker */
   onClassSelect?: (node: Node) => void;
+  /** Lexical editor instance for keyboard command integration */
+  lexicalEditor?: LexicalEditor;
 }
 
 export function TriggerSuggestionPopup({
@@ -55,6 +58,7 @@ export function TriggerSuggestionPopup({
   isTypingClass = false,
   classQuery = '',
   onClassSelect,
+  lexicalEditor,
 }: TriggerSuggestionPopupProps): JSX.Element {
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
@@ -107,6 +111,7 @@ export function TriggerSuggestionPopup({
         onClose={onClose}
         onCreate={handleClassCreate}
         headerText="Filter by class"
+        lexicalEditor={lexicalEditor}
       />
     );
   }
@@ -129,6 +134,7 @@ export function TriggerSuggestionPopup({
       classFilters={classFilters}
       headerText={resolvedHeaderText}
       footerHintText={footerHintText}
+      lexicalEditor={lexicalEditor}
     />
   );
 }
