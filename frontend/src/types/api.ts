@@ -749,6 +749,7 @@ export interface BacklinksResponse {
 
 export interface LinkedReferencesResponse {
   linked_references: LinkedReference[];
+  total_count: number;
 }
 
 export interface PropertiesResponse {

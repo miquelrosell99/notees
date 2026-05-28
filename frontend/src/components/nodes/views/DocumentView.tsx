@@ -56,6 +56,17 @@ export const DocumentView = memo(function DocumentView({
     return result;
   }, [nodes, maxDepth]);
 
+  // Extract backlink counts from nodes
+  const backlinkCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const n of allNodes) {
+      if (n.uuid && (n.backlink_count ?? 0) > 0) {
+        map.set(n.uuid, n.backlink_count!);
+      }
+    }
+    return map;
+  }, [allNodes]);
+
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
     if (node.aliased_id) {
@@ -144,6 +155,7 @@ export const DocumentView = memo(function DocumentView({
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
         onPasteImage={onPasteImage}
+        backlinkCounts={backlinkCounts}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
         pageId={pageId}
