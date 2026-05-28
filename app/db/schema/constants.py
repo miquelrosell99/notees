@@ -118,6 +118,7 @@ DEFAULT_PAGES = [
 # System pages with fixed UUIDs (never change these)
 SYSTEM_PAGE_UUIDS = {
     "scratchpad": "00000000-0000-0000-0002-000000000001",
+    "inbox": "00000000-0000-0000-0002-000000000002",
 }
 
 # System classes with fixed UUIDs (never change these)
