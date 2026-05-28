@@ -7,7 +7,7 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import React, { useEffect, useRef, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
@@ -22,12 +22,12 @@ import { NotificationToast } from './components/core/NotificationToast';
 import { Spinner } from './components/core/Spinner';
 import { QuickAddModal } from './components/layout/QuickAddModal';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
-import { KeyboardShortcutsProvider, useGlobalKeyboardListener } from './hooks/useKeyboardShortcuts';
+import { KeyboardShortcutsProvider, useGlobalKeyboardListener, useCommand, COMMAND_IDS } from './hooks/useKeyboardShortcuts';
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './api/workspaces';
-import { useAuthStore, useModalStore, useFavoritesStore, useKeyboardStore, useUndoStore } from './stores';
+import { useAuthStore, useModalStore, useFavoritesStore, useUndoStore } from './stores';
 import { useAndroidBridge } from './hooks';
-import { SHORTCUT_IDS } from './stores/keyboardStore';
+// SHORTCUT_IDS removed — commands now use COMMAND_IDS from commandRegistry
 import type { User } from './types/api';
 import { getLogger } from './utils/logger';
 import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
@@ -44,37 +44,26 @@ const log = getLogger('App');
  */
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
-  
-  // Register global undo/redo shortcut handlers
-  useEffect(() => {
-    const { registerHandler } = useKeyboardStore.getState();
-    
-    const unregisterUndo = registerHandler(SHORTCUT_IDS.UNDO, () => {
-      // If a Lexical editor is focused, let it handle its own undo
-      const active = document.activeElement;
-      if (active?.closest('[data-lexical-editor]')) return false;
-      useUndoStore.getState().performUndo(queryClient);
-    }, 0);
-    
-    const unregisterRedo = registerHandler(SHORTCUT_IDS.REDO, () => {
-      const active = document.activeElement;
-      if (active?.closest('[data-lexical-editor]')) return false;
-      useUndoStore.getState().performRedo(queryClient);
-    }, 0);
-    
-    const unregisterRedoAlt = registerHandler(SHORTCUT_IDS.REDO_ALT, () => {
-      const active = document.activeElement;
-      if (active?.closest('[data-lexical-editor]')) return false;
-      useUndoStore.getState().performRedo(queryClient);
-    }, 0);
-    
-    return () => {
-      unregisterUndo();
-      unregisterRedo();
-      unregisterRedoAlt();
-    };
-  }, []);
-  
+
+  // Register global commands in the Command Registry
+  useCommand(COMMAND_IDS.UNDO, () => {
+    const active = document.activeElement;
+    if (active?.closest('[data-lexical-editor]')) return false;
+    useUndoStore.getState().performUndo(queryClient);
+  }, { label: 'Undo' });
+
+  useCommand(COMMAND_IDS.REDO, () => {
+    const active = document.activeElement;
+    if (active?.closest('[data-lexical-editor]')) return false;
+    useUndoStore.getState().performRedo(queryClient);
+  }, { label: 'Redo' });
+
+  useCommand(COMMAND_IDS.REDO_ALT, () => {
+    const active = document.activeElement;
+    if (active?.closest('[data-lexical-editor]')) return false;
+    useUndoStore.getState().performRedo(queryClient);
+  }, { label: 'Redo' });
+
   return null;
 }
 
@@ -170,37 +159,14 @@ function AppContent() {
     }
   }, []);
   
-  // Register keyboard shortcut handlers when authenticated
-  // Use refs to avoid re-registering when callbacks change identity
-  const toggleCalendarRef = useRef(toggleCalendar);
-  const setQuickAddOpenRef = useRef(setIsQuickAddOpen);
-  
-  // Keep refs updated
-  useEffect(() => {
-    toggleCalendarRef.current = toggleCalendar;
-    setQuickAddOpenRef.current = setIsQuickAddOpen;
-  }, [toggleCalendar, setIsQuickAddOpen]);
-  
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    const { registerHandler } = useKeyboardStore.getState();
-    
-    // Quick Add shortcut (Ctrl/Cmd + N)
-    const unregisterQuickAdd = registerHandler('quickAdd', () => {
-      setQuickAddOpenRef.current((prev) => !prev);
-    });
-    
-    // Calendar shortcut (Ctrl/Cmd + Shift + D)
-    const unregisterCalendar = registerHandler('goToDaily', () => {
-      toggleCalendarRef.current();
-    });
-    
-    return () => {
-      unregisterQuickAdd();
-      unregisterCalendar();
-    };
-  }, [isAuthenticated]);
+  // Register keyboard commands when authenticated
+  useCommand(COMMAND_IDS.QUICK_ADD, () => {
+    setIsQuickAddOpen((prev) => !prev);
+  }, { enabled: isAuthenticated, label: 'Open Quick Add' });
+
+  useCommand(COMMAND_IDS.GO_TODAY, () => {
+    toggleCalendar();
+  }, { enabled: isAuthenticated, label: 'Go to Today' });
   
   // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
   // This ensures GET /settings completes before journal/workspace views
