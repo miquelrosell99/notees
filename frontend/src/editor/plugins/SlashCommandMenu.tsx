@@ -200,7 +200,7 @@ export function SlashCommandMenu({
 
   // Reset selection when results change
   useEffect(() => {
-    Promise.resolve().then(() => setSelectedIndex(0));
+    setSelectedIndex(0);
   }, [filteredCommands.length, query]);
 
   // Scroll selected item into view

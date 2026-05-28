@@ -95,8 +95,7 @@ export function PropertyCreateModal({
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      Promise.resolve().then(() => {
-        setIcon('');
+      setIcon('');
         setName('');
         setSelectedType('text');
         setScope(initialScope ?? 'global');
@@ -106,11 +105,10 @@ export function PropertyCreateModal({
         setNewOptionName('');
         setNewOptionIcon('');
         setShowAddOption(false);
-        setAllowedClasses([]);
-      });
+        setAllowedClasses([]);;
     } else if (initialName) {
       // Set initial name when opening
-      Promise.resolve().then(() => setName(initialName));
+      setName(initialName);
     }
   }, [isOpen, initialName, initialScope]);
   

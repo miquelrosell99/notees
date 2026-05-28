@@ -284,10 +284,8 @@ export function SuggestionPopup({
   
   // Reset selection and display limit when query changes
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setSelectedIndex(multiSelect ? selectedCount : 0);
-      setDisplayLimit(10);
-    });
+    setSelectedIndex(multiSelect ? selectedCount : 0);
+      setDisplayLimit(10);;
   }, [query, multiSelect, selectedCount]);
   
   // Handle date suggestion selection

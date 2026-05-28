@@ -113,7 +113,7 @@ export function useWhiteboard(nodeId: number | null) {
     if (node) {
       const parsed = parseWhiteboardData(node);
       titleRef.current = parseWhiteboardTitle(node);
-      Promise.resolve().then(() => setData(parsed));
+      setData(parsed);
       // Initialize history
       historyRef.current = [{ elements: parsed.elements, groups: parsed.groups, timestamp: Date.now() }];
       historyIndexRef.current = 0;

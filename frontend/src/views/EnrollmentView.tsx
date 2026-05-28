@@ -31,7 +31,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
 
   // Trigger entering animation on mount and when step changes
   useEffect(() => {
-    Promise.resolve().then(() => setAnimationPhase('entering'));
+    setAnimationPhase('entering');
     const timer = setTimeout(() => {
       setAnimationPhase('active');
     }, 50); // Small delay to trigger CSS animation

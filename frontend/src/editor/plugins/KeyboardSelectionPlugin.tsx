@@ -209,6 +209,10 @@ export function KeyboardSelectionPlugin({
       // If the Lexical handler above already handled this Escape, do nothing.
       if (event.defaultPrevented) return;
 
+      // Don't interfere with open dialogs/menus
+      const target = event.target as HTMLElement;
+      if (target.closest('[role="dialog"]') || target.closest('[role="menu"]')) return;
+
       const rootEl = editor.getRootElement();
       if (!rootEl) return;
 

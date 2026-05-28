@@ -210,24 +210,20 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // Reset section limits when search query changes
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setMaxPages(INITIAL_MAX_PAGES);
+    setMaxPages(INITIAL_MAX_PAGES);
       setMaxBlocks(INITIAL_MAX_BLOCKS);
-      setMaxProperties(INITIAL_MAX_PROPERTIES);
-    });
+      setMaxProperties(INITIAL_MAX_PROPERTIES);;
   }, [debouncedSearchTerm]);
 
   // Focus input when opened; refresh caches that may have gone stale since last open
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        setQuery('');
+      setQuery('');
         setAppliedFilters([]);
         setClassPopupPosition(null);
         setMaxPages(INITIAL_MAX_PAGES);
         setMaxBlocks(INITIAL_MAX_BLOCKS);
-        setMaxProperties(INITIAL_MAX_PROPERTIES);
-      });
+        setMaxProperties(INITIAL_MAX_PROPERTIES);;
       inputRef.current?.focus();
       queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
