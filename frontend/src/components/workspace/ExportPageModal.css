@@ -283,3 +283,39 @@
   align-items: center;
   gap: var(--spacing-2);
 }
+
+/* ── HTML view toggle (Preview / Source) ── */
+.export-modal__view-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 3px;
+  width: fit-content;
+}
+
+.export-modal__view-btn {
+  padding: 4px 14px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--shape-medium) - 2px);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.export-modal__view-btn:hover:not(.export-modal__view-btn--active) {
+  color: var(--color-on-surface);
+  background: var(--color-surface-container-high);
+}
+
+.export-modal__view-btn--active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
