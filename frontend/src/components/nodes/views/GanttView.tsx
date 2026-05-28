@@ -14,21 +14,21 @@
  *  - Right-click bar    → context menu
  */
 import { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 
-import { getNode, setProperty, getOrCreateDaily } from '@/api/nodes';
+import { setProperty, getOrCreateDaily } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { NodeInline } from '../../blocks/NodeInline';
 import { NodeIcon } from '../../core/icons';
 import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
+import { useGanttData } from './useGanttData';
 import {
   ROW_HEIGHT,
   GROUP_HEADER_HEIGHT,
-
   RESIZE_HANDLE,
   PX_PER_DAY_INITIAL,
   PX_PER_DAY_MIN,
@@ -38,20 +38,12 @@ import {
   addDays,
   daysBetween,
   formatDateForApi,
-  resolveDate,
-  getDateRange,
-  rowHeights,
-  buildRows,
-  readColors,
   getHeaderTier,
+  readColors,
 } from './GanttRenderer';
-import type {
-  GanttNodeItem,
-  DragState,
-} from './GanttRenderer';
+import type { DragState } from './GanttRenderer';
 import './GanttView.css';
-
-
+import { registerView } from './registry';
 
 // ==================== GanttView ====================
 
@@ -70,68 +62,19 @@ export const GanttView = memo(function GanttView({
   onNodeShiftClick,
   className = '',
 }: NodeGanttViewProps) {
-  // ── Day-node fetch ──────────────────────────────────────────────────────
-  const dayNodeIds = useMemo<number[]>(() => {
-    const ids = new Set<number>();
-    for (const node of nodes) {
-      const props = node.properties as Record<number, unknown> | undefined;
-      if (!props) continue;
-      if (startDateProperty) { const v = props[startDateProperty.id]; if (typeof v === 'number') ids.add(v); }
-      if (endDateProperty)   { const v = props[endDateProperty.id];   if (typeof v === 'number') ids.add(v); }
-    }
-    return Array.from(ids);
-  }, [nodes, startDateProperty, endDateProperty]);
-
-  const { data: dayNodeMap = new Map<number, Node>() } = useQuery({
-    queryKey: ['gantt-day-nodes', dayNodeIds],
-    queryFn: async (): Promise<Map<number, Node>> => {
-      const fetched = await Promise.all(dayNodeIds.map(id => getNode(id)));
-      return new Map(fetched.map(n => [n.id, n]));
-    },
-    enabled: dayNodeIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── Optimistic date overrides (hold new dates while API call is in-flight) ──
-  const [optimisticOverrides, setOptimisticOverrides] = useState<
-    Map<number, { startDate: Date; endDate: Date | null }>
-  >(new Map());
-
-  // ── Data derivation ─────────────────────────────────────────────────────
-  const ganttNodeItems = useMemo<GanttNodeItem[]>(() => {
-    if (!startDateProperty) return [];
-    return nodes
-      .flatMap(node => {
-        const override = optimisticOverrides.get(node.id);
-        const props = node.properties as Record<number, unknown> | undefined;
-        const startDate = override?.startDate ?? resolveDate(props?.[startDateProperty.id], dayNodeMap);
-        if (!startDate) return [];
-        const endDate = override
-          ? override.endDate
-          : (endDateProperty ? resolveDate(props?.[endDateProperty.id], dayNodeMap) : null);
-        return [{ node, startDate, endDate }];
-      })
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-  }, [nodes, startDateProperty, endDateProperty, dayNodeMap, optimisticOverrides]);
-
-  const pageMap = useMemo(
-    () => new Map(nodes.filter(n => n.is_page).map(n => [n.id, n])),
-    [nodes],
-  );
-
-  const rows = useMemo(
-    () => buildRows(ganttNodeItems, groupBy, groupByProperty, pageMap),
-    [ganttNodeItems, groupBy, groupByProperty, pageMap],
-  );
-
-  const dateRange = useMemo(() => getDateRange(ganttNodeItems), [ganttNodeItems]);
+  // ── Data hook (extracts day-node resolution, grouping, date math) ───────
+  const {
+    ganttNodeItems,
+    rows,
+    dateRange,
+    totalContentHeight,
+    setOptimisticOverride,
+  } = useGanttData(nodes, startDateProperty, endDateProperty, groupBy, groupByProperty);
 
   // ── Continuous zoom (px per day) ────────────────────────────────────────
-  // Initialised from the `timeScale` prop; Ctrl+scroll updates it live.
   const [pxPerDay, setPxPerDay] = useState(() => PX_PER_DAY_INITIAL[timeScale]);
   const pxPerDayRef = useRef(PX_PER_DAY_INITIAL[timeScale]);
 
-  // Re-snap to prop when the user changes it from the toolbar
   useEffect(() => {
     const v = PX_PER_DAY_INITIAL[timeScale];
     pxPerDayRef.current = v;
@@ -139,7 +82,6 @@ export const GanttView = memo(function GanttView({
   }, [timeScale]);
 
   const totalTimelineWidth = Math.max((daysBetween(dateRange.start, dateRange.end) + 1) * pxPerDay, 600);
-  const totalContentHeight = rowHeights(rows);
 
   const today = useMemo(() => {
     const d = new Date();
@@ -177,7 +119,6 @@ export const GanttView = memo(function GanttView({
       const next = Math.max(PX_PER_DAY_MIN, Math.min(PX_PER_DAY_MAX, pxPerDayRef.current * direction));
       if (next === pxPerDayRef.current) return;
 
-      // Keep the date under the cursor stationary
       const rect = el.getBoundingClientRect();
       const cursorX = e.clientX - rect.left;
       const pivotDays = (el.scrollLeft + cursorX) / pxPerDayRef.current;
@@ -185,28 +126,23 @@ export const GanttView = memo(function GanttView({
 
       pxPerDayRef.current = next;
 
-      // Synchronously widen the scroll extent so scrollLeft won't be clamped
       if (extentRef.current) {
         const dr = dateRangeRef.current;
         const newWidth = Math.max((daysBetween(dr.start, dr.end) + 1) * next, 600);
         extentRef.current.style.width = `${newWidth}px`;
       }
 
-      // Set scroll position now (extent is already wide enough)
       el.scrollLeft = newScrollLeft;
       scrollLeftRef.current = el.scrollLeft;
 
-      // Sync canvas position & header immediately
       if (canvasRef.current) {
         canvasRef.current.style.left = `${el.scrollLeft}px`;
       }
 
-      // Synchronously reposition header markers so they don't jitter
       if (headerInnerRef.current) {
         headerInnerRef.current.style.width = `${Math.max((daysBetween(dateRangeRef.current.start, dateRangeRef.current.end) + 1) * next, 600)}px`;
         headerInnerRef.current.style.transform = `translateX(${-el.scrollLeft}px)`;
 
-        // Reposition existing marker spans and regenerate text if tier changed
         const oldTier = getHeaderTier(pxPerDayRef.current / (e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR));
         const newTier = getHeaderTier(next);
         const tierChanged = oldTier.dayStep !== newTier.dayStep;
@@ -224,10 +160,7 @@ export const GanttView = memo(function GanttView({
         }
       }
 
-      // Immediate redraw with fresh ref values — no frame delay
       drawRef.current();
-
-      // Queue React state update for header labels, extent width etc.
       setPxPerDay(next);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -271,24 +204,15 @@ export const GanttView = memo(function GanttView({
       }
     },
     onMutate: ({ nodeId, newStart, newEnd }) => {
-      setOptimisticOverrides(prev => {
-        const next = new Map(prev);
-        next.set(nodeId, { startDate: newStart, endDate: newEnd });
-        return next;
-      });
+      setOptimisticOverride(nodeId, { startDate: newStart, endDate: newEnd });
     },
     onSuccess: async (_, { nodeId }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) }),
-        queryClient.invalidateQueries({ queryKey: ['gantt-day-nodes'] }),
+        queryClient.invalidateQueries({ queryKey: nodeKeys.ganttDayNodes([]) }),
         queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() }),
       ]);
-      // Refetches done — safe to drop the optimistic override
-      setOptimisticOverrides(prev => {
-        const next = new Map(prev);
-        next.delete(nodeId);
-        return next;
-      });
+      setOptimisticOverride(nodeId, null);
     },
   });
 
@@ -301,18 +225,14 @@ export const GanttView = memo(function GanttView({
       rangeStart: dateRange.start,
       scrollLeft: scrollLeftRef.current,
       scrollTop:  scrollTopRef.current,
-      pxPerDay: pxPerDayRef.current, // always fresh – avoids stale-closure glitch during Ctrl+scroll
+      pxPerDay: pxPerDayRef.current,
       today,
       dragState: dragStateRef.current,
       colors: readColors(canvas),
     });
-  }, [rows, dateRange, today]); // pxPerDay intentionally omitted – read from ref
+  }, [rows, dateRange, today]);
 
-  // Keep drawRef current so the wheel handler can call the latest version
   drawRef.current = draw;
-
-  // Trigger a redraw whenever rows/range/today change OR when pxPerDay state changes
-  // (the latter handles toolbar timeScale changes without re-capturing the value in draw).
   useEffect(() => { draw(); }, [draw, pxPerDay]);
 
   // Canvas size follows the right pane's visible area
@@ -346,7 +266,6 @@ export const GanttView = memo(function GanttView({
     if (headerInnerRef.current) {
       headerInnerRef.current.style.transform = `translateX(${-el.scrollLeft}px)`;
     }
-    // Move canvas to stay at the visible top-left of the right pane
     if (canvasRef.current) {
       canvasRef.current.style.top  = `${el.scrollTop}px`;
       canvasRef.current.style.left = `${el.scrollLeft}px`;
@@ -388,7 +307,7 @@ export const GanttView = memo(function GanttView({
     canvas.style.cursor = hit
       ? (hit.mode === 'resize-end' ? 'ew-resize' : 'grab')
       : 'default';
-  }, [pxPerDay, draw, getHitMode]);
+  }, [draw, getHitMode]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
@@ -430,13 +349,12 @@ export const GanttView = memo(function GanttView({
     if (drag.deltaDays !== 0) {
       const newStart = drag.mode === 'move'
         ? addDays(drag.origStart, drag.deltaDays)
-        : drag.origStart; // resize-end keeps start unchanged
+        : drag.origStart;
       const newEnd = drag.origEnd
         ? addDays(drag.origEnd, drag.deltaDays)
         : null;
       persistDates({ nodeId: drag.nodeId, mode: drag.mode, newStart, newEnd });
     } else {
-      // No movement → treat as click
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -556,24 +474,11 @@ export const GanttView = memo(function GanttView({
           </div>
         </div>
 
-        {/*
-          Right pane: overflow scroll drives both axes.
-          - gantt-scroll-extent is the invisible spacer that creates the scrollable area.
-          - canvas is position:sticky so it stays in the visible top-left corner while
-            still receiving mouse events; draw() renders bars offset by scrollLeft/scrollTop.
-        */}
         <div
           ref={rightPaneRef}
           className="gantt-right-pane"
           onScroll={handleScroll}
         >
-          {/*
-            gantt-scroll-extent drives the scroll container's scrollable area.
-            The canvas is absolutely positioned inside it and moved by the
-            scroll handler to always appear at the visible top-left corner.
-            pointer-events:none on the extent lets wheel events reach the
-            scroll container; canvas has pointer-events:auto for drag/click.
-          */}
           <div
             ref={extentRef}
             className="gantt-scroll-extent"
@@ -610,4 +515,12 @@ export const GanttView = memo(function GanttView({
       )}
     </div>
   );
+});
+
+registerView({
+  id: 'gantt',
+  label: 'Gantt',
+  icon: 'mdi mdi-chart-gantt',
+  component: GanttView,
+  capabilities: { groupBy: true, ganttConfig: true },
 });

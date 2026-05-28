@@ -65,6 +65,7 @@ export const nodeKeys = {
   uuids: () => [...nodeKeys.all, 'uuid'] as const,
   pseudoNodeQuery: () => ['pseudo-node-query'] as const,
   inlineQuery: () => ['inline-query'] as const,
+  ganttDayNodes: (ids: number[]) => [...nodeKeys.all, 'gantt-day-nodes', hashNumberArray(ids)] as const,
 };
 
 // ==================== Property Query Keys ====================

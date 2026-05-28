@@ -2,8 +2,21 @@
  * NodeCollection Views Index
  *
  * Exports all view mode components for NodeCollection.
+ * Light views are imported eagerly; heavy views are lazy-loaded via lazyViews.ts.
  */
 
+// Eager side-effect registrations (light views)
+import './ListView';
+import './DocumentView';
+import './CardView';
+import './TableView';
+import './KanbanView';
+import './CalendarView';
+
+// Lazy registrations for heavy views (metadata eager, components lazy)
+import './lazyViews';
+
+// Re-export components for direct use
 export { ListView } from './ListView';
 export { DocumentView } from './DocumentView';
 export { CardView } from './CardView';
@@ -15,6 +28,20 @@ export { GraphView } from './GraphView';
 export type { GraphViewProps } from './GraphView';
 export { TimelineView } from './TimelineView';
 export { WhiteboardView } from './WhiteboardView';
+export { KanbanView } from './KanbanView';
+export type { NodeKanbanViewProps } from './KanbanView';
+export { CalendarView } from './CalendarView';
+export { ChartView } from './ChartView';
+export type { NodeChartViewProps } from '@/types/nodeCollection';
+
+// View registry
+export {
+  registerView,
+  getViewDefinition,
+  getRegisteredViewModes,
+  getViewModeOptions,
+} from './registry';
+export type { ViewRegistryEntry, ViewCapabilities } from './registry';
 
 // Graph canvas (physics worker + WebGL2 renderer)
 export { GraphRenderer, type GraphRendererRef } from './GraphRenderer';

@@ -17,6 +17,8 @@ export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
   'kanban',
   'document',
   'gantt',
+  'calendar',
+  'chart',
   'graph',
   'timeline'
 ];
@@ -31,6 +33,8 @@ export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
   kanban: "mdi mdi-view-column",
   table: "mdi mdi-table",
   gantt: "mdi mdi-chart-gantt",
+  calendar: "mdi mdi-calendar-month",
+  chart: "mdi mdi-chart-bar",
   graph: "mdi mdi-graph-outline",
   timeline: "mdi mdi-timeline-clock-outline",
 };
@@ -45,6 +49,8 @@ export const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
   kanban: 'Kanban',
   table: 'Table',
   gantt: 'Gantt',
+  calendar: 'Calendar',
+  chart: 'Chart',
   graph: 'Graph',
   timeline: 'Timeline',
 };

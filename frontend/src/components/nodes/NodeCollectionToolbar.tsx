@@ -1,9 +1,9 @@
 /**
  * NodeCollectionToolbar Component
- * 
+ *
  * Extracted toolbar from NodeCollection that can be rendered separately.
  * Used to place view mode switcher and group-by controls in NodeViewSection headers.
- * 
+ *
  * Usage:
  * - Inside NodeCollection: Rendered automatically unless hideToolbar is true
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
@@ -12,7 +12,7 @@ import { useMemo } from 'react';
 import { useAppStore } from '@/stores';
 
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { DEFAULT_VIEW_MODES_ORDER, VIEW_MODE_ICONS, VIEW_MODE_LABELS } from '@/constants/viewModes';
+import { getViewDefinition, getViewModeOptions } from './views';
 import { SelectionButton, type SelectionButtonOption } from '@/components/core/SelectionButton';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { Button } from '@/components/core/Button';
@@ -93,12 +93,12 @@ export interface NodeCollectionToolbarProps {
 
 /**
  * NodeCollectionToolbar - Standalone toolbar for NodeCollection controls
- * 
+ *
  * Can be rendered inside NodeCollection or externally (e.g., in NodeViewSection header)
  */
 export function NodeCollectionToolbar({
   viewMode,
-  availableViewModes = DEFAULT_VIEW_MODES_ORDER,
+  availableViewModes = [],
   onViewModeChange,
   showGroupBy = false,
   groupBy = 'none',
@@ -121,20 +121,25 @@ export function NodeCollectionToolbar({
   className = '',
 }: NodeCollectionToolbarProps) {
   // Use store for card layout if not controlled
-  const storeCardLayout = useAppStore(state => state.cardLayout);
-  const storeSetCardLayout = useAppStore(state => state.setCardLayout);
-  
+  const storeCardLayout = useAppStore((state) => state.cardLayout);
+  const storeSetCardLayout = useAppStore((state) => state.setCardLayout);
+
   const effectiveCardLayout = cardLayout ?? storeCardLayout;
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right') => {
     storeSetCardLayout(layout);
   });
-  
+
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
-  const showGroupByButton = showGroupBy && (viewMode === 'list' || viewMode === 'card' || viewMode === 'gantt');
+
+  // Introspect current view capabilities from registry
+  const viewDef = getViewDefinition(viewMode);
+  const capabilities = viewDef?.capabilities ?? {};
+
+  const showGroupByButton = showGroupBy && capabilities.groupBy;
   const showAdd = showAddButton && onAdd;
-  const showCardLayoutSelector = viewMode === 'card';
-  const showPropertyColumnSelector = viewMode === 'table' && onPropertyColumnsChange;
-  const showGanttPropertySelector = viewMode === 'gantt' && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
+  const showCardLayoutSelector = capabilities.cardLayout;
+  const showPropertyColumnSelector = capabilities.propertyColumns && onPropertyColumnsChange;
+  const showGanttPropertySelector = capabilities.ganttConfig && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
 
   // Whether we have any view-mode-specific settings to show
   const hasViewSettings = showGroupByButton || showPropertyColumnSelector || showGanttPropertySelector || showCardLayoutSelector;
@@ -144,10 +149,20 @@ export function NodeCollectionToolbar({
   const groupByLabel = useMemo(() => {
     if (!groupBy || groupBy === 'none') return null;
     if (groupBy === 'page') return 'Page';
-    const prop = properties?.find(p => p.uuid === groupBy);
+    const prop = properties?.find((p) => p.uuid === groupBy);
     return prop?.name ?? 'Property';
   }, [groupBy, properties]);
-  
+
+  // Build view mode metadata from registry
+  const allModeOptions = useMemo(() => getViewModeOptions(), []);
+  const modeMeta = useMemo(() => {
+    const map = new Map<NodeCollectionViewMode, { icon: string; label: string }>();
+    for (const opt of allModeOptions) {
+      map.set(opt.mode, { icon: opt.icon, label: opt.label });
+    }
+    return map;
+  }, [allModeOptions]);
+
   // ── View mode inline/overflow split ─────────────────────────────────────
   const { inlineModes, overflowModes } = useMemo(() => {
     if (availableViewModes.length <= INLINE_VIEW_COUNT) {
@@ -166,18 +181,21 @@ export function NodeCollectionToolbar({
   }, [availableViewModes, viewMode]);
 
   // Build inline SelectionButton options
-  const viewModeOptions = useMemo<SelectionButtonOption[]>(() => 
-    inlineModes.map(mode => ({
-      value: mode,
-      icon: VIEW_MODE_ICONS[mode],
-      label: VIEW_MODE_LABELS[mode],
-    })),
-    [inlineModes]
+  const viewModeOptions = useMemo<SelectionButtonOption[]>(() =>
+    inlineModes.map((mode) => {
+      const meta = modeMeta.get(mode);
+      return {
+        value: mode,
+        icon: meta?.icon ?? 'mdi mdi-help-circle',
+        label: meta?.label ?? mode,
+      };
+    }),
+    [inlineModes, modeMeta]
   );
 
   // Build SelectionButton options for card layouts
-  const cardLayoutOptions = useMemo<SelectionButtonOption[]>(() => 
-    ['no-cover', 'cover-left', 'cover-right', 'cover-top'].map(layout => ({
+  const cardLayoutOptions = useMemo<SelectionButtonOption[]>(() =>
+    ['no-cover', 'cover-left', 'cover-right', 'cover-top'].map((layout) => ({
       value: layout,
       icon: CARD_LAYOUT_ICONS[layout],
       label: CARD_LAYOUT_LABELS[layout],
@@ -201,145 +219,147 @@ export function NodeCollectionToolbar({
         {/* Custom prefix content (view tabs, filter button, add view) */}
         {toolbarPrefix}
       </div>
-      
+
       {/* Right section - view switcher + settings */}
       {hasToolbarContent && (
         <div className="node-collection-toolbar__right">
 
-      {/* Add Button */}
-      {showAdd && (
-        <Button
-          icon={"mdi mdi-plus"}
-          variant="ghost"
-          size="sm"
-          onClick={onAdd}
-          title="Add"
-          className="node-collection-toolbar__add"
-        />
-      )}
-      
-      {/* View Mode Switcher – inline icons */}
-      {showViewSwitcher && (
-        <SelectionButton
-          options={viewModeOptions}
-          value={viewMode}
-          onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
-          size="sm"
-          className="node-collection-toolbar__view-switcher"
-        />
-      )}
-
-      {/* Overflow view modes dropdown */}
-      {showViewSwitcher && overflowModes.length > 0 && (
-        <ButtonWithPanel
-          icon={"mdi mdi-dots-horizontal"}
-          variant="ghost"
-          size="sm"
-          panelPosition="bottom"
-          panelAlignment="end"
-          panelWidth={160}
-          usePortal={true}
-          showCloseButton={false}
-          className="node-collection-toolbar__overflow"
-          tooltip="More views"
-        >
-          {(closePanel) => (
-            <div className="view-overflow-menu">
-              {overflowModes.map(mode => (
-                <button
-                  key={mode}
-                  className={`view-overflow-menu__item ${mode === viewMode ? 'view-overflow-menu__item--active' : ''}`}
-                  onClick={() => { onViewModeChange?.(mode); closePanel(); }}
-                >
-                  <Icon path={VIEW_MODE_ICONS[mode]} size={0.7} />
-                  <span>{VIEW_MODE_LABELS[mode]}</span>
-                </button>
-              ))}
-            </div>
+          {/* Add Button */}
+          {showAdd && (
+            <Button
+              icon={"mdi mdi-plus"}
+              variant="ghost"
+              size="sm"
+              onClick={onAdd}
+              title="Add"
+              className="node-collection-toolbar__add"
+            />
           )}
-        </ButtonWithPanel>
-      )}
 
-      {/* Active group-by badge */}
-      {groupByLabel && onGroupByChange && (
-        <span className="node-collection-toolbar__group-by-badge">
-          <span className="node-collection-toolbar__group-by-badge-label">Group: {groupByLabel}</span>
-          <button
-            className="node-collection-toolbar__group-by-badge-close"
-            onClick={() => onGroupByChange('none')}
-            title="Clear grouping"
-            type="button"
-          >
-            <Icon path={"mdi mdi-close"} size={0.6} />
-          </button>
-        </span>
-      )}
+          {/* View Mode Switcher – inline icons */}
+          {showViewSwitcher && (
+            <SelectionButton
+              options={viewModeOptions}
+              value={viewMode}
+              onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
+              size="sm"
+              className="node-collection-toolbar__view-switcher"
+            />
+          )}
 
-      {/* View Settings – single button combining all view-specific config */}
-      {hasViewSettings && (
-        <ButtonWithPanel
-          icon={"mdi mdi-tune"}
-          variant="ghost"
-          size="sm"
-          panelPosition="bottom"
-          panelAlignment="end"
-          panelWidth={300}
-          usePortal={true}
-          className="node-collection-toolbar__view-settings"
-          tooltip="View settings"
-        >
-          {(closePanel) => (
-            <div className="view-settings-panel">
-              {/* Card layout (card view) */}
-              {showCardLayoutSelector && (
-                <div className="view-settings-panel__section">
-                  <div className="view-settings-panel__label">Card layout</div>
-                  <SelectionButton
-                    options={cardLayoutOptions}
-                    value={effectiveCardLayout}
-                    onChange={(val) => effectiveOnCardLayoutChange(val as 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right')}
-                    size="sm"
-                  />
+          {/* Overflow view modes dropdown */}
+          {showViewSwitcher && overflowModes.length > 0 && (
+            <ButtonWithPanel
+              icon={"mdi mdi-dots-horizontal"}
+              variant="ghost"
+              size="sm"
+              panelPosition="bottom"
+              panelAlignment="end"
+              panelWidth={160}
+              usePortal={true}
+              showCloseButton={false}
+              className="node-collection-toolbar__overflow"
+              tooltip="More views"
+            >
+              {(closePanel) => (
+                <div className="view-overflow-menu">
+                  {overflowModes.map((mode) => {
+                    const meta = modeMeta.get(mode);
+                    return (
+                      <button
+                        key={mode}
+                        className={`view-overflow-menu__item ${mode === viewMode ? 'view-overflow-menu__item--active' : ''}`}
+                        onClick={() => { onViewModeChange?.(mode); closePanel(); }}
+                      >
+                        <Icon path={meta?.icon ?? 'mdi mdi-help-circle'} size={0.7} />
+                        <span>{meta?.label ?? mode}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-
-              {/* Property columns (table view) */}
-              {showPropertyColumnSelector && (
-                <PropertyColumnSelector
-                  selectedPropertyUuids={selectedPropertyUuids}
-                  onSelectionChange={onPropertyColumnsChange!}
-                  onClose={closePanel}
-                />
-              )}
-
-              {/* Gantt config (gantt view) */}
-              {showGanttPropertySelector && (
-                <GanttPropertySelector
-                  startDateProperty={ganttStartDateProperty}
-                  endDateProperty={ganttEndDateProperty}
-                  onStartDatePropertyChange={onGanttStartDatePropertyChange ?? (() => {})}
-                  onEndDatePropertyChange={onGanttEndDatePropertyChange ?? (() => {})}
-                  timeScale={ganttTimeScale}
-                  onTimeScaleChange={onGanttTimeScaleChange}
-                />
-              )}
-
-              {/* Group by (list/card/gantt) */}
-              {showGroupByButton && onGroupByChange && (
-                <GroupBySelector
-                  value={groupBy ?? 'page'}
-                  onChange={onGroupByChange}
-                  onClose={closePanel}
-                />
-              )}
-            </div>
+            </ButtonWithPanel>
           )}
-        </ButtonWithPanel>
+
+          {/* Active group-by badge */}
+          {groupByLabel && onGroupByChange && (
+            <span className="node-collection-toolbar__group-by-badge">
+              <span className="node-collection-toolbar__group-by-badge-label">Group: {groupByLabel}</span>
+              <button
+                className="node-collection-toolbar__group-by-badge-close"
+                onClick={() => onGroupByChange('none')}
+                title="Clear grouping"
+                type="button"
+              >
+                <Icon path={"mdi mdi-close"} size={0.6} />
+              </button>
+            </span>
+          )}
+
+          {/* View Settings – single button combining all view-specific config */}
+          {hasViewSettings && (
+            <ButtonWithPanel
+              icon={"mdi mdi-tune"}
+              variant="ghost"
+              size="sm"
+              panelPosition="bottom"
+              panelAlignment="end"
+              panelWidth={300}
+              usePortal={true}
+              className="node-collection-toolbar__view-settings"
+              tooltip="View settings"
+            >
+              {(closePanel) => (
+                <div className="view-settings-panel">
+                  {/* Card layout (card view) */}
+                  {showCardLayoutSelector && (
+                    <div className="view-settings-panel__section">
+                      <div className="view-settings-panel__label">Card layout</div>
+                      <SelectionButton
+                        options={cardLayoutOptions}
+                        value={effectiveCardLayout}
+                        onChange={(val) => effectiveOnCardLayoutChange(val as 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right')}
+                        size="sm"
+                      />
+                    </div>
+                  )}
+
+                  {/* Property columns (table view) */}
+                  {showPropertyColumnSelector && (
+                    <PropertyColumnSelector
+                      selectedPropertyUuids={selectedPropertyUuids}
+                      onSelectionChange={onPropertyColumnsChange!}
+                      onClose={closePanel}
+                    />
+                  )}
+
+                  {/* Gantt config (gantt view) */}
+                  {showGanttPropertySelector && (
+                    <GanttPropertySelector
+                      startDateProperty={ganttStartDateProperty}
+                      endDateProperty={ganttEndDateProperty}
+                      onStartDatePropertyChange={onGanttStartDatePropertyChange ?? (() => {})}
+                      onEndDatePropertyChange={onGanttEndDatePropertyChange ?? (() => {})}
+                      timeScale={ganttTimeScale}
+                      onTimeScaleChange={onGanttTimeScaleChange}
+                    />
+                  )}
+
+                  {/* Group by (list/card/gantt) */}
+                  {showGroupByButton && onGroupByChange && (
+                    <GroupBySelector
+                      value={groupBy ?? 'page'}
+                      onChange={onGroupByChange}
+                      onClose={closePanel}
+                    />
+                  )}
+                </div>
+              )}
+            </ButtonWithPanel>
+          )}
+
+        </div>
       )}
-      
-    </div>
-        )}
     </div>
   );
 }
-

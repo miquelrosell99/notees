@@ -44,7 +44,7 @@ import { GraphSettingsSidebar } from './GraphSettingsSidebar';
 import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
 import { DEFAULT_SYSTEM_PAGES } from '@/utils/systemPages';
 import './GraphView.css';
-
+import { registerView } from './registry';
 // Stable empty-array references so the renderer receives a consistent identity
 // while links are still loading (avoids re-triggering topology sync).
 const EMPTY_NODES: GraphNode[] = [];
@@ -770,3 +770,10 @@ export function GraphView({
   );
 }
 
+registerView({
+  id: 'graph',
+  label: 'Graph',
+  icon: 'mdi mdi-graph-outline',
+  component: GraphView,
+  capabilities: { errorBoundary: true, containerCard: true },
+});

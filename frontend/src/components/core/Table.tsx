@@ -12,7 +12,8 @@
  * - Depth-based row indentation
  * - Automatic Node cell rendering with Block component and navigation buttons
  */
-import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode, type CSSProperties } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Spinner } from '@/components/core/Spinner';
 import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
@@ -149,6 +150,10 @@ export interface TableProps<T> {
   nodeEditable?: boolean;
   /** Initial sort state — columns are sorted in this order on first render */
   defaultSort?: SortEntry[];
+  /** Whether to virtualize row rendering (only works when expandable is disabled) */
+  virtualized?: boolean;
+  /** Estimated row height in pixels for virtualization (default: 48) */
+  virtualizedRowHeight?: number;
 }
 
 /** Default drag handle icon */
@@ -197,6 +202,8 @@ export function Table<T>({
   onNodeOpenInSidebar,
   nodeEditable,
   defaultSort,
+  virtualized = false,
+  virtualizedRowHeight = 48,
 }: TableProps<T>) {
   // Multi-column sort state: array of { key, direction } in sort priority order
   const [sortColumns, setSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
@@ -214,6 +221,7 @@ export function Table<T>({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
   const rowHeightRef = useRef(40);
 
   const handleSort = useCallback((column: TableColumn<T>) => {
@@ -379,6 +387,15 @@ export function Table<T>({
     return result;
   }, [data, sortColumns, columns]);
 
+  // Virtualization only works for flat tables (no expandable rows, no reordering)
+  const isVirtualized = virtualized && !expandable && !reorderable;
+  const virtualizer = useVirtualizer({
+    count: isVirtualized ? sortedData.length : 0,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => virtualizedRowHeight,
+    overscan: 10,
+  });
+
   // Compute selection state including nested children
   const computeAllKeys = (items: T[]): (string | number)[] => {
     const keys: (string | number)[] = [];
@@ -423,7 +440,7 @@ export function Table<T>({
     .join(' ');
 
   // Recursive row renderer for expandable tables
-  const renderRow = (row: T, index: number, currentDepth: number): ReactNode => {
+  const renderRow = (row: T, index: number, currentDepth: number, virtualStyle?: CSSProperties): ReactNode => {
     const key = getRowKey(row);
     const isSelected = selectedKeys?.has(key);
     const isExpanded = expandedKeys.has(key);
@@ -449,6 +466,7 @@ export function Table<T>({
       <Fragment key={key}>
         <tr
           className={rowClasses}
+          style={virtualStyle}
           onClick={(e) => handleRowClick(row, e)}
           onContextMenu={(e) => handleRowContextMenu(row, e)}
         >
@@ -628,7 +646,11 @@ export function Table<T>({
           </thead>
         )}
 
-        <tbody className="table-body">
+        <tbody
+          ref={tbodyRef}
+          className="table-body"
+          style={isVirtualized ? { height: `${virtualizer.getTotalSize()}px`, position: 'relative' } : undefined}
+        >
           {loading ? (
             <tr className="table-row table-row--loading">
               <td colSpan={columns.length + extraColumns} className="table-cell table-cell--loading">
@@ -641,6 +663,15 @@ export function Table<T>({
                 {emptyContent}
               </td>
             </tr>
+          ) : isVirtualized ? (
+            virtualizer.getVirtualItems().map((virtualItem) =>
+              renderRow(sortedData[virtualItem.index], virtualItem.index, depth, {
+                position: 'absolute',
+                top: 0,
+                transform: `translateY(${virtualItem.start}px)`,
+                width: '100%',
+              })
+            )
           ) : (
             sortedData.map((row, index) => renderRow(row, index, depth))
           )}
