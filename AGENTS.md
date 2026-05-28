@@ -37,8 +37,8 @@ Key features:
 
 - **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
-  - Backend: `pytest tests/ -v` and `ruff check app/`
-  - Frontend: `cd frontend && npm run lint` and `npm run typecheck`
+  - Backend: `ruff check app/`; run tests inside the backend Docker container (see Testing Strategy)
+  - Frontend: `cd frontend && npm run lint` and `npx tsc -b --noEmit`
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 - **Prefer minimal changes**: Do not refactor unrelated code. Follow the existing file's style, even if it differs slightly from the general guidelines.
 
@@ -325,17 +325,23 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 
 ### Backend Tests
 
-Tests are in `tests/` and use **pytest** with async support.
+Tests are in `tests/` and use **pytest** with async support. Because the backend depends on `y-py` and other native extensions, tests **must be run inside the backend Docker container** against the existing PostgreSQL service.
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# 1. Ensure the dev stack is running
+docker compose up -d
+
+# 2. Create the test database (one-time setup)
+docker exec notees-postgres-dev psql -U notees -c "CREATE DATABASE notees_test;"
+
+# 3. Install test dependencies inside the backend container
+docker exec notees-backend-dev pip install pytest==7.4.4 pytest-asyncio==0.23.3 pytest-cov httpx==0.26.0 testcontainers
+
+# 4. Run all tests using the existing postgres container
+docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -v
 
 # Run without slow tests
-pytest tests/ -v -m "not slow"
-
-# Run with coverage (minimum 50%)
-pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
+docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -v -m "not slow"
 ```
 
 **Test configuration (`pytest.ini`):**
@@ -345,14 +351,16 @@ pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 - Markers: `slow`, `integration`
 
 **Fixtures (`tests/conftest.py`):**
-- `postgres_container`: Spins up a PostgreSQL 17-alpine container via **testcontainers** per session (requires Docker).
 - `db_pool`: Initializes asyncpg pool, drops all tables, and re-creates schema before every test.
 - `test_user`: Creates a unique test user + workspace and returns auth token.
 - `client` / `authenticated_client`: `httpx.AsyncClient` against the FastAPI ASGI app.
 - `node_repository`, `property_repository`, `link_repository`, `node_service`: Domain-layer fixtures wired to the test DB.
 
+**Why Docker for tests?**
+The backend requires `y-py` (Yjs CRDT bindings) which is installed inside the `Dockerfile.dev` image. Running `pytest` directly on the host or in a local venv will fail with `ModuleNotFoundError: No module named 'y_py'`. Always run tests inside the `notees-backend-dev` container.
+
 **Alternative test database:**
-Set `TEST_DATABASE_URL` to use an external PostgreSQL instance instead of testcontainers.
+Set `TEST_DATABASE_URL` to use an external PostgreSQL instance instead of the compose postgres service.
 
 ### Frontend Tests
 
