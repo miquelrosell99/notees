@@ -28,6 +28,15 @@ import type {
 } from '@/types/whiteboard';
 import { boundsOverlap, isPointInBounds, getBounds } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+
+function ShortcutRow({ keys, action }: { keys: string; action: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--color-outline-variant)' }}>
+      <span style={{ color: 'var(--color-on-surface)' }}>{action}</span>
+      <kbd style={{ background: 'var(--color-surface-variant)', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontFamily: 'monospace', color: 'var(--color-on-surface-variant)' }}>{keys}</kbd>
+    </div>
+  );
+}
 import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
 import { getShapePath } from './WhiteboardShapeRenderer';
@@ -255,6 +264,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Tracks shift key during shape creation drag for preview re-renders
   const [shiftConstraint, setShiftConstraint] = useState(false);
 
+  // Canvas search
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isSearchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [isSearchOpen]);
+
+  // Keyboard shortcuts modal
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
   // Track pointer state
   const pointerState = useRef({
     isDown: false,
@@ -267,6 +289,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     isGroupResize: false,
     startSelectionBounds: null as Bounds | null,
     startElementBoundsMap: new Map<string, Bounds>(),
+    rotationCenter: null as Point | null,
+    startRotation: 0,
     hasDragged: false,
     button: 0,
     pointerId: -1,
@@ -360,6 +384,18 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       if (Math.abs(canvasX - h.x) < r && Math.abs(canvasY - h.y) < r) return h.id;
     }
     return null;
+  }, [data.elements, interaction.selectedIds, viewport.zoom]);
+
+  // Hit-test rotation handle (single-element selection only)
+  const hitTestRotationHandle = useCallback((canvasX: number, canvasY: number): boolean => {
+    if (interaction.selectedIds.size !== 1) return false;
+    const id = [...interaction.selectedIds][0];
+    const el = data.elements.find(e => e.id === id);
+    if (!el) return false;
+    const cx = el.x + el.width / 2;
+    const cy = el.y - 30 / viewport.zoom; // handle is above the element
+    const r = 14 / viewport.zoom;
+    return Math.abs(canvasX - cx) < r && Math.abs(canvasY - cy) < r;
   }, [data.elements, interaction.selectedIds, viewport.zoom]);
 
   // ─── Pointer event handlers ───────────────────────────────────────
@@ -468,6 +504,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
     // Select tool
     if (tool === 'select') {
+      // Check rotation handle (single element only)
+      if (interaction.selectedIds.size === 1 && hitTestRotationHandle(canvasPos.x, canvasPos.y)) {
+        const id = [...interaction.selectedIds][0];
+        const el = data.elements.find(e => e.id === id);
+        if (el) {
+          state.rotationCenter = { x: el.x + el.width / 2, y: el.y + el.height / 2 };
+          state.startRotation = el.rotation || 0;
+          setInteraction(prev => ({ ...prev, isRotating: true }));
+          return;
+        }
+      }
       // Check selection-card handles (works for both single and multi-select)
       if (interaction.selectedIds.size > 0) {
         const cardHandle = hitTestSelectionCardHandle(canvasPos.x, canvasPos.y);
@@ -559,7 +606,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // Shape creation tools
-    if (['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool)) {
+    if (['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid', 'cross', 'heart', 'document'].includes(tool)) {
       setInteraction(prev => ({
         ...prev,
         isDragging: true,
@@ -584,7 +631,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // Card creation will be handled by the toolbar (create node + card element)
       return;
     }
-  }, [screenToCanvas, hitTest, hitTestSelectionCardHandle, findGroupAtPoint, interaction, data.elements, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, hitTestSelectionCardHandle, hitTestRotationHandle, findGroupAtPoint, interaction, data.elements, wb, setInteraction]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const state = pointerState.current;
@@ -843,6 +890,17 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       return;
     }
 
+    // Rotating
+    if (interaction.isRotating && state.rotationCenter) {
+      const cx = state.rotationCenter.x;
+      const cy = state.rotationCenter.y;
+      const angle = Math.atan2(canvasPos.y - cy, canvasPos.x - cx) * (180 / Math.PI);
+      const newRotation = state.startRotation + angle + 90; // +90 because handle is at top
+      const id = [...interaction.selectedIds][0];
+      if (id) wb.rotateElement(id, Math.round(newRotation));
+      return;
+    }
+
     // Dragging elements (ref guard prevents firing when resize just started but React state not yet propagated)
     if (!state.resizingElementId && !state.isGroupResize && interaction.selectedIds.size > 0 && state.isDown && state.button === 0 && interaction.tool === 'select') {
       const canvasDx = canvasPos.x - state.startCanvasPos.x;
@@ -878,7 +936,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // Shape creation drag
-    if (interaction.isDragging && interaction.dragStart && ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) {
+    if (interaction.isDragging && interaction.dragStart && ['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid', 'cross', 'heart', 'document'].includes(interaction.tool)) {
       const start = interaction.dragStart;
       const tool = interaction.tool;
       const isShift = e.shiftKey;
@@ -1036,7 +1094,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     }
 
     // End drag-to-create (lines and shapes share the same interaction pattern)
-    if (interaction.isDragging && interaction.dragStart && ['line', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) {
+    if (interaction.isDragging && interaction.dragStart && ['line', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid', 'cross', 'heart', 'document'].includes(interaction.tool)) {
       const tool = interaction.tool;
       const start = interaction.dragStart;
       const isShift = e.shiftKey || pointerState.current.shiftHeld;
@@ -1071,6 +1129,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           triangle: isShift ? 'triangle-right' : 'triangle',
           hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
           star: 'star',
+          diamond: 'diamond',
+          cylinder: 'cylinder',
+          cloud: 'cloud',
+          parallelogram: 'parallelogram',
+          trapezoid: 'trapezoid',
+          cross: 'cross',
+          heart: 'heart',
+          document: 'document',
         };
         if (tool in shapeMap) {
           const bounds = interaction.selectionBox;
@@ -1115,7 +1181,15 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       state.startElementBoundsMap.clear();
       return;
     }
-  }, [screenToCanvas, hitTest, interaction, data.elements, wb, setInteraction]);
+
+    // End rotation
+    if (interaction.isRotating) {
+      setInteraction(prev => ({ ...prev, isRotating: false }));
+      state.rotationCenter = null;
+      state.startRotation = 0;
+      return;
+    }
+  }, [screenToCanvas, hitTest, hitTestRotationHandle, interaction, data.elements, wb, setInteraction]);
 
   // ─── Wheel zoom ───────────────────────────────────────────────────
 
@@ -1182,7 +1256,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     const state = pointerState.current;
     if (!state.isDown || !state.hasDragged) return;
     const tool = interaction.tool;
-    if (!['rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(tool)) return;
+    if (!['rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid', 'cross', 'heart', 'document'].includes(tool)) return;
     const start = interaction.dragStart;
     if (!start) return;
 
@@ -1335,6 +1409,22 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             wb.zoomToFit();
           }
           break;
+        case 'f': case 'F':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            setIsSearchOpen(prev => !prev);
+          }
+          break;
+        case '?':
+          if (!e.ctrlKey && !e.metaKey) {
+            setShowShortcuts(prev => !prev);
+          }
+          break;
+        case 'Escape':
+          if (isSearchOpen) { setIsSearchOpen(false); setSearchQuery(''); }
+          if (showShortcuts) setShowShortcuts(false);
+          if (interaction.selectedIds.size > 0) wb.clearSelection();
+          break;
         case 'Shift':
           recomputeShapePreview(true);
           break;
@@ -1352,7 +1442,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interaction, data.elements, viewport, wb, recomputeShapePreview]);
+  }, [interaction, data.elements, viewport, wb, recomputeShapePreview, isSearchOpen, showShortcuts]);
 
   // ─── Sorted elements ─────────────────────────────────────────────
 
@@ -1363,12 +1453,26 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     [data.elements]
   );
 
+  // Search matches
+  const searchMatchIds = useMemo(() => {
+    if (!searchQuery.trim()) return new Set<string>();
+    const q = searchQuery.toLowerCase();
+    return new Set(
+      data.elements.filter(el => {
+        if (el.type === 'card') return (el as WhiteboardCardElement).nodeUuid?.toLowerCase().includes(q) ?? false;
+        if (el.type === 'shape') return (el as WhiteboardShapeElement).text?.toLowerCase().includes(q) ?? false;
+        if (el.type === 'text') return (el as WhiteboardTextElement).text?.toLowerCase().includes(q) ?? false;
+        return false;
+      }).map(el => el.id)
+    );
+  }, [searchQuery, data.elements]);
+
   // ─── Cursor ───────────────────────────────────────────────────────
 
   const cursorClass = useMemo(() => {
     if (interaction.isPanning || isEmptyPanning) return 'whiteboard-view--panning-active';
     if (interaction.tool === 'eraser') return 'whiteboard-view--drawing whiteboard-view--eraser';
-    if (['pen', 'highlighter', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star'].includes(interaction.tool)) return 'whiteboard-view--drawing';
+    if (['pen', 'highlighter', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'star', 'diamond', 'cylinder', 'cloud', 'parallelogram', 'trapezoid', 'cross', 'heart', 'document'].includes(interaction.tool)) return 'whiteboard-view--drawing';
     return '';
   }, [interaction.tool, interaction.isPanning, isEmptyPanning]);
 
@@ -1449,12 +1553,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       zIndex: el.zIndex,
     };
 
+    const isSearchMatch = searchMatchIds.has(el.id);
     const className = [
       'whiteboard-element',
       isSelected && interaction.selectedIds.size === 1 && 'whiteboard-element--selected',
       isHovered && 'whiteboard-element--hovered',
       el.locked && 'whiteboard-element--locked',
       interaction.isDragging && isSelected && 'whiteboard-element--dragging',
+      isSearchMatch && 'whiteboard-element--search-match',
     ].filter(Boolean).join(' ');
 
     return (
@@ -1712,6 +1818,60 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       onPointerLeave={() => { if (eraserCursorRef.current) eraserCursorRef.current.setAttribute('r', '0'); }}
       tabIndex={0}
     >
+      {/* Search bar */}
+      {isSearchOpen && (
+        <div className="wb-search-bar" style={{ position: 'absolute', top: 12, right: 12, zIndex: 'var(--wb-z-overlay)' }}>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search canvas..."
+            className="wb-search-bar__input"
+            autoFocus
+          />
+          <span className="wb-search-bar__count">
+            {searchMatchIds.size} match{searchMatchIds.size !== 1 ? 'es' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Keyboard shortcuts modal */}
+      {showShortcuts && (
+        <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
+          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
+              <button className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)}><span className="mdi mdi-close" /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
+              <ShortcutRow keys="V" action="Select tool" />
+              <ShortcutRow keys="R" action="Rectangle" />
+              <ShortcutRow keys="O" action="Ellipse" />
+              <ShortcutRow keys="P" action="Pen" />
+              <ShortcutRow keys="T" action="Text" />
+              <ShortcutRow keys="L" action="Connector" />
+              <ShortcutRow keys="E" action="Eraser" />
+              <ShortcutRow keys="G" action="Toggle grid" />
+              <ShortcutRow keys="Ctrl + D" action="Duplicate" />
+              <ShortcutRow keys="Ctrl + G" action="Group / Ungroup" />
+              <ShortcutRow keys="Ctrl + C" action="Copy" />
+              <ShortcutRow keys="Ctrl + V" action="Paste" />
+              <ShortcutRow keys="Ctrl + F" action="Search canvas" />
+              <ShortcutRow keys="Ctrl + +" action="Zoom in" />
+              <ShortcutRow keys="Ctrl + -" action="Zoom out" />
+              <ShortcutRow keys="Ctrl + 0" action="Reset zoom" />
+              <ShortcutRow keys="Ctrl + 1" action="Zoom to fit" />
+              <ShortcutRow keys="]" action="Bring to front" />
+              <ShortcutRow keys="[" action="Send to back" />
+              <ShortcutRow keys="Delete" action="Delete selection" />
+              <ShortcutRow keys="Esc" action="Clear selection / close" />
+              <ShortcutRow keys="?" action="This help" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Strokes SVG layer */}
       {renderStrokes}
 
@@ -1791,6 +1951,65 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               </div>
             );
           })()}
+          {/* Rotation handle — single element only */}
+          {interaction.selectedIds.size === 1 && (() => {
+            const id = [...interaction.selectedIds][0];
+            const el = data.elements.find(e => e.id === id);
+            if (!el || el.locked) return null;
+            return (
+              <div
+                className="whiteboard-element__rotation-handle"
+                style={{
+                  left: '50%',
+                  top: -30,
+                  transform: 'translateX(-50%)',
+                }}
+              />
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Align / Distribute panel — 2+ selected elements */}
+      {selectionCardBounds && interaction.selectedIds.size >= 2 && !interaction.isSelectionBox && (
+        <div
+          className="wb-align-panel"
+          style={{
+            left: selectionCardBounds.left + selectionCardBounds.width + 12,
+            top: selectionCardBounds.top,
+          }}
+        >
+          <div className="wb-align-panel__row">
+            <button className="wb-align-panel__btn" title="Align left" onClick={() => wb.alignElements([...interaction.selectedIds], 'left')}>
+              <span className="mdi mdi-align-horizontal-left" />
+            </button>
+            <button className="wb-align-panel__btn" title="Align center" onClick={() => wb.alignElements([...interaction.selectedIds], 'center')}>
+              <span className="mdi mdi-align-horizontal-center" />
+            </button>
+            <button className="wb-align-panel__btn" title="Align right" onClick={() => wb.alignElements([...interaction.selectedIds], 'right')}>
+              <span className="mdi mdi-align-horizontal-right" />
+            </button>
+          </div>
+          <div className="wb-align-panel__row">
+            <button className="wb-align-panel__btn" title="Align top" onClick={() => wb.alignElements([...interaction.selectedIds], 'top')}>
+              <span className="mdi mdi-align-vertical-top" />
+            </button>
+            <button className="wb-align-panel__btn" title="Align middle" onClick={() => wb.alignElements([...interaction.selectedIds], 'middle')}>
+              <span className="mdi mdi-align-vertical-center" />
+            </button>
+            <button className="wb-align-panel__btn" title="Align bottom" onClick={() => wb.alignElements([...interaction.selectedIds], 'bottom')}>
+              <span className="mdi mdi-align-vertical-bottom" />
+            </button>
+          </div>
+          <div className="wb-align-panel__divider" />
+          <div className="wb-align-panel__row">
+            <button className="wb-align-panel__btn" title="Distribute horizontal" onClick={() => wb.distributeElements([...interaction.selectedIds], 'horizontal')}>
+              <span className="mdi mdi-distribute-horizontal-center" />
+            </button>
+            <button className="wb-align-panel__btn" title="Distribute vertical" onClick={() => wb.distributeElements([...interaction.selectedIds], 'vertical')}>
+              <span className="mdi mdi-distribute-vertical-center" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1816,6 +2035,14 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           triangle: isShift ? 'triangle-right' : 'triangle',
           hexagon: isShift ? 'hexagon-pointy' : 'hexagon',
           star: 'star',
+          diamond: 'diamond',
+          cylinder: 'cylinder',
+          cloud: 'cloud',
+          parallelogram: 'parallelogram',
+          trapezoid: 'trapezoid',
+          cross: 'cross',
+          heart: 'heart',
+          document: 'document',
         };
         const shapeType = shapeMap[interaction.tool];
         if (!shapeType) return null;
@@ -1827,7 +2054,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         const { fill, stroke, strokeWidth, strokeStyle, borderRadius } = wb.settings.shape;
         const ssPreviewClass = strokeStyle === 'dashed' ? 'wb-ss-dashed' : strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
         // Rectangle + Shift → rotate 45° in preview
-        const previewRotation = isShift && interaction.tool === 'rectangle' ? 45 : 0;
+        const previewRotation = isShift && interaction.tool === 'rectangle' ? 45 :
+                                isShift && interaction.tool === 'diamond' ? 45 : 0;
         return (
           <div
             style={{
