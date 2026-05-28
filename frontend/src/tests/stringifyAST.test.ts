@@ -48,6 +48,10 @@ function externalLink(url: string, ...children: ASTInlineNode[]) {
   return { type: 'external_link' as const, url, children };
 }
 
+function math(expression: string, displayMode = false) {
+  return { type: 'math' as const, expression, displayMode };
+}
+
 // Resolver that maps link_id → { targetAST, label, targetId }
 function makeResolver(
   map: Record<string, { ast: ASTDocument; label?: string | null; targetId?: string }>,
@@ -438,6 +442,23 @@ describe('stringifyAST', () => {
       expect(
         stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY, resolveNodeLink: resolver }),
       ).toBe('Review the updated Design Doc before Friday');
+    });
+  });
+
+  // ── Math nodes ──
+
+  describe('math nodes', () => {
+    it('NODE_MARKDOWN inline', () => {
+      expect(stringifyAST(p(math('E = mc^2')), { mode: StringifyMode.NODE_MARKDOWN })).toBe('$E = mc^2$');
+    });
+    it('NODE_MARKDOWN display', () => {
+      expect(stringifyAST(p(math('\\sum_{i=1}^n', true)), { mode: StringifyMode.NODE_MARKDOWN })).toBe('$$\\sum_{i=1}^n$$');
+    });
+    it('PLAIN_MARKDOWN inline', () => {
+      expect(stringifyAST(p(math('\\pi')), { mode: StringifyMode.PLAIN_MARKDOWN })).toBe('$\\pi$');
+    });
+    it('TEXT_ONLY strips delimiters', () => {
+      expect(stringifyAST(p(math('\\frac{a}{b}', true)), { mode: StringifyMode.TEXT_ONLY })).toBe('\\frac{a}{b}');
     });
   });
 

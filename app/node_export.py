@@ -658,8 +658,10 @@ def _markdown_inline_to_html(md: str) -> str:
     md = md.replace("\n", " ")
     md = md.replace("<br> ", "<br>")
 
-    TOKEN_RE = _re.compile(
-        r"(`[^`]+`)"  # code — highest priority to protect contents
+    token_re = _re.compile(
+        r"(\$\$.+?\$\$)"  # display math
+        r"|(\$[^$\s].*?\$)"  # inline math
+        r"|(`[^`]+`)"  # code — highest priority to protect contents
         r"|(\*\*.+?\*\*)"  # bold **
         r"|(__.+?__)"  # bold __
         r"|(\*.+?\*)"  # italic *
@@ -673,7 +675,7 @@ def _markdown_inline_to_html(md: str) -> str:
 
     result: list[str] = []
     last = 0
-    for m in TOKEN_RE.finditer(md):
+    for m in token_re.finditer(md):
         if m.start() > last:
             segment = md[last : m.start()]
             # Preserve <br> tags inserted during pre-processing
@@ -681,7 +683,11 @@ def _markdown_inline_to_html(md: str) -> str:
             escaped_parts = [_html.escape(p) for p in parts]
             result.append("<br>".join(escaped_parts))
         token = m.group(0)
-        if token.startswith("`"):
+        if token.startswith("$$"):
+            result.append(f'<span class="math math--display">{_html.escape(token[2:-2])}</span>')
+        elif token.startswith("$"):
+            result.append(f'<span class="math">{_html.escape(token[1:-1])}</span>')
+        elif token.startswith("`"):
             result.append(f"<code>{_html.escape(token[1:-1])}</code>")
         elif token.startswith("**") or token.startswith("__"):
             result.append(f"<strong>{_html.escape(token[2:-2])}</strong>")

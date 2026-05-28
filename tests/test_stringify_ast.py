@@ -50,6 +50,10 @@ def ext_link(url, *children):
     return {"type": "external_link", "url": url, "children": list(children)}
 
 
+def math(expression, display_mode=False):
+    return {"type": "math", "expression": expression, "displayMode": display_mode}
+
+
 def strike(*children):
     return {"type": "strikethrough", "children": list(children)}
 
@@ -473,6 +477,27 @@ class TestComplexContent:
             stringify_ast(self.ast, opts(StringifyMode.TEXT_ONLY, _complex_resolver))
             == "Review the updated Design Doc before Friday"
         )
+
+
+# ── Math nodes ─────────────────────────────────────────────────────
+
+
+class TestMathNodes:
+    def test_node_markdown_inline(self):
+        ast = p(math("E = mc^2"))
+        assert stringify_ast(ast, opts(StringifyMode.NODE_MARKDOWN)) == "$E = mc^2$"
+
+    def test_node_markdown_display(self):
+        ast = p(math("\\sum_{i=1}^n", display_mode=True))
+        assert stringify_ast(ast, opts(StringifyMode.NODE_MARKDOWN)) == "$$\\sum_{i=1}^n$$"
+
+    def test_plain_markdown_inline(self):
+        ast = p(math("\\pi"))
+        assert stringify_ast(ast, opts(StringifyMode.PLAIN_MARKDOWN)) == "$\\pi$"
+
+    def test_text_only_strips_delimiters(self):
+        ast = p(math("\\frac{a}{b}", display_mode=True))
+        assert stringify_ast(ast, opts(StringifyMode.TEXT_ONLY)) == "\\frac{a}{b}"
 
 
 # ── Unknown AST type ───────────────────────────────────────────────
