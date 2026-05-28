@@ -67,6 +67,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [qrGenerating, setQrGenerating] = useState(false);
+  const [htmlViewMode, setHtmlViewMode] = useState<'preview' | 'source'>('preview');
 
   const effectiveNodeUuids = useMemo(() => {
     if (nodeUuids && nodeUuids.length > 0) return nodeUuids;
@@ -588,16 +589,44 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
             />
           ) : (
             <>
-              <div className={`export-modal__iframe-wrap${loading ? ' export-modal__iframe-wrap--loading' : ''}`}>
-                {displayContent && (
-                  <iframe
-                    className="export-modal__iframe"
-                    title="Export preview"
-                    srcDoc={displayContent}
-                    sandbox="allow-same-origin"
-                  />
-                )}
-              </div>
+              {format === 'html' && (
+                <div className="export-modal__view-toggle">
+                  <button
+                    type="button"
+                    className={`export-modal__view-btn${htmlViewMode === 'preview' ? ' export-modal__view-btn--active' : ''}`}
+                    onClick={() => setHtmlViewMode('preview')}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-modal__view-btn${htmlViewMode === 'source' ? ' export-modal__view-btn--active' : ''}`}
+                    onClick={() => setHtmlViewMode('source')}
+                  >
+                    Source
+                  </button>
+                </div>
+              )}
+              {format === 'html' && htmlViewMode === 'source' ? (
+                <textarea
+                  className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
+                  readOnly
+                  value={displayContent}
+                  spellCheck={false}
+                  aria-label="HTML source"
+                />
+              ) : (
+                <div className={`export-modal__iframe-wrap${loading ? ' export-modal__iframe-wrap--loading' : ''}`}>
+                  {displayContent && (
+                    <iframe
+                      className="export-modal__iframe"
+                      title="Export preview"
+                      srcDoc={displayContent}
+                      sandbox="allow-same-origin"
+                    />
+                  )}
+                </div>
+              )}
               {format === 'pdf' && (
                 <div className="export-modal__pdf-section">
                   <label
