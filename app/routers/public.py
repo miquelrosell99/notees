@@ -5,10 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from ..db.connection import acquire_connection, get_pool
-from ..domain.repositories import PostgresNodeRepository, PostgresShareRepository
+from ..domain.repositories import PostgresNodeRepository, PostgresPropertyRepository, PostgresShareRepository
 from ..domain.services.share_service import ShareService
 from ..logging_config import get_logger
-from .nodes.helpers import _name_text, _resolve_referenced_display_names
+from .nodes.helpers import _name_text, _resolve_referenced_display_names, extract_properties_dict
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/public", tags=["Public"])
@@ -42,6 +42,36 @@ def _node_to_public_dict(node, depth: int = 0, display_name: str = "") -> dict:
         "create_date": node.create_date,
         "write_date": node.write_date,
         "depth": depth,
+    }
+
+
+def _property_to_public_dict(prop) -> dict:
+    """Serialize a property definition for public access."""
+    return {
+        "id": prop.id,
+        "uuid": prop.uuid,
+        "name": prop.name,
+        "icon": prop.icon,
+        "type": prop.type.value if hasattr(prop.type, "value") else str(prop.type),
+        "multi": prop.is_multi,
+        "is_system": prop.is_system,
+        "scope": prop.scope.value if hasattr(prop.scope, "value") else str(prop.scope),
+        "node_id": prop.node_id,
+        "icon_visibility": prop.icon_visibility,
+        "validation_rules": prop.validation_rules,
+        "create_date": prop.create_date,
+        "write_date": prop.write_date,
+        "class_filters": list(prop._class_filters) if hasattr(prop, "_class_filters") else [],
+        "options": [
+            {
+                "id": opt.id,
+                "name": opt.name,
+                "icon": opt.icon,
+                "color": opt.color,
+                "sequence": opt.sequence,
+            }
+            for opt in (prop._selection_lines if hasattr(prop, "_selection_lines") else [])
+        ],
     }
 
 
@@ -127,7 +157,25 @@ async def get_shared_node(
             "depth": r["depth"],
         })
 
+    # Load node properties and definitions for the public share
+    prop_repo = PostgresPropertyRepository(pool, share.workspace_id, None)
+    raw_properties = await prop_repo.get_all_property_values(node.id)
+    properties_dict = extract_properties_dict(raw_properties)
+
+    # Only include property definitions for properties that have values on this node
+    active_prop_ids = {int(k) for k in properties_dict.keys()}
+    all_props = await prop_repo.get_all(include_local=True)
+    property_definitions = [
+        _property_to_public_dict(p)
+        for p in all_props
+        if p.id in active_prop_ids
+    ]
+
     return {
-        "node": _node_to_public_dict(node, display_name=node_display_name),
+        "node": {
+            **_node_to_public_dict(node, display_name=node_display_name),
+            "properties": properties_dict,
+        },
         "children": children,
+        "property_definitions": property_definitions,
     }

@@ -35,7 +35,7 @@
 
 .public-share-view__header {
   max-width: 720px;
-  margin: 0 auto var(--spacing-6);
+  margin: 0 auto var(--spacing-4);
   padding-bottom: var(--spacing-4);
   border-bottom: 1px solid var(--color-outline-variant);
 }
@@ -50,6 +50,107 @@
   font: var(--font-label-small);
   border-radius: var(--shape-small);
   margin-bottom: var(--spacing-3);
+}
+
+/* Properties Section */
+.public-share-view__properties {
+  max-width: 720px;
+  margin: 0 auto var(--spacing-4);
+  padding: var(--spacing-3);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.public-share-view__properties-title {
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-3) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.public-share-view__properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.public-share-view__property-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.public-share-view__property-row:last-child {
+  border-bottom: none;
+}
+
+.public-share-view__property-name {
+  flex: 0 0 140px;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.public-share-view__property-icon {
+  font-size: 1rem;
+  color: var(--color-primary);
+}
+
+.public-share-view__property-value {
+  flex: 1;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  min-width: 0;
+  word-break: break-word;
+}
+
+.public-share-view__prop-value--empty {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.public-share-view__prop-value--multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.public-share-view__prop-value--tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-small);
+  font: var(--font-label-medium);
+}
+
+.public-share-view__prop-value--selection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.public-share-view__prop-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.public-share-view__prop-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.public-share-view__prop-link:hover {
+  text-decoration: underline;
 }
 
 .public-share-view__content {

@@ -3,17 +3,152 @@
  *
  * Works without authentication. Fetches node data via public API.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/core/Spinner';
 import { getPublicSharedNode } from '@/api/shares';
 import { NodeInline } from '@/components/blocks/NodeInline';
+import type { PublicSharedNode } from '@/api/shares';
 import './PublicShareView.css';
 
+/**
+ * Render a property value for public display (read-only, no auth required).
+ */
+function PublicPropertyValue({
+  propertyDef,
+  value,
+  childrenBlocks,
+}: {
+  propertyDef: PublicSharedNode['property_definitions'][number];
+  value: unknown;
+  childrenBlocks: PublicSharedNode['children'];
+}) {
+  // Multi-value: render each value
+  if (propertyDef.multi && Array.isArray(value)) {
+    if (value.length === 0) return <span className="public-share-view__prop-value--empty">—</span>;
+    return (
+      <span className="public-share-view__prop-value--multi">
+        {value.map((v, i) => (
+          <span key={i} className="public-share-view__prop-value--tag">
+            <PublicPropertyValue propertyDef={propertyDef} value={v} childrenBlocks={childrenBlocks} />
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  switch (propertyDef.type) {
+    case 'boolean':
+      return <span>{value ? 'Yes' : 'No'}</span>;
+
+    case 'integer':
+    case 'float':
+      return <span>{String(value)}</span>;
+
+    case 'url':
+      return (
+        <a href={String(value)} target="_blank" rel="noopener noreferrer" className="public-share-view__prop-link">
+          {String(value)}
+        </a>
+      );
+
+    case 'email':
+      return (
+        <a href={`mailto:${String(value)}`} className="public-share-view__prop-link">
+          {String(value)}
+        </a>
+      );
+
+    case 'selection': {
+      const option = propertyDef.options.find((o) => o.id === value);
+      if (!option) return <span>{String(value)}</span>;
+      return (
+        <span className="public-share-view__prop-value--selection">
+          {option.color && (
+            <span className="public-share-view__prop-dot" style={{ background: option.color }} />
+          )}
+          {option.name}
+        </span>
+      );
+    }
+
+    case 'text': {
+      // Text properties reference a block node — look it up in children
+      const blockId = typeof value === 'number' ? value : null;
+      if (blockId) {
+        const block = childrenBlocks.find((c) => c.id === blockId);
+        if (block) {
+          return (
+            <NodeInline
+              name={block.name}
+              displayText={block.display_name}
+              icon={block.icon}
+              isPage={block.is_page}
+              nodeId={block.id}
+              showBullet={false}
+              suppressColor={false}
+            />
+          );
+        }
+      }
+      return <span>Text content</span>;
+    }
+
+    case 'node':
+    case 'date':
+    case 'image':
+    default:
+      return <span>{String(value ?? '—')}</span>;
+  }
+}
+
+/**
+ * Read-only properties section for public share view.
+ */
+function PublicPropertiesSection({
+  propertyDefinitions,
+  properties,
+  childrenBlocks,
+}: {
+  propertyDefinitions: PublicSharedNode['property_definitions'];
+  properties: Record<string, unknown>;
+  childrenBlocks: PublicSharedNode['children'];
+}) {
+  const entries = useMemo(() => {
+    return Object.entries(properties)
+      .map(([propIdStr, value]) => {
+        const propDef = propertyDefinitions.find((p) => String(p.id) === propIdStr);
+        if (!propDef) return null;
+        return { propDef, value };
+      })
+      .filter(Boolean) as Array<{ propDef: PublicSharedNode['property_definitions'][number]; value: unknown }>;
+  }, [properties, propertyDefinitions]);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="public-share-view__properties">
+      <h3 className="public-share-view__properties-title">Properties</h3>
+      <div className="public-share-view__properties-list">
+        {entries.map(({ propDef, value }) => (
+          <div key={propDef.id} className="public-share-view__property-row">
+            <span className="public-share-view__property-name">
+              {propDef.icon && (
+                <span className={`mdi ${propDef.icon} public-share-view__property-icon`} />
+              )}
+              {propDef.name}
+            </span>
+            <span className="public-share-view__property-value">
+              <PublicPropertyValue propertyDef={propDef} value={value} childrenBlocks={childrenBlocks} />
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PublicShareView() {
-  const [data, setData] = useState<{
-    node: { id: number; uuid: string; name: string; display_name: string; icon: string | null; color: string | null; is_page: boolean };
-    children: { id: number; uuid: string; name: string; display_name: string; icon: string | null; color: string | null; is_page: boolean; depth: number }[];
-  } | null>(null);
+  const [data, setData] = useState<PublicSharedNode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -87,6 +222,16 @@ export function PublicShareView() {
           suppressColor={false}
         />
       </div>
+
+      {/* Properties Section */}
+      {data.property_definitions.length > 0 && (
+        <PublicPropertiesSection
+          propertyDefinitions={data.property_definitions}
+          properties={data.node.properties}
+          childrenBlocks={data.children}
+        />
+      )}
+
       <div className="public-share-view__content">
         {data.children.length === 0 ? (
           <p className="public-share-view__empty">This page has no content.</p>

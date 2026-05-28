@@ -36,8 +36,32 @@ export interface PublicSharedNode {
     class_ids: number[];
     create_date: string;
     write_date: string;
+    properties: Record<string, unknown>;
   };
-  children: (PublicSharedNode['node'] & { depth: number })[];
+  children: (Omit<PublicSharedNode['node'], 'properties'> & { depth: number })[];
+  property_definitions: Array<{
+    id: number;
+    uuid: string;
+    name: string;
+    icon: string | null;
+    type: string;
+    multi: boolean;
+    is_system: boolean;
+    scope: string;
+    node_id: number | null;
+    icon_visibility: string;
+    validation_rules: Record<string, unknown> | null;
+    create_date: string;
+    write_date: string;
+    class_filters: number[];
+    options: Array<{
+      id: number;
+      name: string;
+      icon: string | null;
+      color: string | null;
+      sequence: number;
+    }>;
+  }>;
 }
 
 export interface UserShare {
