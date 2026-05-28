@@ -48,14 +48,12 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        setContent('');
-        setParseError(null);
-        setParsed(null);
-        setSqliteFileName(null);
-        setSqliteParsing(false);
-        setUuidOverrides({});
-      });
+      setContent('');
+      setParseError(null);
+      setParsed(null);
+      setSqliteFileName(null);
+      setSqliteParsing(false);
+      setUuidOverrides({});
       reset();
       if (inputSource === 'edn') {
         setTimeout(() => textareaRef.current?.focus(), 0);
@@ -68,10 +66,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
   useEffect(() => {
     if (inputSource !== 'edn') return;
     if (!content.trim()) {
-      Promise.resolve().then(() => {
-        setParseError(null);
-        setParsed(null);
-      });
+      setParseError(null);
+      setParsed(null);
       return;
     }
     const { promise, cancel } = parseEdnInWorker(content);
@@ -79,10 +75,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
     promise
       .then((result) => {
         if (!active) return;
-        Promise.resolve().then(() => {
-          setParsed(result);
-          setParseError(null);
-        });
+        setParsed(result);
+        setParseError(null);
       })
       .catch((e) => {
         if (!active) return;

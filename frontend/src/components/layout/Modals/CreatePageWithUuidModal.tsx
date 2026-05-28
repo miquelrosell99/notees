@@ -45,14 +45,12 @@ export function CreatePageWithUuidModal({
   // Reset and generate a fresh UUID each time the modal opens
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        setNodeName('');
+      setNodeName('');
         setUuid(prefillUuid ?? generateUUID());
         setIsPage(true);
         setParentId(null);
         setError(null);
-        setIsCreating(false);
-      });
+        setIsCreating(false);;
       setTimeout(() => nameRef.current?.focus(), 100);
     }
   }, [isOpen, prefillUuid]);

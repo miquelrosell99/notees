@@ -210,9 +210,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       if (left + popupWidth > window.innerWidth - 8) {
         left = window.innerWidth - popupWidth - 8;
       }
-      Promise.resolve().then(() => setPosition({ x: left, y: rect.bottom + gap }));
+      setPosition({ x: left, y: rect.bottom + gap });
     } else if (isOpen && !position) {
-      Promise.resolve().then(() => setPosition({ x: 100, y: 100 }));
+      setPosition({ x: 100, y: 100 });
     }
   }, [isOpen]);
 

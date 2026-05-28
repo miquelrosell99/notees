@@ -106,7 +106,7 @@ export function BlockClassPillsPlugin({
       // or during runtime-sync (which updates classIds on existing blocks)
       if (dirtyElements.size === 0 && !tags.has('runtime-sync')) return;
       // Defer to next microtask so DOM is up-to-date
-      Promise.resolve().then(scanBlocks);
+      queueMicrotask(scanBlocks);
     });
   }, [editor, scanBlocks, visibleBlockIds]);
 

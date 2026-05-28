@@ -78,7 +78,7 @@ export function AssetBlockPlugin(): JSX.Element | null {
     return editor.registerUpdateListener(({ dirtyElements, tags }) => {
       if (dirtyElements.size === 0 && !tags.has('runtime-sync')) return;
       // Defer to next microtask so DOM is up-to-date
-      Promise.resolve().then(scanBlocks);
+      queueMicrotask(scanBlocks);
     });
   }, [editor, scanBlocks, visibleBlockIds]);
 

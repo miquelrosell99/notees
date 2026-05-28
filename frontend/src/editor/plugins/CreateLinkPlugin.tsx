@@ -105,7 +105,7 @@ export function CreateLinkPlugin({
       event.preventDefault();
       event.stopPropagation();
 
-      editor.update(() => {
+      editor.read(() => {
         const selection = $getSelection();
         const isRange = $isRangeSelection(selection);
         const selectedText = (isRange && !selection.isCollapsed())

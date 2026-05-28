@@ -209,7 +209,7 @@ export function GraphView({
           const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
           if (Array.isArray(parsed)) {
             skipColorGroupsSaveRef.current++;
-            Promise.resolve().then(() => setColorGroups(parsed as GraphColorGroup[]));
+            setColorGroups(parsed as GraphColorGroup[]);
           }
         } catch (e) {
           console.error('Failed to parse graph_color_groups:', e);
@@ -227,7 +227,7 @@ export function GraphView({
           const parsed = typeof savedSettings === 'string' ? JSON.parse(savedSettings) : savedSettings;
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
-            Promise.resolve().then(() => setGraphSettings(prev => ({ ...prev, ...parsed })));
+            setGraphSettings(prev => ({ ...prev, ...parsed }));
           }
         } catch (e) {
           console.error('Failed to parse graph_settings:', e);
@@ -278,7 +278,7 @@ export function GraphView({
       const saved = localStorage.getItem(getStorageKey(viewId, 'visibility_filters'));
       if (saved) {
         const parsed = JSON.parse(saved);
-        Promise.resolve().then(() => setVisibilityFilters(prev => ({ ...prev, ...parsed })));
+        setVisibilityFilters(prev => ({ ...prev, ...parsed }));
       }
     } catch (e) {
       console.error('Failed to load visibility filters:', e);

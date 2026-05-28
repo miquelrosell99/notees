@@ -170,27 +170,25 @@ export function ImportOptionsModal({
   // -- Reset when modal opens ---------------------------------------------
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        setName('');
-        setSelectedType('json');
-        setJsonFile(null);
-        setSqliteFile(null);
-        setEdnContent('');
-        setSubmitError(null);
-        setParsedExport(null);
-        setPhase('form');
-        workspaceUuidRef.current = null;
-        pendingParsedRef.current = null;
-        pendingWorkspaceRef.current = null;
-        setIsParsing(false);
-        setParseError(null);
-        setFolderResult(null);
-        setFolderName(null);
-        setFolderParseError(null);
-        pendingFolderRef.current = null;
-        setUuidOverrides({});
-        if (folderInputRef.current) folderInputRef.current.value = '';
-      });
+      setName('');
+      setSelectedType('json');
+      setJsonFile(null);
+      setSqliteFile(null);
+      setEdnContent('');
+      setSubmitError(null);
+      setParsedExport(null);
+      setPhase('form');
+      workspaceUuidRef.current = null;
+      pendingParsedRef.current = null;
+      pendingWorkspaceRef.current = null;
+      setIsParsing(false);
+      setParseError(null);
+      setFolderResult(null);
+      setFolderName(null);
+      setFolderParseError(null);
+      pendingFolderRef.current = null;
+      setUuidOverrides({});
+      if (folderInputRef.current) folderInputRef.current.value = '';
       resetImport();
       resetFolderImport();
     }
@@ -198,15 +196,13 @@ export function ImportOptionsModal({
 
   // Reset parsed state when source type changes
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setParsedExport(null);
-      setParseError(null);
-      setFolderResult(null);
-      setFolderName(null);
-      setFolderParseError(null);
-      setUuidOverrides({});
-      if (folderInputRef.current) folderInputRef.current.value = '';
-    });
+    setParsedExport(null);
+    setParseError(null);
+    setFolderResult(null);
+    setFolderName(null);
+    setFolderParseError(null);
+    setUuidOverrides({});
+    if (folderInputRef.current) folderInputRef.current.value = '';
   }, [selectedType]);
 
   // -- Workspace switch (phase === 'preparing') ----------------------------
@@ -214,7 +210,7 @@ export function ImportOptionsModal({
     if (phase !== 'preparing') return;
     const workspace = pendingWorkspaceRef.current;
     if (!workspace) return;
-    Promise.resolve().then(() => setPhase('importing'));
+    setPhase('importing');
     let cancelled = false;
     async function prepare() {
       workspaceUuidRef.current = workspace!.uuid;
@@ -259,37 +255,33 @@ export function ImportOptionsModal({
 
   // -- Transition to report when hook finishes ----------------------------
   useEffect(() => {
-    if (hookReport) Promise.resolve().then(() => setPhase('report'));
+    if (hookReport) setPhase('report');
   }, [hookReport]);
 
   useEffect(() => {
-    if (folderDone) Promise.resolve().then(() => setPhase('report'));
+    if (folderDone) setPhase('report');
   }, [folderDone]);
 
   // -- Parse SQLite file eagerly -----------------------------------------
   useEffect(() => {
     if (!sqliteFile) {
-      Promise.resolve().then(() => {
-        setParsedExport(null);
-        setParseError(null);
-      });
+      setParsedExport(null);
+      setParseError(null);
       return;
     }
     let cancelParse: () => void = () => {};
     let active = true;
-    Promise.resolve().then(() => {
-      setIsParsing(true);
-      setParsedExport(null);
-      setParseError(null);
-    });
+    setIsParsing(true);
+    setParsedExport(null);
+    setParseError(null);
     sqliteFile.arrayBuffer().then(buf => {
       if (!active) return Promise.reject(new Error('cancelled'));
       const handle = parseSqliteInWorker(buf);
       cancelParse = handle.cancel;
       return handle.promise;
     })
-      .then(result => { if (!active) return; Promise.resolve().then(() => { setParsedExport(result); setParseError(null); }); })
-      .catch(e => { if (!active) return; Promise.resolve().then(() => { setParsedExport(null); setParseError(e instanceof Error ? e.message : 'Failed to parse SQLite file'); }); })
+      .then(result => { if (!active) return; setParsedExport(result); setParseError(null); })
+      .catch(e => { if (!active) return; setParsedExport(null); setParseError(e instanceof Error ? e.message : 'Failed to parse SQLite file'); })
       .finally(() => { if (!active) return; setIsParsing(false); });
     return () => { active = false; cancelParse(); };
   }, [sqliteFile]);
@@ -298,10 +290,10 @@ export function ImportOptionsModal({
   useEffect(() => {
     if (selectedType !== 'logseq-edn') return;
     if (!ednContent.trim()) {
-      Promise.resolve().then(() => { setParsedExport(null); setParseError(null); });
+      setParsedExport(null); setParseError(null);
       return;
     }
-    Promise.resolve().then(() => setIsParsing(true));
+    setIsParsing(true);
     const { promise, cancel } = parseEdnInWorker(ednContent);
     let active = true;
     promise

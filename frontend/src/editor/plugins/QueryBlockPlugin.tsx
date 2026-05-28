@@ -209,7 +209,7 @@ export function QueryBlockPlugin(): JSX.Element | null {
 
     return editor.registerUpdateListener(({ dirtyElements, tags }) => {
       if (dirtyElements.size === 0 && !tags.has('runtime-sync')) return;
-      Promise.resolve().then(scanBlocks);
+      queueMicrotask(scanBlocks);
     });
   }, [editor, scanBlocks, visibleBlockIds]);
 

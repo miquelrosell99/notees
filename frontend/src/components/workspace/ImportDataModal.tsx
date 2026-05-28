@@ -35,11 +35,9 @@ export function ImportDataModal({
   // Focus textarea when modal opens
   useEffect(() => {
     if (isOpen) {
-      Promise.resolve().then(() => {
-        setContent('');
+      setContent('');
         setError(null);
-        setParsedData(null);
-      });
+        setParsedData(null);;
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [isOpen]);
@@ -47,26 +45,24 @@ export function ImportDataModal({
   // Validate content as user types
   useEffect(() => {
     if (!content.trim()) {
-      Promise.resolve().then(() => {
-        setError(null);
-        setParsedData(null);
-      });
+      setError(null);
+        setParsedData(null);;
       return;
     }
 
     try {
       const data = JSON.parse(content);
       if (isValidBlockCopyData(data)) {
-        Promise.resolve().then(() => { setParsedData(data); setError(null); });
+        setParsedData(data); setError(null);;
       } else {
-        Promise.resolve().then(() => { setParsedData(null); setError('Invalid format. Expected Notees block data format.'); });
+        setParsedData(null); setError('Invalid format. Expected Notees block data format.');;
       }
     } catch (e) {
-      Promise.resolve().then(() => setParsedData(null));
+      setParsedData(null);
       if (content.trim().length > 10) {
-        Promise.resolve().then(() => setError('Invalid JSON format'));
+        setError('Invalid JSON format');
       } else {
-        Promise.resolve().then(() => setError(null));
+        setError(null);
       }
     }
   }, [content]);

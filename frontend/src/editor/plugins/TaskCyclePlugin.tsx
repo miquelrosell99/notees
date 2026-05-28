@@ -26,6 +26,7 @@ import {
   useSetNodeProperty,
 } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { useInputContext } from '@/stores/inputContext';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_STATUS_CYCLE } from '@/constants/systemProperties';
 import type { BatchPropertiesResult } from '@/api/nodes';
 
@@ -76,6 +77,9 @@ export function TaskCyclePlugin(): null {
       KEY_DOWN_COMMAND,
       (event: KeyboardEvent) => {
         if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return false;
+
+        // Don't cycle task status when a popup, modal, or drag is active
+        if (useInputContext.getState().isOverlayOpen) return false;
 
         const {
           taskClassId: _taskClassId,

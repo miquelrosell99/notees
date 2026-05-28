@@ -148,11 +148,9 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
   // Navigate to today when signal changes (shift+click from parent)
   useEffect(() => {
     if (goToTodaySignal && goToTodaySignal > 0) {
-      Promise.resolve().then(() => {
-        setCurrentMonth(today.getMonth());
+      setCurrentMonth(today.getMonth());
         setCurrentYear(today.getFullYear());
-        setTodayAccent(true);
-      });
+        setTodayAccent(true);;
       setTimeout(() => setTodayAccent(false), 1200);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

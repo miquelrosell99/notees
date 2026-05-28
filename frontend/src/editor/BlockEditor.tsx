@@ -36,6 +36,7 @@ import { ThreadLinePlugin } from './plugins/ThreadLinePlugin';
 import { FormattingPlugin } from './plugins/FormattingPlugin';
 import { AutoWrapPlugin } from './plugins/AutoWrapPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
+import { FindReplacePlugin } from './plugins/FindReplacePlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
 import { BlurOnClickOutsidePlugin } from './plugins/BlurOnClickOutsidePlugin';
@@ -788,6 +789,9 @@ export function BlockEditor({
 
         {/* Ctrl+Enter cycles task status: (none) → Pending → Doing → Done → (remove) */}
         <TaskCyclePlugin />
+
+        {/* Page find & replace */}
+        <FindReplacePlugin />
 
         {/* Click checkbox to toggle task status */}
         <TaskCheckboxPlugin />

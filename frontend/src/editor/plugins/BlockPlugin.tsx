@@ -595,7 +595,7 @@ export function BlockPlugin({
     }
 
     // Reset flag after a microtask - Lexical update listeners fire before this
-    Promise.resolve().then(() => { isSyncingRef.current = false; });
+    isSyncingRef.current = false;;
   }, [editor]);
 
   // ─── Subscribe to runtime events ───────────────────────────
@@ -632,7 +632,7 @@ export function BlockPlugin({
           syncCoalesceRef.current = true;
           syncDirtyRef.current = false;
           syncProjection(getProjection());
-          Promise.resolve().then(() => {
+          queueMicrotask(() => {
             syncCoalesceRef.current = false;
             if (syncDirtyRef.current) {
               syncDirtyRef.current = false;
@@ -753,7 +753,7 @@ export function BlockPlugin({
           pendingUpgrade.delete(blockId);
         }
       }, { tag: 'runtime-sync' });
-      Promise.resolve().then(() => { isSyncingRef.current = false; });
+      isSyncingRef.current = false;;
     }
 
     /** Cancel the fallback timer if running. */
@@ -899,7 +899,7 @@ export function BlockPlugin({
         }
       }, { tag: 'runtime-sync' });
 
-      Promise.resolve().then(() => { isSyncingRef.current = false; });
+      isSyncingRef.current = false;;
 
       // ── Reveal hydrated blocks ───────────────────────────────
       // Remove `node-block--virtualized` CSS class AFTER the Lexical
@@ -978,7 +978,7 @@ export function BlockPlugin({
           processed++;
         }
       }, { tag: 'runtime-sync' });
-      Promise.resolve().then(() => { isSyncingRef.current = false; });
+      isSyncingRef.current = false;;
 
       // Schedule next chunk if there's more work
       if (hydrateQueue.length > 0) {
