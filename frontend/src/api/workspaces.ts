@@ -211,7 +211,7 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
 /**
  * Get all settings for the current workspace (graph)
  */
-export async function getWorkspaceSettings(): Promise<Record<string, string>> {
+export async function getWorkspaceSettings(): Promise<Record<string, unknown>> {
   const response = await api.get('/workspace-settings');
   return response.data;
 }

@@ -3,17 +3,20 @@
  *
  * Matches the UI shown in screenshots with:
  * - Graph switcher at top
- * - Journal, All Pages, Graph View navigation
+ * - Journal, Inbox, All Pages, Graph View navigation
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/stores';
-import { useNode, useIsMobile } from '@/hooks';
+import type { MainViewType } from '@/stores';
+import { useNode, useIsMobile, useNodeByUuid } from '@/hooks';
 
 import { nodeKeys } from '@/hooks/useNodes';
+import { workspaceSettingsKeys } from '@/hooks/queryKeys';
 import { emptyTrash } from '@/api/nodes';
+import { getWorkspaceSettings } from '@/api/workspaces';
 import { WorkspaceSwitcher } from '@/components/workspace/WorkspaceSwitcher';
 import { WorkspaceModal } from '@/components/workspace/WorkspaceModal';
 import { GraphSettingsModal } from '../Modals';
@@ -25,6 +28,7 @@ import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/core/icons';
+import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
@@ -73,10 +77,25 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const {
     mainViewType,
     setMainViewType,
-    openNodeCollection,
+    openNode,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore();
+
+  // Fetch workspace settings for sidebar visibility toggles
+  const { data: workspaceSettings } = useQuery({
+    queryKey: workspaceSettingsKeys.all,
+    queryFn: getWorkspaceSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
+  const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
+  const showWhiteboards = (workspaceSettings?.sidebar_show_whiteboards as boolean | undefined) ?? true;
+  const showTasks = (workspaceSettings?.sidebar_show_tasks as boolean | undefined) ?? true;
+
+  // Fetch the Inbox system page by its fixed UUID
+  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox);
 
   // Fetch the context menu node data
   const { data: contextNode } = useNode(contextMenuNode);
@@ -114,6 +133,14 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setTrashContextMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
+  // Open the real Inbox system page
+  const handleOpenInbox = useCallback(() => {
+    if (inboxNode?.id) {
+      openNode(inboxNode.id);
+      closeMobileDrawer();
+    }
+  }, [inboxNode, openNode, closeMobileDrawer]);
+
   const emptyTrashMutation = useMutation({
     mutationFn: emptyTrash,
     onSuccess: () => {
@@ -136,17 +163,23 @@ export function Sidebar({ collapsed }: SidebarProps) {
     },
   ], []);
 
-  const topNavItems = useMemo(() => [
-    { icon: "mdi mdi-notebook-outline", label: 'Journal', view: 'journals' as const },
-    { icon: "mdi mdi-book-open-page-variant", label: 'All Pages', view: 'all-pages' as const },
-    { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
-    { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
-    { icon: "mdi mdi-inbox-arrow-down", label: 'Inbox', view: 'inbox' as const },
-    { icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const },
-    { icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', view: 'tasks' as const },
-  ] as Array<{ icon: string; label: string; view?: string; action?: () => void }>, [openNodeCollection]);
+  const topNavItems = useMemo(() => {
+    const items: Array<{ icon: string; label: string; view?: string; action?: () => void }> = [
+      { icon: "mdi mdi-book-open-page-variant", label: 'All Pages', view: 'all-pages' as const },
+      { icon: "mdi mdi-graph-outline", label: 'Graph View', view: 'graph' as const },
+      { icon: "mdi mdi-timeline-clock-outline", label: 'Timeline View', view: 'timeline' as const },
+    ];
+    if (showWhiteboards) {
+      items.push({ icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const });
+    }
+    if (showTasks) {
+      items.push({ icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', view: 'tasks' as const });
+    }
+    return items;
+  }, [showWhiteboards, showTasks]);
 
   const bottomNavItems = useMemo(() => [
+    { icon: "mdi mdi-share-variant", label: 'Shares', view: 'shares' as const },
     { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
     { icon: "mdi mdi-trash-can-outline", label: 'Trash', view: 'trash' as const, onContextMenu: handleTrashContextMenu },
     { icon: "mdi mdi-cog", label: 'Settings', action: () => setIsSettingsModalOpen(true) },
@@ -172,6 +205,35 @@ export function Sidebar({ collapsed }: SidebarProps) {
           </button>
           {topExpanded && (
             <nav className="sidebar-nav">
+              {showJournals && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="mdi mdi-notebook-outline"
+                  fullWidth
+                  active={mainViewType === 'journals'}
+                  onClick={() => {
+                    setMainViewType('journals');
+                    closeMobileDrawer();
+                  }}
+                  title="Journal"
+                >
+                  Journal
+                </Button>
+              )}
+              {showInbox && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  icon="mdi mdi-inbox-arrow-down"
+                  fullWidth
+                  disabled={!inboxNode}
+                  onClick={handleOpenInbox}
+                  title="Inbox"
+                >
+                  Inbox
+                </Button>
+              )}
               {topNavItems.map((item) => (
                 <Button
                   key={item.view ?? item.label}
@@ -184,7 +246,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     if (item.action) {
                       item.action();
                     } else if (item.view) {
-                      setMainViewType(item.view as import('@/stores/appStore').MainViewType);
+                      setMainViewType(item.view as MainViewType);
                     }
                     closeMobileDrawer();
                   }}
@@ -230,7 +292,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     if (item.action) {
                       item.action();
                     } else if (item.view) {
-                      setMainViewType(item.view as import('@/stores/appStore').MainViewType);
+                      setMainViewType(item.view as MainViewType);
                     }
                     closeMobileDrawer();
                   }}

@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
-import { useQueryClient } from '@tanstack/react-query';
+import { getWorkspaceSettings, setWorkspaceSetting } from '@/api/workspaces';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/keyboardStore';
@@ -16,6 +17,8 @@ import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { Modal } from '@/components/core/Modal';
 import { Spinner } from '@/components/core/Spinner';
 import { Button } from '@/components/core/Button';
+import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { workspaceSettingsKeys } from '@/hooks/queryKeys';
 import './GraphSettingsModal.css';
 
 interface GraphSettingsModalProps {
@@ -43,6 +46,24 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
   const queryClient = useQueryClient();
   const { success, error: notifyError, warning } = useNotifications();
 
+  // Workspace settings for sidebar visibility toggles
+  const { data: workspaceSettings } = useQuery({
+    queryKey: workspaceSettingsKeys.all,
+    queryFn: getWorkspaceSettings,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const updateSettingMutation = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: unknown }) => setWorkspaceSetting(key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceSettingsKeys.all });
+    },
+  });
+
+  const handleToggleChange = (key: string, value: boolean) => {
+    updateSettingMutation.mutate({ key, value });
+  };
+
   if (!isOpen) return null;
 
   const handleDateFormatChange = async (newFormat: DateFormat) => {
@@ -68,7 +89,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
       if (result.errors.length > 0) {
         warning('Some dates could not be updated', `${result.errors.length} item(s) failed to migrate.`);
       }
-    } catch (error) {
+    } catch {
       notifyError('Failed to update date format', 'Please try again.');
     } finally {
       setIsUpdatingDateFormat(false);
@@ -170,6 +191,48 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                   )}
                 </div>
 
+                <h3 className="settings-section__title" style={{ marginTop: 'var(--spacing-6)' }}>Sidebar Visibility</h3>
+
+                <div className="settings-item">
+                  <BooleanToggle
+                    label="Journals"
+                    description="Show the Journals button in the sidebar"
+                    checked={(workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true}
+                    onChange={(e) => handleToggleChange('sidebar_show_journals', e.target.checked)}
+                    labelPosition="left"
+                  />
+                </div>
+
+                <div className="settings-item">
+                  <BooleanToggle
+                    label="Inbox"
+                    description="Show the Inbox button in the sidebar"
+                    checked={(workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true}
+                    onChange={(e) => handleToggleChange('sidebar_show_inbox', e.target.checked)}
+                    labelPosition="left"
+                  />
+                </div>
+
+                <div className="settings-item">
+                  <BooleanToggle
+                    label="Whiteboards"
+                    description="Show the Whiteboards button in the sidebar"
+                    checked={(workspaceSettings?.sidebar_show_whiteboards as boolean | undefined) ?? true}
+                    onChange={(e) => handleToggleChange('sidebar_show_whiteboards', e.target.checked)}
+                    labelPosition="left"
+                  />
+                </div>
+
+                <div className="settings-item">
+                  <BooleanToggle
+                    label="Tasks"
+                    description="Show the Tasks button in the sidebar"
+                    checked={(workspaceSettings?.sidebar_show_tasks as boolean | undefined) ?? true}
+                    onChange={(e) => handleToggleChange('sidebar_show_tasks', e.target.checked)}
+                    labelPosition="left"
+                  />
+                </div>
+
               </div>
             )}
           </div>
@@ -188,4 +251,3 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
     </>
   );
 }
-
