@@ -151,7 +151,7 @@ export function Layout() {
       setMainViewType('journals');
       hasAppliedDefaultView.current = true;
     } else if (defaultView === 'all-pages') {
-      setMainViewType('all-pages');
+      setMainViewType('pages');
       hasAppliedDefaultView.current = true;
     } else if (defaultView === 'graph') {
       setMainViewType('graph');
