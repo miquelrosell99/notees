@@ -1,0 +1,40 @@
+/**
+ * PagesView Styles
+ */
+
+.pages-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pages-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.pages-view__tabs {
+  display: flex;
+  gap: var(--spacing-1);
+}
+
+.pages-view__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pages-view__graph,
+.pages-view__timeline {
+  height: 100%;
+}
+
+.pages-view__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}

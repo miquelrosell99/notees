@@ -88,6 +88,7 @@ export type { SidebarLocalGraphProps } from './sidebar/SidebarLocalGraph';
 
 // View components
 export { AllPagesView } from '../views/AllPagesView';
+export { PagesView } from '../views/PagesView';
 export { JournalsView } from '../views/JournalsView';
 export { SidebarNodeView } from './sidebar/SidebarNodeView';
 

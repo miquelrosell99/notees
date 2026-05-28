@@ -30,7 +30,7 @@ const log = getLogger('Router');
 // Special view routes
 export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   'graph': 'graph',
-  'pages': 'all-pages',
+  'pages': 'pages',
   'journal': 'journals',
   'archived': 'archived',
   'trash': 'trash',
@@ -56,6 +56,7 @@ export function isUuid(str: string): boolean {
 export const VIEW_TO_PATH: Record<MainViewType, string> = {
   'node': '', // Node view uses /{uuid} format (empty string for home)
   'graph': 'graph',
+  'pages': 'pages',
   'all-pages': 'pages',
   'journals': 'journal',
   'timeline': 'timeline',

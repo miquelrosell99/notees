@@ -18,6 +18,7 @@ import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 export type ViewMode = 'default' | 'focus' | 'zen';
 export type MainViewType =
   | 'node'
+  | 'pages'
   | 'all-pages'
   | 'journals'
   | 'graph'
