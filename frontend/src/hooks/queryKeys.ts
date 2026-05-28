@@ -109,3 +109,9 @@ export const activityKeys = {
 export const settingsKeys = {
   all: ['settings'] as const,
 };
+
+// ==================== Workspace Settings Query Keys ====================
+
+export const workspaceSettingsKeys = {
+  all: ['workspace-settings'] as const,
+};

@@ -64,6 +64,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Ensure task_recurrence property exists in all workspaces (migration for existing DBs)
     await _ensure_task_recurrence_property(conn)
 
+    # Ensure Inbox pages use the fixed system UUID (migration for existing DBs)
+    await _ensure_inbox_system_uuid(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -272,6 +275,67 @@ async def _ensure_task_recurrence_property(conn: asyncpg.Connection) -> None:
             )
 
             logger.info(f"Created task_recurrence property for workspace {workspace_id}")
+
+
+async def _ensure_inbox_system_uuid(conn: asyncpg.Connection) -> None:
+    """Ensure all workspaces have an Inbox page with the fixed system UUID.
+
+    Idempotent migration for existing databases that created Inbox pages
+    with random UUIDs before the fixed UUID was introduced.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+    inbox_uuid = SYSTEM_PAGE_UUIDS.get("inbox")
+    if not inbox_uuid:
+        return
+
+    pt_expr = """(CASE
+        WHEN n.name IS NOT NULL AND n.name LIKE '[%' THEN
+            COALESCE((SELECT string_agg(t #>> '{}', '') FROM jsonb_path_query(n.name::jsonb, '$.**.text') AS t), '')
+        ELSE COALESCE(n.name, '')
+    END)"""
+
+    rows = await conn.fetch(
+        f"""
+        SELECT n.id, n.uuid::text AS old_uuid, n.workspace_id
+        FROM node n
+        WHERE n.active = TRUE AND n.is_deleted = FALSE
+          AND LOWER({pt_expr}) = LOWER('Inbox')
+          AND n.uuid::text != $1
+        """,
+        inbox_uuid,
+    )
+
+    for row in rows:
+        old_uuid = row["old_uuid"]
+        ws_id = row["workspace_id"]
+        node_id = row["id"]
+
+        # Update the Inbox page to the fixed UUID
+        await conn.execute(
+            "UPDATE node SET uuid = $1 WHERE id = $2",
+            inbox_uuid,
+            node_id,
+        )
+
+        # Update any AST content in the workspace that references the old UUID
+        await conn.execute(
+            """
+            UPDATE node
+            SET name = REPLACE(REPLACE(name, $1, $2), $3, $4)
+            WHERE workspace_id = $5
+              AND name LIKE '%' || $6 || '%'
+            """,
+            f'"link_id":"{old_uuid}:',
+            f'"link_id":"{inbox_uuid}:',
+            f'"link_id":"{old_uuid}"',
+            f'"link_id":"{inbox_uuid}"',
+            ws_id,
+            old_uuid,
+        )
+
+        logger.info(f"Migrated Inbox UUID in workspace {ws_id}: {old_uuid} -> {inbox_uuid}")
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:
@@ -689,13 +753,16 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
 
     # Create default pages
     for page_name in DEFAULT_PAGES:
+        page_uuid = generate_uuid()
+        if page_name == "Inbox":
+            page_uuid = SYSTEM_PAGE_UUIDS.get("inbox", generate_uuid())
         row = await conn.fetchrow(
             """
             INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
             VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
             RETURNING id
         """,
-            generate_uuid(),
+            page_uuid,
             workspace_id,
             serialize_ast(parse_ast(page_name, ParseMode.PLAIN)),
             now,
