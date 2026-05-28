@@ -86,7 +86,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
           <NodeCollection
             nodes={nodes}
             viewMode={viewMode}
-            availableViewModes={['list', 'table', 'card', 'graph', 'gantt']}
+            availableViewModes={['list', 'table', 'card', 'kanban', 'document', 'gantt', 'calendar', 'chart', 'graph', 'timeline']}
             onViewModeChange={setViewMode}
             onNodeClick={(node) => openNode(node.id)}
             onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
