@@ -235,6 +235,33 @@
   line-height: 1.2;
 }
 
+/* ── QR Code ── */
+.export-modal__qr-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  min-height: 200px;
+}
+
+.export-modal__qr-image {
+  width: 256px;
+  height: 256px;
+  image-rendering: pixelated;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+}
+
+.export-modal__qr-error {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
 /* ── Footer layout ── */
 .export-modal__footer {
   display: flex;
