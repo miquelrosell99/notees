@@ -22,6 +22,11 @@
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  KEY_DOWN_COMMAND,
+  COMMAND_PRIORITY_CRITICAL,
+  type LexicalEditor,
+} from 'lexical';
 import { Spinner } from '@/components/core/Spinner';
 import './SuggestionPopup.css';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
@@ -79,6 +84,8 @@ export interface SuggestionPopupProps {
   onSelectEmbed?: (node: Node) => void;
   /** Override the footer hint text (e.g. "insert template" instead of "insert link") */
   footerHintText?: string;
+  /** Optional Lexical editor instance. When provided, keyboard navigation is handled via Lexical commands at COMMAND_PRIORITY_CRITICAL instead of document listeners. */
+  lexicalEditor?: LexicalEditor;
 }
 
 /**
@@ -104,6 +111,7 @@ export function SuggestionPopup({
   onSelectDatePage,
   onSelectEmbed,
   footerHintText,
+  lexicalEditor,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -333,7 +341,7 @@ export function SuggestionPopup({
         e.stopPropagation();
         // For + class: Ctrl+Enter adds inline pill too, plain Enter just adds to class_ids
         // For # tag and [[ link: always insert inline
-        const addInline = e.ctrlKey;
+        const addInline = e.ctrlKey || e.metaKey;
         
         // Alt+Enter in link mode: insert as embed block instead of inline link
         if (e.altKey && type === 'link' && onSelectEmbed) {
@@ -394,11 +402,24 @@ export function SuggestionPopup({
   
   // Attach keyboard listener
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown, true);
-      return () => document.removeEventListener('keydown', handleKeyDown, true);
+    if (!isOpen) return;
+
+    if (lexicalEditor) {
+      return lexicalEditor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event: KeyboardEvent) => {
+          const handledKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'];
+          if (!handledKeys.includes(event.key)) return false;
+          handleKeyDown(event);
+          return true;
+        },
+        COMMAND_PRIORITY_CRITICAL,
+      );
     }
-  }, [isOpen, handleKeyDown]);
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, lexicalEditor, handleKeyDown]);
   
   // Close on click outside
   useEffect(() => {
