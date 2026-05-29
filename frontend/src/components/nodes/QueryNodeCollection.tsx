@@ -658,14 +658,17 @@ export function QueryNodeCollection({
     setLinkedRefsOffset(0);
   }, [nodeId]);
   
-  // Windowed result set — bypass windowing in gantt mode so all items are available for date-range computation and filtering
+  // Windowed result set — bypass windowing in immersive/visualization modes
+  // (gantt, graph, timeline) so all items are available for rendering.
   const windowedResultNodes = useMemo(() => {
-    if (collectionViewMode === 'gantt') return resultNodes;
+    if (collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline') {
+      return resultNodes;
+    }
     if (resultNodes.length <= WINDOW_SIZE) return resultNodes;
     return resultNodes.slice(0, renderWindow);
   }, [resultNodes, renderWindow, collectionViewMode]);
-  
-  const hasMoreResults = collectionViewMode !== 'gantt' && renderWindow < resultNodes.length;
+
+  const hasMoreResults = !(collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline') && renderWindow < resultNodes.length;
 
   const handleLoadMore = useCallback(() => {
     if (viewType === 'linked_references') {
