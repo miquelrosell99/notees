@@ -31,6 +31,8 @@ export interface ButtonBadge {
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** MDI CSS class string (e.g. "mdi mdi-plus") */
   icon?: string;
+  /** Explicit icon size multiplier (overrides the default for the button size) */
+  iconSize?: number;
   /** Icon position relative to text */
   iconPosition?: 'left' | 'right';
   /** Visual variant */
@@ -63,6 +65,7 @@ const ICON_SIZES: Record<ButtonSize, number> = {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     icon,
+    iconSize,
     iconPosition = 'left',
     variant = 'default',
     size = 'md',
@@ -131,7 +134,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     .filter(Boolean)
     .join(' ');
 
-  const iconSize = ICON_SIZES[size];
+  const resolvedIconSize = iconSize ?? ICON_SIZES[size];
 
   return (
     <button
@@ -142,11 +145,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...props}
     >
       {icon && iconPosition === 'left' && (
-        <Icon path={icon} size={iconSize} className="btn__icon btn__icon--left" />
+        <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--left" />
       )}
       {hasText && <span className="btn__text">{children}</span>}
       {icon && iconPosition === 'right' && (
-        <Icon path={icon} size={iconSize} className="btn__icon btn__icon--right" />
+        <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--right" />
       )}
       {hasBadges && badges.map((badge, i) => {
         const pos = badge.position ?? (badge.icon ? 'bottom-right' : 'top-right');
