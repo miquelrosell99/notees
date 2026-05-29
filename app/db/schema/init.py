@@ -360,6 +360,64 @@ async def _ensure_inbox_system_uuid(conn: asyncpg.Connection) -> None:
 
         logger.info(f"Migrated Inbox UUID in workspace {ws_id}: {old_uuid} -> {inbox_uuid}")
 
+    # Create Inbox for workspaces that don't have one at all (old workspaces
+    # pre-dating the Inbox default page, or where it was hard-deleted).
+    missing_ws_rows = await conn.fetch(
+        """
+        SELECT w.id AS workspace_id, w.create_uid
+        FROM workspace w
+        WHERE w.active = TRUE
+          AND NOT EXISTS (
+              SELECT 1 FROM node n
+              WHERE n.workspace_id = w.id
+                AND n.uuid::text = $1
+                AND n.active = TRUE
+                AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
+          )
+        """,
+        inbox_uuid,
+    )
+
+    for row in missing_ws_rows:
+        ws_id = row["workspace_id"]
+        user_id = row["create_uid"]
+        if user_id is None:
+            logger.warning(f"Skipping Inbox creation for workspace {ws_id}: no create_uid")
+            continue
+
+        page_class_row = await conn.fetchrow(
+            "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE",
+            SYSTEM_CLASS_UUIDS["page"],
+            ws_id,
+        )
+        if not page_class_row:
+            logger.warning(f"Skipping Inbox creation for workspace {ws_id}: page class not found")
+            continue
+
+        page_class_id = page_class_row["id"]
+        now = datetime.now(UTC)
+
+        inbox_row = await conn.fetchrow(
+            """
+            INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
+            VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
+            ON CONFLICT (workspace_id, uuid) DO NOTHING
+            RETURNING id
+            """,
+            inbox_uuid,
+            ws_id,
+            serialize_ast(parse_ast("Inbox", ParseMode.PLAIN)),
+            now,
+            user_id,
+        )
+        if inbox_row:
+            await conn.execute(
+                "UPDATE node SET class_ids = $1 WHERE id = $2",
+                [page_class_id],
+                inbox_row["id"],
+            )
+            logger.info(f"Created Inbox for workspace {ws_id}")
+
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:
     """Seed a workspace with system types, properties, and default pages.
