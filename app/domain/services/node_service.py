@@ -95,30 +95,25 @@ class NodeService:
         return await self._node_repo.get_children(node_id)
 
     async def get_node_descendants(self, node_id: int) -> list[Node]:
-        """Get all descendants of a node (flat list, ordered by depth then sequence).
+        """Get all descendants of a node (flat list, ordered by depth then sequence)."""
+        descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
+        if descendant_ids:
+            return await self._node_repo.get_by_ids(descendant_ids)
+        return []
 
-        Uses the closure table for efficiency, but falls back to BFS traversal
-        if the closure table appears out of sync (empty when direct children exist).
+    async def get_node_descendants_batch(
+        self, node_ids: list[int]
+    ) -> dict[int, list[int]]:
+        """Get all descendant IDs for multiple nodes in a single query.
+
+        Returns a mapping of node_id -> list of descendant IDs.
         """
-        if hasattr(self._node_repo, "get_descendants"):
-            descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
-            if descendant_ids:
-                return await self._node_repo.get_by_ids(descendant_ids)
-            # Closure table reports no descendants — verify with get_children
-            # before concluding the node is truly a leaf. If children exist
-            # via get_children but not in the closure table, the table is stale.
-            direct_children = await self._node_repo.get_children(node_id)
-            if not direct_children:
-                return []
-            # Fall through to BFS below since closure table is out of sync
-        # Fallback: BFS traversal
-        result: list[Node] = []
-        to_process = [node_id]
-        while to_process:
-            current_id = to_process.pop(0)
-            children = await self._node_repo.get_children(current_id)
-            result.extend(children)
-            to_process.extend(c.id for c in children if c.id is not None)
+        if hasattr(self._node_repo, "get_descendants_batch"):
+            return await self._node_repo.get_descendants_batch(node_ids, include_self=False)
+        # Fallback: loop over individual nodes
+        result: dict[int, list[int]] = {}
+        for node_id in node_ids:
+            result[node_id] = await self._node_repo.get_descendants(node_id, include_self=False)
         return result
 
     async def get_nodes_typed_with(self, class_id: int) -> list[Node]:
@@ -541,7 +536,7 @@ class NodeService:
         if node_id == new_parent_id:
             raise ValueError("Cannot move a node to be its own parent")
 
-        # Use closure table (node_path) to check if new_parent is a descendant of node
+        # Use recursive CTE to check if new_parent is a descendant of node
         if await self._node_repo.has_circular_reference(node_id, new_parent_id):
             raise ValueError(
                 f"Cannot move node {node_id} to parent {new_parent_id}: "
@@ -1369,7 +1364,7 @@ class NodeService:
         # Step 2: Determine base sequence offset for appending to target
         base_seq = await self._node_repo.get_max_sequence(target_id) + 1
 
-        # Step 3: Reparent children — the node_path_update DB trigger keeps the closure table in sync
+        # Step 3: Reparent children
         await self._node_repo.reparent_nodes(children_ids, target_id, target_id, base_seq)
 
         logger.info(f"[MERGE] Reparented {len(children_ids)} children from {source_id} to {target_id}")

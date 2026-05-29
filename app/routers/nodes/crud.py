@@ -574,8 +574,16 @@ async def clear_scratchpad(
     # Get all descendant block IDs (children and their children recursively)
     child_rows = await pool.fetch(
         """
-        SELECT descendant_id FROM node_path
-        WHERE ancestor_id = $1 AND depth > 0
+        WITH RECURSIVE descendants AS (
+            SELECT id, 0 AS depth
+            FROM node
+            WHERE id = $1
+            UNION ALL
+            SELECT n.id, d.depth + 1
+            FROM node n
+            INNER JOIN descendants d ON n.parent_id = d.id
+        )
+        SELECT id FROM descendants WHERE depth > 0
     """,
         scratchpad_id,
     )
@@ -583,7 +591,7 @@ async def clear_scratchpad(
     if not child_rows:
         return {"status": "ok", "deleted_count": 0}
 
-    child_ids = [r["descendant_id"] for r in child_rows]
+    child_ids = [r["id"] for r in child_rows]
 
     # Hard-delete all children (scratchpad content is ephemeral)
     deleted = await pool.execute(
@@ -795,17 +803,25 @@ async def get_node(
     if include_children:
         pool = service.pool
 
-        # Get ALL descendants using closure table (node_path)
+        # Get ALL descendants using recursive CTE
         rows = await pool.fetch(
             """
+            WITH RECURSIVE descendants AS (
+                SELECT id, 0 AS depth
+                FROM node
+                WHERE id = $1 AND active = TRUE
+                UNION ALL
+                SELECT n.id, d.depth + 1
+                FROM node n
+                INNER JOIN descendants d ON n.parent_id = d.id
+                WHERE n.active = TRUE
+            )
             SELECT n.*
-            FROM node_path np
-            JOIN node n ON n.id = np.descendant_id
-            WHERE np.ancestor_id = $1
-              AND np.depth > 0
-              AND n.active = TRUE
+            FROM descendants d
+            JOIN node n ON n.id = d.id
+            WHERE d.depth > 0
               AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
-            ORDER BY np.depth, n.sequence
+            ORDER BY d.depth, n.sequence
         """,
             node_id,
         )
@@ -1440,10 +1456,21 @@ async def delete_node(
         if old_node:
             # Get descendant IDs for undo (needed to restore them too)
             desc_rows = await pool.fetch(
-                "SELECT descendant_id FROM node_path WHERE ancestor_id = $1 AND depth > 0",
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                )
+                SELECT id FROM descendants WHERE depth > 0
+                """,
                 node_id,
             )
-            desc_ids = [r["descendant_id"] for r in desc_rows]
+            desc_ids = [r["id"] for r in desc_rows]
             undo_before = {
                 **_node_snapshot(old_node),
                 "deleted_ids": [node_id] + desc_ids,

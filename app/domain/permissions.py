@@ -228,16 +228,24 @@ class PermissionChecker:
             # from their closest parent page that has an explicit share
             ancestor_share_row = await conn.fetchrow(
                 """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                )
                 SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete
-                FROM node_path np
-                JOIN node n ON n.id = np.ancestor_id
+                FROM ancestors a
+                JOIN node n ON n.id = a.id
                 JOIN node_share ns ON ns.node_id = n.id
-                WHERE np.descendant_id = $1
-                  AND np.depth > 0
+                WHERE a.depth > 0
                   AND n.is_page = TRUE
                   AND ns.user_id = $2
                   AND ns.active = TRUE
-                ORDER BY np.depth ASC
+                ORDER BY a.depth ASC
                 LIMIT 1
             """,
                 node_id,

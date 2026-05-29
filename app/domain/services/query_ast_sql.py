@@ -700,8 +700,8 @@ class QueryASTToSQL:
         - N or any ancestor of N references T (via node_link or property_value_relation)
         - OR T is an ancestor of N (N is inside T's hierarchy)
 
-        This uses the node_path closure table (which includes self at depth=0)
-        so the node's own direct references are also captured.
+        Uses recursive CTE on the adjacency list (parent_id) so the node's
+        own direct references are also captured (depth=0 includes self).
         """
         # Static mode: target_uuids specified directly
         if condition.target_uuids:
@@ -716,23 +716,37 @@ class QueryASTToSQL:
 
             return f"""(
                 EXISTS (
-                    SELECT 1 FROM node_path np
-                    JOIN node_link nl ON nl.source_id = np.ancestor_id
-                    WHERE np.descendant_id = n.id
-                    AND nl.target_id IN {target_subquery}
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, a.depth + 1
+                        FROM node JOIN ancestors a ON node.id = a.parent_id
+                    )
+                    SELECT 1 FROM ancestors a
+                    JOIN node_link nl ON nl.source_id = a.id
+                    WHERE nl.target_id IN {target_subquery}
                     AND nl.workspace_id = %(workspace_id)s
                 )
                 OR EXISTS (
-                    SELECT 1 FROM node_path np
-                    JOIN property_value_relation pvr ON pvr.node_id = np.ancestor_id
-                    WHERE np.descendant_id = n.id
-                    AND pvr.target_id IN {target_subquery}
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, a.depth + 1
+                        FROM node JOIN ancestors a ON node.id = a.parent_id
+                    )
+                    SELECT 1 FROM ancestors a
+                    JOIN property_value_relation pvr ON pvr.node_id = a.id
+                    WHERE pvr.target_id IN {target_subquery}
                 )
                 OR EXISTS (
-                    SELECT 1 FROM node_path np
-                    WHERE np.descendant_id = n.id
-                    AND np.ancestor_id IN {target_subquery}
-                    AND np.depth > 0
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, a.depth + 1
+                        FROM node JOIN ancestors a ON node.id = a.parent_id
+                    )
+                    SELECT 1 FROM ancestors
+                    WHERE id IN {target_subquery} AND depth > 0
                 )
             )"""
 
@@ -757,23 +771,37 @@ class QueryASTToSQL:
 
                 return f"""(
                     EXISTS (
-                        SELECT 1 FROM node_path np
-                        JOIN node_link nl ON nl.source_id = np.ancestor_id
-                        WHERE np.descendant_id = n.id
-                        AND nl.target_id = {target_subquery}
+                        WITH RECURSIVE ancestors AS (
+                            SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                            UNION ALL
+                            SELECT node.id, node.parent_id, a.depth + 1
+                            FROM node JOIN ancestors a ON node.id = a.parent_id
+                        )
+                        SELECT 1 FROM ancestors a
+                        JOIN node_link nl ON nl.source_id = a.id
+                        WHERE nl.target_id = {target_subquery}
                         AND nl.workspace_id = %(workspace_id)s
                     )
                     OR EXISTS (
-                        SELECT 1 FROM node_path np
-                        JOIN property_value_relation pvr ON pvr.node_id = np.ancestor_id
-                        WHERE np.descendant_id = n.id
-                        AND pvr.target_id = {target_subquery2}
+                        WITH RECURSIVE ancestors AS (
+                            SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                            UNION ALL
+                            SELECT node.id, node.parent_id, a.depth + 1
+                            FROM node JOIN ancestors a ON node.id = a.parent_id
+                        )
+                        SELECT 1 FROM ancestors a
+                        JOIN property_value_relation pvr ON pvr.node_id = a.id
+                        WHERE pvr.target_id = {target_subquery2}
                     )
                     OR EXISTS (
-                        SELECT 1 FROM node_path np
-                        WHERE np.descendant_id = n.id
-                        AND np.ancestor_id = {target_subquery3}
-                        AND np.depth > 0
+                        WITH RECURSIVE ancestors AS (
+                            SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                            UNION ALL
+                            SELECT node.id, node.parent_id, a.depth + 1
+                            FROM node JOIN ancestors a ON node.id = a.parent_id
+                        )
+                        SELECT 1 FROM ancestors
+                        WHERE id = {target_subquery3} AND depth > 0
                     )
                 )"""
 
@@ -795,11 +823,11 @@ class QueryASTToSQL:
 
         # Handle no-value operators
         if operator == "has_no_ancestor":
-            # Node is a root (no ancestors in node_path)
-            return "NOT EXISTS (SELECT 1 FROM node_path np WHERE np.descendant_id = n.id)"
+            # Node is a root (no parent)
+            return "n.parent_id IS NULL"
         elif operator == "has_any_ancestor":
-            # Node has at least one ancestor
-            return "EXISTS (SELECT 1 FROM node_path np WHERE np.descendant_id = n.id)"
+            # Node has at least one parent
+            return "n.parent_id IS NOT NULL"
 
         if not condition.nested_group or not condition.nested_group.blocks:
             return None
@@ -812,27 +840,39 @@ class QueryASTToSQL:
             uuid_value = first_block.value
             param_name = self._add_param(uuid_value)
 
-            # Build the node_path query
+            # Build recursive CTE query for ancestor check
             depth_condition = ""
             if condition.max_depth is not None:
                 depth_param = self._add_param(condition.max_depth)
-                depth_condition = f" AND np.depth = %({depth_param})s"
+                depth_condition = f" AND depth = %({depth_param})s"
             elif condition.min_depth is not None:
                 min_depth_param = self._add_param(condition.min_depth)
-                depth_condition = f" AND np.depth >= %({min_depth_param})s"
+                depth_condition = f" AND depth >= %({min_depth_param})s"
 
             if operator == "not_has_ancestor":
                 return f"""(NOT EXISTS (
-                    SELECT 1 FROM node_path np
-                    WHERE np.descendant_id = n.id
-                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, a.depth + 1
+                        FROM node JOIN ancestors a ON node.id = a.parent_id
+                    )
+                    SELECT 1 FROM ancestors
+                    WHERE id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    AND depth > 0
                     {depth_condition}
                 ))"""
             else:  # has_ancestor (default)
                 return f"""(EXISTS (
-                    SELECT 1 FROM node_path np
-                    WHERE np.descendant_id = n.id
-                    AND np.ancestor_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    WITH RECURSIVE ancestors AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, a.depth + 1
+                        FROM node JOIN ancestors a ON node.id = a.parent_id
+                    )
+                    SELECT 1 FROM ancestors
+                    WHERE id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    AND depth > 0
                     {depth_condition}
                 ))"""
 
@@ -1106,11 +1146,11 @@ class QueryASTToSQL:
 
         # Handle no-value operators
         if operator == "has_no_descendant":
-            # Node has no descendants (no entries in node_path where it's the ancestor)
-            return "NOT EXISTS (SELECT 1 FROM node_path np WHERE np.ancestor_id = n.id)"
+            # Node has no children
+            return "NOT EXISTS (SELECT 1 FROM node child WHERE child.parent_id = n.id)"
         elif operator == "has_any_descendant":
-            # Node has at least one descendant
-            return "EXISTS (SELECT 1 FROM node_path np WHERE np.ancestor_id = n.id)"
+            # Node has at least one child
+            return "EXISTS (SELECT 1 FROM node child WHERE child.parent_id = n.id)"
 
         if not condition.nested_group or not condition.nested_group.blocks:
             return None
@@ -1127,20 +1167,32 @@ class QueryASTToSQL:
             depth_condition = ""
             if condition.max_depth is not None:
                 depth_param = self._add_param(condition.max_depth)
-                depth_condition = f" AND np.depth = %({depth_param})s"
+                depth_condition = f" AND depth = %({depth_param})s"
 
             if operator == "not_has_descendant":
                 return f"""NOT EXISTS (
-                    SELECT 1 FROM node_path np
-                    WHERE np.ancestor_id = n.id
-                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    WITH RECURSIVE descendants AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, d.depth + 1
+                        FROM node JOIN descendants d ON node.parent_id = d.id
+                    )
+                    SELECT 1 FROM descendants
+                    WHERE id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    AND depth > 0
                     {depth_condition}
                 )"""
             else:  # has_descendant (default)
                 return f"""EXISTS (
-                    SELECT 1 FROM node_path np
-                    WHERE np.ancestor_id = n.id
-                    AND np.descendant_id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    WITH RECURSIVE descendants AS (
+                        SELECT id, parent_id, 0 AS depth FROM node WHERE id = n.id
+                        UNION ALL
+                        SELECT node.id, node.parent_id, d.depth + 1
+                        FROM node JOIN descendants d ON node.parent_id = d.id
+                    )
+                    SELECT 1 FROM descendants
+                    WHERE id = (SELECT id FROM node WHERE uuid = %({param_name})s AND workspace_id = %(workspace_id)s)
+                    AND depth > 0
                     {depth_condition}
                 )"""
 

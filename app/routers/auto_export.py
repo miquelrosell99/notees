@@ -229,14 +229,23 @@ async def _fetch_node_metadata(conn, workspace_id: int, node_uuid: str) -> dict:
         "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
     }
 
-    # 2. Ancestors (via closure table, ordered by depth ascending)
+    # 2. Ancestors (via recursive CTE, ordered by depth ascending)
     ancestor_rows = await conn.fetch(
         """
-        SELECT np.ancestor_id, np.depth, n.uuid::text as uuid, n.name
-        FROM node_path np
-        JOIN node n ON n.id = np.ancestor_id
-        WHERE np.descendant_id = $1 AND np.depth > 0
-        ORDER BY np.depth DESC
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id, 0 AS depth
+            FROM node
+            WHERE id = $1
+            UNION ALL
+            SELECT n.id, n.parent_id, a.depth + 1
+            FROM node n
+            INNER JOIN ancestors a ON n.id = a.parent_id
+        )
+        SELECT a.id as ancestor_id, a.depth, n.uuid::text as uuid, n.name
+        FROM ancestors a
+        JOIN node n ON n.id = a.id
+        WHERE a.depth > 0
+        ORDER BY a.depth DESC
         """,
         node_row["id"],
     )

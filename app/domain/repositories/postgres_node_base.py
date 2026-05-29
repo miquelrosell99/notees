@@ -123,18 +123,23 @@ class _PostgresNodeBase(BasePostgresRepository):
         )
 
     async def _compute_page_id(self, parent_id: int) -> int | None:
-        """Walk up parent chain to find containing page using closure table."""
+        """Walk up parent chain to find containing page using recursive CTE."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT n.id
-                FROM node_path np
-                JOIN node n ON n.id = np.ancestor_id
-                WHERE np.descendant_id = $1
-                  AND n.is_page = TRUE
-                  AND n.workspace_id = $2
-                  AND n.active = TRUE
-                ORDER BY np.depth ASC
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, is_page, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, n.is_page, a.depth + 1
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE
+                )
+                SELECT id FROM ancestors
+                WHERE is_page = TRUE AND depth > 0
+                ORDER BY depth ASC
                 LIMIT 1
             """,
                 parent_id,

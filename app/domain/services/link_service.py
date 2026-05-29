@@ -705,8 +705,8 @@ class LinkParsingService:
     ) -> list[tuple[int | None, str, bool]]:
         """Build breadcrumb path from source to page ancestor.
 
-        Uses the node_path closure table via get_breadcrumbs() for efficient
-        ancestor lookup without recursive queries.
+        Uses the node repository's get_breadcrumbs method (recursive CTE) for
+        efficient ancestor lookup.
 
         Format: [(node_id, name, is_property_segment), ...]
         - For text links: T → ... → page
@@ -716,7 +716,7 @@ class LinkParsingService:
         """
         breadcrumbs = []
 
-        # Use the node repository's get_breadcrumbs method (uses closure table)
+        # Use the node repository's get_breadcrumbs method (recursive CTE)
         try:
             ancestor_nodes = await self._node_repo.get_breadcrumbs(source_node_id)
         except AttributeError:
@@ -751,7 +751,7 @@ class LinkParsingService:
     async def get_path_references(self, node_id: int) -> list[int]:
         """Get all nodes referenced in the path from this node to root.
 
-        Uses the node_path closure table for efficient ancestor lookup.
+        Uses recursive CTE for efficient ancestor lookup.
 
         This includes:
         - All text links from ancestors
@@ -772,7 +772,7 @@ class LinkParsingService:
     async def update_classes_path(self, node_id: int) -> list[int]:
         """Compute and store the Classes Path for a node.
 
-        Uses the node_path closure table for efficient ancestor lookup.
+        Uses recursive CTE for efficient ancestor lookup.
 
         Classes Path = ordered list of class node IDs inherited from ancestors'
         class_ids columns.
@@ -807,7 +807,7 @@ class LinkParsingService:
     async def update_classes_path_for_descendants(self, node_id: int) -> None:
         """Update classes_path for a node and all its descendants.
 
-        Uses the node_path closure table to efficiently get all descendants.
+        Uses recursive CTE to efficiently get all descendants.
         Called when a node's classes change or when a node is reparented.
         """
         # Get all descendant IDs using closure table (includes self)

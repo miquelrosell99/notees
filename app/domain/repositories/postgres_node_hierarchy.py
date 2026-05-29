@@ -105,33 +105,29 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         exit_node_id: int,
         enter_node_id: int | None = None,
     ) -> list[object]:
-        """Get the breadcrumb path for a node using the closure table."""
+        """Get the breadcrumb path for a node using recursive CTE."""
         async with acquire_connection(self._pool) as conn:
-            if enter_node_id is not None:
-                rows = await conn.fetch(
-                    """
-                    SELECT n.*
-                    FROM get_breadcrumbs($1, $2) AS bc
-                    JOIN node n ON n.id = bc.id
-                    WHERE n.workspace_id = $3
-                    ORDER BY bc.depth DESC
-                    """,
-                    exit_node_id,
-                    enter_node_id,
-                    self._workspace_id,
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT n.*
-                    FROM get_breadcrumbs($1) AS bc
-                    JOIN node n ON n.id = bc.id
-                    WHERE n.workspace_id = $2
-                    ORDER BY bc.depth DESC
-                    """,
-                    exit_node_id,
-                    self._workspace_id,
-                )
+                SELECT n.* FROM ancestors a
+                JOIN node n ON n.id = a.id
+                WHERE ($3::int IS NULL OR a.id != $3::int)
+                ORDER BY a.depth DESC
+                """,
+                exit_node_id,
+                self._workspace_id,
+                enter_node_id,
+            )
             return [self._row_to_node(row) for row in rows]
 
     async def get_ancestors(
@@ -139,93 +135,120 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         node_id: int,
         include_self: bool = False,
     ) -> list[int]:
-        """Get all ancestor IDs of a node using the closure table."""
+        """Get all ancestor IDs of a node using recursive CTE."""
         async with acquire_connection(self._pool) as conn:
-            if include_self:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.ancestor_id
-                    FROM node_path np
-                    JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND n.workspace_id = $2
-                      AND n.active = TRUE AND n.is_deleted = FALSE
-                    ORDER BY np.depth DESC
-                """,
-                    node_id,
-                    self._workspace_id,
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.ancestor_id
-                    FROM node_path np
-                    JOIN node n ON n.id = np.ancestor_id
-                    WHERE np.descendant_id = $1 AND np.depth > 0 AND n.workspace_id = $2
-                      AND n.active = TRUE AND n.is_deleted = FALSE
-                    ORDER BY np.depth DESC
+                SELECT id, depth FROM ancestors
+                WHERE ($3::boolean OR depth > 0)
+                ORDER BY depth DESC
                 """,
-                    node_id,
-                    self._workspace_id,
-                )
-            return [row["ancestor_id"] for row in rows]
+                node_id,
+                self._workspace_id,
+                include_self,
+            )
+            return [row["id"] for row in rows]
 
     async def get_descendants(
         self,
         node_id: int,
         include_self: bool = False,
     ) -> list[int]:
-        """Get all descendant IDs of a node using the closure table."""
+        """Get all descendant IDs of a node using recursive CTE."""
         async with acquire_connection(self._pool) as conn:
-            if include_self:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.descendant_id
-                    FROM node_path np
-                    JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND n.workspace_id = $2
-                      AND n.active = TRUE AND n.is_deleted = FALSE
-                """,
-                    node_id,
-                    self._workspace_id,
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.descendant_id
-                    FROM node_path np
-                    JOIN node n ON n.id = np.descendant_id
-                    WHERE np.ancestor_id = $1 AND np.depth > 0 AND n.workspace_id = $2
-                      AND n.active = TRUE AND n.is_deleted = FALSE
+                SELECT id FROM descendants
+                WHERE ($3::boolean OR depth > 0)
                 """,
-                    node_id,
-                    self._workspace_id,
+                node_id,
+                self._workspace_id,
+                include_self,
+            )
+            return [row["id"] for row in rows]
+
+    async def get_descendants_batch(
+        self,
+        node_ids: list[int],
+        include_self: bool = False,
+    ) -> dict[int, list[int]]:
+        """Get all descendant IDs for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of root_node_id -> list of descendant IDs.
+        """
+        if not node_ids:
+            return {}
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, id AS root_id, 0 AS depth
+                    FROM node
+                    WHERE id = ANY($1::int[]) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, d.root_id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
                 )
-            return [row["descendant_id"] for row in rows]
+                SELECT root_id, id FROM descendants
+                WHERE ($3::boolean OR depth > 0)
+                ORDER BY root_id, depth
+                """,
+                node_ids,
+                self._workspace_id,
+                include_self,
+            )
+            result: dict[int, list[int]] = {}
+            for row in rows:
+                root_id = row["root_id"]
+                result.setdefault(root_id, []).append(row["id"])
+            return result
 
     async def get_all_descendants(
         self,
         node_id: int,
         include_self: bool = False,
     ) -> list[int]:
-        """Get all descendant IDs of a node using the closure table,
+        """Get all descendant IDs of a node using recursive CTE,
         regardless of soft-delete status. Used for restore operations."""
         async with acquire_connection(self._pool) as conn:
-            if include_self:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.descendant_id
-                    FROM node_path np
-                    WHERE np.ancestor_id = $1
-                """,
-                    node_id,
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
                 )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT np.descendant_id
-                    FROM node_path np
-                    WHERE np.ancestor_id = $1 AND np.depth > 0
+                SELECT id FROM descendants
+                WHERE ($2::boolean OR depth > 0)
                 """,
-                    node_id,
-                )
-            return [row["descendant_id"] for row in rows]
+                node_id,
+                include_self,
+            )
+            return [row["id"] for row in rows]

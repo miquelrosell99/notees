@@ -206,13 +206,6 @@ async def delete_workspace(user_id: str, workspace_uuid: str) -> bool:
         await conn.execute("ALTER TABLE node DISABLE TRIGGER ALL", timeout=_BIG)
         try:
             await conn.execute(
-                """DELETE FROM node_path
-                   WHERE ancestor_id IN (SELECT id FROM node WHERE workspace_id = $1)
-                      OR descendant_id IN (SELECT id FROM node WHERE workspace_id = $1)""",
-                workspace_id,
-                timeout=_BIG,
-            )
-            await conn.execute(
                 "DELETE FROM node_activity WHERE node_id IN (SELECT id FROM node WHERE workspace_id = $1)",
                 workspace_id,
                 timeout=_BIG,
