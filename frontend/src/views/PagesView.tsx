@@ -56,7 +56,7 @@ export function PagesView() {
   }, [openNode]);
 
   return (
-    <article className="node-view node-view--page pages-view">
+    <article className={`node-view node-view--page pages-view pages-view--${viewMode}`}>
       {/* Page Header */}
       <div className="page-header-section">
         <div className="page-header-section__header">
@@ -86,13 +86,15 @@ export function PagesView() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="pages-view__search">
-        <SearchBox
-          placeholder="Search pages..."
-          onSelect={handleSearchSelect}
-        />
-      </div>
+      {/* Search — hidden in immersive view modes (graph/timeline) */}
+      {viewMode !== 'graph' && viewMode !== 'timeline' && (
+        <div className="pages-view__search">
+          <SearchBox
+            placeholder="Search pages..."
+            onSelect={handleSearchSelect}
+          />
+        </div>
+      )}
 
       {/* Content */}
       <div className="pages-view__content">
