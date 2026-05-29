@@ -379,8 +379,8 @@ export function usePages(options?: { includeChildren?: boolean; rootOnly?: boole
   const { includeChildren = false, rootOnly = false } = options ?? {};
   return useQuery({
     queryKey: nodeKeys.pages({ includeChildren, rootOnly }),
-    queryFn: () => nodesApi.listNodes({ 
-      pages_only: true, 
+    queryFn: () => nodesApi.listNodes({
+      pages_only: true,
       include_children: includeChildren,
       root_only: rootOnly,
     }),

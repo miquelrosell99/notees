@@ -72,7 +72,9 @@ export function PagesView() {
   }, [pages]);
 
   // List view needs the tree structure; other views need a flat list of all pages.
-  const displayNodes = viewMode === 'list' ? (pages || []) : flatAllPages;
+  const displayNodes = useMemo(() => {
+    return viewMode === 'list' ? (pages || []) : flatAllPages;
+  }, [viewMode, pages, flatAllPages]);
 
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.id);

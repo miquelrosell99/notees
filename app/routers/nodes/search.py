@@ -729,7 +729,7 @@ async def list_nodes(
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, description="Items per page"),
+    page_size: int | None = Query(None, ge=1, description="Items per page (omit to return all)"),
     user: User = Depends(get_current_user),
 ):
     """List nodes with optional filters and pagination.
@@ -742,9 +742,10 @@ async def list_nodes(
         include_children: Include nested children for each node
         root_only: Only return root nodes (no parent_id)
         page: Page number (1-indexed)
-        page_size: Number of items per page (1-200)
+        page_size: Number of items per page, or omit to disable pagination
 
     Returns paginated nodes with class_ids populated for reliable filtering.
+    When page_size is omitted, all matching nodes are returned.
     """
     service = await _get_node_service(user)
 
@@ -791,16 +792,25 @@ async def list_nodes(
     if include_children and result:
         result = await _build_children_tree(service, result, class_ids_map)
 
-    # Apply pagination
+    # Apply pagination only when page_size is requested
     total = len(result)
-    offset = (page - 1) * page_size
-    paginated_items = result[offset : offset + page_size]
+    if page_size is not None:
+        offset = (page - 1) * page_size
+        paginated_items = result[offset : offset + page_size]
+        has_next = (page * page_size) < total
+        has_prev = page > 1
+        effective_page_size = page_size
+    else:
+        paginated_items = result
+        has_next = False
+        has_prev = False
+        effective_page_size = total
 
     return PaginatedResponse[NodeResponse](
         items=paginated_items,
         total=total,
         page=page,
-        page_size=page_size,
-        has_next=(page * page_size) < total,
-        has_prev=page > 1,
+        page_size=effective_page_size,
+        has_next=has_next,
+        has_prev=has_prev,
     )

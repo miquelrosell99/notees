@@ -46,6 +46,7 @@ export async function listNodes(params?: {
   class_filters?: string;
   include_children?: boolean;
   root_only?: boolean;
+  page?: number;
   page_size?: number;
 }): Promise<Node[]> {
   // Use trailing slash to match FastAPI route
