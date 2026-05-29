@@ -135,7 +135,6 @@ export const CardChildrenEditor = memo(function CardChildrenEditor({
         />
         <DragDropPlugin editorId={editorId} readOnly={readOnly} />
         <TriggerPlugin
-          onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
           onSlashCommand={onSlashCommand}
         />

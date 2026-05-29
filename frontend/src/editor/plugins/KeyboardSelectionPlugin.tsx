@@ -209,9 +209,15 @@ export function KeyboardSelectionPlugin({
       // If the Lexical handler above already handled this Escape, do nothing.
       if (event.defaultPrevented) return;
 
-      // Don't interfere with open dialogs/menus
+      // Don't interfere with open dialogs/menus or editor companion popups
       const target = event.target as HTMLElement;
-      if (target.closest('[role="dialog"]') || target.closest('[role="menu"]')) return;
+      if (
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('[data-editor-companion]')
+      ) {
+        return;
+      }
 
       const rootEl = editor.getRootElement();
       if (!rootEl) return;

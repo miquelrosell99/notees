@@ -22,7 +22,7 @@ export { CollapsePlugin } from './CollapsePlugin';
 export { FormattingPlugin } from './FormattingPlugin';
 export { InlineCodePlugin } from './InlineCodePlugin';
 export { TriggerPlugin } from './TriggerPlugin';
-export type { TriggerPluginProps, TriggerType } from './TriggerPlugin';
+export type { TriggerPluginProps } from './TriggerPlugin';
 
 export { FloatingToolbarPlugin } from './FloatingToolbarPlugin';
 

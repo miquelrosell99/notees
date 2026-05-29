@@ -122,7 +122,7 @@ export function FindReplaceWidget({
   };
 
   return (
-    <div className="find-replace-widget" onKeyDown={onKeyDown}>
+    <div className="find-replace-widget" data-editor-companion onKeyDown={onKeyDown}>
       <div className="find-replace-row">
         <button
           className="find-replace-btn find-replace-expand"
