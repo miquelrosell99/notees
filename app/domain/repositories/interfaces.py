@@ -112,17 +112,27 @@ class NodeHierarchyRepository(ABC):
 
     @abstractmethod
     async def get_breadcrumbs(self, exit_node_id: int, enter_node_id: int | None = None) -> list[Node]:
-        """Get the breadcrumb path for a node using the closure table."""
+        """Get the breadcrumb path for a node using recursive CTE."""
         pass
 
     @abstractmethod
     async def get_ancestors(self, node_id: int, include_self: bool = False) -> list[int]:
-        """Get all ancestor IDs of a node using the closure table."""
+        """Get all ancestor IDs of a node using recursive CTE."""
         pass
 
     @abstractmethod
     async def get_descendants(self, node_id: int, include_self: bool = False) -> list[int]:
-        """Get all descendant IDs of a node using the closure table."""
+        """Get all descendant IDs of a node using recursive CTE."""
+        pass
+
+    @abstractmethod
+    async def get_descendants_batch(
+        self, node_ids: list[int], include_self: bool = False
+    ) -> dict[int, list[int]]:
+        """Get all descendant IDs for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of root_node_id -> list of descendant IDs.
+        """
         pass
 
     @abstractmethod

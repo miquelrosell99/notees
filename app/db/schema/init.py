@@ -38,34 +38,25 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Execute schema (creates tables if they don't exist)
     await conn.execute(SCHEMA_SQL)
 
-    # Rebuild the node_path closure table only if it is empty or inconsistent.
-    # Triggers keep it up-to-date during normal operation, so a full rebuild on
-    # every startup is unnecessary and extremely slow on large datasets.
-    node_path_count = await conn.fetchval("SELECT COUNT(*) FROM node_path")
-    needs_rebuild = node_path_count == 0
+    # Clean up legacy node_path closure table artifacts if they still exist
+    # from a previous schema version. The closure table has been replaced by
+    # recursive CTEs on the adjacency list (parent_id).
+    node_path_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'node_path')"
+    )
+    if node_path_exists:
+        from app.logging_config import get_logger
 
-    if not needs_rebuild:
-        # Lightweight consistency check: count nodes with parent_id vs depth=1 paths.
-        # If they differ, the closure table is out of sync (e.g. restored from a
-        # stale backup or bypassed triggers during bulk operations).
-        nodes_with_parent = await conn.fetchval(
-            "SELECT COUNT(*) FROM node WHERE parent_id IS NOT NULL AND is_deleted = FALSE AND active = TRUE"
-        )
-        depth_one_paths = await conn.fetchval(
-            "SELECT COUNT(*) FROM node_path WHERE depth = 1"
-        )
-        if nodes_with_parent != depth_one_paths:
-            from app.logging_config import get_logger
-
-            logger = get_logger(__name__)
-            logger.warning(
-                f"node_path inconsistency detected: {nodes_with_parent} nodes with parent_id "
-                f"but {depth_one_paths} depth=1 paths. Rebuilding closure table."
-            )
-            needs_rebuild = True
-
-    if needs_rebuild:
-        await conn.execute("SELECT rebuild_node_path()")
+        logger = get_logger(__name__)
+        logger.info("Dropping legacy node_path closure table and triggers")
+        await conn.execute("DROP TRIGGER IF EXISTS node_path_after_insert ON node")
+        await conn.execute("DROP TRIGGER IF EXISTS node_path_after_update ON node")
+        await conn.execute("DROP TRIGGER IF EXISTS node_path_before_delete ON node")
+        await conn.execute("DROP FUNCTION IF EXISTS node_path_insert()")
+        await conn.execute("DROP FUNCTION IF EXISTS node_path_update()")
+        await conn.execute("DROP FUNCTION IF EXISTS node_path_delete()")
+        await conn.execute("DROP FUNCTION IF EXISTS rebuild_node_path()")
+        await conn.execute("DROP TABLE IF EXISTS node_path CASCADE")
 
     # Repair any blocks with missing page_id using the closure table
     await _repair_page_ids(conn)
@@ -162,9 +153,10 @@ async def _repair_node_view_json_columns(conn: asyncpg.Connection) -> None:
 async def _repair_page_ids(conn: asyncpg.Connection) -> None:
     """Fix blocks that have NULL page_id but have a page ancestor.
 
-    Uses the closure table (node_path) to find the nearest page ancestor
-    for each block and sets page_id accordingly. Only updates rows that
-    actually need fixing, so this is fast when the data is already correct.
+    Uses a recursive CTE on the adjacency list (parent_id) to find the
+    nearest page ancestor for each block and sets page_id accordingly.
+    Only updates rows that actually need fixing, so this is fast when
+    the data is already correct.
 
     Also clears page_id on pages that should never have it set.
     """
@@ -182,20 +174,29 @@ async def _repair_page_ids(conn: asyncpg.Connection) -> None:
         logger.info(f"Cleared erroneous page_id from {clear_count} pages")
 
     result = await conn.execute("""
+        WITH RECURSIVE page_ancestors AS (
+            -- Start from all non-page nodes with NULL page_id
+            SELECT id, parent_id, is_page, id AS start_id, 0 AS depth
+            FROM node
+            WHERE is_page = FALSE
+              AND active = TRUE
+              AND page_id IS NULL
+            UNION ALL
+            -- Walk up the parent chain
+            SELECT n.id, n.parent_id, n.is_page, pa.start_id, pa.depth + 1
+            FROM node n
+            INNER JOIN page_ancestors pa ON n.id = pa.parent_id
+            WHERE pa.depth < 100  -- safety limit to prevent infinite loops
+        )
         UPDATE node n
-        SET page_id = nearest_page.id
+        SET page_id = pa.id
         FROM (
-            SELECT DISTINCT ON (np.descendant_id)
-                np.descendant_id,
-                ancestor.id
-            FROM node_path np
-            JOIN node ancestor ON ancestor.id = np.ancestor_id
-            WHERE ancestor.is_page = TRUE
-              AND ancestor.active = TRUE
-              AND np.depth > 0
-            ORDER BY np.descendant_id, np.depth ASC
-        ) nearest_page
-        WHERE n.id = nearest_page.descendant_id
+            SELECT DISTINCT ON (start_id) start_id, id
+            FROM page_ancestors
+            WHERE is_page = TRUE
+            ORDER BY start_id, depth ASC
+        ) pa
+        WHERE n.id = pa.start_id
           AND n.is_page = FALSE
           AND n.active = TRUE
           AND n.page_id IS NULL

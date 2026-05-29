@@ -1377,11 +1377,20 @@ async def _fetch_page_metadata(
     # Ancestors
     ancestor_rows = await conn.fetch(
         """
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id, 0 AS depth
+            FROM node
+            WHERE id = $1
+            UNION ALL
+            SELECT n.id, n.parent_id, a.depth + 1
+            FROM node n
+            INNER JOIN ancestors a ON n.id = a.parent_id
+        )
         SELECT n.uuid::text as uuid, n.name
-        FROM node_path np
-        JOIN node n ON n.id = np.ancestor_id
-        WHERE np.descendant_id = $1 AND np.depth > 0
-        ORDER BY np.depth DESC
+        FROM ancestors a
+        JOIN node n ON n.id = a.id
+        WHERE a.depth > 0
+        ORDER BY a.depth DESC
         """,
         node_row["id"],
     )
