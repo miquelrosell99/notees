@@ -52,3 +52,38 @@
   justify-content: center;
   height: 100%;
 }
+
+/* Immersive view modes (graph / timeline): remove side padding and let the view fill the canvas */
+.pages-view--graph,
+.pages-view--timeline {
+  max-width: none;
+  padding: 0;
+  height: 100%;
+}
+
+.pages-view--graph .page-header-section,
+.pages-view--timeline .page-header-section {
+  padding: var(--spacing-2) var(--spacing-4);
+  margin-bottom: 0;
+}
+
+.pages-view--graph .pages-view__content,
+.pages-view--timeline .pages-view__content {
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .pages-view--graph .page-header-section,
+  .pages-view--timeline .page-header-section {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .pages-view--graph .page-header-section,
+  .pages-view--timeline .page-header-section {
+    padding-left: var(--spacing-2);
+    padding-right: var(--spacing-2);
+  }
+}
