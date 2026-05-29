@@ -67,6 +67,8 @@ export interface GraphViewProps {
   showViewModes?: boolean;
   /** Node click handler override */
   onNodeClick?: (nodeId: number) => void;
+  /** When true, activates local-graph behaviour (hide-self default, collapsed sidebar, no filter persistence) */
+  localGraphMode?: boolean;
 }
 
 interface SelectedNodeItem {
@@ -117,29 +119,34 @@ export function GraphView({
   viewId = 'default', 
   className = '',
   nodes: apiNodes,
-
+  currentNodeId,
+  localGraphMode = false,
   showSettings = true,
   showSearch = true,
   showViewModes = true,
   onNodeClick: customNodeClick,
 }: GraphViewProps) {
   const rendererRef = useRef<GraphRendererRef>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(localGraphMode);
   
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
 
-  // Graph data mode: standard (explicit links) vs semantic (co-occurrence inference)
+  // Graph data mode: standard (explicit links) vs co-occurrence inference
   const [graphDataMode, setGraphDataMode] = useState<GraphDataMode>(() => {
     try {
-      return (localStorage.getItem(getStorageKey(viewId, 'data_mode')) as GraphDataMode) || 'standard';
+      const raw = localStorage.getItem(getStorageKey(viewId, 'data_mode'));
+      // Backward compat: old 'semantic' value maps to 'cooccurrence'
+      if (raw === 'semantic' || raw === 'cooccurrence') return 'cooccurrence';
+      return (raw as GraphDataMode) || 'standard';
     } catch {
       return 'standard';
     }
   });
 
   const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(nodeIds, {
-    semantic: graphDataMode === 'semantic',
+    cooccurrence: graphDataMode === 'cooccurrence',
+    contextNodeId: localGraphMode ? currentNodeId ?? null : null,
   });
   
   const { data: classes } = useClasses();
@@ -188,7 +195,8 @@ export function GraphView({
     showMonthPages: true,
     showYearPages: true,
     showSystemPages: true,
-    showSemanticLinks: true,
+    showCooccurrenceLinks: true,
+    hideSelfNode: localGraphMode || false,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   
@@ -278,13 +286,22 @@ export function GraphView({
       const saved = localStorage.getItem(getStorageKey(viewId, 'visibility_filters'));
       if (saved) {
         const parsed = JSON.parse(saved);
-        setVisibilityFilters(prev => ({ ...prev, ...parsed }));
+        setVisibilityFilters(prev => ({
+          ...prev,
+          ...parsed,
+          // Backward compat: migrate old showSemanticLinks to showCooccurrenceLinks
+          showCooccurrenceLinks: parsed.showSemanticLinks ?? parsed.showCooccurrenceLinks ?? prev.showCooccurrenceLinks,
+          // In local graph mode, always reset hideSelfNode to true (no memory)
+          hideSelfNode: localGraphMode ? true : (parsed.hideSelfNode ?? prev.hideSelfNode),
+        }));
+      } else if (localGraphMode) {
+        setVisibilityFilters(prev => ({ ...prev, hideSelfNode: true }));
       }
     } catch (e) {
       console.error('Failed to load visibility filters:', e);
     }
     visibilityFiltersLoadedRef.current = true;
-  }, [viewId]);
+  }, [viewId, localGraphMode]);
   
   // Save visibility filters to localStorage (debounced, per-view)
   useEffect(() => {
@@ -292,14 +309,21 @@ export function GraphView({
     
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(getStorageKey(viewId, 'visibility_filters'), JSON.stringify(visibilityFilters));
+        // In local graph mode, do not persist hideSelfNode
+        if (localGraphMode) {
+          const filtersToSave = { ...visibilityFilters };
+          delete filtersToSave.hideSelfNode;
+          localStorage.setItem(getStorageKey(viewId, 'visibility_filters'), JSON.stringify(filtersToSave));
+        } else {
+          localStorage.setItem(getStorageKey(viewId, 'visibility_filters'), JSON.stringify(visibilityFilters));
+        }
       } catch (e) {
         console.error('Failed to save visibility filters:', e);
       }
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [visibilityFilters, viewId]);
+  }, [visibilityFilters, viewId, localGraphMode]);
   
   // Persist graphDataMode to localStorage whenever it changes
   useEffect(() => {
@@ -405,6 +429,10 @@ export function GraphView({
       if (!visibilityFilters.showMonthPages && n.isMonthly)  return false;
       if (!visibilityFilters.showYearPages  && n.isYearly)   return false;
       if (!visibilityFilters.showSystemPages && n.isSystemPage) return false;
+      // Local graph: hide the ego / center node when requested
+      if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null && n.id === currentNodeId) {
+        return false;
+      }
       return true;
     });
 
@@ -439,7 +467,11 @@ export function GraphView({
             (link.type === 'parent' || link.type === 'extends')) return false;
         if (!visibilityFilters.showReferenceLinks &&
             (link.type === 'reference' || link.type === 'property-reference')) return false;
-        if (!visibilityFilters.showSemanticLinks && link.type === 'semantic') return false;
+        if (!visibilityFilters.showCooccurrenceLinks && link.type === 'cooccurrence') return false;
+        // Local graph: hide edges touching the ego / center node when requested
+        if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null) {
+          if (link.source === currentNodeId || link.target === currentNodeId) return false;
+        }
         return true;
       })
       .map(link => ({ source: link.source, target: link.target, type: link.type }));
@@ -616,6 +648,7 @@ export function GraphView({
           onBaseNodeRadiusChange={setBaseNodeRadius}
           viewMode={viewMode}
           onCollapse={() => setSidebarCollapsed(true)}
+          localGraphMode={localGraphMode}
         />
       )}
       

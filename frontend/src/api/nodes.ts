@@ -477,7 +477,8 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'class' | 'extends' | 'property-reference' | 'semantic';
+  type: 'parent' | 'reference' | 'class' | 'extends' | 'property-reference' | 'cooccurrence';
+  weight?: number;
 }
 
 /**
@@ -516,14 +517,19 @@ export async function getGraphNodes(): Promise<GraphNode[]> {
 export async function getLinksForNodes(
   nodeIds: number[],
   scope: 'between' | 'touching' = 'between',
-  semantic = false
+  cooccurrence = false,
+  contextNodeId?: number | null,
 ): Promise<GraphLink[]> {
   if (nodeIds.length === 0) return [];
-  const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, {
+  const body: Record<string, unknown> = {
     node_ids: nodeIds,
     scope,
-    semantic,
-  });
+    cooccurrence,
+  };
+  if (contextNodeId != null) {
+    body.context_node_id = contextNodeId;
+  }
+  const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, body);
   return response.data.links;
 }
 

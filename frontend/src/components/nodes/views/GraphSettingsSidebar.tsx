@@ -27,6 +27,7 @@ export interface GraphSettingsSidebarProps {
   onBaseNodeRadiusChange: (radius: number) => void;
   viewMode: 'normal' | 'circle' | 'tree';
   onCollapse: () => void;
+  localGraphMode?: boolean;
 }
 
 export function GraphSettingsSidebar({
@@ -45,6 +46,7 @@ export function GraphSettingsSidebar({
   onBaseNodeRadiusChange,
   viewMode,
   onCollapse,
+  localGraphMode = false,
 }: GraphSettingsSidebarProps) {
   return (
     <div className="graph-sidebar">
@@ -59,6 +61,23 @@ export function GraphSettingsSidebar({
           <span className="mdi mdi-chevron-left" />
         </button>
       </div>
+
+      {localGraphMode && (
+        <GraphSidebarSection title="Local Graph" icon="mdi mdi-target" defaultOpen={true}>
+          <div className="visibility-option">
+            <BooleanToggle
+              size="sm"
+              label="Hide self"
+              labelPosition="left"
+              checked={visibilityFilters.hideSelfNode ?? true}
+              onChange={(e) => onVisibilityFiltersChange(prev => ({
+                ...prev,
+                hideSelfNode: e.target.checked
+              }))}
+            />
+          </div>
+        </GraphSidebarSection>
+      )}
 
       <GraphSidebarSection title="Groups" icon="mdi mdi-tag-multiple" defaultOpen={false}>
         {colorGroups.length === 0 && (
@@ -242,14 +261,14 @@ export function GraphSettingsSidebar({
         <div className="visibility-option">
           <BooleanToggle
             size="sm"
-            label="Semantic analysis"
+            label="Co-occurrence analysis"
             labelPosition="left"
-            checked={graphDataMode === 'semantic'}
+            checked={graphDataMode === 'cooccurrence'}
             onChange={(e) => {
-              const mode = e.target.checked ? 'semantic' : 'standard';
+              const mode = e.target.checked ? 'cooccurrence' : 'standard';
               onGraphDataModeChange(mode);
               if (!e.target.checked) {
-                onVisibilityFiltersChange(prev => ({ ...prev, showSemanticLinks: false }));
+                onVisibilityFiltersChange(prev => ({ ...prev, showCooccurrenceLinks: false }));
               }
             }}
           />
@@ -293,13 +312,13 @@ export function GraphSettingsSidebar({
         <div className="visibility-option">
           <BooleanToggle
             size="sm"
-            label="Semantic links"
+            label="Co-occurrence links"
             labelPosition="left"
-            checked={visibilityFilters.showSemanticLinks}
+            checked={visibilityFilters.showCooccurrenceLinks}
             disabled={graphDataMode === 'standard'}
             onChange={(e) => onVisibilityFiltersChange(prev => ({
               ...prev,
-              showSemanticLinks: e.target.checked
+              showCooccurrenceLinks: e.target.checked
             }))}
           />
         </div>

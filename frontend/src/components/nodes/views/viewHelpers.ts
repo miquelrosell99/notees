@@ -30,7 +30,7 @@ export const LINE_DASH_DOTTED: number[] = [2, 3];
 
 // Link type priority: higher number wins when multiple links connect same pair
 export const LINK_TYPE_PRIORITY: Record<string, number> = {
-  'semantic': 0,
+  'cooccurrence': 0,
   'reference': 1,
   'property-reference': 2,
   'extends': 3,
