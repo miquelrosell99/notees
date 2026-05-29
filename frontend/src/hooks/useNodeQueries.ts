@@ -3,6 +3,7 @@
  * 
  * Read-only React Query hooks for fetching node data.
  */
+import { useEffect } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import * as nodesApi from '@/api/nodes';
@@ -101,23 +102,26 @@ export function useNode(
   });
   
   // If we get a 404 for the currently viewed node, navigate to home
-  // Note: We need to use dynamic import here to avoid circular dependency
-  if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
-    import('@/stores').then(({ useNavigationStore }) => {
-      const currentNodeId = useNavigationStore.getState().currentNodeId;
-      if (currentNodeId === id) {
-        // Node was deleted, navigate away
-        useNavigationStore.setState({ 
-          currentNodeId: null,
-          mainViewType: 'node'
-        });
-        // Navigate to workspace home (extract workspace UUID from current path)
-        const wsMatch = window.location.pathname.match(/^\/([0-9a-f-]{36})/);
-        window.history.replaceState(null, '', wsMatch ? `/${wsMatch[1]}` : '/');
-      }
-    });
-  }
-  
+  // Wrapped in useEffect to avoid scheduling state updates during render,
+  // which can trigger "Maximum update depth exceeded" loops.
+  useEffect(() => {
+    if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
+      import('@/stores').then(({ useNavigationStore }) => {
+        const currentNodeId = useNavigationStore.getState().currentNodeId;
+        if (currentNodeId === id) {
+          // Node was deleted, navigate away
+          useNavigationStore.setState({
+            currentNodeId: null,
+            mainViewType: 'node'
+          });
+          // Navigate to workspace home (extract workspace UUID from current path)
+          const wsMatch = window.location.pathname.match(/^\/([0-9a-f-]{36})/);
+          window.history.replaceState(null, '', wsMatch ? `/${wsMatch[1]}` : '/');
+        }
+      });
+    }
+  }, [result.error, id]);
+
   return result;
 }
 
