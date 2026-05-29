@@ -38,11 +38,33 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Execute schema (creates tables if they don't exist)
     await conn.execute(SCHEMA_SQL)
 
-    # Rebuild the node_path closure table only if it is empty.
+    # Rebuild the node_path closure table only if it is empty or inconsistent.
     # Triggers keep it up-to-date during normal operation, so a full rebuild on
     # every startup is unnecessary and extremely slow on large datasets.
     node_path_count = await conn.fetchval("SELECT COUNT(*) FROM node_path")
-    if node_path_count == 0:
+    needs_rebuild = node_path_count == 0
+
+    if not needs_rebuild:
+        # Lightweight consistency check: count nodes with parent_id vs depth=1 paths.
+        # If they differ, the closure table is out of sync (e.g. restored from a
+        # stale backup or bypassed triggers during bulk operations).
+        nodes_with_parent = await conn.fetchval(
+            "SELECT COUNT(*) FROM node WHERE parent_id IS NOT NULL AND is_deleted = FALSE AND active = TRUE"
+        )
+        depth_one_paths = await conn.fetchval(
+            "SELECT COUNT(*) FROM node_path WHERE depth = 1"
+        )
+        if nodes_with_parent != depth_one_paths:
+            from app.logging_config import get_logger
+
+            logger = get_logger(__name__)
+            logger.warning(
+                f"node_path inconsistency detected: {nodes_with_parent} nodes with parent_id "
+                f"but {depth_one_paths} depth=1 paths. Rebuilding closure table."
+            )
+            needs_rebuild = True
+
+    if needs_rebuild:
         await conn.execute("SELECT rebuild_node_path()")
 
     # Repair any blocks with missing page_id using the closure table
