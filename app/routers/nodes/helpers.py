@@ -166,10 +166,10 @@ def _build_children_response(
 
 
 async def _get_descendants(node_repo, parent_id: int) -> list[Node]:
-    """Get all descendants of a node using the closure table.
+    """Get all descendants of a node using recursive CTE.
 
     Returns a flat list of all descendants, ordered by depth then sequence.
-    Uses node_path for efficient O(1) lookup instead of recursive traversal.
+    Uses a recursive CTE on the adjacency list (parent_id).
     """
     # Use the repository's get_descendants method if available
     if hasattr(node_repo, "get_descendants"):
@@ -440,26 +440,52 @@ async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[in
     """Build a tree with children for each node.
 
     Fetches all descendants for each node and builds a nested structure.
+    Uses a single batched recursive CTE for all root nodes to avoid N+1 queries.
     Used by list_nodes when include_children=True.
     """
+    # Collect root node IDs
+    root_ids = []
+    root_map: dict[int, Any] = {}
+    for node_response in nodes:
+        node_id = node_response.id if hasattr(node_response, "id") else node_response.get("id")
+        if node_id:
+            root_ids.append(node_id)
+            root_map[node_id] = node_response
 
+    if not root_ids:
+        return nodes
+
+    # Single batched CTE: fetch all descendants for all root nodes at once
+    descendants_batch = await service.get_node_descendants_batch(root_ids)
+
+    # Collect all descendant IDs for class_ids batch fetch
+    all_descendant_ids: list[int] = []
+    for desc_ids in descendants_batch.values():
+        all_descendant_ids.extend(desc_ids)
+
+    if all_descendant_ids:
+        desc_class_ids = await _get_class_ids_batch(service.pool, service.workspace_id or 0, all_descendant_ids)
+        class_ids_map.update(desc_class_ids)
+
+    # Fetch all descendant nodes in one query
+    all_descendant_nodes = await service.get_nodes_by_ids(all_descendant_ids) if all_descendant_ids else []
+    node_by_id = {n.id: n for n in all_descendant_nodes}
+
+    # Build children for each root
     result = []
     for node_response in nodes:
         node_id = node_response.id if hasattr(node_response, "id") else node_response.get("id")
-        if not node_id:
+        if not node_id or node_id not in descendants_batch:
+            if isinstance(node_response, dict):
+                node_response["children"] = []
+            else:
+                node_response.children = []
             result.append(node_response)
             continue
 
-        # Get all descendants for hierarchy building
-        all_descendants = await service.get_node_descendants(node_id)
+        desc_ids = descendants_batch[node_id]
+        all_descendants = [node_by_id[did] for did in desc_ids if did in node_by_id]
 
-        # Build class_ids for descendants
-        desc_ids = [d.id for d in all_descendants if d.id]
-        if desc_ids:
-            desc_class_ids = await _get_class_ids_batch(service.pool, service.workspace_id or 0, desc_ids)
-            class_ids_map.update(desc_class_ids)
-
-        # Build children response with hierarchy (pass class_ids_map for classes)
         if all_descendants:
             children_response = _build_children_response(all_descendants, class_ids_map)
             if isinstance(node_response, dict):

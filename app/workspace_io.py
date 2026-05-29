@@ -431,12 +431,9 @@ async def _import_dump_core(
 
     # ── Disable triggers for bulk import performance ───────
     # These triggers fire per-row and cause timeouts on large imports.
-    # We rebuild node_path and search vectors at the end instead.
+    # We rebuild search vectors at the end instead.
     logger.info("Disabling node triggers for bulk import")
     await conn.execute("ALTER TABLE node DISABLE TRIGGER node_search_update")
-    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_after_insert")
-    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_after_update")
-    await conn.execute("ALTER TABLE node DISABLE TRIGGER node_path_before_delete")
     await conn.execute("ALTER TABLE node DISABLE TRIGGER node_write_date")
     await conn.execute("ALTER TABLE node DISABLE TRIGGER node_update_workspace_write_date")
     # Disable version capture trigger if it exists
@@ -1200,9 +1197,6 @@ async def _import_dump_core(
     # ── Phase 15: Re-enable triggers and rebuild ────────────
     logger.info("Re-enabling node triggers")
     await conn.execute("ALTER TABLE node ENABLE TRIGGER node_search_update")
-    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_after_insert")
-    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_after_update")
-    await conn.execute("ALTER TABLE node ENABLE TRIGGER node_path_before_delete")
     await conn.execute("ALTER TABLE node ENABLE TRIGGER node_write_date")
     await conn.execute("ALTER TABLE node ENABLE TRIGGER node_update_workspace_write_date")
     await conn.execute("""
@@ -1212,10 +1206,6 @@ async def _import_dump_core(
             END IF;
         END $$;
     """)
-
-    # Rebuild node_path closure table (replaces disabled insert/update triggers)
-    logger.info("Rebuilding node_path closure table")
-    await conn.execute("SELECT rebuild_node_path()", timeout=None)
 
     # Rebuild search vectors for imported nodes
     logger.info("Rebuilding search vectors for imported nodes")
@@ -1393,7 +1383,7 @@ async def restore_workspace_from_dump(
             )
 
             # Delete nodes (CASCADE handles node_property, property_values,
-            # class_property, class_extend, node_path, etc.)
+            # class_property, class_extend, etc.)
             await conn.execute(
                 "DELETE FROM node WHERE workspace_id = $1",
                 workspace_id,

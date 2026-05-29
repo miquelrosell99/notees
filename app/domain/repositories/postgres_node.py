@@ -381,10 +381,17 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT np.descendant_id as id
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND n.workspace_id = $2
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2
+                )
+                SELECT id FROM descendants
             """,
                 node_id,
                 self._workspace_id,
@@ -417,21 +424,28 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT np.descendant_id as id
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND n.workspace_id = $2
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2
+                )
+                SELECT id FROM descendants
             """,
                 node_id,
                 self._workspace_id,
             )
 
             logger.info(
-                f"[HARD_DELETE] node_id={node_id}, workspace_id={self._workspace_id}, found {len(rows)} descendants in node_path"
+                f"[HARD_DELETE] node_id={node_id}, workspace_id={self._workspace_id}, found {len(rows)} descendants via CTE"
             )
 
             if not rows:
-                logger.info("[HARD_DELETE] No node_path entries, trying direct delete")
+                logger.info("[HARD_DELETE] No descendants found, trying direct delete")
                 result = await conn.execute(
                     "DELETE FROM node WHERE id = $1 AND workspace_id = $2",
                     node_id,
@@ -534,19 +548,58 @@ class PostgresNodeRepository(
     async def has_circular_reference(self, ancestor_id: int, descendant_id: int) -> bool:
         """Check if setting ancestor_id as parent of descendant_id would create a cycle."""
         async with acquire_connection(self._pool) as conn:
+            # Check if descendant_id is already a descendant of ancestor_id
+            # (would create cycle if we make ancestor_id the parent)
             row = await conn.fetchrow(
-                "SELECT 1 FROM node_path WHERE ancestor_id = $1 AND descendant_id = $2", ancestor_id, descendant_id
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                )
+                SELECT 1 FROM descendants WHERE id = $2 AND depth > 0
+                """,
+                ancestor_id,
+                descendant_id,
             )
             return row is not None
 
     async def get_depth_info(self, node_id: int) -> tuple[int, int]:
-        """Get (parent_depth, subtree_depth) for a node using the closure table."""
+        """Get (parent_depth, subtree_depth) for a node using recursive CTE."""
         async with acquire_connection(self._pool) as conn:
             parent_row = await conn.fetchrow(
-                "SELECT COALESCE(MAX(depth), 0) as parent_depth FROM node_path WHERE descendant_id = $1", node_id
+                """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                )
+                SELECT COALESCE(MAX(depth), 0) as parent_depth FROM ancestors
+                """,
+                node_id,
             )
             subtree_row = await conn.fetchrow(
-                "SELECT COALESCE(MAX(depth), 0) as subtree_depth FROM node_path WHERE ancestor_id = $1", node_id
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                )
+                SELECT COALESCE(MAX(depth), 0) as subtree_depth FROM descendants
+                """,
+                node_id,
             )
             return (
                 parent_row["parent_depth"] if parent_row else 0,
@@ -701,11 +754,20 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE
+                )
                 SELECT COUNT(*) as day_count
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND np.depth > 0
-                  AND n.workspace_id = $2 AND n.active = TRUE AND n.is_day = TRUE
+                FROM descendants d
+                JOIN node n ON n.id = d.id
+                WHERE d.depth > 0 AND n.is_day = TRUE
             """,
                 node_id,
                 self._workspace_id,
@@ -729,14 +791,23 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE
+                )
                 SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.sequence,
                        n.class_ids, n.collapsed
-                FROM node_path np
-                JOIN node n ON n.id = np.descendant_id
-                WHERE np.ancestor_id = $1 AND np.depth > 0
-                  AND n.workspace_id = $2 AND n.active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-                ORDER BY np.depth, n.sequence
+                FROM descendants d
+                JOIN node n ON n.id = d.id
+                WHERE d.depth > 0
+                  AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
+                ORDER BY d.depth, n.sequence
             """,
                 template_id,
                 self._workspace_id,
