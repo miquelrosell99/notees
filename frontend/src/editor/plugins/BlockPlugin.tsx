@@ -184,6 +184,9 @@ export function BlockPlugin({
   // dirty flag ensures we re-sync after the microtask so no state is lost.
   const syncCoalesceRef = useRef(false);
   const syncDirtyRef = useRef(false);
+  // Track whether the first sync with actual blocks has completed so we can
+  // prevent unwanted auto-focus that occurs when content is first populated.
+  const hasDoneInitialBlockSyncRef = useRef(false);
 
   // ─── Sync projected nodes into Lexical ──────────────────────
 
@@ -199,6 +202,22 @@ export function BlockPlugin({
     const runtime = getNodeGraphRuntime();
     const pendingFocus = runtime.getPendingFocus();
 
+    // Guard against stale pendingFocus from a previous page/view (runtime is a
+    // singleton). Only honour it if the target block is actually present in the
+    // current projection; otherwise clear it so we don't steal focus.
+    const pendingFocusValid = pendingFocus
+      ? projectedNodes.some(n => n.blockId === pendingFocus.blockId)
+      : false;
+    if (pendingFocus && !pendingFocusValid) {
+      runtime.clearPendingFocus();
+    }
+
+    // Snapshot whether the editor already has focus before we mutate anything.
+    const rootEl = editor.getRootElement();
+    const hadFocusBefore = rootEl
+      ? rootEl === document.activeElement || rootEl.contains(document.activeElement)
+      : false;
+
     // Pre-focus: when the runtime requests focus (e.g. "Add block" button
     // was clicked), the contentEditable may not be the active element.
     // Lexical skips the DOM selection update during reconciliation when
@@ -209,8 +228,7 @@ export function BlockPlugin({
     // reconciliation in the same pass.  The focusin handler will fire
     // and read the old DOM selection, but PASS 4 inside the update
     // overwrites it with the correct target.
-    if (pendingFocus && !isOtherEditorActive(editor)) {
-      const rootEl = editor.getRootElement();
+    if (pendingFocusValid && !isOtherEditorActive(editor)) {
       if (rootEl && rootEl !== document.activeElement && !rootEl.contains(document.activeElement)) {
         rootEl.focus({ preventScroll: true });
       }
@@ -594,8 +612,26 @@ export function BlockPlugin({
     // has focus — the user clicked into another editor between the
     // requestFocus and this sync, so stealing focus back would cause
     // dual-editor input.
-    if (pendingFocus && !runtime.getPendingFocus() && !isOtherEditorActive(editor)) {
+    if (pendingFocusValid && !runtime.getPendingFocus() && !isOtherEditorActive(editor)) {
       editor.focus();
+    }
+
+    // On the first sync that actually populates blocks, if the editor wasn't
+    // focused before and no legitimate pendingFocus was consumed, blur any
+    // auto-focus that may have occurred (e.g. browser focus restoration on
+    // refresh or other heuristics).
+    const isFirstBlockSync = projectedNodes.length > 0 && !hasDoneInitialBlockSyncRef.current;
+    if (projectedNodes.length > 0) {
+      hasDoneInitialBlockSyncRef.current = true;
+    }
+    if (isFirstBlockSync && !hadFocusBefore && !pendingFocusValid) {
+      const focusedNow = rootEl
+        ? rootEl === document.activeElement || rootEl.contains(document.activeElement)
+        : false;
+      if (focusedNow) {
+        editor.blur();
+        window.getSelection()?.removeAllRanges();
+      }
     }
 
     // Reset flag after a microtask - Lexical update listeners fire before this
