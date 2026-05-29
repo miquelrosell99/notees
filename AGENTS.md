@@ -29,6 +29,7 @@ Key features:
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals). Differentiation is via boolean flags (`is_page`, `is_tag`, etc.).
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
+- **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
 - **Docker-first**: Development and production are both Docker-based. Local venv setup is possible but not the supported path.
 
 ---
