@@ -444,3 +444,20 @@
   color: var(--color-on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Bottom Controls ────────────────────────────────────────────────────── */
+
+.node-graph-view__bottom-center {
+  position: absolute;
+  bottom: var(--spacing-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.node-graph-view__bottom-right {
+  position: absolute;
+  bottom: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: 10;
+}

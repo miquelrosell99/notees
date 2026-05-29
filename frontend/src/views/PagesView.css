@@ -16,10 +16,15 @@
   flex-wrap: wrap;
 }
 
+.pages-view .page-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
 .pages-view__title-icon {
-  margin-right: var(--spacing-2);
-  vertical-align: middle;
   color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .pages-view__header-actions {
@@ -42,6 +47,13 @@
   flex-direction: column;
 }
 
+/* Scrollable for non-immersive views (list, card, table) */
+.pages-view--list .pages-view__content,
+.pages-view--card .pages-view__content,
+.pages-view--table .pages-view__content {
+  overflow-y: auto;
+}
+
 .pages-view__node-collection {
   flex: 1;
   min-height: 0;
@@ -55,17 +67,29 @@
 }
 
 /* Immersive view modes (graph / timeline): remove side padding and let the view fill the canvas */
-.pages-view--graph,
-.pages-view--timeline {
+.pages-view.pages-view--graph,
+.pages-view.pages-view--timeline {
   max-width: none;
   padding: 0;
   height: 100%;
 }
 
+/* Header in immersive modes: generous padding so controls don't hug the edge */
 .pages-view--graph .page-header-section,
 .pages-view--timeline .page-header-section {
-  padding: var(--spacing-2) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-6);
   margin-bottom: 0;
+}
+
+/* Prevent toolbar from expanding and pushing the button against the edge */
+.pages-view__header-actions .node-collection-toolbar {
+  width: auto;
+}
+
+/* Prevent button text clipping caused by btn--icon-text grid + overflow:hidden */
+.pages-view__header-actions .btn__text {
+  min-width: max-content;
+  overflow: visible;
 }
 
 .pages-view--graph .pages-view__content,
@@ -76,15 +100,15 @@
 @media (max-width: 768px) {
   .pages-view--graph .page-header-section,
   .pages-view--timeline .page-header-section {
-    padding-left: var(--spacing-3);
-    padding-right: var(--spacing-3);
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
   }
 }
 
 @media (max-width: 480px) {
   .pages-view--graph .page-header-section,
   .pages-view--timeline .page-header-section {
-    padding-left: var(--spacing-2);
-    padding-right: var(--spacing-2);
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
   }
 }

@@ -4,7 +4,7 @@
  * Uses NodeCollection directly with multiple view modes (list, document, card,
  * table, graph, timeline). List view shows the full pages tree hierarchy.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { usePages, useContentSave } from '@/hooks';
 import { useNavigationStore, useModalStore, useAppStore } from '@/stores';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
@@ -22,7 +22,6 @@ const PSEUDO_VIEW_TYPE = 'all_pages';
 
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'list',
-  'document',
   'card',
   'table',
   'graph',
@@ -51,6 +50,30 @@ export function PagesView() {
     rootOnly: true,
   });
 
+  // Flatten the tree for non-list views (graph, timeline, card, table)
+  // so they receive all pages including child pages, not just root pages.
+  const flatAllPages = useMemo(() => {
+    if (!pages) return [];
+    const seen = new Set<number>();
+    const result: Node[] = [];
+    const collect = (n: Node) => {
+      if (n.is_page && !seen.has(n.id)) {
+        seen.add(n.id);
+        result.push(n);
+      }
+      if (n.children) {
+        for (const child of n.children) {
+          collect(child);
+        }
+      }
+    };
+    for (const n of pages) collect(n);
+    return result;
+  }, [pages]);
+
+  // List view needs the tree structure; other views need a flat list of all pages.
+  const displayNodes = viewMode === 'list' ? (pages || []) : flatAllPages;
+
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.id);
   }, [openNode]);
@@ -62,7 +85,7 @@ export function PagesView() {
         <div className="page-header-section__header">
           <div className="page-header pages-view__header">
             <h1 className="page-header__title">
-              <PageIcon size="sm" className="pages-view__title-icon" />
+              <PageIcon size="md" className="pages-view__title-icon" />
               Pages
             </h1>
             <div className="pages-view__header-actions">
@@ -76,6 +99,7 @@ export function PagesView() {
                 variant="primary"
                 size="sm"
                 icon={"mdi mdi-plus"}
+                iconSize={0.9}
                 onClick={() => setCommandPaletteOpen(true)}
                 title="New page (Ctrl+K)"
               >
@@ -104,7 +128,7 @@ export function PagesView() {
           </div>
         ) : (
           <NodeCollection
-            nodes={pages || []}
+            nodes={displayNodes}
             viewMode={viewMode}
             availableViewModes={AVAILABLE_VIEW_MODES}
             onViewModeChange={handleViewModeChange}

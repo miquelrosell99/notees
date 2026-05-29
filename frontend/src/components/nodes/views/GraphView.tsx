@@ -33,6 +33,7 @@ import type {
   GraphDataMode,
   GraphColorGroup,
 } from './viewTypes';
+import { DEFAULT_VISIBILITY_FILTERS } from './graphTypes';
 import type { SGEConfig } from './SemanticGraphEngine';
 import { applyCircleLayout } from './circleLayout';
 import { applyTreeLayout } from './treeLayout';
@@ -752,6 +753,25 @@ export function GraphView({
         onEmptyClick={() => setSelectedNodes([])}
         className="node-graph-view__renderer"
       />
+
+      {/* Filtered-out empty state */}
+      {!linksLoading && nodes.length === 0 && sourceNodes.length > 0 && (
+        <div className="node-graph-view__loading-overlay">
+          <div className="node-graph-view__empty">
+            <h3>All nodes hidden by filters</h3>
+            <p>Adjust visibility filters or reset them to see the graph.</p>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="mdi mdi-refresh"
+              onClick={() => setVisibilityFilters({ ...DEFAULT_VISIBILITY_FILTERS })}
+              style={{ marginTop: '12px' }}
+            >
+              Reset filters
+            </Button>
+          </div>
+        </div>
+      )}
       
       {/* Bottom Center: View mode switcher */}
       {showViewModes && (
