@@ -105,10 +105,11 @@ export default defineConfig({
       interval: 1000,
     },
     proxy: {
-      // Proxy API requests to the FastAPI backend
+      // Proxy API requests (including WebSockets) to the FastAPI backend
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
+        ws: true,
       },
     },
   },
