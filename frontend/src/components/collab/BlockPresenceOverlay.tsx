@@ -21,13 +21,13 @@ interface BlockPresenceOverlayProps {
 }
 
 export function BlockPresenceOverlay({ pageUuid }: BlockPresenceOverlayProps) {
-  const presence = useLivePresenceStore((s) => s.presence[pageUuid] ?? {});
+  const presence = useLivePresenceStore((s) => s.presence[pageUuid]);
   const [positions, setPositions] = useState<PositionedBlock[]>([]);
 
   useEffect(() => {
     function updatePositions() {
       const next: PositionedBlock[] = [];
-      for (const [blockUuid, users] of Object.entries(presence)) {
+      for (const [blockUuid, users] of Object.entries(presence ?? {})) {
         if (!users || users.length === 0) continue;
         // Find the bullet wrapper for this block — it is the most stable
         // visible element even when blocks are virtualized.
