@@ -25,6 +25,7 @@ import { useFavoritesStore } from '@/stores/favoritesStore';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { scheduleAutoExport } from '@/utils/autoExport';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
+import { awaitAllContentSaves } from './contentSaveTracker';
 
 // ==================== Helper Functions ====================
 
@@ -1412,8 +1413,10 @@ export function useAddTag() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, tagId }: { nodeId: number; tagId: number }) => 
-      nodesApi.addTagLink(nodeId, tagId),
+    mutationFn: async ({ nodeId, tagId }: { nodeId: number; tagId: number }) => {
+      await awaitAllContentSaves();
+      return nodesApi.addTagLink(nodeId, tagId);
+    },
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
@@ -1428,8 +1431,10 @@ export function useRemoveTag() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, tagId }: { nodeId: number; tagId: number }) => 
-      nodesApi.removeTagLink(nodeId, tagId),
+    mutationFn: async ({ nodeId, tagId }: { nodeId: number; tagId: number }) => {
+      await awaitAllContentSaves();
+      return nodesApi.removeTagLink(nodeId, tagId);
+    },
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
@@ -1444,8 +1449,10 @@ export function useAddClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
-      nodesApi.addClass(nodeId, classId),
+    mutationFn: async ({ nodeId, classId }: { nodeId: number; classId: number }) => {
+      await awaitAllContentSaves();
+      return nodesApi.addClass(nodeId, classId);
+    },
     onMutate: async ({ nodeId, classId }) => {
       // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
@@ -1610,8 +1617,10 @@ export function useRemoveClass() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ nodeId, classId }: { nodeId: number; classId: number }) => 
-      nodesApi.removeClass(nodeId, classId),
+    mutationFn: async ({ nodeId, classId }: { nodeId: number; classId: number }) => {
+      await awaitAllContentSaves();
+      return nodesApi.removeClass(nodeId, classId);
+    },
     onMutate: async ({ nodeId, classId }) => {
       // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });

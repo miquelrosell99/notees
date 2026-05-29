@@ -26,6 +26,7 @@ import { generateUUID } from '../../utils/uuid';
 import { useInputContext } from '../../stores/inputContext';
 import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
+import { flushAllContentSaves, awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -395,13 +396,17 @@ export function TriggerPlugin({
   if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
     const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
 
-    const handleSuggestionSelect = (node: Node, addInline: boolean) => {
+    const handleSuggestionSelect = async (node: Node, addInline: boolean) => {
       // For + type trigger: ALWAYS add to class_ids
       if (trigger.type === 'type' && onAddClass) {
         let blockServerId: number | undefined;
         
         if (addInline) {
           // Ctrl+Enter: Add to class_ids AND insert inline pill
+          // 1. Insert the inline pill FIRST so the pending save includes it.
+          handleSelect(node.uuid, { node, type: suggestionType });
+
+          // 2. Resolve the block server ID after the editor update.
           editor.read(() => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return;
@@ -414,14 +419,6 @@ export function TriggerPlugin({
               blockServerId = graphNode?.serverId;
             }
           });
-
-          // Add class to block's class_ids
-          if (blockServerId != null) {
-            onAddClass(blockServerId, node.id);
-          }
-          
-          // Also insert as inline pill
-          handleSelect(node.uuid, { node, type: suggestionType });
         } else {
           // Plain Enter: Add to class_ids only (no inline pill)
           editor.update(() => {
@@ -456,10 +453,19 @@ export function TriggerPlugin({
               blockServerId = graphNode?.serverId;
             }
           });
+        }
 
-          if (blockServerId != null) {
-            onAddClass(blockServerId, node.id);
-          }
+        // Flush any pending debounced saves and wait for them to complete
+        // before mutating class_ids. This prevents the addClass invalidation
+        // from refetching stale server content before the content save lands.
+        flushAllContentSaves();
+        await awaitAllContentSaves();
+
+        if (blockServerId != null) {
+          onAddClass(blockServerId, node.id);
+        }
+
+        if (!addInline) {
           setTrigger(prev => ({ ...prev, isOpen: false }));
         }
       } else if (trigger.type === 'type') {

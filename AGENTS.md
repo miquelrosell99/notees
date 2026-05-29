@@ -34,6 +34,13 @@ Key features:
 
 ---
 
+## Debugging Conventions
+
+- **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state via `BlockPlugin.syncProjection`. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
+- **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between Lexical editor state, `NodeGraphRuntime` projections, TanStack Query cache updates, and debounced persistence.
+
+---
+
 ## Decision-Making & Planning
 
 - **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
