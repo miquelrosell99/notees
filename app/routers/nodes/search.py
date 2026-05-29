@@ -324,18 +324,23 @@ async def get_links_for_nodes(
 ):
     """Get links for a specific set of node IDs.
 
-    Accepts {"node_ids": [1, 2, 3, ...], "scope": "between" | "touching"}
-    and returns links (reference, parent, class, extends, property-reference).
+    Accepts {"node_ids": [1, 2, 3, ...], "scope": "between" | "touching",
+             "cooccurrence": true | false, "context_node_id": id | null}
+    and returns links (reference, parent, class, extends, property-reference, cooccurrence).
 
     Scopes:
       - "between" (default): only links where BOTH source and target are in the set.
         Use for rendering a graph of known nodes.
       - "touching": links where AT LEAST ONE end is in the set.
         Use for discovering connections from a starting set of nodes.
+
+    Co-occurrence:
+      - Without context_node_id: global flat co-occurrence across all blocks mentioning the node set.
+      - With context_node_id: parent-inclusive co-occurrence within the context page.
     """
     node_ids = body.get("node_ids", [])
     scope = body.get("scope", "between")
-    semantic = body.get("semantic", False)
+    cooccurrence = body.get("cooccurrence", False)
     if not node_ids or not isinstance(node_ids, list):
         return {"links": []}
     if scope not in ("between", "touching"):
@@ -510,40 +515,104 @@ async def get_links_for_nodes(
         for row in property_link_rows:
             links.append({"source": row["node_id"], "target": row["target_id"], "type": "property-reference"})
 
-        # 6. Semantic inference: co-occurrence links from blocks with multiple links
-        if semantic:
-            sem_rows = await conn.fetch(
-                """
-                SELECT nl.source_id AS block_id, nl.target_id AS target_page_id
-                FROM node_link nl
-                JOIN node block ON nl.source_id = block.id
-                JOIN node target ON nl.target_id = target.id
-                WHERE block.workspace_id = $1
-                  AND block.is_page = FALSE
-                  AND block.active = TRUE
-                  AND target.active = TRUE
-                  AND target.is_page = TRUE
-                  AND block.page_id = ANY($2::int[])
-                  AND nl.target_id = ANY($2::int[])
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-            # Group targets by block; for each block with 2+ unique targets emit pairs
-            from collections import defaultdict
+        # 6. Co-occurrence inference: links from blocks with multiple page references
+        if cooccurrence:
+            context_node_id = body.get("context_node_id")
+            from collections import Counter, defaultdict
 
-            block_targets: dict = defaultdict(list)
-            for row in sem_rows:
-                block_targets[row["block_id"]].append(row["target_page_id"])
-            for _block_id, targets in block_targets.items():
-                # Deduplicate and cap at 10 targets per block to bound pair explosion
-                unique_targets = list(dict.fromkeys(targets))[:10]
-                if len(unique_targets) < 2:
-                    continue
-                for i in range(len(unique_targets)):
-                    for j in range(i + 1, len(unique_targets)):
-                        a, b = unique_targets[i], unique_targets[j]
-                        links.append({"source": a, "target": b, "type": "semantic"})
+            if context_node_id:
+                # Local/context mode: parent-inclusive co-occurrence within context page
+                block_rows = await conn.fetch(
+                    """
+                    SELECT id, parent_id FROM node
+                    WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id = $2
+                    """,
+                    service.workspace_id,
+                    context_node_id,
+                )
+                block_ids = [r["id"] for r in block_rows]
+                parent_map = {r["id"]: r["parent_id"] for r in block_rows}
+
+                if block_ids:
+                    link_rows = await conn.fetch(
+                        """
+                        SELECT nl.source_id AS block_id, nl.target_id
+                        FROM node_link nl
+                        WHERE nl.source_id = ANY($1::int[]) AND nl.target_id = ANY($2::int[])
+                        """,
+                        block_ids,
+                        node_ids,
+                    )
+
+                    block_targets: dict = defaultdict(list)
+                    for row in link_rows:
+                        block_targets[row["block_id"]].append(row["target_id"])
+
+                    parent_ids = list({p for p in parent_map.values() if p is not None})
+                    if parent_ids:
+                        parent_link_rows = await conn.fetch(
+                            """
+                            SELECT nl.source_id AS block_id, nl.target_id
+                            FROM node_link nl
+                            WHERE nl.source_id = ANY($1::int[]) AND nl.target_id = ANY($2::int[])
+                            """,
+                            parent_ids,
+                            node_ids,
+                        )
+                        parent_targets: dict = defaultdict(list)
+                        for row in parent_link_rows:
+                            parent_targets[row["block_id"]].append(row["target_id"])
+
+                        for block_id, parent_id in parent_map.items():
+                            if parent_id in parent_targets:
+                                block_targets[block_id].extend(parent_targets[parent_id])
+
+                    pair_counts = Counter()
+                    for _block_id, targets in block_targets.items():
+                        unique_targets = list(dict.fromkeys(targets))[:10]
+                        if len(unique_targets) < 2:
+                            continue
+                        for i in range(len(unique_targets)):
+                            for j in range(i + 1, len(unique_targets)):
+                                a, b = unique_targets[i], unique_targets[j]
+                                pair_counts[(a, b)] += 1
+
+                    for (a, b), count in pair_counts.items():
+                        links.append({"source": a, "target": b, "type": "cooccurrence", "weight": count})
+            else:
+                # Global mode: flat co-occurrence across all blocks mentioning the node set
+                sem_rows = await conn.fetch(
+                    """
+                    SELECT nl.source_id AS block_id, nl.target_id AS target_page_id
+                    FROM node_link nl
+                    JOIN node block ON nl.source_id = block.id
+                    JOIN node target ON nl.target_id = target.id
+                    WHERE block.workspace_id = $1
+                      AND block.is_page = FALSE
+                      AND block.active = TRUE
+                      AND target.active = TRUE
+                      AND target.is_page = TRUE
+                      AND nl.target_id = ANY($2::int[])
+                    """,
+                    service.workspace_id,
+                    node_ids,
+                )
+                block_targets: dict = defaultdict(list)
+                for row in sem_rows:
+                    block_targets[row["block_id"]].append(row["target_page_id"])
+
+                pair_counts = Counter()
+                for _block_id, targets in block_targets.items():
+                    unique_targets = list(dict.fromkeys(targets))[:10]
+                    if len(unique_targets) < 2:
+                        continue
+                    for i in range(len(unique_targets)):
+                        for j in range(i + 1, len(unique_targets)):
+                            a, b = unique_targets[i], unique_targets[j]
+                            pair_counts[(a, b)] += 1
+
+                for (a, b), count in pair_counts.items():
+                    links.append({"source": a, "target": b, "type": "cooccurrence", "weight": count})
 
         # Deduplicate
         seen = set()

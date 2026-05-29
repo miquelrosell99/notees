@@ -75,9 +75,10 @@ export function SidebarLocalGraph({
           viewId={`local-${nodeId}`}
           nodes={nodes}
           currentNodeId={nodeId}
-          showSettings={false}
+          showSettings={true}
           showSearch={false}
           showViewModes={false}
+          localGraphMode={true}
           className="graph-view-local__graph"
         />
       </div>

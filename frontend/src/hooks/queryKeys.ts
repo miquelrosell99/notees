@@ -46,7 +46,7 @@ export const nodeKeys = {
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
   graphNodes: () => [...nodeKeys.all, 'graph-nodes'] as const,
-  graphLinks: (nodeIds: number[], scope?: string, semantic?: boolean) => [...nodeKeys.all, 'graph-links', scope ?? 'between', semantic ?? false, nodeIds.length, hashNumberArray(nodeIds)] as const,
+  graphLinks: (nodeIds: number[], scope?: string, cooccurrence?: boolean, contextNodeId?: number | null) => [...nodeKeys.all, 'graph-links', scope ?? 'between', cooccurrence ?? false, contextNodeId ?? 'none', nodeIds.length, hashNumberArray(nodeIds)] as const,
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution

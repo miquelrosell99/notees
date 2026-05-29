@@ -668,15 +668,22 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       // Build physics nodes (compact)
       const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
 
-      // Build edges (only unique source/target pairs), with dashed flag and width by type
-      // Parent/class/extends links are solid and thicker; reference links are dashed and thinner
-      const SEMANTIC_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
+      // Build edges (only unique source/target pairs), with dashed flag and width by type + weight
+      // Parent/class/extends links are solid and thicker; reference links are dashed and thinner;
+      // co-occurrence links scale in width by their weight (normalized per-view).
+      const COOCCURRENCE_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
+      const maxCooccurrenceWeight = Math.max(
+        ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
+        1
+      );
       const physEdges = edges.map(e => ({
         source: e.source,
         target: e.target,
-        dashed: e.type === 'reference' || e.type === 'property-reference' || e.type === 'semantic',
-        color: e.type === 'semantic' ? SEMANTIC_COLOR : undefined,
-        width: e.type === 'parent' || e.type === 'extends' ? 1.2
+        dashed: e.type === 'reference' || e.type === 'property-reference' || e.type === 'cooccurrence',
+        color: e.type === 'cooccurrence' ? COOCCURRENCE_COLOR : undefined,
+        width: e.type === 'cooccurrence'
+          ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
+          : e.type === 'parent' || e.type === 'extends' ? 1.2
           : e.type === 'class' ? 1.0
           : 0.6,
       }));
