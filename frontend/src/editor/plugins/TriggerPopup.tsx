@@ -1,72 +1,348 @@
 /**
- * TriggerPopup — Popup UI for editor triggers.
+ * TriggerPopup — Unified popup for all editor triggers (+, @, #, /).
  *
- * Renders the appropriate popup based on trigger type:
- * - @   → Link search (TriggerSuggestionPopup)
- * - +   → Type/class search (TriggerSuggestionPopup)
- * - #   → Tag search (TriggerSuggestionPopup)
- * - /   → Slash commands (SlashCommandMenu)
+ * Features:
+ * - Rendered via React portal to document.body (escapes editor DOM tree)
+ * - Own search input field (no inline text pollution)
+ * - Shift+Enter for alternative action
+ * - Focus management (editor → popup → editor)
+ * - Position adjustment to stay in viewport
  */
 
-import { useCallback, type JSX } from 'react';
-import type { TriggerType } from './TriggerPlugin';
-import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
-import type { Node } from '../../types/api';
-import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
-import { SlashCommandMenu } from './SlashCommandMenu';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import type { Node } from '@/types';
+import { useNodeSearch, type NodeSearchItem } from '@/hooks';
+import { NodeResultItem } from '@/components/nodes/NodeResultItem';
+import { useCreateNode } from '@/hooks/useNodes';
+import { usePageClass, useClassClass } from '@/hooks/usePageClass';
+import { Spinner } from '@/components/core/Spinner';
+import { AddIcon } from '@/components/core/icons';
 import './TriggerPopup.css';
 
-// ─── Props ────────────────────────────────────────────────────────
+export type TriggerPopupType = 'class' | 'link' | 'tag' | 'slash';
 
-export interface TriggerPopupProps {
-  type: TriggerType;
-  query: string;
-  position: { top: number; left: number };
-  onSelect: (value: string, metadata?: unknown) => void;
-  onClose: () => void;
+interface SlashCommand {
+  id: string;
+  label: string;
+  description: string;
 }
 
-// ─── Component ────────────────────────────────────────────────────
+const SLASH_COMMANDS: SlashCommand[] = [
+  { id: 'link', label: 'Insert Page Link', description: 'Link to a page' },
+  { id: 'blocklink', label: 'Insert Block Link', description: 'Link to a specific block' },
+  { id: 'embed', label: 'Embed Node', description: 'Embed the full content of a node' },
+  { id: 'url', label: 'Add URL', description: 'Add a URL link to external website' },
+  { id: 'type', label: 'Add Class', description: 'Add a class to this block' },
+  { id: 'tag', label: 'Add Tag', description: 'Add a tag to this block' },
+  { id: 'property', label: 'Add property', description: 'Add a property to this block' },
+  { id: 'query', label: 'Query', description: 'Assign query class to this block' },
+  { id: 'table', label: 'Table', description: 'Convert block to table' },
+  { id: 'code', label: 'Code Block', description: 'Convert block to code block' },
+  { id: 'task', label: 'Task', description: 'Convert block to task' },
+  { id: 'comment', label: 'Add comment', description: 'Add a comment to this block' },
+  { id: 'image', label: 'Insert image', description: 'Upload an image' },
+  { id: 'audio', label: 'Insert audio', description: 'Upload an audio file' },
+  { id: 'file', label: 'Insert file', description: 'Upload any supported file' },
+  { id: 'template', label: 'Add template', description: 'Insert content from a template' },
+  { id: 'move', label: 'Move to page', description: 'Move this block under a different page' },
+];
+
+export interface TriggerPopupProps {
+  type: TriggerPopupType;
+  position: { top: number; left: number };
+  onSelectNode?: (node: Node, mode: 'default' | 'alternative') => void;
+  onSelectCommand?: (commandId: string) => void;
+  onClose: () => void;
+  /** Called when user presses Backspace/Delete to remove the trigger placeholder */
+  onDeletePlaceholder?: () => void;
+}
 
 export function TriggerPopup({
   type,
-  query,
   position,
-  onSelect,
+  onSelectNode,
+  onSelectCommand,
   onClose,
-}: TriggerPopupProps): JSX.Element | null {
-  const suggestionType: SuggestionType = type === 'type' ? 'class' : type === 'slash' ? 'type' : type;
+  onDeletePlaceholder,
+}: TriggerPopupProps) {
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSelect = useCallback((node: Node, _addInline: boolean) => {
-    onSelect(node.uuid, { node, type: suggestionType });
-  }, [onSelect, suggestionType]);
+  const isNodeTrigger = type !== 'slash';
 
-  const handleSelectDatePage = useCallback((pageId: string, _pageName: string) => {
-    onSelect(pageId, { type: 'date' });
-  }, [onSelect]);
-
-  // For link/type/tag triggers, use TriggerSuggestionPopup
-  if (type === 'link' || type === 'type' || type === 'tag') {
-    return (
-      <TriggerSuggestionPopup
-        suggestionType={suggestionType}
-        triggerType={type}
-        query={query}
-        position={position}
-        onSelect={handleSelect}
-        onClose={onClose}
-        onSelectDatePage={type === 'link' ? handleSelectDatePage : undefined}
-      />
-    );
-  }
-
-  // For slash commands, render SlashCommandMenu
-  return (
-    <SlashCommandMenu
-      query={query}
-      position={position}
-      onSelect={onSelect}
-      onClose={onClose}
-    />
+  // Node search
+  const searchMode = type === 'class' ? 'classes' : type === 'tag' ? 'tags' : 'all';
+  const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(
+    query,
+    { mode: searchMode, maxResults: 10 }
   );
+
+  const nodeItems: NodeSearchItem[] = useMemo(
+    () => [...pageResults, ...blockResults],
+    [pageResults, blockResults]
+  );
+
+  // Slash command filtering
+  const commandItems: SlashCommand[] = useMemo(() => {
+    if (type !== 'slash') return [];
+    if (!query) return SLASH_COMMANDS;
+    const lower = query.toLowerCase();
+    return SLASH_COMMANDS.filter(
+      (c) =>
+        c.label.toLowerCase().includes(lower) ||
+        c.description.toLowerCase().includes(lower)
+    );
+  }, [type, query]);
+
+  const items = isNodeTrigger ? nodeItems : commandItems;
+  const itemCount = items.length + (isNodeTrigger && showCreateOption && query.trim() ? 1 : 0);
+
+  // Clamp selected index to valid range whenever itemCount changes
+  const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
+
+  // Focus input on mount — use rAF to ensure the portal DOM is committed
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Close on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  // Position adjustment
+  const adjustedPosition = useMemo(() => {
+    const popupWidth = 320;
+    const popupHeight = 400;
+    const padding = 8;
+    let { top, left } = position;
+
+    if (left + popupWidth > window.innerWidth - padding) {
+      left = window.innerWidth - popupWidth - padding;
+    }
+    if (left < padding) left = padding;
+
+    if (top + popupHeight > window.innerHeight - padding) {
+      const topAbove = position.top - popupHeight - 24;
+      if (topAbove >= padding) top = topAbove;
+      else top = window.innerHeight - popupHeight - padding;
+    }
+    if (top < padding) top = padding;
+
+    return { top, left };
+  }, [position]);
+
+  // Create new node
+  const createNode = useCreateNode();
+  const { pageClassId } = usePageClass();
+  const { classClassId } = useClassClass();
+
+  const handleCreate = useCallback(
+    (name: string, mode: 'default' | 'alternative' = 'default') => {
+      if (!pageClassId) return;
+      const classes: number[] = [pageClassId];
+      if (type === 'class' && classClassId) classes.push(classClassId);
+
+      createNode.mutate(
+        { name, classes },
+        {
+          onSuccess: (newNode) => {
+            onSelectNode?.(newNode, mode);
+          },
+        }
+      );
+    },
+    [createNode, pageClassId, classClassId, type, onSelectNode]
+  );
+
+  // Keyboard handling
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedIndex((i) => Math.min(Math.max(i, 0) + 1, itemCount - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedIndex((i) => Math.max(Math.min(i, itemCount - 1) - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const mode: 'default' | 'alternative' =
+          e.shiftKey || e.ctrlKey || e.metaKey ? 'alternative' : 'default';
+
+        if (effectiveSelectedIndex < items.length) {
+          if (isNodeTrigger) {
+            onSelectNode?.(nodeItems[effectiveSelectedIndex].node, mode);
+          } else {
+            onSelectCommand?.(commandItems[effectiveSelectedIndex].id);
+          }
+        } else if (isNodeTrigger && showCreateOption && query.trim()) {
+          handleCreate(query.trim(), mode);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        e.stopPropagation();
+        onDeletePlaceholder?.();
+      }
+    },
+    [
+      itemCount,
+      effectiveSelectedIndex,
+      items,
+      isNodeTrigger,
+      nodeItems,
+      commandItems,
+      showCreateOption,
+      query,
+      onSelectNode,
+      onSelectCommand,
+      onClose,
+      onDeletePlaceholder,
+      handleCreate,
+    ]
+  );
+
+  // Hints
+  const hints = useMemo(() => {
+    switch (type) {
+      case 'class':
+        return { default: '↵ Add silently', alternative: '⇧↵ Insert pill' };
+      case 'link':
+        return { default: '↵ Insert link', alternative: '⇧↵ Insert & edit' };
+      case 'tag':
+        return { default: '↵ Insert tag', alternative: '⇧↵ Insert & edit' };
+      case 'slash':
+        return { default: '↵ Execute', alternative: '' };
+    }
+  }, [type]);
+
+  const headerText = useMemo(() => {
+    switch (type) {
+      case 'class':
+        return '+ Add Class';
+      case 'link':
+        return '@ Insert Link';
+      case 'tag':
+        return '# Insert Tag';
+      case 'slash':
+        return '/ Commands';
+    }
+  }, [type]);
+
+  const popup = (
+    <div
+      ref={containerRef}
+      data-editor-companion
+      className={`trigger-popup trigger-popup--${type}`}
+      style={{
+        position: 'fixed',
+        top: adjustedPosition.top,
+        left: adjustedPosition.left,
+        zIndex: 1000,
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="trigger-popup__header">{headerText}</div>
+
+      <div className="trigger-popup__search">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+        setQuery(e.target.value);
+        setSelectedIndex(0);
+      }}
+          onKeyDown={handleKeyDown}
+          placeholder={type === 'slash' ? 'Search commands...' : 'Search...'}
+          className="trigger-popup__input"
+        />
+      </div>
+
+      <div className="trigger-popup__list">
+        {isLoading && query.length > 0 ? (
+          <div className="trigger-popup__loading">
+            <Spinner size="sm" />
+          </div>
+        ) : items.length === 0 && !(isNodeTrigger && showCreateOption && query.trim()) ? (
+          <div className="trigger-popup__empty">
+            {query
+              ? 'No matches'
+              : type === 'slash'
+                ? 'Type to filter commands'
+                : 'Start typing to search'}
+          </div>
+        ) : (
+          <>
+            {isNodeTrigger &&
+              nodeItems.map((item, index) => (
+                <NodeResultItem
+                  key={item.node.id}
+                  node={item.node}
+                  isHighlighted={index === effectiveSelectedIndex}
+                  onClick={() => onSelectNode?.(item.node, 'default')}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                />
+              ))}
+
+            {!isNodeTrigger &&
+              commandItems.map((cmd, index) => (
+                <button
+                  key={cmd.id}
+                  className={`trigger-popup__command ${
+                    index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
+                  }`}
+                  onClick={() => onSelectCommand?.(cmd.id)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <span className="trigger-popup__command-label">{cmd.label}</span>
+                  <span className="trigger-popup__command-desc">{cmd.description}</span>
+                </button>
+              ))}
+
+            {isNodeTrigger && showCreateOption && query.trim() && (
+              <button
+                className={`trigger-popup__create ${
+                  effectiveSelectedIndex === items.length ? 'trigger-popup__create--selected' : ''
+                }`}
+                onClick={() => handleCreate(query.trim())}
+                onMouseEnter={() => setSelectedIndex(items.length)}
+              >
+                <AddIcon size="sm" />
+                Create &quot;{query.trim()}&quot;
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="trigger-popup__footer">
+        <span className="trigger-popup__hint">{hints.default}</span>
+        {hints.alternative && (
+          <span className="trigger-popup__hint">{hints.alternative}</span>
+        )}
+      </div>
+    </div>
+  );
+
+  return createPortal(popup, document.body);
 }
