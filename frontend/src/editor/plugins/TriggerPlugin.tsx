@@ -1,767 +1,380 @@
 /**
- * TriggerPlugin — Detects trigger patterns (/, @, +, #) and shows popups.
+ * TriggerPlugin — Detects trigger patterns (+, @, #, /) and opens unified popups.
  *
- * Monitors text input for trigger characters and displays the appropriate
- * popup menu for inserting links, types, tags, or slash commands.
+ * Architecture:
+ * - Intercepts trigger keys via Lexical KEY_DOWN_COMMAND (only fires on actual keypress)
+ * - Inserts the trigger character into the text node
+ * - Opens a portaled popup with its own search field
+ * - Enter = default action, Shift+Enter = alternative action
+ * - Escape = close popup, keep placeholder as literal text
+ * - Backspace/Delete = close popup and remove the placeholder character
+ * - On select: placeholder removed, result applied, focus returns to editor
  */
 
-import { useEffect, useState, useCallback, useRef, type JSX } from 'react';
+import { useEffect, useState, useRef, useCallback, type JSX } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  COMMAND_PRIORITY_NORMAL,
-  KEY_ESCAPE_COMMAND,
   $getSelection,
   $isRangeSelection,
-  $createTextNode,
-  $getNodeByKey,
   $isTextNode,
-  type LexicalEditor,
+  $getNodeByKey,
+  $createTextNode,
+  KEY_DOWN_COMMAND,
+  COMMAND_PRIORITY_NORMAL,
 } from 'lexical';
 import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
-import { TriggerSuggestionPopup } from './TriggerSuggestionPopup';
-import { SlashCommandMenu } from './SlashCommandMenu';
+import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
-import { generateUUID } from '../../utils/uuid';
 import { useInputContext } from '../../stores/inputContext';
-import type { SuggestionType } from '../../components/nodes/SuggestionPopup';
 import type { Node } from '../../types/api';
-import { flushAllContentSaves, awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export type TriggerType = 'link' | 'type' | 'tag' | 'slash';
-
-interface TriggerState {
-  isOpen: boolean;
-  type: TriggerType;
-  query: string;
-  triggerOffset: number;
+interface PopupState {
+  type: TriggerPopupType;
   position: { top: number; left: number };
-  /** True when the + popup was opened by the /embed slash command or Alt+Enter */
-  embedMode?: boolean;
-  /** True when the popup was opened by the /template slash command */
-  templateMode?: boolean;
-  /** Class IDs to restrict results to (used in templateMode) */
+  context?: 'template' | 'embed';
   classFilters?: number[];
-  /** Block server ID captured when templateMode was activated */
-  templateBlockServerId?: number;
+}
+
+interface Placeholder {
+  nodeKey: string;
+  offset: number;
+  char: string;
 }
 
 export interface TriggerPluginProps {
-  /** Called when a link node is selected */
-  onLinkSelect?: (linkId: string) => void;
-  /** Called when a class should be added to block's class_ids (not inline) */
+  /** Called when a class should be added silently (Plain Enter on +) */
   onAddClass?: (blockServerId: number, classId: number) => void;
-  /** Called when an action-type slash command is selected (table, query, code, image, audio, file, comment, property, url) */
+  /** Called when a slash command is selected */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
-  /** Called when a template is selected in templateMode (nodeId = template node server ID) */
+  /** Called when a template is selected in template mode */
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   /** Class IDs used to pre-filter the link popup when in templateMode */
   templateClassFilters?: number[];
 }
 
 export function TriggerPlugin({
-  onLinkSelect: _onLinkSelect,
   onAddClass,
   onSlashCommand,
   onTemplateInstantiate,
   templateClassFilters,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const [trigger, setTrigger] = useState<TriggerState>({
-    isOpen: false,
-    type: 'slash',
-    query: '',
-    triggerOffset: 0,
-    position: { top: 0, left: 0 },
-  });
-  const lastTextRef = useRef('');
-  // Capture the host block ID when an embed trigger opens (so we can create sibling)
-  const embedHostBlockIdRef = useRef<string | null>(null);
-  // Save the anchor text node key when the trigger opens so that handleSelect
-  // can recover the correct insertion point even if the Lexical selection
-  // drifted during an async operation (e.g. create-new-node mutation).
-  const triggerAnchorKeyRef = useRef<string | null>(null);
-
-  // ─── Insert embed sibling: create a new block after the current block ─
-
-  const insertEmbedSibling = useCallback((nodeUuid: string) => {
-    // Resolve the host block ID — captured when trigger opened, or from current selection
-    const hostBlockId = embedHostBlockIdRef.current;
-    if (!hostBlockId) return;
-
-    const runtime = getNodeGraphRuntime();
-    const hostNode = runtime.getNode(hostBlockId);
-    if (!hostNode?.parentId) return;
-
-    const newBlockId = generateUUID();
-    runtime.requestFocus(newBlockId);
-    runtime.applyIntent({
-      type: 'create_block',
-      parentId: hostNode.parentId,
-      afterBlockId: hostBlockId,
-      blockId: newBlockId,
-      contentAST: [{
-        type: 'paragraph',
-        children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
-      }],
-    });
-    runtime.flushEvents();
-    embedHostBlockIdRef.current = null;
-    setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, []);
-
-  // ─── Detect triggers on text change ────────────────────────
+  const [popup, setPopup] = useState<PopupState | null>(null);
+  const placeholderRef = useRef<Placeholder | null>(null);
+  const blockServerIdRef = useRef<number | undefined>(undefined);
+  const popupOpenRef = useRef(false);
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState, tags }) => {
-      editorState.read(() => {
+    popupOpenRef.current = popup !== null;
+  }, [popup]);
+
+  // ─── Detect triggers on key down ─────────────────────────────
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event: KeyboardEvent) => {
+        // Don't intercept while popup is already open
+        if (popupOpenRef.current) return false;
+
+        // Only unmodified trigger keys
+        if (event.ctrlKey || event.metaKey || event.altKey) return false;
+
+        const key = event.key;
+        if (!['+', '@', '#', '/'].includes(key)) return false;
+
         const selection = $getSelection();
-        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
-          if (trigger.isOpen) setTrigger(prev => ({ ...prev, isOpen: false }));
-          return;
-        }
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
 
         const anchorNode = selection.anchor.getNode();
+        if (!$isTextNode(anchorNode)) return false;
+
         const text = anchorNode.getTextContent();
         const offset = selection.anchor.offset;
+        const prevChar = offset > 0 ? text[offset - 1] : null;
 
-        // Only detect new triggers when text was actually typed, not on
-        // pure cursor movements (clicks, arrow keys).  We allow continued
-        // detection while a trigger is already open so the query updates
-        // as the user keeps typing.
-        const textChanged = text !== lastTextRef.current;
-        lastTextRef.current = text;
-
-        // If nothing was typed and no trigger is open, skip detection.
-        // Also skip history-undo/redo replays — they aren't fresh typing.
-        if (!textChanged && !trigger.isOpen) return;
-        if (tags.has('historic')) {
-          if (trigger.isOpen) setTrigger(prev => ({ ...prev, isOpen: false }));
-          return;
+        let valid = false;
+        if (key === '+' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (key === '@' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (key === '#' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (key === '/' && (offset === 0 || /\s/.test(prevChar || ''))) {
+          valid = true;
         }
 
-        // Strip zero-width spaces before trigger detection —
-        // empty blocks use ZWS for cursor placement and the transform
-        // cleans it up, but there can be a single tick where the
-        // raw text still contains it.
-        const cleanText = text.replace(/\u200B/g, '');
-        const zwsBeforeCursor = (text.slice(0, offset).match(/\u200B/g) || []).length;
-        const cleanOffset = offset - zwsBeforeCursor;
+        if (!valid) return false;
 
-        // Look backwards from cursor for trigger patterns
-        const textBefore = cleanText.slice(0, cleanOffset);
+        // Consume the key — we will insert the character ourselves
+        event.preventDefault();
 
-        // If a link/type/tag trigger is already open, use stateful tracking instead of
-        // re-running pattern detection. This keeps the popup alive when the user types
-        // spaces or other characters — it only closes when the trigger char itself is
-        // deleted or the cursor moves before it.
-        if (trigger.isOpen && (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag')) {
-          if (trigger.embedMode || trigger.templateMode) {
-            // Embed/template mode has no trigger char in the text — track everything before cursor
-            const newQuery = textBefore;
-            if (newQuery !== trigger.query) {
-              setTrigger(prev => ({ ...prev, query: newQuery }));
-            }
-            return;
-          }
+        // Capture caret coordinates BEFORE mutating the editor
+        const coords = getCaretCoordinates(editor);
 
-          const triggerChar = trigger.type === 'link' ? '@' : trigger.type === 'type' ? '+' : '#';
-          if (cleanOffset <= trigger.triggerOffset || cleanText[trigger.triggerOffset] !== triggerChar) {
-            // Trigger char was deleted or cursor moved before it — close popup
-            setTrigger(prev => ({ ...prev, isOpen: false }));
-            return;
-          }
+        editor.update(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel)) return;
 
-          // Query = everything typed after the trigger character up to the cursor
-          const newQuery = textBefore.slice(trigger.triggerOffset + 1);
-          if (newQuery !== trigger.query) {
-            setTrigger(prev => ({ ...prev, query: newQuery }));
-          }
-          return;
-        }
+          sel.insertText(key);
 
-        const match = detectTriggerPattern(textBefore);
+          const newAnchorNode = sel.anchor.getNode();
+          if ($isTextNode(newAnchorNode)) {
+            placeholderRef.current = {
+              nodeKey: newAnchorNode.getKey(),
+              offset: sel.anchor.offset - 1,
+              char: key,
+            };
 
-        if (match) {
-          const coords = getCaretCoordinates(editor);
-          // For link triggers, capture the current block ID for Alt+Enter embed
-          // and suppress the popup if the current block is a page.
-          if (match.type === 'link' && !trigger.embedMode) {
-            const blockNode = findParentNodeBlock(anchorNode);
+            const blockNode = findParentNodeBlock(newAnchorNode);
             if (blockNode) {
               const runtime = getNodeGraphRuntime();
               const graphNode = runtime.getNode(blockNode.getBlockId());
-              if (graphNode?.isPage) {
-                // Node links are not allowed in page-typed blocks
-                if (trigger.isOpen) setTrigger(prev => ({ ...prev, isOpen: false }));
-                return;
-              }
-              embedHostBlockIdRef.current = blockNode.getBlockId();
+              blockServerIdRef.current = graphNode?.serverId;
             }
           }
-          setTrigger({
-            isOpen: true,
-            type: match.type,
-            query: match.query,
-            triggerOffset: match.triggerStart,
-            position: coords,
-          });
-          triggerAnchorKeyRef.current = anchorNode.getKey();
-        } else if (trigger.isOpen) {
-          setTrigger(prev => ({ ...prev, isOpen: false }));
-          triggerAnchorKeyRef.current = null;
+        });
+
+        let triggerType: TriggerPopupType;
+        switch (key) {
+          case '+':
+            triggerType = 'class';
+            break;
+          case '@':
+            triggerType = 'link';
+            break;
+          case '#':
+            triggerType = 'tag';
+            break;
+          case '/':
+            triggerType = 'slash';
+            break;
+          default:
+            return false;
         }
-      });
-    });
-  }, [editor, trigger.isOpen, trigger.embedMode, trigger.templateMode]);
+        setPopup({ type: triggerType, position: coords });
 
-  // ─── Escape closes trigger ─────────────────────────────────
-
-  useEffect(() => {
-    if (!trigger.isOpen) return;
-
-    return editor.registerCommand(
-      KEY_ESCAPE_COMMAND,
-      () => {
-        setTrigger(prev => ({ ...prev, isOpen: false }));
         return true;
       },
       COMMAND_PRIORITY_NORMAL,
     );
-  }, [editor, trigger.isOpen]);
+  }, [editor]);
 
-  // ─── Track popup state in InputContext ─────────────────────
+  // ─── Track popup state in InputContext ───────────────────────
 
   useEffect(() => {
-    if (trigger.isOpen) {
+    if (popup) {
       useInputContext.getState().enterPopup();
       return () => useInputContext.getState().leavePopup();
     }
-  }, [trigger.isOpen]);
+  }, [popup]);
 
-  // ─── Handle selection ──────────────────────────────────────
+  // ─── Placeholder removal ─────────────────────────────────────
 
-  const handleSelect = useCallback((value: string, _metadata?: unknown) => {
+  const removePlaceholder = useCallback(() => {
+    const ph = placeholderRef.current;
+    if (!ph) return;
+
     editor.update(() => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return;
+      const node = $getNodeByKey(ph.nodeKey);
+      if ($isTextNode(node)) {
+        const text = node.getTextContent();
+        const before = text.slice(0, ph.offset);
+        const after = text.slice(ph.offset + 1);
+        node.setTextContent((before + after) || '\u200B');
 
-      if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
-        const triggerChar =
-          trigger.type === 'link' ? '@' : trigger.type === 'type' ? '+' : '#';
-
-        const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
-        if (!resolved) return;
-
-        const { anchorNode, triggerOffset } = resolved;
-        const rawText = anchorNode.getTextContent();
-        const startRaw = cleanToRawOffset(rawText, triggerOffset);
-        const endClean = triggerOffset + 1 + trigger.query.length;
-        const endRaw = cleanToRawOffset(rawText, endClean);
-
-        selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
-        selection.focus.set(anchorNode.getKey(), endRaw, 'text');
-        selection.removeText();
-
-        if (anchorNode.getTextContent() === '') {
-          anchorNode.setTextContent('\u200B');
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          selection.anchor.set(node.getKey(), ph.offset, 'text');
+          selection.focus.set(node.getKey(), ph.offset, 'text');
         }
+      }
+    });
+  }, [editor]);
 
-        const pill = $createInlineLinkNode(
-          value,
-          trigger.type === 'type' ? 'class' : 'node',
-        );
+  // ─── Close popup, return focus ───────────────────────────────
 
+  const handleClose = useCallback(() => {
+    popupOpenRef.current = false;
+    setPopup(null);
+    placeholderRef.current = null;
+    blockServerIdRef.current = undefined;
+    editor.focus();
+  }, [editor]);
+
+  // ─── Delete placeholder and close popup ──────────────────────
+
+  const handleDeletePlaceholder = useCallback(() => {
+    popupOpenRef.current = false;
+    removePlaceholder();
+    setPopup(null);
+    placeholderRef.current = null;
+    blockServerIdRef.current = undefined;
+    editor.focus();
+  }, [editor, removePlaceholder]);
+
+  // ─── Insert inline pill helper ───────────────────────────────
+
+  const insertPill = useCallback(
+    (nodeUuid: string, refType: 'node' | 'class') => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+
+        const anchorNode = selection.anchor.getNode();
+        const pill = $createInlineLinkNode(nodeUuid, refType);
         anchorNode.insertAfter(pill);
 
         const afterNode = $createTextNode('\u200B');
         pill.insertAfter(afterNode);
         afterNode.selectStart();
-
-        return;
-      }
-
-      // Slash commands
-      const anchorNode = selection.anchor.getNode();
-      const rawText = anchorNode.getTextContent();
-      const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-      const cursorClean = selection.anchor.offset - zwsBefore;
-      const text = rawText.replace(/\u200B/g, '');
-      const beforeTrigger = text.slice(0, trigger.triggerOffset);
-      const afterCursor = text.slice(cursorClean);
-
-      if (value === 'embed') {
-        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-        (anchorNode as any).setTextContent(newText);
-        const newOffset = beforeTrigger.length;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-        const embedBlockNode = findParentNodeBlock(anchorNode);
-        if (embedBlockNode) {
-          embedHostBlockIdRef.current = embedBlockNode.getBlockId();
-        }
-
-        setTimeout(() => {
-          const coords = getCaretCoordinates(editor);
-          setTrigger({
-            isOpen: true,
-            type: 'link',
-            query: '',
-            triggerOffset: 0,
-            position: coords,
-            embedMode: true,
-          });
-        }, 0);
-        return;
-      } else if (value === 'template') {
-        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-        (anchorNode as any).setTextContent(newText);
-        const newOffset = beforeTrigger.length;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-        let templateBlockServerId: number | undefined;
-        const tplBlockNode = findParentNodeBlock(anchorNode);
-        if (tplBlockNode) {
-          const runtime = getNodeGraphRuntime();
-          const gn = runtime.getNode(tplBlockNode.getBlockId());
-          templateBlockServerId = gn?.serverId;
-        }
-
-        setTimeout(() => {
-          const coords = getCaretCoordinates(editor);
-          setTrigger({
-            isOpen: true,
-            type: 'link',
-            query: '',
-            triggerOffset: 0,
-            position: coords,
-            templateMode: true,
-            classFilters: templateClassFilters,
-            templateBlockServerId,
-          });
-        }, 0);
-        return;
-      } else if (value === 'type') {
-        const newText = beforeTrigger + '+' + afterCursor;
-        (anchorNode as any).setTextContent(newText || '\u200B');
-        const newOffset = beforeTrigger.length + 1;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-      } else if (value === 'tag') {
-        const newText = beforeTrigger + '#' + afterCursor;
-        (anchorNode as any).setTextContent(newText || '\u200B');
-        const newOffset = beforeTrigger.length + 1;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-      } else {
-        const newText = (beforeTrigger + afterCursor.trimStart()) || '\u200B';
-        (anchorNode as any).setTextContent(newText);
-        const newOffset = beforeTrigger.length;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-        if (onSlashCommand) {
-          const blockNode = findParentNodeBlock(anchorNode);
-          let blockServerId: number | undefined;
-          let isPageBlock = false;
-          if (blockNode) {
-            const runtime = getNodeGraphRuntime();
-            const graphNode = runtime.getNode(blockNode.getBlockId());
-            blockServerId = graphNode?.serverId;
-            isPageBlock = graphNode?.isPage ?? false;
-          }
-          if ((value === 'link' || value === 'blocklink') && isPageBlock) {
-            return;
-          }
-          setTimeout(() => onSlashCommand(value, blockServerId), 0);
-        }
-      }
-    });
-
-    setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, [editor, trigger, onSlashCommand, templateClassFilters]);
-
-  const handleClose = useCallback(() => {
-    setTrigger(prev => ({ ...prev, isOpen: false }));
-  }, []);
-
-  // ─── Render popup ──────────────────────────────────────────
-
-  if (!trigger.isOpen) return null;
-
-  if (trigger.type === 'link' || trigger.type === 'type' || trigger.type === 'tag') {
-    const suggestionType: SuggestionType = trigger.type === 'type' ? 'class' : trigger.type;
-
-    const handleSuggestionSelect = async (node: Node, addInline: boolean) => {
-      // For + type trigger: ALWAYS add to class_ids
-      if (trigger.type === 'type' && onAddClass) {
-        let blockServerId: number | undefined;
-        
-        if (addInline) {
-          // Ctrl+Enter: Add to class_ids AND insert inline pill
-          // 1. Insert the inline pill FIRST so the pending save includes it.
-          handleSelect(node.uuid, { node, type: suggestionType });
-
-          // 2. Resolve the block server ID after the editor update.
-          editor.read(() => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return;
-
-            const anchorNode = selection.anchor.getNode();
-            const blockNode = findParentNodeBlock(anchorNode);
-            if (blockNode) {
-              const runtime = getNodeGraphRuntime();
-              const graphNode = runtime.getNode(blockNode.getBlockId());
-              blockServerId = graphNode?.serverId;
-            }
-          });
-        } else {
-          // Plain Enter: Add to class_ids only (no inline pill)
-          editor.update(() => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return;
-
-            const triggerChar = '+';
-            const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
-            if (!resolved) return;
-
-            const { anchorNode, triggerOffset } = resolved;
-            const rawText = anchorNode.getTextContent();
-            const startRaw = cleanToRawOffset(rawText, triggerOffset);
-            const endRaw = cleanToRawOffset(rawText, triggerOffset + 1 + trigger.query.length);
-
-            selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
-            selection.focus.set(anchorNode.getKey(), endRaw, 'text');
-            selection.removeText();
-
-            if (anchorNode.getTextContent() === '') {
-              anchorNode.setTextContent('\u200B');
-            }
-
-            const newOffset = startRaw;
-            selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-            selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-
-            const blockNode = findParentNodeBlock(anchorNode);
-            if (blockNode) {
-              const runtime = getNodeGraphRuntime();
-              const graphNode = runtime.getNode(blockNode.getBlockId());
-              blockServerId = graphNode?.serverId;
-            }
-          });
-        }
-
-        // Flush any pending debounced saves and wait for them to complete
-        // before mutating class_ids. This prevents the addClass invalidation
-        // from refetching stale server content before the content save lands.
-        flushAllContentSaves();
-        await awaitAllContentSaves();
-
-        if (blockServerId != null) {
-          onAddClass(blockServerId, node.id);
-        }
-
-        if (!addInline) {
-          setTrigger(prev => ({ ...prev, isOpen: false }));
-        }
-      } else if (trigger.type === 'type') {
-        // + class trigger but onAddClass not provided — remove trigger text without inserting inline
-        editor.update(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          const triggerChar = '+';
-          const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
-          if (!resolved) return;
-          const { anchorNode, triggerOffset } = resolved;
-          const rawText = anchorNode.getTextContent();
-          const startRaw = cleanToRawOffset(rawText, triggerOffset);
-          const endRaw = cleanToRawOffset(rawText, triggerOffset + 1 + trigger.query.length);
-          selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
-          selection.focus.set(anchorNode.getKey(), endRaw, 'text');
-          selection.removeText();
-          if (anchorNode.getTextContent() === '') {
-            anchorNode.setTextContent('\u200B');
-          }
-          const newOffset = startRaw;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-        });
-        setTrigger(prev => ({ ...prev, isOpen: false }));
-      } else {
-        // For # tag and @ link triggers
-        if (trigger.templateMode) {
-          // Template mode: remove the search text typed during template search,
-          // then instantiate the selected template
-          editor.update(() => {
-            const sel = $getSelection();
-            if (!$isRangeSelection(sel)) return;
-            const anchor = sel.anchor.getNode();
-            const rawText = anchor.getTextContent();
-            const text = rawText.replace(/\u200B/g, '');
-            const zwsBefore = (rawText.slice(0, sel.anchor.offset).match(/\u200B/g) || []).length;
-            const cursorClean = sel.anchor.offset - zwsBefore;
-            // triggerOffset is 0 in template mode; remove everything from 0 to cursor
-            const beforeTrigger = text.slice(0, trigger.triggerOffset);
-            const afterCursor = text.slice(cursorClean);
-            const newText = (beforeTrigger + afterCursor) || '\u200B';
-            (anchor as any).setTextContent(newText);
-            const newOffset = beforeTrigger.length;
-            sel.anchor.set(anchor.getKey(), newOffset, 'text');
-            sel.focus.set(anchor.getKey(), newOffset, 'text');
-          });
-          if (onTemplateInstantiate) {
-            onTemplateInstantiate(node.id, trigger.templateBlockServerId);
-          }
-          setTrigger(prev => ({ ...prev, isOpen: false }));
-        } else if (trigger.embedMode) {
-          // Embed mode (opened by /embed slash command): create sibling embed block
-          insertEmbedSibling(node.uuid);
-          setTrigger(prev => ({ ...prev, isOpen: false }));
-        } else {
-          // Standard: always insert as inline pill
-          handleSelect(node.uuid, { node, type: suggestionType });
-        }
-      }
-    };
-
-    // Alt+Enter: insert as embed sibling (for regular @ link trigger)
-    const handleSelectEmbed = (node: Node) => {
-      if (!trigger.embedMode) {
-        editor.update(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          const triggerChar = '@';
-          const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
-          if (!resolved) return;
-          const { anchorNode, triggerOffset } = resolved;
-          const rawText = anchorNode.getTextContent();
-          const startRaw = cleanToRawOffset(rawText, triggerOffset);
-          const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-          const cursorClean = selection.anchor.offset - zwsBefore;
-          const endRaw = cleanToRawOffset(rawText, cursorClean);
-
-          selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
-          selection.focus.set(anchorNode.getKey(), endRaw, 'text');
-          selection.removeText();
-
-          const remaining = anchorNode.getTextContent().slice(startRaw).trimStart();
-          const before = anchorNode.getTextContent().slice(0, startRaw);
-          anchorNode.setTextContent((before + remaining) || '\u200B');
-          const newOffset = before.length;
-          selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-          selection.focus.set(anchorNode.getKey(), newOffset, 'text');
-        });
-      }
-      insertEmbedSibling(node.uuid);
-    };
-
-    const handleSelectDatePage = (pageId: string, _pageName: string) => {
-      handleSelect(pageId, { type: 'date' });
-    };
-
-    // Parse +class syntax from link trigger query
-    const parsedLinkQuery = trigger.type === 'link' ? parseLinkQueryWithClass(trigger.query) : null;
-    const linkQuery = parsedLinkQuery?.linkQuery ?? trigger.query;
-    const isTypingClass = parsedLinkQuery?.isTypingClass ?? false;
-    const classQuery = parsedLinkQuery?.classQuery ?? '';
-
-    const handleClassSelect = (classNode: Node) => {
-      editor.update(() => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return;
-        const triggerChar = '@';
-        const resolved = resolveTriggerAnchor(selection, trigger, triggerChar, triggerAnchorKeyRef);
-        if (!resolved) return;
-        const { anchorNode, triggerOffset } = resolved;
-        const rawText = anchorNode.getTextContent();
-        const text = rawText.replace(/\u200B/g, '');
-        const afterTriggerChar = text.slice(triggerOffset + 1);
-        const plusIdx = afterTriggerChar.indexOf('+');
-        if (plusIdx === -1) return;
-
-        const startRaw = cleanToRawOffset(rawText, triggerOffset + 1 + plusIdx);
-        const zwsBefore = (rawText.slice(0, selection.anchor.offset).match(/\u200B/g) || []).length;
-        const cursorClean = selection.anchor.offset - zwsBefore;
-        const endRaw = cleanToRawOffset(rawText, cursorClean);
-
-        selection.anchor.set(anchorNode.getKey(), startRaw, 'text');
-        selection.focus.set(anchorNode.getKey(), endRaw, 'text');
-        selection.removeText();
-
-        if (anchorNode.getTextContent() === '') {
-          anchorNode.setTextContent('\u200B');
-        }
-
-        const newOffset = startRaw;
-        selection.anchor.set(anchorNode.getKey(), newOffset, 'text');
-        selection.focus.set(anchorNode.getKey(), newOffset, 'text');
       });
-      setTrigger(prev => ({
-        ...prev,
-        classFilters: [...(prev.classFilters ?? []).filter(id => id !== classNode.id), classNode.id],
-      }));
-    };
+    },
+    [editor]
+  );
 
-    return (
-      <TriggerSuggestionPopup
-        suggestionType={suggestionType}
-        triggerType={trigger.type}
-        query={linkQuery}
-        position={trigger.position}
-        onSelect={handleSuggestionSelect}
-        onClose={handleClose}
-        onSelectDatePage={trigger.type === 'link' && !trigger.templateMode ? handleSelectDatePage : undefined}
-        onSelectEmbed={trigger.type === 'link' && !trigger.templateMode && !trigger.embedMode ? handleSelectEmbed : undefined}
-        classFilters={trigger.classFilters}
-        headerText={trigger.templateMode ? 'Insert template' : undefined}
-        footerHintText={trigger.templateMode ? 'insert template' : undefined}
-        hideCreate={trigger.templateMode}
-        isTypingClass={trigger.type === 'link' ? isTypingClass : undefined}
-        classQuery={trigger.type === 'link' ? classQuery : undefined}
-        onClassSelect={trigger.type === 'link' ? handleClassSelect : undefined}
-        lexicalEditor={editor}
-      />
-    );
-  }
+  // ─── Create embed sibling helper ─────────────────────────────
+
+  const insertEmbedSibling = useCallback(
+    (nodeUuid: string) => {
+      const ph = placeholderRef.current;
+      if (!ph) return;
+
+      // We need the host block ID. Resolve from the placeholder node.
+      editor.getEditorState().read(() => {
+        const node = $getNodeByKey(ph.nodeKey);
+        if (!node) return;
+        const blockNode = findParentNodeBlock(node);
+        if (!blockNode) return;
+
+        const runtime = getNodeGraphRuntime();
+        const hostNode = runtime.getNode(blockNode.getBlockId());
+        if (!hostNode?.parentId) return;
+
+        const newBlockId = crypto.randomUUID();
+        runtime.requestFocus(newBlockId);
+        runtime.applyIntent({
+          type: 'create_block',
+          parentId: hostNode.parentId,
+          afterBlockId: blockNode.getBlockId(),
+          blockId: newBlockId,
+          contentAST: [
+            {
+              type: 'paragraph',
+              children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
+            },
+          ],
+        });
+        runtime.flushEvents();
+      });
+    },
+    [editor]
+  );
+
+  // ─── Handle node selection (+, @, #) ─────────────────────────
+
+  const handleSelectNode = useCallback(
+    (node: Node, mode: 'default' | 'alternative') => {
+      if (!popup) return;
+
+      removePlaceholder();
+
+      if (popup.context === 'template') {
+        onTemplateInstantiate?.(node.id, blockServerIdRef.current);
+        handleClose();
+        return;
+      }
+
+      if (popup.context === 'embed') {
+        insertEmbedSibling(node.uuid);
+        handleClose();
+        return;
+      }
+
+      switch (popup.type) {
+        case 'class': {
+          if (mode === 'default') {
+            if (blockServerIdRef.current != null) {
+              onAddClass?.(blockServerIdRef.current, node.id);
+            }
+          } else {
+            insertPill(node.uuid, 'class');
+          }
+          break;
+        }
+        case 'link':
+        case 'tag': {
+          insertPill(node.uuid, 'node');
+          // TODO: mode === 'alternative' → open link editor modal
+          break;
+        }
+      }
+
+      handleClose();
+    },
+    [popup, removePlaceholder, insertPill, insertEmbedSibling, onAddClass, onTemplateInstantiate, handleClose]
+  );
+
+  // ─── Handle slash command selection ──────────────────────────
+
+  const handleSelectCommand = useCallback(
+    (commandId: string) => {
+      removePlaceholder();
+
+      if (commandId === 'template') {
+        // Open template picker (link popup in template mode)
+        const coords = getCaretCoordinates(editor);
+        setPopup({
+          type: 'link',
+          position: coords,
+          context: 'template',
+          classFilters: templateClassFilters,
+        });
+        return;
+      }
+
+      if (commandId === 'embed') {
+        // Open embed picker (link popup in embed mode)
+        const coords = getCaretCoordinates(editor);
+        setPopup({
+          type: 'link',
+          position: coords,
+          context: 'embed',
+        });
+        return;
+      }
+
+      onSlashCommand?.(commandId, blockServerIdRef.current);
+      handleClose();
+    },
+    [editor, removePlaceholder, onSlashCommand, templateClassFilters, handleClose]
+  );
+
+  // ─── Render ──────────────────────────────────────────────────
+
+  if (!popup) return null;
 
   return (
-    <SlashCommandMenu
-      query={trigger.query}
-      position={trigger.position}
-      onSelect={handleSelect}
+    <TriggerPopup
+      type={popup.type}
+      position={popup.position}
+      onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
+      onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
       onClose={handleClose}
-      lexicalEditor={editor}
+      onDeletePlaceholder={handleDeletePlaceholder}
     />
   );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-function cleanToRawOffset(rawText: string, cleanIdx: number): number {
-  let rawIdx = 0;
-  let cleanCount = 0;
-  for (const char of rawText) {
-    if (char !== '\u200B') {
-      if (cleanCount === cleanIdx) return rawIdx;
-      cleanCount++;
-    }
-    rawIdx++;
-  }
-  return rawIdx;
-}
-
-function resolveTriggerAnchor(
-  selection: ReturnType<typeof $getSelection>,
-  trigger: TriggerState,
-  triggerChar: string,
-  triggerAnchorKeyRef: { current: string | null },
-): { anchorNode: import('lexical').TextNode; triggerOffset: number } | null {
-  if (!$isRangeSelection(selection)) return null;
-
-  let anchorNode = selection.anchor.getNode();
-
-  const isValidAnchor = (node: ReturnType<typeof $getNodeByKey>): node is import('lexical').TextNode => {
-    if (!node || !$isTextNode(node)) return false;
-    const t = node.getTextContent().replace(/\u200B/g, '');
-    return trigger.triggerOffset < t.length && t[trigger.triggerOffset] === triggerChar;
-  };
-
-  if (isValidAnchor(anchorNode)) {
-    return { anchorNode, triggerOffset: trigger.triggerOffset };
-  }
-
-  const saved = triggerAnchorKeyRef.current ? $getNodeByKey(triggerAnchorKeyRef.current) : null;
-  if (isValidAnchor(saved)) {
-    return { anchorNode: saved!, triggerOffset: trigger.triggerOffset };
-  }
-
-  const blockNode = findParentNodeBlock(anchorNode);
-  if (!blockNode) return null;
-
-  let foundNode: import('lexical').TextNode | null = null;
-  let foundOffset = -1;
-  blockNode.getChildren().forEach(child => {
-    if ($isTextNode(child) && foundNode === null) {
-      const t = child.getTextContent().replace(/\u200B/g, '');
-      const pattern = triggerChar + trigger.query;
-      const idx = t.lastIndexOf(pattern);
-      if (idx !== -1) {
-        foundNode = child;
-        foundOffset = idx;
-      }
-    }
-  });
-
-  if (foundNode) {
-    return { anchorNode: foundNode, triggerOffset: foundOffset };
-  }
-
-  return null;
-}
-
-interface TriggerMatch {
-  type: TriggerType;
-  query: string;
-  triggerStart: number;
-}
-
-function parseLinkQueryWithClass(query: string): { linkQuery: string; isTypingClass: boolean; classQuery: string } {
-  const classMatch = query.match(/^(.*?)\+(\S*)$/);
-  if (classMatch) {
-    return { linkQuery: classMatch[1], isTypingClass: true, classQuery: classMatch[2] };
-  }
-  return { linkQuery: query, isTypingClass: false, classQuery: '' };
-}
-
-function detectTriggerPattern(text: string): TriggerMatch | null {
-  // @ link trigger (not preceded by word char)
-  const linkMatch = text.match(/(?:^|[^a-zA-Z0-9])@([^@\s]*)$/);
-  if (linkMatch) {
-    return {
-      type: 'link',
-      query: linkMatch[1],
-      triggerStart: text.length - linkMatch[1].length - 1,
-    };
-  }
-
-  // + type trigger (not preceded by word char)
-  const typeMatch = text.match(/(?:^|[^a-zA-Z0-9])\+([^+\s]*)$/);
-  if (typeMatch) {
-    return {
-      type: 'type',
-      query: typeMatch[1],
-      triggerStart: text.length - typeMatch[1].length - 1,
-    };
-  }
-
-  // # tag trigger (not preceded by word char)
-  const tagMatch = text.match(/(?:^|[^a-zA-Z0-9])#([^#\s]*)$/);
-  if (tagMatch) {
-    return {
-      type: 'tag',
-      query: tagMatch[1],
-      triggerStart: text.length - tagMatch[1].length - 1,
-    };
-  }
-
-  // / slash command (at start of text or after whitespace)
-  const slashMatch = text.match(/(?:^|\s)\/([^\s]*)$/);
-  if (slashMatch) {
-    return {
-      type: 'slash',
-      query: slashMatch[1],
-      triggerStart: text.length - slashMatch[1].length - 1,
-    };
-  }
-
-  return null;
-}
-
-function getCaretCoordinates(editor: LexicalEditor): { top: number; left: number } {
+function getCaretCoordinates(editor: import('lexical').LexicalEditor): {
+  top: number;
+  left: number;
+} {
   const rootEl = editor.getRootElement();
   if (!rootEl) return { top: 0, left: 0 };
 
@@ -769,8 +382,6 @@ function getCaretCoordinates(editor: LexicalEditor): { top: number; left: number
   if (!nativeSelection || nativeSelection.rangeCount === 0) return { top: 0, left: 0 };
 
   const range = nativeSelection.getRangeAt(0);
-  // Validate that the native selection belongs to our editor — if focus
-  // has moved to a modal or other element, ignore it.
   if (!rootEl.contains(range.startContainer)) return { top: 0, left: 0 };
 
   const cloned = range.cloneRange();

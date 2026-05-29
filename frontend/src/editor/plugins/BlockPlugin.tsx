@@ -47,6 +47,18 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { generateUUID } from '../../utils/uuid';
 import { isOtherEditorActive } from '../activeEditorRegistry';
+
+/** Returns true if the active element is inside a companion overlay (popup, dialog, menu).
+ *  BlockPlugin should not steal focus back to the editor in these cases. */
+function isFocusInsideCompanion(): boolean {
+  const active = document.activeElement;
+  if (!active) return false;
+  return !!(
+    active.closest('[data-editor-companion]') ||
+    active.closest('[role="dialog"]') ||
+    active.closest('[role="menu"]')
+  );
+}
 import type { ProjectedNode, ContentAST } from '../../runtime/types';
 import type { ASTInlineNode, ASTNodeLink } from '@/types/ast';
 import {
@@ -228,7 +240,7 @@ export function BlockPlugin({
     // reconciliation in the same pass.  The focusin handler will fire
     // and read the old DOM selection, but PASS 4 inside the update
     // overwrites it with the correct target.
-    if (pendingFocusValid && !isOtherEditorActive(editor)) {
+    if (pendingFocusValid && !isOtherEditorActive(editor) && !isFocusInsideCompanion()) {
       if (rootEl && rootEl !== document.activeElement && !rootEl.contains(document.activeElement)) {
         rootEl.focus({ preventScroll: true });
       }
@@ -612,7 +624,7 @@ export function BlockPlugin({
     // has focus — the user clicked into another editor between the
     // requestFocus and this sync, so stealing focus back would cause
     // dual-editor input.
-    if (pendingFocusValid && !runtime.getPendingFocus() && !isOtherEditorActive(editor)) {
+    if (pendingFocusValid && !runtime.getPendingFocus() && !isOtherEditorActive(editor) && !isFocusInsideCompanion()) {
       editor.focus();
     }
 

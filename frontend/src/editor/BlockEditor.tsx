@@ -733,7 +733,6 @@ export function BlockEditor({
 
         {/* Triggers (/, +, @, #) */}
         <TriggerPlugin
-          onLinkSelect={handlePillClick}
           onAddClass={onAddClass}
           onSlashCommand={handleSlashCommand}
           onTemplateInstantiate={onTemplateInstantiate}

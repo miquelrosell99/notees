@@ -8,6 +8,7 @@
  */
 
 import { useEffect, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   COMMAND_PRIORITY_HIGH,
@@ -58,7 +59,7 @@ export function FindReplacePlugin(): JSX.Element | null {
   // when multiple BlockEditors are on the page (card mode, embeds, etc.)
   if (!isOpen || editor !== primaryEditor) return null;
 
-  return <FindReplaceWidget editor={editor} />;
+  return createPortal(<FindReplaceWidget editor={editor} />, document.body);
 }
 
 /** Execute search and return all matches */
