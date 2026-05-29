@@ -104,7 +104,7 @@ export const LABEL_FADE_ZOOM_MAX = 0.6;
 
 // Link type priority
 export const LINK_TYPE_PRIORITY: Record<
-  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'semantic',
+  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence',
   number
 > = {
   parent: 3,
@@ -112,7 +112,7 @@ export const LINK_TYPE_PRIORITY: Record<
   class: 2,
   'property-reference': 1,
   reference: 0,
-  semantic: 0,
+  cooccurrence: 0,
 };
 
 // Line dash patterns (allocated once)

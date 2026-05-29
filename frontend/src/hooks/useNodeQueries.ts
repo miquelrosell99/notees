@@ -224,13 +224,14 @@ export function useGraphNodes(options?: { enabled?: boolean }) {
  */
 export function useGraphLinks(
   nodeIds: number[],
-  options?: { enabled?: boolean; scope?: 'between' | 'touching'; semantic?: boolean }
+  options?: { enabled?: boolean; scope?: 'between' | 'touching'; cooccurrence?: boolean; contextNodeId?: number | null }
 ) {
   const scope = options?.scope ?? 'between';
-  const semantic = options?.semantic ?? false;
+  const cooccurrence = options?.cooccurrence ?? false;
+  const contextNodeId = options?.contextNodeId ?? null;
   return useQuery({
-    queryKey: nodeKeys.graphLinks(nodeIds, scope, semantic),
-    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope, semantic),
+    queryKey: nodeKeys.graphLinks(nodeIds, scope, cooccurrence, contextNodeId),
+    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope, cooccurrence, contextNodeId),
     enabled: (options?.enabled ?? true) && nodeIds.length > 0,
   });
 }

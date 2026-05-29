@@ -73,7 +73,9 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'semantic';
+  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence';
+  /** Co-occurrence strength (number of shared blocks/contexts). Higher = stronger relation. */
+  weight?: number;
 }
 
 /**
@@ -114,9 +116,9 @@ export interface GraphSettings {
  * Node visibility filters
  */
 /**
- * Graph data mode: standard explicit links vs semantic co-occurrence links
+ * Graph data mode: standard explicit links vs co-occurrence inference
  */
-export type GraphDataMode = 'standard' | 'semantic';
+export type GraphDataMode = 'standard' | 'cooccurrence';
 
 export interface VisibilityFilters {
   showClassNodes: boolean;
@@ -127,8 +129,10 @@ export interface VisibilityFilters {
   showMonthPages: boolean;
   showYearPages: boolean;
   showSystemPages: boolean;
-  /** Show inferred semantic co-occurrence links (only relevant in semantic mode) */
-  showSemanticLinks: boolean;
+  /** Show inferred co-occurrence links (only relevant in co-occurrence mode) */
+  showCooccurrenceLinks: boolean;
+  /** When true (local graph only), the center/ego node is hidden to reveal neighbor relations */
+  hideSelfNode?: boolean;
 }
 
 // ==================== Physics Types ====================
@@ -199,5 +203,6 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showMonthPages: true,
   showYearPages: true,
   showSystemPages: true,
-  showSemanticLinks: true,
+  showCooccurrenceLinks: true,
+  hideSelfNode: false,
 };
