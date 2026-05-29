@@ -28,6 +28,8 @@ class LiveSyncManager {
   private listeners = new Set<MessageListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: object[] = [];
+  private reconnectAttempts = 0;
+  private intentionalClose = false;
 
   /** Subscribe to incoming server messages. */
   onMessage(cb: MessageListener): () => void {
@@ -47,10 +49,14 @@ class LiveSyncManager {
 
   /** Open (or re-open) the WebSocket for a given page. */
   connect(pageUuid: string): void {
-    if (this.pageUuid === pageUuid && this.ws?.readyState === WebSocket.OPEN) {
-      return;
+    if (this.pageUuid === pageUuid) {
+      const state = this.ws?.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        return;
+      }
     }
     this.disconnect();
+    this.intentionalClose = false;
     this.pageUuid = pageUuid;
     this._open();
   }
@@ -61,19 +67,24 @@ class LiveSyncManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.intentionalClose = true;
     if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.onmessage = null;
-      this.ws.onopen = null;
-      this.ws.close();
+      const ws = this.ws;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      ws.onopen = null;
+      ws.close();
       this.ws = null;
     }
     this.pageUuid = null;
     this.pendingMessages = [];
+    this.reconnectAttempts = 0;
   }
 
   private _open(): void {
+    if (this.ws) return;
+
     const pageUuid = this.pageUuid;
     if (!pageUuid) return;
 
@@ -83,14 +94,17 @@ class LiveSyncManager {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${protocol}//${window.location.host}/api/ws/live/${pageUuid}?token=${encodeURIComponent(token)}`;
 
+    let ws: WebSocket;
     try {
-      this.ws = new WebSocket(url);
+      ws = new WebSocket(url);
     } catch {
       this._scheduleReconnect();
       return;
     }
+    this.ws = ws;
 
-    this.ws.onopen = () => {
+    ws.onopen = () => {
+      this.reconnectAttempts = 0;
       // Flush any messages queued while connecting
       for (const msg of this.pendingMessages) {
         this._send(msg);
@@ -98,7 +112,7 @@ class LiveSyncManager {
       this.pendingMessages = [];
     };
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data) as LiveSyncMessage;
         this._emit(msg);
@@ -107,22 +121,29 @@ class LiveSyncManager {
       }
     };
 
-    this.ws.onclose = () => {
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
       this.ws = null;
-      this._scheduleReconnect();
+      if (!this.intentionalClose) {
+        this._scheduleReconnect();
+      }
     };
 
-    this.ws.onerror = () => {
-      this.ws?.close();
+    ws.onerror = () => {
+      if (this.ws === ws) {
+        ws.close();
+      }
     };
   }
 
   private _scheduleReconnect(): void {
-    if (this.reconnectTimer || !this.pageUuid) return;
+    if (this.reconnectTimer || !this.pageUuid || this.ws) return;
+    const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
+    this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.pageUuid) this._open();
-    }, 3000);
+      if (this.pageUuid && !this.ws) this._open();
+    }, delay);
   }
 
   private _send(payload: object): void {
