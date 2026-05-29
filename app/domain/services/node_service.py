@@ -95,12 +95,22 @@ class NodeService:
         return await self._node_repo.get_children(node_id)
 
     async def get_node_descendants(self, node_id: int) -> list[Node]:
-        """Get all descendants of a node (flat list, ordered by depth then sequence)."""
+        """Get all descendants of a node (flat list, ordered by depth then sequence).
+
+        Uses the closure table for efficiency, but falls back to BFS traversal
+        if the closure table appears out of sync (empty when direct children exist).
+        """
         if hasattr(self._node_repo, "get_descendants"):
             descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
             if descendant_ids:
                 return await self._node_repo.get_by_ids(descendant_ids)
-            return []
+            # Closure table reports no descendants — verify with get_children
+            # before concluding the node is truly a leaf. If children exist
+            # via get_children but not in the closure table, the table is stale.
+            direct_children = await self._node_repo.get_children(node_id)
+            if not direct_children:
+                return []
+            # Fall through to BFS below since closure table is out of sync
         # Fallback: BFS traversal
         result: list[Node] = []
         to_process = [node_id]
