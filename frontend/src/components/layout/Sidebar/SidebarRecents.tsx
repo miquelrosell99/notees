@@ -23,7 +23,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onConte
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
+    <div onClick={onClick} onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
       <div className="sidebar-recent-block">
         <NodeInline
           name={node.name}
@@ -32,7 +32,6 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onConte
           nodeId={node.id}
           nodeUuid={node.uuid}
           showBullet={true}
-          onClick={onClick}
           suppressColor={true}
           draggable={true}
         />
