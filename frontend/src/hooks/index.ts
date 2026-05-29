@@ -41,3 +41,4 @@ export * from './useListDragSort';
 export * from './useShares';
 export * from './useInView';
 export * from './useCanvasViewport';
+export * from './useLivePageSync';

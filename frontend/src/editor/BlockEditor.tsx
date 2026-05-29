@@ -24,6 +24,7 @@ import type { InlineLinkRefType } from './nodes/InlineLinkNode';
 import { EDITOR_NODES, serializeContentAST } from './editorConfig';
 
 import { BlockPlugin } from './plugins/BlockPlugin';
+import { LiveSyncPlugin } from './plugins/LiveSyncPlugin';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { DragDropPlugin } from './plugins/DragDropPlugin';
 import { ExternalDropPlugin } from './plugins/ExternalDropPlugin';
@@ -651,6 +652,7 @@ export function BlockEditor({
 
         {/* Core plugins — global undo/redo in list mode */}
         <EditablePlugin readOnly={readOnly} />
+        <LiveSyncPlugin pageUuid={pageUuid} />
         <HistoryPlugin />
         <FormattingPlugin />
         <AutoWrapPlugin />

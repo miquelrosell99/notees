@@ -53,6 +53,7 @@ from .routers import (
     auto_export_router,
     collab_ws_router,
     export_router,
+    live_sync_ws_router,
     nodes_router,
     properties_router,
     sync_router,
@@ -339,6 +340,8 @@ app.include_router(undo_router)
 app.include_router(shares_router)
 app.include_router(public_router)
 app.include_router(admin_router)
+app.include_router(collab_ws_router)
+app.include_router(live_sync_ws_router)
 
 
 # ============ Static Routes ============

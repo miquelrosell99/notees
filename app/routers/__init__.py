@@ -10,6 +10,7 @@ from .auth import router as auth_router
 from .auto_export import router as auto_export_router
 from .collab_ws import router as collab_ws_router
 from .export import router as export_router
+from .live_sync_ws import router as live_sync_ws_router
 from .nodes import router as nodes_router
 from .properties import router as properties_router
 from .sync import router as sync_router
@@ -27,5 +28,6 @@ __all__ = [
     "undo_router",
     "auto_export_router",
     "collab_ws_router",
+    "live_sync_ws_router",
     "get_current_user",
 ]
