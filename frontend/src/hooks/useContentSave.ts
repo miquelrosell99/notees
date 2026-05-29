@@ -25,16 +25,15 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useUpdateNode } from './useNodes';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
+import {
+  flushRegistry,
+  pendingSavePromises,
+  flushAllContentSaves,
+  awaitAllContentSaves,
+} from './contentSaveTracker';
 
-// ─── Global flush registry ──────────────────────────────────
-// Each useContentSave instance registers its flushAll so we can
-// flush ALL instances before navigation (prevents stale-data races).
-const flushRegistry = new Set<() => void>();
-
-/** Flush pending content saves across ALL active useContentSave instances. */
-export function flushAllContentSaves(): void {
-  for (const flush of flushRegistry) flush();
-}
+// Re-export so existing imports from '@/hooks/useContentSave' keep working.
+export { flushAllContentSaves, awaitAllContentSaves };
 
 /** Pending change entry */
 interface PendingChange {
@@ -58,9 +57,9 @@ interface UseContentSaveOptions {
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = 500, onSaved, onError } = options;
   const updateNode = useUpdateNode();
-  // Use stable mutate reference to avoid dependency instability
-  const mutateRef = useRef(updateNode.mutate);
-  mutateRef.current = updateNode.mutate;
+  // Use mutateAsync so we can track the pending promise globally.
+  const mutateRef = useRef(updateNode.mutateAsync);
+  mutateRef.current = updateNode.mutateAsync;
   
   // Track pending changes per block
   const pendingChangesRef = useRef<Map<number, PendingChange>>(new Map());
@@ -78,13 +77,18 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     if (lastSavedContentRef.current.get(blockId) === finalContent) return;
     lastSavedContentRef.current.set(blockId, finalContent);
 
-    mutateRef.current(
-      { id: blockId, data: { name: finalContent } },
-      {
-        onSuccess: () => onSaved?.(blockId),
-        onError: (error) => onError?.(blockId, error as Error),
-      }
-    );
+    const promise = mutateRef.current({ id: blockId, data: { name: finalContent } })
+      .then(() => {
+        onSaved?.(blockId);
+      })
+      .catch((error) => {
+        onError?.(blockId, error as Error);
+      })
+      .finally(() => {
+        pendingSavePromises.delete(promise);
+      });
+
+    pendingSavePromises.add(promise);
   }, [onSaved, onError]);
   
   // Flush a specific block
