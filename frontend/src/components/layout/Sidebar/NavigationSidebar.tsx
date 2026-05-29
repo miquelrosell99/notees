@@ -95,7 +95,10 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const showTasks = (workspaceSettings?.sidebar_show_tasks as boolean | undefined) ?? true;
 
   // Fetch the Inbox system page by its fixed UUID
-  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox);
+  // Suppress global error: old workspaces may not have an Inbox page
+  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox, {
+    meta: { skipGlobalError: true },
+  });
 
   // Fetch the context menu node data
   const { data: contextNode } = useNode(contextMenuNode);
