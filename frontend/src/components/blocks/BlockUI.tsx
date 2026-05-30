@@ -6,9 +6,11 @@
  */
 
 import { Bullet } from './Bullet';
+import { Icon } from '@/components/core/icons';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
 import './BlockUI.css';
+import type { PresenceUser } from '@/stores/livePresenceStore';
 
 interface BlockUIProps {
   node: Node;
@@ -16,6 +18,8 @@ interface BlockUIProps {
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  /** Remote users currently editing this block (for lock indicator). */
+  lockedBy?: PresenceUser[];
 }
 
 export function BlockUI({
@@ -24,6 +28,7 @@ export function BlockUI({
   onNavigate,
   onOpenInSidebar,
   onContextMenu,
+  lockedBy,
 }: BlockUIProps): JSX.Element {
   const handleClick = () => {
     onNavigate?.(node.uuid);
@@ -47,6 +52,11 @@ export function BlockUI({
         onContextMenu={onContextMenu}
         size="sm"
       />
+      {lockedBy && lockedBy.length > 0 && (
+        <div className="block-ui__lock" title={`Editing by ${lockedBy.map((u) => u.name).join(', ')}`}>
+          <Icon path="mdi mdi-lock-outline" size={0.7} color={lockedBy[0].color} />
+        </div>
+      )}
     </div>
   );
 }

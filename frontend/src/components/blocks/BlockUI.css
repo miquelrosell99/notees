@@ -19,3 +19,12 @@
   margin-right: 6px;
   cursor: grab;
 }
+
+/* Lock indicator — shown when another user is editing this block */
+.block-ui__lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  opacity: 0.85;
+}

@@ -69,6 +69,7 @@ export const ListView = memo(function ListView({
   onTemplateInstantiate,
   templateClassFilters,
   onEnterAtRoot: _onEnterAtRoot,
+  pageUuid: _pageUuid,
   className = '',
   groupBy = 'none',
   groupByProperty,
@@ -281,6 +282,7 @@ export const ListView = memo(function ListView({
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
+                pageUuid={_pageUuid}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -333,6 +335,7 @@ export const ListView = memo(function ListView({
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               showBreadcrumbs={showBreadcrumbs}
+              pageUuid={_pageUuid}
             />
           );
         })}
@@ -348,6 +351,7 @@ export const ListView = memo(function ListView({
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
+                pageUuid={_pageUuid}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -429,6 +433,7 @@ export const ListView = memo(function ListView({
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
+                pageUuid={_pageUuid}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -454,6 +459,7 @@ export const ListView = memo(function ListView({
         onNavigateToNode={handleNavigateToNode}
         onOpenInSidebar={handleOpenInSidebar}
         onPillClick={handleNavigateToNode}
+        pageUuid={_pageUuid}
         maxDepth={maxDepth}
         pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
@@ -490,6 +496,7 @@ function ListViewGroup({
   onNodeClick,
   onNodeShiftClick,
   showBreadcrumbs = false,
+  pageUuid,
 }: {
   group: NodeGroup;
   sortedGroupNodes: Node[];
@@ -504,6 +511,7 @@ function ListViewGroup({
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   showBreadcrumbs?: boolean;
+  pageUuid?: string;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -568,6 +576,7 @@ function ListViewGroup({
                     onNavigateToNode={handleNavigateToNode}
                     onOpenInSidebar={handleOpenInSidebar}
                     onContentChange={handleContentChangeBridge}
+                pageUuid={pageUuid}
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
                     onTemplateInstantiate={onTemplateInstantiate}
@@ -587,6 +596,7 @@ function ListViewGroup({
               onSlashCommand={onSlashCommand}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
+              pageUuid={pageUuid}
             />
           )}
         </div>

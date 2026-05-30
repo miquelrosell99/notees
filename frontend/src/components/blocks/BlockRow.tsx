@@ -15,7 +15,9 @@ import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { NodeContextMenu } from '@/components/nodes/NodeContextMenu';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
+import { useAuthStore } from '@/stores/authStore';
 import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
+import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
@@ -48,6 +50,8 @@ interface BlockRowProps {
   onBackspaceAtStart?: () => void;
   onDeleteAtEnd?: () => void;
   onTab?: (shift: boolean) => void;
+  /** UUID of the containing page (for live sync lock indicators). */
+  pageUuid?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -73,6 +77,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       onBackspaceAtStart,
       onDeleteAtEnd,
       onTab,
+      pageUuid,
     },
     ref,
   ): JSX.Element {
@@ -80,6 +85,12 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
     const pendingFocusBlockId = useEditorFocusStore((s) => s.pendingFocusBlockId);
     const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
     const isActive = activeBlockId === node.uuid;
+
+    // Check if another user is editing this block
+    const lockedBy = pageUuid
+      ? useLivePresenceStore((s) => s.getUsersOnBlock(pageUuid, node.uuid)).filter((u) => u.id !== (useAuthStore.getState().user?.id ?? 0))
+      : [];
+    const isLocked = lockedBy.length > 0;
 
     // Focus editor when pending focus matches this block
     useEffect(() => {
@@ -146,13 +157,14 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
           onContextMenu={handleBulletContextMenu}
+          lockedBy={lockedBy}
         />
         <div className="block-row__content">
           <InlineEditor
             ref={editorRef}
             blockId={node.uuid}
             initialContentAST={contentAST}
-            readOnly={readOnly}
+            readOnly={readOnly || isLocked}
             placeholder={placeholder}
             onContentChange={onContentChange}
             onPillClick={onPillClick}
@@ -165,6 +177,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
             onBackspaceAtStart={onBackspaceAtStart}
             onDeleteAtEnd={onDeleteAtEnd}
             onTab={onTab}
+            pageUuid={pageUuid}
           />
         </div>
         <BlockAfterContent node={node} />

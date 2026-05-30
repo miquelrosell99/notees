@@ -65,6 +65,8 @@ interface BlockListProps {
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   /** Class IDs to pre-filter template picker. */
   templateClassFilters?: number[];
+  /** UUID of the containing page (enables live sync lock indicators). */
+  pageUuid?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -114,6 +116,7 @@ export function BlockList({
   onSlashCommand,
   onTemplateInstantiate,
   templateClassFilters,
+  pageUuid,
 }: BlockListProps): JSX.Element {
   const flatNodes = useMemo(
     () => flattenNodes(nodes, maxDepth, pagesOnly, skipPages),
@@ -309,6 +312,7 @@ export function BlockList({
           onSlashCommand={onSlashCommand}
           onTemplateInstantiate={onTemplateInstantiate}
           templateClassFilters={templateClassFilters}
+          pageUuid={pageUuid}
           onEnter={() => handleEnter(node.uuid)}
           onBackspaceAtStart={() => handleBackspaceAtStart(node.uuid)}
           onDeleteAtEnd={() => handleDeleteAtEnd(node.uuid)}
