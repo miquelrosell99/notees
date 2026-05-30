@@ -112,10 +112,10 @@ export function Layout() {
   // NOTE: loadFavorites() and loadRecents() are called in App.tsx when dbData?.active changes.
   // Do NOT duplicate them here — it causes 3x duplicate requests competing for browser connections.
   
-  // Track page opens by calling the API and refreshing recents
-  // markPageOpened is a no-op for blocks on the backend, so always call it
+  // Track page opens by calling the API and refreshing recents.
+  // Only call for actual pages; blocks return 400.
   useEffect(() => {
-    if (currentNodeId && mainViewType === 'node') {
+    if (currentNodeId && mainViewType === 'node' && currentNode?.is_page) {
       markPageOpened(currentNodeId)
         .then(() => {
           useFavoritesStore.getState().loadRecents();
@@ -124,7 +124,7 @@ export function Layout() {
           console.error('Failed to mark page as opened:', error);
         });
     }
-  }, [currentNodeId, mainViewType]);
+  }, [currentNodeId, mainViewType, currentNode?.is_page]);
   
   // Apply default view ONLY on initial load when URL is "/" (home)
   // This ensures URL-based navigation takes precedence
