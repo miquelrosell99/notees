@@ -157,8 +157,8 @@ function flattenNodesFromRuntime(
       const graphNode = runtime.getNode(uuid);
       const collapsed = graphNode?.collapsed ?? node.collapsed;
       if (!collapsed && (maxDepth < 0 || depth < maxDepth)) {
-        const parentId = graphNode?.parentId || uuid;
-        const children = byParent.get(parentId) || [];
+        // Children are indexed by their parent UUID, which is this node's UUID
+        const children = byParent.get(uuid) || [];
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
       }
     }
