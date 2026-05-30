@@ -47,6 +47,7 @@ import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { findParentNodeBlock } from '../utils/selectionUtils';
 import { generateUUID } from '../../utils/uuid';
 import { isOtherEditorActive } from '../activeEditorRegistry';
+import { useInputContext } from '../../stores/inputContext';
 
 /** Returns true if the active element is inside a companion overlay (popup, dialog, menu).
  *  BlockPlugin should not steal focus back to the editor in these cases. */
@@ -59,8 +60,36 @@ function isFocusInsideCompanion(): boolean {
     active.closest('[role="menu"]')
   );
 }
-import type { ProjectedNode, ContentAST } from '../../runtime/types';
+
+/** Returns true when any editor popup / modal / overlay is open.
+ *  Used by syncProjection to avoid stealing focus from active popups. */
+function isAnyOverlayOpen(): boolean {
+  return useInputContext.getState().isOverlayOpen;
+}
+
+/** Find a BlockNode in the editor by its runtime blockId. */
+function $findBlockNodeById(blockId: string): BlockNode | null {
+  const root = $getRoot();
+  for (const child of root.getChildren()) {
+    if ($isBlockNode(child) && child.getBlockId() === blockId) {
+      return child;
+    }
+  }
+  return null;
+}
+import type { ProjectedNode, ContentAST, MutationIntent } from '../../runtime/types';
 import type { ASTInlineNode, ASTNodeLink } from '@/types/ast';
+
+/** Extract all update_content intents from a mutation intent (handles batch). */
+function extractContentIntents(intent: MutationIntent): Extract<MutationIntent, { type: 'update_content' }>[] {
+  if (intent.type === 'batch') {
+    return intent.intents.flatMap(extractContentIntents);
+  }
+  if (intent.type === 'update_content') {
+    return [intent];
+  }
+  return [];
+}
 import {
   getVisibleBlockIds,
   isVirtualizationEnabled,
@@ -190,6 +219,26 @@ export function BlockPlugin({
   const blockIdToKeyMap = useRef(new Map<string, string>());
   // Flag to suppress content change callbacks during external sync
   const isSyncingRef = useRef(false);
+
+  /** Explicitly write contentAST into a specific BlockNode.
+   *  Used for undo/redo, remote sync, and cross-editor sync.
+   *  Never called during normal structural sync. */
+  const writeBlockContent = useCallback((blockId: string, contentAST: ContentAST) => {
+    isSyncingRef.current = true;
+    editor.update(() => {
+      const block = $findBlockNodeById(blockId);
+      if (block) {
+        const children = block.getChildren();
+        for (const child of children) child.remove();
+        populateBlockContent(block, contentAST);
+        markPopulated(blockId);
+      }
+    }, { tag: 'runtime-sync' });
+    queueMicrotask(() => {
+      isSyncingRef.current = false;
+    });
+  }, [editor]);
+
   // Coalesce multiple runtime events (e.g. nodes_changed + structure_changed)
   // so syncProjection only runs once per flush cycle.
   // If a second event fires while the first sync is in progress the
@@ -204,6 +253,8 @@ export function BlockPlugin({
 
   const syncProjection = useCallback((projectedNodes: ProjectedNode[]) => {
     // Set flag BEFORE the update so the update listener skips content saves
+    // during pending-focus force-populate (the only remaining content write
+    // inside syncProjection).
     isSyncingRef.current = true;
     
     // Flush any debounced visibility changes so we have the freshest
@@ -240,7 +291,7 @@ export function BlockPlugin({
     // reconciliation in the same pass.  The focusin handler will fire
     // and read the old DOM selection, but PASS 4 inside the update
     // overwrites it with the correct target.
-    if (pendingFocusValid && !isOtherEditorActive(editor) && !isFocusInsideCompanion()) {
+    if (pendingFocusValid && !isOtherEditorActive(editor) && !isFocusInsideCompanion() && !isAnyOverlayOpen()) {
       if (rootEl && rootEl !== document.activeElement && !rootEl.contains(document.activeElement)) {
         rootEl.focus({ preventScroll: true });
       }
@@ -349,119 +400,10 @@ export function BlockPlugin({
             existing.setTaskStatus(projected.taskStatus ?? null);
           }
           
-          // Check if content has changed (e.g., from split_block or merge_blocks operation)
-          // Only compare content for blocks whose content is actually populated in Lexical.
-          // Off-screen blocks have ZWS placeholder — skip the expensive JSON.stringify.
-          if (isBlockPopulated(projected.blockId)) {
-            const currentContent = extractBlockContent(existing);
-            const currentSerialized = JSON.stringify(currentContent);
-            const projectedSerialized = JSON.stringify(projected.contentAST);
-            
-            if (currentSerialized !== projectedSerialized) {
-              // Content changed - clear and repopulate.
-              // If the cursor is inside this block and there is no pending focus
-              // request, save the offset so we can restore it after repopulation.
-              // This prevents the caret from jumping to the start of the document
-              // when an external update (e.g. paste, remote sync) changes content.
-              let savedCursorOffset: number | null = null;
-              if (!pendingFocus && !deferredFocusBlockId) {
-                const currentSelection = $getSelection();
-                if ($isRangeSelection(currentSelection)) {
-                  const anchorNode = currentSelection.anchor.getNode();
-                  const anchorBlock = findParentNodeBlock(anchorNode);
-                  if (anchorBlock && anchorBlock.getBlockId() === projected.blockId) {
-                    let offset = 0;
-                    const blockChildren = anchorBlock.getChildren();
-                    for (const child of blockChildren) {
-                      if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
-                        if ($isTextNode(child) && child.getTextContent() !== '\u200B') {
-                          offset += currentSelection.anchor.offset;
-                        } else if ($isInlineLinkNode(child)) {
-                          offset += currentSelection.anchor.offset > 0 ? 1 : 0;
-                        }
-                        break;
-                      }
-                      if ($isTextNode(child)) {
-                        const t = child.getTextContent();
-                        if (t !== '\u200B') offset += t.length;
-                      } else if ($isInlineLinkNode(child)) {
-                        offset += 1;
-                      } else {
-                        offset += child.getTextContent().length;
-                      }
-                    }
-                    savedCursorOffset = offset;
-                  }
-                }
-              }
+          // Sync heading flag from projected AST (metadata derived from content)
+          const heading = isHeadingAST(projected.contentAST);
+          if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
 
-              const children = existing.getChildren();
-              for (const child of children) {
-                child.remove();
-              }
-              populateBlockContent(existing, projected.contentAST);
-
-              // Restore cursor if we saved one and nothing else claimed focus
-              if (savedCursorOffset != null && !deferredFocusBlockId) {
-                let remaining = savedCursorOffset;
-                let restored = false;
-                const blockChildren = existing.getChildren();
-                for (const child of blockChildren) {
-                  if ($isTextNode(child)) {
-                    const t = child.getTextContent();
-                    const len = t === '\u200B' ? 0 : t.length;
-                    if (remaining <= len) {
-                      child.select(remaining, remaining);
-                      deferredFocusBlockId = projected.blockId;
-                      restored = true;
-                      break;
-                    }
-                    remaining -= len;
-                  } else if ($isInlineLinkNode(child)) {
-                    if (remaining <= 0) {
-                      child.selectPrevious();
-                      deferredFocusBlockId = projected.blockId;
-                      restored = true;
-                      break;
-                    }
-                    remaining -= 1;
-                  } else {
-                    const len = child.getTextContent().length;
-                    if (remaining <= len) {
-                      if (remaining <= 0) {
-                        child.selectPrevious();
-                      } else {
-                        child.selectNext();
-                      }
-                      deferredFocusBlockId = projected.blockId;
-                      restored = true;
-                      break;
-                    }
-                    remaining -= len;
-                  }
-                }
-                // If offset is beyond new content, place at end
-                if (!restored) {
-                  const last = existing.getLastDescendant();
-                  if (last) {
-                    last.selectEnd();
-                  } else {
-                    existing.selectEnd();
-                  }
-                  deferredFocusBlockId = projected.blockId;
-                }
-              }
-
-              // Sync heading flag whenever content changes
-              const heading = isHeadingAST(projected.contentAST);
-              if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
-            }
-          } else {
-            // Off-screen block: still sync heading flag from AST (no content to compare)
-            const heading = isHeadingAST(projected.contentAST);
-            if (existing.getIsHeading() !== heading) existing.setIsHeading(heading);
-          }
-          
           // Handle pending focus on existing blocks (e.g. after merge_blocks
           // the target block is existing but needs cursor at merge offset).
           // Ensure content is populated before setting cursor — a focus target
@@ -624,7 +566,7 @@ export function BlockPlugin({
     // has focus — the user clicked into another editor between the
     // requestFocus and this sync, so stealing focus back would cause
     // dual-editor input.
-    if (pendingFocusValid && !runtime.getPendingFocus() && !isOtherEditorActive(editor) && !isFocusInsideCompanion()) {
+    if (pendingFocusValid && !runtime.getPendingFocus() && !isOtherEditorActive(editor) && !isFocusInsideCompanion() && !isAnyOverlayOpen()) {
       editor.focus();
     }
 
@@ -675,6 +617,53 @@ export function BlockPlugin({
     };
 
     const unsubscribe = runtime.subscribe((event) => {
+      if (event.type === 'undo' || event.type === 'redo') {
+        // Directly write restored content into Lexical so the runtime
+        // doesn't have to push it back through syncProjection.
+        const intent = event.type === 'undo' ? event.entry.reverse : event.entry.forward;
+        const contentIntents = extractContentIntents(intent);
+        if (contentIntents.length > 0) {
+          isSyncingRef.current = true;
+          editor.update(() => {
+            for (const ci of contentIntents) {
+              const block = $findBlockNodeById(ci.blockId);
+              if (block) {
+                const children = block.getChildren();
+                for (const child of children) child.remove();
+                populateBlockContent(block, ci.contentAST);
+                markPopulated(ci.blockId);
+              }
+            }
+          }, { tag: 'runtime-sync' });
+          queueMicrotask(() => {
+            isSyncingRef.current = false;
+          });
+        }
+        return;
+      }
+
+      if (event.type === 'nodes_changed') {
+        const isSelfEcho = event.source === 'intent' && event.sourceEditorId === editorId;
+        if (!isSelfEcho) {
+          // For remote sync, determine which block has focus once
+          let focusedBlockId: string | null = null;
+          if (event.source === 'sync') {
+            focusedBlockId = editor.getEditorState().read(() => {
+              const sel = $getSelection();
+              if (!$isRangeSelection(sel)) return null;
+              const anchorBlock = findParentNodeBlock(sel.anchor.getNode());
+              return anchorBlock?.getBlockId() ?? null;
+            });
+          }
+          for (const blockId of event.blockIds) {
+            const node = runtime.getNode(blockId);
+            if (!node) continue;
+            if (event.source === 'sync' && focusedBlockId === blockId) continue;
+            writeBlockContent(blockId, node.contentAST);
+          }
+        }
+      }
+
       if (event.type === 'nodes_changed' || event.type === 'structure_changed') {
         // Coalesce: flushEvents() fires nodes_changed + structure_changed
         // back-to-back.  We sync once immediately and, if more events
@@ -702,7 +691,7 @@ export function BlockPlugin({
     syncProjection(getProjection());
 
     return unsubscribe;
-  }, [editor, editorId, rootBlockId, syncProjection, sliceBlockIds, sliceRecursiveLevel, sliceShowParent, maxDepth, includeRoot]);
+  }, [editor, editorId, rootBlockId, syncProjection, writeBlockContent, sliceBlockIds, sliceRecursiveLevel, sliceShowParent, maxDepth, includeRoot]);
 
   // ─── ZWS cleanup transform ────────────────────────────────
   // Empty blocks use a zero-width space (\u200B) so the cursor
