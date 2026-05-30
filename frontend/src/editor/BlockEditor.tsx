@@ -393,11 +393,12 @@ export function BlockEditor({
       type: 'update_content',
       blockId,
       contentAST,
+      sourceEditorId: editorId,
     });
     if (onContentChangeCallback) {
       onContentChangeCallback(blockId, serializeContentAST(contentAST));
     }
-  }, [onContentChangeCallback]);
+  }, [onContentChangeCallback, editorId]);
 
   const handleBlockMerge = useCallback((sourceBlockId: string, targetBlockId: string) => {
     if (canMerge && !canMerge(sourceBlockId, targetBlockId)) return;

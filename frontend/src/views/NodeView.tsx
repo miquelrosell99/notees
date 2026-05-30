@@ -134,6 +134,18 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
   }, [onAddSidebarCard]);
 
   const handleAddClass = useCallback((blockId: number, classId: number) => {
+    // Optimistically update the runtime for immediate visual feedback
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    if (graphNode) {
+      const classStrId = String(classId);
+      if (!graphNode.classIds.includes(classStrId)) {
+        runtime.upsertNodes([{
+          ...graphNode,
+          classIds: [...graphNode.classIds, classStrId],
+        }]);
+      }
+    }
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
 

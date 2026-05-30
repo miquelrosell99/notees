@@ -89,6 +89,23 @@ export function NodeContent({
   const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
 
   const handleAddClass = useCallback((blockId: number, classId: number) => {
+    // Optimistically update the runtime so the block's color/icon change
+    // immediately, without waiting for the API round-trip + cache sync.
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    if (graphNode && allClasses) {
+      const classStrId = String(classId);
+      if (!graphNode.classIds.includes(classStrId)) {
+        const classNode = allClasses.find(c => c.id === classId);
+        runtime.upsertNodes([{
+          ...graphNode,
+          classIds: [...graphNode.classIds, classStrId],
+          icon: classNode?.icon ?? graphNode.icon,
+          color: classNode?.color ?? graphNode.color,
+        }]);
+      }
+    }
+
     // Check if this is adding the asset class manually
     if (systemClassMap?.asset != null && classId === systemClassMap.asset) {
       // Add the class first
@@ -107,7 +124,7 @@ export function NodeContent({
       return;
     }
     addClass.mutate({ nodeId: blockId, classId });
-  }, [addClass, systemClassMap, children]);
+  }, [addClass, systemClassMap, children, allClasses]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);

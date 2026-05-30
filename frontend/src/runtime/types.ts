@@ -114,7 +114,7 @@ export type ProjectionDiffOp =
 
 /** Intent to mutate the graph - emitted by editors, consumed by runtime */
 export type MutationIntent =
-  | { type: 'update_content'; blockId: string; contentAST: ContentAST }
+  | { type: 'update_content'; blockId: string; contentAST: ContentAST; sourceEditorId?: string }
   | { type: 'split_block'; blockId: string; atOffset: number; newBlockId: string; forceSibling?: boolean }
   | { type: 'merge_blocks'; sourceBlockId: string; targetBlockId: string }
   | { type: 'create_block'; parentId: string; afterBlockId: string | null; blockId: string; contentAST: ContentAST; nodeType?: GraphNodeType }
@@ -146,7 +146,7 @@ export interface UndoEntry {
 // ─── Events ───────────────────────────────────────────────────────
 
 export type RuntimeEvent =
-  | { type: 'nodes_changed'; blockIds: string[] }
+  | { type: 'nodes_changed'; blockIds: string[]; source?: 'intent' | 'sync' | 'undo' | 'redo'; sourceEditorId?: string }
   | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' }
   | { type: 'block_deleted'; blockId: string; serverId?: number }
   | { type: 'collapse_changed'; blockId: string; serverId?: number; collapsed: boolean }

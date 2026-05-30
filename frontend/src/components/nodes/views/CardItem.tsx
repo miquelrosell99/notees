@@ -411,6 +411,19 @@ export const NodeCard = memo(function NodeCard({
 
   // Add class to block (uses API mutation)
   const handleAddClass = useCallback((blockId: number, classId: number) => {
+    // Optimistically update the runtime for immediate visual feedback
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    if (graphNode) {
+      const classStrId = String(classId);
+      if (!graphNode.classIds.includes(classStrId)) {
+        runtime.upsertNodes([{
+          ...graphNode,
+          classIds: [...graphNode.classIds, classStrId],
+        }]);
+      }
+    }
+
     // Check if this is adding the asset class manually
     const assetCls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset);
     if (assetCls && classId === assetCls.id) {

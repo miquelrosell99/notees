@@ -1470,6 +1470,7 @@ export function useAddClass() {
         return { ...node, classes: [...currentClasses, classId] };
       };
       
+      
       // Optimistically update the cache to add the class immediately
       // First, update any direct cache entries for this node
       queryClient.setQueriesData<Node>(
@@ -1529,9 +1530,12 @@ export function useAddClass() {
     onSuccess: (updatedNode, { nodeId, classId }, context) => {
       const oldNode = context?.oldNode;
       
-      // Update cache with the returned node data for immediate UI update
+      // Update cache with the returned node data for immediate UI update.
+      // Include color/icon so the block visually reflects the new class immediately.
       const classUpdates = {
         classes: updatedNode.classes,
+        color: updatedNode.color,
+        icon: updatedNode.icon,
         is_page: updatedNode.is_page,
         is_class: updatedNode.is_class,
         is_daily: updatedNode.is_daily,

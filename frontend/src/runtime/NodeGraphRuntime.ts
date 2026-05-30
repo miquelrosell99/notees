@@ -48,6 +48,8 @@ export class NodeGraphRuntime {
   private pendingFlush: number | null = null;
   private pendingChangedBlockIds = new Set<string>();
   private pendingStructureParentIds = new Set<string>();
+  private pendingSource?: 'intent' | 'sync' | 'undo' | 'redo';
+  private pendingSourceEditorId?: string;
 
   /** Block ID and optional offset to focus after next sync (used by editors) */
   private pendingFocus: { blockId: string; offset?: number } | null = null;
@@ -167,7 +169,7 @@ export class NodeGraphRuntime {
       this.emit({ type: 'structure_changed', parentIds: [...changedParents], source: 'sync' });
     }
     if (changedBlockIds.length > 0) {
-      this.emit({ type: 'nodes_changed', blockIds: changedBlockIds });
+      this.emit({ type: 'nodes_changed', blockIds: changedBlockIds, source: 'sync' });
     }
   }
 
@@ -403,7 +405,7 @@ export class NodeGraphRuntime {
   private executeIntent(intent: MutationIntent): void {
     switch (intent.type) {
       case 'update_content':
-        this.execUpdateContent(intent.blockId, intent.contentAST);
+        this.execUpdateContent(intent.blockId, intent.contentAST, intent.sourceEditorId);
         break;
       case 'split_block':
         this.execSplitBlock(intent.blockId, intent.atOffset, intent.newBlockId, intent.forceSibling);
@@ -454,12 +456,12 @@ export class NodeGraphRuntime {
 
   // ─── Mutation implementations ─────────────────────────────────
 
-  private execUpdateContent(blockId: string, contentAST: ContentAST): void {
+  private execUpdateContent(blockId: string, contentAST: ContentAST, sourceEditorId?: string): void {
     const node = this.nodes.get(blockId);
     if (!node) return;
     node.contentAST = contentAST;
     node.updatedAt = new Date().toISOString();
-    this.scheduleEmit(blockId, null);
+    this.scheduleEmit(blockId, null, 'intent', sourceEditorId);
   }
 
   private execSplitBlock(blockId: string, atOffset: number, newBlockId: string, forceSibling?: boolean): void {
@@ -1146,15 +1148,26 @@ export class NodeGraphRuntime {
     }
   }
 
-  private scheduleEmit(blockId: string | null, parentId: string | null): void {
+  private scheduleEmit(
+    blockId: string | null,
+    parentId: string | null,
+    source?: 'intent' | 'sync' | 'undo' | 'redo',
+    sourceEditorId?: string,
+  ): void {
     if (blockId) this.pendingChangedBlockIds.add(blockId);
     if (parentId) this.pendingStructureParentIds.add(parentId);
+    if (source) this.pendingSource = source;
+    if (sourceEditorId) this.pendingSourceEditorId = sourceEditorId;
 
     if (this.pendingFlush === null) {
       this.pendingFlush = requestAnimationFrame(() => {
         this.pendingFlush = null;
+        const emitSource = this.pendingSource;
+        const emitSourceEditorId = this.pendingSourceEditorId;
+        this.pendingSource = undefined;
+        this.pendingSourceEditorId = undefined;
         if (this.pendingChangedBlockIds.size > 0) {
-          this.emit({ type: 'nodes_changed', blockIds: [...this.pendingChangedBlockIds] });
+          this.emit({ type: 'nodes_changed', blockIds: [...this.pendingChangedBlockIds], source: emitSource, sourceEditorId: emitSourceEditorId });
           this.pendingChangedBlockIds.clear();
         }
         if (this.pendingStructureParentIds.size > 0) {
@@ -1171,8 +1184,12 @@ export class NodeGraphRuntime {
       cancelAnimationFrame(this.pendingFlush);
       this.pendingFlush = null;
     }
+    const emitSource = this.pendingSource;
+    const emitSourceEditorId = this.pendingSourceEditorId;
+    this.pendingSource = undefined;
+    this.pendingSourceEditorId = undefined;
     if (this.pendingChangedBlockIds.size > 0) {
-      this.emit({ type: 'nodes_changed', blockIds: [...this.pendingChangedBlockIds] });
+      this.emit({ type: 'nodes_changed', blockIds: [...this.pendingChangedBlockIds], source: emitSource, sourceEditorId: emitSourceEditorId });
       this.pendingChangedBlockIds.clear();
     }
     if (this.pendingStructureParentIds.size > 0) {
