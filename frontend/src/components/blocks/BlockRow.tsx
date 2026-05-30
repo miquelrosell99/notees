@@ -52,6 +52,8 @@ interface BlockRowProps {
   onBackspaceAtStart?: () => void;
   onDeleteAtEnd?: () => void;
   onTab?: (shift: boolean) => void;
+  /** Called on Escape (blur editor and select block). */
+  onEscape?: () => void;
   /** UUID of the containing page (for live sync lock indicators). */
   pageUuid?: string;
 }
@@ -79,6 +81,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       onBackspaceAtStart,
       onDeleteAtEnd,
       onTab,
+      onEscape,
       pageUuid,
     },
     ref,
@@ -184,6 +187,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
             onBackspaceAtStart={onBackspaceAtStart}
             onDeleteAtEnd={onDeleteAtEnd}
             onTab={onTab}
+            onEscape={onEscape}
             pageUuid={pageUuid}
           />
         </div>

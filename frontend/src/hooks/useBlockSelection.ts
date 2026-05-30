@@ -270,6 +270,10 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape: clear selection, or if editor focused, select current block
       if (e.key === 'Escape') {
+        // If a per-block InlineEditorKeysPlugin already handled this Escape,
+        // skip the fallback logic so we don't double-handle.
+        if (e.defaultPrevented) return;
+
         if (selectedIds.size > 0) {
           e.preventDefault();
           clearSelection();
