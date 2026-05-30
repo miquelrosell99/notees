@@ -120,6 +120,7 @@ export const DocumentView = memo(function DocumentView({
         onSlashCommand={onSlashCommand}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
+        pageUuid={_pageUuid}
         onNavigateToNode={handleNavigateToNode}
         onPillClick={handleNavigateToNode}
         maxDepth={maxDepth}

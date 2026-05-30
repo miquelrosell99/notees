@@ -43,6 +43,8 @@ import { populateInlineContent, extractInlineContent } from './inlineContentPopu
 import { serializeContentAST } from './editorConfig';
 import { useEditorFocusStore } from '../stores/editorFocusStore';
 import { useInlineEditorRegistry } from '../stores/inlineEditorRegistry';
+import { useLivePresenceStore } from '../stores/livePresenceStore';
+import { liveSyncManager } from '../collab/LiveSyncManager';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
@@ -96,6 +98,8 @@ interface InlineEditorProps {
   onDeleteAtEnd?: () => void;
   /** Called on Tab / Shift+Tab (indent / outdent). */
   onTab?: (shift: boolean) => void;
+  /** UUID of the containing page (for live sync focus tracking). */
+  pageUuid?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -118,6 +122,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
       onBackspaceAtStart,
       onDeleteAtEnd,
       onTab,
+      pageUuid,
     },
     ref,
   ): JSX.Element {
@@ -220,11 +225,19 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
 
     const handleFocus = useCallback(() => {
       focusBlock(blockId);
-    }, [blockId, focusBlock]);
+      if (pageUuid) {
+        liveSyncManager.sendFocus(blockId);
+        useLivePresenceStore.getState().setLocalFocus(pageUuid, blockId);
+      }
+    }, [blockId, focusBlock, pageUuid]);
 
     const handleBlur = useCallback(() => {
       blurBlock(blockId);
-    }, [blurBlock, blockId]);
+      if (pageUuid) {
+        liveSyncManager.sendBlur(blockId);
+        useLivePresenceStore.getState().setLocalFocus(pageUuid, null);
+      }
+    }, [blurBlock, blockId, pageUuid]);
 
     // ─── Render ───────────────────────────────────────────────────
 

@@ -184,3 +184,10 @@
   opacity: 0.8;
 }
 
+.page-title-locked {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--spacing-2);
+  opacity: 0.85;
+}
+
