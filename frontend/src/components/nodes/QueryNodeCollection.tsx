@@ -26,6 +26,7 @@ import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useContentSave } from '@/hooks';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -332,6 +333,18 @@ export function QueryNodeCollection({
   // Add class mutation
   const addClass = useAddClass();
   const handleAddClass = useCallback((blockId: number, classId: number) => {
+    // Optimistically update the runtime for immediate visual feedback
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    if (graphNode) {
+      const classStrId = String(classId);
+      if (!graphNode.classIds.includes(classStrId)) {
+        runtime.upsertNodes([{
+          ...graphNode,
+          classIds: [...graphNode.classIds, classStrId],
+        }]);
+      }
+    }
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
 

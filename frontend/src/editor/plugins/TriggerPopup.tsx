@@ -103,13 +103,8 @@ export function TriggerPopup({
   // Clamp selected index to valid range whenever itemCount changes
   const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
 
-  // Focus input on mount — use rAF to ensure the portal DOM is committed
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  // Focus input on mount — autoFocus handles the initial focus synchronously
+  // so the popup input gains focus before any editor sync can steal it.
 
   // Close on click outside
   useEffect(() => {
@@ -268,6 +263,7 @@ export function TriggerPopup({
           ref={inputRef}
           type="text"
           value={query}
+          autoFocus
           onChange={(e) => {
         setQuery(e.target.value);
         setSelectedIndex(0);

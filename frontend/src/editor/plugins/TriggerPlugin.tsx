@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState, useRef, useCallback, type JSX } from 'react';
+import { flushSync } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,
@@ -66,6 +67,8 @@ export function TriggerPlugin({
   const placeholderRef = useRef<Placeholder | null>(null);
   const blockServerIdRef = useRef<number | undefined>(undefined);
   const popupOpenRef = useRef(false);
+  const hadFocusBeforeRef = useRef(false);
+  const selectionMadeRef = useRef(false);
 
   useEffect(() => {
     popupOpenRef.current = popup !== null;
@@ -114,6 +117,13 @@ export function TriggerPlugin({
 
         // Capture caret coordinates BEFORE mutating the editor
         const coords = getCaretCoordinates(editor);
+
+        // Remember whether the editor had focus so we only restore it on close
+        // if the user was actually editing (not clicking a sidebar button).
+        const rootEl = editor.getRootElement();
+        hadFocusBeforeRef.current =
+          rootEl != null &&
+          (rootEl === document.activeElement || rootEl.contains(document.activeElement));
 
         editor.update(() => {
           const sel = $getSelection();
@@ -185,12 +195,9 @@ export function TriggerPlugin({
         const before = text.slice(0, ph.offset);
         const after = text.slice(ph.offset + 1);
         node.setTextContent((before + after) || '\u200B');
-
-        const selection = $getSelection();
-        if ($isRangeSelection(selection)) {
-          selection.anchor.set(node.getKey(), ph.offset, 'text');
-          selection.focus.set(node.getKey(), ph.offset, 'text');
-        }
+        // node.select creates a fresh RangeSelection even when the editor
+        // is blurred, so focus restoration later will land in the right place.
+        node.select(ph.offset, ph.offset);
       }
     });
   }, [editor]);
@@ -198,11 +205,35 @@ export function TriggerPlugin({
   // ─── Close popup, return focus ───────────────────────────────
 
   const handleClose = useCallback(() => {
+    const ph = placeholderRef.current;
+    const madeSelection = selectionMadeRef.current;
+
+    // Only restore cursor position if the popup was dismissed WITHOUT a
+    // selection (Escape / outside-click). When a pill is inserted,
+    // insertPill() already placed the cursor after the pill.
+    if (ph && !madeSelection) {
+      editor.update(() => {
+        const node = $getNodeByKey(ph.nodeKey);
+        if ($isTextNode(node)) {
+          // Place cursor right after the placeholder character
+          node.select(ph.offset + 1, ph.offset + 1);
+        }
+      });
+    }
+
     popupOpenRef.current = false;
-    setPopup(null);
+    flushSync(() => setPopup(null));
     placeholderRef.current = null;
     blockServerIdRef.current = undefined;
-    editor.focus();
+    selectionMadeRef.current = false;
+
+    // Only steal focus back if the editor had it before the popup opened.
+    // This prevents focus hijacking when the user intentionally clicked
+    // elsewhere (sidebar, toolbar, etc.).
+    if (hadFocusBeforeRef.current) {
+      editor.focus();
+    }
+    hadFocusBeforeRef.current = false;
   }, [editor]);
 
   // ─── Delete placeholder and close popup ──────────────────────
@@ -210,10 +241,15 @@ export function TriggerPlugin({
   const handleDeletePlaceholder = useCallback(() => {
     popupOpenRef.current = false;
     removePlaceholder();
-    setPopup(null);
+    flushSync(() => setPopup(null));
     placeholderRef.current = null;
     blockServerIdRef.current = undefined;
-    editor.focus();
+    selectionMadeRef.current = false;
+
+    if (hadFocusBeforeRef.current) {
+      editor.focus();
+    }
+    hadFocusBeforeRef.current = false;
   }, [editor, removePlaceholder]);
 
   // ─── Insert inline pill helper ───────────────────────────────
@@ -225,12 +261,33 @@ export function TriggerPlugin({
         if (!$isRangeSelection(selection)) return;
 
         const anchorNode = selection.anchor.getNode();
+        const anchorOffset = selection.anchor.offset;
         const pill = $createInlineLinkNode(nodeUuid, refType);
-        anchorNode.insertAfter(pill);
 
-        const afterNode = $createTextNode('\u200B');
-        pill.insertAfter(afterNode);
-        afterNode.selectStart();
+        if ($isTextNode(anchorNode)) {
+          const text = anchorNode.getTextContent();
+          const before = text.slice(0, anchorOffset);
+          const after = text.slice(anchorOffset);
+
+          // Split the text node at the cursor: [before] [pill] [after]
+          anchorNode.setTextContent(before || '\u200B');
+          anchorNode.insertAfter(pill);
+
+          if (after) {
+            const afterTextNode = $createTextNode(after);
+            pill.insertAfter(afterTextNode);
+            afterTextNode.selectStart();
+          } else {
+            const afterNode = $createTextNode('\u200B');
+            pill.insertAfter(afterNode);
+            afterNode.selectStart();
+          }
+        } else {
+          anchorNode.insertAfter(pill);
+          const afterNode = $createTextNode('\u200B');
+          pill.insertAfter(afterNode);
+          afterNode.selectStart();
+        }
       });
     },
     [editor]
@@ -280,6 +337,7 @@ export function TriggerPlugin({
     (node: Node, mode: 'default' | 'alternative') => {
       if (!popup) return;
 
+      selectionMadeRef.current = true;
       removePlaceholder();
 
       if (popup.context === 'template') {
@@ -296,11 +354,12 @@ export function TriggerPlugin({
 
       switch (popup.type) {
         case 'class': {
-          if (mode === 'default') {
-            if (blockServerIdRef.current != null) {
-              onAddClass?.(blockServerIdRef.current, node.id);
-            }
-          } else {
+          // Default (Enter) adds the class silently; alternative (Shift+Enter)
+          // inserts the pill as well.
+          if (blockServerIdRef.current != null) {
+            onAddClass?.(blockServerIdRef.current, node.id);
+          }
+          if (mode === 'alternative') {
             insertPill(node.uuid, 'class');
           }
           break;
