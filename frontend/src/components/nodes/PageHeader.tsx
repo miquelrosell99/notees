@@ -54,8 +54,10 @@ export function PageHeader({
   onIconChange,
 }: PageHeaderProps) {
   const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
-  const titleLockedBy = useLivePresenceStore((s) =>
-    s.getUsersOnBlock(page.uuid, page.uuid).filter((u) => u.id !== currentUserId),
+  const titleUsers = useLivePresenceStore((s) => s.presence[page.uuid]?.[page.uuid]);
+  const titleLockedBy = useMemo(
+    () => (titleUsers ?? []).filter((u) => u.id !== currentUserId),
+    [titleUsers, currentUserId],
   );
   const isTitleLocked = titleLockedBy.length > 0;
   const iconRef = useRef<HTMLButtonElement>(null);
