@@ -4,7 +4,7 @@
  * Floating modal for presenting a node's children as slides.
  * - Each child node is a slide
  * - Left/Right arrow keys or on-screen buttons navigate between slides
- * - Each slide shows the child node's title and a read-only BlockEditor
+ * - Each slide shows the child node's title and a read-only BlockList
  *   displaying its nested children up to the linked-references collapse level
  * - Fullscreen toggle button in the top-right corner
  * - Escape closes the modal
@@ -15,26 +15,10 @@ import { useNode } from '@/hooks';
 import { useSettingsStore } from '@/stores';
 import { usePresentationStore } from '@/stores/presentationStore';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { BlockEditor } from '@/editor';
+import { BlockList } from '@/components/blocks/BlockList';
 import { Button } from './Button';
 import type { Node } from '@/types';
 import './PresentationModal.css';
-
-function flattenNodes(nodes: Node[]): Node[] {
-  const result: Node[] = [];
-  const collect = (n: Node) => {
-    result.push(n);
-    if (n.children) {
-      for (const child of n.children) {
-        collect(child);
-      }
-    }
-  };
-  for (const n of nodes) {
-    collect(n);
-  }
-  return result;
-}
 
 function getSlideTitle(node: Node): string {
   return nodeNameToText(node.name) || 'Untitled';
@@ -154,14 +138,10 @@ export function PresentationModal() {
           </div>
           <div className="presentation-modal-slide-content">
             {slideNode.children && slideNode.children.length > 0 ? (
-              <BlockEditor
-                editorId={`presentation-slide-${slideNode.id}`}
-                nodes={flattenNodes([slideNode])}
-                mode="list"
+              <BlockList
+                nodes={slideNode.children ?? []}
                 readOnly={true}
-                includeRoot={false}
                 maxDepth={linkedRefsCollapseLevel}
-                hideProperties={true}
               />
             ) : (
               <div className="presentation-modal-no-children">No nested content</div>

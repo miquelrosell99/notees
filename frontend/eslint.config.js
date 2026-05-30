@@ -28,6 +28,7 @@ export default defineConfig([
       'jsx-a11y/no-noninteractive-element-interactions': 'warn',
       'jsx-a11y/anchor-is-valid': 'warn',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 ])

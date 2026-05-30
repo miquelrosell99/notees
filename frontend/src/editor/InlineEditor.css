@@ -1,0 +1,41 @@
+/**
+ * InlineEditor styles — minimal Lexical instance for single block content.
+ * Mirrors the old .node-block-content from BlockEditor.css.
+ */
+
+.inline-editor {
+  position: relative;
+  width: 100%;
+}
+
+.inline-editor__content {
+  flex: 1;
+  min-width: 2em;
+  min-height: 1.6em;
+  outline: none;
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  caret-color: transparent !important;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+}
+
+.inline-editor__placeholder {
+  color: var(--color-on-surface-variant, #999);
+  opacity: 0.45;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  user-select: none;
+  font-size: inherit;
+}
+
+/* Ensure empty content wrapper has space for cursor */
+.inline-editor__content:empty::before {
+  content: '\200B';
+  display: inline;
+}

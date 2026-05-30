@@ -1,19 +1,19 @@
 /**
- * ListView — List/outline view using Lexical BlockEditor.
+ * ListView — List/outline view using BlockList.
  *
- * Uses a SINGLE BlockEditor instance for performance.
- * Passes nodes directly - BlockEditor handles runtime sync internally.
- * 
+ * Passes nodes directly to BlockList for rendering.
+ *
  * Supports groupBy='page' to organize nodes under page headers.
  * Supports groupBy=<property-uuid> to group by a node property value.
  */
-import { useState, useCallback, useMemo, useId, memo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import type { Node } from '@/types';
 import type { NodeListViewProps } from '@/types/nodeCollection';
 import { Bullet } from '../../blocks/Bullet';
 import { NodeInline } from '../../blocks/NodeInline';
 import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '../../core/icons';
-import { BlockEditor } from '@/editor/BlockEditor';
+
+import { BlockList } from '../../blocks/BlockList';
 import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { getPropertyGroupInfo } from './viewHelpers';
@@ -49,10 +49,10 @@ interface GroupingResult {
  * Get a stable group key, display label, and optional icon for a raw property value.
  */
 /**
- * ListView - List/outline view using Lexical editor
+ * ListView - List/outline view using BlockList
  *
- * Simply passes nodes to BlockEditor - no manual runtime sync needed.
- * The readOnly prop on BlockEditor controls edit vs preview mode.
+ * Simply passes nodes to BlockList - no manual runtime sync needed.
+ * The readOnly prop on BlockList controls edit vs preview mode.
  */
 export const ListView = memo(function ListView({
   nodes,
@@ -66,22 +66,17 @@ export const ListView = memo(function ListView({
   onContentChange,
   onAddClass,
   onSlashCommand,
-  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
-  onEnterAtRoot,
-  pageId,
-  pageUuid,
+  onEnterAtRoot: _onEnterAtRoot,
   className = '',
   groupBy = 'none',
   groupByProperty,
   enableGrouping = false,
   showBreadcrumbs = false,
-  hideProperties = false,
   size,
   maxDepth,
 }: NodeListViewProps) {
-  const viewId = useId();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
 
   // Collect all nodes recursively, filtering by pagesOnly if needed,
@@ -104,25 +99,6 @@ export const ListView = memo(function ListView({
     }
     return sortBySequence(result);
   }, [nodes, pagesOnly]);
-
-  // Extract backlink counts from all nodes (including children)
-  const backlinkCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    const collect = (n: Node) => {
-      if (n.uuid && (n.backlink_count ?? 0) > 0) {
-        map.set(n.uuid, n.backlink_count!);
-      }
-      if (n.children) {
-        for (const child of n.children) {
-          collect(child);
-        }
-      }
-    };
-    for (const n of nodes) {
-      collect(n);
-    }
-    return map;
-  }, [nodes]);
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
@@ -299,25 +275,17 @@ export const ListView = memo(function ListView({
               <span className="node-list-view__group-label">Pages</span>
             </div>
             <div className="node-list-view__pages-content">
-              <BlockEditor
-                editorId={`list-view-${viewId}-pages`}
+              <BlockList
                 nodes={pagesAllNodes}
-                mode="list"
                 readOnly={!editable}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
-                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
-                pageId={pageId}
-                pageUuid={pageUuid}
-                className="node-list-view__editor"
-                hideProperties={hideProperties}
                 skipPages={false}
-                backlinkCounts={backlinkCounts}
               />
             </div>
           </div>
@@ -353,25 +321,18 @@ export const ListView = memo(function ListView({
             <ListViewGroup
               key={groupKey}
               group={group}
-              groupKey={groupKey}
               sortedGroupNodes={sortedGroupNodes}
-              viewId={viewId}
               editable={editable}
               handleNavigateToNode={handleNavigateToNode}
               handleOpenInSidebar={handleOpenInSidebar}
               handleContentChangeBridge={handleContentChangeBridge}
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
-              onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
-              pageId={pageId}
-              pageUuid={pageUuid}
               showBreadcrumbs={showBreadcrumbs}
-              hideProperties={hideProperties}
-              backlinkCounts={backlinkCounts}
             />
           );
         })}
@@ -381,24 +342,16 @@ export const ListView = memo(function ListView({
               <span className="node-list-view__group-label">No {groupBy === 'page' ? 'page' : groupByProperty?.name ?? 'value'}</span>
             </div>
             <div className="node-list-view__ungrouped-content">
-              <BlockEditor
-                editorId={`list-view-${viewId}-ungrouped`}
+              <BlockList
                 nodes={ungroupedAllNodes}
-                mode="list"
                 readOnly={!editable}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
-                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
-                pageId={pageId}
-                pageUuid={pageUuid}
-                className="node-list-view__editor"
-                hideProperties={hideProperties}
-                backlinkCounts={backlinkCounts}
               />
             </div>
           </div>
@@ -470,24 +423,16 @@ export const ListView = memo(function ListView({
                 onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
                 className="node-list-view__breadcrumb-header"
               />
-              <BlockEditor
-                editorId={`list-view-${viewId}-bc-${node.id}`}
+              <BlockList
                 nodes={sorted}
-                mode="list"
                 readOnly={!editable}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
-                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
-                pageId={pageId}
-                pageUuid={pageUuid}
-                className="node-list-view__editor"
-                hideProperties={hideProperties}
-                backlinkCounts={backlinkCounts}
               />
             </div>
           );
@@ -496,30 +441,22 @@ export const ListView = memo(function ListView({
     );
   }
 
-  // BlockEditor handles runtime sync internally
   return (
     <div className={`node-list-view ${sizeClass} ${editable ? 'node-list-view--editable' : 'node-list-view--readonly'} ${className}`}>
-      <BlockEditor
-        editorId={`list-view-${viewId}`}
-        nodes={allNodes}
-        mode="list"
+      <BlockList
+        nodes={nodes}
         readOnly={!editable}
-        onNavigateToNode={handleNavigateToNode}
-        onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
-        onPasteImage={onPasteImage}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
-        pageId={pageId}
-        pageUuid={pageUuid}
-        className="node-list-view__editor"
-        onEnterAtRoot={onEnterAtRoot}
-        hideProperties={hideProperties}
+        onNavigateToNode={handleNavigateToNode}
+        onOpenInSidebar={handleOpenInSidebar}
+        onPillClick={handleNavigateToNode}
         maxDepth={maxDepth}
+        pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
-        backlinkCounts={backlinkCounts}
       />
     </div>
   );
@@ -541,46 +478,32 @@ registerView({
  */
 function ListViewGroup({
   group,
-  groupKey,
   sortedGroupNodes,
-  viewId,
   editable,
   handleNavigateToNode,
   handleOpenInSidebar,
   handleContentChangeBridge,
   onAddClass,
   onSlashCommand,
-  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
   onNodeClick,
   onNodeShiftClick,
-  pageId,
-  pageUuid,
   showBreadcrumbs = false,
-  hideProperties = false,
-  backlinkCounts,
 }: {
   group: NodeGroup;
-  groupKey: string;
   sortedGroupNodes: Node[];
-  viewId: string;
   editable: boolean;
   handleNavigateToNode: (blockId: string) => Promise<void>;
   handleOpenInSidebar: (blockId: string) => void;
   handleContentChangeBridge: (blockId: string, content: string) => void;
   onAddClass?: (nodeId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   templateClassFilters?: number[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  pageId?: number;
-  pageUuid?: string;
   showBreadcrumbs?: boolean;
-  hideProperties?: boolean;
-  backlinkCounts?: Map<string, number>;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -639,47 +562,31 @@ function ListViewGroup({
                     stopAtPageLevel
                     className="node-list-view__block-breadcrumbs"
                   />
-                  <BlockEditor
-                    editorId={`list-view-${viewId}-${groupKey}-${node.id}`}
+                  <BlockList
                     nodes={sorted}
-                    mode="list"
                     readOnly={!editable}
                     onNavigateToNode={handleNavigateToNode}
                     onOpenInSidebar={handleOpenInSidebar}
                     onContentChange={handleContentChangeBridge}
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
-                    onPasteImage={onPasteImage}
                     onTemplateInstantiate={onTemplateInstantiate}
                     templateClassFilters={templateClassFilters}
-                    pageId={pageId}
-                    pageUuid={pageUuid}
-                    className="node-list-view__editor"
-                    hideProperties={hideProperties}
-                    backlinkCounts={backlinkCounts}
                   />
                 </div>
               );
             })
           ) : (
-            <BlockEditor
-              editorId={`list-view-${viewId}-${groupKey}`}
+            <BlockList
               nodes={sortedGroupNodes}
-              mode="list"
               readOnly={!editable}
               onNavigateToNode={handleNavigateToNode}
               onOpenInSidebar={handleOpenInSidebar}
               onContentChange={handleContentChangeBridge}
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
-              onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
-              pageId={pageId}
-                pageUuid={pageUuid}
-              className="node-list-view__editor"
-              hideProperties={hideProperties}
-              backlinkCounts={backlinkCounts}
             />
           )}
         </div>

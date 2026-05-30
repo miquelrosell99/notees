@@ -1120,6 +1120,36 @@ export class NodeGraphRuntime {
   }
 
   /**
+   * Subscribe to events that affect a specific block.
+   * The handler is only called for 'nodes_changed' events that include
+   * the given blockId, or 'structure_changed' / 'block_deleted' events
+   * that may affect its parent hierarchy.
+   */
+  subscribeToBlock(
+    blockId: string,
+    handler: RuntimeEventHandler,
+  ): () => void {
+    const wrapped: RuntimeEventHandler = (event) => {
+      let relevant = false;
+      if (event.type === 'nodes_changed') {
+        relevant = event.blockIds.includes(blockId);
+      } else if (event.type === 'structure_changed') {
+        const node = this.nodes.get(blockId);
+        relevant = node ? event.parentIds.includes(node.parentId ?? '') : false;
+      } else if (event.type === 'block_deleted') {
+        relevant = event.blockId === blockId;
+      } else if (event.type === 'collapse_changed') {
+        relevant = event.blockId === blockId;
+      }
+      if (relevant) {
+        handler(event);
+      }
+    };
+    this.listeners.add(wrapped);
+    return () => this.listeners.delete(wrapped);
+  }
+
+  /**
    * Toggle a table block between table view (children hidden) and outline
    * view (children projected as normal blocks).
    */

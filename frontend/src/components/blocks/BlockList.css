@@ -1,0 +1,12 @@
+/**
+ * BlockList styles — static list container for block-level editor.
+ */
+
+.block-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  outline: none;
+}

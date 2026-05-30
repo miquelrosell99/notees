@@ -46,51 +46,49 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { uploadAsset } from '@/api/assets';
-import { getNode } from '@/api/nodes';
 import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
 import './CardItem.css';
 
-// ─── Card Title Editor (BlockEditor wrapper) ────────────────────
+// ─── Card Title Editor (InlineEditor wrapper) ────────────────────
 
-import { BlockEditor } from '@/editor/BlockEditor';
+import { InlineEditor } from '@/editor/InlineEditor';
+import { parseAST } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/components/properties/PropertiesSection';
-import { CardChildrenEditor } from './CardChildrenEditor';
+import { BlockList } from '@/components/blocks/BlockList';
 import { Icon } from '@/components/core/icons';
 
 interface CardTitleEditorProps {
   blockId: string;
+  initialContent: string;
   readOnly: boolean;
   onContentChange?: (blockId: string, content: string) => void;
   onNavigateToNode?: (linkId: string) => void;
 }
 
 /**
- * Full BlockEditor for the card title.
- * Projects only the root block (includeRoot=true, maxDepth=0).
+ * InlineEditor for the card title.
+ * Renders a single block's content without list chrome.
  */
 const CardTitleEditor = memo(function CardTitleEditor({
   blockId,
+  initialContent,
   readOnly,
   onContentChange,
   onNavigateToNode,
 }: CardTitleEditorProps): JSX.Element {
+  const initialContentAST = useMemo(() => parseAST(initialContent), [initialContent]);
   return (
     <div className="node-card__title-block">
-      <BlockEditor
-        editorId={`card-title-${blockId}`}
-        rootBlockId={blockId}
-        mode="document"
+      <InlineEditor
+        blockId={blockId}
+        initialContentAST={initialContentAST}
         readOnly={readOnly}
-        includeRoot={true}
-        maxDepth={0}
         placeholder="Untitled"
-        hideProperties={true}
         onContentChange={onContentChange}
-        onNavigateToNode={onNavigateToNode}
-        className="node-card__title-editor"
+        onPillClick={(linkId) => onNavigateToNode?.(linkId)}
       />
     </div>
   );
@@ -522,29 +520,6 @@ export const NodeCard = memo(function NodeCard({
     setTableTargetBlockId(null);
   }, []);
 
-  // Handle image paste in a block
-  const handlePasteImage = useCallback(async (blockServerId: number, file: File, hasContent: boolean) => {
-    try {
-      if (!hasContent) {
-        // Empty block: convert to asset directly
-        await uploadAsset(file, node.id, blockServerId);
-      } else {
-        // Block has content: upload as new asset node, then insert link
-        const asset = await uploadAsset(file, node.id);
-        const assetNode = await getNode(asset.node_id);
-        if (assetNode?.uuid) {
-          const block = children.find(c => c.id === blockServerId);
-          const currentContent = block?.name || '';
-          const link = `[[${assetNode.uuid}]]`;
-          const newContent = currentContent ? `${currentContent} ${link}` : link;
-          saveContent(blockServerId, newContent);
-        }
-      }
-    } catch (err) {
-      console.error('[CardItem] Failed to handle pasted image:', err);
-    }
-  }, [node.id, children, saveContent]);
-
   // ─── Style & className ─────────────────────────────────────
 
   const effectiveColor = useMemo(
@@ -669,6 +644,7 @@ export const NodeCard = memo(function NodeCard({
           <div className="node-card__title-wrapper">
             <CardTitleEditor
               blockId={String(node.uuid || node.id)}
+              initialContent={node.name}
               readOnly={!editable}
               onContentChange={handleLexicalContentChange}
               onNavigateToNode={handleNavigateToNode}
@@ -766,15 +742,14 @@ export const NodeCard = memo(function NodeCard({
         <div className={`node-card__body${isBodyCollapsed ? ' node-card__body--collapsed' : ''}`}>
           <div className="node-card__body-content">
             {hasChildren && (
-              <CardChildrenEditor
-                rootBlockId={String(node.uuid || node.id)}
+              <BlockList
+                nodes={node.children ?? []}
                 readOnly={!editable}
                 onContentChange={handleLexicalContentChange}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenBlockInSidebar}
                 onAddClass={handleAddClass}
                 onSlashCommand={handleSlashCommand}
-                onPasteImage={handlePasteImage}
               />
             )}
             {editable && (

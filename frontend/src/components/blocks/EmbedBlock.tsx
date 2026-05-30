@@ -17,10 +17,10 @@ import { generateUUID } from '@/utils/uuid';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useContentSave } from '@/hooks/useContentSave';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
-import { BlockEditor } from '@/editor/BlockEditor';
+import { BlockList } from '@/components/blocks/BlockList';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import type { Node } from '@/types/api';
+
 import './EmbedBlock.css';
 import { Icon } from '@/components/core/icons';
 import { Spinner } from '@/components/core/Spinner';
@@ -115,7 +115,7 @@ export function EmbedBlock({
           setBorderSelected(false);
           // Focus into the inner editor on ArrowDown
           if (e.key === 'ArrowDown') {
-            const innerEditor = containerRef.current?.querySelector('.notees-editor-content') as HTMLElement | null;
+            const innerEditor = containerRef.current?.querySelector('.inline-editor__content') as HTMLElement | null;
             innerEditor?.focus();
           }
           break;
@@ -146,20 +146,16 @@ export function EmbedBlock({
     return () => document.removeEventListener('mousedown', handler);
   }, [borderSelected]);
 
-  // ─── Handle navigating up from top of inner editor ─────────
-
-  const handleNavigateUpFromTop = useCallback(() => {
-    setBorderSelected(true);
-    // Focus the container so it can receive keyboard events
-    containerRef.current?.focus();
-  }, []);
-
   // ─── Inner content change handler ─────────────────────────
 
-  const handleInnerContentChange = useCallback((blockServerId: string, content: string) => {
-    // Delegate to the shared content save handler — pass numeric server ID
-    // The BlockEditor already converts string blockId → serverId via runtime
-    handleContentChange(Number(blockServerId), content);
+  const handleInnerContentChange = useCallback((blockId: string, content: string) => {
+    // BlockList passes UUIDs; look up server ID via runtime
+    const runtime = getNodeGraphRuntime();
+    const graphNode = runtime.getNode(blockId);
+    const serverId = graphNode?.serverId;
+    if (serverId != null) {
+      handleContentChange(serverId, content);
+    }
   }, [handleContentChange]);
 
   // ─── Render states ─────────────────────────────────────────
@@ -193,7 +189,6 @@ export function EmbedBlock({
   }
 
   const embeddedName = nodeNameToText(embeddedNode.name) || '[Untitled]';
-  const allNodes = buildNodeList(embeddedNode);
 
   return (
     <div
@@ -219,33 +214,15 @@ export function EmbedBlock({
 
       {/* Editorial content — the embedded node's name + children */}
       <div className="embed-block-content">
-        <BlockEditor
-          editorId={`embed-${hostBlockId}`}
-          nodes={allNodes}
-          pageId={embeddedNode.id}
-          pageUuid={embeddedNode.uuid}
-          rootBlockId={embeddedNode.uuid}
-          includeRoot={true}
+        <BlockList
+          nodes={[embeddedNode]}
           readOnly={readOnly}
           onContentChange={handleInnerContentChange}
           onNavigateToNode={onNavigateToNode}
-          onNavigateUpFromTop={handleNavigateUpFromTop}
-          placeholder=""
         />
       </div>
     </div>
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────
 
-/** Build the flat node list for the inner BlockEditor (root + descendants). */
-function buildNodeList(node: Node): Node[] {
-  const result: Node[] = [node];
-  if (node.children) {
-    for (const child of node.children) {
-      result.push(...buildNodeList(child));
-    }
-  }
-  return result;
-}
