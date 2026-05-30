@@ -69,3 +69,127 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* ─── Drag & Drop ──────────────────────────────────────────────── */
+
+/* Ghost preview that follows the cursor */
+.block-drag-ghost {
+  position: fixed;
+  z-index: var(--z-modal);
+  pointer-events: none;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--shape-small);
+  font-size: 14px;
+  line-height: 28px;
+  color: var(--color-on-surface);
+  overflow: hidden;
+  user-select: none;
+}
+
+.block-drag-ghost--multi {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  height: auto;
+  line-height: 26px;
+  padding: 6px 10px;
+}
+
+.block-drag-ghost__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  overflow: hidden;
+}
+
+.block-drag-ghost__row--more {
+  opacity: 0.55;
+  font-size: 12px;
+  padding-left: 12px;
+}
+
+.block-drag-ghost--floating {
+  opacity: 0.85;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  max-width: 300px;
+  white-space: nowrap;
+}
+
+.block-drag-ghost--snapped {
+  opacity: 0.5;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px dashed var(--color-primary);
+}
+
+.block-drag-ghost__bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.block-drag-ghost__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Drag source block: dim while dragging */
+.node-block--drag-source {
+  opacity: 0.35;
+}
+
+/* Drop spacing: gap created by the drop target itself */
+.node-block--drop-spacing-before {
+  margin-top: 32px !important;
+}
+
+.node-block--drop-spacing-after {
+  margin-bottom: 32px !important;
+}
+
+/* Smooth margin transitions while dragging */
+body.notees-dragging-block .node-block {
+  transition:
+    margin-left var(--motion-duration-medium) var(--motion-easing-standard),
+    margin-top 0.15s var(--motion-easing-collapse),
+    margin-bottom 0.15s var(--motion-easing-collapse);
+}
+
+/* Suppress transition on a block that just received new spacing */
+body.notees-dragging-block .node-block--drop-spacing-instant {
+  transition:
+    margin-left var(--motion-duration-medium) var(--motion-easing-standard) !important;
+}
+
+/* Suppress all hover effects while dragging a block */
+body.notees-dragging-block .bullet-interactive:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+body.notees-dragging-block .bullet-interactive:hover::after {
+  background-color: transparent;
+}
+
+body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
+  opacity: 0.55;
+}
+
+body.notees-dragging-block .node-block:hover {
+  background: none;
+}
+
+body.notees-dragging-block .node-block--has-children:hover .bullet-collapse-arrow {
+  opacity: 0;
+}
