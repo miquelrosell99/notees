@@ -37,7 +37,8 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 // Response interceptor for error handling and logging
 api.interceptors.response.use(
   (response) => {
-    log.debug(`← ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
+    // Successful responses are not logged to reduce console noise;
+    // errors are logged in the reject handler below.
     return response;
   },
   (error: AxiosError) => {
