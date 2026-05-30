@@ -16,6 +16,7 @@ import {
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   KEY_TAB_COMMAND,
+  KEY_ESCAPE_COMMAND,
 } from 'lexical';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -29,6 +30,8 @@ export interface InlineEditorKeysPluginProps {
   onDeleteAtEnd: () => void;
   /** Called on Tab. */
   onTab: (shift: boolean) => void;
+  /** Called on Escape (blur editor and select block). */
+  onEscape?: () => void;
 }
 
 // ─── Plugin ───────────────────────────────────────────────────────
@@ -38,6 +41,7 @@ export function InlineEditorKeysPlugin({
   onBackspaceAtStart,
   onDeleteAtEnd,
   onTab,
+  onEscape,
 }: InlineEditorKeysPluginProps): null {
   const [editor] = useLexicalComposerContext();
 
@@ -117,6 +121,27 @@ export function InlineEditorKeysPlugin({
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, onTab]);
+
+  // ─── Escape ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_ESCAPE_COMMAND,
+      (_event) => {
+        const rootEl = editor.getRootElement();
+        if (rootEl) {
+          editor.blur();
+          const activeEl = document.activeElement;
+          if (activeEl && rootEl.contains(activeEl) && activeEl !== rootEl) {
+            (activeEl as HTMLElement).blur();
+          }
+        }
+        onEscape?.();
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onEscape]);
 
   return null;
 }

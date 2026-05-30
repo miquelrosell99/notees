@@ -98,6 +98,8 @@ interface InlineEditorProps {
   onDeleteAtEnd?: () => void;
   /** Called on Tab / Shift+Tab (indent / outdent). */
   onTab?: (shift: boolean) => void;
+  /** Called on Escape (blur editor and select block). */
+  onEscape?: () => void;
   /** UUID of the containing page (for live sync focus tracking). */
   pageUuid?: string;
 }
@@ -122,6 +124,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
       onBackspaceAtStart,
       onDeleteAtEnd,
       onTab,
+      onEscape,
       pageUuid,
     },
     ref,
@@ -260,6 +263,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
           onTab={onTab}
+          onEscape={onEscape}
           onContentChange={onContentChange}
           editorRef={editorRef}
         />
@@ -287,6 +291,7 @@ interface InlineEditorInnerProps {
   onBackspaceAtStart?: InlineEditorProps['onBackspaceAtStart'];
   onDeleteAtEnd?: InlineEditorProps['onDeleteAtEnd'];
   onTab?: InlineEditorProps['onTab'];
+  onEscape?: InlineEditorProps['onEscape'];
   onContentChange?: InlineEditorProps['onContentChange'];
   editorRef: React.MutableRefObject<LexicalEditor | null>;
 }
@@ -308,6 +313,7 @@ function InlineEditorInner({
   onBackspaceAtStart,
   onDeleteAtEnd,
   onTab,
+  onEscape,
   onContentChange,
   editorRef,
 }: InlineEditorInnerProps): JSX.Element {
@@ -353,6 +359,7 @@ function InlineEditorInner({
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
           onTab={onTab}
+          onEscape={onEscape}
         />
       )}
       {!readOnly && <FloatingToolbarPlugin />}
