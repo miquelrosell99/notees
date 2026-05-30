@@ -284,7 +284,7 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 pageUuid={_pageUuid}
-                pageId={_pageId}
+                nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -338,7 +338,7 @@ export const ListView = memo(function ListView({
               onNodeShiftClick={onNodeShiftClick}
               showBreadcrumbs={showBreadcrumbs}
               pageUuid={_pageUuid}
-              pageId={_pageId}
+              nodeId={_pageId}
             />
           );
         })}
@@ -500,7 +500,7 @@ function ListViewGroup({
   onNodeShiftClick,
   showBreadcrumbs = false,
   pageUuid,
-  pageId,
+  nodeId,
 }: {
   group: NodeGroup;
   sortedGroupNodes: Node[];
@@ -516,7 +516,7 @@ function ListViewGroup({
   onNodeShiftClick?: (node: Node) => void;
   showBreadcrumbs?: boolean;
   pageUuid?: string;
-  pageId?: number;
+  nodeId?: number;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -582,7 +582,7 @@ function ListViewGroup({
                     onOpenInSidebar={handleOpenInSidebar}
                     onContentChange={handleContentChangeBridge}
                     pageUuid={pageUuid}
-                    pageId={pageId}
+                    nodeId={nodeId}
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
                     onTemplateInstantiate={onTemplateInstantiate}
