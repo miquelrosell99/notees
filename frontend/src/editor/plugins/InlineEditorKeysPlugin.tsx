@@ -18,6 +18,7 @@ import {
   KEY_TAB_COMMAND,
   KEY_ESCAPE_COMMAND,
 } from 'lexical';
+import { useInputContext } from '@/stores/inputContext';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -128,6 +129,10 @@ export function InlineEditorKeysPlugin({
     return editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       (_event) => {
+        // Let popups/menus handle Escape when they are open
+        if (useInputContext.getState().isOverlayOpen) {
+          return false;
+        }
         const rootEl = editor.getRootElement();
         if (rootEl) {
           editor.blur();
