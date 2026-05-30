@@ -23,6 +23,7 @@ import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types/api';
 import { useBlockDragDrop } from '@/hooks/useBlockDragDrop';
 import { useBlockSelection } from '@/hooks/useBlockSelection';
+import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useTouchIndent } from '@/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/editor/plugins/BlockFindReplacePlugin';
 import './BlockList.css';
@@ -238,6 +239,11 @@ export function BlockList({
     [],
   );
 
+  const handleEscape = useCallback((blockId: string) => {
+    useEditorFocusStore.getState().blurBlock(blockId);
+    useBlockSelectionStore.getState().selectSingle(blockId);
+  }, []);
+
   const handleCollapseToggle = useCallback((blockId: string) => {
     const runtime = getNodeGraphRuntime();
     const node = runtime.getNode(blockId);
@@ -317,6 +323,7 @@ export function BlockList({
           onBackspaceAtStart={() => handleBackspaceAtStart(node.uuid)}
           onDeleteAtEnd={() => handleDeleteAtEnd(node.uuid)}
           onTab={(shift) => handleTab(node.uuid, shift)}
+          onEscape={() => handleEscape(node.uuid)}
           onCollapseToggle={() => handleCollapseToggle(node.uuid)}
         />
       ))}

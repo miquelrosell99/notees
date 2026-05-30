@@ -26,6 +26,7 @@ import {
   CONTROLLED_TEXT_INSERTION_COMMAND,
 } from 'lexical';
 import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
+import './CustomCaretPlugin.css';
 
 // ─── Component ──────────────────────────────────────────────────
 
