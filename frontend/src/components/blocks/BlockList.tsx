@@ -13,6 +13,7 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  useState,
   type KeyboardEvent,
   type JSX,
 } from 'react';
@@ -71,8 +72,8 @@ interface BlockListProps {
   templateClassFilters?: number[];
   /** UUID of the containing page (enables live sync lock indicators). */
   pageUuid?: string;
-  /** Server ID of the containing page (for runtime parent resolution). */
-  pageId?: number;
+  /** Server ID of the containing node (for runtime parent resolution). */
+  nodeId?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -104,6 +105,86 @@ function flattenNodes(
   return result;
 }
 
+/**
+ * Flatten nodes using the runtime's current structure (parent/child/order).
+ * This makes drag-and-drop, indent, and outdent reflect immediately without
+ * waiting for a query refetch.
+ */
+function flattenNodesFromRuntime(
+  nodes: Node[],
+  maxDepth: number,
+  pagesOnly: boolean,
+  skipPages: boolean,
+  runtime: ReturnType<typeof getNodeGraphRuntime>,
+): FlatNode[] {
+  // Build UUID → Node map from the prop
+  const nodeMap = new Map<string, Node>();
+  const collect = (n: Node) => {
+    nodeMap.set(n.uuid, n);
+    if (n.children) for (const c of n.children) collect(c);
+  };
+  for (const n of nodes) collect(n);
+
+  // Group nodes by their runtime parent ID
+  const byParent = new Map<string, Node[]>();
+  for (const [uuid, node] of nodeMap) {
+    const graphNode = runtime.getNode(uuid);
+    const parentId = graphNode?.parentId || node.parent_id?.toString() || '__root__';
+    if (!byParent.has(parentId)) byParent.set(parentId, []);
+    byParent.get(parentId)!.push(node);
+  }
+
+  // Sort each parent's children by runtime orderIndex
+  for (const [, children] of byParent) {
+    children.sort((a, b) => {
+      const ga = runtime.getNode(a.uuid);
+      const gb = runtime.getNode(b.uuid);
+      return (ga?.orderIndex ?? a.sequence ?? 0) - (gb?.orderIndex ?? b.sequence ?? 0);
+    });
+  }
+
+  // Recursive flattener
+  const flatten = (uuids: string[], depth: number): FlatNode[] => {
+    if (maxDepth >= 0 && depth > maxDepth) return [];
+    const result: FlatNode[] = [];
+    for (const uuid of uuids) {
+      const node = nodeMap.get(uuid);
+      if (!node) continue;
+      if (pagesOnly && !node.is_page) continue;
+      if (skipPages && node.is_page) continue;
+      result.push({ node, depth });
+
+      const graphNode = runtime.getNode(uuid);
+      const collapsed = graphNode?.collapsed ?? node.collapsed;
+      if (!collapsed && (maxDepth < 0 || depth < maxDepth)) {
+        const parentId = graphNode?.parentId || uuid;
+        const children = byParent.get(parentId) || [];
+        result.push(...flatten(children.map(c => c.uuid), depth + 1));
+      }
+    }
+    return result;
+  };
+
+  // Determine top-level nodes (those whose parent is not in our map)
+  const topLevel: string[] = [];
+  for (const [uuid, node] of nodeMap) {
+    const graphNode = runtime.getNode(uuid);
+    const parentId = graphNode?.parentId || node.parent_id?.toString() || '__root__';
+    if (!nodeMap.has(parentId)) topLevel.push(uuid);
+  }
+
+  // Sort top-level by runtime orderIndex
+  topLevel.sort((a, b) => {
+    const ga = runtime.getNode(a);
+    const gb = runtime.getNode(b);
+    const na = nodeMap.get(a);
+    const nb = nodeMap.get(b);
+    return (ga?.orderIndex ?? na?.sequence ?? 0) - (gb?.orderIndex ?? nb?.sequence ?? 0);
+  });
+
+  return flatten(topLevel, 0);
+}
+
 // ─── Component ────────────────────────────────────────────────────
 
 export function BlockList({
@@ -123,12 +204,30 @@ export function BlockList({
   onTemplateInstantiate,
   templateClassFilters,
   pageUuid,
-  pageId,
+  nodeId,
 }: BlockListProps): JSX.Element {
-  const flatNodes = useMemo(
-    () => flattenNodes(nodes, maxDepth, pagesOnly, skipPages),
-    [nodes, maxDepth, pagesOnly, skipPages],
-  );
+  // Subscribe to runtime structural changes so the UI updates immediately
+  // after drag-and-drop, indent, outdent, etc.
+  const [structureVersion, setStructureVersion] = useState(0);
+  useEffect(() => {
+    const runtime = getNodeGraphRuntime();
+    const unsubscribe = runtime.subscribe((event) => {
+      if (event.type === 'structure_changed' || event.type === 'nodes_changed') {
+        setStructureVersion((v) => v + 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const flatNodes = useMemo(() => {
+    const runtime = getNodeGraphRuntime();
+    const hasRuntimeData = nodes.some((n) => runtime.getNode(n.uuid) != null);
+    if (!hasRuntimeData) {
+      return flattenNodes(nodes, maxDepth, pagesOnly, skipPages);
+    }
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
+  }, [nodes, maxDepth, pagesOnly, skipPages, structureVersion]);
+
   const blockIds = useMemo(() => flatNodes.map((n) => n.node.uuid), [flatNodes]);
   const rowRefs = useRef<Map<string, BlockRowHandle>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,14 +244,14 @@ export function BlockList({
     for (const n of nodes) collect(n);
 
     if (allNodes.length > 0) {
-      const { graphNodes } = apiNodesToGraphNodes(allNodes, pageId, pageUuid);
+      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, pageUuid);
       runtime.upsertNodes(graphNodes);
     }
 
-    if (pageId != null && pageUuid) {
-      runtime.registerParentServerId(pageUuid, pageId);
+    if (nodeId != null && pageUuid) {
+      runtime.registerParentServerId(pageUuid, nodeId);
     }
-  }, [nodes, pageId, pageUuid]);
+  }, [nodes, nodeId, pageUuid]);
 
   useStructureSync({ enabled: !readOnly });
   useBlockPersist({ enabled: !readOnly });
