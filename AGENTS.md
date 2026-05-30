@@ -36,7 +36,7 @@ Key features:
 
 ## Debugging Conventions
 
-- **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state via `BlockPlugin.syncProjection`. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
+- **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state. In the old monolithic editor this happened via `BlockPlugin.syncProjection`; in the new per-block editor it can happen via `InlineEditor` re-renders when parent props change. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
 - **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between Lexical editor state, `NodeGraphRuntime` projections, TanStack Query cache updates, and debounced persistence.
 
 ---
@@ -845,9 +845,73 @@ const matches = nodes.filter(n => evaluateQueryAST(queryAST, n, ctx));
 
 ### Block Editor (Lexical)
 
-The editor is a single `LexicalComposer` instance that projects the entire block hierarchy from `NodeGraphRuntime` as a flat list of custom `BlockNode` elements.
+There are **two editor architectures** in the codebase. The new per-block editor is active; the old monolithic editor is deprecated but retained for rollback safety.
 
-**Custom Nodes (`frontend/src/editor/nodes/`):**
+#### New Architecture: Per-Block Editor (Active)
+
+Each block gets its own minimal `LexicalComposer` instance. React owns the block tree (hierarchy, depth, drag-and-drop, selection); Lexical owns only inline text inside a single block.
+
+**Component Hierarchy:**
+```
+NodeCollectionView / NodeView
+  └── BlockList (React: flatten tree, keyboard routing, container hooks)
+        └── BlockRow (React: bullet, inline editor, after-content, context menu)
+              ├── BlockUI (React: bullet, collapse arrow, icon)
+              ├── InlineEditor (LexicalComposer: ParagraphNode + TextNode + InlineLinkNode + MathNode)
+              │     ├── CustomCaretPlugin
+              │     ├── InlineEditorKeysPlugin
+              │     ├── InlineCopyPastePlugin
+              │     ├── FloatingToolbarPlugin
+              │     ├── NodeLinkPlugin
+              │     ├── TriggerPlugin
+              │     └── HistoryPlugin
+              └── BlockAfterContent (React: property previews, class pills)
+```
+
+**Key New Files:**
+| File | Purpose |
+|------|---------|
+| `frontend/src/components/blocks/BlockList.tsx` | Static list container. Flattens tree, wires drag/selection/touch-indent hooks, handles keyboard routing (Enter/Backspace/Delete/Tab/Arrows). |
+| `frontend/src/components/blocks/BlockRow.tsx` | Single block row. Composes `BlockUI` + `InlineEditor` + `BlockAfterContent` + `NodeContextMenu`. |
+| `frontend/src/components/blocks/BlockUI.tsx` | Non-editable chrome: bullet, icon, collapse arrow. |
+| `frontend/src/editor/InlineEditor.tsx` | Minimal Lexical instance per block. Exposes imperative `focus`/`blur`/`getCursorPosition`/`getCursorOffset`. |
+| `frontend/src/stores/editorFocusStore.ts` | Zustand store for active block tracking and cross-block keyboard navigation. |
+| `frontend/src/hooks/useBlockDragDrop.ts` | DOM-based drag-and-drop on `.node-block[data-block-id]` selectors (replaces `DragDropPlugin`). |
+| `frontend/src/hooks/useBlockSelection.ts` | Mouse drag-to-select + shift+arrow keyboard selection (replaces `BlockDragSelectionPlugin` + `KeyboardSelectionPlugin`). |
+| `frontend/src/hooks/useTouchIndent.ts` | Horizontal swipe on bullet for indent/outdent (replaces `TouchIndentPlugin`). |
+| `frontend/src/editor/plugins/InlineEditorKeysPlugin.tsx` | Per-block Enter/Backspace/Delete/Tab handlers. |
+| `frontend/src/editor/plugins/InlineCopyPastePlugin.tsx` | Per-block copy (`[[uuid]]`) and paste (link pills, internal block paste). |
+
+**Mutation Flow:**
+```
+User types in InlineEditor
+  → OnChangePlugin → extractInlineContent() → ContentAST
+  → handleContentChange callback
+  → runtime.applyIntent({ type: 'update_content', blockId, contentAST })
+  → onContentChangeCallback → parent component
+  → API PATCH /api/nodes/{id} with JSON AST
+```
+
+**Known Deferred Items:**
+- **Cross-block undo/redo**: Each `InlineEditor` has an isolated `HistoryPlugin`. Unified undo across merge/split/create is not yet implemented.
+
+#### Old Architecture: Monolithic Editor (Deprecated)
+
+A single `LexicalComposer` instance spanned the entire page. The block hierarchy was projected into Lexical as custom `BlockNode` elements via `BlockPlugin.syncProjection`.
+
+**Legacy Files (unused, retained for rollback):**
+- `frontend/src/editor/BlockEditor.tsx`
+- `frontend/src/editor/plugins/BlockPlugin.tsx`
+- `frontend/src/editor/plugins/BlurOnClickOutsidePlugin.tsx`
+- `frontend/src/editor/plugins/VirtualizationPlugin.tsx`
+- `frontend/src/editor/plugins/useBlockPluginCommands.ts`
+- `frontend/src/editor/plugins/EmptyClickPlugin.tsx`
+- `frontend/src/editor/plugins/DragDropPlugin.tsx`
+- `frontend/src/editor/plugins/BlockDragSelectionPlugin.tsx`
+- `frontend/src/editor/plugins/KeyboardSelectionPlugin.tsx`
+- `frontend/src/editor/plugins/TouchIndentPlugin.tsx`
+
+**Custom Nodes (still shared with new editor):**
 | Node | Extends | Purpose |
 |------|---------|---------|
 | `BlockNode` | `ElementNode` | Fundamental block unit. Stores `blockId`, `depth`, `collapsed`, `nodeType`, `hasChildren`, `icon`, `color`, `classIds`. DOM is a flex wrapper with bullet, content slot, and portal targets. |
@@ -856,34 +920,11 @@ The editor is a single `LexicalComposer` instance that projects the entire block
 | `BlockCodeNode` | `BlockNode` | Code block (`<pre><code>`) with optional `language`. |
 | `BlockTableCellNode` | `BlockNode` | Table cell with mini-editor inside. |
 
-**Key Plugins (`frontend/src/editor/plugins/`):**
-| Plugin | Purpose |
-|--------|---------|
-| `BlockPlugin` | **Core.** Syncs runtime projection into Lexical tree. Handles Enter/Backspace/Delete/Tab/Arrow keys. Implements virtualization (80+ blocks). |
-| `NodeLinkPlugin` | Manages `InlineLinkNode` pills: ZWS invariants, click/dbl-click, backspace UX, copy shortcuts. |
-| `TriggerPlugin` | Detects `/`, `@`, `+`, `#` triggers and shows popup menus. |
-| `FormattingPlugin` | Ctrl+B/I/U/E, backtick wrapping, paste-backtick conversion. |
-| `TaskCyclePlugin` | Ctrl+Enter cycles task status: none → Pending → Doing → Done → remove. |
-| `DragDropPlugin` | Drag-and-drop blocks between positions. |
-| `VirtualizationPlugin` | Viewport awareness: dehydrates off-screen blocks to ZWS placeholders. |
-
 **Content AST Format:**
 Block content is stored as JSON AST in `node.name`. The canonical builder/stringifier are:
 - `frontend/src/lib/astBuilder.ts` — `parseAST(input, mode)` with modes: `JSON`, `PLAIN`, `MARKDOWN`
 - `frontend/src/lib/stringifyAST.ts` — Stringifier with modes: `NODE_MARKDOWN`, `PLAIN_MARKDOWN`, `TEXT_ONLY`
 - `app/domain/stringify_ast.py` — Backend mirror
-
-**Mutation Flow:**
-```
-User types in Lexical
-  → BlockPlugin listener → extractBlockContent() → ContentAST
-  → handleContentChange callback
-  → runtime.applyIntent({ type: 'update_content', blockId, contentAST })
-  → onContentChangeCallback → parent component
-  → API PATCH /api/nodes/{id} with JSON AST
-```
-
-**Virtualization Threshold:** 80 blocks. Off-screen blocks become zero-width-space placeholders; visible blocks are hydrated with full AST via `IntersectionObserver` + `requestIdleCallback`.
 
 ---
 
