@@ -103,8 +103,14 @@ export function TriggerPopup({
   // Clamp selected index to valid range whenever itemCount changes
   const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
 
-  // Focus input on mount — autoFocus handles the initial focus synchronously
-  // so the popup input gains focus before any editor sync can steal it.
+  // Focus input on mount — autoFocus is unreliable across React versions
+  // and portal contexts, so we explicitly focus after the first paint.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Close on click outside
   useEffect(() => {
