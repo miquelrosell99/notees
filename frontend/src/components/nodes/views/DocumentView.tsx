@@ -5,8 +5,8 @@
  * Passes nodes directly to BlockEditor which handles runtime sync.
  */
 
-import { useMemo, useCallback, useId, type JSX, memo } from 'react';
-import { BlockEditor } from '../../../editor/BlockEditor';
+import { useMemo, useCallback, type JSX, memo } from 'react';
+import { BlockList } from '../../blocks/BlockList';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { getNodeByUuid } from '@/api/nodes';
@@ -24,19 +24,18 @@ export const DocumentView = memo(function DocumentView({
   editable,
   maxDepth = Infinity,
   onNodeClick,
-  onNodeShiftClick,
+  onNodeShiftClick: _onNodeShiftClick,
   onContentChange,
   onAddClass,
   onSlashCommand,
-  onPasteImage,
+  onPasteImage: _onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
-  pageId,
-  pageUuid,
+  pageId: _pageId,
+  pageUuid: _pageUuid,
   className = '',
-  hideProperties,
+  hideProperties: _hideProperties,
 }: NodeDocumentViewProps): JSX.Element {
-  const viewId = useId();
 
   // Collect all nodes recursively up to maxDepth
   const allNodes = useMemo(() => {
@@ -55,17 +54,6 @@ export const DocumentView = memo(function DocumentView({
     }
     return result;
   }, [nodes, maxDepth]);
-
-  // Extract backlink counts from nodes
-  const backlinkCounts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const n of allNodes) {
-      if (n.uuid && (n.backlink_count ?? 0) > 0) {
-        map.set(n.uuid, n.backlink_count!);
-      }
-    }
-    return map;
-  }, [allNodes]);
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
@@ -100,26 +88,6 @@ export const DocumentView = memo(function DocumentView({
     }
   }, [allNodes, onNodeClick, resolveAlias]);
 
-  // Handler for shift-click (open in sidebar)
-  const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    if (graphNode?.serverId) {
-      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
-      if (targetNode) {
-        onNodeShiftClick?.(targetNode);
-      } else {
-        onNodeShiftClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
-      }
-      return;
-    }
-    // Fallback: UUID-based lookup
-    const node = allNodes.find(n => n.uuid === blockId);
-    if (node) {
-      onNodeShiftClick?.(node);
-    }
-  }, [allNodes, onNodeShiftClick]);
-
   // Handler for content changes from editor
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
     const runtime = getNodeGraphRuntime();
@@ -144,24 +112,19 @@ export const DocumentView = memo(function DocumentView({
 
   return (
     <div className={`node-document-view ${className}`}>
-      <BlockEditor
-        editorId={`document-view-${viewId}`}
-        nodes={allNodes}
-        mode="document"
+      <BlockList
+        nodes={nodes}
         readOnly={!editable}
-        onNavigateToNode={handleNavigateToNode}
-        onOpenInSidebar={handleOpenInSidebar}
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
-        onPasteImage={onPasteImage}
-        backlinkCounts={backlinkCounts}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
-        pageId={pageId}
-        pageUuid={pageUuid}
+        onNavigateToNode={handleNavigateToNode}
+        onPillClick={handleNavigateToNode}
+        maxDepth={maxDepth}
+        skipPages
         placeholder="Start writing…"
-        hideProperties={hideProperties}
       />
     </div>
   );

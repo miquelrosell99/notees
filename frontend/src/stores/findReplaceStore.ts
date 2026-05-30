@@ -5,6 +5,8 @@
 import { create } from 'zustand';
 
 export interface Match {
+  /** Block UUID when using per-block editor (new architecture). */
+  blockId?: string;
   nodeKey: string;
   offset: number;
   length: number;

@@ -2,40 +2,25 @@
  * Editor barrel export.
  */
 
-export { BlockEditor } from './BlockEditor';
-export { EDITOR_NODES, serializeContentAST } from './editorConfig';
-export type { BlockEditorProps, EditorMode } from './BlockEditor';
+export { serializeContentAST } from './editorConfig';
 
 // Nodes
 export {
-  BlockNode,
-  $createBlockNode,
-  $isBlockNode,
   InlineLinkNode,
   $createInlineLinkNode,
   $isInlineLinkNode,
-  BlockHeadingNode,
-  $createBlockHeadingNode,
-  $isBlockHeadingNode,
-  BlockCodeNode,
-  $createBlockCodeNode,
-  $isBlockCodeNode,
-  BlockTableCellNode,
-  $createBlockTableCellNode,
-  $isBlockTableCellNode,
 } from './nodes';
 
 // Plugins
 export {
-  BlockPlugin,
   NodeLinkPlugin,
-  DragDropPlugin,
-  SelectionPlugin,
-  CollapsePlugin,
-  FormattingPlugin,
   TriggerPlugin,
+  CustomCaretPlugin,
+  InlineEditorKeysPlugin,
   FloatingToolbarPlugin,
-  ContextMenuPlugin,
+  InlineCopyPastePlugin,
+  BlockFindReplacePlugin,
+  FindReplaceWidget,
 } from './plugins';
 
 // Theme

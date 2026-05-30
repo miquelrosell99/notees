@@ -22,10 +22,10 @@ import {
   $createTextNode,
   KEY_DOWN_COMMAND,
   COMMAND_PRIORITY_NORMAL,
+  type LexicalEditor,
 } from 'lexical';
 import { $createInlineLinkNode } from '../nodes/InlineLinkNode';
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
-import { findParentNodeBlock } from '../utils/selectionUtils';
 import { getNodeGraphRuntime } from '../../runtime/NodeGraphRuntime';
 import { useInputContext } from '../../stores/inputContext';
 import type { Node } from '../../types/api';
@@ -54,6 +54,8 @@ export interface TriggerPluginProps {
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   /** Class IDs used to pre-filter the link popup when in templateMode */
   templateClassFilters?: number[];
+  /** Block ID for the inline editor hosting this trigger. */
+  blockId: string;
 }
 
 export function TriggerPlugin({
@@ -61,6 +63,7 @@ export function TriggerPlugin({
   onSlashCommand,
   onTemplateInstantiate,
   templateClassFilters,
+  blockId: blockIdProp,
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [popup, setPopup] = useState<PopupState | null>(null);
@@ -139,12 +142,9 @@ export function TriggerPlugin({
               char: key,
             };
 
-            const blockNode = findParentNodeBlock(newAnchorNode);
-            if (blockNode) {
-              const runtime = getNodeGraphRuntime();
-              const graphNode = runtime.getNode(blockNode.getBlockId());
-              blockServerIdRef.current = graphNode?.serverId;
-            }
+            const runtime = getNodeGraphRuntime();
+            const graphNode = runtime.getNode(blockIdProp);
+            blockServerIdRef.current = graphNode?.serverId;
           }
         });
 
@@ -171,7 +171,7 @@ export function TriggerPlugin({
       },
       COMMAND_PRIORITY_NORMAL,
     );
-  }, [editor]);
+  }, [editor, blockIdProp]);
 
   // ─── Track popup state in InputContext ───────────────────────
 
@@ -304,11 +304,10 @@ export function TriggerPlugin({
       editor.getEditorState().read(() => {
         const node = $getNodeByKey(ph.nodeKey);
         if (!node) return;
-        const blockNode = findParentNodeBlock(node);
-        if (!blockNode) return;
+        if (!blockIdProp) return;
 
         const runtime = getNodeGraphRuntime();
-        const hostNode = runtime.getNode(blockNode.getBlockId());
+        const hostNode = runtime.getNode(blockIdProp);
         if (!hostNode?.parentId) return;
 
         const newBlockId = crypto.randomUUID();
@@ -316,7 +315,7 @@ export function TriggerPlugin({
         runtime.applyIntent({
           type: 'create_block',
           parentId: hostNode.parentId,
-          afterBlockId: blockNode.getBlockId(),
+          afterBlockId: blockIdProp,
           blockId: newBlockId,
           contentAST: [
             {
@@ -328,7 +327,7 @@ export function TriggerPlugin({
         runtime.flushEvents();
       });
     },
-    [editor]
+    [editor, blockIdProp]
   );
 
   // ─── Handle node selection (+, @, #) ─────────────────────────
@@ -430,7 +429,7 @@ export function TriggerPlugin({
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-function getCaretCoordinates(editor: import('lexical').LexicalEditor): {
+function getCaretCoordinates(editor: LexicalEditor): {
   top: number;
   left: number;
 } {

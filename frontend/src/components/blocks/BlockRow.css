@@ -1,0 +1,54 @@
+/**
+ * BlockRow styles — single block row in the block-level editor.
+ * Mirrors the old .node-block layout from BlockEditor.css.
+ */
+
+.block-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
+  margin: 3px 0;
+  margin-left: calc(min(var(--block-depth, 0), 8) * 24px);
+  min-height: 1.6em;
+  line-height: 1.6;
+  border-radius: var(--shape-small, 4px);
+  cursor: default;
+  contain: layout style;
+}
+
+.block-row:hover {
+  background-color: var(--color-hover, rgba(255, 255, 255, 0.03));
+}
+
+.block-row--active {
+  background-color: var(--color-active, rgba(255, 255, 255, 0.05));
+}
+
+/* Support CustomCaretPlugin bullet pulse */
+.node-block--editing .bullet-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  width: auto;
+  height: auto;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary, #3b82f6);
+  opacity: 0.5;
+  animation: bullet-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes bullet-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 0.2; }
+}
+
+/* Content area — fills remaining flex space after bullet */
+.block-row__content {
+  flex: 1;
+  min-width: 2em;
+  min-height: 1.6em;
+  outline: none;
+  margin: 0;
+  line-height: 1.6;
+}
