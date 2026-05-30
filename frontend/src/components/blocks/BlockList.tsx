@@ -16,6 +16,9 @@ import {
   type KeyboardEvent,
   type JSX,
 } from 'react';
+import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
+import { useStructureSync } from '@/hooks/useStructureSync';
+import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -68,6 +71,8 @@ interface BlockListProps {
   templateClassFilters?: number[];
   /** UUID of the containing page (enables live sync lock indicators). */
   pageUuid?: string;
+  /** Server ID of the containing page (for runtime parent resolution). */
+  pageId?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -118,6 +123,7 @@ export function BlockList({
   onTemplateInstantiate,
   templateClassFilters,
   pageUuid,
+  pageId,
 }: BlockListProps): JSX.Element {
   const flatNodes = useMemo(
     () => flattenNodes(nodes, maxDepth, pagesOnly, skipPages),
@@ -126,6 +132,30 @@ export function BlockList({
   const blockIds = useMemo(() => flatNodes.map((n) => n.node.uuid), [flatNodes]);
   const rowRefs = useRef<Map<string, BlockRowHandle>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync nodes to runtime so structural ops (drag, indent, outdent) and
+  // content saves have the graph data they need.
+  useEffect(() => {
+    const runtime = getNodeGraphRuntime();
+    const allNodes: Node[] = [];
+    const collect = (n: Node) => {
+      allNodes.push(n);
+      if (n.children) for (const child of n.children) collect(child);
+    };
+    for (const n of nodes) collect(n);
+
+    if (allNodes.length > 0) {
+      const { graphNodes } = apiNodesToGraphNodes(allNodes, pageId, pageUuid);
+      runtime.upsertNodes(graphNodes);
+    }
+
+    if (pageId != null && pageUuid) {
+      runtime.registerParentServerId(pageUuid, pageId);
+    }
+  }, [nodes, pageId, pageUuid]);
+
+  useStructureSync({ enabled: !readOnly });
+  useBlockPersist({ enabled: !readOnly });
 
   useBlockDragDrop({ containerRef, editorId: 'block-list', readOnly });
   useBlockSelection({ containerRef, blockIds, readOnly });
@@ -241,6 +271,25 @@ export function BlockList({
 
   const handleEscape = useCallback((blockId: string) => {
     useEditorFocusStore.getState().blurBlock(blockId);
+    const container = containerRef.current;
+    if (container) {
+      const blockEl = container.querySelector(`.node-block[data-block-id="${blockId}"]`) as HTMLElement | null;
+      if (blockEl) {
+        const blockDepth = parseInt(blockEl.getAttribute('data-depth') || '0', 10);
+        const allBlocks = Array.from(container.querySelectorAll('.node-block[data-block-id]')) as HTMLElement[];
+        const blockIndex = allBlocks.indexOf(blockEl);
+        const ids = [blockId];
+        for (let i = blockIndex + 1; i < allBlocks.length; i++) {
+          const next = allBlocks[i];
+          const nextDepth = parseInt(next.getAttribute('data-depth') || '0', 10);
+          if (nextDepth <= blockDepth) break;
+          const nextId = next.getAttribute('data-block-id');
+          if (nextId) ids.push(nextId);
+        }
+        useBlockSelectionStore.getState().setSelectedIds(ids);
+        return;
+      }
+    }
     useBlockSelectionStore.getState().selectSingle(blockId);
   }, []);
 
