@@ -70,6 +70,7 @@ export const ListView = memo(function ListView({
   templateClassFilters,
   onEnterAtRoot: _onEnterAtRoot,
   pageUuid: _pageUuid,
+  pageId: _pageId,
   className = '',
   groupBy = 'none',
   groupByProperty,
@@ -283,6 +284,7 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 pageUuid={_pageUuid}
+                pageId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -336,6 +338,7 @@ export const ListView = memo(function ListView({
               onNodeShiftClick={onNodeShiftClick}
               showBreadcrumbs={showBreadcrumbs}
               pageUuid={_pageUuid}
+              pageId={_pageId}
             />
           );
         })}
@@ -497,6 +500,7 @@ function ListViewGroup({
   onNodeShiftClick,
   showBreadcrumbs = false,
   pageUuid,
+  pageId,
 }: {
   group: NodeGroup;
   sortedGroupNodes: Node[];
@@ -512,6 +516,7 @@ function ListViewGroup({
   onNodeShiftClick?: (node: Node) => void;
   showBreadcrumbs?: boolean;
   pageUuid?: string;
+  pageId?: number;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -576,7 +581,8 @@ function ListViewGroup({
                     onNavigateToNode={handleNavigateToNode}
                     onOpenInSidebar={handleOpenInSidebar}
                     onContentChange={handleContentChangeBridge}
-                pageUuid={pageUuid}
+                    pageUuid={pageUuid}
+                    pageId={pageId}
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
                     onTemplateInstantiate={onTemplateInstantiate}
