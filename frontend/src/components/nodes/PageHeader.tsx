@@ -19,8 +19,11 @@ import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
+import { useAuthStore } from '@/stores/authStore';
+import { useLivePresenceStore } from '@/stores/livePresenceStore';
+import { liveSyncManager } from '@/collab/LiveSyncManager';
 import type { Node, NodeUpdate } from '@/types';
-import { NodeIcon } from '@/components/core/icons';
+import { NodeIcon, Icon } from '@/components/core/icons';
 import { EmojiPicker } from '@/components/core/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
 import { isSystemPage } from '@/utils/systemPages';
@@ -50,6 +53,11 @@ export function PageHeader({
   onNameChange,
   onIconChange,
 }: PageHeaderProps) {
+  const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
+  const titleLockedBy = useLivePresenceStore((s) =>
+    s.getUsersOnBlock(page.uuid, page.uuid).filter((u) => u.id !== currentUserId),
+  );
+  const isTitleLocked = titleLockedBy.length > 0;
   const iconRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const updateNode = useUpdateNode();
@@ -443,7 +451,15 @@ export function PageHeader({
               className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
               value={inputValue}
               onChange={(e) => handleInputChange(e.target.value)}
-              onBlur={(e) => handleNameChange(e.target.value)}
+              onFocus={() => {
+                liveSyncManager.sendFocus(page.uuid);
+                useLivePresenceStore.getState().setLocalFocus(page.uuid, page.uuid);
+              }}
+              onBlur={(e) => {
+                liveSyncManager.sendBlur(page.uuid);
+                useLivePresenceStore.getState().setLocalFocus(page.uuid, null);
+                handleNameChange(e.target.value);
+              }}
               onKeyDown={handlePageTitleKeyDown}
               placeholder="Untitled"
               onClick={(e) => e.stopPropagation()}
@@ -463,6 +479,11 @@ export function PageHeader({
                   )}
                 </span>
               )}
+            {isTitleLocked && (
+              <span className="page-title-locked" title={`Editing by ${titleLockedBy.map((u) => u.name).join(', ')}`}>
+                <Icon path="mdi mdi-lock-outline" size={0.7} color={titleLockedBy[0].color} />
+              </span>
+            )}
             {page.active === false && (
               <span className="archived-badge">Archived</span>
             )}
