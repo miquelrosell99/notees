@@ -46,8 +46,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
   const wasPillRef = useRef(false);
   // Track the currently highlighted styled text span (cursor-inside indicator)
   const activeStyledNodeRef = useRef<HTMLElement | null>(null);
-  // Cached editorRoot (.notees-editor) to avoid repeated closest() traversals
-  const editorRootRef = useRef<Element | null>(null);
+  // No editorRootRef needed — we position relative to the caret's offsetParent
+  // so the plugin works correctly inside both monolithic and per-block editors.
 
   // ─── Track active block for bullet pulse ─────────────────────
 
@@ -249,16 +249,20 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       return;
     }
 
-    // Cache editorRoot to avoid repeated closest() traversals
-    if (!editorRootRef.current || !editorRootRef.current.isConnected) {
-      editorRootRef.current = rootElement.closest('.notees-editor');
-    }
-    const editorRoot = editorRootRef.current;
-    if (!editorRoot) {
+    // Position relative to the caret's offsetParent (nearest positioned ancestor).
+    // This ensures correct coordinates regardless of whether the caret lives inside
+    // a per-block InlineEditor or the monolithic BlockEditor.
+    // NOTE: The caret's CSS default is display:none, so offsetParent returns null.
+    // We briefly show it to discover its containing block.
+    const savedDisplay = caret.style.display;
+    caret.style.display = 'block';
+    const offsetParent = caret.offsetParent as HTMLElement | null;
+    caret.style.display = savedDisplay;
+    if (!offsetParent) {
       caret.style.display = 'none';
       return;
     }
-    const editorRect = editorRoot.getBoundingClientRect();
+    const parentRect = offsetParent.getBoundingClientRect();
 
     // ─── Single read() to gather all Lexical state ───
     let isPillSelected = false;
@@ -292,8 +296,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
         wasPillRef.current = true;
 
-        const tx = pillRect.left - editorRect.left - padding;
-        const ty = pillRect.top - editorRect.top - padding;
+        const tx = pillRect.left - parentRect.left - padding;
+        const ty = pillRect.top - parentRect.top - padding;
 
         caret.style.display = 'block';
         caret.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
@@ -372,8 +376,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
         requestAnimationFrame(() => { caret.style.transition = ''; });
       }
 
-      const selTx = overallRect.left - editorRect.left;
-      const selTy = overallRect.top - editorRect.top;
+      const selTx = overallRect.left - parentRect.left;
+      const selTy = overallRect.top - parentRect.top;
 
       caret.style.display = 'block';
       caret.style.transform = `translate3d(${selTx}px, ${selTy}px, 0)`;
@@ -521,8 +525,8 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       }
     }
 
-    const top = rect.top - editorRect.top;
-    const left = rect.left - editorRect.left;
+    const top = rect.top - parentRect.top;
+    const left = rect.left - parentRect.left;
     
     // Clamp height to line height to avoid spanning images below text
     const height = rect.height > 1 ? Math.min(rect.height, computedLineHeight) : 20;

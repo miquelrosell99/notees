@@ -7,12 +7,12 @@
  * Shown at the top of linked references, separated by a horizontal divider,
  * outside of any group-by grouping.
  * 
- * Uses standard Lexical BlockEditor for rendering pages with their content,
+ * Uses BlockList for rendering pages with their content,
  * providing consistent block interactions (bullets, collapse arrows, etc.).
  */
-import { useMemo, useCallback, useId } from 'react';
+import { useMemo, useCallback } from 'react';
 import type { Node, LinkedReference } from '@/types';
-import { BlockEditor } from '@/editor/BlockEditor';
+import { BlockList } from '@/components/blocks/BlockList';
 import { useSettingsStore } from '@/stores';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useContentSave } from '@/hooks';
@@ -95,7 +95,7 @@ function flattenNodes(nodes: Node[]): Node[] {
 
 /**
  * Section displaying pages that reference via relation properties.
- * Uses BlockEditor for standard block rendering with collapse support.
+ * Uses BlockList for standard block rendering with collapse support.
  */
 export function PropertyReferencesSection({
   items,
@@ -104,7 +104,6 @@ export function PropertyReferencesSection({
   onNodeShiftClick,
   onAddClass,
 }: PropertyReferencesSectionProps) {
-  const viewId = useId();
   const linkedRefsCollapseLevel = useSettingsStore(state => state.linkedRefsCollapseLevel);
   
   // Use content save hook for persistence
@@ -198,10 +197,8 @@ export function PropertyReferencesSection({
                 propertyContext={propertyCtx}
                 className="property-references-section__breadcrumbs"
               />
-              <BlockEditor
-                editorId={`prop-refs-${viewId}-${pageNode.id}`}
+              <BlockList
                 nodes={nodesForPage}
-                mode="list"
                 readOnly={!editable}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenInSidebar}

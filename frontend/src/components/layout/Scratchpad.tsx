@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/core/Button';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
-import { BlockEditor } from '@/editor/BlockEditor';
+import { BlockList } from '@/components/blocks/BlockList';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
 import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
@@ -342,15 +342,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
       <div className="scratchpad-content">
         {scratchpadPage && (
-          <BlockEditor
-            editorId="scratchpad"
+          <BlockList
             nodes={scratchpadPage.children ?? []}
-            pageId={scratchpadPage.id}
-            pageUuid={scratchpadPage.uuid}
-            mode="list"
             onContentChange={handleContentChange}
-            hideProperties
-            enterCreatesSiblings
           />
         )}
         <div className="scratchpad-add-block">

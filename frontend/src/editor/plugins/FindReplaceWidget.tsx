@@ -1,26 +1,37 @@
 /**
  * FindReplaceWidget — Floating find & replace toolbar.
  *
+ * Works with both the old monolithic editor (when `editor` is provided)
+ * and the new per-block editor (when `editor` is omitted — searches
+ * across all registered InlineEditor instances).
+ *
  * Replace section is collapsed by default. Click the chevron
  * or press Ctrl/Cmd+H to expand it (traditional behaviour).
  */
 
 import { useCallback, useEffect, useRef, type JSX } from 'react';
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import type { LexicalEditor } from 'lexical';
 import { useFindReplaceStore } from '../../stores/findReplaceStore';
 import {
   executeSearch,
   selectMatch,
   replaceCurrent,
   replaceAll,
-} from './FindReplacePlugin';
+} from './singleEditorFindReplace';
+import {
+  executeBlockSearch,
+  selectBlockMatch,
+  replaceBlockMatch,
+  replaceAllBlockMatches,
+} from './blockFindReplace';
 import { ChevronRightIcon, ChevronDownIcon } from '@/components/core/icons';
 import './FindReplaceWidget.css';
 
 export function FindReplaceWidget({
   editor,
 }: {
-  editor: ReturnType<typeof useLexicalComposerContext>[0];
+  /** Monolithic editor (old architecture). If omitted, searches all block editors. */
+  editor?: LexicalEditor;
 }): JSX.Element {
   const query = useFindReplaceStore((s) => s.query);
   const replaceText = useFindReplaceStore((s) => s.replaceText);
@@ -52,12 +63,18 @@ export function FindReplaceWidget({
   }, [replaceExpanded]);
 
   const runSearch = useCallback(() => {
-    const result = executeSearch(editor, query, caseSensitive);
+    const result = editor
+      ? executeSearch(editor, query, caseSensitive)
+      : executeBlockSearch(query, caseSensitive);
     setMatches(result);
     setTotalMatches(result.length);
     setMatchIndex(result.length > 0 ? 0 : 0);
     if (result.length > 0) {
-      selectMatch(editor, result[0]);
+      if (editor) {
+        selectMatch(editor, result[0]);
+      } else {
+        selectBlockMatch(result[0]);
+      }
     }
   }, [editor, query, caseSensitive, setMatches, setTotalMatches, setMatchIndex]);
 
@@ -69,27 +86,43 @@ export function FindReplaceWidget({
     if (matches.length === 0) return;
     const next = (matchIndex + 1) % matches.length;
     setMatchIndex(next);
-    selectMatch(editor, matches[next]);
+    if (editor) {
+      selectMatch(editor, matches[next]);
+    } else {
+      selectBlockMatch(matches[next]);
+    }
   }, [matches, matchIndex, setMatchIndex, editor]);
 
   const goPrev = useCallback(() => {
     if (matches.length === 0) return;
     const prev = (matchIndex - 1 + matches.length) % matches.length;
     setMatchIndex(prev);
-    selectMatch(editor, matches[prev]);
+    if (editor) {
+      selectMatch(editor, matches[prev]);
+    } else {
+      selectBlockMatch(matches[prev]);
+    }
   }, [matches, matchIndex, setMatchIndex, editor]);
 
   const handleReplace = useCallback(() => {
     if (matches.length === 0 || !replaceText) return;
     const match = matches[matchIndex];
-    replaceCurrent(editor, match, replaceText);
+
+    if (editor) {
+      replaceCurrent(editor, match, replaceText);
+    } else {
+      replaceBlockMatch(match, replaceText);
+    }
+
     // Re-run search after replacement
     const remaining = matches.filter(
-      (m, i) => i !== matchIndex && (m.nodeKey !== match.nodeKey || m.offset < match.offset),
+      (m, i) =>
+        i !== matchIndex &&
+        (m.blockId !== match.blockId || m.nodeKey !== match.nodeKey || m.offset < match.offset),
     );
     // Adjust indices for same-node matches after this offset
     const adjusted = remaining.map((m) =>
-      m.nodeKey === match.nodeKey && m.offset > match.offset
+      m.blockId === match.blockId && m.nodeKey === match.nodeKey && m.offset > match.offset
         ? { ...m, offset: m.offset + replaceText.length - match.length }
         : m,
     );
@@ -98,13 +131,21 @@ export function FindReplaceWidget({
     if (adjusted.length > 0) {
       const next = Math.min(matchIndex, adjusted.length - 1);
       setMatchIndex(next);
-      selectMatch(editor, adjusted[next]);
+      if (editor) {
+        selectMatch(editor, adjusted[next]);
+      } else {
+        selectBlockMatch(adjusted[next]);
+      }
     }
   }, [editor, matches, matchIndex, replaceText, setMatches, setTotalMatches, setMatchIndex]);
 
   const handleReplaceAll = useCallback(() => {
     if (matches.length === 0 || !replaceText) return;
-    replaceAll(editor, matches, replaceText);
+    if (editor) {
+      replaceAll(editor, matches, replaceText);
+    } else {
+      replaceAllBlockMatches(matches, replaceText);
+    }
     setMatches([]);
     setTotalMatches(0);
     setMatchIndex(0);
