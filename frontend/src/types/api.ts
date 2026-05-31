@@ -240,7 +240,6 @@ export interface NodeUpdate {
   collapsed?: boolean | null;
   is_page?: boolean | null;
   is_favorite?: boolean | null;
-  expected_version?: number;  // For optimistic locking
   /** When provided, reconcile node classes to exactly this set (Odoo-style write) */
   classes?: number[];
   /** When provided, apply each property_id -> value pair */
@@ -343,7 +342,6 @@ export interface BatchNodeUpdateItem {
   parent_id?: number | null;
   sequence?: number | null;
   collapsed?: boolean | null;
-  expected_version?: number;
   /** When provided, reconcile node classes to exactly this set */
   classes?: number[];
   /** When provided, apply each property_id -> value pair */
