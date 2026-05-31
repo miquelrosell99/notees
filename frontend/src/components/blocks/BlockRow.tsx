@@ -17,13 +17,11 @@ import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
-import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import { useTaskActions } from '@/hooks/useTaskActions';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
-
-const EMPTY_USERS: PresenceUser[] = [];
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -92,16 +90,13 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
     const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
     const isActive = activeBlockId === node.uuid;
 
-    // Check if another user is editing this block
-    const usersOnBlock = useLivePresenceStore(
-      (s) => (pageUuid ? s.presence[pageUuid]?.[node.uuid] : undefined) ?? EMPTY_USERS,
+    // Check if another user holds the server-enforced lock for this block
+    const lockOwner = useLivePresenceStore(
+      (s) => (pageUuid ? s.locks[pageUuid]?.[node.uuid] : undefined),
     );
     const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
-    const lockedBy = useMemo(
-      () => usersOnBlock.filter((u) => u.id !== currentUserId),
-      [usersOnBlock, currentUserId],
-    );
-    const isLocked = lockedBy.length > 0;
+    const lockedBy = lockOwner && lockOwner.id !== currentUserId ? [lockOwner] : undefined;
+    const isLocked = lockedBy != null && lockedBy.length > 0;
 
     // Focus editor when pending focus matches this block
     useEffect(() => {

@@ -17,7 +17,11 @@ export interface LiveSyncUser {
 export type LiveSyncMessage =
   | { type: 'user_focus'; block_uuid: string; user: LiveSyncUser }
   | { type: 'user_blur'; block_uuid: string; user_id: number }
-  | { type: 'block_updated'; block_uuid: string; block_id: number; name: string; version: number | null; user_id: number }
+  | { type: 'block_locked'; block_uuid: string; user_id: number }
+  | { type: 'block_lock_denied'; block_uuid: string; reason: string; locked_by?: LiveSyncUser }
+  | { type: 'block_lock_released'; block_uuid: string; user_id: number }
+  | { type: 'lock_expired'; block_uuid: string; user_id: number }
+  | { type: 'block_updated'; block_uuid: string; block_id: number; name: string; user_id: number }
   | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
@@ -30,6 +34,7 @@ class LiveSyncManager {
   private pendingMessages: object[] = [];
   private reconnectAttempts = 0;
   private intentionalClose = false;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Subscribe to incoming server messages. */
   onMessage(cb: MessageListener): () => void {
@@ -66,6 +71,10 @@ class LiveSyncManager {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
     this.intentionalClose = true;
     if (this.ws) {
@@ -105,6 +114,10 @@ class LiveSyncManager {
 
     ws.onopen = () => {
       this.reconnectAttempts = 0;
+      // Start heartbeat
+      this.heartbeatTimer = setInterval(() => {
+        this._send({ type: 'heartbeat' });
+      }, 15000);
       // Flush any messages queued while connecting
       for (const msg of this.pendingMessages) {
         this._send(msg);
@@ -124,6 +137,10 @@ class LiveSyncManager {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
+      }
       if (!this.intentionalClose) {
         this._scheduleReconnect();
       }
@@ -165,8 +182,8 @@ class LiveSyncManager {
   }
 
   /** Broadcast a block content update to other clients. */
-  sendBlockUpdate(blockUuid: string, blockId: number, name: string, version?: number | null): void {
-    this._send({ type: 'block_update', block_uuid: blockUuid, block_id: blockId, name, version: version ?? null });
+  sendBlockUpdate(blockUuid: string, blockId: number, name: string, _version?: number | null): void {
+    this._send({ type: 'block_update', block_uuid: blockUuid, block_id: blockId, name });
   }
 }
 
