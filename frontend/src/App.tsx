@@ -8,8 +8,9 @@
  * - NotificationToast: Global notification display
  */
 import React, { useEffect, useRef, useState, Suspense } from 'react';
-import { QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { queryClient } from './lib/queryClient';
+import { useQuery } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, asyncStoragePersister } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
 import { getSettings } from './api/workspaces';
 const Layout = React.lazy(() => import('./components/layout/Layout').then(m => ({ default: m.Layout })));
@@ -351,7 +352,23 @@ function App() {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: asyncStoragePersister,
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+          dehydrateOptions: {
+            shouldDehydrateQuery: (query) => {
+              // Only persist query data, not mutations or infinite queries
+              const queryKey = query.queryKey as string[];
+              if (!queryKey || queryKey.length === 0) return false;
+              // Exclude auth-related queries
+              if (queryKey[0] === 'auth') return false;
+              return true;
+            },
+          },
+        }}
+      >
         <KeyboardShortcutsProvider>
           <DndProvider>
             <GlobalKeyboardHandler />
@@ -361,7 +378,7 @@ function App() {
             <NotificationToast />
           </DndProvider>
         </KeyboardShortcutsProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </>
   );
 }

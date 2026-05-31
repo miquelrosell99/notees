@@ -5,7 +5,7 @@
  */
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getLogger } from '../utils/logger';
-import { getAuthToken, clearAuthToken } from '../utils/auth';
+import { getAuthToken, clearAuthToken, getApiKey } from '../utils/auth';
 
 const log = getLogger('api');
 
@@ -24,13 +24,18 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
+
+  const apiKey = getApiKey();
+  if (apiKey) {
+    config.headers['X-API-Key'] = apiKey;
+  }
+
   // Log outgoing requests
   log.debug(`→ ${config.method?.toUpperCase()} ${config.url}`, {
     params: config.params,
     hasBody: !!config.data,
   });
-  
+
   return config;
 });
 

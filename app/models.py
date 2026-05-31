@@ -150,6 +150,44 @@ class TokenData(BaseModel):
     username: str
 
 
+# ==================== API KEY MODELS ====================
+
+
+class ApiKeyCreate(BaseModel):
+    """API key creation request."""
+
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if len(v) < 1:
+            raise ValueError("Name is required")
+        if len(v) > 255:
+            raise ValueError("Name must be at most 255 characters")
+        return v
+
+
+class ApiKeyResponse(BaseModel):
+    """API key response (list view — no plaintext key)."""
+
+    id: str
+    name: str
+    scopes: list[str]
+    last_used_at: datetime | None = None
+    revoked: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ApiKeyCreateResponse(ApiKeyResponse):
+    """API key creation response — includes plaintext key once."""
+
+    key: str
+
+
 # ==================== PAGINATION ====================
 
 T = TypeVar("T")

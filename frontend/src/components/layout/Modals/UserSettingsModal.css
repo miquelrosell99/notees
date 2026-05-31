@@ -57,6 +57,71 @@
   margin: var(--spacing-3) 0 0 0;
 }
 
+/* ==================== API Keys ==================== */
+
+.settings-api-key-secret {
+  background: var(--color-primary-container);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--shape-small);
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+}
+
+.settings-api-key-secret__label {
+  font: var(--font-label-small);
+  color: var(--color-on-primary-container);
+  margin: 0 0 var(--spacing-2) 0;
+}
+
+.settings-api-key-secret__value {
+  display: block;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  word-break: break-all;
+  background: var(--color-surface);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--shape-small);
+  margin-bottom: var(--spacing-3);
+  color: var(--color-on-surface);
+}
+
+.settings-api-key-list {
+  margin-top: var(--spacing-4);
+}
+
+.settings-api-key-list__empty {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.settings-api-key-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-3);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-small);
+  margin-bottom: var(--spacing-2);
+}
+
+.settings-api-key-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.settings-api-key-item__name {
+  font: var(--font-body-small);
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.settings-api-key-item__meta {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
 /* ==================== Privacy Card ==================== */
 .settings-privacy-card {
   padding: var(--spacing-4);

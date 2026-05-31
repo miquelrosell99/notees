@@ -277,3 +277,143 @@ def get_user_export_dir(user_id: str) -> Path:
 def get_user_backups_dir(user_id: str) -> Path:
     """Get the backups directory for a user."""
     return Path(f"data/users/{user_id}/backups")
+
+
+# ─── API Key Management ───────────────────────────────────────────
+
+import secrets
+import string
+
+_API_KEY_ALPHABET = string.ascii_letters + string.digits + "_-"
+_API_KEY_PREFIX = "nk_"
+_API_KEY_LENGTH = 32
+
+
+def generate_api_key() -> str:
+    """Generate a new secure API key.
+
+    Format: nk_<32 random base64url-safe characters>
+    Example: nk_aB3x9KlmN_pQrStUvWxYz123
+    """
+    random_part = "".join(secrets.choice(_API_KEY_ALPHABET) for _ in range(_API_KEY_LENGTH))
+    return f"{_API_KEY_PREFIX}{random_part}"
+
+
+def hash_api_key(key: str) -> str:
+    """Hash an API key using the same bcrypt context as passwords."""
+    return pwd_context.hash(key)
+
+
+def verify_api_key(key: str, hashed: str) -> bool:
+    """Verify an API key against its hash."""
+    try:
+        return pwd_context.verify(key, hashed)
+    except Exception:
+        return False
+
+
+async def create_api_key(user_id: int, name: str) -> dict:
+    """Create a new API key for a user.
+
+    Returns the plaintext key ONLY once. The caller must show it to the user
+    immediately — it cannot be retrieved later.
+    """
+    key = generate_api_key()
+    key_hash = hash_api_key(key)
+
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO api_key (user_id, name, key_hash, scopes)
+            VALUES ($1, $2, $3, '["read", "write"]'::jsonb)
+            RETURNING id, uuid, name, scopes, revoked, create_date
+            """,
+            user_id,
+            name,
+            key_hash,
+        )
+        if row is None:
+            raise RuntimeError("Failed to create API key")
+
+        return {
+            "id": str(row["id"]),
+            "uuid": str(row["uuid"]),
+            "name": row["name"],
+            "key": key,
+            "scopes": row["scopes"],
+            "revoked": row["revoked"],
+            "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+        }
+
+
+async def list_api_keys(user_id: int) -> list[dict]:
+    """List all non-revoked API keys for a user."""
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, uuid, name, scopes, last_used_at, revoked, create_date
+            FROM api_key
+            WHERE user_id = $1 AND revoked = FALSE
+            ORDER BY create_date DESC
+            """,
+            user_id,
+        )
+        return [
+            {
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "name": row["name"],
+                "scopes": row["scopes"],
+                "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
+                "revoked": row["revoked"],
+                "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+            }
+            for row in rows
+        ]
+
+
+async def revoke_api_key(user_id: int, key_id: str) -> bool:
+    """Revoke an API key. Returns True if the key existed and belonged to the user."""
+    async with get_connection() as conn:
+        result = await conn.execute(
+            """
+            UPDATE api_key SET revoked = TRUE, write_date = NOW()
+            WHERE id::text = $1 AND user_id = $2 AND revoked = FALSE
+            """,
+            key_id,
+            user_id,
+        )
+        # asyncpg execute returns a status string like "UPDATE 1"
+        return result.startswith("UPDATE 1")
+
+
+async def authenticate_api_key(key: str) -> dict | None:
+    """Authenticate a request by API key.
+
+    Looks up the key hash in the database, verifies it with bcrypt,
+    updates last_used_at, and returns the associated user dict.
+    """
+    if not key.startswith(_API_KEY_PREFIX):
+        return None
+
+    async with get_connection() as conn:
+        # Fetch all non-revoked keys for the user. We have to scan because
+        # bcrypt hashes are not searchable without verification.
+        rows = await conn.fetch(
+            """
+            SELECT id, user_id, key_hash
+            FROM api_key
+            WHERE revoked = FALSE
+            """
+        )
+
+        for row in rows:
+            if verify_api_key(key, row["key_hash"]):
+                # Update last_used_at
+                await conn.execute(
+                    "UPDATE api_key SET last_used_at = NOW() WHERE id = $1",
+                    row["id"],
+                )
+                return await get_user_by_id(str(row["user_id"]))
+
+    return None

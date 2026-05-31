@@ -22,6 +22,7 @@ import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
+import { OfflineBanner } from './OfflineBanner';
 import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/components/sidebar/RightSidebarCards';
 import { GraphMinimap } from './GraphMinimap';
@@ -269,6 +270,7 @@ export function Layout() {
   return (
     <RouterSync>
       <BrokenLinkFixContext.Provider value={handleFixBrokenLink}>
+        <OfflineBanner />
         {/* ── Chrome: MobileLayout or desktop three-column ── */}
         {isMobile ? (
           <MobileLayout currentNodeId={currentNodeId} />

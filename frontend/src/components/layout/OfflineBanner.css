@@ -1,0 +1,26 @@
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background-color: var(--color-warning-container, #fff3e0);
+  color: var(--color-on-warning-container, #e65100);
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-warning, #ff9800);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-toast, 100);
+}
+
+.offline-banner__icon {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
+.offline-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

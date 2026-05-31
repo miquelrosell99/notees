@@ -38,6 +38,10 @@ interface AndroidNativeApi {
   isBiometricAvailable(): boolean;
   isBiometricEnabled(): boolean;
   setBiometricEnabled(enabled: boolean): void;
+  // API key bridge
+  storeApiKey(key: string): void;
+  getApiKey(): string;
+  clearApiKey(): void;
 }
 
 /** Methods the Android layer calls into the web app (window.noteesBridge). */
