@@ -1,8 +1,10 @@
 /**
- * React Query client configuration
+ * React Query client configuration with offline persistence
  */
 import { QueryClient, QueryCache } from '@tanstack/react-query';
+import { get, set, del } from 'idb-keyval';
 import type { AxiosError } from 'axios';
+import type { Persister, PersistedClient } from '@tanstack/react-query-persist-client';
 
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useUndoStore } from '@/stores/undoStore';
@@ -12,12 +14,11 @@ import { useUndoStore } from '@/stores/undoStore';
  */
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    // Check for Axios error with response
     const axiosError = error as AxiosError<{ detail?: string; message?: string }>;
     if (axiosError.response?.data) {
-      return axiosError.response.data.detail || 
-             axiosError.response.data.message || 
-             axiosError.message;
+      return axiosError.response.data.detail ||
+             axiosError.response.data.message ||
+             error.message;
     }
     return error.message;
   }
@@ -29,12 +30,7 @@ function getErrorMessage(error: unknown): string {
  */
 function onMutationError(error: Error) {
   const message = getErrorMessage(error);
-  
-  // Show error notification
-  useNotificationStore.getState().error(
-    'Operation failed',
-    message
-  );
+  useNotificationStore.getState().error('Operation failed', message);
 }
 
 /**
@@ -43,8 +39,8 @@ function onMutationError(error: Error) {
  */
 function onQueryError(error: Error, query: unknown) {
   const status = (error as AxiosError)?.response?.status;
-  if (status && (status === 401 || status === 403)) return; // handled by auth flow
-  if ((query as { meta?: { skipGlobalError?: boolean } })?.meta?.skipGlobalError) return; // suppressed by caller
+  if (status && (status === 401 || status === 403)) return;
+  if ((query as { meta?: { skipGlobalError?: boolean } })?.meta?.skipGlobalError) return;
   const message = getErrorMessage(error);
   useNotificationStore.getState().error('Failed to load data', message);
 }
@@ -55,14 +51,12 @@ export const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       retry: (failureCount, error) => {
-        // Don't retry on client errors (4xx)
         const status = (error as AxiosError)?.response?.status;
         if (status && status >= 400 && status < 500) {
           return false;
         }
-        // Retry once for other errors
         return failureCount < 1;
       },
       refetchOnWindowFocus: false,
@@ -72,12 +66,34 @@ export const queryClient = new QueryClient({
       retry: 0,
       onError: onMutationError,
       onSuccess: () => {
-        // Refresh undo stack after any mutation so buttons stay in sync
         useUndoStore.getState().refreshStack();
       },
     },
   },
 });
 
-// Expose globally so non-React code (e.g. URL helpers) can read the cache
-(window as any).__queryClient = queryClient;
+// ─── Offline Persistence ─────────────────────────────────────────
+
+const PERSIST_KEY = 'notees-query-cache';
+
+export const asyncStoragePersister: Persister = {
+  async persistClient(client: PersistedClient): Promise<void> {
+    await set(PERSIST_KEY, JSON.stringify(client));
+  },
+  async restoreClient(): Promise<PersistedClient | undefined> {
+    const value = await get(PERSIST_KEY);
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as PersistedClient;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  },
+  async removeClient(): Promise<void> {
+    await del(PERSIST_KEY);
+  },
+};
+
+(window as unknown as Record<string, unknown>).__queryClient = queryClient;

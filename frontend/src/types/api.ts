@@ -737,6 +737,25 @@ export interface Token {
   user: User;
 }
 
+// ==================== API Key Types ====================
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  scopes: string[];
+  last_used_at: string | null;
+  revoked: boolean;
+  created_at: string;
+}
+
+export interface ApiKeyCreate {
+  name: string;
+}
+
+export interface ApiKeyWithSecret extends ApiKey {
+  key: string;
+}
+
 // ==================== API Response Types ====================
 
 export interface NodesResponse {
