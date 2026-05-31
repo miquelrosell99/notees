@@ -25,6 +25,8 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useUpdateNode } from './useNodes';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
+import { offlineQueue } from '@/lib/offlineQueue';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import {
   flushRegistry,
   pendingSavePromises,
@@ -81,7 +83,27 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       .then(() => {
         onSaved?.(blockId);
       })
-      .catch((error) => {
+      .catch(async (error) => {
+        const axiosError = error as { response?: { status?: number } };
+        const status = axiosError.response?.status;
+        // Network errors (no status) and 5xx are retryable via offline queue
+        const isRetryable = status == null || status >= 500;
+        if (isRetryable) {
+          const runtime = getNodeGraphRuntime();
+          const graphNode = runtime.getNodeByServerId(blockId);
+          if (graphNode) {
+            try {
+              await offlineQueue.enqueue({
+                type: 'content',
+                blockId,
+                blockUuid: graphNode.blockId,
+                data: { name: finalContent },
+              });
+            } catch (enqueueError) {
+              console.error('[useContentSave] Failed to enqueue offline mutation:', enqueueError);
+            }
+          }
+        }
         onError?.(blockId, error as Error);
       })
       .finally(() => {
