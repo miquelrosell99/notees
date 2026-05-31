@@ -57,24 +57,6 @@ class InvalidNodeHierarchyError(NodeError):
         super().__init__(message=message, code="INVALID_HIERARCHY")
 
 
-class OptimisticLockError(NodeError):
-    """Raised when a concurrent modification is detected.
-
-    This happens when trying to update a node with an expected version
-    that doesn't match the current version in the database.
-    """
-
-    def __init__(self, node_id: int, expected_version: int, actual_version: int):
-        self.node_id = node_id
-        self.expected_version = expected_version
-        self.actual_version = actual_version
-        super().__init__(
-            message=f"Concurrent modification detected for node {node_id}. "
-            f"Expected version {expected_version}, but found {actual_version}",
-            code="OPTIMISTIC_LOCK_CONFLICT",
-        )
-
-
 class NodeValidationError(NodeError):
     """Raised when node data fails validation."""
 

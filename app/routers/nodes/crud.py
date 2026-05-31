@@ -12,7 +12,7 @@ from datetime import UTC
 
 from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
+from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
@@ -1321,7 +1321,7 @@ async def update_node(
     before = _node_snapshot(old_node) if old_node else None
 
     try:
-        node = await service.update_node(node_id, data, expected_version=body.expected_version)
+        node = await service.update_node(node_id, data)
         if not node:
             raise HTTPException(404, "Node not found")
 
@@ -1356,8 +1356,6 @@ async def update_node(
                 pass
 
         return _node_to_response(node)
-    except OptimisticLockError as e:
-        raise HTTPException(409, str(e)) from e
     except SystemClassConstraintError as e:
         raise HTTPException(422, str(e)) from e
     except ValueError as e:

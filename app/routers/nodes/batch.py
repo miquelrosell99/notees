@@ -174,7 +174,6 @@ async def batch_update_nodes(
             {
                 "node_id": node_id,
                 "data": data,
-                "expected_version": item.expected_version,
                 "original_index": i,
                 "classes": item.classes,
                 "properties": item.properties,
