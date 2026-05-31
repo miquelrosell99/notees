@@ -70,7 +70,6 @@ export {
   useRemoveTagLink,
   useAddAlias,
   useRemoveAlias,
-  useToggleCollaboration,
 } from './useNodeMutations';
 
 // ==================== Property Hooks ====================

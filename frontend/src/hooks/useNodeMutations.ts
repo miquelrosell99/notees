@@ -1869,23 +1869,6 @@ export function useAddAlias() {
 }
 
 /**
- * Hook to toggle real-time collaboration for a page
- */
-export function useToggleCollaboration() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ nodeId }: { nodeId: number }) => nodesApi.toggleNodeCollaboration(nodeId),
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.detailBase(nodeId),
-        refetchType: 'active',
-      });
-    },
-  });
-}
-
-/**
  * Hook to remove an alias from a node
  */
 export function useRemoveAlias() {

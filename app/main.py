@@ -51,7 +51,6 @@ from .routers import (
     assets_router,
     auth_router,
     auto_export_router,
-    collab_ws_router,
     export_router,
     live_sync_ws_router,
     nodes_router,
@@ -95,11 +94,6 @@ async def lifespan(app: FastAPI):
     # Ensure required directories exist
     ensure_directories()
 
-    # Initialize collaboration manager (lazy, but ensure cleanup task is ready)
-    from .routers.collab_ws import _get_collab_manager
-
-    collab_manager = await _get_collab_manager()
-
     # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
     _in_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
     if not _in_test:
@@ -122,15 +116,6 @@ async def lifespan(app: FastAPI):
 
         # Stop backup scheduler
         await get_backup_scheduler().stop()
-
-    # Shutdown collaboration manager
-    try:
-        from .routers.collab_ws import _collab_manager
-
-        if _collab_manager is not None:
-            await _collab_manager.shutdown()
-    except Exception:
-        logger.exception("Error shutting down collaboration manager")
 
     # Close PostgreSQL connection pool
     await close_pool()
@@ -340,7 +325,6 @@ app.include_router(undo_router)
 app.include_router(shares_router)
 app.include_router(public_router)
 app.include_router(admin_router)
-app.include_router(collab_ws_router)
 app.include_router(live_sync_ws_router)
 
 

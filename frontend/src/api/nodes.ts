@@ -196,14 +196,6 @@ export async function updateNode(id: number, data: NodeUpdate): Promise<Node> {
 }
 
 /**
- * Toggle real-time collaboration for a page.
- */
-export async function toggleNodeCollaboration(id: number): Promise<{ node_id: number; is_collaborative_enabled: boolean }> {
-  const response = await api.post<{ node_id: number; is_collaborative_enabled: boolean }>(`${BASE}/${id}/toggle-collaboration`);
-  return response.data;
-}
-
-/**
  * Create multiple nodes in a single batch.
  * Each node is processed independently — failures don't block others.
  * Useful for Logseq / bulk imports.
