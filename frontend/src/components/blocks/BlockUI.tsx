@@ -11,6 +11,7 @@ import type { Node } from '@/types/api';
 import type { JSX } from 'react';
 import './BlockUI.css';
 import type { PresenceUser } from '@/stores/livePresenceStore';
+import { useTaskActions } from '@/hooks/useTaskActions';
 
 interface BlockUIProps {
   node: Node;
@@ -30,6 +31,8 @@ export function BlockUI({
   onContextMenu,
   lockedBy,
 }: BlockUIProps): JSX.Element {
+  const { isTask, taskStatus, toggleTask } = useTaskActions(node);
+
   const handleClick = () => {
     onNavigate?.(node.uuid);
   };
@@ -51,6 +54,8 @@ export function BlockUI({
         onCollapseToggle={onCollapseToggle}
         onContextMenu={onContextMenu}
         size="sm"
+        taskStatus={isTask ? taskStatus : undefined}
+        onTaskToggle={toggleTask}
       />
       {lockedBy && lockedBy.length > 0 && (
         <div className="block-ui__lock" title={`Editing by ${lockedBy.map((u) => u.name).join(', ')}`}>

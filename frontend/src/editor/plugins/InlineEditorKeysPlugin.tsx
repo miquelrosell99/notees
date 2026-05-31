@@ -25,6 +25,8 @@ import { useInputContext } from '@/stores/inputContext';
 export interface InlineEditorKeysPluginProps {
   /** Called on Enter (not Shift+Enter). */
   onEnter: () => void;
+  /** Called on Ctrl+Enter (task cycle, etc.). */
+  onCtrlEnter?: () => void;
   /** Called on Backspace when cursor is at the start of the block. */
   onBackspaceAtStart: () => void;
   /** Called on Delete when cursor is at the end of the block. */
@@ -39,6 +41,7 @@ export interface InlineEditorKeysPluginProps {
 
 export function InlineEditorKeysPlugin({
   onEnter,
+  onCtrlEnter,
   onBackspaceAtStart,
   onDeleteAtEnd,
   onTab,
@@ -52,13 +55,20 @@ export function InlineEditorKeysPlugin({
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
+        if (event?.ctrlKey || event?.metaKey) {
+          if (onCtrlEnter) {
+            onCtrlEnter();
+            return true;
+          }
+          return false;
+        }
         if (event?.shiftKey) return false; // Let Shift+Enter insert line break
         onEnter();
         return true;
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, onEnter]);
+  }, [editor, onEnter, onCtrlEnter]);
 
   // ─── Backspace ──────────────────────────────────────────────────
 
