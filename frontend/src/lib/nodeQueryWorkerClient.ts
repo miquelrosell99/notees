@@ -11,8 +11,7 @@
  *   const result = await nodeQueryWorkerClient.post<MyType>('/api/nodes/views/7/execute', body);
  */
 import type { WorkerRequest, WorkerResponse } from '@/workers/nodeQueryWorker';
-
-const TOKEN_KEY = 'token';
+import { getAuthToken, clearAuthToken } from '@/utils/auth';
 
 type PendingEntry = {
   resolve: (value: unknown) => void;
@@ -39,8 +38,7 @@ function getWorker(): Worker {
       if (error) {
         if (error.status === 401) {
           // Mirror the axios interceptor: clear auth on 401
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem('user');
+          clearAuthToken();
         }
         const err = Object.assign(new Error(error.message), { status: error.status });
         entry.reject(err);
@@ -78,7 +76,7 @@ function request<T>(method: 'GET' | 'POST', url: string, body?: unknown): Promis
       method,
       url,
       body,
-      token: localStorage.getItem(TOKEN_KEY),
+      token: getAuthToken(),
     };
     getWorker().postMessage(msg);
   });

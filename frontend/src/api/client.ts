@@ -64,10 +64,17 @@ api.interceptors.response.use(
     } else if (status && status >= 500) {
       log.error(`Server error: ${status} ${method} ${url}`, error);
     } else if (status && status >= 400) {
-      log.warn(`Client error: ${status} ${method} ${url}`, {
-        message: error.message,
-        data: error.response?.data,
-      });
+      // 404s are often expected fallback behavior (e.g. RouterSync UUID resolution)
+      if (status === 404) {
+        log.debug(`Client error: ${status} ${method} ${url}`, {
+          message: error.message,
+        });
+      } else {
+        log.warn(`Client error: ${status} ${method} ${url}`, {
+          message: error.message,
+          data: error.response?.data,
+        });
+      }
     } else {
       log.error(`Network error: ${method} ${url}`, error);
     }

@@ -20,6 +20,7 @@ import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
 import { getLogger } from '@/utils/logger';
+import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
 
 const log = getLogger('RouterSync');
 
@@ -150,17 +151,23 @@ export function RouterSync({ children }: RouterSyncProps) {
       
       if (route.type === 'entity' && route.entityUuid) {
         const uuid = route.entityUuid;
-        
-        // Try property first (lower volume, faster to rule out)
-        try {
-          const property = await getPropertyByUuid(uuid);
-          log.debug('UUID resolved to property', { uuid, id: property.id });
-          openPropertyView(property.id);
-          return;
-        } catch {
-          // Not a property — fall through to node lookup
+
+        // Date-based UUIDs (daily/monthly/yearly journals) are always nodes,
+        // never properties. Skip the property lookup to avoid 404 noise.
+        const isDateUuid = isDayUuid(uuid) || isMonthUuid(uuid) || isYearUuid(uuid);
+
+        if (!isDateUuid) {
+          // Try property first (lower volume, faster to rule out)
+          try {
+            const property = await getPropertyByUuid(uuid);
+            log.debug('UUID resolved to property', { uuid, id: property.id });
+            openPropertyView(property.id);
+            return;
+          } catch {
+            // Not a property — fall through to node lookup
+          }
         }
-        
+
         // Try node
         try {
           const node = await getNodeByUuid(uuid);

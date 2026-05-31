@@ -92,6 +92,8 @@ interface InlineEditorProps {
   templateClassFilters?: number[];
   /** Called on Enter (block creation / split). */
   onEnter?: () => void;
+  /** Called on Ctrl+Enter (task cycle, etc.). */
+  onCtrlEnter?: () => void;
   /** Called on Backspace at start of block (merge with previous). */
   onBackspaceAtStart?: () => void;
   /** Called on Delete at end of block (merge with next). */
@@ -121,6 +123,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
       onTemplateInstantiate,
       templateClassFilters,
       onEnter,
+      onCtrlEnter,
       onBackspaceAtStart,
       onDeleteAtEnd,
       onTab,
@@ -260,6 +263,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
           onTemplateInstantiate={onTemplateInstantiate}
           templateClassFilters={templateClassFilters}
           onEnter={onEnter}
+          onCtrlEnter={onCtrlEnter}
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
           onTab={onTab}
@@ -288,6 +292,7 @@ interface InlineEditorInnerProps {
   onTemplateInstantiate?: InlineEditorProps['onTemplateInstantiate'];
   templateClassFilters?: InlineEditorProps['templateClassFilters'];
   onEnter?: InlineEditorProps['onEnter'];
+  onCtrlEnter?: InlineEditorProps['onCtrlEnter'];
   onBackspaceAtStart?: InlineEditorProps['onBackspaceAtStart'];
   onDeleteAtEnd?: InlineEditorProps['onDeleteAtEnd'];
   onTab?: InlineEditorProps['onTab'];
@@ -310,6 +315,7 @@ function InlineEditorInner({
   onTemplateInstantiate,
   templateClassFilters,
   onEnter,
+  onCtrlEnter,
   onBackspaceAtStart,
   onDeleteAtEnd,
   onTab,
@@ -356,6 +362,7 @@ function InlineEditorInner({
       {!readOnly && onEnter && onBackspaceAtStart && onDeleteAtEnd && onTab && (
         <InlineEditorKeysPlugin
           onEnter={onEnter}
+          onCtrlEnter={onCtrlEnter}
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
           onTab={onTab}

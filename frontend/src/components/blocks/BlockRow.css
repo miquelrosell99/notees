@@ -37,10 +37,18 @@
   50% { opacity: 0.15; }
 }
 
-/* Content area — fills remaining flex space after bullet */
-.block-row__content {
+/* Body — wraps content + after-content in a vertical stack */
+.block-row__body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 2em;
+  min-height: 1.6em;
+  line-height: 1.6;
+}
+
+/* Content area — inline editor sits here */
+.block-row__content {
   min-height: 1.6em;
   outline: none;
   margin: 0;
