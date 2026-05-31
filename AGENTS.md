@@ -365,7 +365,7 @@ docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@post
 - `node_repository`, `property_repository`, `link_repository`, `node_service`: Domain-layer fixtures wired to the test DB.
 
 **Why Docker for tests?**
-The backend requires `y-py` (Yjs CRDT bindings) which is installed inside the `Dockerfile.dev` image. Running `pytest` directly on the host or in a local venv will fail with `ModuleNotFoundError: No module named 'y_py'`. Always run tests inside the `notees-backend-dev` container.
+The backend has native dependencies that are installed inside the `Dockerfile.dev` image. Running `pytest` directly on the host or in a local venv may fail with `ModuleNotFoundError`. Always run tests inside the `notees-backend-dev` container.
 
 **Alternative test database:**
 Set `TEST_DATABASE_URL` to use an external PostgreSQL instance instead of the compose postgres service.
