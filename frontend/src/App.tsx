@@ -107,28 +107,16 @@ function AppContent() {
     staleTime: 10000,
   });
   
-  // Check enrollment status from user settings
-  const [enrollmentChecked, setEnrollmentChecked] = useState(false);
-  const [needsEnrollment, setNeedsEnrollment] = useState(false);
-  
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setEnrollmentChecked(false);
-        setNeedsEnrollment(false);;
-      return;
-    }
-    
-    // Fetch user settings to check enrollment status
-    getSettings().then((settings) => {
-      const completed = settings['enrollment_completed'];
-      setNeedsEnrollment(String(completed) !== 'true');
-      setEnrollmentChecked(true);
-    }).catch(() => {
-      // If settings fetch fails, skip enrollment
-      setEnrollmentChecked(true);
-      setNeedsEnrollment(false);
-    });
-  }, [isAuthenticated]);
+  // Check enrollment status from user settings (useQuery avoids setState-in-effect)
+  const { isLoading: isCheckingEnrollment, data: enrollmentSettings } = useQuery({
+    queryKey: ['enrollment-check'],
+    queryFn: getSettings,
+    enabled: isAuthenticated,
+    staleTime: Infinity,
+  });
+  const needsEnrollment = enrollmentSettings
+    ? String(enrollmentSettings['enrollment_completed']) !== 'true'
+    : false;
   
   // Listen for unauthorized events and logout
   useEffect(() => {
@@ -175,34 +163,21 @@ function AppContent() {
   // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
   // This ensures GET /settings completes before journal/workspace views
   // start their request flood, so settings doesn't compete for browser connections.
-  // Also loads favorites and recents after settings to avoid connection contention.
-  const [settingsReady, setSettingsReady] = useState(false);
+  const { isSuccess: settingsLoaded, isLoading: isLoadingSettings } = useQuery({
+    queryKey: settingsKeys.all,
+    queryFn: getSettings,
+    enabled: !!dbData?.active,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Load favorites and recents AFTER settings load — prevents connection contention
   useEffect(() => {
-    if (dbData?.active) {
-      queryClient.fetchQuery({
-        queryKey: settingsKeys.all,
-        queryFn: getSettings,
-        staleTime: 1000 * 60 * 5,
-      }).then(() => {
-        setSettingsReady(true);
-        // Load favorites and recents AFTER settings — prevents connection contention
-        const store = useFavoritesStore.getState();
-        store.loadFavorites();
-        store.loadRecents();
-        // Clear scratchpad blocks from previous session
-        clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
-      }).catch(() => {
-        // Still render Layout even if settings fail — degrade gracefully
-        setSettingsReady(true);
-        const store = useFavoritesStore.getState();
-        store.loadFavorites();
-        store.loadRecents();
-        clearScratchpad().catch(() => {});
-      });
-    } else {
-      setSettingsReady(false);
-    }
-  }, [dbData?.active]);
+    if (!settingsLoaded) return;
+    const store = useFavoritesStore.getState();
+    store.loadFavorites();
+    store.loadRecents();
+    clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
+  }, [settingsLoaded]);
   
   useEffect(() => {
     log.debug('Auth state changed', { isAuthenticated, isLoading });
@@ -263,7 +238,7 @@ function AppContent() {
   }
   
   // Show enrollment for first-time users
-  if (!enrollmentChecked) {
+  if (isCheckingEnrollment) {
     return (
       <div className="loading-screen">
         <Spinner size="lg" centered />
@@ -274,7 +249,7 @@ function AppContent() {
   if (needsEnrollment) {
     return (
       <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
-        <EnrollmentView onComplete={() => setNeedsEnrollment(false)} />
+        <EnrollmentView onComplete={() => queryClient.invalidateQueries({ queryKey: ['enrollment-check'] })} />
       </Suspense>
     );
   }
@@ -313,7 +288,7 @@ function AppContent() {
   }
   
   // Show loading while settings are loading (prevents request flood)
-  if (!settingsReady) {
+  if (isLoadingSettings) {
     return (
       <div className="loading-screen">
         <Spinner size="lg" centered />
