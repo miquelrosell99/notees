@@ -1,25 +1,30 @@
-"""Lightweight live-sync WebSocket for automatic real-time collaboration.
+"""Lightweight live-sync WebSocket with server-side block locking.
 
-Unlike the Yjs CRDT endpoint, this provides block-level presence and
-immediate update broadcasting without requiring manual activation or
-replacing the main editor.  It is designed to layer on top of the
-existing REST-backed BlockEditor so that all block features (slash
-commands, tasks, tables, etc.) continue to work while users see each
-other's edits in near real time.
+Architecture:
+- Server is the lock authority. Each block can be locked by at most one user.
+- When a user focuses a block, the server grants or denies the lock.
+- While locked, the user's edits are broadcast to other viewers in real time.
+- Locks expire after 30s of inactivity (no heartbeat or edit).
+- On blur or disconnect, the lock is released immediately.
 
 Message protocol (JSON):
   Client -> Server:
     { "type": "focus", "block_uuid": "..." }
     { "type": "blur", "block_uuid": "..." }
-    { "type": "block_update", "block_uuid": "...", "block_id": 123,
-      "name": "...", "version": 5 }
+    { "type": "block_update", "block_uuid": "...", "block_id": 123, "name": "..." }
+    { "type": "heartbeat" }
 
   Server -> Client:
     { "type": "user_focus", "block_uuid": "...",
       "user": { "id": 1, "name": "Alice", "color": "#ef4444" } }
     { "type": "user_blur", "block_uuid": "...", "user_id": 1 }
+    { "type": "block_locked", "block_uuid": "...", "user_id": 1 }
+    { "type": "block_lock_denied", "block_uuid": "...",
+      "reason": "already_locked", "locked_by": { "id": 2, "name": "Bob" } }
+    { "type": "block_lock_released", "block_uuid": "...", "user_id": 1 }
+    { "type": "lock_expired", "block_uuid": "...", "user_id": 1 }
     { "type": "block_updated", "block_uuid": "...", "block_id": 123,
-      "name": "...", "version": 5, "user_id": 1 }
+      "name": "...", "user_id": 1 }
     { "type": "users_list", "users": [...] }
 """
 
@@ -43,9 +48,15 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/ws/live", tags=["Live Sync"])
 
 # Per-page connection tracking (in-memory, per-instance).
-# For multi-instance deployments Redis carries cross-instance messages;
-# presence lists are best-effort across instances.
 _page_connections: dict[str, set[_LiveSyncConnection]] = {}
+
+# Per-page block locks: page_uuid -> block_uuid -> connection
+_page_locks: dict[str, dict[str, _LiveSyncConnection]] = {}
+
+# Lock timeout tasks: page_uuid -> block_uuid -> asyncio.Task
+_lock_timers: dict[str, dict[str, asyncio.Task]] = {}
+
+_LOCK_TIMEOUT_SECONDS = 30
 
 
 def _user_color(user_id: int) -> str:
@@ -113,6 +124,62 @@ async def _broadcast(
         logger.exception(f"Failed to publish live sync message for {page_uuid}")
 
 
+def _cancel_lock_timer(page_uuid: str, block_uuid: str) -> None:
+    """Cancel the expiration timer for a block lock."""
+    timer = _lock_timers.get(page_uuid, {}).pop(block_uuid, None)
+    if timer and not timer.done():
+        timer.cancel()
+
+
+async def _release_lock(page_uuid: str, block_uuid: str, user_id: int) -> None:
+    """Release a block lock and clean up state."""
+    _cancel_lock_timer(page_uuid, block_uuid)
+    locks = _page_locks.get(page_uuid, {})
+    if locks.get(block_uuid) is not None:
+        del locks[block_uuid]
+        if not locks:
+            _page_locks.pop(page_uuid, None)
+        await _broadcast(
+            page_uuid,
+            {
+                "type": "block_lock_released",
+                "block_uuid": block_uuid,
+                "user_id": user_id,
+            },
+            user_id,
+        )
+
+
+async def _expire_lock(page_uuid: str, block_uuid: str, user_id: int) -> None:
+    """Called when a lock times out due to inactivity."""
+    locks = _page_locks.get(page_uuid, {})
+    holder = locks.get(block_uuid)
+    if holder and holder.user_id == user_id:
+        holder.focused_block = None
+        await _release_lock(page_uuid, block_uuid, user_id)
+        await _broadcast(
+            page_uuid,
+            {
+                "type": "lock_expired",
+                "block_uuid": block_uuid,
+                "user_id": user_id,
+            },
+            user_id,
+        )
+
+
+def _schedule_lock_expiration(page_uuid: str, block_uuid: str, user_id: int) -> None:
+    """Schedule a timer that will expire the lock after inactivity."""
+    _cancel_lock_timer(page_uuid, block_uuid)
+
+    async def _timer() -> None:
+        await asyncio.sleep(_LOCK_TIMEOUT_SECONDS)
+        await _expire_lock(page_uuid, block_uuid, user_id)
+
+    timers = _lock_timers.setdefault(page_uuid, {})
+    timers[block_uuid] = asyncio.create_task(_timer())
+
+
 async def _send_users_list(conn: _LiveSyncConnection) -> None:
     """Send current local users list to a new connection."""
     users: list[dict[str, Any]] = []
@@ -130,13 +197,62 @@ async def _send_users_list(conn: _LiveSyncConnection) -> None:
         await conn.send({"type": "users_list", "users": users})
 
 
+async def _try_acquire_lock(
+    connection: _LiveSyncConnection,
+    page_uuid: str,
+    block_uuid: str,
+) -> bool:
+    """Attempt to acquire a block lock for the connection.
+
+    Returns True if lock granted, False if denied.
+    """
+    locks = _page_locks.setdefault(page_uuid, {})
+    holder = locks.get(block_uuid)
+
+    if holder is None:
+        # Free — grant lock
+        locks[block_uuid] = connection
+        _schedule_lock_expiration(page_uuid, block_uuid, connection.user_id)
+        await _broadcast(
+            page_uuid,
+            {
+                "type": "block_locked",
+                "block_uuid": block_uuid,
+                "user_id": connection.user_id,
+            },
+            connection.user_id,
+        )
+        return True
+
+    if holder.user_id == connection.user_id:
+        # Same user already holds it (e.g. re-focus after blur) — refresh
+        locks[block_uuid] = connection
+        _schedule_lock_expiration(page_uuid, block_uuid, connection.user_id)
+        return True
+
+    # Denied — send to requester only
+    await connection.send(
+        {
+            "type": "block_lock_denied",
+            "block_uuid": block_uuid,
+            "reason": "already_locked",
+            "locked_by": {
+                "id": holder.user_id,
+                "name": holder.user.get("name", "User"),
+                "color": _user_color(holder.user_id),
+            },
+        }
+    )
+    return False
+
+
 @router.websocket("/{page_uuid}")
 async def live_sync_websocket(
     websocket: WebSocket,
     page_uuid: str,
     token: str = "",
 ) -> None:
-    """WebSocket endpoint for lightweight live block sync."""
+    """WebSocket endpoint for lightweight live block sync with locking."""
     # Clear any inherited request-scoped connection (AGENTS.md rule)
     clear_request_conn()
 
@@ -222,6 +338,7 @@ async def live_sync_websocket(
             if msg_type == "focus" and isinstance(block_uuid, str):
                 # Blur previous block if any
                 if connection.focused_block and connection.focused_block != block_uuid:
+                    await _release_lock(page_uuid, connection.focused_block, user_id)
                     await _broadcast(
                         page_uuid,
                         {
@@ -232,25 +349,30 @@ async def live_sync_websocket(
                         user_id,
                         exclude=connection,
                     )
-                connection.focused_block = block_uuid
-                await _broadcast(
-                    page_uuid,
-                    {
-                        "type": "user_focus",
-                        "block_uuid": block_uuid,
-                        "user": {
-                            "id": user_id,
-                            "name": user.get("name", "User"),
-                            "color": _user_color(user_id),
+
+                # Try to acquire lock for new block
+                lock_granted = await _try_acquire_lock(connection, page_uuid, block_uuid)
+                if lock_granted:
+                    connection.focused_block = block_uuid
+                    await _broadcast(
+                        page_uuid,
+                        {
+                            "type": "user_focus",
+                            "block_uuid": block_uuid,
+                            "user": {
+                                "id": user_id,
+                                "name": user.get("name", "User"),
+                                "color": _user_color(user_id),
+                            },
                         },
-                    },
-                    user_id,
-                    exclude=connection,
-                )
+                        user_id,
+                        exclude=connection,
+                    )
 
             elif msg_type == "blur" and isinstance(block_uuid, str):
                 if connection.focused_block == block_uuid:
                     connection.focused_block = None
+                    await _release_lock(page_uuid, block_uuid, user_id)
                     await _broadcast(
                         page_uuid,
                         {
@@ -265,19 +387,46 @@ async def live_sync_websocket(
             elif msg_type == "block_update":
                 if not can_write:
                     continue
+                block_uuid = msg.get("block_uuid")
+                if not isinstance(block_uuid, str):
+                    continue
+                # Verify sender holds the lock
+                locks = _page_locks.get(page_uuid, {})
+                holder = locks.get(block_uuid)
+                if holder is None or holder.user_id != user_id:
+                    # Lock lost or never held — re-sync client
+                    await connection.send(
+                        {
+                            "type": "block_lock_denied",
+                            "block_uuid": block_uuid,
+                            "reason": "lock_lost",
+                        }
+                    )
+                    continue
+                # Refresh lock timer on edit activity
+                _schedule_lock_expiration(page_uuid, block_uuid, user_id)
                 await _broadcast(
                     page_uuid,
                     {
                         "type": "block_updated",
-                        "block_uuid": msg.get("block_uuid"),
+                        "block_uuid": block_uuid,
                         "block_id": msg.get("block_id"),
                         "name": msg.get("name"),
-                        "version": msg.get("version"),
                         "user_id": user_id,
                     },
                     user_id,
                     exclude=connection,
                 )
+
+            elif msg_type == "heartbeat":
+                # Refresh lock timer for currently focused block
+                if connection.focused_block:
+                    locks = _page_locks.get(page_uuid, {})
+                    holder = locks.get(connection.focused_block)
+                    if holder is not None and holder.user_id == user_id:
+                        _schedule_lock_expiration(
+                            page_uuid, connection.focused_block, user_id
+                        )
 
     except WebSocketDisconnect:
         pass
@@ -294,8 +443,9 @@ async def live_sync_websocket(
         if not _page_connections.get(page_uuid):
             _page_connections.pop(page_uuid, None)
 
-        # Broadcast blur for any remaining focused block
+        # Release any held locks
         if connection.focused_block:
+            await _release_lock(page_uuid, connection.focused_block, user_id)
             await _broadcast(
                 page_uuid,
                 {
