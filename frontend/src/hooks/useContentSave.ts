@@ -27,6 +27,7 @@ import { useUpdateNode } from './useNodes';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { liveSyncManager } from '@/collab/LiveSyncManager';
 import {
   flushRegistry,
   pendingSavePromises,
@@ -78,6 +79,17 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     // Skip save if content hasn't changed since last save
     if (lastSavedContentRef.current.get(blockId) === finalContent) return;
     lastSavedContentRef.current.set(blockId, finalContent);
+
+    // Broadcast via WebSocket immediately for real-time viewers
+    try {
+      const runtime = getNodeGraphRuntime();
+      const graphNode = runtime.getNodeByServerId(blockId);
+      if (graphNode && typeof navigator !== 'undefined' && navigator.onLine) {
+        liveSyncManager.sendBlockUpdate(graphNode.blockId, blockId, finalContent);
+      }
+    } catch {
+      // Ignore broadcast errors — REST save is the source of truth
+    }
 
     const promise = mutateRef.current({ id: blockId, data: { name: finalContent } })
       .then(() => {

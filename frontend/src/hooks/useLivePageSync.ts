@@ -13,7 +13,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
-import { useLivePresenceStore } from '@/stores/livePresenceStore';
+import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import type { Node } from '@/types';
@@ -155,6 +155,33 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
             break;
           }
           case 'user_blur': {
+            presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
+            break;
+          }
+          case 'block_locked': {
+            // A user has acquired the lock for this block
+            const user: PresenceUser = {
+              id: msg.user_id,
+              name: 'User',
+              color: '',
+            };
+            // Try to resolve name/color from existing presence data
+            const usersOnBlock = presence.getUsersOnBlock(pageUuid, msg.block_uuid);
+            const existing = usersOnBlock.find((u) => u.id === msg.user_id);
+            if (existing) {
+              user.name = existing.name;
+              user.color = existing.color;
+            }
+            presence.setLockOwner(pageUuid, msg.block_uuid, user);
+            break;
+          }
+          case 'block_lock_denied': {
+            // Local user was denied a lock — nothing to update globally
+            break;
+          }
+          case 'block_lock_released':
+          case 'lock_expired': {
+            presence.removeLockOwner(pageUuid, msg.block_uuid);
             presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
             break;
           }
