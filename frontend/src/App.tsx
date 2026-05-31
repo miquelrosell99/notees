@@ -7,7 +7,7 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { settingsKeys } from './hooks/queryKeys';
@@ -140,8 +140,11 @@ function AppContent() {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, [logout]);
   
-  // Check auth on mount
+  // Check auth on mount (module-level guard prevents double-run in StrictMode)
+  const authRestoredRef = useRef(false);
   useEffect(() => {
+    if (authRestoredRef.current) return;
+    authRestoredRef.current = true;
     log.info('Checking authentication state...');
     const token = getAuthToken();
     const user = getUserData();
@@ -330,8 +333,13 @@ function AppContent() {
   );
 }
 
+// Module-level guard to prevent double-initialization under React StrictMode
+let appInitialized = false;
+
 function App() {
   useEffect(() => {
+    if (appInitialized) return;
+    appInitialized = true;
     log.info('Notees application initialized', {
       version: import.meta.env.VITE_APP_VERSION || 'dev',
       mode: import.meta.env.MODE,

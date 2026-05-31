@@ -54,6 +54,10 @@ export interface BulletProps {
   title?: string;
   /** Size variant */
   size?: BulletSize;
+  /** Task status — when present, renders a checkbox instead of the bullet dot */
+  taskStatus?: string | null;
+  /** Called when the task checkbox is toggled */
+  onTaskToggle?: () => void;
 }
 
 export function Bullet({
@@ -75,6 +79,8 @@ export function Bullet({
   className = '',
   title,
   size = 'sm',
+  taskStatus,
+  onTaskToggle,
 }: BulletProps) {
   const bulletRef = useRef<HTMLDivElement>(null);
   const [showCollapseArrowInternal, setShowCollapseArrowInternal] = useState(false);
@@ -180,9 +186,18 @@ export function Bullet({
       <span className="bullet-container">
         {/* Outer ring - shows on hover or when collapsed with children */}
         {(interactive || (hasChildren && collapsed)) && <span className="bullet-outer-ring" />}
-        
-        {/* Icon or dot */}
-        {icon ? (
+
+        {/* Task checkbox, icon, or dot */}
+        {taskStatus != null ? (
+          <input
+            type="checkbox"
+            className="bullet-checkbox"
+            checked={taskStatus === 'Done'}
+            onChange={onTaskToggle}
+            onClick={(e) => e.stopPropagation()}
+            title={taskStatus}
+          />
+        ) : icon ? (
           <NodeIcon icon={icon} isPage={isPage} size="xs" className="bullet-icon" />
         ) : (
           <span className="bullet-dot" />

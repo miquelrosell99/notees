@@ -137,42 +137,52 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
   useEffect(() => {
     if (!pageUuid) return;
 
-    liveSyncManager.connect(pageUuid);
+    try {
+      liveSyncManager.connect(pageUuid);
+    } catch (err) {
+      // Graceful degradation: if WebSocket fails to open, don't crash the app.
+      // The manager's internal reconnection loop will keep retrying.
+      console.warn('[useLivePageSync] Failed to connect live sync, retrying...', err);
+    }
 
     const presence = useLivePresenceStore.getState();
 
     const unsub = liveSyncManager.onMessage((msg) => {
-      switch (msg.type) {
-        case 'user_focus': {
-          presence.setUserFocus(pageUuid, msg.block_uuid, msg.user);
-          break;
-        }
-        case 'user_blur': {
-          presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
-          break;
-        }
-        case 'users_list': {
-          for (const u of msg.users) {
-            const { block_uuid, ...user } = u;
-            presence.setUserFocus(pageUuid, block_uuid, user);
+      try {
+        switch (msg.type) {
+          case 'user_focus': {
+            presence.setUserFocus(pageUuid, msg.block_uuid, msg.user);
+            break;
           }
-          break;
-        }
-        case 'block_updated': {
-          // Skip applying the update if the local user is currently
-          // editing the same block — this prevents the cursor from
-          // jumping while the user is typing.
-          const localFocus = presence.getLocalFocus(pageUuid);
-          if (localFocus === msg.block_uuid) {
-            return;
+          case 'user_blur': {
+            presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
+            break;
           }
-          applyRemoteBlockUpdate(
-            queryClient,
-            msg.block_id,
-            msg.name,
-          );
-          break;
+          case 'users_list': {
+            for (const u of msg.users) {
+              const { block_uuid, ...user } = u;
+              presence.setUserFocus(pageUuid, block_uuid, user);
+            }
+            break;
+          }
+          case 'block_updated': {
+            // Skip applying the update if the local user is currently
+            // editing the same block — this prevents the cursor from
+            // jumping while the user is typing.
+            const localFocus = presence.getLocalFocus(pageUuid);
+            if (localFocus === msg.block_uuid) {
+              return;
+            }
+            applyRemoteBlockUpdate(
+              queryClient,
+              msg.block_id,
+              msg.name,
+            );
+            break;
+          }
         }
+      } catch (err) {
+        console.warn('[useLivePageSync] Error handling live-sync message:', err);
       }
     });
 

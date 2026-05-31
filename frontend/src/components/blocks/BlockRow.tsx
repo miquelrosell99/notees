@@ -18,6 +18,7 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
 import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import { useTaskActions } from '@/hooks/useTaskActions';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
@@ -123,6 +124,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
     );
 
     const contentAST = useMemo(() => parseAST(node.name), [node.name]);
+    const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -169,29 +171,32 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
           onContextMenu={handleBulletContextMenu}
           lockedBy={lockedBy}
         />
-        <div className="block-row__content">
-          <InlineEditor
-            ref={editorRef}
-            blockId={node.uuid}
-            initialContentAST={contentAST}
-            readOnly={readOnly || isLocked}
-            placeholder={placeholder}
-            onContentChange={onContentChange}
-            onPillClick={onPillClick}
-            onPillRemove={onPillRemove}
-            onAddClass={onAddClass}
-            onSlashCommand={onSlashCommand}
-            onTemplateInstantiate={onTemplateInstantiate}
-            templateClassFilters={templateClassFilters}
-            onEnter={onEnter}
-            onBackspaceAtStart={onBackspaceAtStart}
-            onDeleteAtEnd={onDeleteAtEnd}
-            onTab={onTab}
-            onEscape={onEscape}
-            pageUuid={pageUuid}
-          />
+        <div className="block-row__body">
+          <div className="block-row__content">
+            <InlineEditor
+              ref={editorRef}
+              blockId={node.uuid}
+              initialContentAST={contentAST}
+              readOnly={readOnly || isLocked}
+              placeholder={placeholder}
+              onContentChange={onContentChange}
+              onPillClick={onPillClick}
+              onPillRemove={onPillRemove}
+              onAddClass={onAddClass}
+              onSlashCommand={onSlashCommand}
+              onTemplateInstantiate={onTemplateInstantiate}
+              templateClassFilters={templateClassFilters}
+              onEnter={onEnter}
+              onCtrlEnter={cycleTaskStatus}
+              onBackspaceAtStart={onBackspaceAtStart}
+              onDeleteAtEnd={onDeleteAtEnd}
+              onTab={onTab}
+              onEscape={onEscape}
+              pageUuid={pageUuid}
+            />
+          </div>
+          <BlockAfterContent node={node} />
         </div>
-        <BlockAfterContent node={node} />
       </div>
       {contextMenuPos && (
         <NodeContextMenu

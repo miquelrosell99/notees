@@ -27,6 +27,17 @@ interface AndroidNativeApi {
   shareText(text: string): void;
   openUrl(url: string): void;
   showServerSettings(): void;
+  // Auth bridge — backed by native encrypted storage
+  storeAuthToken(token: string): void;
+  getAuthToken(): string;
+  clearAuthToken(): void;
+  storeUserData(userJson: string): void;
+  getUserData(): string;
+  clearUserData(): void;
+  // Biometric lock bridge
+  isBiometricAvailable(): boolean;
+  isBiometricEnabled(): boolean;
+  setBiometricEnabled(enabled: boolean): void;
 }
 
 /** Methods the Android layer calls into the web app (window.noteesBridge). */

@@ -248,6 +248,31 @@
   border-radius: 50%;
 }
 
+/* ==================== Task Checkbox ==================== */
+
+.bullet-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  border: 1.5px solid var(--color-on-surface-variant);
+  border-radius: 3px;
+  background-color: var(--color-surface);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.bullet-checkbox:hover {
+  border-color: var(--color-primary);
+}
+
+.bullet-checkbox:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
 /* ─── Mobile: keep collapse arrow visible on deep nesting ─────── */
 @media (max-width: 768px) {
   .bullet-collapse-arrow {
