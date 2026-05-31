@@ -3,7 +3,7 @@
  */
 import api from './client';
 import { getAuthToken, setAuthToken, clearAuthToken, isAuthenticated as checkAuth, setUserData, getUserData } from '@/utils/auth';
-import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate } from '@/types';
+import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate, ApiKey, ApiKeyCreate, ApiKeyWithSecret } from '@/types';
 
 /**
  * Register a new user
@@ -79,4 +79,28 @@ export function storeAuth(token: Token): void {
  */
 export function getStoredUser(): User | null {
   return getUserData<User>();
+}
+
+/**
+ * Create a new API key for device access
+ */
+export async function createApiKey(data: ApiKeyCreate): Promise<ApiKeyWithSecret> {
+  const response = await api.post<ApiKeyWithSecret>('/auth/api-keys', data);
+  return response.data;
+}
+
+/**
+ * List all API keys for the current user
+ */
+export async function listApiKeys(): Promise<ApiKey[]> {
+  const response = await api.get<ApiKey[]>('/auth/api-keys');
+  return response.data;
+}
+
+/**
+ * Revoke an API key
+ */
+export async function revokeApiKey(keyId: string): Promise<{ success: boolean }> {
+  const response = await api.delete<{ success: boolean }>(`/auth/api-keys/${keyId}`);
+  return response.data;
 }

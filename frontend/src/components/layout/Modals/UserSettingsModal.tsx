@@ -4,11 +4,12 @@
  * Modal for user-level settings: date format, theme, account info.
  * Separate from graph/workspace settings.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/api/workspaces';
-import { updateMe } from '@/api/auth';
+import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/api/auth';
+import type { ApiKey } from '@/types';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
@@ -30,7 +31,55 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [editSurnames, setEditSurnames] = useState(user?.surnames ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeySecret, setNewKeySecret] = useState<string | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const { theme, oledMode, accentColor, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
+
+  const loadApiKeys = async () => {
+    setApiKeysLoading(true);
+    setApiKeyError(null);
+    try {
+      const keys = await listApiKeys();
+      setApiKeys(keys);
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : 'Failed to load API keys');
+    } finally {
+      setApiKeysLoading(false);
+    }
+  };
+
+  const handleCreateApiKey = async () => {
+    const name = newKeyName.trim();
+    if (!name) return;
+    setApiKeyError(null);
+    try {
+      const created = await createApiKey({ name });
+      setNewKeySecret(created.key);
+      setNewKeyName('');
+      await loadApiKeys();
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : 'Failed to create API key');
+    }
+  };
+
+  const handleRevokeApiKey = async (keyId: string) => {
+    setApiKeyError(null);
+    try {
+      await revokeApiKey(keyId);
+      await loadApiKeys();
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : 'Failed to revoke API key');
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'account') {
+      loadApiKeys();
+    }
+  }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
@@ -407,6 +456,66 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 >
                   {isSavingProfile ? 'Saving...' : 'Save Profile'}
                 </Button>
+              </div>
+
+              <Separator orientation="horizontal" size="lg" spacing="lg" />
+
+              <div className="settings-section">
+                <h4 className="settings-section__title">Device Access (API Keys)</h4>
+                <p className="settings-section__description">
+                  API keys allow mobile apps and background services to access your data without keeping a web session open.
+                </p>
+
+                {newKeySecret && (
+                  <div className="settings-api-key-secret">
+                    <p className="settings-api-key-secret__label">Your new API key (copy it now — it won't be shown again):</p>
+                    <code className="settings-api-key-secret__value">{newKeySecret}</code>
+                    <Button variant="default" size="sm" onClick={() => { navigator.clipboard.writeText(newKeySecret); }}>
+                      Copy to Clipboard
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setNewKeySecret(null)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                )}
+
+                <div className="settings-form-row">
+                  <input
+                    type="text"
+                    className="settings-form-input"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="e.g., My Android Phone"
+                  />
+                  <Button variant="primary" size="sm" onClick={handleCreateApiKey} disabled={!newKeyName.trim()}>
+                    Generate Key
+                  </Button>
+                </div>
+
+                {apiKeyError && <div className="settings-error">{apiKeyError}</div>}
+
+                <div className="settings-api-key-list">
+                  {apiKeysLoading ? (
+                    <p className="settings-api-key-list__empty">Loading...</p>
+                  ) : apiKeys.length === 0 ? (
+                    <p className="settings-api-key-list__empty">No API keys yet.</p>
+                  ) : (
+                    apiKeys.map((key) => (
+                      <div key={key.id} className="settings-api-key-item">
+                        <div className="settings-api-key-item__info">
+                          <span className="settings-api-key-item__name">{key.name}</span>
+                          <span className="settings-api-key-item__meta">
+                            Created {new Date(key.created_at).toLocaleDateString()}
+                            {key.last_used_at && ` • Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
+                          </span>
+                        </div>
+                        <Button variant="danger" size="xs" onClick={() => handleRevokeApiKey(key.id)}>
+                          Revoke
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               <Separator orientation="horizontal" size="lg" spacing="lg" />

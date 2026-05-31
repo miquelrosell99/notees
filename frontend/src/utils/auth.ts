@@ -107,3 +107,43 @@ export function getUserData<T = unknown>(): T | null {
     return null;
   }
 }
+
+// ── API key (for device/background access) ──────────────────────────────────
+
+const API_KEY_KEY = 'api_key';
+
+/**
+ * Get the API key for the current server.
+ * Prefers native encrypted storage when running inside the Android app.
+ */
+export function getApiKey(): string | null {
+  if (isAndroidApp()) {
+    const nativeKey = window.Android!.getApiKey();
+    if (nativeKey) {
+      localStorage.setItem(API_KEY_KEY, nativeKey);
+      return nativeKey;
+    }
+  }
+  return localStorage.getItem(API_KEY_KEY);
+}
+
+/**
+ * Store an API key.
+ * Mirrors to native encrypted storage when running inside the Android app.
+ */
+export function setApiKey(key: string): void {
+  localStorage.setItem(API_KEY_KEY, key);
+  if (isAndroidApp()) {
+    window.Android!.storeApiKey(key);
+  }
+}
+
+/**
+ * Clear the stored API key.
+ */
+export function clearApiKey(): void {
+  localStorage.removeItem(API_KEY_KEY);
+  if (isAndroidApp()) {
+    window.Android!.clearApiKey();
+  }
+}

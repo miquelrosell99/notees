@@ -1183,4 +1183,24 @@ CREATE TABLE IF NOT EXISTS yjs_state_vector (
 
 -- Feature flag for per-page collaborative editing (dark launch)
 ALTER TABLE node ADD COLUMN IF NOT EXISTS is_collaborative_enabled BOOLEAN DEFAULT FALSE;
+
+-- ============================================================
+-- API KEYS (device access for background tasks)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS api_key (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    key_hash TEXT NOT NULL,
+    scopes JSONB DEFAULT '["read", "write"]',
+    last_used_at TIMESTAMPTZ,
+    revoked BOOLEAN DEFAULT FALSE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_key_revoked ON api_key(revoked) WHERE revoked = FALSE;
 """
