@@ -24,7 +24,6 @@ import {
 import { useFavoritesStore } from '@/stores/favoritesStore';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { scheduleAutoExport } from '@/utils/autoExport';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
 import { awaitAllContentSaves } from './contentSaveTracker';
 
 // ==================== Helper Functions ====================
@@ -764,14 +763,6 @@ export function useUpdateNode() {
           }
         }
 
-        // Broadcast block update to other clients via live sync
-        if (variables.data.name != null && updatedNode.uuid) {
-          liveSyncManager.sendBlockUpdate(
-            updatedNode.uuid,
-            updatedNode.id,
-            variables.data.name,
-          );
-        }
       }
     },
     onError: (error: Error & { response?: { status: number } }, variables) => {
