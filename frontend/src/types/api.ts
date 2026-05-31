@@ -54,7 +54,6 @@ export interface Node {
   is_yearly?: boolean; // Whether this is a yearly note
   is_comment?: boolean; // Whether this node is a comment
   parent_locked?: boolean; // Whether this node's parent is locked
-  is_collaborative_enabled?: boolean; // Whether real-time collaboration is enabled for this page
   
   // For tree responses
   children?: Node[];

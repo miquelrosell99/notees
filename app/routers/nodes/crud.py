@@ -13,7 +13,6 @@ from datetime import UTC
 from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
-from ...domain.services.yjs_sync_service import backfill_page_yjs_state
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
@@ -97,11 +96,6 @@ async def create_node(
         )
     except Exception:
         pass  # Never fail the mutation because of undo logging
-
-    # Phase 2: Rebuild Yjs document for the page this block belongs to
-    if node.id is not None:
-        from .yjs_sync_helpers import trigger_yjs_rebuild
-        trigger_yjs_rebuild(node.id)
 
     return _node_to_response(node, classes=list(body.classes))
 
@@ -1361,11 +1355,6 @@ async def update_node(
             except Exception:
                 pass
 
-        # Phase 2: Rebuild Yjs document if content or structure changed
-        if node.id is not None:
-            from .yjs_sync_helpers import trigger_yjs_rebuild
-            trigger_yjs_rebuild(node.id)
-
         return _node_to_response(node)
     except OptimisticLockError as e:
         raise HTTPException(409, str(e)) from e
@@ -1515,13 +1504,6 @@ async def delete_node(
 
     if not success:
         raise HTTPException(404, "Node not found")
-
-    # Phase 2: Rebuild Yjs document for the page this block belonged to
-    try:
-        from .yjs_sync_helpers import trigger_yjs_rebuild_for_delete
-        trigger_yjs_rebuild_for_delete(str(node_uuid))
-    except Exception:
-        pass
 
     # Record for undo
     if undo_before:
@@ -1736,100 +1718,4 @@ async def restore_node_version(
     return _node_to_response(updated, classes=[t.id for t in types if t.id])
 
 
-@router.post("/{node_id}/toggle-collaboration")
-async def toggle_node_collaboration(
-    node_id: int,
-    user: User = Depends(get_current_user),
-):
-    """Toggle real-time collaboration for a page.
 
-    Only pages can be collaborative. Enabling collaboration generates
-    the initial Yjs document state from the current AST.
-    """
-    service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT id, uuid::text, is_page, is_collaborative_enabled FROM node WHERE id = $1 AND active = TRUE",
-            node_id,
-        )
-
-    if not row:
-        raise HTTPException(404, "Node not found")
-
-    if not row["is_page"]:
-        raise HTTPException(422, "Only pages can enable collaboration")
-
-    new_state = not row["is_collaborative_enabled"]
-
-    async with acquire_connection(service.pool) as conn:
-        await conn.execute(
-            "UPDATE node SET is_collaborative_enabled = $1 WHERE id = $2",
-            new_state,
-            node_id,
-        )
-
-    if new_state:
-        # Generate initial Yjs state
-        await backfill_page_yjs_state(row["uuid"])
-
-    return {
-        "node_id": node_id,
-        "is_collaborative_enabled": new_state,
-    }
-
-
-@router.get("/{node_uuid}/yjs-state")
-async def get_node_yjs_state(
-    node_uuid: str,
-    user: User = Depends(get_current_user),
-):
-    """Get the Yjs document state for a collaborative page.
-
-    Returns the Yjs snapshot as a base64-encoded string, plus the state vector
-    for incremental sync. This is used by the frontend to bootstrap the
-    collaborative editor before opening the WebSocket.
-    """
-    import base64
-
-    service = await _get_node_service(user)
-
-    # Verify the node exists and is accessible
-    async with acquire_connection(service.pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT id, uuid::text, is_page FROM node WHERE uuid::text = $1 AND active = TRUE",
-            node_uuid,
-        )
-
-    if not row:
-        raise HTTPException(404, "Node not found")
-
-    if not row["is_page"]:
-        raise HTTPException(422, "Yjs state is only available for pages")
-
-    # Ensure Yjs state exists (backfill if missing)
-    async with acquire_connection(service.pool) as conn:
-        sv_row = await conn.fetchrow(
-            "SELECT snapshot_bytes, state_vector FROM yjs_state_vector WHERE page_uuid = $1",
-            node_uuid,
-        )
-
-    if not sv_row:
-        await backfill_page_yjs_state(node_uuid)
-        async with acquire_connection(service.pool) as conn:
-            sv_row = await conn.fetchrow(
-                "SELECT snapshot_bytes, state_vector FROM yjs_state_vector WHERE page_uuid = $1",
-                node_uuid,
-            )
-
-    if not sv_row:
-        raise HTTPException(500, "Failed to generate Yjs state")
-
-    snapshot_b64 = base64.b64encode(sv_row["snapshot_bytes"]).decode("ascii")
-    state_vector_b64 = base64.b64encode(sv_row["state_vector"]).decode("ascii")
-
-    return {
-        "page_uuid": node_uuid,
-        "snapshot_base64": snapshot_b64,
-        "state_vector_base64": state_vector_b64,
-    }

@@ -24,4 +24,3 @@ slowapi==0.1.9
 
 # Real-time Collaboration
 redis>=5.0.0
-y-py==0.6.2
