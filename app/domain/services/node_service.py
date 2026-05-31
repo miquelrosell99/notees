@@ -570,7 +570,6 @@ class NodeService:
         node_id: int,
         data: NodeUpdateData,
         user_id: int | None = None,
-        expected_version: int | None = None,
     ) -> Node | None:
         """Update an existing node.
 
@@ -583,7 +582,6 @@ class NodeService:
             node_id: ID of node to update
             data: Update data
             user_id: User performing the update
-            expected_version: For optimistic locking - update only if version matches
         """
         # Strip trailing spaces from name
         if data.name is not None:
@@ -625,7 +623,7 @@ class NodeService:
 
         if self._user_id:
             await self.permissions.require_node_write(node_id)
-        node = await self._node_repo.update(node_id, data, user_id, expected_version=expected_version)
+        node = await self._node_repo.update(node_id, data, user_id)
         if not node:
             return None
 
@@ -1561,8 +1559,7 @@ class NodeService:
     ) -> list[dict]:
         """Update multiple nodes in a single batch.
 
-        Each item dict must have 'node_id' (int) and 'data' (NodeUpdateData),
-        plus an optional 'expected_version' (int|None).
+        Each item dict must have 'node_id' (int) and 'data' (NodeUpdateData).
 
         Failures on one item do not prevent the others from being updated.
         Results are returned in the same order as the input list.
@@ -1576,7 +1573,6 @@ class NodeService:
                     item["node_id"],
                     item["data"],
                     user_id=user_id,
-                    expected_version=item.get("expected_version"),
                 )
                 if not node:
                     results.append({"success": False, "node": None, "error": "Node not found"})

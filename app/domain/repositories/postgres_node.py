@@ -14,7 +14,6 @@ import asyncpg
 from ...db.connection import acquire_connection
 from ...utils import utc_now
 from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
-from ..errors import OptimisticLockError
 from .interfaces import NodeRepository
 from .postgres_node_base import _normalize_name_to_ast
 from .postgres_node_hierarchy import PostgresNodeHierarchyMixin
@@ -237,9 +236,8 @@ class PostgresNodeRepository(
         node_id: int,
         data: NodeUpdateData,
         user_id: int | None = None,
-        expected_version: int | None = None,
     ) -> Node | None:
-        """Update a node with optimistic locking support."""
+        """Update a node."""
         now = utc_now()
         uid = user_id or self._user_id
 
@@ -347,10 +345,6 @@ class PostgresNodeRepository(
         params.append(self._workspace_id)
         param_idx += 2
 
-        if expected_version is not None:
-            where_clause += f" AND version = ${param_idx}"
-            params.append(expected_version)
-
         query = f"""
             UPDATE node
             SET {", ".join(set_clauses)}
@@ -360,20 +354,6 @@ class PostgresNodeRepository(
 
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(query, *params)
-
-            if row is None and expected_version is not None:
-                check_row = await conn.fetchrow(
-                    "SELECT version FROM node WHERE id = $1 AND workspace_id = $2",
-                    node_id,
-                    self._workspace_id,
-                )
-                if check_row:
-                    raise OptimisticLockError(
-                        node_id=node_id,
-                        expected_version=expected_version,
-                        actual_version=check_row["version"],
-                    )
-
             return self._row_to_node(row) if row else None
 
     async def delete(self, node_id: int) -> bool:

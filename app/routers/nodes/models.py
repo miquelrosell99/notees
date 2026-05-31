@@ -142,7 +142,6 @@ class NodeUpdateRequest(BaseModel):
     parent_id: int | None = None
     sequence: int | None = None
     collapsed: bool | None = None
-    expected_version: int | None = None  # For optimistic locking
     # Optional: when provided, reconcile node classes to exactly this set
     classes: list[int] | None = None
     # Optional: when provided, apply each property_id -> value pair
@@ -311,7 +310,6 @@ class BatchNodeUpdateItem(BaseModel):
     parent_id: int | None = None
     sequence: int | None = None
     collapsed: bool | None = None
-    expected_version: int | None = None
     # Optional: reconcile classes / apply property values in the same request
     classes: list[int] | None = None
     properties: dict[int, Any] | None = None
