@@ -35,9 +35,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .backup import get_backup_scheduler
@@ -132,11 +129,6 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=True,  # Redirect /api/nodes to /api/nodes/
 )
-
-# Configure rate limiting
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Compress responses ≥ 1 KB with gzip
 app.add_middleware(GZipMiddleware, minimum_size=1000)

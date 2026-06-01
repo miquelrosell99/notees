@@ -14,7 +14,7 @@
  */
 
 import { get, set, del } from 'idb-keyval';
-import type { AxiosError } from 'axios';
+import { isApiError } from '@/api/client';
 
 const QUEUE_KEY = 'notees-offline-queue';
 
@@ -126,8 +126,7 @@ export const offlineQueue = {
         await process(item);
         succeeded++;
       } catch (error) {
-        const axiosError = error as AxiosError;
-        const status = axiosError.response?.status;
+        const status = isApiError(error) ? error.response?.status : undefined;
 
         if (status && status >= 400 && status < 500) {
           // 4xx — don't retry invalid requests

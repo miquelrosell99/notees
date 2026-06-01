@@ -31,6 +31,7 @@ import type { Node } from '@/types/api';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/components/nodes/NodeRef';
+import { Icon } from '@/components/core/Icon';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
 
@@ -244,9 +245,9 @@ function BacklinkPreview({ node }: { node: Node }): JSX.Element | null {
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <span className="mdi mdi-link-variant" />
+        <Icon path="mdi-link-variant" />
         <span>{count} linked reference{count !== 1 ? 's' : ''}</span>
-        <span className={`backlink-chevron mdi ${expanded ? 'mdi-chevron-up' : 'mdi-chevron-down'}`} />
+        <Icon path={expanded ? 'mdi-chevron-up' : 'mdi-chevron-down'} className="backlink-chevron" />
       </button>
       {expanded && (
         <div
@@ -400,7 +401,7 @@ function EmbedPreview({ node }: { node: Node }): JSX.Element | null {
   return (
     <div className="embed-block-card">
       <div className="embed-block-header">
-        <span className="embed-block-header__icon mdi mdi-cube-outline" />
+        <Icon path="mdi-cube-outline" className="embed-block-header__icon" />
         <span className="embed-block-header__label" title={embeddedName}>
           {isLoading ? 'Loading embed…' : `Embed: ${embeddedName}`}
         </span>

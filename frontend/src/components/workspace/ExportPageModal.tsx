@@ -17,6 +17,7 @@ import { Spinner } from '@/components/core/Spinner';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { ButtonWithPanel } from '@/components/core/ButtonWithPanel';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { Icon } from '@/components/core/Icon';
 import api from '@/api/client';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { downloadBlob } from '@/utils/download';
@@ -206,7 +207,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         } else {
           response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
         }
-        const disposition = response.headers['content-disposition'] as string | undefined;
+        const disposition = response.headers.get('content-disposition') ?? undefined;
         const extMap: Record<string, string> = { markdown: 'md', html: 'html', pdf: 'pdf', text: 'txt', json: 'json' };
         let filename = `export.${extMap[format] || format}`;
         if (disposition) {
@@ -285,7 +286,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                       onClick={() => applyPreset('casual')}
                       title="Casual note (Obsidian-like)"
                     >
-                      <span className="export-preset-btn__icon mdi mdi-note-text-outline" />
+                      <Icon path="mdi-note-text-outline" className="export-preset-btn__icon" />
                       <span className="export-preset-btn__text">Casual</span>
                     </button>
                     <button
@@ -294,7 +295,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                       onClick={() => applyPreset('editorial')}
                       title="Editorial prose (serif, elegant)"
                     >
-                      <span className="export-preset-btn__icon mdi mdi-feather" />
+                      <Icon path="mdi-feather" className="export-preset-btn__icon" />
                       <span className="export-preset-btn__text">Editorial</span>
                     </button>
                     <button
@@ -303,7 +304,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                       onClick={() => applyPreset('technical')}
                       title="Technical document (LaTeX-like)"
                     >
-                      <span className="export-preset-btn__icon mdi mdi-file-document-outline" />
+                      <Icon path="mdi-file-document-outline" className="export-preset-btn__icon" />
                       <span className="export-preset-btn__text">Technical</span>
                     </button>
                     <button
@@ -312,7 +313,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                       onClick={() => applyPreset('book')}
                       title="Long-form book"
                     >
-                      <span className="export-preset-btn__icon mdi mdi-book-open-variant" />
+                      <Icon path="mdi-book-open-variant" className="export-preset-btn__icon" />
                       <span className="export-preset-btn__text">Book</span>
                     </button>
                   </div>

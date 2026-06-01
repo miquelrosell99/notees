@@ -7,6 +7,7 @@
 import React from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useOfflineQueue } from '@/hooks/useOfflineQueue';
+import { Icon } from '@/components/core/Icon';
 import './OfflineBanner.css';
 
 export function OfflineBanner(): React.ReactNode {
@@ -35,7 +36,7 @@ export function OfflineBanner(): React.ReactNode {
 
   return (
     <div className="offline-banner" role="status" aria-live="polite">
-      <span className={`offline-banner__icon mdi ${icon}`} />
+      <Icon path={icon} className="offline-banner__icon" />
       <span className="offline-banner__text">{text}</span>
     </div>
   );

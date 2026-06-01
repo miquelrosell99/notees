@@ -11,6 +11,7 @@
  * - Stroke drawing (pen, highlighter, eraser) with pressure
  */
 import React, { useRef, useCallback, useEffect, useMemo, useState } from 'react';
+import { Icon } from '@/components/core/Icon';
 import type {
   WhiteboardElement,
   WhiteboardCardElement,
@@ -1842,7 +1843,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
-              <button className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)}><span className="mdi mdi-close" /></button>
+              <button className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)}><Icon path="mdi-close" /></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
               <ShortcutRow keys="V" action="Select tool" />
@@ -1981,33 +1982,33 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         >
           <div className="wb-align-panel__row">
             <button className="wb-align-panel__btn" title="Align left" onClick={() => wb.alignElements([...interaction.selectedIds], 'left')}>
-              <span className="mdi mdi-align-horizontal-left" />
+              <Icon path="mdi-align-horizontal-left" />
             </button>
             <button className="wb-align-panel__btn" title="Align center" onClick={() => wb.alignElements([...interaction.selectedIds], 'center')}>
-              <span className="mdi mdi-align-horizontal-center" />
+              <Icon path="mdi-align-horizontal-center" />
             </button>
             <button className="wb-align-panel__btn" title="Align right" onClick={() => wb.alignElements([...interaction.selectedIds], 'right')}>
-              <span className="mdi mdi-align-horizontal-right" />
+              <Icon path="mdi-align-horizontal-right" />
             </button>
           </div>
           <div className="wb-align-panel__row">
             <button className="wb-align-panel__btn" title="Align top" onClick={() => wb.alignElements([...interaction.selectedIds], 'top')}>
-              <span className="mdi mdi-align-vertical-top" />
+              <Icon path="mdi-align-vertical-top" />
             </button>
             <button className="wb-align-panel__btn" title="Align middle" onClick={() => wb.alignElements([...interaction.selectedIds], 'middle')}>
-              <span className="mdi mdi-align-vertical-center" />
+              <Icon path="mdi-align-vertical-center" />
             </button>
             <button className="wb-align-panel__btn" title="Align bottom" onClick={() => wb.alignElements([...interaction.selectedIds], 'bottom')}>
-              <span className="mdi mdi-align-vertical-bottom" />
+              <Icon path="mdi-align-vertical-bottom" />
             </button>
           </div>
           <div className="wb-align-panel__divider" />
           <div className="wb-align-panel__row">
             <button className="wb-align-panel__btn" title="Distribute horizontal" onClick={() => wb.distributeElements([...interaction.selectedIds], 'horizontal')}>
-              <span className="mdi mdi-distribute-horizontal-center" />
+              <Icon path="mdi-distribute-horizontal-center" />
             </button>
             <button className="wb-align-panel__btn" title="Distribute vertical" onClick={() => wb.distributeElements([...interaction.selectedIds], 'vertical')}>
-              <span className="mdi mdi-distribute-vertical-center" />
+              <Icon path="mdi-distribute-vertical-center" />
             </button>
           </div>
         </div>

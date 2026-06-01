@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from ..db.connection import acquire_connection, get_pool
 from ..dependencies import _get_workspace_context_cached
@@ -16,7 +14,6 @@ from .auth import get_current_user
 from .nodes.helpers import _name_text, _resolve_referenced_display_names
 
 logger = get_logger(__name__)
-limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/shares", tags=["Shares"])
 
 

@@ -5,8 +5,8 @@ Handles user registration, login, token management, and API keys.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 
 from .. import auth
 from ..logging_config import get_logger
@@ -25,7 +25,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 security = HTTPBearer(auto_error=False)
-limiter = Limiter(key_func=get_remote_address)
+
+_auth_limiter_register = Limiter(Rate(3, Duration.MINUTE))
+_auth_limiter_login = Limiter(Rate(5, Duration.MINUTE))
 
 
 async def _resolve_user_from_auth(
@@ -97,8 +99,11 @@ async def auth_status():
     }
 
 
-@router.post("/register", response_model=Token)
-@limiter.limit("3/minute")
+@router.post(
+    "/register",
+    response_model=Token,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_register))],
+)
 async def register(request: Request, user_data: UserCreate):
     """Register a new user."""
     existing = await auth.get_user_by_email(user_data.email)
@@ -122,8 +127,11 @@ async def register(request: Request, user_data: UserCreate):
     return {"access_token": token, "token_type": "bearer", "user": user}
 
 
-@router.post("/login", response_model=Token)
-@limiter.limit("5/minute")
+@router.post(
+    "/login",
+    response_model=Token,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_login))],
+)
 async def login(request: Request, credentials: UserLogin):
     """Login and get access token."""
     logger.info(f"Login attempt for user: '{credentials.email}'")

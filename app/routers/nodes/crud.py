@@ -1,8 +1,8 @@
 """CRUD operations for nodes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 
 from ...logging_config import get_logger
 
@@ -43,12 +43,15 @@ from .models import (
     TemplateInstantiateResponse,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+_crud_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
 
 
-@router.post("/", name="create_node")
-@limiter.limit("120/minute")
+@router.post(
+    "/",
+    name="create_node",
+    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+)
 async def create_node(
     request: Request,
     body: NodeCreateRequest,
@@ -1284,8 +1287,10 @@ async def _apply_node_extras(service, node_id: int, classes, properties) -> None
                     await repo.set_selection_value(node_id, prop_id, int(value))
 
 
-@router.put("/{node_id}")
-@limiter.limit("120/minute")
+@router.put(
+    "/{node_id}",
+    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+)
 async def update_node(
     request: Request,
     node_id: int,
@@ -1417,8 +1422,10 @@ async def move_node(
     return _node_to_response(node)
 
 
-@router.delete("/{node_id}")
-@limiter.limit("120/minute")
+@router.delete(
+    "/{node_id}",
+    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+)
 async def delete_node(
     request: Request,
     node_id: int,

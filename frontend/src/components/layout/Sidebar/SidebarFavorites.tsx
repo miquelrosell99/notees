@@ -1,7 +1,7 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore, useFavoritesStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
-import { isAxiosError } from 'axios';
+import { isApiError } from '@/api/client';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { Button } from '@/components/core/Button';
@@ -41,7 +41,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
 
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
-    if (error && isAxiosError(error) && error.response?.status === 404) {
+    if (error && isApiError(error) && error.response?.status === 404) {
       useFavoritesStore.getState().removeFavorite(nodeId);
     }
   }, [error, nodeId]);
@@ -71,7 +71,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   }, [index, onDragStart]);
 
   // Deleted node — render nothing so it auto-removes from the list
-  if (error && isAxiosError(error) && error.response?.status === 404) {
+  if (error && isApiError(error) && error.response?.status === 404) {
     return null;
   }
 

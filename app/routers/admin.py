@@ -4,8 +4,6 @@ System-level admin endpoints for user management and metrics.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from .. import auth
 from ..db.connection import get_connection
@@ -16,7 +14,6 @@ from .auth import require_admin
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/users")

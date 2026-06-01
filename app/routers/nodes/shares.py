@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from pyrate_limiter import Duration, Limiter, Rate
 
 from ...db.connection import acquire_connection, get_pool
 from ...dependencies import _get_workspace_context_cached
@@ -16,7 +16,7 @@ from ...models import User
 from ..auth import get_current_user
 
 logger = get_logger(__name__)
-limiter = Limiter(key_func=get_remote_address)
+_node_shares_limiter = Limiter(Rate(30, Duration.MINUTE))
 router = APIRouter()
 
 
@@ -44,8 +44,10 @@ def _share_to_response(share, request: Request | None = None) -> dict:
     }
 
 
-@router.post("/{node_id}/shares")
-@limiter.limit("30/minute")
+@router.post(
+    "/{node_id}/shares",
+    dependencies=[Depends(RateLimiter(limiter=_node_shares_limiter))],
+)
 async def create_share(
     request: Request,
     node_id: int = Path(..., ge=1),
