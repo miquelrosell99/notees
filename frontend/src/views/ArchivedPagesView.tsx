@@ -38,6 +38,9 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
     mutationFn: unarchiveNode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
     },
   });
   
@@ -46,6 +49,9 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
     mutationFn: deleteNode,
     onSuccess: (_data, nodeId) => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       const favoritesStore = useFavoritesStore.getState();
       if (favoritesStore.isFavorite(nodeId)) {
         favoritesStore.removeFavorite(nodeId);
@@ -62,6 +68,9 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setShowDeleteAllConfirm(false);
       const favoritesStore = useFavoritesStore.getState();
       for (const node of nodes ?? []) {
