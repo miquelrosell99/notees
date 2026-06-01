@@ -1,8 +1,10 @@
 """Batch operations for nodes."""
 
-from fastapi import APIRouter, Depends, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from collections.abc import Awaitable, Callable
+
+from fastapi import APIRouter, Depends, Request, Response
+from fastapi_limiter.depends import RateLimiter as _RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 
 from ...logging_config import get_logger
 
@@ -34,19 +36,46 @@ from .models import (
     NodeResponse,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+_batch_create_limiter = Limiter(Rate(60, Duration.MINUTE))
+_batch_update_limiter = Limiter(Rate(120, Duration.MINUTE))
+_batch_delete_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
 
 
-def _bulk_import_cost(request: Request) -> int:
-    """Return 0 for bulk-import requests so they don't count toward the rate limit."""
-    if request.headers.get("X-Bulk-Import") == "true":
-        return 0
-    return 1
+class _SkippableRateLimiter:
+    """Wraps fastapi_limiter.RateLimiter with an optional skip predicate."""
+
+    def __init__(
+        self,
+        limiter: Limiter,
+        skip: Callable[[Request], Awaitable[bool]] | None = None,
+    ):
+        self._impl = _RateLimiter(limiter=limiter)
+        self._skip = skip
+
+    async def __call__(self, request: Request, response: Response) -> None:
+        if self._skip is not None and await self._skip(request):
+            return
+        await self._impl(request, response)
 
 
-@router.post("/batch", name="batch_create_nodes")
-@limiter.limit("60/minute", cost=_bulk_import_cost)
+async def _skip_bulk_import(request: Request) -> bool:
+    """Skip rate limiting for bulk-import requests."""
+    return request.headers.get("X-Bulk-Import") == "true"
+
+
+@router.post(
+    "/batch",
+    name="batch_create_nodes",
+    dependencies=[
+        Depends(
+            _SkippableRateLimiter(
+                limiter=_batch_create_limiter,
+                skip=_skip_bulk_import,
+            )
+        )
+    ],
+)
 async def batch_create_nodes(
     request: Request,
     body: BatchNodeCreateRequest,
@@ -119,8 +148,11 @@ async def batch_create_nodes(
     return BatchNodeCreateResponse(results=results, created=created, failed=failed)
 
 
-@router.put("/batch", name="batch_update_nodes")
-@limiter.limit("120/minute")
+@router.put(
+    "/batch",
+    name="batch_update_nodes",
+    dependencies=[Depends(_RateLimiter(limiter=_batch_update_limiter))],
+)
 async def batch_update_nodes(
     request: Request,
     body: BatchNodeUpdateRequest,
@@ -237,8 +269,11 @@ async def batch_update_nodes(
     return BatchNodeUpdateResponse(results=results, updated=updated, failed=failed)
 
 
-@router.delete("/batch", name="batch_delete_nodes")
-@limiter.limit("120/minute")
+@router.delete(
+    "/batch",
+    name="batch_delete_nodes",
+    dependencies=[Depends(_RateLimiter(limiter=_batch_delete_limiter))],
+)
 async def batch_delete_nodes(
     request: Request,
     body: BatchNodeDeleteRequest,

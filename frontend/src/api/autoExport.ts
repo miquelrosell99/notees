@@ -34,7 +34,7 @@ export async function downloadAutoExportZip(): Promise<{ blob: Blob; filename: s
   const response = await api.get('/auto-export/download', {
     responseType: 'blob',
   });
-  const disposition = response.headers['content-disposition'] as string | undefined;
+  const disposition = response.headers.get('content-disposition') ?? undefined;
   let filename = 'export.zip';
   if (disposition) {
     const match = disposition.match(/filename="?([^"]+)"?/);

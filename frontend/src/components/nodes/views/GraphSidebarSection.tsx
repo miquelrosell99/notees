@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '@/components/core/Icon';
 
 interface GraphSidebarSectionProps {
   title: string;
@@ -22,9 +23,9 @@ export function GraphSidebarSection({
         onClick={() => setOpen(!open)}
         type="button"
       >
-        <span className={`mdi ${icon}`} />
+        <Icon path={icon} className="graph-sidebar-section__icon" />
         <span className="graph-sidebar-section__title">{title}</span>
-        <span className={`mdi mdi-chevron-down graph-sidebar-section__chevron ${open ? 'open' : ''}`} />
+        <Icon path="mdi-chevron-down" className={`graph-sidebar-section__chevron ${open ? 'open' : ''}`} />
       </button>
       {open && (
         <div className="graph-sidebar-section__content">

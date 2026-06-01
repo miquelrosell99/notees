@@ -7,6 +7,7 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Icon } from '@/components/core/Icon';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { Button } from '@/components/core/Button';
 import { Spinner } from '@/components/core/Spinner';
@@ -147,7 +148,7 @@ export function TasksView() {
             onClick={() => setActiveTab(tab.key)}
             type="button"
           >
-            <span className={tab.icon} />
+            <Icon path={tab.icon} />
             <span>{tab.label}</span>
           </button>
         ))}

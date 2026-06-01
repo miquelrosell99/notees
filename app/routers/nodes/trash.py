@@ -1,8 +1,8 @@
 """Trash operations for nodes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 
 from ...logging_config import get_logger
 
@@ -20,7 +20,7 @@ from .models import (
     BatchPermanentDeleteResultItem,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+_trash_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
 
 
@@ -105,8 +105,11 @@ async def batch_permanent_delete(
     return BatchPermanentDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
-@router.delete("/{node_id}/permanent", name="permanently_delete_node")
-@limiter.limit("120/minute")
+@router.delete(
+    "/{node_id}/permanent",
+    name="permanently_delete_node",
+    dependencies=[Depends(RateLimiter(limiter=_trash_limiter))],
+)
 async def permanently_delete_node(
     request: Request,
     node_id: int,

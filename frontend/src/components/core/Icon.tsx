@@ -1,13 +1,16 @@
 /**
- * Icon — renders MDI icons via @mdi/font CSS classes.
+ * Icon — renders MDI icons as inline SVGs via @mdi/js.
  *
- * Renders MDI icons via the @mdi/font CSS webfont instead of inline SVG.
+ * Replaces the previous @mdi/font CSS webfont approach with tree-shakeable
+ * SVG paths for better performance and rendering crispness.
+ *
  * Accepts the same props so callers don't need to change their JSX.
  */
 import React from 'react';
+import { mdiPathMap } from '@/utils/mdiPathMap';
 
 export interface IconProps {
-  /** MDI CSS class string, e.g. "mdi mdi-heart-outline" */
+  /** MDI CSS class string, e.g. "mdi mdi-heart-outline" or "mdi-heart-outline" */
   path: string;
   /** Size multiplier (1 = 24px) or explicit CSS string */
   size?: number | string;
@@ -25,6 +28,31 @@ export interface IconProps {
   vertical?: boolean;
 }
 
+function camelToKebab(name: string): string {
+  const rest = name.slice(3);
+  let result = rest[0]?.toLowerCase() ?? '';
+  for (const char of rest.slice(1)) {
+    result += char === char.toUpperCase() ? '-' + char.toLowerCase() : char;
+  }
+  return result;
+}
+
+function resolveMdiName(path: string): string | null {
+  const normalized = path.replace(/^mdi\s+/, '').replace(/^mdi-/, '');
+
+  // Already kebab-case (e.g. "heart-outline")
+  if (!normalized.startsWith('mdi')) {
+    return normalized;
+  }
+
+  // camelCase (e.g. "mdiCalendarToday")
+  if (normalized.match(/^mdi[A-Z]/)) {
+    return camelToKebab(normalized);
+  }
+
+  return null;
+}
+
 export const Icon: React.FC<IconProps> = ({
   path,
   size = 1,
@@ -35,13 +63,18 @@ export const Icon: React.FC<IconProps> = ({
   horizontal,
   vertical,
 }) => {
+  const name = resolveMdiName(path);
+  const d = name ? mdiPathMap[name] : undefined;
+
+  if (!d) {
+    // Unknown icon — render nothing (or a placeholder)
+    return null;
+  }
+
   const style: React.CSSProperties = {};
 
-  if (typeof size === 'number') {
-    style.fontSize = `${size * 24}px`;
-  } else if (typeof size === 'string') {
-    style.fontSize = size;
-  }
+  const width = typeof size === 'number' ? `${size * 24}px` : size;
+  const height = typeof size === 'number' ? `${size * 24}px` : size;
 
   if (color) {
     style.color = color;
@@ -55,8 +88,18 @@ export const Icon: React.FC<IconProps> = ({
     style.transform = transforms.join(' ');
   }
 
-  const mdiClass = path.startsWith('mdi ') ? path : `mdi ${path}`;
-  const classes = [mdiClass, className].filter(Boolean).join(' ');
-
-  return <i className={classes} style={style} title={title} />;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="currentColor"
+      className={className}
+      style={style}
+      aria-hidden="true"
+    >
+      {title && <title>{title}</title>}
+      <path d={d} />
+    </svg>
+  );
 };

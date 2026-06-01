@@ -1370,7 +1370,7 @@ export function NodeView({
                 nodeName={node.name}
                 viewType="classed_nodes"
                 title="Scheduled Tasks"
-                icon={<span className="mdi mdi-calendar-check" />}
+                icon={<Icon path="mdi-calendar-check" />}
                 hideWhenEmpty={true}
                 defaultExpanded={true}
                 queryAST={buildScheduledForDayQueryAST(node.uuid)}
@@ -1385,7 +1385,7 @@ export function NodeView({
                   nodeName={node.name}
                   viewType="classed_nodes"
                   title="Overdue Tasks"
-                  icon={<span className="mdi mdi-calendar-alert" />}
+                  icon={<Icon path="mdi-calendar-alert" />}
                   hideWhenEmpty={true}
                   defaultExpanded={true}
                   queryAST={buildOverdueQueryAST()}

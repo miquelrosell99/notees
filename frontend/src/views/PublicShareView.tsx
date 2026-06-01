@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/core/Spinner';
+import { Icon } from '@/components/core/Icon';
 import { getPublicSharedNode } from '@/api/shares';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import type { PublicSharedNode } from '@/api/shares';
@@ -133,7 +134,7 @@ function PublicPropertiesSection({
           <div key={propDef.id} className="public-share-view__property-row">
             <span className="public-share-view__property-name">
               {propDef.icon && (
-                <span className={`mdi ${propDef.icon} public-share-view__property-icon`} />
+                <Icon path={propDef.icon} className="public-share-view__property-icon" />
               )}
               {propDef.name}
             </span>

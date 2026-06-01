@@ -1,6 +1,7 @@
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { Icon } from '@/components/core/Icon';
 import { GraphSidebarSection } from './GraphSidebarSection';
 import type {
   GraphSettings,
@@ -58,7 +59,7 @@ export function GraphSettingsSidebar({
           type="button"
           title="Collapse sidebar"
         >
-          <span className="mdi mdi-chevron-left" />
+          <Icon path="mdi-chevron-left" />
         </button>
       </div>
 
