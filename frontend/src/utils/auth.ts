@@ -26,7 +26,7 @@ function isAndroidApp(): boolean {
  * Prefers native encrypted storage when running inside the Android app.
  */
 export function getAuthToken(): string | null {
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.getAuthToken === 'function') {
     const nativeToken = window.Android!.getAuthToken();
     if (nativeToken) {
       // Sync back to localStorage so the rest of the app stays compatible
@@ -43,7 +43,7 @@ export function getAuthToken(): string | null {
  */
 export function setAuthToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.storeAuthToken === 'function') {
     window.Android!.storeAuthToken(token);
   }
 }
@@ -56,8 +56,12 @@ export function clearAuthToken(): void {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(AUTH_STORAGE_KEY);
   if (isAndroidApp()) {
-    window.Android!.clearAuthToken();
-    window.Android!.clearUserData();
+    if (typeof window.Android!.clearAuthToken === 'function') {
+      window.Android!.clearAuthToken();
+    }
+    if (typeof window.Android!.clearUserData === 'function') {
+      window.Android!.clearUserData();
+    }
   }
 }
 
@@ -77,7 +81,7 @@ export function isAuthenticated(): boolean {
 export function setUserData(user: unknown): void {
   const json = JSON.stringify(user);
   localStorage.setItem(USER_KEY, json);
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.storeUserData === 'function') {
     window.Android!.storeUserData(json);
   }
 }
@@ -87,7 +91,7 @@ export function setUserData(user: unknown): void {
  * Prefers native encrypted storage when running inside the Android app.
  */
 export function getUserData<T = unknown>(): T | null {
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.getUserData === 'function') {
     const nativeUser = window.Android!.getUserData();
     if (nativeUser) {
       localStorage.setItem(USER_KEY, nativeUser);
@@ -117,7 +121,7 @@ const API_KEY_KEY = 'api_key';
  * Prefers native encrypted storage when running inside the Android app.
  */
 export function getApiKey(): string | null {
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.getApiKey === 'function') {
     const nativeKey = window.Android!.getApiKey();
     if (nativeKey) {
       localStorage.setItem(API_KEY_KEY, nativeKey);
@@ -133,7 +137,7 @@ export function getApiKey(): string | null {
  */
 export function setApiKey(key: string): void {
   localStorage.setItem(API_KEY_KEY, key);
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.storeApiKey === 'function') {
     window.Android!.storeApiKey(key);
   }
 }
@@ -143,7 +147,7 @@ export function setApiKey(key: string): void {
  */
 export function clearApiKey(): void {
   localStorage.removeItem(API_KEY_KEY);
-  if (isAndroidApp()) {
+  if (isAndroidApp() && typeof window.Android!.clearApiKey === 'function') {
     window.Android!.clearApiKey();
   }
 }
