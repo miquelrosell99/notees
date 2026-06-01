@@ -4,6 +4,8 @@ Handles user authentication, JWT tokens, and password hashing.
 Uses PostgreSQL for user storage.
 """
 
+import secrets
+import string
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -281,9 +283,6 @@ def get_user_backups_dir(user_id: str) -> Path:
 
 # ─── API Key Management ───────────────────────────────────────────
 
-import secrets
-import string
-
 _API_KEY_ALPHABET = string.ascii_letters + string.digits + "_-"
 _API_KEY_PREFIX = "nk_"
 _API_KEY_LENGTH = 32
@@ -312,7 +311,7 @@ def verify_api_key(key: str, hashed: str) -> bool:
         return False
 
 
-async def create_api_key(user_id: int, name: str) -> dict:
+async def create_api_key(user_id: int, name: str, scopes: list[str] | None = None, expires_at: datetime | None = None) -> dict:
     """Create a new API key for a user.
 
     Returns the plaintext key ONLY once. The caller must show it to the user
@@ -320,17 +319,22 @@ async def create_api_key(user_id: int, name: str) -> dict:
     """
     key = generate_api_key()
     key_hash = hash_api_key(key)
+    last_4 = key[-4:]
+    scopes_json = scopes if scopes is not None else ["read", "write"]
 
     async with get_connection() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO api_key (user_id, name, key_hash, scopes)
-            VALUES ($1, $2, $3, '["read", "write"]'::jsonb)
-            RETURNING id, uuid, name, scopes, revoked, create_date
+            INSERT INTO api_key (user_id, name, key_hash, scopes, last_4, expires_at)
+            VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+            RETURNING id, uuid, name, scopes, last_4, revoked, create_date, expires_at
             """,
             user_id,
             name,
             key_hash,
+            scopes_json,
+            last_4,
+            expires_at,
         )
         if row is None:
             raise RuntimeError("Failed to create API key")
@@ -341,8 +345,10 @@ async def create_api_key(user_id: int, name: str) -> dict:
             "name": row["name"],
             "key": key,
             "scopes": row["scopes"],
+            "last_4": row["last_4"],
             "revoked": row["revoked"],
             "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+            "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
         }
 
 
@@ -351,7 +357,7 @@ async def list_api_keys(user_id: int) -> list[dict]:
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, uuid, name, scopes, last_used_at, revoked, create_date
+            SELECT id, uuid, name, scopes, last_4, last_used_at, revoked, create_date, expires_at
             FROM api_key
             WHERE user_id = $1 AND revoked = FALSE
             ORDER BY create_date DESC
@@ -364,9 +370,11 @@ async def list_api_keys(user_id: int) -> list[dict]:
                 "uuid": str(row["uuid"]),
                 "name": row["name"],
                 "scopes": row["scopes"],
+                "last_4": row["last_4"],
                 "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
                 "revoked": row["revoked"],
                 "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+                "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
             }
             for row in rows
         ]
@@ -392,18 +400,20 @@ async def authenticate_api_key(key: str) -> dict | None:
 
     Looks up the key hash in the database, verifies it with bcrypt,
     updates last_used_at, and returns the associated user dict.
+    Rejects expired keys.
+    Includes the key's scopes in the returned dict under '_api_key_scopes'.
     """
     if not key.startswith(_API_KEY_PREFIX):
         return None
 
     async with get_connection() as conn:
-        # Fetch all non-revoked keys for the user. We have to scan because
-        # bcrypt hashes are not searchable without verification.
+        # Fetch all non-revoked, non-expired keys.
         rows = await conn.fetch(
             """
-            SELECT id, user_id, key_hash
+            SELECT id, user_id, key_hash, expires_at, scopes
             FROM api_key
             WHERE revoked = FALSE
+              AND (expires_at IS NULL OR expires_at > NOW())
             """
         )
 
@@ -414,6 +424,9 @@ async def authenticate_api_key(key: str) -> dict | None:
                     "UPDATE api_key SET last_used_at = NOW() WHERE id = $1",
                     row["id"],
                 )
-                return await get_user_by_id(str(row["user_id"]))
+                user = await get_user_by_id(str(row["user_id"]))
+                if user:
+                    user["_api_key_scopes"] = row["scopes"] if row["scopes"] else ["read", "write"]
+                return user
 
     return None

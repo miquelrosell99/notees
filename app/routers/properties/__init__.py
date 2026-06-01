@@ -18,7 +18,7 @@ from .crud import router as crud_router
 from .selection_lines import router as selection_lines_router
 
 # Main router that combines all sub-routers
-router = APIRouter(prefix="/api/properties", tags=["Properties"])
+router = APIRouter(prefix="/properties", tags=["Properties"])
 
 # Include sub-routers with proper ordering
 # Note: More specific routes must come before generic ones to avoid conflicts

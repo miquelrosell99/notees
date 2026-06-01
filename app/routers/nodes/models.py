@@ -430,3 +430,64 @@ class TemplateVariablesResponse(BaseModel):
     """Template variable names extracted from content."""
 
     variables: list[str]  # Deduplicated list of {{variable_name}} placeholders
+
+
+# ==================== Workspace Visualization ====================
+
+
+class WorkspaceNodeResponse(BaseModel):
+    """A node in the workspace graph visualization."""
+
+    id: int
+    uuid: str
+    name: str
+    icon: str | None = None
+    is_class: bool = False
+    is_daily: bool = False
+    is_monthly: bool = False
+    is_yearly: bool = False
+    class_ids: list[int] = []
+    block_count: int = 0
+
+
+class WorkspaceLinkResponse(BaseModel):
+    """A link between nodes in the workspace graph."""
+
+    source: int
+    target: int
+    type: str
+    weight: int | None = None
+
+
+class WorkspaceDataResponse(BaseModel):
+    """Full workspace data for graph visualization."""
+
+    nodes: list[WorkspaceNodeResponse]
+    links: list[WorkspaceLinkResponse]
+
+
+class WorkspaceNodesResponse(BaseModel):
+    """Workspace nodes without links."""
+
+    nodes: list[WorkspaceNodeResponse]
+
+
+class LinksRequest(BaseModel):
+    """Request body for fetching links between nodes."""
+
+    node_ids: list[int]
+    scope: str = "between"
+    cooccurrence: bool = False
+    context_node_id: int | None = None
+
+
+class LinksResponse(BaseModel):
+    """Links between nodes."""
+
+    links: list[WorkspaceLinkResponse]
+
+
+class SearchResponse(BaseModel):
+    """Search results."""
+
+    nodes: list[NodeResponse]

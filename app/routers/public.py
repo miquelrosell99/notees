@@ -11,7 +11,7 @@ from ..logging_config import get_logger
 from .nodes.helpers import _name_text, _resolve_referenced_display_names, extract_properties_dict
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api/public", tags=["Public"])
+router = APIRouter(prefix="/public", tags=["Public"])
 
 
 async def _get_public_share_service(workspace_id: int) -> ShareService:

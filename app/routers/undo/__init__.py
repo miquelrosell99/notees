@@ -8,7 +8,7 @@ from ...domain.services.undo_service import UndoService
 from ...models import User
 from ..auth import get_current_user
 
-router = APIRouter(prefix="/api/undo", tags=["undo"])
+router = APIRouter(prefix="/undo", tags=["undo"])
 
 
 async def _get_undo_service(user: User) -> UndoService:

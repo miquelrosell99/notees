@@ -117,6 +117,8 @@ const kyClient = ky.create({
 });
 
 async function exec<T = any>(method: string, url: string, options?: RequestOptions): Promise<{ data: T; headers: Headers }> {
+  // ky rejects inputs starting with '/' when prefixUrl is set; strip it
+  const cleanUrl = url.startsWith('/') ? url.slice(1) : url;
   const kyOptions: Options = {};
 
   if (options?.params) {
@@ -143,19 +145,19 @@ async function exec<T = any>(method: string, url: string, options?: RequestOptio
     let resp: Response;
     switch (method) {
       case 'GET':
-        resp = await kyClient.get(url, kyOptions);
+        resp = await kyClient.get(cleanUrl, kyOptions);
         break;
       case 'POST':
-        resp = await kyClient.post(url, kyOptions);
+        resp = await kyClient.post(cleanUrl, kyOptions);
         break;
       case 'PUT':
-        resp = await kyClient.put(url, kyOptions);
+        resp = await kyClient.put(cleanUrl, kyOptions);
         break;
       case 'DELETE':
-        resp = await kyClient.delete(url, kyOptions);
+        resp = await kyClient.delete(cleanUrl, kyOptions);
         break;
       case 'PATCH':
-        resp = await kyClient.patch(url, kyOptions);
+        resp = await kyClient.patch(cleanUrl, kyOptions);
         break;
       default:
         throw new Error(`Unsupported method: ${method}`);

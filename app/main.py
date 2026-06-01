@@ -29,20 +29,27 @@ import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
 from .config import ensure_directories, settings
-from .db.connection import close_pool, init_pool
+from .db.connection import close_pool, init_pool, request_connection
 from .db.schema import init_database
-from .domain.errors import PermissionDeniedError
+from .domain.errors import (
+    DomainError,
+    DuplicateNodeError,
+    NodeNotFoundError,
+    PermissionDeniedError,
+)
 from .logging_config import get_logger, setup_logging
 from .routers import (
     assets_router,
@@ -58,6 +65,7 @@ from .routers import (
 )
 from .routers.activity import router as activity_router
 from .routers.admin import router as admin_router
+from .routers.events import router as events_router
 from .routers.public import router as public_router
 from .routers.shares import router as shares_router
 
@@ -162,17 +170,25 @@ class LimitUploadSizeMiddleware:
                 body_chunk = message.get("body", b"")
                 total_size += len(body_chunk)
                 if total_size > self.max_size:
+                    body = (
+                        '{"error":{"code":"REQUEST_TOO_LARGE",'
+                        f'"message":"Request body too large. Maximum size is {self.max_size // (1024 * 1024)} MB.",'
+                        '"status":413}}'
+                    ).encode()
                     await send(
                         {
                             "type": "http.response.start",
                             "status": 413,
-                            "headers": [(b"content-type", b"application/json")],
+                            "headers": [
+                                (b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode()),
+                            ],
                         }
                     )
                     await send(
                         {
                             "type": "http.response.body",
-                            "body": f'"detail":"Request body too large. Maximum size is {self.max_size // (1024 * 1024)} MB."'.encode(),
+                            "body": body,
                         }
                     )
                     # After sending 413, stop processing further
@@ -192,6 +208,8 @@ if settings.cors_origins:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Limit", "X-RateLimit-Reset"],
+        max_age=600,
     )
     logger.info(f"CORS enabled for origins: {settings.cors_origins}")
 
@@ -204,22 +222,62 @@ async def health_check():
 # Exception handler for validation errors to log details
 
 
+def _error_response(code: str, message: str, status: int) -> JSONResponse:
+    """Build a standardized error JSONResponse."""
+    return JSONResponse(
+        status_code=status,
+        content={"error": {"code": code, "message": message, "status": status}},
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     """Log validation errors for debugging."""
     logger.error(f"Validation error on {request.method} {request.url.path}: {exc.errors()}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return _error_response(
+        code="VALIDATION_ERROR",
+        message="Request validation failed",
+        status=422,
+    )
 
 
 @app.exception_handler(PermissionDeniedError)
 async def permission_denied_exception_handler(request, exc: PermissionDeniedError):
     """Return HTTP 403 for permission denied errors."""
     logger.warning(f"Permission denied on {request.method} {request.url.path}: {exc.message}")
-    return JSONResponse(status_code=403, content={"detail": exc.message, "code": exc.code})
+    return _error_response(code=exc.code, message=exc.message, status=403)
 
 
-# Request logging middleware with per-request connection
-from .db.connection import request_connection
+@app.exception_handler(NodeNotFoundError)
+async def node_not_found_exception_handler(request, exc: NodeNotFoundError):
+    """Return HTTP 404 for node not found errors."""
+    logger.warning(f"Node not found on {request.method} {request.url.path}: {exc.node_id}")
+    return _error_response(code=exc.code, message=exc.message, status=404)
+
+
+@app.exception_handler(DuplicateNodeError)
+async def duplicate_node_exception_handler(request, exc: DuplicateNodeError):
+    """Return HTTP 409 for duplicate node errors."""
+    logger.warning(f"Duplicate node on {request.method} {request.url.path}: {exc.name}")
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "status": 409,
+                "name": exc.name,
+                "conflicting_classes": exc.conflicting_classes,
+            }
+        },
+    )
+
+
+@app.exception_handler(DomainError)
+async def domain_error_exception_handler(request, exc: DomainError):
+    """Catch-all for remaining domain errors."""
+    logger.warning(f"Domain error on {request.method} {request.url.path}: {exc.message}")
+    return _error_response(code=exc.code, message=exc.message, status=400)
 
 
 @app.middleware("http")
@@ -245,7 +303,7 @@ async def log_requests(request, call_next):
 
     try:
         # Wrap API requests in a per-request connection to avoid pool contention
-        if path.startswith("/api/"):
+        if path.startswith("/api/") or path.startswith("/api/v1/"):
             async with request_connection():
                 response = await call_next(request)
         else:
@@ -304,20 +362,45 @@ if dist_path.exists():
 
 
 # ============ Include API Routers ============
-app.include_router(auth_router)
-app.include_router(workspaces_router)
-app.include_router(nodes_router)
-app.include_router(properties_router)
-app.include_router(sync_router)
-app.include_router(export_router)
-app.include_router(auto_export_router)
-app.include_router(assets_router)
-app.include_router(activity_router)
-app.include_router(undo_router)
-app.include_router(shares_router)
-app.include_router(public_router)
-app.include_router(admin_router)
-app.include_router(live_sync_ws_router)
+# Mount all routers under both /api and /api/v1 for versioning.
+# /api is the legacy path; /api/v1 is the versioned path.
+
+# Global default rate limit: 200 requests per minute per IP
+_default_api_limiter = Limiter(Rate(200, Duration.MINUTE))
+
+api_router = APIRouter(
+    prefix="/api",
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter))],
+)
+v1_router = APIRouter(
+    prefix="/api/v1",
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter))],
+)
+
+routers = [
+    auth_router,
+    workspaces_router,
+    nodes_router,
+    properties_router,
+    sync_router,
+    export_router,
+    auto_export_router,
+    assets_router,
+    activity_router,
+    events_router,
+    undo_router,
+    shares_router,
+    public_router,
+    admin_router,
+    live_sync_ws_router,
+]
+
+for r in routers:
+    api_router.include_router(r)
+    v1_router.include_router(r)
+
+app.include_router(api_router)
+app.include_router(v1_router)
 
 
 # ============ Static Routes ============
