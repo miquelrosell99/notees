@@ -5,12 +5,13 @@
  * One BlockRow per block. React owns the tree; Lexical owns only inline text.
  */
 
-import { useRef, useMemo, useEffect, forwardRef, useImperativeHandle, useState, useCallback } from 'react';
+import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo } from 'react';
 import { InlineEditor, type InlineEditorHandle } from '@/editor/InlineEditor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { parseAST } from '@/lib/astBuilder';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { NodeContextMenu } from '@/components/nodes/NodeContextMenu';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
@@ -40,27 +41,27 @@ interface BlockRowProps {
   onContentChange?: (blockId: string, content: string) => void;
   onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken') => void;
   onPillRemove?: (linkId: string) => void;
-  onCollapseToggle?: () => void;
+  onCollapseToggle?: (blockId: string) => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
   onAddClass?: (blockServerId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   templateClassFilters?: number[];
-  onEnter?: () => void;
-  onBackspaceAtStart?: () => void;
-  onDeleteAtEnd?: () => void;
-  onTab?: (shift: boolean) => void;
+  onEnter?: (blockId: string) => void;
+  onBackspaceAtStart?: (blockId: string) => void;
+  onDeleteAtEnd?: (blockId: string) => void;
+  onTab?: (blockId: string, shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
-  onEscape?: () => void;
+  onEscape?: (blockId: string) => void;
   /** UUID of the containing page (for live sync lock indicators). */
   pageUuid?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────
 
-export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
-  function BlockRow(
+export const BlockRow = memo(
+  forwardRef<BlockRowHandle, BlockRowProps>(function BlockRow(
     {
       node,
       depth = 0,
@@ -95,11 +96,29 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       (s) => (pageUuid ? s.locks[pageUuid]?.[node.uuid] : undefined),
     );
     const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
-    const lockedBy = lockOwner && lockOwner.id !== currentUserId ? [lockOwner] : undefined;
+    const lockedBy = lockOwner && Number(lockOwner.id) !== Number(currentUserId) ? [lockOwner] : undefined;
     const isLocked = lockedBy != null && lockedBy.length > 0;
 
-    // Focus editor when pending focus matches this block
+    // Lazy-mount editor based on viewport visibility to reduce DOM weight
+    const [isInViewport, setIsInViewport] = useState(true);
+    const rowRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
+      const el = rowRef.current;
+      if (!el) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          setIsInViewport(entry.isIntersecting);
+        },
+        { root: null, rootMargin: '500px 0px 500px 0px', threshold: 0 },
+      );
+      observer.observe(el);
+      return () => observer.disconnect();
+    }, []);
+
+    const shouldMountEditor = isActive || pendingFocusBlockId === node.uuid || isInViewport;
+
+    // Focus editor when pending focus matches this block
+    useLayoutEffect(() => {
       if (pendingFocusBlockId === node.uuid && editorRef.current) {
         editorRef.current.focus();
         useEditorFocusStore.getState().setPendingFocus(null);
@@ -122,6 +141,33 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
     const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+
+    // Stable callbacks: use refs so InlineEditor memo doesn't re-render when parent passes new refs
+    const callbacksRef = useRef({
+      onEnter,
+      onBackspaceAtStart,
+      onDeleteAtEnd,
+      onTab,
+      onEscape,
+      onCollapseToggle,
+    });
+    useLayoutEffect(() => {
+      callbacksRef.current = {
+        onEnter,
+        onBackspaceAtStart,
+        onDeleteAtEnd,
+        onTab,
+        onEscape,
+        onCollapseToggle,
+      };
+    }, [onEnter, onBackspaceAtStart, onDeleteAtEnd, onTab, onEscape, onCollapseToggle]);
+
+    const handleEnter = useCallback(() => callbacksRef.current.onEnter?.(node.uuid), [node.uuid]);
+    const handleBackspaceAtStart = useCallback(() => callbacksRef.current.onBackspaceAtStart?.(node.uuid), [node.uuid]);
+    const handleDeleteAtEnd = useCallback(() => callbacksRef.current.onDeleteAtEnd?.(node.uuid), [node.uuid]);
+    const handleTab = useCallback((shift: boolean) => callbacksRef.current.onTab?.(node.uuid, shift), [node.uuid]);
+    const handleEscape = useCallback(() => callbacksRef.current.onEscape?.(node.uuid), [node.uuid]);
+    const handleCollapseToggleLocal = useCallback(() => callbacksRef.current.onCollapseToggle?.(node.uuid), [node.uuid]);
 
     const handleBulletContextMenu = useCallback(
       (_nodeId: number, event: React.MouseEvent) => {
@@ -150,9 +196,12 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       }
     }, [node.uuid]);
 
+    const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
+
     return (
       <>
       <div
+        ref={rowRef}
         className={`block-row node-block ${isActive ? 'block-row--active' : ''}`}
         data-block-id={node.uuid}
         data-depth={depth}
@@ -160,7 +209,7 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       >
         <BlockUI
           node={node}
-          onCollapseToggle={onCollapseToggle}
+          onCollapseToggle={handleCollapseToggleLocal}
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
           onContextMenu={handleBulletContextMenu}
@@ -168,27 +217,45 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
         />
         <div className="block-row__body">
           <div className="block-row__content">
-            <InlineEditor
-              ref={editorRef}
-              blockId={node.uuid}
-              initialContentAST={contentAST}
-              readOnly={readOnly || isLocked}
-              placeholder={placeholder}
-              onContentChange={onContentChange}
-              onPillClick={onPillClick}
-              onPillRemove={onPillRemove}
-              onAddClass={onAddClass}
-              onSlashCommand={onSlashCommand}
-              onTemplateInstantiate={onTemplateInstantiate}
-              templateClassFilters={templateClassFilters}
-              onEnter={onEnter}
-              onCtrlEnter={cycleTaskStatus}
-              onBackspaceAtStart={onBackspaceAtStart}
-              onDeleteAtEnd={onDeleteAtEnd}
-              onTab={onTab}
-              onEscape={onEscape}
-              pageUuid={pageUuid}
-            />
+            {shouldMountEditor ? (
+              <InlineEditor
+                ref={editorRef}
+                blockId={node.uuid}
+                initialContentAST={contentAST}
+                readOnly={readOnly || isLocked}
+                placeholder={placeholder}
+                onContentChange={onContentChange}
+                onPillClick={onPillClick}
+                onPillRemove={onPillRemove}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
+                onEnter={handleEnter}
+                onCtrlEnter={cycleTaskStatus}
+                onBackspaceAtStart={handleBackspaceAtStart}
+                onDeleteAtEnd={handleDeleteAtEnd}
+                onTab={handleTab}
+                onEscape={handleEscape}
+                pageUuid={pageUuid}
+              />
+            ) : (
+              <div
+                className="block-row__content-fallback"
+                onClick={() => setIsInViewport(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsInViewport(true);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label="Load editor"
+              >
+                {plainTextFallback || '\u00A0'}
+              </div>
+            )}
           </div>
           <BlockAfterContent node={node} />
         </div>
@@ -205,4 +272,4 @@ export const BlockRow = forwardRef<BlockRowHandle, BlockRowProps>(
       </>
     );
   },
-);
+));

@@ -392,7 +392,6 @@ routers = [
     shares_router,
     public_router,
     admin_router,
-    live_sync_ws_router,
 ]
 
 for r in routers:
@@ -401,6 +400,10 @@ for r in routers:
 
 app.include_router(api_router)
 app.include_router(v1_router)
+
+# Mount WebSocket router separately — it cannot inherit HTTP-only dependencies
+# like RateLimiter because WebSocket scopes lack an HTTP Request object.
+app.include_router(live_sync_ws_router, prefix="/api")
 
 
 # ============ Static Routes ============
