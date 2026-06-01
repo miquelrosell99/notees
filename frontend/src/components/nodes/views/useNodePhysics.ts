@@ -291,7 +291,6 @@ export function useNodePhysics({
     if (link.type === 'class' && !filters.showClassLinks) return false;
     if ((link.type === 'parent' || link.type === 'extends') && !filters.showParentLinks) return false;
     if ((link.type === 'reference' || link.type === 'property-reference') && !filters.showReferenceLinks) return false;
-    if (link.type === 'cooccurrence' && !filters.showCooccurrenceLinks) return false;
     return true;
   }, []);
   
