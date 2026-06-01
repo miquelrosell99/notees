@@ -8,7 +8,6 @@ from .assets import router as assets_router
 from .auth import get_current_user
 from .auth import router as auth_router
 from .auto_export import router as auto_export_router
-from .collab_ws import router as collab_ws_router
 from .export import router as export_router
 from .live_sync_ws import router as live_sync_ws_router
 from .nodes import router as nodes_router
@@ -27,7 +26,6 @@ __all__ = [
     "assets_router",
     "undo_router",
     "auto_export_router",
-    "collab_ws_router",
     "live_sync_ws_router",
     "get_current_user",
 ]
