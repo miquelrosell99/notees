@@ -31,6 +31,7 @@ import { useBlockSelection } from '@/hooks/useBlockSelection';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useTouchIndent } from '@/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/editor/plugins/BlockFindReplacePlugin';
+import { flushAllContentSaves } from '@/hooks/useContentSave';
 import './BlockList.css';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -295,8 +296,38 @@ export function BlockList({
 
   // ─── Per-block keyboard callbacks (passed to InlineEditorKeysPlugin) ─
 
+  // ─── Merge guard (ported from old BlockPlugin) ───────────────────
+
+  const canMergeInHierarchy = useCallback(
+    (sourceBlockId: string, targetBlockId: string): boolean => {
+      const runtime = getNodeGraphRuntime();
+      const source = runtime.getNode(sourceBlockId);
+      const target = runtime.getNode(targetBlockId);
+      if (!source || !target) return false;
+
+      const sourceChildren = runtime.getChildren(sourceBlockId);
+
+      // Case 1: source is sibling of target (same parent) and has no children
+      if (source.parentId === target.parentId && sourceChildren.length === 0) {
+        return true;
+      }
+
+      // Case 2: source is the only child of target
+      if (source.parentId === targetBlockId) {
+        const targetChildren = runtime.getChildren(targetBlockId);
+        if (targetChildren.length === 1) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [],
+  );
+
   const handleEnter = useCallback(
     (blockId: string) => {
+      flushAllContentSaves();
       const runtime = getNodeGraphRuntime();
       const row = rowRefs.current.get(blockId);
       const cursor = row?.getCursorPosition() ?? 'empty';
@@ -307,6 +338,24 @@ export function BlockList({
           type: 'create_block',
           parentId: runtime.getNode(blockId)?.parentId ?? '',
           afterBlockId: blockId,
+          blockId: newBlockId,
+          contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        });
+        runtime.flushEvents();
+        setPendingFocus(newBlockId);
+      } else if (cursor === 'start') {
+        // Old BlockPlugin: Enter at offset 0 creates an empty block BEFORE current
+        const currentNode = runtime.getNode(blockId);
+        if (!currentNode) return;
+        const parentId = currentNode.parentId ?? '';
+        const siblings = runtime.getChildren(parentId);
+        const currentIndex = siblings.findIndex((s) => s.blockId === blockId);
+        const afterBlockId = currentIndex > 0 ? siblings[currentIndex - 1].blockId : null;
+        const newBlockId = generateUUID();
+        runtime.applyIntent({
+          type: 'create_block',
+          parentId,
+          afterBlockId,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
@@ -333,6 +382,12 @@ export function BlockList({
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx <= 0) return;
       const prevBlockId = blockIdsRef.current[idx - 1];
+
+      if (!canMergeInHierarchy(blockId, prevBlockId)) {
+        return;
+      }
+
+      flushAllContentSaves();
       const runtime = getNodeGraphRuntime();
       runtime.applyIntent({
         type: 'merge_blocks',
@@ -342,7 +397,7 @@ export function BlockList({
       runtime.flushEvents();
       setPendingFocus(prevBlockId);
     },
-    [setPendingFocus],
+    [setPendingFocus, canMergeInHierarchy],
   );
 
   const handleDeleteAtEnd = useCallback(
@@ -350,6 +405,12 @@ export function BlockList({
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx < 0 || idx >= blockIdsRef.current.length - 1) return;
       const nextBlockId = blockIdsRef.current[idx + 1];
+
+      if (!canMergeInHierarchy(nextBlockId, blockId)) {
+        return;
+      }
+
+      flushAllContentSaves();
       const runtime = getNodeGraphRuntime();
       runtime.applyIntent({
         type: 'merge_blocks',
@@ -359,7 +420,7 @@ export function BlockList({
       runtime.flushEvents();
       setPendingFocus(blockId);
     },
-    [setPendingFocus],
+    [setPendingFocus, canMergeInHierarchy],
   );
 
   const handleTab = useCallback(
