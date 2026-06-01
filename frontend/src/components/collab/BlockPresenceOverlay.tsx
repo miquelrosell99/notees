@@ -17,11 +17,11 @@ interface PositionedBlock {
 }
 
 interface BlockPresenceOverlayProps {
-  pageUuid: string;
+  nodeUuid: string;
 }
 
-export function BlockPresenceOverlay({ pageUuid }: BlockPresenceOverlayProps) {
-  const presence = useLivePresenceStore((s) => s.presence[pageUuid]);
+export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
+  const presence = useLivePresenceStore((s) => s.presence[nodeUuid]);
   const [positions, setPositions] = useState<PositionedBlock[]>([]);
 
   useEffect(() => {

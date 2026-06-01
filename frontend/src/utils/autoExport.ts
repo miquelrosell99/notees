@@ -9,20 +9,20 @@ import { useAutoExportStore } from '@/stores/autoExportStore';
 const EXPORT_DEBOUNCE_MS = 2000;
 const exportTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export function scheduleAutoExport(pageUuid: string): void {
+export function scheduleAutoExport(nodeUuid: string): void {
   const store = useAutoExportStore.getState();
 
   // Clear existing timer for this page
-  const existing = exportTimers.get(pageUuid);
+  const existing = exportTimers.get(nodeUuid);
   if (existing) {
     clearTimeout(existing);
   }
 
-  store.setExporting(pageUuid);
+  store.setExporting(nodeUuid);
 
   const timer = setTimeout(() => {
-    exportTimers.delete(pageUuid);
-    autoExportPage(pageUuid)
+    exportTimers.delete(nodeUuid);
+    autoExportPage(nodeUuid)
       .then(() => {
         store.setDone();
       })
@@ -32,13 +32,13 @@ export function scheduleAutoExport(pageUuid: string): void {
       });
   }, EXPORT_DEBOUNCE_MS);
 
-  exportTimers.set(pageUuid, timer);
+  exportTimers.set(nodeUuid, timer);
 }
 
-export function cancelAutoExport(pageUuid: string): void {
-  const existing = exportTimers.get(pageUuid);
+export function cancelAutoExport(nodeUuid: string): void {
+  const existing = exportTimers.get(nodeUuid);
   if (existing) {
     clearTimeout(existing);
-    exportTimers.delete(pageUuid);
+    exportTimers.delete(nodeUuid);
   }
 }

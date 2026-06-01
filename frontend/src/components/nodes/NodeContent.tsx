@@ -467,7 +467,7 @@ export function NodeContent({
             showEmpty={false}
             showClasses={true}
             pageId={node.id}
-            pageUuid={node.uuid}
+            nodeUuid={node.uuid}
             onAddClass={handleAddClass}
             onSlashCommand={handleSlashCommand}
             onTemplateInstantiate={handleTemplateInstantiate}

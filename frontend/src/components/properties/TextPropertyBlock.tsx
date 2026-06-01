@@ -125,7 +125,7 @@ function SingleTextBlock({
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
         pageId={blockNode.id}
-        pageUuid={blockNode.uuid}
+        nodeUuid={blockNode.uuid}
         hideToolbar={true}
         onEnterAtRoot={onEnterAtRoot}
       />

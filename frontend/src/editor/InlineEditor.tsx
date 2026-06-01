@@ -106,8 +106,8 @@ interface InlineEditorProps {
   onTab?: (shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: () => void;
-  /** UUID of the containing page (for live sync focus tracking). */
-  pageUuid?: string;
+  /** UUID of the containing node (for live sync focus tracking). */
+  nodeUuid?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export const InlineEditor = memo(
       onDeleteAtEnd,
       onTab,
       onEscape,
-      pageUuid,
+      nodeUuid,
     },
     ref,
   ): JSX.Element {
@@ -316,19 +316,19 @@ export const InlineEditor = memo(
 
     const handleFocus = useCallback(() => {
       focusBlock(blockId);
-      if (pageUuid) {
+      if (nodeUuid) {
         liveSyncManager.sendFocus(blockId);
-        useLivePresenceStore.getState().setLocalFocus(pageUuid, blockId);
+        useLivePresenceStore.getState().setLocalFocus(nodeUuid, blockId);
       }
-    }, [blockId, focusBlock, pageUuid]);
+    }, [blockId, focusBlock, nodeUuid]);
 
     const handleBlur = useCallback(() => {
       blurBlock(blockId);
-      if (pageUuid) {
+      if (nodeUuid) {
         liveSyncManager.sendBlur(blockId);
-        useLivePresenceStore.getState().setLocalFocus(pageUuid, null);
+        useLivePresenceStore.getState().setLocalFocus(nodeUuid, null);
       }
-    }, [blurBlock, blockId, pageUuid]);
+    }, [blurBlock, blockId, nodeUuid]);
 
     // ─── Render ───────────────────────────────────────────────────
 

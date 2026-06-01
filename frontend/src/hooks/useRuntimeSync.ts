@@ -116,8 +116,8 @@ function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
 /**
  * Convert API nodes to GraphNodes for the editor.
  * No virtual root is created. Instead:
- * - If pageId/pageUuid are provided, they're added to the ID→UUID map so
- *   children's parent_id resolves correctly. rootBlockId = pageUuid.
+ * - If pageId/nodeUuid are provided, they're added to the ID→UUID map so
+ *   children's parent_id resolves correctly. rootBlockId = nodeUuid.
  * - Otherwise, auto-detects the root from the array structure.
  *
  * The parent node is NOT added as a GraphNode — only its serverId is registered
@@ -126,7 +126,7 @@ function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
 export function apiNodesToGraphNodes(
   nodes: Node[],
   pageId?: number,
-  pageUuid?: string,
+  nodeUuid?: string,
 ): { graphNodes: GraphNode[]; rootBlockId: string } {
   const idToUuidMap = new Map<number, string>();
   const nodeIdSet = new Set<number>();
@@ -134,9 +134,9 @@ export function apiNodesToGraphNodes(
   const classIdToIconMap = buildClassIdToIconMap();
   const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
 
-  // Include parent/page in map so children's parent_id resolves to pageUuid
-  if (pageId != null && pageUuid) {
-    idToUuidMap.set(pageId, pageUuid);
+  // Include parent/page in map so children's parent_id resolves to nodeUuid
+  if (pageId != null && nodeUuid) {
+    idToUuidMap.set(pageId, nodeUuid);
   }
 
   // Build a serverId → existing runtime blockId map so we can reconcile
@@ -171,8 +171,8 @@ export function apiNodesToGraphNodes(
   });
 
   // Determine rootBlockId — the parent ID used for project() traversal
-  if (pageUuid) {
-    return { graphNodes, rootBlockId: pageUuid };
+  if (nodeUuid) {
+    return { graphNodes, rootBlockId: nodeUuid };
   }
 
   // Auto-detect: find nodes whose parent is not in the set

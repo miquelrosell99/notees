@@ -142,7 +142,7 @@ export function PresentationModal() {
                 nodes={slideNode.children ?? []}
                 readOnly={true}
                 maxDepth={linkedRefsCollapseLevel}
-                pageUuid={slideNode.uuid}
+                nodeUuid={slideNode.uuid}
               />
             ) : (
               <div className="presentation-modal-no-children">No nested content</div>
