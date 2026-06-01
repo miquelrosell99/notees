@@ -52,6 +52,7 @@ import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { InlineEditorKeysPlugin } from './plugins/InlineEditorKeysPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { InlineCopyPastePlugin } from './plugins/InlineCopyPastePlugin';
+import { EditablePlugin } from './plugins/EditablePlugin';
 import type { ContentAST } from '../runtime/types';
 import type { EditorState } from 'lexical';
 
@@ -360,7 +361,7 @@ function InlineEditorInner({
       <HistoryPlugin />
       <OnChangePlugin onChange={onChange} />
       <NodeLinkPlugin onPillClick={onPillClick} onPillRemove={onPillRemove} />
-      {!readOnly && onEnter && onBackspaceAtStart && onDeleteAtEnd && onTab && (
+      {!readOnly && (
         <InlineEditorKeysPlugin
           onEnter={onEnter}
           onCtrlEnter={onCtrlEnter}
@@ -370,6 +371,7 @@ function InlineEditorInner({
           onEscape={onEscape}
         />
       )}
+      <EditablePlugin readOnly={readOnly} />
       {!readOnly && <FloatingToolbarPlugin />}
       {!readOnly && <InlineCopyPastePlugin blockId={blockId} onContentChange={onContentChange} />}
       {!readOnly && <CustomCaretPlugin readOnly={readOnly} />}
