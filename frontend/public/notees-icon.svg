@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="24" fill="#4263eb"/>
+  <rect width="192" height="192" rx="24" fill="#111111"/>
   <!-- Notepad body -->
   <rect x="48" y="36" width="96" height="120" rx="8" fill="white"/>
   <!-- Lines -->
-  <line x1="64" y1="68" x2="128" y2="68" stroke="#4263eb" stroke-width="5" stroke-linecap="round"/>
-  <line x1="64" y1="88" x2="128" y2="88" stroke="#4263eb" stroke-width="5" stroke-linecap="round"/>
-  <line x1="64" y1="108" x2="104" y2="108" stroke="#4263eb" stroke-width="5" stroke-linecap="round"/>
+  <line x1="64" y1="68" x2="128" y2="68" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
+  <line x1="64" y1="88" x2="128" y2="88" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
+  <line x1="64" y1="108" x2="104" y2="108" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
   <!-- Pencil -->
-  <polygon points="124,100 140,116 134,122 118,106" fill="#4263eb"/>
-  <polygon points="118,106 114,122 134,122" fill="#2b4acb"/>
+  <polygon points="124,100 140,116 134,122 118,106" fill="#111111"/>
+  <polygon points="118,106 114,122 134,122" fill="#111111"/>
 </svg>
