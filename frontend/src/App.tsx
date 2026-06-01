@@ -336,13 +336,48 @@ function App() {
           maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
           dehydrateOptions: {
             shouldDehydrateQuery: (query) => {
-              // Only persist query data, not mutations or infinite queries
               const queryKey = query.queryKey as string[];
               if (!queryKey || queryKey.length === 0) return false;
               // Exclude auth-related queries
               if (queryKey[0] === 'auth') return false;
+
+              // Exclude heavy, fast-moving node query families that contain
+              // large trees and change frequently during normal editing.
+              // Persisting them causes multi-megabyte IndexedDB writes that
+              // block the main thread (see performance remediation plan).
+              if (queryKey[0] === 'nodes') {
+                const heavyNodeKeys = new Set([
+                  'detail',
+                  'page-content',
+                  'uuid',
+                  'backlinks',
+                  'linked-refs',
+                  'search',
+                  'graph',
+                  'graph-nodes',
+                  'graph-links',
+                  'daily',
+                  'monthly',
+                  'yearly',
+                  'children-only',
+                  'batch-get',
+                  'batch-properties',
+                  'gantt-day-nodes',
+                ]);
+                if (heavyNodeKeys.has(queryKey[1])) return false;
+              }
+
+              // Exclude large dynamic query-result sets (tables, cards, etc.)
+              if (queryKey[0] === 'nodeViews' && queryKey[1] === 'queryResults') {
+                return false;
+              }
+
               return true;
             },
+            // Never persist mutations. Pending mutations contain Promise objects
+            // that cannot be safely JSON-serialised; restoring them causes
+            // "promise.then is not a function" errors during hydration.
+            shouldDehydrateMutation: () => false,
           },
         }}
       >

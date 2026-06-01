@@ -55,6 +55,17 @@
   line-height: 1.6;
 }
 
+/* Lightweight plain-text fallback when InlineEditor is lazy-mounted */
+.block-row__content-fallback {
+  min-height: 1.6em;
+  padding: 2px 0;
+  line-height: 1.6;
+  color: var(--color-on-surface, #e2e2e2);
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
 
 .node-block--selected .bullet-wrapper,

@@ -13,6 +13,7 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  useLayoutEffect,
   useState,
   type KeyboardEvent,
   type JSX,
@@ -226,9 +227,14 @@ export function BlockList({
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages);
     }
     return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, maxDepth, pagesOnly, skipPages, structureVersion]);
 
   const blockIds = useMemo(() => flatNodes.map((n) => n.node.uuid), [flatNodes]);
+  const blockIdsRef = useRef(blockIds);
+  useLayoutEffect(() => {
+    blockIdsRef.current = blockIds;
+  }, [blockIds]);
   const rowRefs = useRef<Map<string, BlockRowHandle>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -324,9 +330,9 @@ export function BlockList({
 
   const handleBackspaceAtStart = useCallback(
     (blockId: string) => {
-      const idx = blockIds.indexOf(blockId);
+      const idx = blockIdsRef.current.indexOf(blockId);
       if (idx <= 0) return;
-      const prevBlockId = blockIds[idx - 1];
+      const prevBlockId = blockIdsRef.current[idx - 1];
       const runtime = getNodeGraphRuntime();
       runtime.applyIntent({
         type: 'merge_blocks',
@@ -336,14 +342,14 @@ export function BlockList({
       runtime.flushEvents();
       setPendingFocus(prevBlockId);
     },
-    [blockIds, setPendingFocus],
+    [setPendingFocus],
   );
 
   const handleDeleteAtEnd = useCallback(
     (blockId: string) => {
-      const idx = blockIds.indexOf(blockId);
-      if (idx < 0 || idx >= blockIds.length - 1) return;
-      const nextBlockId = blockIds[idx + 1];
+      const idx = blockIdsRef.current.indexOf(blockId);
+      if (idx < 0 || idx >= blockIdsRef.current.length - 1) return;
+      const nextBlockId = blockIdsRef.current[idx + 1];
       const runtime = getNodeGraphRuntime();
       runtime.applyIntent({
         type: 'merge_blocks',
@@ -353,7 +359,7 @@ export function BlockList({
       runtime.flushEvents();
       setPendingFocus(blockId);
     },
-    [blockIds, setPendingFocus],
+    [setPendingFocus],
   );
 
   const handleTab = useCallback(
@@ -467,12 +473,12 @@ export function BlockList({
           onTemplateInstantiate={onTemplateInstantiate}
           templateClassFilters={templateClassFilters}
           pageUuid={pageUuid}
-          onEnter={() => handleEnter(node.uuid)}
-          onBackspaceAtStart={() => handleBackspaceAtStart(node.uuid)}
-          onDeleteAtEnd={() => handleDeleteAtEnd(node.uuid)}
-          onTab={(shift) => handleTab(node.uuid, shift)}
-          onEscape={() => handleEscape(node.uuid)}
-          onCollapseToggle={() => handleCollapseToggle(node.uuid)}
+          onEnter={handleEnter}
+          onBackspaceAtStart={handleBackspaceAtStart}
+          onDeleteAtEnd={handleDeleteAtEnd}
+          onTab={handleTab}
+          onEscape={handleEscape}
+          onCollapseToggle={handleCollapseToggle}
         />
       ))}
       {!readOnly && <BlockFindReplacePlugin />}

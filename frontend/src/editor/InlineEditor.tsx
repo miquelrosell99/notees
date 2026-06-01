@@ -15,6 +15,7 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  memo,
   type JSX,
 } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
@@ -108,8 +109,8 @@ interface InlineEditorProps {
 
 // ─── Component ────────────────────────────────────────────────────
 
-export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
-  function InlineEditor(
+export const InlineEditor = memo(
+  forwardRef<InlineEditorHandle, InlineEditorProps>(function InlineEditor(
     {
       blockId,
       initialContentAST,
@@ -274,7 +275,7 @@ export const InlineEditor = forwardRef<InlineEditorHandle, InlineEditorProps>(
       </LexicalComposer>
     );
   },
-);
+));
 
 // ─── Inner component (has access to LexicalComposerContext) ───────
 
