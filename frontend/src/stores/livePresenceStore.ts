@@ -20,23 +20,23 @@ interface PageLocks {
 }
 
 interface LivePresenceState {
-  /** pageUuid -> blockUuid -> users (focused, not necessarily locked) */
+  /** nodeUuid -> blockUuid -> users (focused, not necessarily locked) */
   presence: Record<string, PagePresence>;
-  /** pageUuid -> blockUuid -> lock owner */
+  /** nodeUuid -> blockUuid -> lock owner */
   locks: Record<string, PageLocks>;
   /** The block uuid that the LOCAL user is currently focused on */
   localFocus: Record<string, string | null>;
 
-  setUserFocus(pageUuid: string, blockUuid: string, user: PresenceUser): void;
-  removeUserFocus(pageUuid: string, blockUuid: string, userId: number): void;
-  removeUserFromPage(pageUuid: string, userId: number): void;
-  setLocalFocus(pageUuid: string, blockUuid: string | null): void;
-  getUsersOnBlock(pageUuid: string, blockUuid: string): PresenceUser[];
-  getLocalFocus(pageUuid: string): string | null;
+  setUserFocus(nodeUuid: string, blockUuid: string, user: PresenceUser): void;
+  removeUserFocus(nodeUuid: string, blockUuid: string, userId: number): void;
+  removeUserFromPage(nodeUuid: string, userId: number): void;
+  setLocalFocus(nodeUuid: string, blockUuid: string | null): void;
+  getUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
+  getLocalFocus(nodeUuid: string): string | null;
 
-  setLockOwner(pageUuid: string, blockUuid: string, user: PresenceUser): void;
-  removeLockOwner(pageUuid: string, blockUuid: string): void;
-  getLockOwner(pageUuid: string, blockUuid: string): PresenceUser | undefined;
+  setLockOwner(nodeUuid: string, blockUuid: string, user: PresenceUser): void;
+  removeLockOwner(nodeUuid: string, blockUuid: string): void;
+  getLockOwner(nodeUuid: string, blockUuid: string): PresenceUser | undefined;
 }
 
 export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
@@ -44,9 +44,9 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
   locks: {},
   localFocus: {},
 
-  setUserFocus(pageUuid, blockUuid, user) {
+  setUserFocus(nodeUuid, blockUuid, user) {
     set((state) => {
-      const page = state.presence[pageUuid] ?? {};
+      const page = state.presence[nodeUuid] ?? {};
       const list = page[blockUuid] ?? [];
       // Replace existing entry for this user
       const filtered = list.filter((u) => u.id !== user.id);
@@ -55,14 +55,14 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
         [blockUuid]: [...filtered, user],
       };
       return {
-        presence: { ...state.presence, [pageUuid]: nextPage },
+        presence: { ...state.presence, [nodeUuid]: nextPage },
       };
     });
   },
 
-  removeUserFocus(pageUuid, blockUuid, userId) {
+  removeUserFocus(nodeUuid, blockUuid, userId) {
     set((state) => {
-      const page = state.presence[pageUuid];
+      const page = state.presence[nodeUuid];
       if (!page) return state;
       const list = page[blockUuid];
       if (!list) return state;
@@ -75,14 +75,14 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
         nextPage[blockUuid] = filtered;
       }
       return {
-        presence: { ...state.presence, [pageUuid]: nextPage },
+        presence: { ...state.presence, [nodeUuid]: nextPage },
       };
     });
   },
 
-  removeUserFromPage(pageUuid, userId) {
+  removeUserFromPage(nodeUuid, userId) {
     set((state) => {
-      const page = state.presence[pageUuid];
+      const page = state.presence[nodeUuid];
       if (!page) return state;
       const nextPage: PagePresence = {};
       let changed = false;
@@ -93,55 +93,55 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
       }
       if (!changed) return state;
       return {
-        presence: { ...state.presence, [pageUuid]: nextPage },
+        presence: { ...state.presence, [nodeUuid]: nextPage },
       };
     });
   },
 
-  setLocalFocus(pageUuid, blockUuid) {
+  setLocalFocus(nodeUuid, blockUuid) {
     set((state) => ({
-      localFocus: { ...state.localFocus, [pageUuid]: blockUuid },
+      localFocus: { ...state.localFocus, [nodeUuid]: blockUuid },
     }));
   },
 
-  getUsersOnBlock(pageUuid, blockUuid) {
-    return get().presence[pageUuid]?.[blockUuid] ?? [];
+  getUsersOnBlock(nodeUuid, blockUuid) {
+    return get().presence[nodeUuid]?.[blockUuid] ?? [];
   },
 
-  getLocalFocus(pageUuid) {
-    return get().localFocus[pageUuid] ?? null;
+  getLocalFocus(nodeUuid) {
+    return get().localFocus[nodeUuid] ?? null;
   },
 
-  setLockOwner(pageUuid, blockUuid, user) {
+  setLockOwner(nodeUuid, blockUuid, user) {
     set((state) => {
-      const pageLocks = state.locks[pageUuid] ?? {};
+      const pageLocks = state.locks[nodeUuid] ?? {};
       return {
         locks: {
           ...state.locks,
-          [pageUuid]: { ...pageLocks, [blockUuid]: user },
+          [nodeUuid]: { ...pageLocks, [blockUuid]: user },
         },
       };
     });
   },
 
-  removeLockOwner(pageUuid, blockUuid) {
+  removeLockOwner(nodeUuid, blockUuid) {
     set((state) => {
-      const pageLocks = state.locks[pageUuid];
+      const pageLocks = state.locks[nodeUuid];
       if (!pageLocks) return state;
       const nextLocks = { ...pageLocks };
       delete nextLocks[blockUuid];
       if (Object.keys(nextLocks).length === 0) {
         const allLocks = { ...state.locks };
-        delete allLocks[pageUuid];
+        delete allLocks[nodeUuid];
         return { locks: allLocks };
       }
       return {
-        locks: { ...state.locks, [pageUuid]: nextLocks },
+        locks: { ...state.locks, [nodeUuid]: nextLocks },
       };
     });
   },
 
-  getLockOwner(pageUuid, blockUuid) {
-    return get().locks[pageUuid]?.[blockUuid];
+  getLockOwner(nodeUuid, blockUuid) {
+    return get().locks[nodeUuid]?.[blockUuid];
   },
 }));

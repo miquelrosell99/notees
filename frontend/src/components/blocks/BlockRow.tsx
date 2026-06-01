@@ -55,7 +55,7 @@ interface BlockRowProps {
   /** Called on Escape (blur editor and select block). */
   onEscape?: (blockId: string) => void;
   /** UUID of the containing page (for live sync lock indicators). */
-  pageUuid?: string;
+  nodeUuid?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export const BlockRow = memo(
       onDeleteAtEnd,
       onTab,
       onEscape,
-      pageUuid,
+      nodeUuid,
     },
     ref,
   ): JSX.Element {
@@ -93,7 +93,7 @@ export const BlockRow = memo(
 
     // Check if another user holds the server-enforced lock for this block
     const lockOwner = useLivePresenceStore(
-      (s) => (pageUuid ? s.locks[pageUuid]?.[node.uuid] : undefined),
+      (s) => (nodeUuid ? s.locks[nodeUuid]?.[node.uuid] : undefined),
     );
     const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
     const lockedBy = lockOwner && Number(lockOwner.id) !== Number(currentUserId) ? [lockOwner] : undefined;
@@ -237,7 +237,7 @@ export const BlockRow = memo(
                 onDeleteAtEnd={handleDeleteAtEnd}
                 onTab={handleTab}
                 onEscape={handleEscape}
-                pageUuid={pageUuid}
+                nodeUuid={nodeUuid}
               />
             ) : (
               <div

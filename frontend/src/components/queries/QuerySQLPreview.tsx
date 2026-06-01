@@ -167,11 +167,11 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
 
     case 'page': {
       const pageOp = (condition as import('@/types/queryAST').PageCondition).operator;
-      const pageUuid = (condition as import('@/types/queryAST').PageCondition).page_uuid;
-      if (pageOp === 'is_not_page') return `page != '${pageUuid}'`;
+      const nodeUuid = (condition as import('@/types/queryAST').PageCondition).page_uuid;
+      if (pageOp === 'is_not_page') return `page != '${nodeUuid}'`;
       if (pageOp === 'has_no_page') return 'page IS NULL';
       if (pageOp === 'has_any_page') return 'page IS NOT NULL';
-      return `page = '${pageUuid}'`;
+      return `page = '${nodeUuid}'`;
     }
       
     default:

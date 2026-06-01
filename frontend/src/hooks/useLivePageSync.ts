@@ -1,6 +1,6 @@
 /**
  * useLivePageSync — React hook that wires a page into the lightweight
- * live-sync WebSocket.  It automatically connects when the pageUuid
+ * live-sync WebSocket.  It automatically connects when the nodeUuid
  * becomes available and disconnects on unmount or page change.
  *
  * Responsibilities:
@@ -21,7 +21,7 @@ import { updateNodeInTreeImmutable } from '@/utils/nodeTree';
 
 interface UseLivePageSyncOptions {
   /** Page UUID to sync.  If null/empty the hook is a no-op. */
-  pageUuid: string | null | undefined;
+  nodeUuid: string | null | undefined;
   /** Server node ID of the page (for cache invalidation). */
   pageId?: number | null;
 }
@@ -130,15 +130,15 @@ function applyRemoteBlockUpdate(
   }
 }
 
-export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
+export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!pageUuid) return;
+    if (!nodeUuid) return;
 
     try {
-      liveSyncManager.connect(pageUuid);
+      liveSyncManager.connect(nodeUuid);
     } catch (err) {
       // Graceful degradation: if WebSocket fails to open, don't crash the app.
       // The manager's internal reconnection loop will keep retrying.
@@ -151,11 +151,11 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
       try {
         switch (msg.type) {
           case 'user_focus': {
-            presence.setUserFocus(pageUuid, msg.block_uuid, msg.user);
+            presence.setUserFocus(nodeUuid, msg.block_uuid, msg.user);
             break;
           }
           case 'user_blur': {
-            presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
+            presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
             break;
           }
           case 'block_locked': {
@@ -166,13 +166,13 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
               color: '',
             };
             // Try to resolve name/color from existing presence data
-            const usersOnBlock = presence.getUsersOnBlock(pageUuid, msg.block_uuid);
+            const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
             const existing = usersOnBlock.find((u) => u.id === msg.user_id);
             if (existing) {
               user.name = existing.name;
               user.color = existing.color;
             }
-            presence.setLockOwner(pageUuid, msg.block_uuid, user);
+            presence.setLockOwner(nodeUuid, msg.block_uuid, user);
             break;
           }
           case 'block_lock_denied': {
@@ -181,14 +181,14 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
           }
           case 'block_lock_released':
           case 'lock_expired': {
-            presence.removeLockOwner(pageUuid, msg.block_uuid);
-            presence.removeUserFocus(pageUuid, msg.block_uuid, msg.user_id);
+            presence.removeLockOwner(nodeUuid, msg.block_uuid);
+            presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
             break;
           }
           case 'users_list': {
             for (const u of msg.users) {
               const { block_uuid, ...user } = u;
-              presence.setUserFocus(pageUuid, block_uuid, user);
+              presence.setUserFocus(nodeUuid, block_uuid, user);
             }
             break;
           }
@@ -196,7 +196,7 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
             // Skip applying the update if the local user is currently
             // editing the same block — this prevents the cursor from
             // jumping while the user is typing.
-            const localFocus = presence.getLocalFocus(pageUuid);
+            const localFocus = presence.getLocalFocus(nodeUuid);
             if (localFocus === msg.block_uuid) {
               return;
             }
@@ -220,13 +220,13 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
       liveSyncManager.disconnect();
       unsubRef.current = null;
       // Clear presence and locks for this page to avoid stale indicators
-      if (pageUuid) {
+      if (nodeUuid) {
         useLivePresenceStore.setState((state) => ({
-          presence: { ...state.presence, [pageUuid]: {} },
-          locks: { ...state.locks, [pageUuid]: {} },
-          localFocus: { ...state.localFocus, [pageUuid]: null },
+          presence: { ...state.presence, [nodeUuid]: {} },
+          locks: { ...state.locks, [nodeUuid]: {} },
+          localFocus: { ...state.localFocus, [nodeUuid]: null },
         }));
       }
     };
-  }, [pageUuid, queryClient]);
+  }, [nodeUuid, queryClient]);
 }

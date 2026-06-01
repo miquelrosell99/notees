@@ -28,7 +28,7 @@ type MessageListener = (msg: LiveSyncMessage) => void;
 
 class LiveSyncManager {
   private ws: WebSocket | null = null;
-  private pageUuid: string | null = null;
+  private nodeUuid: string | null = null;
   private listeners = new Set<MessageListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: object[] = [];
@@ -53,8 +53,8 @@ class LiveSyncManager {
   }
 
   /** Open (or re-open) the WebSocket for a given page. */
-  connect(pageUuid: string): void {
-    if (this.pageUuid === pageUuid) {
+  connect(nodeUuid: string): void {
+    if (this.nodeUuid === nodeUuid) {
       const state = this.ws?.readyState;
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
         return;
@@ -62,7 +62,7 @@ class LiveSyncManager {
     }
     this.disconnect();
     this.intentionalClose = false;
-    this.pageUuid = pageUuid;
+    this.nodeUuid = nodeUuid;
     this._open();
   }
 
@@ -86,7 +86,7 @@ class LiveSyncManager {
       ws.close();
       this.ws = null;
     }
-    this.pageUuid = null;
+    this.nodeUuid = null;
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
   }
@@ -94,14 +94,14 @@ class LiveSyncManager {
   private _open(): void {
     if (this.ws) return;
 
-    const pageUuid = this.pageUuid;
-    if (!pageUuid) return;
+    const nodeUuid = this.nodeUuid;
+    if (!nodeUuid) return;
 
     const token = useAuthStore.getState().token;
     if (!token) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/api/ws/live/${pageUuid}?token=${encodeURIComponent(token)}`;
+    const url = `${protocol}//${window.location.host}/api/ws/live/${nodeUuid}?token=${encodeURIComponent(token)}`;
 
     let ws: WebSocket;
     try {
@@ -154,12 +154,12 @@ class LiveSyncManager {
   }
 
   private _scheduleReconnect(): void {
-    if (this.reconnectTimer || !this.pageUuid || this.ws) return;
+    if (this.reconnectTimer || !this.nodeUuid || this.ws) return;
     const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.pageUuid && !this.ws) this._open();
+      if (this.nodeUuid && !this.ws) this._open();
     }, delay);
   }
 
