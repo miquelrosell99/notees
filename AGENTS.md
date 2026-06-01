@@ -469,7 +469,7 @@ See `.env.example` for the full template.
 - **Password hashing**: Uses `pbkdf2_sha256` via passlib (bcrypt was avoided to eliminate backend length limits and compatibility issues).
 - **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
 - **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains.
-- **Rate limiting**: `slowapi` with remote-address keying is configured in `app/main.py`.
+- **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the Rate Limiting subsystem reference below for details.
 - **Request body size limit**: 55 MB maximum (to support the 50 MB asset upload cap plus multipart overhead).
 - **User cache**: In-memory user cache with 5-minute TTL to avoid DB pool acquisition on every request.
 - **Static asset caching**: Hashed JS/CSS chunks get long-term cache headers; everything else is `no-store`.
@@ -1007,6 +1007,59 @@ data/workspaces/{workspace_uuid}/
 
 **Gotchas:**
 - Legacy delete code in `app/routers/nodes/crud.py` still globs `assets_dir/{uuid}.*` (flat pattern), but assets now live in folders (`{uuid}/main.{ext}`). This may leave orphaned folders.
+
+---
+
+### Rate Limiting
+
+Rate limiting is implemented with **`fastapi_limiter`** (0.2.0) and **`pyrate_limiter`**. It is **not** Redis-backed; all state lives in in-memory buckets inside the Python process.
+
+**Architecture:**
+- `app/main.py` defines the global default limiter (`_default_api_limiter`) and attaches it to the `/api` and `/api/v1` root routers.
+- Individual routers can define their own stricter limiters for sensitive endpoints (auth, batch operations, trash, shares).
+
+**Current limits (as of 2026-06-01):**
+
+| Limiter | Location | Rate | Scope |
+|---------|----------|------|-------|
+| Default API | `app/main.py` | **5000 req/min per IP** | All `/api/*` and `/api/v1/*` routes |
+| Auth register | `app/routers/auth.py` | 3 req/min | `POST /api/auth/register` |
+| Auth login | `app/routers/auth.py` | 5 req/min | `POST /api/auth/login` |
+| Node CRUD | `app/routers/nodes/crud.py` | 120 req/min | Node create/update/delete routes |
+| Batch create | `app/routers/nodes/batch.py` | 60 req/min | `POST /api/nodes/batch` |
+| Batch update | `app/routers/nodes/batch.py` | 120 req/min | `PUT /api/nodes/batch` |
+| Batch delete | `app/routers/nodes/batch.py` | 120 req/min | `DELETE /api/nodes/batch` |
+| Trash | `app/routers/nodes/trash.py` | 120 req/min | Trash restore/permanent-delete |
+| Shares | `app/routers/nodes/shares.py` | 30 req/min | Share create/update endpoints |
+
+**Important implementation detail — `PerKeyBucketFactory`:**
+
+By default, `pyrate_limiter.Limiter(Rate(...))` creates a **`SingleBucketFactory`**, which means **all keys share one global bucket**. A React SPA can fire 50–100+ API requests per minute during normal browsing, so a global 200 req/min limit was exhausted immediately and caused routine usage to hit `429 Too Many Requests`.
+
+The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separate `InMemoryBucket` per rate-limit key so that each client IP gets its own independent quota. The identifier function `_ip_only_identifier` returns only the client IP (omitting the URL path) to keep bucket count bounded to the number of active clients.
+
+**How to change a limit:**
+
+1. **Global default** — edit the `Rate(...)` in `app/main.py`:
+   ```python
+   _default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]))
+   ```
+
+2. **Specific router** — edit the `Rate(...)` in the relevant router file (e.g., `app/routers/auth.py`):
+   ```python
+   _auth_limiter_login = Limiter(Rate(5, Duration.MINUTE))
+   ```
+   > **Caution:** Router-specific limiters still use the default `SingleBucketFactory`, so they share one global bucket for that endpoint. If you need per-client isolation for a specific endpoint, refactor it to use `PerKeyBucketFactory` and an IP-only identifier, mirroring the pattern in `app/main.py`.
+
+3. **Add a new limiter** — import `RateLimiter` and `Rate`, create a `Limiter`, and add it as a `dependencies=[Depends(RateLimiter(limiter=...))]` on the route or router.
+
+**Key files:**
+- `app/main.py` — Global default limiter + `PerKeyBucketFactory`
+- `app/routers/auth.py` — Auth-specific limiters
+- `app/routers/nodes/batch.py` — Batch operation limiters
+- `app/routers/nodes/crud.py` — Node CRUD limiters
+- `app/routers/nodes/trash.py` — Trash limiters
+- `app/routers/nodes/shares.py` — Share limiters
 
 ---
 
