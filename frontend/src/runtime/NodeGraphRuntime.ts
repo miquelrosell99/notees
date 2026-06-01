@@ -136,13 +136,22 @@ export class NodeGraphRuntime {
         const localTime = new Date(existing.updatedAt).getTime();
         const serverIsNewer = serverTime > localTime;
 
+        const oldParentId = existing.parentId;
+        const newParentId = existing.parentId ?? node.parentId;
+
         const merged: GraphNode = {
           ...node,
           contentAST: serverIsNewer ? node.contentAST : existing.contentAST,
-          parentId: existing.parentId ?? node.parentId,
+          parentId: newParentId,
           orderIndex: existing.orderIndex,
           collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
         };
+
+        // Detect parentId change — both old and new parents need index rebuild
+        if (oldParentId !== newParentId) {
+          if (oldParentId) changedParents.add(oldParentId);
+          if (newParentId) changedParents.add(newParentId);
+        }
 
         // Detect metadata-only changes (parentId / orderIndex are
         // preserved so they never trigger structure_changed here).
