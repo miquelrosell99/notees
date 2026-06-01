@@ -1,0 +1,55 @@
+name: Nightly APK Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build APK
+        run: |
+          cd mobile
+          ./build-apk.sh
+
+      - name: Get short SHA
+        id: sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create / update nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="nightly"
+          SHA="${{ steps.sha.outputs.sha }}"
+
+          # Delete existing nightly tag + release so we can recreate it
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          git push origin :refs/tags/$TAG 2>/dev/null || true
+
+          # Create new nightly release with the APK
+          gh release create "$TAG" \
+            "mobile/notees.apk#notees-nightly.apk" \
+            --prerelease \
+            --title "Nightly Build ($SHA)" \
+            --notes "Automated nightly build from commit \`$SHA\`.\
+          \
+          ⚠️ This is an unstable debug build. Install at your own risk."
+
+      - name: Keep only last 5 nightly releases (cleanup)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # List prereleases tagged as nightly-*, keep only the 5 most recent
+          gh release list --limit 100 --json tagName,createdAt,isPrerelease \
+            --jq '.[] | select(.isPrerelease and (.tagName | startswith("nightly"))) | .tagName' \
+            | tail -n +6 | xargs -I {} gh release delete {} --yes --cleanup-tag 2>/dev/null || true
