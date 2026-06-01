@@ -149,6 +149,22 @@ export function GraphSettingsSidebar({
 
       <GraphSidebarSection title="Physics" icon="mdi mdi-tune" defaultOpen={false}>
         <div className="visibility-option">
+          <span className="visibility-option__label">Density preset</span>
+          <SelectionButton
+            size="sm"
+            options={[
+              { value: 'sparse', icon: "mdi mdi-arrow-expand", label: 'Sparse' },
+              { value: 'balanced', icon: "mdi mdi-scale-balance", label: 'Balanced' },
+              { value: 'compact', icon: "mdi mdi-arrow-collapse", label: 'Compact' },
+            ]}
+            value={graphSettings.physicsPreset}
+            onChange={(value) => onGraphSettingsChange(prev => ({
+              ...prev,
+              physicsPreset: value as GraphSettings['physicsPreset']
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
           <BooleanToggle
             size="sm"
             label="Simulation"
@@ -256,6 +272,18 @@ export function GraphSettingsSidebar({
             }))}
           />
         </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Hide orphans"
+            labelPosition="left"
+            checked={visibilityFilters.hideOrphans}
+            onChange={(e) => onVisibilityFiltersChange(prev => ({
+              ...prev,
+              hideOrphans: e.target.checked
+            }))}
+          />
+        </div>
       </GraphSidebarSection>
 
       <GraphSidebarSection title="Links" icon="mdi mdi-link-variant" defaultOpen={false}>
@@ -271,6 +299,26 @@ export function GraphSettingsSidebar({
             }}
           />
         </div>
+        {graphDataMode === 'cooccurrence' && (
+          <div className="visibility-option visibility-option--slider">
+            <span className="visibility-option__label">Min link weight</span>
+            <div className="visibility-option__slider-row">
+              <input
+                type="range"
+                min={0}
+                max={10}
+                step={1}
+                value={graphSettings.minLinkWeight}
+                onChange={(e) => onGraphSettingsChange(prev => ({
+                  ...prev,
+                  minLinkWeight: Number(e.target.value)
+                }))}
+                className="graph-radius-slider"
+              />
+              <span className="graph-radius-value">{graphSettings.minLinkWeight}</span>
+            </div>
+          </div>
+        )}
         <div className="visibility-option">
           <BooleanToggle
             size="sm"

@@ -34,7 +34,7 @@ import type {
   GraphColorGroup,
 } from './viewTypes';
 import { DEFAULT_VISIBILITY_FILTERS } from './graphTypes';
-import type { SGEConfig } from './SemanticGraphEngine';
+import type { SGEUserConfig } from './SemanticGraphEngine';
 import { applyCircleLayout } from './circleLayout';
 import { applyTreeLayout } from './treeLayout';
 import { Button } from '@/components/core/Button';
@@ -101,18 +101,15 @@ function getTagColor(tag: string): string {
   return TAG_COLOR_PALETTE[index];
 }
 
-/** Derive SGE physics config from user-facing graph settings. */
-function buildSGEConfig(settings: GraphSettings, viewMode: 'normal' | 'circle' | 'tree'): Partial<SGEConfig> {
-  const isConstrained = (viewMode === 'circle' || viewMode === 'tree') && settings.constraintMode === 'equidistant';
+/** Build semantic physics config for the worker — raw constants are computed inside the worker. */
+function buildSGEUserConfig(settings: GraphSettings, viewMode: 'normal' | 'circle' | 'tree'): SGEUserConfig {
   return {
-    springStrength: isConstrained ? 0.15 : settings.linkCountAttraction ? 0.055 : 0.035,
-    damping: isConstrained ? 0.78 : 0.85,
-    idealDistance: isConstrained ? 90 : 80,
-    maxVelocity: isConstrained ? 8 : 15,
-    componentCenterStrength: settings.centralGravity ? 0.003 : 0,
-    radialStrength: isConstrained ? 0.004 : settings.heightMode === 'hierarchy' ? 0.002 : 0.0005,
-    clusterStrength: isConstrained ? 0.008 : settings.heightMode === 'hierarchy' ? 0.006 : 0.003,
+    preset: settings.physicsPreset,
+    centralGravity: settings.centralGravity,
     linkCountAttraction: settings.linkCountAttraction,
+    heightMode: settings.heightMode,
+    viewMode,
+    constraintMode: settings.constraintMode,
   };
 }
 
@@ -168,6 +165,8 @@ export function GraphView({
     peakSizeMode: 'links',
     constraintMode: 'physics',
     linkDirection: 'all',
+    minLinkWeight: 0,
+    physicsPreset: 'balanced',
   });
   const settingsLoadedRef = useRef(false);
   
@@ -192,11 +191,12 @@ export function GraphView({
     showClassLinks: true,
     showParentLinks: true,
     showReferenceLinks: true,
-    showDayPages: true,
-    showMonthPages: true,
-    showYearPages: true,
-    showSystemPages: true,
+    showDayPages: false,
+    showMonthPages: false,
+    showYearPages: false,
+    showSystemPages: false,
     hideSelfNode: localGraphMode || false,
+    hideOrphans: false,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   
@@ -204,7 +204,7 @@ export function GraphView({
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
 
-  const sgeConfig = useMemo(() => buildSGEConfig(graphSettings, viewMode), [graphSettings, viewMode]);
+  const sgeUserConfig = useMemo(() => buildSGEUserConfig(graphSettings, viewMode), [graphSettings, viewMode]);
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
@@ -361,6 +361,17 @@ export function GraphView({
       }
     }
 
+    // Compute connection counts from links (before visibility filtering)
+    const connectionCounts = new Map<number, number>();
+    const inLinkCounts = new Map<number, number>();
+    const outLinkCounts = new Map<number, number>();
+    for (const link of sourceLinks) {
+      connectionCounts.set(link.source, (connectionCounts.get(link.source) ?? 0) + 1);
+      connectionCounts.set(link.target, (connectionCounts.get(link.target) ?? 0) + 1);
+      outLinkCounts.set(link.source, (outLinkCounts.get(link.source) ?? 0) + 1);
+      inLinkCounts.set(link.target, (inLinkCounts.get(link.target) ?? 0) + 1);
+    }
+
     // Build eval context for QueryAST-based color groups
     const evalContext = colorGroups.length > 0
       ? buildEvalContext(sourceNodes, sourceLinks, classes ?? [])
@@ -410,9 +421,14 @@ export function GraphView({
         glare: 'normal',
         pinned: pinnedNodes.has(apiNode.id),
         color: resolvedColor,
-        connectionCount: 0,
-        inLinkCount: 0,
-        outLinkCount: 0,
+        connectionCount:
+          graphSettings.linkDirection === 'in'
+            ? (inLinkCounts.get(apiNode.id) ?? 0)
+            : graphSettings.linkDirection === 'out'
+              ? (outLinkCounts.get(apiNode.id) ?? 0)
+              : (connectionCounts.get(apiNode.id) ?? 0),
+        inLinkCount: inLinkCounts.get(apiNode.id) ?? 0,
+        outLinkCount: outLinkCounts.get(apiNode.id) ?? 0,
         contentSize: apiNode.block_count || 0,
         createdAt: apiNode.created_at,
         visible: true,
@@ -465,22 +481,39 @@ export function GraphView({
             (link.type === 'parent' || link.type === 'extends')) return false;
         if (!visibilityFilters.showReferenceLinks &&
             (link.type === 'reference' || link.type === 'property-reference')) return false;
+        // Co-occurrence weight threshold
+        if (graphDataMode === 'cooccurrence' && graphSettings.minLinkWeight > 0) {
+          if ((link.weight ?? 0) < graphSettings.minLinkWeight) return false;
+        }
         // Local graph: hide edges touching the ego / center node when requested
         if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null) {
           if (link.source === currentNodeId || link.target === currentNodeId) return false;
         }
         return true;
       })
-      .map(link => ({ source: link.source, target: link.target, type: link.type }));
+      .map(link => ({ source: link.source, target: link.target, type: link.type, weight: link.weight }));
+
+    // Orphan filter: re-apply after link filtering so orphans are determined by *visible* links
+    if (visibilityFilters.hideOrphans) {
+      const linkedIds = new Set<number>();
+      for (const link of visibleLinks) {
+        linkedIds.add(link.source);
+        linkedIds.add(link.target);
+      }
+      const filteredNodes = visibleNodes.filter(n => linkedIds.has(n.id));
+      const filteredIds = new Set(filteredNodes.map(n => n.id));
+      const filteredLinks = visibleLinks.filter(l => filteredIds.has(l.source) && filteredIds.has(l.target));
+      return { nodes: filteredNodes, links: filteredLinks };
+    }
     
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, colorGroups, classes, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode]);
+  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, colorGroups, classes, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode, graphSettings.minLinkWeight, graphSettings.linkDirection, graphDataMode, localGraphMode, currentNodeId]);
   
   // Forward live graph-settings changes to the physics worker
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
-    rendererRef.current?.setConfig(sgeConfig);
-  }, [sgeConfig]);
+    rendererRef.current?.setConfig(sgeUserConfig);
+  }, [sgeUserConfig]);
 
   // Event handlers — SGEGraphView fires (nodeId: number) without event objects
   const handleNodeClick = useCallback((nodeId: number) => {
@@ -741,7 +774,7 @@ export function GraphView({
         ref={rendererRef}
         nodes={linksLoading ? EMPTY_NODES : nodes}
         edges={linksLoading ? EMPTY_EDGES : links}
-        config={sgeConfig}
+        config={sgeUserConfig}
         sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
         baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
