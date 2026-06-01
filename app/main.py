@@ -37,6 +37,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
+from pyrate_limiter.abstracts import BucketFactory, RateItem
+from pyrate_limiter.buckets import InMemoryBucket
+from pyrate_limiter.clocks import MonotonicClock
+from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .backup import get_backup_scheduler
@@ -365,16 +369,71 @@ if dist_path.exists():
 # Mount all routers under both /api and /api/v1 for versioning.
 # /api is the legacy path; /api/v1 is the versioned path.
 
-# Global default rate limit: 200 requests per minute per IP
-_default_api_limiter = Limiter(Rate(200, Duration.MINUTE))
+class PerKeyBucketFactory(BucketFactory):
+    """Bucket factory that creates a separate InMemoryBucket per rate-limit key.
+
+    The default pyrate_limiter ``SingleBucketFactory`` uses one shared bucket for
+    *all* keys, which means every API endpoint and every user draws from the same
+    global quota. For a React SPA that fires many parallel requests during normal
+    browsing, a global 200 req/min limit is exhausted almost immediately.
+
+    This factory isolates each key so that rate limits apply per-client (or per
+    client+endpoint combination), preventing one user's navigation from blocking
+    another and giving each key its own independent budget.
+    """
+
+    def __init__(self, rates: list[Rate]) -> None:
+        super().__init__()
+        self._rates = rates
+        self._buckets: dict[str, InMemoryBucket] = {}
+        self._clock = MonotonicClock()
+
+    def wrap_item(self, name: str, weight: int = 1) -> RateItem:
+        return RateItem(name, self._clock.now(), weight=weight)
+
+    def get(self, item: RateItem) -> InMemoryBucket:
+        key = item.name
+        if key not in self._buckets:
+            bucket = InMemoryBucket(self._rates)
+            self._buckets[key] = bucket
+            self.schedule_leak(bucket)
+        return self._buckets[key]
+
+
+async def _ip_only_identifier(request: Request) -> str:
+    """Return the client IP without the request path.
+
+    The default ``fastapi_limiter`` identifier includes ``request.scope["path"]``,
+    which creates a new bucket for every unique URL (e.g. ``/api/nodes/123`` vs
+    ``/api/nodes/456``). In a note-taking app with many node-specific endpoints,
+    that causes bucket proliferation and makes per-key limits hard to reason about.
+
+    Using the IP alone keeps the bucket count bounded to the number of active
+    clients while still isolating users from one another.
+    """
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        ip = forwarded.split(",")[0]
+    elif request.client:
+        ip = request.client.host
+    else:
+        ip = "127.0.0.1"
+    return ip
+
+
+# Global default rate limit: 5000 requests per minute per IP.
+# A modern React SPA can easily fire 50–100 requests when loading a complex page
+# (node details, children, properties, backlinks, views, etc.). 200 req/min shared
+# across *all* keys caused routine browsing to hit 429 Too Many Requests.
+_default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]))
 
 api_router = APIRouter(
     prefix="/api",
-    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter))],
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=_ip_only_identifier))],
 )
 v1_router = APIRouter(
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter))],
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=_ip_only_identifier))],
 )
 
 routers = [
