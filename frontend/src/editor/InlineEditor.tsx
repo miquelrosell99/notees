@@ -32,14 +32,16 @@ import {
   $getSelection,
   $isRangeSelection,
   $createParagraphNode,
+  $isTextNode,
+  $isLineBreakNode,
   type LexicalEditor,
   type ElementNode,
 } from 'lexical';
 import { notesEditorTheme } from './theme';
 import './InlineEditor.css';
 import '@/styles/inline-link.css';
-import { InlineLinkNode } from './nodes/InlineLinkNode';
-import { MathNode } from './nodes/MathNode';
+import { InlineLinkNode, $isInlineLinkNode } from './nodes/InlineLinkNode';
+import { MathNode, $isMathNode } from './nodes/MathNode';
 import { populateInlineContent, extractInlineContent } from './inlineContentPopulation';
 import { serializeContentAST } from './editorConfig';
 import { useEditorFocusStore } from '../stores/editorFocusStore';
@@ -201,17 +203,45 @@ export const InlineEditor = memo(
               return;
             }
             const textContent = paragraph.getTextContent();
-            const offset = anchor.offset;
 
             if (textContent === '' || textContent === '\u200B') {
               position = 'empty';
-            } else if (offset === 0) {
-              position = 'start';
-            } else if (offset >= textContent.length) {
-              position = 'end';
-            } else {
-              position = 'middle';
+              return;
             }
+
+            // Cast to ElementNode for descendant/children methods
+            const paragraphEl = paragraph as ElementNode;
+
+            // Check absolute start (anchor is at the very first position)
+            const firstDescendant = paragraphEl.getFirstDescendant();
+            if (anchor.type === 'text') {
+              if (anchor.getNode() === firstDescendant && anchor.offset === 0) {
+                position = 'start';
+                return;
+              }
+            } else {
+              if (anchor.getNode() === paragraphEl && anchor.offset === 0) {
+                position = 'start';
+                return;
+              }
+            }
+
+            // Check absolute end (anchor is at the very last position)
+            const lastDescendant = paragraphEl.getLastDescendant();
+            if (anchor.type === 'text') {
+              const anchorNode = anchor.getNode();
+              if (anchorNode === lastDescendant && anchor.offset >= anchorNode.getTextContent().length) {
+                position = 'end';
+                return;
+              }
+            } else {
+              if (anchor.getNode() === paragraphEl && anchor.offset >= paragraphEl.getChildrenSize()) {
+                position = 'end';
+                return;
+              }
+            }
+
+            position = 'middle';
           });
           return position;
         },
@@ -219,8 +249,61 @@ export const InlineEditor = memo(
           let offset = 0;
           editorRef.current?.getEditorState().read(() => {
             const selection = $getSelection();
-            if ($isRangeSelection(selection)) {
-              offset = selection.anchor.offset;
+            if (!$isRangeSelection(selection)) return;
+
+            const anchor = selection.anchor;
+            const anchorNode = anchor.getNode();
+            const root = $getRoot();
+            const paragraph = root.getFirstChild();
+            if (!paragraph) return;
+
+            const paragraphEl = paragraph as ElementNode;
+            const children = paragraphEl.getChildren();
+
+            // Element anchor (cursor is on the paragraph boundary between children)
+            if (anchor.type === 'element') {
+              for (let i = 0; i < Math.min(anchor.offset, children.length); i++) {
+                const child = children[i];
+                if ($isTextNode(child) && child.getTextContent() === '\u200B') continue;
+                if ($isTextNode(child)) {
+                  offset += child.getTextContent().length;
+                } else if ($isInlineLinkNode(child)) {
+                  offset += 1;
+                } else if ($isMathNode(child)) {
+                  offset += 1;
+                } else if ($isLineBreakNode(child)) {
+                  offset += 1;
+                } else {
+                  offset += child.getTextContent().length;
+                }
+              }
+              return;
+            }
+
+            // Text anchor — walk children until we hit the anchor node
+            for (const child of children) {
+              if (child === anchorNode || child.getKey() === anchorNode.getKey()) {
+                if (!($isTextNode(anchorNode) && anchorNode.getTextContent() === '\u200B')) {
+                  const text = anchorNode.getTextContent();
+                  if (text !== '\u200B') {
+                    offset += anchor.offset;
+                  }
+                }
+                break;
+              }
+
+              if ($isTextNode(child) && child.getTextContent() === '\u200B') continue;
+              if ($isTextNode(child)) {
+                offset += child.getTextContent().length;
+              } else if ($isInlineLinkNode(child)) {
+                offset += 1;
+              } else if ($isMathNode(child)) {
+                offset += 1;
+              } else if ($isLineBreakNode(child)) {
+                offset += 1;
+              } else {
+                offset += child.getTextContent().length;
+              }
             }
           });
           return offset;
