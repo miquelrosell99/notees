@@ -526,7 +526,7 @@ async def get_links_for_nodes(
 
         # 6. Co-occurrence inference: links from blocks with multiple page references
         if cooccurrence:
-            context_node_id = body.get("context_node_id")
+            context_node_id = body.context_node_id
             from collections import Counter, defaultdict
 
             if context_node_id:
