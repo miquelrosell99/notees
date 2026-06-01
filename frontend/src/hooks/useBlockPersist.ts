@@ -177,7 +177,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
               if (node.id === parentServerId) {
                 const existing = node.children || [];
                 if (existing.some(c => c.id === createdNode.id)) return node;
-                const insertIdx = existing.findIndex(c => (c.sequence ?? 0) >= (createdNode.sequence ?? 0));
+                const insertIdx = existing.findIndex(c => (c.sequence ?? 0) > (createdNode.sequence ?? 0));
                 const newChildren = insertIdx === -1
                   ? [...existing, { ...createdNode, children: [] }]
                   : [...existing.slice(0, insertIdx), { ...createdNode, children: [] }, ...existing.slice(insertIdx)];
