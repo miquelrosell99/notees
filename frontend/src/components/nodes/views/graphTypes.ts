@@ -110,6 +110,10 @@ export interface GraphSettings {
   constraintMode: ConstraintMode;
   linkDirection: LinkDirection;
   showDebugGrid?: boolean;
+  /** Minimum co-occurrence weight to show a link (0 = all). Only affects co-occurrence mode. */
+  minLinkWeight: number;
+  /** Physics density preset: sparse (large graphs), balanced (medium), compact (small). */
+  physicsPreset: 'sparse' | 'balanced' | 'compact';
 }
 
 /**
@@ -131,6 +135,8 @@ export interface VisibilityFilters {
   showSystemPages: boolean;
   /** When true (local graph only), the center/ego node is hidden to reveal neighbor relations */
   hideSelfNode?: boolean;
+  /** Hide nodes with no visible connections (orphans) */
+  hideOrphans: boolean;
 }
 
 // ==================== Physics Types ====================
@@ -190,6 +196,8 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   constraintMode: 'physics',
   linkDirection: 'all',
   showDebugGrid: false,
+  minLinkWeight: 0,
+  physicsPreset: 'balanced',
 };
 
 export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
@@ -197,9 +205,10 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showClassLinks: true,
   showParentLinks: true,
   showReferenceLinks: true,
-  showDayPages: true,
-  showMonthPages: true,
-  showYearPages: true,
-  showSystemPages: true,
+  showDayPages: false,
+  showMonthPages: false,
+  showYearPages: false,
+  showSystemPages: false,
   hideSelfNode: false,
+  hideOrphans: false,
 };

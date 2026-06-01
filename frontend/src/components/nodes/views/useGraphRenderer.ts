@@ -21,7 +21,7 @@ import type {
   PhysicsToMainMessage,
 } from './graphPhysicsWorkerProtocol';
 import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
-import type { SGEConfig } from './SemanticGraphEngine';
+import type { SGEUserConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -141,8 +141,8 @@ export interface GraphRendererStats {
 export interface GraphRendererOptions {
   nodes: GraphNode[];
   edges: GraphLink[];
-  /** Initial / overriding physics config. */
-  config?: Partial<SGEConfig>;
+  /** Semantic physics preset + toggles — translated to raw SGEConfig by the worker. */
+  config?: SGEUserConfig;
   /** Scale node size by connection count. Default: true. */
   sizeByConnections?: boolean;
   /** Base node radius in world units when not scaling by connections. Default: 7. */
@@ -173,7 +173,7 @@ export interface GraphRendererHandle {
   /** Resume the physics simulation. */
   resume: () => void;
   /** Live-update physics config without restarting the worker. */
-  setConfig: (cfg: Partial<SGEConfig>) => void;
+  setConfig: (cfg: SGEUserConfig) => void;
   /** Programmatically centre the camera on the graph centroid. */
   recenter: () => void;
   /** Pan the camera by a screen-pixel delta. */
@@ -477,7 +477,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           ctx.clearRect(0, 0, lc.width, lc.height);
           const zoom = cam.zoom;
           // Only render labels when zoomed in enough to read them
-          if (zoom >= 0.25 && rend.nodeOrder.length > 0) {
+          if (zoom >= 0.12 && rend.nodeOrder.length > 0) {
             const pos   = rend.nodePositions;
             const order = rend.nodeOrder;
             const names = nodeNamesRef.current;
@@ -493,11 +493,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               dirty.lastFontZoom = fontSize;
               dirty.cachedFont   = `${fontSize}px system-ui, -apple-system, sans-serif`;
             }
-            const labelAlpha = Math.min(1, (zoom - 0.25) / 0.4); // fade in
+            const labelAlpha = Math.min(1, (zoom - 0.12) / 0.35); // fade in
 
             // Limit label count to avoid CPU thrash at low zoom with many nodes.
             // At zoom < 1, many labels overlap and are unreadable anyway.
-            const maxLabels = zoom < 0.5 ? 60 : zoom < 1.0 ? 150 : 500;
+            const maxLabels = zoom < 0.3 ? 40 : zoom < 0.6 ? 100 : zoom < 1.0 ? 200 : 500;
 
             ctx.save();
             ctx.globalAlpha  = labelAlpha;
@@ -979,7 +979,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     post({ type: 'resume' });
   }, [post]);
 
-  const setConfig = useCallback((cfg: Partial<SGEConfig>) => {
+  const setConfig = useCallback((cfg: SGEUserConfig) => {
     post({ type: 'setConfig', config: cfg });
   }, [post]);
 

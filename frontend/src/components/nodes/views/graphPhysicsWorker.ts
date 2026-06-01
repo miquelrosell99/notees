@@ -23,8 +23,8 @@
  * • nodeIds Int32Array is sent once at init/topology change, not every frame.
  */
 
-import { SemanticGraphEngine } from './SemanticGraphEngine';
-import type { SGEEdge } from './SemanticGraphEngine';
+import { SemanticGraphEngine, buildSGEConfig } from './SemanticGraphEngine';
+import type { SGEEdge, SGEUserConfig } from './SemanticGraphEngine';
 import type {
   MainToPhysicsMessage,
   PhysicsFrameMessage,
@@ -69,6 +69,7 @@ const WARMUP_MIN_STEPS = 100;
 // ============================================================
 
 let engine: SemanticGraphEngine | null = null;
+let lastUserConfig: SGEUserConfig | undefined = undefined;
 
 /** Node IDs in the same order as the engine's internal node array. */
 let nodeIds: Int32Array = new Int32Array(0);
@@ -323,7 +324,9 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       engine?.dispose();
       stopLoop();
 
-      engine = new SemanticGraphEngine(msg.nodes, msg.edges, msg.config);
+      lastUserConfig = msg.config;
+      const rawConfig = msg.config ? buildSGEConfig(msg.config) : undefined;
+      engine = new SemanticGraphEngine(msg.nodes, msg.edges, rawConfig);
 
       // ── Warm-up: run physics synchronously until the layout stabilises so
       //    nodes are well-separated before the first frame.
@@ -367,8 +370,8 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
         }
       }
 
-      engine.dispose();
-      engine = new SemanticGraphEngine(msg.nodes, msg.edges);
+      const rawConfig = lastUserConfig ? buildSGEConfig(lastUserConfig) : undefined;
+      engine = new SemanticGraphEngine(msg.nodes, msg.edges, rawConfig);
 
       // Restore positions of surviving nodes
       {
@@ -485,7 +488,8 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
     // ── Live config update ───────────────────────────────────
     case 'setConfig': {
       if (!engine) break;
-      engine.setConfig(msg.config);
+      lastUserConfig = msg.config;
+      engine.setConfig(buildSGEConfig(msg.config));
       engine.reheat();
       startLoop();
       break;

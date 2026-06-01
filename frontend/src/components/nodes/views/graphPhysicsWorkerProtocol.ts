@@ -28,7 +28,7 @@
  *                   plus current alpha + energy for UI feedback
  */
 
-import type { SGEConfig, SGEEdge } from './SemanticGraphEngine';
+import type { SGEEdge, SGEUserConfig } from './SemanticGraphEngine';
 
 // ============================================================
 // Shared-memory descriptor  (requires crossOriginIsolated)
@@ -81,7 +81,7 @@ export interface PhysicsInitMessage {
   type: 'init';
   nodes: PhysicsNode[];
   edges: SGEEdge[];
-  config?: Partial<SGEConfig>;
+  config?: SGEUserConfig;
 }
 
 /**
@@ -160,7 +160,7 @@ export interface PhysicsUnpinNodeMessage {
 /** Live-update one or more SGE config values without recreating the engine. */
 export interface PhysicsSetConfigMessage {
   type: 'setConfig';
-  config: Partial<SGEConfig>;
+  config: SGEUserConfig;
 }
 
 /** Restart the cooling schedule (e.g., window resize, view switch). */
