@@ -1175,6 +1175,19 @@ export function useArchiveNode() {
         queryKey: nodeKeys.graph(),
         refetchType: 'none',
       });
+      // Invalidate backlinks and linked references since the archived node may be referenced
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'linked-refs'],
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'property-backlinks'],
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'backlinks'],
+        refetchType: 'active',
+      });
     },
   });
 }
@@ -1224,6 +1237,19 @@ export function useUnarchiveNode() {
       queryClient.invalidateQueries({ 
         queryKey: nodeKeys.graph(),
         refetchType: 'none',
+      });
+      // Invalidate backlinks and linked references since the unarchived node may now be referenced
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'linked-refs'],
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'property-backlinks'],
+        refetchType: 'active',
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['nodes', 'backlinks'],
+        refetchType: 'active',
       });
     },
   });
