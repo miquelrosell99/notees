@@ -338,6 +338,10 @@ function App() {
             shouldDehydrateQuery: (query) => {
               const queryKey = query.queryKey as string[];
               if (!queryKey || queryKey.length === 0) return false;
+              // Exclude pending queries: promises cannot be serialised, so
+              // restoring them causes "dehydrated as pending ended up rejecting"
+              // warnings on the next hydration.
+              if (query.state.status === 'pending') return false;
               // Exclude auth-related queries
               if (queryKey[0] === 'auth') return false;
 
