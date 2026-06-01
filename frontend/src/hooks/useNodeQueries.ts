@@ -85,13 +85,7 @@ export function useNode(
       }
       return undefined;
     },
-    // IMPORTANT: structuralSharing must be disabled for nodes with nested children.
-    // React Query's structural sharing compares objects by reference and can preserve
-    // stale references in deeply nested structures (e.g., page -> block -> child-block).
-    // When optimistic updates modify a child-child block, the parent and grandparent
-    // need new references for React to detect the change and re-render.
-    // Without this, Enter/Backspace at deep nesting levels won't update the UI.
-    structuralSharing: false,
+
     retry: (failureCount, error) => {
       // Don't retry on 404 - node has been deleted
       if (isApiError(error) && error.response?.status === 404) {
@@ -192,8 +186,7 @@ export function usePageContent(pageId: number | null) {
     queryKey: nodeKeys.pageContent(pageId ?? 0),
     queryFn: () => nodesApi.getPageContent(pageId!),
     enabled: !!pageId,
-    // IMPORTANT: See useNode comment - structuralSharing must be disabled for nested children.
-    structuralSharing: false,
+
   });
 }
 
@@ -314,8 +307,7 @@ export function useDailyNote(date?: Date) {
       queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
       return node;
     },
-    // IMPORTANT: See useNode comment - structuralSharing must be disabled for nested children.
-    structuralSharing: false,
+
   });
 }
 
@@ -345,8 +337,7 @@ export function useMonthlyNote(year: number, month: number) {
       return node;
     },
     enabled: year >= 1900 && month >= 1 && month <= 12,
-    // IMPORTANT: See useNode comment - structuralSharing must be disabled for nested children.
-    structuralSharing: false,
+
   });
 }
 
@@ -369,8 +360,7 @@ export function useYearlyNote(year: number) {
       return node;
     },
     enabled: year >= 1900,
-    // IMPORTANT: See useNode comment - structuralSharing must be disabled for nested children.
-    structuralSharing: false,
+
   });
 }
 

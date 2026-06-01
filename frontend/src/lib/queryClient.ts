@@ -74,10 +74,34 @@ export const queryClient = new QueryClient({
 // ─── Offline Persistence ─────────────────────────────────────────
 
 const PERSIST_KEY = 'notees-query-cache';
+const MAX_PERSIST_SIZE = 5 * 1024 * 1024; // 5 MB
+const PERSIST_DEBOUNCE_MS = 2000;
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingClient: PersistedClient | null = null;
 
 export const asyncStoragePersister: Persister = {
   async persistClient(client: PersistedClient): Promise<void> {
-    await set(PERSIST_KEY, JSON.stringify(client));
+    pendingClient = client;
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+    }
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      const toPersist = pendingClient;
+      pendingClient = null;
+      if (!toPersist) return;
+
+      const serialized = JSON.stringify(toPersist);
+      if (serialized.length > MAX_PERSIST_SIZE) {
+        console.warn('[queryClient] Cache too large to persist (>2 MB), skipping IndexedDB write.');
+        return;
+      }
+
+      set(PERSIST_KEY, serialized).catch((err) => {
+        console.error('[queryClient] Failed to persist query cache:', err);
+      });
+    }, PERSIST_DEBOUNCE_MS);
   },
   async restoreClient(): Promise<PersistedClient | undefined> {
     const value = await get(PERSIST_KEY);
@@ -91,6 +115,11 @@ export const asyncStoragePersister: Persister = {
     return undefined;
   },
   async removeClient(): Promise<void> {
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+      pendingClient = null;
+    }
     await del(PERSIST_KEY);
   },
 };

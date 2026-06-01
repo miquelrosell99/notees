@@ -219,10 +219,11 @@ export function useLivePageSync({ pageUuid }: UseLivePageSyncOptions) {
       unsub();
       liveSyncManager.disconnect();
       unsubRef.current = null;
-      // Clear presence for this page to avoid stale lock indicators
+      // Clear presence and locks for this page to avoid stale indicators
       if (pageUuid) {
         useLivePresenceStore.setState((state) => ({
           presence: { ...state.presence, [pageUuid]: {} },
+          locks: { ...state.locks, [pageUuid]: {} },
           localFocus: { ...state.localFocus, [pageUuid]: null },
         }));
       }
