@@ -578,6 +578,16 @@ Never call `pool.acquire()` directly in routers or services. Use:
 - **Custom Hooks**: Live in `frontend/src/hooks/`.
 - **State**: Zustand for client state; TanStack Query for server state. Avoid direct fetch/XMLHttpRequest inside UI components.
 
+#### Icons
+
+The app uses **SVG-only icon rendering** via a shared sprite sheet (`frontend/public/mdi-sprite.svg`). This is the industry standard used by Obsidian, Logseq, Blueprint, and others.
+
+- **Sprite sheet**: All 7,000+ Material Design Icons are stored as `<symbol>` elements in a single static file generated from `@mdi/svg`.
+- **Rendering**: `Icon.tsx` and `iconDom.ts` render icons with `<svg><use href="/mdi-sprite.svg#mdi-{name}" /></svg>`.
+- **No icon fonts**: `@mdi/font` and `@mdi/js` are not used. Do not introduce font-based icon fallbacks.
+- **Regeneration**: After updating `@mdi/svg`, run `node scripts/generate-mdi-sprite.js` to rebuild the sprite.
+- **PWA caching**: The sprite is precached by the service worker. If the sprite grows beyond 4 MB raw, update `maximumFileSizeToCacheInBytes` in `vite.config.ts`.
+
 ### Frontend Data Flow Architecture
 
 The frontend uses a **three-layer data model** with clear ownership:
