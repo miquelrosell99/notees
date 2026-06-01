@@ -3,7 +3,7 @@
  */
 import { QueryClient, QueryCache } from '@tanstack/react-query';
 import { get, set, del } from 'idb-keyval';
-import type { AxiosError } from 'axios';
+import { isApiError } from '@/api/client';
 import type { Persister, PersistedClient } from '@tanstack/react-query-persist-client';
 
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -14,11 +14,10 @@ import { useUndoStore } from '@/stores/undoStore';
  */
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    const axiosError = error as AxiosError<{ detail?: string; message?: string }>;
-    if (axiosError.response?.data) {
-      return axiosError.response.data.detail ||
-             axiosError.response.data.message ||
-             error.message;
+    const apiError = isApiError(error) ? error : undefined;
+    if (apiError?.response?.data && typeof apiError.response.data === 'object') {
+      const data = apiError.response.data as { detail?: string; message?: string };
+      return data.detail || data.message || error.message;
     }
     return error.message;
   }
@@ -38,7 +37,7 @@ function onMutationError(error: Error) {
  * 401/403 responses (handled by the auth flow) don't spam the user.
  */
 function onQueryError(error: Error, query: unknown) {
-  const status = (error as AxiosError)?.response?.status;
+  const status = isApiError(error) ? error.response?.status : undefined;
   if (status && (status === 401 || status === 403)) return;
   if ((query as { meta?: { skipGlobalError?: boolean } })?.meta?.skipGlobalError) return;
   const message = getErrorMessage(error);
@@ -53,7 +52,7 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5,
       retry: (failureCount, error) => {
-        const status = (error as AxiosError)?.response?.status;
+        const status = isApiError(error) ? error.response?.status : undefined;
         if (status && status >= 400 && status < 500) {
           return false;
         }

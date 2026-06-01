@@ -5,7 +5,7 @@
  */
 import { useEffect } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { isAxiosError } from 'axios';
+import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
 
@@ -94,7 +94,7 @@ export function useNode(
     structuralSharing: false,
     retry: (failureCount, error) => {
       // Don't retry on 404 - node has been deleted
-      if (isAxiosError(error) && error.response?.status === 404) {
+      if (isApiError(error) && error.response?.status === 404) {
         return false;
       }
       return failureCount < 1;
@@ -105,7 +105,7 @@ export function useNode(
   // Wrapped in useEffect to avoid scheduling state updates during render,
   // which can trigger "Maximum update depth exceeded" loops.
   useEffect(() => {
-    if (result.error && isAxiosError(result.error) && result.error.response?.status === 404 && id) {
+    if (result.error && isApiError(result.error) && result.error.response?.status === 404 && id) {
       import('@/stores').then(({ useNavigationStore }) => {
         const currentNodeId = useNavigationStore.getState().currentNodeId;
         if (currentNodeId === id) {

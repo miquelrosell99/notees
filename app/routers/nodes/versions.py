@@ -1,8 +1,6 @@
 """Version history operations for nodes."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from ...logging_config import get_logger
 
@@ -15,7 +13,6 @@ from .helpers import (
     _get_node_service,
 )
 
-limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 

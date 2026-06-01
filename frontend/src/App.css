@@ -5,9 +5,8 @@
  * Component-specific styles have been moved to individual CSS files
  */
 
-/* MDI Icons - ensure proper inline display */
-svg.mdi-icon,
-.mdi-icon,
+/* Inline SVG icons — ensure proper alignment */
+svg[class*="icon"],
 [class*="-icon"] > svg {
   display: inline-flex;
   align-items: center;

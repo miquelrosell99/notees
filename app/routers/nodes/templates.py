@@ -1,8 +1,6 @@
 """Template operations for nodes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Path
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from ...logging_config import get_logger
 
@@ -17,7 +15,6 @@ from .models import (
     TemplateVariablesResponse,
 )
 
-limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 

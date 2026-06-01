@@ -11,6 +11,7 @@ import { Button } from '@/components/core/Button';
 import { TextField } from '@/components/core/TextField';
 import { Dropdown } from '@/components/core/Dropdown';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
+import { Icon } from '@/components/core/Icon';
 import { Separator } from '@/components/core/Separator';
 import { useAuthStore } from '@/stores';
 import { useClickOutside } from '@/hooks/useClickOutside';
@@ -72,7 +73,7 @@ function RowActionsMenu({
             onClick={handleDelete}
             disabled={!canDelete}
           >
-            <span className="mdi mdi-trash-can" />
+            <Icon path="mdi-trash-can" />
             Delete
           </button>
         </div>

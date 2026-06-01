@@ -21,7 +21,7 @@ import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { NodeIcon } from '@/components/core/icons';
+import { Icon, NodeIcon } from '@/components/core/icons';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
@@ -661,7 +661,7 @@ export function GraphView({
           type="button"
           title="Show sidebar"
         >
-          <span className="mdi mdi-cog-outline" />
+          <Icon path="mdi-cog-outline" />
         </button>
       )}
 
