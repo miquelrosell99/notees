@@ -196,7 +196,6 @@ export function GraphView({
     showMonthPages: true,
     showYearPages: true,
     showSystemPages: true,
-    showCooccurrenceLinks: true,
     hideSelfNode: localGraphMode || false,
   });
   const visibilityFiltersLoadedRef = useRef(false);
@@ -290,8 +289,6 @@ export function GraphView({
         setVisibilityFilters(prev => ({
           ...prev,
           ...parsed,
-          // Backward compat: migrate old showSemanticLinks to showCooccurrenceLinks
-          showCooccurrenceLinks: parsed.showSemanticLinks ?? parsed.showCooccurrenceLinks ?? prev.showCooccurrenceLinks,
           // In local graph mode, always reset hideSelfNode to true (no memory)
           hideSelfNode: localGraphMode ? true : (parsed.hideSelfNode ?? prev.hideSelfNode),
         }));
@@ -468,7 +465,6 @@ export function GraphView({
             (link.type === 'parent' || link.type === 'extends')) return false;
         if (!visibilityFilters.showReferenceLinks &&
             (link.type === 'reference' || link.type === 'property-reference')) return false;
-        if (!visibilityFilters.showCooccurrenceLinks && link.type === 'cooccurrence') return false;
         // Local graph: hide edges touching the ego / center node when requested
         if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null) {
           if (link.source === currentNodeId || link.target === currentNodeId) return false;
