@@ -1,11 +1,8 @@
 /**
  * iconDom.ts
  *
- * Vanilla-DOM utilities for rendering node icons.
- * Uses @mdi/js SVG paths instead of the CSS font.
+ * Vanilla-DOM utilities for rendering node icons via the shared MDI sprite sheet.
  */
-
-import { mdiPathMap } from './mdiPathMap';
 
 function camelToKebab(name: string): string {
   if (!name.startsWith('mdi')) return name;
@@ -103,7 +100,7 @@ export function normalizeMdiIcon(icon: string): string {
 
 /**
  * Create a DOM element that renders `icon` correctly:
- * - If `icon` is an MDI name  → returns an <svg> element with the path
+ * - If `icon` is an MDI name  → returns an <svg> element with a <use> reference
  * - Otherwise (emoji / text)  → returns a <span> with the icon as textContent
  *
  * The returned element already has `bullet-icon` as its CSS class.
@@ -112,7 +109,7 @@ export function createIconElement(icon: string): Element {
   const { icon: parsedIcon } = parseIconField(icon);
   const kebabName = resolveMdiKebabName(parsedIcon);
 
-  if (kebabName && mdiPathMap[kebabName]) {
+  if (kebabName) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('width', '24');
@@ -120,9 +117,9 @@ export function createIconElement(icon: string): Element {
     svg.setAttribute('fill', 'currentColor');
     svg.classList.add('bullet-icon');
 
-    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathEl.setAttribute('d', mdiPathMap[kebabName]);
-    svg.appendChild(pathEl);
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/mdi-sprite.svg#mdi-' + kebabName);
+    svg.appendChild(use);
     return svg;
   }
 

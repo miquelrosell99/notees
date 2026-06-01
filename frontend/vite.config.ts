@@ -14,7 +14,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Don't precache the WASM file (large, loaded on demand)
         globIgnores: ['**/sql-wasm.wasm'],
-        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024, // 2 MB (reduced after fixing icon tree-shaking)
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB (covers the MDI SVG sprite sheet)
         runtimeCaching: [
           {
             // Cache API responses with network-first strategy
@@ -129,9 +129,6 @@ export default defineConfig({
           }
           if (id.includes('node_modules/@tanstack/')) {
             return 'vendor-query'
-          }
-          if (id.includes('node_modules/@mdi/')) {
-            return 'vendor-icons'
           }
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'vendor-react'
