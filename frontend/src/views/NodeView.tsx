@@ -217,7 +217,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           onContentChange={handleContentChange}
           showClasses={true}
           pageId={node.id}
-          pageUuid={node.uuid}
+          nodeUuid={node.uuid}
           maxDepth={0}
           onAddClass={handleAddClass}
         />
@@ -232,7 +232,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           onContentChange={handleContentChange}
           showClasses={true}
           pageId={node.id}
-          pageUuid={node.uuid}
+          nodeUuid={node.uuid}
           onAddClass={handleAddClass}
         />
         <div className="focused-block-content-add">
@@ -257,7 +257,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
         onContentChange={handleContentChange}
         showClasses={true}
         pageId={node.id}
-        pageUuid={node.uuid}
+        nodeUuid={node.uuid}
         onAddClass={handleAddClass}
       />
       <div className="focused-block-content-add">
@@ -672,7 +672,7 @@ export function NodeView({
   const [isCoverHovered, setIsCoverHovered] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   // Auto-enable lightweight live sync when viewing a page
-  useLivePageSync({ pageUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
+  useLivePageSync({ nodeUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
   
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
@@ -1288,7 +1288,7 @@ export function NodeView({
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
       {resolvedType === 'page' ? (
         <>
-          <BlockPresenceOverlay pageUuid={node.uuid} />
+          <BlockPresenceOverlay nodeUuid={node.uuid} />
           <NodeContent
             node={node}
             children={blockChildren}

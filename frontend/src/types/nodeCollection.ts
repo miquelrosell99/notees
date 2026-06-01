@@ -55,8 +55,8 @@ export interface NodeCollectionProps {
   
   /** Server ID of the parent page (enables real-root mode in BlockEditor) */
   pageId?: number;
-  /** UUID of the parent page (enables real-root mode in BlockEditor) */
-  pageUuid?: string;
+  /** UUID of the parent node (enables real-root mode in BlockEditor) */
+  nodeUuid?: string;
   
   /** Optional view ID for persisting configuration (property columns, etc.) */
   viewId?: number;
@@ -255,8 +255,8 @@ export interface NodeCollectionViewBaseProps {
   
   /** Server ID of the parent page */
   pageId?: number;
-  /** UUID of the parent page */
-  pageUuid?: string;
+  /** UUID of the parent node */
+  nodeUuid?: string;
   
   /** Whether nodes are editable */
   editable: boolean;

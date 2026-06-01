@@ -204,7 +204,7 @@ export function PropertyReferencesSection({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChange}
                 onAddClass={onAddClass}
-                pageUuid={pageNode.uuid}
+                nodeUuid={pageNode.uuid}
               />
             </div>
           );

@@ -32,7 +32,7 @@ export const DocumentView = memo(function DocumentView({
   onTemplateInstantiate,
   templateClassFilters,
   pageId: _pageId,
-  pageUuid: _pageUuid,
+  nodeUuid: _nodeUuid,
   className = '',
   hideProperties: _hideProperties,
 }: NodeDocumentViewProps): JSX.Element {
@@ -120,7 +120,7 @@ export const DocumentView = memo(function DocumentView({
         onSlashCommand={onSlashCommand}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
-        pageUuid={_pageUuid}
+        nodeUuid={_nodeUuid}
         nodeId={_pageId}
         onNavigateToNode={handleNavigateToNode}
         onPillClick={handleNavigateToNode}

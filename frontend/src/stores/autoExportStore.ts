@@ -10,11 +10,11 @@ export type ExportStatus = 'idle' | 'exporting' | 'done' | 'error';
 interface AutoExportState {
   status: ExportStatus;
   lastExportTime: number | null;
-  currentPageUuid: string | null;
+  currentNodeUuid: string | null;
   errorMessage: string | null;
 
   // Actions
-  setExporting: (pageUuid: string) => void;
+  setExporting: (nodeUuid: string) => void;
   setDone: () => void;
   setError: (message: string) => void;
   setIdle: () => void;
@@ -25,15 +25,15 @@ const DONE_VISIBLE_MS = 2000;
 export const useAutoExportStore = create<AutoExportState>()((set, get) => ({
   status: 'idle',
   lastExportTime: null,
-  currentPageUuid: null,
+  currentNodeUuid: null,
   errorMessage: null,
 
-  setExporting: (pageUuid) => {
-    set({ status: 'exporting', currentPageUuid: pageUuid, errorMessage: null });
+  setExporting: (nodeUuid) => {
+    set({ status: 'exporting', currentNodeUuid: nodeUuid, errorMessage: null });
   },
 
   setDone: () => {
-    set({ status: 'done', lastExportTime: Date.now(), currentPageUuid: null, errorMessage: null });
+    set({ status: 'done', lastExportTime: Date.now(), currentNodeUuid: null, errorMessage: null });
     // Auto-clear the done state after a short delay so the checkmark doesn't linger forever
     setTimeout(() => {
       const state = get();
@@ -44,10 +44,10 @@ export const useAutoExportStore = create<AutoExportState>()((set, get) => ({
   },
 
   setError: (message) => {
-    set({ status: 'error', errorMessage: message, currentPageUuid: null });
+    set({ status: 'error', errorMessage: message, currentNodeUuid: null });
   },
 
   setIdle: () => {
-    set({ status: 'idle', currentPageUuid: null, errorMessage: null });
+    set({ status: 'idle', currentNodeUuid: null, errorMessage: null });
   },
 }));

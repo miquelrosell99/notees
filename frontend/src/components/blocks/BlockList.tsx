@@ -73,7 +73,7 @@ interface BlockListProps {
   /** Class IDs to pre-filter template picker. */
   templateClassFilters?: number[];
   /** UUID of the containing page (enables live sync lock indicators). */
-  pageUuid?: string;
+  nodeUuid?: string;
   /** Server ID of the containing node (for runtime parent resolution). */
   nodeId?: number;
 }
@@ -205,7 +205,7 @@ export function BlockList({
   onSlashCommand,
   onTemplateInstantiate,
   templateClassFilters,
-  pageUuid,
+  nodeUuid,
   nodeId,
 }: BlockListProps): JSX.Element {
   // Subscribe to runtime structural changes so the UI updates immediately
@@ -251,14 +251,14 @@ export function BlockList({
     for (const n of nodes) collect(n);
 
     if (allNodes.length > 0) {
-      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, pageUuid);
+      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
       runtime.upsertNodes(graphNodes);
     }
 
-    if (nodeId != null && pageUuid) {
-      runtime.registerParentServerId(pageUuid, nodeId);
+    if (nodeId != null && nodeUuid) {
+      runtime.registerParentServerId(nodeUuid, nodeId);
     }
-  }, [nodes, nodeId, pageUuid]);
+  }, [nodes, nodeId, nodeUuid]);
 
   useStructureSync({ enabled: !readOnly });
   useBlockPersist({ enabled: !readOnly });
@@ -337,9 +337,9 @@ export function BlockList({
         const currentRuntimeNode = runtime.getNode(blockId);
         let parentId = currentRuntimeNode?.parentId ?? '';
         // Fallback: if the runtime doesn't have a valid parent (e.g. node was
-        // loaded before pageUuid/nodeId were available), use pageUuid.
-        if (!parentId && pageUuid) {
-          parentId = pageUuid;
+        // loaded before nodeUuid/nodeId were available), use nodeUuid.
+        if (!parentId && nodeUuid) {
+          parentId = nodeUuid;
         }
         runtime.applyIntent({
           type: 'create_block',
@@ -540,7 +540,7 @@ export function BlockList({
           onSlashCommand={onSlashCommand}
           onTemplateInstantiate={onTemplateInstantiate}
           templateClassFilters={templateClassFilters}
-          pageUuid={pageUuid}
+          nodeUuid={nodeUuid}
           onEnter={handleEnter}
           onBackspaceAtStart={handleBackspaceAtStart}
           onDeleteAtEnd={handleDeleteAtEnd}

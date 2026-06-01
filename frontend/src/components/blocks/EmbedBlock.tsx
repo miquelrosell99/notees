@@ -219,7 +219,7 @@ export function EmbedBlock({
           readOnly={readOnly}
           onContentChange={handleInnerContentChange}
           onNavigateToNode={onNavigateToNode}
-          pageUuid={embeddedNode.uuid}
+          nodeUuid={embeddedNode.uuid}
         />
       </div>
     </div>
