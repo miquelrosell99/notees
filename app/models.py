@@ -73,6 +73,14 @@ class UserCreate(UserBase):
             raise ValueError("Password must be at least 8 characters")
         if len(v) > 128:
             raise ValueError("Password must be at most 128 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for c in v):
+            raise ValueError("Password must contain at least one special character")
         return v
 
 
