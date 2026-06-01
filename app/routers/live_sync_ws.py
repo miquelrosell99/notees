@@ -37,7 +37,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..auth import decode_token, get_user_by_id
+from ..auth import authenticate_api_key, decode_token, get_user_by_id
 from ..db.connection import clear_request_conn, get_pool
 from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
@@ -45,7 +45,7 @@ from ..logging_config import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/ws/live", tags=["Live Sync"])
+router = APIRouter(prefix="/ws/live", tags=["Live Sync"])
 
 # Per-page connection tracking (in-memory, per-instance).
 _page_connections: dict[str, set[_LiveSyncConnection]] = {}
@@ -90,8 +90,16 @@ class _LiveSyncConnection:
             await self.ws.send_text(json.dumps(msg))
 
 
-async def _authenticate_ws(token: str) -> dict[str, Any] | None:
-    """Authenticate a WebSocket connection using a JWT token."""
+async def _authenticate_ws(token: str, api_key: str | None = None) -> dict[str, Any] | None:
+    """Authenticate a WebSocket connection using a JWT token or API key."""
+    # Prefer API key if present
+    if api_key:
+        user = await authenticate_api_key(api_key)
+        if user and user.get("is_active", True):
+            return user
+        return None
+
+    # Fall back to JWT token
     payload = decode_token(token)
     if not payload:
         return None
@@ -246,18 +254,43 @@ async def _try_acquire_lock(
     return False
 
 
+# Simple per-connection rate limiter for block_update messages
+class _BlockUpdateThrottler:
+    """Throttle block_update messages to max N per second per connection."""
+
+    def __init__(self, max_per_second: float = 10.0) -> None:
+        self.max_per_second = max_per_second
+        self.min_interval = 1.0 / max_per_second
+        self.last_time: float = 0.0
+
+    def allow(self) -> bool:
+        import time
+
+        now = time.monotonic()
+        if now - self.last_time >= self.min_interval:
+            self.last_time = now
+            return True
+        return False
+
+
 @router.websocket("/{page_uuid}")
 async def live_sync_websocket(
     websocket: WebSocket,
     page_uuid: str,
     token: str = "",
+    api_key: str = "",
 ) -> None:
-    """WebSocket endpoint for lightweight live block sync with locking."""
+    """WebSocket endpoint for lightweight live block sync with locking.
+
+    Authentication:
+      - JWT: pass `token` query parameter
+      - API Key: pass `api_key` query parameter
+    """
     # Clear any inherited request-scoped connection (AGENTS.md rule)
     clear_request_conn()
 
     # 1. Authenticate
-    user = await _authenticate_ws(token)
+    user = await _authenticate_ws(token, api_key=api_key or None)
     if not user:
         await websocket.close(code=4001, reason="Unauthorized")
         return
@@ -298,6 +331,7 @@ async def live_sync_websocket(
 
     connection = _LiveSyncConnection(websocket, page_uuid, user)
     _page_connections.setdefault(page_uuid, set()).add(connection)
+    update_throttler = _BlockUpdateThrottler(max_per_second=10.0)
 
     # Send current local users list
     await _send_users_list(connection)
@@ -386,6 +420,14 @@ async def live_sync_websocket(
 
             elif msg_type == "block_update":
                 if not can_write:
+                    continue
+                if not update_throttler.allow():
+                    await connection.send(
+                        {
+                            "type": "error",
+                            "message": "Rate limit exceeded: too many block updates",
+                        }
+                    )
                     continue
                 block_uuid = msg.get("block_uuid")
                 if not isinstance(block_uuid, str):

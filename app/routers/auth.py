@@ -3,6 +3,9 @@
 Handles user registration, login, token management, and API keys.
 """
 
+import time
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_limiter.depends import RateLimiter
@@ -23,7 +26,7 @@ from ..models import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer(auto_error=False)
 
 _auth_limiter_register = Limiter(Rate(3, Duration.MINUTE))
@@ -54,6 +57,29 @@ async def _resolve_user_from_auth(
     return None
 
 
+# In-memory cache for API key scopes to avoid re-authenticating on every scope check
+_api_key_scope_cache: dict[str, tuple[list[str], float]] = {}
+_API_KEY_SCOPE_TTL = 60  # 1 minute
+
+
+async def _get_api_key_scopes(api_key: str) -> list[str] | None:
+    """Return scopes for a valid API key (cached)."""
+    now = time.monotonic()
+    cached = _api_key_scope_cache.get(api_key)
+    if cached is not None:
+        scopes, cached_at = cached
+        if now - cached_at < _API_KEY_SCOPE_TTL:
+            return scopes
+
+    user = await auth.authenticate_api_key(api_key)
+    if not user:
+        return None
+
+    scopes = user.get("_api_key_scopes", ["read", "write"])
+    _api_key_scope_cache[api_key] = (scopes, now)
+    return scopes
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
@@ -80,6 +106,34 @@ async def get_current_user_optional(
         return None
 
     return User(**user_dict)
+
+
+class RequireScope:
+    """Dependency factory that enforces API key scopes.
+
+    JWT tokens are always granted full access.
+    API keys must have at least one of the required scopes.
+    """
+
+    def __init__(self, *scopes: str):
+        self.scopes = set(scopes)
+
+    async def __call__(
+        self,
+        request: Request,
+        user: User = Depends(get_current_user),  # noqa: B008
+    ) -> User:
+        api_key = request.headers.get("X-API-Key")
+        if api_key:
+            key_scopes = await _get_api_key_scopes(api_key)
+            if key_scopes is None:
+                raise HTTPException(status_code=401, detail="Invalid or expired API key")
+            if not self.scopes.intersection(set(key_scopes)):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"API key lacks required scope. Required one of: {', '.join(self.scopes)}",
+                )
+        return user
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa: B008
@@ -190,9 +244,16 @@ async def update_me(
 # ─── API Key Management ──────────────────────────────────────────
 
 
+class ApiKeyCreateWithOptions(ApiKeyCreate):
+    """API key creation request with optional scopes and expiration."""
+
+    scopes: list[str] = ["read", "write"]
+    expires_at: datetime | None = None
+
+
 @router.post("/api-keys", response_model=ApiKeyCreateResponse)
 async def create_api_key_endpoint(
-    data: ApiKeyCreate,
+    data: ApiKeyCreateWithOptions,
     user: User = Depends(get_current_user),  # noqa: B008
 ):
     """Create a new API key for device access.
@@ -201,7 +262,9 @@ async def create_api_key_endpoint(
     It cannot be retrieved later.
     """
     try:
-        result = await auth.create_api_key(int(user.id), data.name)
+        result = await auth.create_api_key(
+            int(user.id), data.name, scopes=data.scopes, expires_at=data.expires_at
+        )
         return ApiKeyCreateResponse(**result)
     except Exception as e:
         logger.error(f"Failed to create API key for user {user.id}: {e}")

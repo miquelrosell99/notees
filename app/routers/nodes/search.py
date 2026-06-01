@@ -12,12 +12,21 @@ from .helpers import (
     _get_node_service,
     _node_to_response,
 )
-from .models import NodeResponse
+from .models import (
+    LinksRequest,
+    LinksResponse,
+    NodeResponse,
+    SearchResponse,
+    WorkspaceDataResponse,
+    WorkspaceLinkResponse,
+    WorkspaceNodeResponse,
+    WorkspaceNodesResponse,
+)
 
 router = APIRouter()
 
 
-@router.get("/workspace")
+@router.get("/workspace", response_model=WorkspaceDataResponse)
 async def get_workspace_data_endpoint(
     user: User = Depends(get_current_user),
 ):
@@ -69,22 +78,22 @@ async def get_workspace_data_endpoint(
             block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
 
         # Build nodes
-        nodes = []
+        nodes: list[WorkspaceNodeResponse] = []
         for row in page_rows:
             node_class_ids = class_ids_map.get(row["id"], [])
             nodes.append(
-                {
-                    "id": row["id"],
-                    "uuid": str(row["uuid"]),
-                    "name": row["name"],
-                    "icon": row["icon"],
-                    "is_class": row["is_class"],
-                    "is_daily": row["is_day"],
-                    "is_monthly": row["is_month"],
-                    "is_yearly": row["is_year"],
-                    "class_ids": node_class_ids,
-                    "block_count": block_count_map.get(row["id"], 0),
-                }
+                WorkspaceNodeResponse(
+                    id=row["id"],
+                    uuid=str(row["uuid"]),
+                    name=row["name"],
+                    icon=row["icon"],
+                    is_class=row["is_class"],
+                    is_daily=row["is_day"],
+                    is_monthly=row["is_month"],
+                    is_yearly=row["is_year"],
+                    class_ids=node_class_ids,
+                    block_count=block_count_map.get(row["id"], 0),
+                )
             )
 
         # Get reference links between pages (only page-to-page links)
@@ -104,7 +113,7 @@ async def get_workspace_data_endpoint(
         )
 
         # Build reference links - source is the page containing the block that links
-        links = []
+        links: list[WorkspaceLinkResponse] = []
         page_id_set = {row["id"] for row in page_rows}
 
         # Batch-resolve block sources to their page_id (avoid N+1 queries)
@@ -128,11 +137,11 @@ async def get_workspace_data_endpoint(
 
             if source_page_id in page_id_set and target_id in page_id_set:
                 links.append(
-                    {
-                        "source": source_page_id,
-                        "target": target_id,
-                        "type": "reference",
-                    }
+                    WorkspaceLinkResponse(
+                        source=source_page_id,
+                        target=target_id,
+                        type="reference",
+                    )
                 )
 
         # Get parent relationships between pages
@@ -155,11 +164,11 @@ async def get_workspace_data_endpoint(
             parent_id = row["parent_id"]
             if child_id in page_id_set and parent_id in page_id_set:
                 links.append(
-                    {
-                        "source": parent_id,
-                        "target": child_id,
-                        "type": "parent",
-                    }
+                    WorkspaceLinkResponse(
+                        source=parent_id,
+                        target=child_id,
+                        type="parent",
+                    )
                 )
 
         # Get class relationships from node.class_ids field
@@ -171,11 +180,11 @@ async def get_workspace_data_endpoint(
                 # Only add link if the class is also a visible page node
                 if class_id in page_id_set:
                     links.append(
-                        {
-                            "source": node_id,
-                            "target": class_id,
-                            "type": "class",
-                        }
+                        WorkspaceLinkResponse(
+                            source=node_id,
+                            target=class_id,
+                            type="class",
+                        )
                     )
 
         # Get class extends relationships (inheritance between classes)
@@ -198,11 +207,11 @@ async def get_workspace_data_endpoint(
             parent_id = row["parent_id"]
             if child_id in page_id_set and parent_id in page_id_set:
                 links.append(
-                    {
-                        "source": child_id,
-                        "target": parent_id,
-                        "type": "extends",  # New type specifically for class inheritance
-                    }
+                    WorkspaceLinkResponse(
+                        source=child_id,
+                        target=parent_id,
+                        type="extends",
+                    )
                 )
 
         # Get property-based links (node-type properties)
@@ -227,26 +236,26 @@ async def get_workspace_data_endpoint(
             target_id = row["target_id"]
             if source_id in page_id_set and target_id in page_id_set:
                 links.append(
-                    {
-                        "source": source_id,
-                        "target": target_id,
-                        "type": "property-reference",
-                    }
+                    WorkspaceLinkResponse(
+                        source=source_id,
+                        target=target_id,
+                        type="property-reference",
+                    )
                 )
 
         # Remove duplicate links (keeping first occurrence)
         seen = set()
         unique_links = []
         for link in links:
-            key = (link["source"], link["target"], link["type"])
+            key = (link.source, link.target, link.type)
             if key not in seen:
                 seen.add(key)
                 unique_links.append(link)
 
-        return {"nodes": nodes, "links": unique_links}
+        return WorkspaceDataResponse(nodes=nodes, links=unique_links)
 
 
-@router.get("/workspace/nodes")
+@router.get("/workspace/nodes", response_model=WorkspaceNodesResponse)
 async def get_workspace_nodes_endpoint(
     user: User = Depends(get_current_user),
 ):
@@ -296,30 +305,30 @@ async def get_workspace_nodes_endpoint(
             )
             block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
 
-        nodes = []
+        nodes: list[WorkspaceNodeResponse] = []
         for row in page_rows:
             node_class_ids = class_ids_map.get(row["id"], [])
             nodes.append(
-                {
-                    "id": row["id"],
-                    "uuid": str(row["uuid"]),
-                    "name": row["name"],
-                    "icon": row["icon"],
-                    "is_class": row["is_class"],
-                    "is_daily": row["is_day"],
-                    "is_monthly": row["is_month"],
-                    "is_yearly": row["is_year"],
-                    "class_ids": node_class_ids,
-                    "block_count": block_count_map.get(row["id"], 0),
-                }
+                WorkspaceNodeResponse(
+                    id=row["id"],
+                    uuid=str(row["uuid"]),
+                    name=row["name"],
+                    icon=row["icon"],
+                    is_class=row["is_class"],
+                    is_daily=row["is_day"],
+                    is_monthly=row["is_month"],
+                    is_yearly=row["is_year"],
+                    class_ids=node_class_ids,
+                    block_count=block_count_map.get(row["id"], 0),
+                )
             )
 
-        return {"nodes": nodes}
+        return WorkspaceNodesResponse(nodes=nodes)
 
 
-@router.post("/links")
+@router.post("/links", response_model=LinksResponse)
 async def get_links_for_nodes(
-    body: dict,
+    body: LinksRequest,
     user: User = Depends(get_current_user),
 ):
     """Get links for a specific set of node IDs.
@@ -338,11 +347,11 @@ async def get_links_for_nodes(
       - Without context_node_id: global flat co-occurrence across all blocks mentioning the node set.
       - With context_node_id: parent-inclusive co-occurrence within the context page.
     """
-    node_ids = body.get("node_ids", [])
-    scope = body.get("scope", "between")
-    cooccurrence = body.get("cooccurrence", False)
+    node_ids = body.node_ids
+    scope = body.scope
+    cooccurrence = body.cooccurrence
     if not node_ids or not isinstance(node_ids, list):
-        return {"links": []}
+        return LinksResponse(links=[])
     if scope not in ("between", "touching"):
         raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
 
@@ -623,13 +632,16 @@ async def get_links_for_nodes(
                 seen.add(key)
                 unique_links.append(link)
 
-        return {"links": unique_links}
+        return LinksResponse(links=unique_links)
 
 
-@router.get("/search")
+@router.get("/search", response_model=SearchResponse)
 async def search_nodes(
     q: str = "",
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=5000),
+    page: int = Query(1, ge=1),
+    sort_by: str = Query("write_date", description="Field to sort by: name, write_date, create_date"),
+    order: str = Query("desc", description="Sort order: asc or desc"),
     class_filters: str | None = None,  # Comma-separated class IDs to filter by
     uuid: str | None = None,  # Direct UUID lookup (prefix match)
     is_page: bool | None = None,  # Filter by is_page flag
@@ -641,7 +653,10 @@ async def search_nodes(
 
     Args:
         q: Search query (name search)
-        limit: Maximum number of results (capped at 5000)
+        limit: Maximum number of results per page (capped at 5000)
+        page: Page number (1-indexed)
+        sort_by: Field to sort by (name, write_date, create_date)
+        order: Sort order (asc, desc)
         class_filters: Optional comma-separated list of class IDs to filter results
         uuid: Optional UUID prefix to search by (exact or prefix match)
         is_page: Optional boolean to filter pages vs blocks
@@ -650,7 +665,11 @@ async def search_nodes(
 
     Returns nodes with class_ids populated for reliable filtering.
     """
-    limit = min(limit, 5000)  # prevent runaway queries
+    if sort_by not in ("name", "write_date", "create_date"):
+        sort_by = "write_date"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
     service = await _get_node_service(user)
 
     # UUID search: direct lookup by UUID (exact match first, then prefix)
@@ -661,7 +680,7 @@ async def search_nodes(
             node = await service.get_node_by_uuid(uuid)
             if node and node.id is not None:
                 node_class_ids = node.class_ids or []
-                return {"nodes": [_node_to_response(node, classes=node_class_ids)]}
+                return SearchResponse(nodes=[_node_to_response(node, classes=node_class_ids)])
 
             # Fall back to prefix match (uuid starts with the search term)
             if len(uuid) >= 4:  # Require at least 4 chars for prefix search
@@ -681,11 +700,11 @@ async def search_nodes(
                         node_obj = service.row_to_node(row)
                         node_class_ids = node_obj.class_ids or []
                         result.append(_node_to_response(node_obj, classes=node_class_ids))
-                    return {"nodes": result}
+                    return SearchResponse(nodes=result)
 
-            return {"nodes": []}
+            return SearchResponse(nodes=[])
 
-    nodes = await service.search(q, limit)
+    nodes = await service.search(q, limit=5000)
 
     # Parse class filters if provided
     filter_class_ids: set | None = None
@@ -717,7 +736,20 @@ async def search_nodes(
 
         result.append(_node_to_response(n, classes=node_class_ids))
 
-    return {"nodes": result}
+    # Sort results
+    reverse = order == "desc"
+    if sort_by == "name":
+        result.sort(key=lambda x: (x.name or "").lower(), reverse=reverse)
+    elif sort_by == "create_date":
+        result.sort(key=lambda x: x.create_date or "", reverse=reverse)
+    else:
+        result.sort(key=lambda x: x.write_date or "", reverse=reverse)
+
+    # Apply pagination
+    offset = (page - 1) * limit
+    paginated = result[offset : offset + limit]
+
+    return SearchResponse(nodes=paginated)
 
 
 @router.get("/", name="list_nodes")
@@ -730,9 +762,11 @@ async def list_nodes(
     root_only: bool = False,  # Only return nodes with no parent
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int | None = Query(None, ge=1, description="Items per page (omit to return all)"),
+    sort_by: str = Query("sequence", description="Field to sort by: name, write_date, create_date, sequence"),
+    order: str = Query("asc", description="Sort order: asc or desc"),
     user: User = Depends(get_current_user),
 ):
-    """List nodes with optional filters and pagination.
+    """List nodes with optional filters, sorting, and pagination.
 
     Args:
         pages_only: Only return pages (no blocks)
@@ -743,10 +777,17 @@ async def list_nodes(
         root_only: Only return root nodes (no parent_id)
         page: Page number (1-indexed)
         page_size: Number of items per page, or omit to disable pagination
+        sort_by: Field to sort by (name, write_date, create_date, sequence)
+        order: Sort order (asc, desc)
 
     Returns paginated nodes with class_ids populated for reliable filtering.
     When page_size is omitted, all matching nodes are returned.
     """
+    if sort_by not in ("name", "write_date", "create_date", "sequence"):
+        sort_by = "sequence"
+    if order not in ("asc", "desc"):
+        order = "asc"
+
     service = await _get_node_service(user)
 
     if parent_id:
@@ -787,6 +828,17 @@ async def list_nodes(
                 continue
 
         result.append(_node_to_response(n, classes=node_class_ids))
+
+    # Sort results
+    reverse = order == "desc"
+    if sort_by == "name":
+        result.sort(key=lambda x: (x.name or "").lower(), reverse=reverse)
+    elif sort_by == "create_date":
+        result.sort(key=lambda x: x.create_date or "", reverse=reverse)
+    elif sort_by == "write_date":
+        result.sort(key=lambda x: x.write_date or "", reverse=reverse)
+    else:
+        result.sort(key=lambda x: x.sequence or 0, reverse=reverse)
 
     # Include children if requested (recursive tree building)
     if include_children and result:

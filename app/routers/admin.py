@@ -13,7 +13,7 @@ from ..system_settings import get_all_system_settings, get_system_setting, set_s
 from .auth import require_admin
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api/admin", tags=["Admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 @router.get("/users")

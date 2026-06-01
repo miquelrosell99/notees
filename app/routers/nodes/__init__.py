@@ -70,7 +70,7 @@ from .versions import router as versions_router
 from .views import router as views_router
 
 # Create the main router
-router = APIRouter(prefix="/api/nodes", tags=["Nodes"])
+router = APIRouter(prefix="/nodes", tags=["Nodes"])
 
 # Include all sub-routers
 # Order matters! More specific routes must come before parameterized routes.

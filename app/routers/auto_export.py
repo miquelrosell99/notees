@@ -32,7 +32,7 @@ from ..workspace_manager import _active_workspaces, _get_numeric_user_id
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/auto-export", tags=["Auto Export"])
+router = APIRouter(prefix="/auto-export", tags=["Auto Export"])
 
 # ---------------------------------------------------------------------------
 # In-memory export progress tracking (single-process only)

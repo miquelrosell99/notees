@@ -14,7 +14,7 @@ from ..models import User
 from ..utils import utc_now
 from .auth import get_current_user
 
-router = APIRouter(prefix="/api/activity", tags=["Activity"])
+router = APIRouter(prefix="/activity", tags=["Activity"])
 logger = get_logger(__name__)
 
 

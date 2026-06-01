@@ -174,9 +174,11 @@ class ApiKeyResponse(BaseModel):
     id: str
     name: str
     scopes: list[str]
+    last_4: str | None = None
     last_used_at: datetime | None = None
     revoked: bool
     created_at: datetime
+    expires_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -191,6 +193,20 @@ class ApiKeyCreateResponse(ApiKeyResponse):
 # ==================== PAGINATION ====================
 
 T = TypeVar("T")
+
+
+class ErrorDetail(BaseModel):
+    """Standardized error detail for API responses."""
+
+    code: str
+    message: str
+    status: int
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response envelope."""
+
+    error: ErrorDetail
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
@@ -256,6 +272,62 @@ class ExportRequest(BaseModel):
     link_style: str = "raw"
     theme_mode: str = "light"
     cover_page: bool = False
+
+    @field_validator("layout")
+    @classmethod
+    def validate_layout(cls, v):
+        if v not in {"outline", "flat", "document", "table"}:
+            raise ValueError("layout must be one of: outline, flat, document, table")
+        return v
+
+    @field_validator("properties")
+    @classmethod
+    def validate_properties(cls, v):
+        if v not in {"none", "main", "all"}:
+            raise ValueError("properties must be one of: none, main, all")
+        return v
+
+    @field_validator("density")
+    @classmethod
+    def validate_density(cls, v):
+        if v not in {"comfortable", "compact", "spacious"}:
+            raise ValueError("density must be one of: comfortable, compact, spacious")
+        return v
+
+    @field_validator("numbering")
+    @classmethod
+    def validate_numbering(cls, v):
+        if v not in {"none", "decimal", "bullet", "checklist"}:
+            raise ValueError("numbering must be one of: none, decimal, bullet, checklist")
+        return v
+
+    @field_validator("measure")
+    @classmethod
+    def validate_measure(cls, v):
+        if v not in {"full", "compact", "minimal"}:
+            raise ValueError("measure must be one of: full, compact, minimal")
+        return v
+
+    @field_validator("doctype")
+    @classmethod
+    def validate_doctype(cls, v):
+        if v not in {"none", "article", "report", "letter", "book"}:
+            raise ValueError("doctype must be one of: none, article, report, letter, book")
+        return v
+
+    @field_validator("link_style")
+    @classmethod
+    def validate_link_style(cls, v):
+        if v not in {"raw", "wiki", "markdown"}:
+            raise ValueError("link_style must be one of: raw, wiki, markdown")
+        return v
+
+    @field_validator("theme_mode")
+    @classmethod
+    def validate_theme_mode(cls, v):
+        if v not in {"light", "dark", "auto"}:
+            raise ValueError("theme_mode must be one of: light, dark, auto")
+        return v
 
 
 class ExportResponse(BaseModel):

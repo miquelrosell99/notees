@@ -20,8 +20,8 @@ from typing import cast
 
 import asyncpg
 import jwt
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
@@ -38,7 +38,7 @@ from ..logging_config import get_logger
 from ..models import User
 from .auth import get_current_user, get_current_user_optional
 
-router = APIRouter(prefix="/api/assets", tags=["Assets"])
+router = APIRouter(prefix="/assets", tags=["Assets"])
 logger = get_logger(__name__)
 
 # Allowed file types and their extensions
@@ -451,8 +451,28 @@ async def generate_asset_token(asset_uuid: str, current_user: User = Depends(get
     return AssetTokenResponse(token=token, expires_at=expires_at.isoformat())
 
 
+def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | None:
+    """Parse an HTTP Range header.
+
+    Returns (start, end) byte offsets, or None if invalid/unsupported.
+    """
+    if not range_header.startswith("bytes="):
+        return None
+    try:
+        range_spec = range_header[len("bytes="):]
+        start_str, end_str = range_spec.split("-", 1)
+        start = int(start_str) if start_str else 0
+        end = int(end_str) if end_str else file_size - 1
+        if start < 0 or end >= file_size or start > end:
+            return None
+        return start, end
+    except (ValueError, IndexError):
+        return None
+
+
 @router.get("/{asset_uuid}")
 async def get_asset(
+    request: Request,
     asset_uuid: str,
     asset_token: str | None = Query(None, description="Short-lived asset access token"),
     current_user: User | None = Depends(get_current_user_optional),
@@ -460,6 +480,7 @@ async def get_asset(
     """Get an asset file by its UUID.
 
     Returns the file content with appropriate content type.
+    Supports HTTP Range requests for seekable media playback.
 
     Authentication methods (in order of preference):
     1. asset_token query parameter (short-lived, asset-specific)
@@ -500,19 +521,64 @@ async def get_asset(
         raise HTTPException(status_code=404, detail="Asset not found")
 
     # Find the asset file: main.{ext} (any extension)
-    for file_path in asset_folder.iterdir():
-        if file_path.is_file() and file_path.stem == "main":
-            # Determine content type from extension
-            ext = file_path.suffix.lower()
-            content_type = "application/octet-stream"
+    file_path: Path | None = None
+    content_type = "application/octet-stream"
+    for candidate in asset_folder.iterdir():
+        if candidate.is_file() and candidate.stem == "main":
+            ext = candidate.suffix.lower()
             for ct, e in ALLOWED_CONTENT_TYPES.items():
                 if e == ext or (ext == ".jpeg" and e == ".jpg"):
                     content_type = ct
                     break
+            file_path = candidate
+            break
 
-            return FileResponse(file_path, media_type=content_type, filename=f"{asset_uuid}{ext}")
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Asset file not found in folder")
 
-    raise HTTPException(status_code=404, detail="Asset file not found in folder")
+    file_size = file_path.stat().st_size
+    range_header = request.headers.get("range")
+
+    if range_header:
+        parsed = _parse_range_header(range_header, file_size)
+        if parsed is None:
+            raise HTTPException(
+                status_code=416,
+                detail="Range Not Satisfiable",
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+        start, end = parsed
+        content_length = end - start + 1
+
+        def _range_stream():
+            with open(file_path, "rb") as f:
+                f.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk_size = min(64 * 1024, remaining)
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    yield data
+                    remaining -= len(data)
+
+        return StreamingResponse(
+            _range_stream(),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(content_length),
+                "Accept-Ranges": "bytes",
+            },
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=content_type,
+        filename=f"{asset_uuid}{file_path.suffix.lower()}",
+        headers={"Accept-Ranges": "bytes"},
+    )
 
 
 @router.get("/{asset_uuid}/thumbnail")
