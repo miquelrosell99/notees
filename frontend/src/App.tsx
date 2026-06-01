@@ -80,6 +80,7 @@ function AppContent() {
   // First-boot / onboarding check
   const [bootChecked, setBootChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +88,7 @@ function AppContent() {
       .then((status) => {
         if (!cancelled) {
           setNeedsOnboarding(status.needs_onboarding);
+          setRegistrationEnabled(status.registration_enabled);
           setBootChecked(true);
         }
       })
@@ -224,7 +226,7 @@ function AppContent() {
     }
     return (
       <Suspense fallback={<div className="loading-screen"><Spinner size="lg" centered /></div>}>
-        <LoginView />
+        <LoginView registrationEnabled={registrationEnabled} />
       </Suspense>
     );
   }

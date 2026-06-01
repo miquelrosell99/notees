@@ -663,6 +663,7 @@ export interface UserUpdate {
 export interface AuthStatus {
   needs_onboarding: boolean;
   authenticated: boolean;
+  registration_enabled: boolean;
 }
 
 /**

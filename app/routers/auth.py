@@ -12,6 +12,7 @@ from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
 from .. import auth
+from ..config import settings
 from ..logging_config import get_logger
 from ..models import (
     ApiKeyCreate,
@@ -150,6 +151,7 @@ async def auth_status():
     return {
         "needs_onboarding": needs_onboarding,
         "authenticated": False,
+        "registration_enabled": settings.registration_enabled,
     }
 
 
@@ -160,12 +162,15 @@ async def auth_status():
 )
 async def register(request: Request, user_data: UserCreate):
     """Register a new user."""
+    is_first = await auth.is_first_boot()
+    if not settings.registration_enabled and not is_first:
+        raise HTTPException(status_code=403, detail="Registration is disabled")
+
     existing = await auth.get_user_by_email(user_data.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
 
     # If this is the first user, make them admin
-    is_first = await auth.is_first_boot()
     role = "admin" if is_first else "user"
 
     user = await auth.create_user(

@@ -21,7 +21,7 @@ from ..utils import utc_now
 from ..workspace_manager import get_active_workspace_id
 from .auth import get_current_user
 
-router = APIRouter(prefix="/api", tags=["Sync & Settings"])
+router = APIRouter(tags=["Sync & Settings"])
 
 
 @router.post("/sync")
