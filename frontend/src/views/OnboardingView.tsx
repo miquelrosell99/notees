@@ -82,6 +82,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
         <form onSubmit={handleSubmit} className="onboarding-form">
           <TextField
             id="onboarding-name"
+            name="name"
             type="text"
             label="Name (optional)"
             value={name}
@@ -92,6 +93,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
           <TextField
             id="onboarding-email"
+            name="email"
             type="email"
             label="Email"
             value={email}
@@ -103,6 +105,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
           <TextField
             id="onboarding-password"
+            name="password"
             type="password"
             label="Password"
             value={password}
@@ -114,6 +117,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
           <TextField
             id="onboarding-confirm-password"
+            name="confirm-password"
             type="password"
             label="Confirm password"
             value={confirmPassword}
