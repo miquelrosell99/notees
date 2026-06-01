@@ -334,9 +334,16 @@ export function BlockList({
 
       if (cursor === 'empty' || cursor === 'end') {
         const newBlockId = generateUUID();
+        const currentRuntimeNode = runtime.getNode(blockId);
+        let parentId = currentRuntimeNode?.parentId ?? '';
+        // Fallback: if the runtime doesn't have a valid parent (e.g. node was
+        // loaded before pageUuid/nodeId were available), use pageUuid.
+        if (!parentId && pageUuid) {
+          parentId = pageUuid;
+        }
         runtime.applyIntent({
           type: 'create_block',
-          parentId: runtime.getNode(blockId)?.parentId ?? '',
+          parentId,
           afterBlockId: blockId,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],

@@ -139,7 +139,7 @@ export class NodeGraphRuntime {
         const merged: GraphNode = {
           ...node,
           contentAST: serverIsNewer ? node.contentAST : existing.contentAST,
-          parentId: existing.parentId,
+          parentId: existing.parentId ?? node.parentId,
           orderIndex: existing.orderIndex,
           collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
         };

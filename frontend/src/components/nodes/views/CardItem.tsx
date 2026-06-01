@@ -750,6 +750,8 @@ export const NodeCard = memo(function NodeCard({
                 onOpenInSidebar={handleOpenBlockInSidebar}
                 onAddClass={handleAddClass}
                 onSlashCommand={handleSlashCommand}
+                pageUuid={node.uuid}
+                nodeId={node.id}
               />
             )}
             {editable && (

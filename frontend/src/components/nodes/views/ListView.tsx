@@ -355,6 +355,7 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 pageUuid={_pageUuid}
+                nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -437,6 +438,7 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 pageUuid={_pageUuid}
+                nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onTemplateInstantiate={onTemplateInstantiate}
@@ -603,6 +605,7 @@ function ListViewGroup({
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
               pageUuid={pageUuid}
+              nodeId={nodeId}
             />
           )}
         </div>
