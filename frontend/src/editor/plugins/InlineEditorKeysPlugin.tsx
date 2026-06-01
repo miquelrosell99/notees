@@ -24,15 +24,15 @@ import { useInputContext } from '@/stores/inputContext';
 
 export interface InlineEditorKeysPluginProps {
   /** Called on Enter (not Shift+Enter). */
-  onEnter: () => void;
+  onEnter?: () => void;
   /** Called on Ctrl+Enter (task cycle, etc.). */
   onCtrlEnter?: () => void;
   /** Called on Backspace when cursor is at the start of the block. */
-  onBackspaceAtStart: () => void;
+  onBackspaceAtStart?: () => void;
   /** Called on Delete when cursor is at the end of the block. */
-  onDeleteAtEnd: () => void;
+  onDeleteAtEnd?: () => void;
   /** Called on Tab. */
-  onTab: (shift: boolean) => void;
+  onTab?: (shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: () => void;
 }
@@ -58,13 +58,18 @@ export function InlineEditorKeysPlugin({
         if (event?.ctrlKey || event?.metaKey) {
           if (onCtrlEnter) {
             onCtrlEnter();
+            event?.preventDefault();
             return true;
           }
           return false;
         }
         if (event?.shiftKey) return false; // Let Shift+Enter insert line break
-        onEnter();
-        return true;
+        if (onEnter) {
+          event?.preventDefault();
+          onEnter();
+          return true;
+        }
+        return false;
       },
       COMMAND_PRIORITY_HIGH,
     );
@@ -76,6 +81,7 @@ export function InlineEditorKeysPlugin({
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       (_event) => {
+        if (!onBackspaceAtStart) return false;
         let atStart = false;
         editor.getEditorState().read(() => {
           const selection = $getSelection();
@@ -100,6 +106,7 @@ export function InlineEditorKeysPlugin({
     return editor.registerCommand(
       KEY_DELETE_COMMAND,
       (_event) => {
+        if (!onDeleteAtEnd) return false;
         let atEnd = false;
         editor.getEditorState().read(() => {
           const selection = $getSelection();
@@ -123,6 +130,7 @@ export function InlineEditorKeysPlugin({
   // ─── Tab ────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (!onTab) return;
     return editor.registerCommand(
       KEY_TAB_COMMAND,
       (event) => {
