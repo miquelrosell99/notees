@@ -12,7 +12,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
-import type { NodeCreate, NodeUpdate, Node } from '@/types/api';
+import type { NodeCreate, NodeUpdate, Node, LinkedReference, PropertyBacklink } from '@/types/api';
 import { nodeKeys, propertyKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -988,6 +988,34 @@ export function useDeleteNode() {
             if (newData.length !== oldData.length) {
               queryClient.setQueryData(query.queryKey, newData);
             }
+          }
+        }
+      }
+
+      // Optimistically remove from linked-refs caches (different shape: { linked_references, total_count })
+      const linkedRefQueries = queryCache.findAll({ queryKey: nodeKeys.allLinkedRefs() });
+      for (const query of linkedRefQueries) {
+        const oldData = query.state.data as { linked_references: LinkedReference[]; total_count: number } | undefined;
+        if (oldData && oldData.linked_references) {
+          const newRefs = oldData.linked_references.filter(ref => ref.source_node.id !== deletedId);
+          if (newRefs.length !== oldData.linked_references.length) {
+            queryClient.setQueryData(query.queryKey, {
+              ...oldData,
+              linked_references: newRefs,
+              total_count: Math.max(0, oldData.total_count - 1),
+            });
+          }
+        }
+      }
+
+      // Optimistically remove from property-backlinks caches (different shape: PropertyBacklink[])
+      const propertyBacklinkQueries = queryCache.findAll({ queryKey: ['nodes', 'property-backlinks'] });
+      for (const query of propertyBacklinkQueries) {
+        const oldData = query.state.data as PropertyBacklink[] | undefined;
+        if (oldData && Array.isArray(oldData)) {
+          const newData = oldData.filter(ref => ref.source_page.id !== deletedId);
+          if (newData.length !== oldData.length) {
+            queryClient.setQueryData(query.queryKey, newData);
           }
         }
       }
