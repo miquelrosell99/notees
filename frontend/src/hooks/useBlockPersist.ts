@@ -26,7 +26,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { createNode as createNodeApi, updateNode as updateNodeApi, batchDeleteNodes as batchDeleteNodesApi } from '@/api/nodes';
-import type { NodeCreate, Node } from '@/types/api';
+import type { NodeCreate, Node, LinkedReference, PropertyBacklink } from '@/types/api';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { nodeKeys } from './queryKeys';
 import { removeNodeFromTreeImmutable } from '@/utils/nodeTree';
@@ -79,6 +79,10 @@ function scheduleDeleteFlush(): void {
       sharedQueryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'], refetchType: 'active' });
       sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'active' });
       sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
+      // Invalidate backlinks and linked references since deleted blocks may have been referenced
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
     }).catch((error) => {
       console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
     });
@@ -342,6 +346,34 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
               if (newData.length !== oldData.length) {
                 queryClient.setQueryData(query.queryKey, newData);
               }
+            }
+          }
+        }
+
+        // Optimistically remove from linked-refs caches (different shape: { linked_references, total_count })
+        const linkedRefQueries = queryCache.findAll({ queryKey: nodeKeys.allLinkedRefs() });
+        for (const query of linkedRefQueries) {
+          const oldData = query.state.data as { linked_references: LinkedReference[]; total_count: number } | undefined;
+          if (oldData && oldData.linked_references) {
+            const newRefs = oldData.linked_references.filter(ref => ref.source_node.id !== deletedServerId);
+            if (newRefs.length !== oldData.linked_references.length) {
+              queryClient.setQueryData(query.queryKey, {
+                ...oldData,
+                linked_references: newRefs,
+                total_count: Math.max(0, oldData.total_count - 1),
+              });
+            }
+          }
+        }
+
+        // Optimistically remove from property-backlinks caches (different shape: PropertyBacklink[])
+        const propertyBacklinkQueries = queryCache.findAll({ queryKey: ['nodes', 'property-backlinks'] });
+        for (const query of propertyBacklinkQueries) {
+          const oldData = query.state.data as PropertyBacklink[] | undefined;
+          if (oldData && Array.isArray(oldData)) {
+            const newData = oldData.filter(ref => ref.source_page.id !== deletedServerId);
+            if (newData.length !== oldData.length) {
+              queryClient.setQueryData(query.queryKey, newData);
             }
           }
         }

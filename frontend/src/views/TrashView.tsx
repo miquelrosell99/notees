@@ -48,6 +48,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
     },
   });
   
@@ -56,6 +59,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
     onSuccess: (_data, nodeId) => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       const favoritesStore = useFavoritesStore.getState();
       if (favoritesStore.isFavorite(nodeId)) {
         favoritesStore.removeFavorite(nodeId);
@@ -69,6 +75,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setShowEmptyConfirm(false);
       useFavoritesStore.getState().refresh();
     },
@@ -79,6 +88,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
     onSuccess: (_data, ids) => {
       queryClient.invalidateQueries({ queryKey: ['trash'] });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setSelectedIds(new Set());
       setShowDeleteSelectedConfirm(false);
       const favoritesStore = useFavoritesStore.getState();
