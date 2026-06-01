@@ -39,10 +39,20 @@ export interface SGEConfig {
   alphaMin: number;
   reheatFactor: number;
   dt: number;
-  /** Barnes–Hut opening criterion. Lower = more accurate, slower. Default 0.8 */
+  /** Barnes–Hut opening criterion. Lower = more accurate, slower. Default 1.0 */
   bhTheta: number;
   /** When true, high-degree nodes attract more strongly (weaker per-edge stiffness scaling). */
   linkCountAttraction?: boolean;
+}
+
+/** Semantic user-facing configuration — the engine translates this to raw SGEConfig. */
+export interface SGEUserConfig {
+  preset: 'sparse' | 'balanced' | 'compact';
+  centralGravity: boolean;
+  linkCountAttraction: boolean;
+  heightMode: 'hierarchy' | 'references';
+  viewMode: 'normal' | 'circle' | 'tree';
+  constraintMode: 'physics' | 'equidistant';
 }
 
 /** Typed-array views into the SoA physics state. All valid for [0..nodeCount). */
@@ -609,30 +619,83 @@ function findConnectedComponents(
   return component;
 }
 
+// ─── Physics Presets ──────────────────────────────────────────────────────────
+
+const PHYSICS_PRESETS: Record<SGEUserConfig['preset'], Partial<SGEConfig>> = {
+  sparse: {
+    springStrength: 0.018,
+    idealDistance: 130,
+    componentCenterStrength: 0.0010,
+    clusterRepelStrength: 2000,
+    localRepelStrength: 3000,
+    clusterSpacing: 450,
+    componentSpacing: 1000,
+  },
+  balanced: {
+    springStrength: 0.025,
+    idealDistance: 100,
+    componentCenterStrength: 0.0015,
+    clusterRepelStrength: 1500,
+    localRepelStrength: 2500,
+    clusterSpacing: 350,
+    componentSpacing: 800,
+  },
+  compact: {
+    springStrength: 0.040,
+    idealDistance: 70,
+    componentCenterStrength: 0.0030,
+    clusterRepelStrength: 800,
+    localRepelStrength: 1200,
+    clusterSpacing: 200,
+    componentSpacing: 500,
+  },
+};
+
+/** Translate semantic user config to raw physics constants.
+ *  Single source of truth for the mapping — React layers never touch raw SGEConfig. */
+export function buildSGEConfig(user: SGEUserConfig): SGEConfig {
+  const preset = PHYSICS_PRESETS[user.preset];
+  const isConstrained =
+    (user.viewMode === 'circle' || user.viewMode === 'tree') && user.constraintMode === 'equidistant';
+
+  return {
+    seed: 42,
+    springStrength: isConstrained ? 0.15 : user.linkCountAttraction
+      ? (preset.springStrength ?? 0.025) * 1.8
+      : (preset.springStrength ?? 0.025),
+    idealDistance: isConstrained ? 90 : (preset.idealDistance ?? 100),
+    clusterStrength: isConstrained ? 0.008 : user.heightMode === 'hierarchy' ? 0.006 : 0.003,
+    clusterRepelStrength: preset.clusterRepelStrength ?? 1500,
+    clusterSpacing: preset.clusterSpacing ?? 350,
+    localRepelStrength: preset.localRepelStrength ?? 2500,
+    localRepelRadius: 500,
+    radialStrength: isConstrained ? 0.004 : user.heightMode === 'hierarchy' ? 0.002 : 0.0005,
+    componentCenterStrength: user.centralGravity
+      ? (preset.componentCenterStrength ?? 0.0015)
+      : 0,
+    componentSpacing: preset.componentSpacing ?? 800,
+    damping: isConstrained ? 0.78 : 0.85,
+    maxVelocity: isConstrained ? 8 : 15,
+    alpha: 1.0,
+    alphaDecay: 0.015,
+    alphaMin: 0.001,
+    reheatFactor: 0.3,
+    dt: 0.6,
+    bhTheta: 1.0,
+    linkCountAttraction: user.linkCountAttraction,
+  };
+}
+
 // ─── Default Configuration ────────────────────────────────────────────────────
 
-const DEFAULT_CONFIG: SGEConfig = {
-  seed: 42,
-  springStrength: 0.035,
-  idealDistance: 80,
-  clusterStrength: 0.004,
-  clusterRepelStrength: 800,
-  clusterSpacing: 200,
-  localRepelStrength: 1200,
-  localRepelRadius: 500,
-  radialStrength: 0.001,
-  componentCenterStrength: 0.003,
-  componentSpacing: 500,
-  damping: 0.8,
-  maxVelocity: 15,
-  alpha: 1.0,
-  alphaDecay: 0.02,
-  alphaMin: 0.001,
-  reheatFactor: 0.3,
-  dt: 0.6,
-  bhTheta: 0.8,
+const DEFAULT_CONFIG: SGEConfig = buildSGEConfig({
+  preset: 'balanced',
+  centralGravity: true,
   linkCountAttraction: false,
-};
+  heightMode: 'hierarchy',
+  viewMode: 'normal',
+  constraintMode: 'physics',
+});
 
 // ─── SemanticGraphEngine ──────────────────────────────────────────────────────
 
@@ -1037,8 +1100,8 @@ export class SemanticGraphEngine {
     const bigIds   = this.bigClusterBuf, bigK = this.bigClusterCount;
     const clFx = this.clFx, clFy = this.clFy;
     // Cap N scaling so cluster repulsion doesn't explode on large graphs.
-    // sqrt(10000) = 100 would give repelStr = 80,000 — far too strong.
-    const nScale   = N > 1 ? Math.min(Math.sqrt(N), 10) : 1;
+    // sqrt(10000) = 100 would give repelStr = 150,000 — far too strong.
+    const nScale   = N > 1 ? Math.min(Math.sqrt(N), 20) : 1;
     const repelStr = cfg.clusterRepelStrength * nScale * alpha * dragScale;
 
     if (bigK > 0) {
