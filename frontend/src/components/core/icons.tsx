@@ -1,7 +1,7 @@
 /**
  * MDI Icons for the application
- * 
- * Uses @mdi/font CSS webfont for Material Design Icons.
+ *
+ * Uses the shared MDI SVG sprite sheet (`/mdi-sprite.svg`) for all icons.
  * Provides default icons for system tags and pages.
  */
 import { Icon } from './Icon';

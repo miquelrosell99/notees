@@ -1,13 +1,10 @@
 /**
- * Icon — renders MDI icons as inline SVGs via @mdi/js.
+ * Icon — renders MDI icons as inline SVGs via a shared sprite sheet.
  *
- * Replaces the previous @mdi/font CSS webfont approach with tree-shakeable
- * SVG paths for better performance and rendering crispness.
- *
- * Accepts the same props so callers don't need to change their JSX.
+ * All 7,000+ Material Design Icons are available through a single cached
+ * static asset (`/mdi-sprite.svg`) referenced with `<use>`.
  */
 import React from 'react';
-import { mdiPathMap } from '@/utils/mdiPathMap';
 
 export interface IconProps {
   /** MDI CSS class string, e.g. "mdi mdi-heart-outline" or "mdi-heart-outline" */
@@ -64,17 +61,15 @@ export const Icon: React.FC<IconProps> = ({
   vertical,
 }) => {
   const name = resolveMdiName(path);
-  const d = name ? mdiPathMap[name] : undefined;
 
-  if (!d) {
-    // Unknown icon — render nothing (or a placeholder)
+  if (!name) {
     return null;
   }
 
   const style: React.CSSProperties = {};
 
   const width = typeof size === 'number' ? `${size * 24}px` : size;
-  const height = typeof size === 'number' ? `${size * 24}px` : size;
+  const height = width;
 
   if (color) {
     style.color = color;
@@ -99,7 +94,7 @@ export const Icon: React.FC<IconProps> = ({
       aria-hidden="true"
     >
       {title && <title>{title}</title>}
-      <path d={d} />
+      <use href={`/mdi-sprite.svg#mdi-${name}`} />
     </svg>
   );
 };
