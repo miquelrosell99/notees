@@ -32,7 +32,7 @@ from ..workspace_io import (
 )
 from .auth import get_current_user
 
-router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
+router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 logger = get_logger(__name__)
 
 

@@ -12,7 +12,7 @@ from ..models import ExportFormat, ExportRequest, User
 from ..node_export import export_nodes as _run_export
 from .auth import get_current_user
 
-router = APIRouter(prefix="/api/export", tags=["Export"])
+router = APIRouter(prefix="/export", tags=["Export"])
 
 
 class RenderPdfRequest(BaseModel):

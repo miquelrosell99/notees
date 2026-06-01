@@ -14,7 +14,7 @@ from .auth import get_current_user
 from .nodes.helpers import _name_text, _resolve_referenced_display_names
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api/shares", tags=["Shares"])
+router = APIRouter(prefix="/shares", tags=["Shares"])
 
 
 async def _get_share_service(user: User) -> ShareService:
