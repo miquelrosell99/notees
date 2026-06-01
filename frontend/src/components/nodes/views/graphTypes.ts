@@ -129,8 +129,6 @@ export interface VisibilityFilters {
   showMonthPages: boolean;
   showYearPages: boolean;
   showSystemPages: boolean;
-  /** Show inferred co-occurrence links (only relevant in co-occurrence mode) */
-  showCooccurrenceLinks: boolean;
   /** When true (local graph only), the center/ego node is hidden to reveal neighbor relations */
   hideSelfNode?: boolean;
 }
@@ -203,6 +201,5 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showMonthPages: true,
   showYearPages: true,
   showSystemPages: true,
-  showCooccurrenceLinks: true,
   hideSelfNode: false,
 };

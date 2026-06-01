@@ -262,15 +262,12 @@ export function GraphSettingsSidebar({
         <div className="visibility-option">
           <BooleanToggle
             size="sm"
-            label="Co-occurrence analysis"
+            label="Co-occurrence links"
             labelPosition="left"
             checked={graphDataMode === 'cooccurrence'}
             onChange={(e) => {
               const mode = e.target.checked ? 'cooccurrence' : 'standard';
               onGraphDataModeChange(mode);
-              if (!e.target.checked) {
-                onVisibilityFiltersChange(prev => ({ ...prev, showCooccurrenceLinks: false }));
-              }
             }}
           />
         </div>
@@ -307,19 +304,6 @@ export function GraphSettingsSidebar({
             onChange={(e) => onVisibilityFiltersChange(prev => ({
               ...prev,
               showClassLinks: e.target.checked
-            }))}
-          />
-        </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
-            label="Co-occurrence links"
-            labelPosition="left"
-            checked={visibilityFilters.showCooccurrenceLinks}
-            disabled={graphDataMode === 'standard'}
-            onChange={(e) => onVisibilityFiltersChange(prev => ({
-              ...prev,
-              showCooccurrenceLinks: e.target.checked
             }))}
           />
         </div>
