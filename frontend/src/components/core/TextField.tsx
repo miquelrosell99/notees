@@ -1,6 +1,6 @@
 /**
  * TextField Component
- * 
+ *
  * A reusable text input component with consistent styling.
  * Features slightly rounded corners and subtle border.
  */
@@ -105,7 +105,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   if (label) {
     return (
       <div className={wrapperClasses}>
-        <label className="text-field__label">{label}</label>
+        <label htmlFor={props.id} className="text-field__label">{label}</label>
         {inputElement}
         {error && errorMessage && (
           <span id={errorId} className="text-field__error" role="alert">{errorMessage}</span>
@@ -123,4 +123,3 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     </>
   );
 });
-

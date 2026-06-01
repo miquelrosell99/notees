@@ -77,6 +77,7 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
         <form onSubmit={handleSubmit} className="login-form">
           <TextField
             id="email"
+            name="email"
             type="email"
             label="Email"
             value={email}
@@ -88,6 +89,7 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
 
           <TextField
             id="password"
+            name="password"
             type="password"
             label="Password"
             value={password}
@@ -100,6 +102,7 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
           {isRegister && (
             <TextField
               id="confirm-password"
+              name="confirm-password"
               type="password"
               label="Confirm password"
               value={confirmPassword}
