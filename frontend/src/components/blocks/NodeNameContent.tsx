@@ -10,7 +10,7 @@ import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { useNavigationStore } from '@/stores';
-import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
+import { useReferencedNode } from '@/contexts/useReferencedNode';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -24,7 +24,7 @@ import '@/styles/math.css';
 function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children: React.ReactNode }) {
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
-  const { data: node } = __useBatchedNodeByUuid(nodeUuid);
+  const { data: node } = useBatchedNodeByUuid(nodeUuid);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   }, [node, openNode, addSidebarCard]);
 
   return (
-    <span className="inline-link-wrapper" onClick={handleClick}>
+    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="inline-link-wrapper" onClick={handleClick}>
       {children}
     </span>
   );
@@ -125,7 +125,7 @@ export function NodeNameContent({ name }: { name: string | null | undefined }) {
   return <>{content.length > 0 ? content : 'Untitled'}</>;
 }
 
-function __useBatchedNodeByUuid(uuid: string) {
+function useBatchedNodeByUuid(uuid: string) {
   const refNode = useReferencedNode(uuid);
   const { data: fallback } = useNodeByUuid(!refNode ? uuid : null, {
     meta: { skipGlobalError: true },

@@ -217,28 +217,28 @@ async def delete_workspace(user_id: str, workspace_uuid: str) -> bool:
         # PostgreSQL's per-row triggers fire for every affected node.
         # Fix: disable all user triggers on the node table for the duration of this
         # operation. The notees DB user is the table owner so this is permitted.
-        _BIG = 600  # 10-minute ceiling for bulk workspace deletion
+        bulk_timeout = 600  # 10-minute ceiling for bulk workspace deletion
 
-        await conn.execute("ALTER TABLE node DISABLE TRIGGER ALL", timeout=_BIG)
+        await conn.execute("ALTER TABLE node DISABLE TRIGGER ALL", timeout=bulk_timeout)
         try:
             await conn.execute(
                 "DELETE FROM node_activity WHERE node_id IN (SELECT id FROM node WHERE workspace_id = $1)",
                 workspace_id,
-                timeout=_BIG,
+                timeout=bulk_timeout,
             )
             await conn.execute(
                 """DELETE FROM link_click
                    WHERE source_node_id IN (SELECT id FROM node WHERE workspace_id = $1)
                       OR target_node_id IN (SELECT id FROM node WHERE workspace_id = $1)""",
                 workspace_id,
-                timeout=_BIG,
+                timeout=bulk_timeout,
             )
-            await conn.execute("DELETE FROM node WHERE workspace_id = $1", workspace_id, timeout=_BIG)
+            await conn.execute("DELETE FROM node WHERE workspace_id = $1", workspace_id, timeout=bulk_timeout)
         finally:
-            await conn.execute("ALTER TABLE node ENABLE TRIGGER ALL", timeout=_BIG)
+            await conn.execute("ALTER TABLE node ENABLE TRIGGER ALL", timeout=bulk_timeout)
 
-        await conn.execute("DELETE FROM property WHERE workspace_id = $1", workspace_id, timeout=_BIG)
-        result = await conn.execute("DELETE FROM workspace WHERE id = $1", workspace_id, timeout=_BIG)
+        await conn.execute("DELETE FROM property WHERE workspace_id = $1", workspace_id, timeout=bulk_timeout)
+        result = await conn.execute("DELETE FROM workspace WHERE id = $1", workspace_id, timeout=bulk_timeout)
 
         deleted = result.split()[-1] != "0"
 

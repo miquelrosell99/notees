@@ -82,7 +82,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                         ]
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
-                elif isinstance(child.child, ContentCondition) or isinstance(child.child, PropertyCondition):
+                elif isinstance(child.child, (ContentCondition, PropertyCondition)):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, ParentCondition):
                     if child.child.parent_uuid:
@@ -106,7 +106,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                     child.target_uuids = [self._resolve_placeholder(u, runtime_params) for u in child.target_uuids]
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
-            elif isinstance(child, PropertyCondition) or isinstance(child, ContentCondition):
+            elif isinstance(child, (PropertyCondition, ContentCondition)):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
                 logger.info(f"[_substitute_in_group] ParentCondition found, parent_uuid={child.parent_uuid}")
@@ -157,10 +157,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         """Execute a query and return results with optional pagination metadata."""
         t_start = time.monotonic()
 
-        if isinstance(query, dict):
-            query_ast = QueryAST.from_dict(query)
-        else:
-            query_ast = query
+        query_ast = QueryAST.from_dict(query) if isinstance(query, dict) else query
 
         query_ast = self._substitute_params(query_ast, runtime_params or {})
 
@@ -278,9 +275,8 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             if "page_uuid" in node_dict and node_dict["page_uuid"]:
                 node_dict["page_uuid"] = str(node_dict["page_uuid"])
             for key in ("create_date", "write_date", "open_date"):
-                if key in node_dict and node_dict[key]:
-                    if isinstance(node_dict[key], datetime):
-                        node_dict[key] = node_dict[key].isoformat()
+                if key in node_dict and node_dict[key] and isinstance(node_dict[key], datetime):
+                    node_dict[key] = node_dict[key].isoformat()
             results.append(node_dict)
         return results
 
@@ -290,10 +286,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         runtime_params: dict[str, Any] | None = None,
     ) -> int:
         """Count results for a query without fetching all data."""
-        if isinstance(query, dict):
-            query_ast = QueryAST.from_dict(query)
-        else:
-            query_ast = query
+        query_ast = QueryAST.from_dict(query) if isinstance(query, dict) else query
 
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         query_ast = optimize_ast(query_ast)

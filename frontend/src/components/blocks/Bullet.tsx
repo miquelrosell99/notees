@@ -155,7 +155,7 @@ export function Bullet({
   }, [showCollapseArrowProp]);
   
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={(el) => {
         bulletRef.current = el;
         if (activatorRef) activatorRef(el);

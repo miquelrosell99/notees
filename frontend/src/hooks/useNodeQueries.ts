@@ -8,6 +8,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
+import type { Node } from '@/types/api';
 
 // ==================== Helper Functions ====================
 
@@ -25,7 +26,7 @@ function formatLocalDate(date: Date): string {
  * Recursively search a node tree for a node by ID.
  * Returns the matching node or undefined.
  */
-function findNodeInTree(root: import('@/types/api').Node, targetId: number): import('@/types/api').Node | undefined {
+function findNodeInTree(root: Node, targetId: number): Node | undefined {
   if (root.id === targetId) return root;
   if (root.children) {
     for (const child of root.children) {
@@ -77,7 +78,7 @@ export function useNode(
       if (!id) return undefined;
       const queryCache = queryClient.getQueryCache();
       for (const query of queryCache.findAll({ queryKey: nodeKeys.details() })) {
-        const data = query.state.data as import('@/types/api').Node | undefined;
+        const data = query.state.data as Node | undefined;
         if (data) {
           const found = findNodeInTree(data, id);
           if (found) return found;

@@ -40,7 +40,7 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
               size="sm"
               onClick={() => openNode(entry.id)}
             />
-            <span
+            <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
               className="sidebar-toc-item__text"
               onClick={() => onTocClick(entry.id)}
               title={entry.text}

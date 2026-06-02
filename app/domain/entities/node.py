@@ -27,12 +27,10 @@ from __future__ import annotations
 import uuid as uuid_module
 from dataclasses import dataclass, field
 
+from ...utils import utc_now_iso
+
 # Type alias for node IDs
 NodeId = int
-
-
-# Import from shared utility for consistency
-from ...utils import utc_now_iso
 
 
 def generate_uuid() -> str:

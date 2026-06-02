@@ -1,18 +1,15 @@
 """CRUD operations for nodes."""
 
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
-from ...logging_config import get_logger
-
-logger = get_logger(__name__)
-
-from datetime import UTC
-
 from ...db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
+from ...logging_config import get_logger
 from ...models import User
 from ...node_export import write_share_html
 from ..auth import get_current_user
@@ -43,6 +40,8 @@ from .models import (
     TemplateInstantiateRequest,
     TemplateInstantiateResponse,
 )
+
+logger = get_logger(__name__)
 
 _crud_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
@@ -109,10 +108,12 @@ async def create_page(
     name: str,
     icon: str | None = None,
     color: str | None = None,
-    additional_types: list[int] = [],
+    additional_types: list[int] = None,
     user: User = Depends(get_current_user),
 ):
     """Create a new page (convenience endpoint)."""
+    if additional_types is None:
+        additional_types = []
     service = await _get_node_service(user)
     node = await service.create_page(name, icon, color, additional_types)
     return _node_to_response(node)
@@ -1159,32 +1160,36 @@ async def get_page_content(
     logger.info(f"Page {page_id} properties: {list(all_prop_values.keys())}")
     page_response.properties = extract_properties_dict(all_prop_values)
 
-    # Add backlinks with context
+    # Add backlinks with context — batch fetch source nodes and pages
     page_response.linked_references = []
-    for link in backlinks:
-        source = await service.get_node(link.source_node_id)
-        if not source:
-            continue
+    if backlinks:
+        unique_source_ids = list({link.source_node_id for link in backlinks})
+        source_nodes = await service.get_nodes_batch(unique_source_ids)
+        unique_page_ids = list({node.page_id for node in source_nodes.values() if node.page_id})
+        source_pages = await service.get_nodes_batch(unique_page_ids) if unique_page_ids else {}
 
-        source_page = None
-        if source.page_id:
-            source_page = await service.get_node(source.page_id)
+        for link in backlinks:
+            source = source_nodes.get(link.source_node_id)
+            if not source:
+                continue
 
-        # Extract context around the link
-        context = source.name
-        if link.position > 0 and len(context) > 100:
-            start = max(0, link.position - 50)
-            end = min(len(context), link.position + 50)
-            context = "..." + context[start:end] + "..."
+            source_page = source_pages.get(source.page_id) if source.page_id else None
 
-        page_response.linked_references.append(
-            LinkedReferenceResponse(
-                source_node=_node_to_response(source),
-                source_page=_node_to_response(source_page) if source_page else None,
-                link_type="property" if link.property_id else "text",
-                context=context,
+            # Extract context around the link
+            context = source.name
+            if link.position > 0 and len(context) > 100:
+                start = max(0, link.position - 50)
+                end = min(len(context), link.position + 50)
+                context = "..." + context[start:end] + "..."
+
+            page_response.linked_references.append(
+                LinkedReferenceResponse(
+                    source_node=_node_to_response(source),
+                    source_page=_node_to_response(source_page) if source_page else None,
+                    link_type="property" if link.property_id else "text",
+                    context=context,
+                )
             )
-        )
 
     # Build referenced_nodes map — lightweight metadata for all outgoing link targets.
     # This eliminates N+1 GET /api/nodes/uuid/{uuid} calls from inline pills.

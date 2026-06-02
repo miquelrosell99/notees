@@ -81,7 +81,7 @@ export function SelectionPropertyCell({
   // Empty state
   if (resolvedOptions.length === 0) {
     return (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={() => editable && setIsPickerOpen(true)}
@@ -93,7 +93,7 @@ export function SelectionPropertyCell({
             {options.map(option => {
               const color = option.color || parseIconField(option.icon || '').color || null;
               return (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
                   key={option.id}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}
@@ -143,7 +143,7 @@ export function SelectionPropertyCell({
             .map(option => {
               const color = option.color || parseIconField(option.icon || '').color || null;
               return (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
                   key={option.id}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}

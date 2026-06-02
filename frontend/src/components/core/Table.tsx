@@ -472,7 +472,7 @@ export function Table<T>({
         >
           {/* Drag handle - positioned element to the left of row */}
           {reorderable && currentDepth === depth && (
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
               className="table-drag-handle"
               onMouseDown={(e) => handleDragStart(index, e)}
               onClick={(e) => e.stopPropagation()}

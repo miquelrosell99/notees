@@ -14,7 +14,7 @@ import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { TextField } from '@/components/core/TextField';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
-import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
+import { useReferencedNode } from '@/contexts/useReferencedNode';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { parseLinkId } from '@/lib/astBuilder';
 import type { InlineLinkRefType } from '../nodes/InlineLinkNode';

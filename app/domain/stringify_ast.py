@@ -32,7 +32,7 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import (
     Any,
 )
@@ -52,7 +52,7 @@ __all__ = [
 # ── Public types ────────────────────────────────────────────────────
 
 
-class StringifyMode(str, Enum):
+class StringifyMode(StrEnum):
     """Closed enum of stringify modes (AST → string)."""
 
     NODE_MARKDOWN = "NODE_MARKDOWN"
@@ -65,7 +65,7 @@ class StringifyMode(str, Enum):
     """Plain text for search indexing."""
 
 
-class ParseMode(str, Enum):
+class ParseMode(StrEnum):
     """Closed enum of parse modes (string → AST)."""
 
     JSON = "JSON"

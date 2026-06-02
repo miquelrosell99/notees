@@ -48,7 +48,7 @@ class AssetMissingError(AssetError):
     pass
 
 
-class AssetInvariantViolation(AssetError):
+class AssetInvariantViolationError(AssetError):
     """Asset folder violates core invariants."""
 
     pass
@@ -93,7 +93,7 @@ class AssetService:
         Find the source file in an asset folder.
 
         Returns None if folder doesn't exist.
-        Raises AssetInvariantViolation if multiple or zero source files found.
+        Raises AssetInvariantViolationError if multiple or zero source files found.
         """
         folder = self.get_asset_folder(asset_uuid)
 
@@ -101,16 +101,16 @@ class AssetService:
             return None
 
         if not folder.is_dir():
-            raise AssetInvariantViolation(f"Asset path exists but is not a folder: {asset_uuid}")
+            raise AssetInvariantViolationError(f"Asset path exists but is not a folder: {asset_uuid}")
 
         # Find all files that match main.<ext> pattern
         source_files = [f for f in folder.iterdir() if f.is_file() and f.stem == "main" and f.name != "thumbnail.webp"]
 
         if len(source_files) == 0:
-            raise AssetInvariantViolation(f"Asset folder has no source file: {asset_uuid}")
+            raise AssetInvariantViolationError(f"Asset folder has no source file: {asset_uuid}")
 
         if len(source_files) > 1:
-            raise AssetInvariantViolation(
+            raise AssetInvariantViolationError(
                 f"Asset folder has multiple source files: {asset_uuid} - {[f.name for f in source_files]}"
             )
 
@@ -383,7 +383,7 @@ class AssetService:
                 return True, None, extension
             else:
                 return False, "Asset folder not found", None
-        except AssetInvariantViolation as e:
+        except AssetInvariantViolationError as e:
             return False, str(e), None
         except Exception as e:
             return False, f"Verification failed: {e}", None

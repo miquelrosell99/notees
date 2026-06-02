@@ -76,7 +76,7 @@ export function QuerySection({
   }, []);
 
   const renderHeader = useCallback((count?: number) => (
-    <div className="node-view-section__header-content" onClick={handleToggle}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-section__header-content" onClick={handleToggle}>
       <Button 
         variant="ghost"
         size="xs"

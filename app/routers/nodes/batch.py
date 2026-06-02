@@ -6,11 +6,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi_limiter.depends import RateLimiter as _RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
-from ...logging_config import get_logger
-
-logger = get_logger(__name__)
-
 from ...domain.entities import NodeCreateData, NodeUpdateData
+from ...logging_config import get_logger
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
@@ -35,6 +32,8 @@ from .models import (
     BatchNodeUpdateResultItem,
     NodeResponse,
 )
+
+logger = get_logger(__name__)
 
 _batch_create_limiter = Limiter(Rate(60, Duration.MINUTE))
 _batch_update_limiter = Limiter(Rate(120, Duration.MINUTE))

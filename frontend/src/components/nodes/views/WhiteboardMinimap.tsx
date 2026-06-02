@@ -121,8 +121,11 @@ function drawMinimapCanvas(
           const cx = x + w / 2, cy = y + h / 2, rx = w / 2, ry = h / 2;
           for (let i = 0; i < 6; i++) {
             const a = (Math.PI / 3) * i - Math.PI / 6;
-            i === 0 ? ctx.moveTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a))
-                    : ctx.lineTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+            if (i === 0) {
+              ctx.moveTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+            } else {
+              ctx.lineTo(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+            }
           }
           ctx.closePath();
           break;
@@ -132,8 +135,11 @@ function drawMinimapCanvas(
           for (let i = 0; i < 10; i++) {
             const a = (Math.PI / 5) * i - Math.PI / 2;
             const r2 = i % 2 === 0 ? or : ir;
-            i === 0 ? ctx.moveTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a))
-                    : ctx.lineTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a));
+            if (i === 0) {
+              ctx.moveTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a));
+            } else {
+              ctx.lineTo(cx + r2 * Math.cos(a), cy + r2 * Math.sin(a));
+            }
           }
           ctx.closePath();
           break;

@@ -195,15 +195,13 @@ class ClassManagementService:
         if not node:
             return False
 
-        if class_node and class_node.uuid == CLASS_CLASS_UUID:
-            if not node.is_page:
-                raise SystemClassConstraintError("The 'class' class can only be assigned to pages, not blocks.")
+        if class_node and class_node.uuid == CLASS_CLASS_UUID and not node.is_page:
+            raise SystemClassConstraintError("The 'class' class can only be assigned to pages, not blocks.")
 
-        if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS:
-            if node.is_page:
-                raise SystemClassConstraintError(
-                    f"The '{class_node.name}' class can only be assigned to blocks, not pages."
-                )
+        if class_node and class_node.uuid in BLOCK_ONLY_CLASS_UUIDS and node.is_page:
+            raise SystemClassConstraintError(
+                f"The '{class_node.name}' class can only be assigned to blocks, not pages."
+            )
 
         current_class_ids = list(node.class_ids or [])
         if class_node_id in current_class_ids:

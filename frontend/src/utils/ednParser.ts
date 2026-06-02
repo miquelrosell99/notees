@@ -56,7 +56,7 @@ function tokenize(input: string): Token[] {
       if (next === '_') { advance(); tokens.push({ type: 'discard' }); continue; }
       // Tagged literal — read the tag name
       let tag = '';
-      while (i < input.length && !isWhitespace(peek()) && !/[{}\[\]()]/.test(peek())) {
+      while (i < input.length && !isWhitespace(peek()) && !/[{}[\]()]/.test(peek())) {
         tag += advance();
       }
       tokens.push({ type: 'tagged', tag });
@@ -80,7 +80,7 @@ function tokenize(input: string): Token[] {
     if (c === ':') {
       let kw = '';
       advance(); // skip :
-      while (i < input.length && !isWhitespace(peek()) && !/[{}\[\]()#"]/.test(peek())) {
+      while (i < input.length && !isWhitespace(peek()) && !/[{}[\]()#" ]/.test(peek())) {
         kw += advance();
       }
       tokens.push({ type: 'keyword', value: kw });
@@ -89,7 +89,7 @@ function tokenize(input: string): Token[] {
 
     // Number or symbol  (very loose — we refine in the parser)
     let atom = '';
-    while (i < input.length && !isWhitespace(peek()) && !/[{}\[\]()#";]/.test(peek())) {
+    while (i < input.length && !isWhitespace(peek()) && !/[{}[\]()#"; ]/.test(peek())) {
       atom += advance();
     }
 

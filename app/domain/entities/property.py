@@ -25,13 +25,13 @@ Local properties have is_local=True and are unique per node_id (must be page typ
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from .node import generate_uuid, utc_now_iso
 
 
-class PropertyType(str, Enum):
+class PropertyType(StrEnum):
     """Types of properties."""
 
     # Scalar types - stored in property_value_scalar
@@ -51,7 +51,7 @@ class PropertyType(str, Enum):
     SELECTION = "selection"
 
 
-class PropertyScope(str, Enum):
+class PropertyScope(StrEnum):
     """Scope of a property definition.
 
     - GLOBAL: Available workspace-wide (the default). Name unique per workspace.

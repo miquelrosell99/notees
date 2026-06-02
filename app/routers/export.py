@@ -145,9 +145,9 @@ async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current
     present the content (e.g. let the browser print to PDF via Ctrl+P).
     """
     try:
-        from weasyprint import HTML as WeasyprintHTML
+        from weasyprint import HTML as WEASYPRINT_HTML
 
-        pdf_bytes = WeasyprintHTML(string=request.html).write_pdf()
+        pdf_bytes = WEASYPRINT_HTML(string=request.html).write_pdf()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

@@ -885,14 +885,14 @@ async def fix_raw_uuid_links(
     errors = []
 
     # UUID v4 pattern fragment (reused in both regex alternatives)
-    _UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    uuid_re = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
     # Matches both:
     #   [Custom Label]([[uuid]])  — labeled markdown link format
     #   [[uuid]]                  — bare UUID reference
     # Named groups: label (optional), uuid_labeled / uuid_bare (exactly one set)
     uuid_pattern = re.compile(
-        rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{_UUID_RE})\]\]\)|\[\[(?P<uuid_bare>{_UUID_RE})\]\])",
+        rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{uuid_re})\]\]\)|\[\[(?P<uuid_bare>{uuid_re})\]\])",
         re.IGNORECASE,
     )
 
@@ -1041,7 +1041,7 @@ async def fix_raw_uuid_links(
                         link_id = n.get("link_id", "")
                         colon_idx = link_id.find(":")
                         node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
-                        if re.match(_UUID_RE, node_uuid, re.IGNORECASE):
+                        if re.match(uuid_re, node_uuid, re.IGNORECASE):
                             all_referenced_uuids.add(node_uuid)
                     if "children" in n:
                         collect_uuids(n["children"])
@@ -1170,8 +1170,8 @@ async def fix_links_for_uuid(
     service = await _get_node_service(user)
 
     # Validate UUID format
-    _UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    if not re.match(_UUID_RE, target_uuid, re.IGNORECASE):
+    uuid_re = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    if not re.match(uuid_re, target_uuid, re.IGNORECASE):
         raise HTTPException(400, f"Invalid UUID format: {target_uuid}")
 
     target_uuid_lower = target_uuid.lower()
@@ -1181,9 +1181,9 @@ async def fix_links_for_uuid(
     errors = []
 
     # Regex for raw [[uuid]] and [label]([[uuid]]) in text
-    _UUID_RE_FRAGMENT = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    uuid_re_fragment = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
     uuid_pattern = re.compile(
-        rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{_UUID_RE_FRAGMENT})\]\]\)|\[\[(?P<uuid_bare>{_UUID_RE_FRAGMENT})\]\])",
+        rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{uuid_re_fragment})\]\]\)|\[\[(?P<uuid_bare>{uuid_re_fragment})\]\])",
         re.IGNORECASE,
     )
 

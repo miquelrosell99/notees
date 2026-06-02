@@ -131,7 +131,7 @@ export function DuplicatePageModal({
       
       onSuccess(newNode);
       onClose();
-    } catch (err: unknown) {
+    } catch {
       setError('Failed to create page. Please try again.');
     } finally {
       setIsCreating(false);

@@ -76,7 +76,7 @@ export function EmailPropertyCell({
 
   if (!emailValue) {
     return (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={handleClick}
       >
@@ -86,7 +86,7 @@ export function EmailPropertyCell({
   }
 
   return (
-    <div className="property-cell property-cell--email" onClick={editable ? handleClick : undefined}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="property-cell property-cell--email" onClick={editable ? handleClick : undefined}>
       <a
         href={`mailto:${emailValue}`}
         className="property-cell__link"

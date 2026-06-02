@@ -22,14 +22,13 @@
  * ├─ TimelineView (timeline)
  * └─ GraphView (graph)
  */
-import { createContext, useContext, useMemo, useCallback, useState, useEffect, memo, Suspense } from 'react';
+import { useMemo, useCallback, useState, useEffect, memo, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
 import type {
   NodeCollectionProps,
-  NodeCollectionContextValue,
   NodeCollectionGroupBy,
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';
@@ -41,20 +40,7 @@ import { Card } from '@/components/core/Card';
 import { ErrorBoundary } from '@/components/core/ErrorBoundary';
 import './NodeCollection.css';
 
-// ==================== Context ====================
-
-const NodeCollectionContext = createContext<NodeCollectionContextValue | null>(null);
-
-/**
- * Hook to access NodeCollection context
- */
-export function useNodeCollectionContext(): NodeCollectionContextValue {
-  const context = useContext(NodeCollectionContext);
-  if (!context) {
-    throw new Error('useNodeCollectionContext must be used within a NodeCollection');
-  }
-  return context;
-}
+import { NodeCollectionContext } from './NodeCollectionContext';
 
 // ==================== Component ====================
 

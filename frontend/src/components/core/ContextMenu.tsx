@@ -202,7 +202,7 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
 
         if (item.content) {
           return (
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
               key={item.id}
               className="context-menu-content-row"
               onMouseDown={(e) => e.stopPropagation()}
