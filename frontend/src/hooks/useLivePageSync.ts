@@ -208,6 +208,19 @@ export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
               msg.block_id,
               msg.name,
             );
+            // Show ephemeral "typing" indicator for the remote user
+            const typingUser: PresenceUser = {
+              id: msg.user_id,
+              name: 'User',
+              color: '',
+            };
+            const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
+            const existing = usersOnBlock.find((u) => u.id === msg.user_id);
+            if (existing) {
+              typingUser.name = existing.name;
+              typingUser.color = existing.color;
+            }
+            presence.setUserTyping(nodeUuid, msg.block_uuid, typingUser, 3000);
             break;
           }
         }
@@ -223,11 +236,12 @@ export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
       unsubStatus();
       liveSyncManager.disconnect();
       unsubRef.current = null;
-      // Clear presence and locks for this page to avoid stale indicators
+      // Clear presence, locks, and typing for this page to avoid stale indicators
       if (nodeUuid) {
         useLivePresenceStore.setState((state) => ({
           presence: { ...state.presence, [nodeUuid]: {} },
           locks: { ...state.locks, [nodeUuid]: {} },
+          typing: { ...state.typing, [nodeUuid]: {} },
           localFocus: { ...state.localFocus, [nodeUuid]: null },
         }));
       }

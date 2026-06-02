@@ -19,11 +19,22 @@ interface PageLocks {
   [blockUuid: string]: PresenceUser | undefined;
 }
 
+interface TypingEntry {
+  user: PresenceUser;
+  expiresAt: number;
+}
+
+interface PageTyping {
+  [blockUuid: string]: TypingEntry[];
+}
+
 interface LivePresenceState {
   /** nodeUuid -> blockUuid -> users (focused, not necessarily locked) */
   presence: Record<string, PagePresence>;
   /** nodeUuid -> blockUuid -> lock owner */
   locks: Record<string, PageLocks>;
+  /** nodeUuid -> blockUuid -> users currently typing */
+  typing: Record<string, PageTyping>;
   /** The block uuid that the LOCAL user is currently focused on */
   localFocus: Record<string, string | null>;
 
@@ -37,11 +48,16 @@ interface LivePresenceState {
   setLockOwner(nodeUuid: string, blockUuid: string, user: PresenceUser): void;
   removeLockOwner(nodeUuid: string, blockUuid: string): void;
   getLockOwner(nodeUuid: string, blockUuid: string): PresenceUser | undefined;
+
+  setUserTyping(nodeUuid: string, blockUuid: string, user: PresenceUser, ttlMs?: number): void;
+  clearUserTyping(nodeUuid: string, blockUuid: string, userId: number): void;
+  getTypingUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
 }
 
 export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
   presence: {},
   locks: {},
+  typing: {},
   localFocus: {},
 
   setUserFocus(nodeUuid, blockUuid, user) {
@@ -143,5 +159,47 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
 
   getLockOwner(nodeUuid, blockUuid) {
     return get().locks[nodeUuid]?.[blockUuid];
+  },
+
+  setUserTyping(nodeUuid, blockUuid, user, ttlMs = 3000) {
+    const expiresAt = Date.now() + ttlMs;
+    set((state) => {
+      const page = state.typing[nodeUuid] ?? {};
+      const list = page[blockUuid] ?? [];
+      const filtered = list.filter((e) => e.user.id !== user.id);
+      const nextPage = {
+        ...page,
+        [blockUuid]: [...filtered, { user, expiresAt }],
+      };
+      return {
+        typing: { ...state.typing, [nodeUuid]: nextPage },
+      };
+    });
+  },
+
+  clearUserTyping(nodeUuid, blockUuid, userId) {
+    set((state) => {
+      const page = state.typing[nodeUuid];
+      if (!page) return state;
+      const list = page[blockUuid];
+      if (!list) return state;
+      const filtered = list.filter((e) => e.user.id !== userId);
+      if (filtered.length === list.length) return state;
+      const nextPage = { ...page };
+      if (filtered.length === 0) {
+        delete nextPage[blockUuid];
+      } else {
+        nextPage[blockUuid] = filtered;
+      }
+      return {
+        typing: { ...state.typing, [nodeUuid]: nextPage },
+      };
+    });
+  },
+
+  getTypingUsersOnBlock(nodeUuid, blockUuid) {
+    const now = Date.now();
+    const entries = get().typing[nodeUuid]?.[blockUuid] ?? [];
+    return entries.filter((e) => e.expiresAt > now).map((e) => e.user);
   },
 }));
