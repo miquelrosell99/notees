@@ -91,6 +91,7 @@ function flattenNodes(
   const result: FlatNode[] = [];
   for (const node of nodes) {
     // Apply filters
+    if (node.is_comment) continue;
     if (pagesOnly && !node.is_page) continue;
     if (skipPages && node.is_page) continue;
 
@@ -158,6 +159,7 @@ function flattenNodesFromRuntime(
     for (const uuid of uuids) {
       const node = nodeMap.get(uuid);
       if (!node) continue;
+      if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
       result.push({ node, depth });

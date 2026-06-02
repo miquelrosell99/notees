@@ -98,20 +98,26 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
     async def delete_source_links(self, source_node_id: int) -> int:
         """Delete all links from a source node (for re-parsing)."""
         async with acquire_connection(self._pool) as conn:
-            result = await conn.execute("DELETE FROM node_link WHERE source_id = $1", source_node_id)
+            result = await conn.execute(
+                "DELETE FROM node_link WHERE source_id = $1 AND workspace_id = $2", source_node_id, self._workspace_id
+            )
             # Parse "DELETE n" to get count
             return int(result.split()[-1]) if result else 0
 
     async def get_source_links(self, source_node_id: int) -> list[NodeLink]:
         """Get all links from a source node."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("SELECT * FROM node_link WHERE source_id = $1", source_node_id)
+            rows = await conn.fetch(
+                "SELECT * FROM node_link WHERE source_id = $1 AND workspace_id = $2", source_node_id, self._workspace_id
+            )
             return [self._row_to_link(row) for row in rows]
 
     async def get_backlinks(self, target_node_id: int) -> list[NodeLink]:
         """Get all links pointing to a target node."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("SELECT * FROM node_link WHERE target_id = $1", target_node_id)
+            rows = await conn.fetch(
+                "SELECT * FROM node_link WHERE target_id = $1 AND workspace_id = $2", target_node_id, self._workspace_id
+            )
             return [self._row_to_link(row) for row in rows]
 
     async def get_page_backlinks(self, page_id: int) -> list[NodeLink]:
@@ -133,7 +139,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
     async def get_outgoing_links(self, source_node_id: int) -> list[NodeLink]:
         """Get all links from a source node."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("SELECT * FROM node_link WHERE source_id = $1", source_node_id)
+            rows = await conn.fetch(
+                "SELECT * FROM node_link WHERE source_id = $1 AND workspace_id = $2", source_node_id, self._workspace_id
+            )
             return [self._row_to_link(row) for row in rows]
 
     def get_connection(self) -> asyncpg.Pool:
@@ -214,8 +222,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get all inline class links from a source node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE ORDER BY position",
+                "SELECT * FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE AND workspace_id = $2 ORDER BY position",
                 source_node_id,
+                self._workspace_id,
             )
             return [self._row_to_link(row) for row in rows]
 
@@ -223,7 +232,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get all inline class links pointing to a target node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node_link WHERE target_id = $1 AND is_inline_class = TRUE", target_node_id
+                "SELECT * FROM node_link WHERE target_id = $1 AND is_inline_class = TRUE AND workspace_id = $2",
+                target_node_id,
+                self._workspace_id,
             )
             return [self._row_to_link(row) for row in rows]
 
@@ -247,7 +258,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get target IDs of text links (non-tag, non-inline-class) from a source node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL", source_node_id
+                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND workspace_id = $2",
+                source_node_id,
+                self._workspace_id,
             )
             return [row["target_id"] for row in rows]
 
@@ -255,8 +268,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get target IDs of tag links from a source node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = TRUE",
+                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $2",
                 source_node_id,
+                self._workspace_id,
             )
             return [row["target_id"] for row in rows]
 
@@ -264,8 +278,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Delete all non-tag, non-inline-class text links from a source node."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE AND is_inline_class = FALSE",
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE AND is_inline_class = FALSE AND workspace_id = $2",
                 source_node_id,
+                self._workspace_id,
             )
             return int(result.split()[-1]) if result else 0
 
@@ -273,12 +288,13 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Ensure a tag link exists between source and target."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT id FROM node_link WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL",
+                "SELECT id FROM node_link WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND workspace_id = $3",
                 source_node_id,
                 target_id,
+                self._workspace_id,
             )
             if row:
-                await conn.execute("UPDATE node_link SET is_tag = TRUE WHERE id = $1", row["id"])
+                await conn.execute("UPDATE node_link SET is_tag = TRUE WHERE id = $1 AND workspace_id = $2", row["id"], self._workspace_id)
                 return True
             return False
 
@@ -286,9 +302,10 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Remove the tag flag from a link between source and target."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "UPDATE node_link SET is_tag = FALSE WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE",
+                "UPDATE node_link SET is_tag = FALSE WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3",
                 source_node_id,
                 target_id,
+                self._workspace_id,
             )
             return int(result.split()[-1]) > 0 if result else False
 
@@ -296,7 +313,10 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Delete all links for a specific property from a source node."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id = $2", source_node_id, property_id
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id = $2 AND workspace_id = $3",
+                source_node_id,
+                property_id,
+                self._workspace_id,
             )
             return int(result.split()[-1]) if result else 0
 
@@ -304,8 +324,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get IDs of nodes that alias the target node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT id FROM node WHERE aliased_id = $1 AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)",
+                "SELECT id FROM node WHERE aliased_id = $1 AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL) AND workspace_id = $2",
                 target_id,
+                self._workspace_id,
             )
             return [row["id"] for row in rows]
 
@@ -324,12 +345,13 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 JOIN node n ON nl.source_id = n.id
                 LEFT JOIN property p ON nl.property_id = p.id
                 LEFT JOIN node page ON n.page_id = page.id
-                WHERE nl.target_id = ANY($1)
+                WHERE nl.target_id = ANY($1) AND n.workspace_id = $2
                   AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
                   AND (p.name IS NULL OR p.name NOT IN ('classes', 'extends'))
                   AND (nl.is_inline_class IS NULL OR nl.is_inline_class = FALSE)
             """,
                 target_ids,
+                self._workspace_id,
             )
 
     async def get_property_backlinks_batch(self, target_ids: list[int]) -> list[asyncpg.Record]:
@@ -347,12 +369,13 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 JOIN property p ON pvr.property_id = p.id
                 JOIN node n ON pvr.node_id = n.id
                 LEFT JOIN node page ON n.page_id = page.id
-                WHERE pvr.target_id = ANY($1)
+                WHERE pvr.target_id = ANY($1) AND n.workspace_id = $2
                   AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
                   AND p.type = 'node'
                   AND p.name NOT IN ('classes', 'extends')
             """,
                 target_ids,
+                self._workspace_id,
             )
 
     async def get_text_property_backlinks_batch(self, target_ids: list[int]) -> list[asyncpg.Record]:
@@ -371,10 +394,11 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 JOIN property p ON pvr.property_id = p.id
                 JOIN node owner ON pvr.node_id = owner.id
                 LEFT JOIN node page ON owner.page_id = page.id
-                WHERE pvr.target_id = ANY($1) AND p.type = 'text'
+                WHERE pvr.target_id = ANY($1) AND p.type = 'text' AND owner.workspace_id = $2
                   AND (owner.is_deleted = FALSE OR owner.is_deleted IS NULL)
             """,
                 target_ids,
+                self._workspace_id,
             )
 
     async def get_path_references(self, source_ids: list[int]) -> list[int]:
@@ -383,14 +407,16 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             return []
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT DISTINCT nl.target_id FROM node_link nl WHERE nl.source_id = ANY($1)", source_ids
+                "SELECT DISTINCT nl.target_id FROM node_link nl WHERE nl.source_id = ANY($1) AND nl.workspace_id = $2",
+                source_ids,
+                self._workspace_id,
             )
             return [row["target_id"] for row in rows]
 
     async def get_node_class_ids(self, node_id: int) -> list[int]:
         """Get class_ids array for a node."""
         async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow("SELECT class_ids FROM node WHERE id = $1", node_id)
+            row = await conn.fetchrow("SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id)
             return row["class_ids"] if row and row["class_ids"] else []
 
     async def get_distinct_class_ids(self, node_ids: list[int]) -> list[int]:
@@ -399,8 +425,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             return []
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT DISTINCT unnest(class_ids) as class_id FROM node WHERE id = ANY($1) AND class_ids IS NOT NULL",
+                "SELECT DISTINCT unnest(class_ids) as class_id FROM node WHERE id = ANY($1) AND class_ids IS NOT NULL AND workspace_id = $2",
                 node_ids,
+                self._workspace_id,
             )
             return [row["class_id"] for row in rows]
 
@@ -418,8 +445,9 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         """Get target IDs of inline class links from a source node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT DISTINCT target_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE",
+                "SELECT DISTINCT target_id FROM node_link WHERE source_id = $1 AND is_inline_class = TRUE AND workspace_id = $2",
                 source_node_id,
+                self._workspace_id,
             )
             return [row["target_id"] for row in rows]
 
@@ -442,7 +470,11 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
     async def get_backlink_source_ids(self, target_id: int) -> list[int]:
         """Get distinct source node IDs that link to the target."""
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch("SELECT DISTINCT source_id FROM node_link WHERE target_id = $1", target_id)
+            rows = await conn.fetch(
+                "SELECT DISTINCT source_id FROM node_link WHERE target_id = $1 AND workspace_id = $2",
+                target_id,
+                self._workspace_id,
+            )
             return [row["source_id"] for row in rows]
 
     async def redirect_link_targets(self, old_target_id: int, new_target_id: int) -> None:

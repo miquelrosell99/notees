@@ -354,7 +354,7 @@ class PostgresNodeRepository(
             return self._row_to_node(row) if row else None
 
     async def delete(self, node_id: int) -> bool:
-        """Delete a node and all its children (soft delete)."""
+        """Delete a node and all its children (soft delete via is_deleted)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -381,7 +381,7 @@ class PostgresNodeRepository(
             now = utc_now()
             await conn.execute(
                 """
-                UPDATE node SET active = FALSE, write_date = $1, write_uid = $2
+                UPDATE node SET is_deleted = TRUE, deleted_at = $1, write_date = $1, write_uid = $2
                 WHERE id = ANY($3) AND workspace_id = $4
             """,
                 now,
@@ -443,22 +443,22 @@ class PostgresNodeRepository(
             return True
 
     async def get_children(self, parent_id: int) -> list[Node]:
-        """Get direct children of a node."""
+        """Get direct children of a node (excludes comments)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
+                "SELECT * FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence",
                 parent_id,
                 self._workspace_id,
             )
             return [self._row_to_node(row) for row in rows]
 
     async def get_page_content(self, page_id: int) -> list[Node]:
-        """Get all nodes belonging to a page (recursive children)."""
+        """Get all nodes belonging to a page (recursive children), excluding comments."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
                 SELECT * FROM node
-                WHERE (page_id = $1 OR id = $1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                WHERE (page_id = $1 OR id = $1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
                 ORDER BY sequence
             """,
                 page_id,
@@ -663,11 +663,12 @@ class PostgresNodeRepository(
             return row is not None
 
     async def get_children_ids(self, parent_id: int) -> list[int]:
-        """Get direct child IDs of a node ordered by sequence."""
+        """Get direct child IDs of a node ordered by sequence (excludes comments)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT id FROM node WHERE parent_id = $1 AND active = TRUE AND is_deleted = FALSE ORDER BY sequence",
+                "SELECT id FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence",
                 parent_id,
+                self._workspace_id,
             )
             return [row["id"] for row in rows]
 
@@ -675,7 +676,9 @@ class PostgresNodeRepository(
         """Get the maximum sequence among children of a parent."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT COALESCE(MAX(sequence), -1) as max_seq FROM node WHERE parent_id = $1", parent_id
+                "SELECT COALESCE(MAX(sequence), -1) as max_seq FROM node WHERE parent_id = $1 AND workspace_id = $2",
+                parent_id,
+                self._workspace_id,
             )
             return row["max_seq"] if row else -1
 
@@ -896,7 +899,7 @@ class PostgresNodeRepository(
     async def get_node_class_ids(self, node_id: int) -> list[int]:
         """Get the class_ids array for a node."""
         async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow("SELECT class_ids FROM node WHERE id = $1", node_id)
+            row = await conn.fetchrow("SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id)
             return row["class_ids"] if row and row["class_ids"] else []
 
     async def update_node_class_ids(self, node_id: int, class_ids: list[int]) -> None:

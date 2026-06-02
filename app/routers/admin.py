@@ -6,7 +6,7 @@ System-level admin endpoints for user management and metrics.
 from fastapi import APIRouter, Depends, HTTPException
 
 from .. import auth
-from ..db.connection import get_connection
+from ..db.connection import get_connection, get_data_dir
 from ..logging_config import get_logger
 from ..models import AdminUserCreate, AdminUserUpdate
 from ..system_settings import get_all_system_settings, get_system_setting, set_system_setting
@@ -246,3 +246,99 @@ async def update_system_setting(
         raise HTTPException(status_code=400, detail="Missing 'value' field")
     await set_system_setting(key, value)
     return {"key": key, "value": value}
+
+
+@router.post("/assets/audit")
+async def audit_assets(
+    dry_run: bool = True,
+    admin_user=Depends(require_admin),  # noqa: B008
+):
+    """Audit asset files on disk vs. active asset nodes in the database.
+
+    Scans all workspace asset directories and reports (or deletes) orphaned files
+    that have no corresponding active node row.
+    """
+
+    data_dir = get_data_dir()
+    workspaces_dir = data_dir / "workspaces"
+    orphans: list[dict] = []
+    missing_files: list[dict] = []
+
+    async with get_connection() as conn:
+        # Get all workspace UUIDs and their IDs
+        workspaces = await conn.fetch(
+            "SELECT id, uuid FROM workspace WHERE active = TRUE"
+        )
+
+        for ws_row in workspaces:
+            ws_uuid = str(ws_row["uuid"])
+            ws_id = ws_row["id"]
+            assets_dir = workspaces_dir / ws_uuid / "assets"
+            if not assets_dir.exists():
+                continue
+
+            for asset_folder in assets_dir.iterdir():
+                if not asset_folder.is_dir():
+                    continue
+                asset_uuid = asset_folder.name
+
+                # Check if this asset has an active node
+                node = await conn.fetchrow(
+                    """
+                    SELECT id, is_deleted, active FROM node
+                    WHERE uuid = $1 AND workspace_id = $2 AND is_asset = TRUE
+                    """,
+                    asset_uuid,
+                    ws_id,
+                )
+
+                if not node:
+                    orphans.append({
+                        "workspace_id": ws_id,
+                        "workspace_uuid": ws_uuid,
+                        "asset_uuid": asset_uuid,
+                        "path": str(asset_folder),
+                        "reason": "no_node",
+                    })
+                    if not dry_run:
+                        import shutil
+                        shutil.rmtree(asset_folder, ignore_errors=True)
+                        logger.info(f"[ASSET_AUDIT] Removed orphan folder: {asset_folder}")
+                elif node["is_deleted"] or not node["active"]:
+                    orphans.append({
+                        "workspace_id": ws_id,
+                        "workspace_uuid": ws_uuid,
+                        "asset_uuid": asset_uuid,
+                        "path": str(asset_folder),
+                        "reason": "node_deleted_or_inactive",
+                        "node_id": node["id"],
+                    })
+                    # NOTE: We do NOT delete files for soft-deleted nodes;
+                    # they are cleaned up on hard-delete or by a separate purge.
+
+            # Find active asset nodes that have MISSING files
+            missing_rows = await conn.fetch(
+                """
+                SELECT uuid FROM node
+                WHERE workspace_id = $1 AND is_asset = TRUE AND active = TRUE AND is_deleted = FALSE
+                """,
+                ws_id,
+            )
+            for row in missing_rows:
+                asset_uuid = str(row["uuid"])
+                asset_folder = assets_dir / asset_uuid
+                if not asset_folder.exists():
+                    missing_files.append({
+                        "workspace_id": ws_id,
+                        "workspace_uuid": ws_uuid,
+                        "asset_uuid": asset_uuid,
+                        "reason": "folder_missing",
+                    })
+
+    return {
+        "dry_run": dry_run,
+        "orphans": orphans,
+        "orphan_count": len(orphans),
+        "missing_files": missing_files,
+        "missing_count": len(missing_files),
+    }

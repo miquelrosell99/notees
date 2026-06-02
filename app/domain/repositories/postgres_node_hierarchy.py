@@ -131,19 +131,19 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         node_id: int,
         include_self: bool = False,
     ) -> list[int]:
-        """Get all descendant IDs of a node using recursive CTE."""
+        """Get all descendant IDs of a node using recursive CTE (excludes comments)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
                 WITH RECURSIVE descendants AS (
                     SELECT id, 0 AS depth
                     FROM node
-                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
                     UNION ALL
                     SELECT n.id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
                 )
                 SELECT id FROM descendants
                 WHERE ($3::boolean OR depth > 0)
@@ -159,7 +159,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         node_ids: list[int],
         include_self: bool = False,
     ) -> dict[int, list[int]]:
-        """Get all descendant IDs for multiple nodes in a single recursive CTE.
+        """Get all descendant IDs for multiple nodes in a single recursive CTE (excludes comments).
 
         Returns a mapping of root_node_id -> list of descendant IDs.
         """
@@ -172,12 +172,12 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                 WITH RECURSIVE descendants AS (
                     SELECT id, id AS root_id, 0 AS depth
                     FROM node
-                    WHERE id = ANY($1::int[]) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    WHERE id = ANY($1::int[]) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
                     UNION ALL
                     SELECT n.id, d.root_id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
                 )
                 SELECT root_id, id FROM descendants
                 WHERE ($3::boolean OR depth > 0)

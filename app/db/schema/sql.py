@@ -198,6 +198,13 @@ CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
 CREATE INDEX IF NOT EXISTS idx_node_parent_sequence ON node(parent_id, sequence);
 -- Workspace-scoped child listing with order: covers WHERE workspace_id = ? AND parent_id = ? ORDER BY sequence
 CREATE INDEX IF NOT EXISTS idx_node_ws_parent_sequence ON node(workspace_id, parent_id, sequence) WHERE active = TRUE AND is_deleted = FALSE;
+-- Partial indexes for specific node types (Phase 0.1: Data Model Hardening)
+CREATE INDEX IF NOT EXISTS idx_node_pages ON node(workspace_id, name) WHERE is_page = TRUE AND active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_blocks ON node(workspace_id, parent_id, sequence) WHERE is_page = FALSE AND active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_assets ON node(workspace_id, name) WHERE is_asset = TRUE AND active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_templates ON node(workspace_id, name) WHERE is_template = TRUE AND active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_comments ON node(workspace_id, parent_id) WHERE is_comment = TRUE AND active = TRUE AND is_deleted = FALSE;
+
 -- Note: idx_node_aliased_id is created by migration block below (aliased_id may not exist on older DBs)
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
@@ -463,6 +470,18 @@ CREATE INDEX IF NOT EXISTS idx_node_link_workspace_target ON node_link(workspace
 -- Highest-ROI index for graph-heavy (Obsidian-style) forward-traversal queries:
 --   SELECT target_id FROM node_link WHERE workspace_id = ? AND source_id = ?;
 CREATE INDEX IF NOT EXISTS idx_node_link_ws_source_target ON node_link(workspace_id, source_id, target_id);
+-- Unique constraint: prevent duplicate links between the same source and target
+-- (Phase 0.5: Harden node_link)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'unique_node_link' AND conrelid = 'node_link'::regclass
+    ) THEN
+        ALTER TABLE node_link ADD CONSTRAINT unique_node_link UNIQUE (workspace_id, source_id, target_id);
+    END IF;
+END $$;
+
 -- idx_node_link_inline_class is created in the migration block below (safe for existing DBs)
 
 -- Inline class references are now stored in node_link with is_inline_class = TRUE
@@ -613,12 +632,17 @@ CREATE TABLE IF NOT EXISTS node_version (
 CREATE INDEX IF NOT EXISTS idx_node_version_node_id ON node_version(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_version_created_at ON node_version(created_at);
 
--- Trigger function: capture node content before update (when name changes)
+-- Trigger function: capture node content before update (when name or class changes)
+-- (Phase 0: broadened from name-only to catch all meaningful edits)
 CREATE OR REPLACE FUNCTION capture_node_version()
 RETURNS TRIGGER AS $fn$
 BEGIN
-    -- Only capture when name actually changes
-    IF OLD.name IS DISTINCT FROM NEW.name THEN
+    -- Capture when name, class, or structural properties change
+    IF OLD.name IS DISTINCT FROM NEW.name
+       OR OLD.class_ids IS DISTINCT FROM NEW.class_ids
+       OR OLD.parent_id IS DISTINCT FROM NEW.parent_id
+       OR OLD.page_id IS DISTINCT FROM NEW.page_id
+    THEN
         INSERT INTO node_version (node_id, workspace_id, name, created_at, user_id)
         VALUES (OLD.id, OLD.workspace_id, OLD.name, NOW(), NEW.write_uid);
     END IF;
@@ -1019,8 +1043,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS node_search_update ON node;
+-- Fire on any column change so search_vector stays current when content changes
+-- (Phase 0.7: Fix search_vector trigger scope)
 CREATE TRIGGER node_search_update
-    BEFORE INSERT OR UPDATE OF name, search_language ON node
+    BEFORE INSERT OR UPDATE ON node
     FOR EACH ROW
     EXECUTE FUNCTION update_node_search_vector();
 
