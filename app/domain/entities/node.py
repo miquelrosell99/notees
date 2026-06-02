@@ -66,6 +66,7 @@ class Node:
     collapsed: bool = False  # UI state
     active: bool = True  # Whether node is active (soft-delete flag)
     is_shared: bool = False  # Whether this node is shared with other users
+    visibility: str = "workspace"  # private | workspace | public
 
     # Soft delete
     is_deleted: bool = False  # Whether node is deleted (trash)
@@ -162,5 +163,6 @@ class NodeUpdateData:
     parent_id: int | None = None
     sequence: float | None = None
     collapsed: bool | None = None
+    visibility: str | None = None
     classes: list[int] | None = None
     property_values: dict | None = None

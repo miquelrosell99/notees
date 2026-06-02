@@ -704,52 +704,35 @@ async def search_nodes(
 
             return SearchResponse(nodes=[])
 
-    nodes = await service.search(q, limit=5000)
-
     # Parse class filters if provided
-    filter_class_ids: set | None = None
+    filter_class_ids: list[int] | None = None
     if class_filters:
         try:
-            filter_class_ids = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
+            filter_class_ids = [int(cid.strip()) for cid in class_filters.split(",") if cid.strip()]
         except ValueError:
             pass
 
-    # Build response with filters applied
+    offset = (page - 1) * limit
+    nodes = await service.search(
+        q,
+        limit=limit,
+        offset=offset,
+        class_filters=filter_class_ids,
+        is_page=is_page,
+        is_class=is_class,
+        is_daily=is_daily,
+        sort_by=sort_by,
+        order=order,
+    )
+
     result = []
     for n in nodes:
         if n.id is None:
             continue
         node_class_ids = n.class_ids or []
-
-        # Apply class filter if specified
-        if filter_class_ids:
-            if not filter_class_ids.intersection(node_class_ids):
-                continue
-
-        # Apply boolean filters
-        if is_page is not None and n.is_page != is_page:
-            continue
-        if is_class is not None and n.is_class != is_class:
-            continue
-        if is_daily is not None and n.is_day != is_daily:
-            continue
-
         result.append(_node_to_response(n, classes=node_class_ids))
 
-    # Sort results
-    reverse = order == "desc"
-    if sort_by == "name":
-        result.sort(key=lambda x: (x.name or "").lower(), reverse=reverse)
-    elif sort_by == "create_date":
-        result.sort(key=lambda x: x.create_date or "", reverse=reverse)
-    else:
-        result.sort(key=lambda x: x.write_date or "", reverse=reverse)
-
-    # Apply pagination
-    offset = (page - 1) * limit
-    paginated = result[offset : offset + limit]
-
-    return SearchResponse(nodes=paginated)
+    return SearchResponse(nodes=result)
 
 
 @router.get("/", name="list_nodes")

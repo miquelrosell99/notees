@@ -359,6 +359,10 @@ class NodeService:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
 
+        # Log activity
+        if node.id is not None:
+            await self._log_activity(node.id, "created", f"{'Page' if node.is_page else 'Block'} created")
+
         # Re-fetch to get updated version after side effects
         if node.id is not None:
             refreshed = await self._node_repo.get_by_id(node.id)
@@ -517,6 +521,7 @@ class NodeService:
         # Update classes path if parent changed (inherited classes may have changed)
         if new_parent_id != old_parent_id and node.id is not None:
             await self._link_service.update_classes_path(node.id)
+            await self._log_activity(node.id, "moved", f"Moved to parent {new_parent_id}")
 
         return node
 
@@ -627,6 +632,10 @@ class NodeService:
         if not node:
             return None
 
+        # Log activity for content edits
+        if node.id is not None and data.name is not None:
+            await self._log_activity(node.id, "edited")
+
         # Re-parse links and inline classes if name changed
         if data.name is not None and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
@@ -636,6 +645,7 @@ class NodeService:
         if data.parent_id is not None and data.parent_id != old_parent_id:
             if node.id is not None:
                 await self._link_service.update_classes_path(node.id)
+                await self._log_activity(node.id, "moved", f"Moved to parent {data.parent_id}")
 
         return node
 
@@ -721,6 +731,9 @@ class NodeService:
         await self._node_repo.soft_delete_nodes(all_node_ids, now, uid)
         logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
 
+        # Log activity
+        await self._log_activity(node_id, "archived" if node.is_page else "deleted", f"{'Page' if node.is_page else 'Block'} deleted")
+
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
 
@@ -751,6 +764,10 @@ class NodeService:
 
         await self._node_repo.restore_nodes(descendant_ids, now, uid)
         logger.info(f"[RESTORE] Restored node {node_id} and {len(descendant_ids) - 1} descendants")
+
+        # Log activity
+        await self._log_activity(node_id, "unarchived", "Restored from trash")
+
         return await self._node_repo.get_by_id(node_id)
 
     async def get_deleted_nodes(self) -> list[Node]:
@@ -1249,6 +1266,42 @@ class NodeService:
                 return target
         return node
 
+    async def _log_activity(
+        self,
+        node_id: int,
+        action: str,
+        details: str | None = None,
+        target_node_id: int | None = None,
+    ) -> None:
+        """Log an activity entry for a node.
+
+        Uses the pool directly to avoid repository injection churn.
+        Silently ignores errors so activity logging never breaks user operations.
+        """
+        if self._pool is None or self._workspace_id is None:
+            return
+        try:
+            from datetime import UTC, datetime
+
+            from ...db.connection import acquire_connection
+
+            now = datetime.now(UTC)
+            async with acquire_connection(self._pool) as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    node_id,
+                    action,
+                    details,
+                    target_node_id,
+                    now,
+                )
+        except Exception:
+            # Activity logging must never fail the user operation
+            pass
+
     async def get_node(self, node_id: int) -> Node | None:
         """Get a node by ID (resolves aliases transparently)."""
         node = await self._node_repo.get_by_id(node_id)
@@ -1285,35 +1338,60 @@ class NodeService:
         # Get all blocks belonging to this page
         blocks = await self._node_repo.get_page_content(page_id)
 
-        # Get properties for page
-        page_properties = await self._property_repo.get_node_properties(page_id)
-
         # Get backlinks
         backlinks = await self._link_service.get_backlinks(page_id)
 
         return {
             "page": page,
             "blocks": blocks,
-            "properties": page_properties,
             "backlinks": backlinks,
         }
 
-    async def search(self, query: str, limit: int = 50) -> list[Node]:
-        """Search nodes by name."""
-        return await self._node_repo.search(query, limit)
+    async def search(
+        self,
+        query: str,
+        limit: int = 50,
+        offset: int = 0,
+        class_filters: list[int] | None = None,
+        is_page: bool | None = None,
+        is_class: bool | None = None,
+        is_daily: bool | None = None,
+        sort_by: str = "write_date",
+        order: str = "desc",
+    ) -> list[Node]:
+        """Search nodes by name with optional filters, sorting and pagination."""
+        return await self._node_repo.search(
+            query,
+            limit=limit,
+            offset=offset,
+            class_filters=class_filters,
+            is_page=is_page,
+            is_class=is_class,
+            is_daily=is_daily,
+            sort_by=sort_by,
+            order=order,
+        )
 
     async def add_class(self, node_id: int, class_node_id: int, *, _system_call: bool = False) -> bool:
         """Add a class to a node. Delegates to ClassManagementService."""
-        return await self._class_service.add_class(
+        result = await self._class_service.add_class(
             node_id,
             class_node_id,
             _system_call=_system_call,
             _page_name_validator=self._validate_page_name_uniqueness,
         )
+        if result:
+            class_node = await self._node_repo.get_by_id(class_node_id)
+            await self._log_activity(node_id, "type_added", f"Added class '{class_node.name if class_node else 'Unknown'}'")
+        return result
 
     async def remove_class(self, node_id: int, class_node_id: int) -> bool:
         """Remove a class from a node. Delegates to ClassManagementService."""
-        return await self._class_service.remove_class(node_id, class_node_id)
+        class_node = await self._node_repo.get_by_id(class_node_id)
+        result = await self._class_service.remove_class(node_id, class_node_id)
+        if result:
+            await self._log_activity(node_id, "type_removed", f"Removed class '{class_node.name if class_node else 'Unknown'}'")
+        return result
 
     async def get_node_classes(self, node_id: int) -> list[Node]:
         """Get all classes applied to a node. Delegates to ClassManagementService."""
@@ -1469,6 +1547,10 @@ class NodeService:
 
         await self._node_repo.archive_nodes(all_node_ids, now, uid)
         logger.info(f"[ARCHIVE] Archived node {node_id} and {len(descendant_ids)} descendants")
+
+        # Log activity
+        await self._log_activity(node_id, "archived", "Archived")
+
         return await self._node_repo.get_by_id(node_id)
 
     async def unarchive_node(self, node_id: int, user_id: int | None = None) -> Node | None:
@@ -1483,6 +1565,10 @@ class NodeService:
 
         await self._node_repo.unarchive_nodes(all_node_ids, now, uid)
         logger.info(f"[UNARCHIVE] Unarchived node {node_id} and {len(descendant_ids)} descendants")
+
+        # Log activity
+        await self._log_activity(node_id, "unarchived", "Unarchived")
+
         return await self._node_repo.get_by_id(node_id)
 
     async def get_archived_pages(self) -> list[Node]:

@@ -1,0 +1,73 @@
+.live-sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  transition: background 0.2s ease, color 0.2s ease;
+  user-select: none;
+}
+
+.live-sync-indicator__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.live-sync-indicator__label {
+  white-space: nowrap;
+}
+
+/* Connected — green with pulse */
+.live-sync-indicator--connected .live-sync-indicator__dot {
+  background-color: var(--color-success, #22c55e);
+  animation: live-sync-pulse 2s ease-in-out infinite;
+}
+
+.live-sync-indicator--connected {
+  color: var(--color-success, #22c55e);
+}
+
+/* Connecting — yellow */
+.live-sync-indicator--connecting .live-sync-indicator__dot {
+  background-color: var(--color-warning, #f59e0b);
+  animation: live-sync-pulse 1s ease-in-out infinite;
+}
+
+.live-sync-indicator--connecting {
+  color: var(--color-warning, #f59e0b);
+}
+
+/* Error / Disconnected — red */
+.live-sync-indicator--error .live-sync-indicator__dot,
+.live-sync-indicator--disconnected .live-sync-indicator__dot {
+  background-color: var(--color-error, #ef4444);
+}
+
+.live-sync-indicator--error,
+.live-sync-indicator--disconnected {
+  color: var(--color-error, #ef4444);
+}
+
+@keyframes live-sync-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+}
+
+/* Hide label on very narrow screens */
+@media (max-width: 480px) {
+  .live-sync-indicator__label {
+    display: none;
+  }
+}

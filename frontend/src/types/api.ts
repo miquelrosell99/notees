@@ -54,6 +54,7 @@ export interface Node {
   is_yearly?: boolean; // Whether this is a yearly note
   is_comment?: boolean; // Whether this node is a comment
   parent_locked?: boolean; // Whether this node's parent is locked
+  visibility?: string; // private | workspace | public
   
   // For tree responses
   children?: Node[];
@@ -238,6 +239,7 @@ export interface NodeUpdate {
   parent_id?: number | null;
   sequence?: number | null;
   collapsed?: boolean | null;
+  visibility?: string | null;
   is_page?: boolean | null;
   is_favorite?: boolean | null;
   /** When provided, reconcile node classes to exactly this set (Odoo-style write) */

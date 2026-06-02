@@ -500,6 +500,7 @@ export function useUpdateNode() {
         if (data.parent_id !== undefined) update.parent_id = data.parent_id;
         if (data.sequence !== undefined && data.sequence !== null) update.sequence = data.sequence;
         if (data.collapsed !== undefined && data.collapsed !== null) update.collapsed = data.collapsed;
+        if (data.visibility !== undefined && data.visibility !== null) update.visibility = data.visibility;
         return update;
       };
       

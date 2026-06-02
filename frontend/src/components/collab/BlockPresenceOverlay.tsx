@@ -1,6 +1,6 @@
 /**
- * BlockPresenceOverlay — Renders small colored dots next to blocks that
- * remote users are currently editing.
+ * BlockPresenceOverlay — Renders colored presence indicators next to blocks
+ * that remote users are currently editing.
  *
  * Uses fixed positioning relative to the viewport so it works regardless
  * of scroll containers or virtualization state.
@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import './BlockPresenceOverlay.css';
 
 interface PositionedBlock {
   blockUuid: string;
@@ -20,6 +21,15 @@ interface BlockPresenceOverlayProps {
   nodeUuid: string;
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
   const presence = useLivePresenceStore((s) => s.presence[nodeUuid]);
   const [positions, setPositions] = useState<PositionedBlock[]>([]);
@@ -29,8 +39,6 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
       const next: PositionedBlock[] = [];
       for (const [blockUuid, users] of Object.entries(presence ?? {})) {
         if (!users || users.length === 0) continue;
-        // Find the bullet wrapper for this block — it is the most stable
-        // visible element even when blocks are virtualized.
         const blockEl = document.querySelector(
           `.node-block[data-block-id="${blockUuid}"]`,
         ) as HTMLElement | null;
@@ -38,7 +46,6 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
         const bullet = blockEl.querySelector('.bullet-wrapper') as HTMLElement | null;
         const target = bullet ?? blockEl;
         const rect = target.getBoundingClientRect();
-        // Only show if the block is at least partially in the viewport
         if (
           rect.bottom < 0 ||
           rect.top > window.innerHeight ||
@@ -50,8 +57,8 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
         next.push({
           blockUuid,
           users,
-          left: rect.left - 14,
-          top: rect.top + rect.height / 2 - 6,
+          left: rect.left - 18,
+          top: rect.top + rect.height / 2 - 8,
         });
       }
       setPositions(next);
@@ -60,7 +67,6 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
     updatePositions();
     window.addEventListener('scroll', updatePositions, true);
     window.addEventListener('resize', updatePositions);
-    // Virtualization can show/hide blocks; poll gently to catch changes
     const interval = setInterval(updatePositions, 750);
 
     return () => {
@@ -87,21 +93,32 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
             gap: '2px',
             pointerEvents: 'none',
           }}
+          title={users.map((u) => `${u.name} is editing`).join(', ')}
         >
-          {users.map((u) => (
+          {users.map((u, idx) => (
             <div
               key={u.id}
               className="block-presence-dot"
               style={{
-                width: '10px',
-                height: '10px',
+                width: '16px',
+                height: '16px',
                 borderRadius: '50%',
                 backgroundColor: u.color,
                 border: '2px solid var(--surface-1, #fff)',
                 boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '9px',
+                fontWeight: 700,
+                color: '#fff',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                marginLeft: idx > 0 ? '-4px' : '0',
+                animation: 'presence-dot-in 0.2s ease-out',
               }}
-              title={`${u.name} is editing`}
-            />
+            >
+              {getInitials(u.name)}
+            </div>
           ))}
         </div>
       ))}

@@ -36,6 +36,8 @@ interface NodeMetadataSectionProps {
   onRemoveExtends?: (node: Node) => void;
   onAddExtends?: (node: Node) => void;
   onCreateExtends?: (name: string) => void;
+  onVisibilityChange?: (visibility: string) => void;
+  canChangeVisibility?: boolean;
   defaultExpanded?: boolean;
 }
 
@@ -64,6 +66,8 @@ export function NodeMetadataSection({
   onRemoveExtends,
   onAddExtends,
   onCreateExtends,
+  onVisibilityChange,
+  canChangeVisibility,
   defaultExpanded = true,
 }: NodeMetadataSectionProps) {
   const count =
@@ -82,6 +86,29 @@ export function NodeMetadataSection({
       defaultExpanded={defaultExpanded}
     >
       <div className="node-metadata-content">
+        {/* Visibility */}
+        {node.is_page && (
+          <div className="node-metadata-row">
+            <div className="section-label">Visibility:</div>
+            {canChangeVisibility && onVisibilityChange ? (
+              <select
+                className="visibility-select"
+                value={node.visibility || 'workspace'}
+                onChange={(e) => onVisibilityChange(e.target.value)}
+                title="Page visibility"
+              >
+                <option value="private">🔒 Private</option>
+                <option value="workspace">🏢 Workspace</option>
+                <option value="public">🌐 Public</option>
+              </select>
+            ) : (
+              <span className="visibility-readonly">
+                {node.visibility === 'private' ? '🔒 Private' : node.visibility === 'public' ? '🌐 Public' : '🏢 Workspace'}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Classes */}
         <div className="node-metadata-row">
           <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
@@ -139,7 +166,10 @@ export function NodeMetadataSection({
             <div className="section-label">Alias of:</div>
             <span
               className="alias-of-link"
+              role="button"
+              tabIndex={0}
               onClick={() => onNavigateToNode(aliasedNode.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToNode(aliasedNode.id); } }}
               title={nodeNameToText(aliasedNode.name) || 'Untitled'}
             >
               {nodeNameToText(aliasedNode.name) || 'Untitled'}

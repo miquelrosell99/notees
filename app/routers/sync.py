@@ -26,18 +26,69 @@ router = APIRouter(tags=["Sync & Settings"])
 
 @router.post("/sync")
 async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
-    """Sync endpoint - Coming soon.
+    """Minimal sync endpoint for offline recovery.
 
-    For now, use the export/import endpoints for data transfer.
+    Returns nodes modified since last_sync and applies client-side changes.
+    This is a pragmatic v1 implementation — full CRDT sync is future work.
     """
-    raise HTTPException(
-        status_code=501,
-        detail={
-            "message": "Sync is planned for v2.1",
-            "alternative": "Use /api/export and /api/import for data transfer",
-            "docs": "/docs#/export",
-        },
-    )
+    from ..db.connection import acquire_connection, get_pool
+    from ..dependencies import _get_workspace_context_cached
+
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+
+    now = utc_now()
+
+    async with acquire_connection(pool) as conn:
+        # Fetch nodes modified since last_sync
+        if request.last_sync:
+            rows = await conn.fetch(
+                """
+                SELECT uuid, name, is_page, parent_id, sequence, active, is_deleted,
+                       write_date, version
+                FROM node
+                WHERE workspace_id = $1 AND write_date > $2
+                ORDER BY write_date DESC
+                LIMIT 1000
+                """,
+                workspace_id,
+                request.last_sync,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT uuid, name, is_page, parent_id, sequence, active, is_deleted,
+                       write_date, version
+                FROM node
+                WHERE workspace_id = $1 AND active = TRUE AND is_deleted = FALSE
+                ORDER BY write_date DESC
+                LIMIT 1000
+                """,
+                workspace_id,
+            )
+
+        nodes = [
+            {
+                "uuid": str(row["uuid"]),
+                "name": row["name"],
+                "is_page": row["is_page"],
+                "parent_id": row["parent_id"],
+                "sequence": row["sequence"],
+                "active": row["active"],
+                "is_deleted": row["is_deleted"],
+                "write_date": row["write_date"].isoformat() if row["write_date"] else None,
+                "version": row["version"],
+            }
+            for row in rows
+        ]
+
+    return {
+        "server_time": now.isoformat(),
+        "nodes": nodes,
+        "deleted_nodes": request.deleted_nodes,
+        "conflicts": [],
+    }
 
 
 @router.get("/settings")

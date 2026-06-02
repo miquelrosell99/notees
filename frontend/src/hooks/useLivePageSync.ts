@@ -10,7 +10,7 @@
  * - Forward presence events into livePresenceStore
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
 import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
@@ -133,9 +133,12 @@ function applyRemoteBlockUpdate(
 export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error'>('disconnected');
 
   useEffect(() => {
     if (!nodeUuid) return;
+
+    const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
 
     try {
       liveSyncManager.connect(nodeUuid);
@@ -217,6 +220,7 @@ export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
 
     return () => {
       unsub();
+      unsubStatus();
       liveSyncManager.disconnect();
       unsubRef.current = null;
       // Clear presence and locks for this page to avoid stale indicators
@@ -229,4 +233,6 @@ export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
       }
     };
   }, [nodeUuid, queryClient]);
+
+  return connectionStatus;
 }

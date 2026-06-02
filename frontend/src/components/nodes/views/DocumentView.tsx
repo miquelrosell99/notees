@@ -10,6 +10,8 @@ import { BlockList } from '../../blocks/BlockList';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { getNodeByUuid } from '@/api/nodes';
+import { uploadAsset } from '@/api/assets';
+import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './DocumentView.css';
@@ -28,7 +30,7 @@ export const DocumentView = memo(function DocumentView({
   onContentChange,
   onAddClass,
   onSlashCommand,
-  onPasteImage: _onPasteImage,
+  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
   pageId: _pageId,
@@ -101,6 +103,52 @@ export const DocumentView = memo(function DocumentView({
     }
   }, [onContentChange]);
 
+  // Handler for external file drops — creates asset blocks
+  const handleDropFiles = useCallback(async (files: File[]) => {
+    if (!_pageId) return;
+    const runtime = getNodeGraphRuntime();
+    runtime.registerParentServerId(_nodeUuid ?? '', _pageId);
+
+    for (const file of files) {
+      try {
+        const asset = await uploadAsset(file, _pageId);
+        const newBlockId = generateUUID();
+        const nodeChildren = allNodes;
+        const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
+
+        runtime.applyIntent({
+          type: 'create_block',
+          parentId: _nodeUuid ?? '',
+          afterBlockId: lastChild?.uuid ?? null,
+          blockId: newBlockId,
+          contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        });
+        // Immediately convert the new empty block to an asset
+        if (asset.node_id) {
+          runtime.upsertNodes([{
+            blockId: newBlockId,
+            serverId: asset.node_id,
+            parentId: _nodeUuid ?? '',
+            orderIndex: 0,
+            nodeType: 'block',
+            contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+            collapsed: false,
+            isDeleted: false,
+            isPage: false,
+            classIds: [],
+            tagIds: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: 1,
+          }]);
+        }
+        runtime.flushEvents();
+      } catch (err) {
+        console.error('[DocumentView] Failed to upload dropped file:', err);
+      }
+    }
+  }, [_pageId, _nodeUuid, allNodes]);
+
   // Early return if no nodes
   if (allNodes.length === 0) {
     return (
@@ -118,6 +166,8 @@ export const DocumentView = memo(function DocumentView({
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
+        onPasteImage={onPasteImage}
+        onDropFiles={handleDropFiles}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
         nodeUuid={_nodeUuid}

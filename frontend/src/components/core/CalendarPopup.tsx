@@ -101,7 +101,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     if (monthlyNote && navigateToMonth) {
       openNode(monthlyNote.id);
       onClose();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
+       
       setNavigateToMonth(null);
     }
   }, [monthlyNote, navigateToMonth, openNode, onClose]);
@@ -111,7 +111,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     if (yearlyNote && navigateToYear) {
       openNode(yearlyNote.id);
       onClose();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
+       
       setNavigateToYear(null);
     }
   }, [yearlyNote, navigateToYear, openNode, onClose]);
@@ -121,7 +121,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     if (dailyNote && selectedDate) {
       openNode(dailyNote.id);
       onClose();
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset navigation state after successful fetch
+       
       setSelectedDate(null);
     }
   }, [dailyNote, selectedDate, openNode, onClose]);

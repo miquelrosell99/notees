@@ -17,6 +17,25 @@
   contain: layout style;
 }
 
+/* Thread line for indented blocks — subtle vertical guide */
+.block-row[data-depth="1"]::before,
+.block-row[data-depth="2"]::before,
+.block-row[data-depth="3"]::before,
+.block-row[data-depth="4"]::before,
+.block-row[data-depth="5"]::before,
+.block-row[data-depth="6"]::before,
+.block-row[data-depth="7"]::before,
+.block-row[data-depth="8"]::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-outline-variant);
+  opacity: 0.5;
+}
+
 .block-row:hover {
   background-color: var(--color-hover, rgba(255, 255, 255, 0.03));
 }
