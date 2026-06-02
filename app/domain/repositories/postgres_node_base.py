@@ -157,26 +157,5 @@ class _PostgresNodeBase(BasePostgresRepository):
             )
             return row["is_page"] if row else False
 
-    async def _shift_siblings_for_insert(self, conn: ConnectionType, parent_id: int, sequence: int) -> None:
-        """Shift siblings at or after the given sequence to make room."""
-        await conn.execute(
-            """
-            UPDATE node SET sequence = sequence + 1
-            WHERE parent_id = $1 AND sequence >= $2 AND workspace_id = $3
-        """,
-            parent_id,
-            sequence,
-            self._workspace_id,
-        )
-
-    async def _close_sequence_gap(self, conn: ConnectionType, parent_id: int, old_sequence: int) -> None:
-        """Close the gap left by a node that moved away."""
-        await conn.execute(
-            """
-            UPDATE node SET sequence = sequence - 1
-            WHERE parent_id = $1 AND sequence > $2 AND workspace_id = $3
-        """,
-            parent_id,
-            old_sequence,
-            self._workspace_id,
-        )
+    # Note: fractional float sequences eliminate the need for sibling shifting.
+    # Blocks are ordered by their sequence value directly; gaps are harmless.

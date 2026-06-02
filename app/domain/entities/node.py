@@ -62,7 +62,7 @@ class Node:
     # Hierarchy
     parent_id: int | None = None  # Parent node (NULL for root pages)
     page_id: int | None = None  # Containing page (NULL for pages, computed for blocks)
-    sequence: int = 0  # Order among siblings
+    sequence: float = 0.0  # Order among siblings
     collapsed: bool = False  # UI state
     active: bool = True  # Whether node is active (soft-delete flag)
     is_shared: bool = False  # Whether this node is shared with other users
@@ -141,7 +141,7 @@ class NodeCreateData:
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
-    sequence: int = 0
+    sequence: float = 0.0
     collapsed: bool = False
     classes: list[int] = field(default_factory=list)  # Class node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
@@ -160,7 +160,7 @@ class NodeUpdateData:
     clear_color: bool = False
     clear_parent: bool = False
     parent_id: int | None = None
-    sequence: int | None = None
+    sequence: float | None = None
     collapsed: bool | None = None
     classes: list[int] | None = None
     property_values: dict | None = None

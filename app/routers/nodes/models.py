@@ -15,7 +15,7 @@ class NodeResponse(BaseModel):
     color: str | None = None
     parent_id: int | None = None
     page_id: int | None = None
-    sequence: int = 0
+    sequence: float = 0.0
     collapsed: bool = False
     active: bool = True
     is_page: bool = False  # Whether this node is a page
@@ -120,7 +120,7 @@ class NodeCreateRequest(BaseModel):
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
-    sequence: int = 0
+    sequence: float = 0.0
     classes: list[int] = []  # Class node IDs - flags are computed from these
     properties: dict[int, Any] = {}  # property_id -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (e.g. from Logseq import)
@@ -140,7 +140,7 @@ class NodeUpdateRequest(BaseModel):
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
-    sequence: int | None = None
+    sequence: float | None = None
     collapsed: bool | None = None
     # Optional: when provided, reconcile node classes to exactly this set
     classes: list[int] | None = None
@@ -165,7 +165,7 @@ class MoveNodeRequest(BaseModel):
     """Request to move a node to a new parent and/or position."""
 
     parent_id: int | None = None
-    position: int | None = None
+    position: float | None = None
 
 
 class TagLinkRequest(BaseModel):
@@ -265,7 +265,7 @@ class BatchNodeCreateItem(BaseModel):
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
-    sequence: int = 0
+    sequence: float = 0.0
     classes: list[int] = []
     properties: dict[int, Any] = {}
     uuid: str | None = None  # Optional: provide a UUID (e.g. from Logseq)
@@ -308,7 +308,7 @@ class BatchNodeUpdateItem(BaseModel):
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
-    sequence: int | None = None
+    sequence: float | None = None
     collapsed: bool | None = None
     # Optional: reconcile classes / apply property values in the same request
     classes: list[int] | None = None

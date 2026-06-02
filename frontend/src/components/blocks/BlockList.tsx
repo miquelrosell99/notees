@@ -136,12 +136,18 @@ function flattenNodesFromRuntime(
     byParent.get(parentId)!.push(node);
   }
 
-  // Sort each parent's children by runtime orderIndex
+  // Sort each parent's children by runtime orderIndex, falling back to API sequence
   for (const [, children] of byParent) {
     children.sort((a, b) => {
       const ga = runtime.getNode(a.uuid);
       const gb = runtime.getNode(b.uuid);
-      return (ga?.orderIndex ?? a.sequence ?? 0) - (gb?.orderIndex ?? b.sequence ?? 0);
+      const orderA = ga?.orderIndex ?? a.sequence ?? 0;
+      const orderB = gb?.orderIndex ?? b.sequence ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      // Tie-breaker: use API sequence when runtime orderIndex is equal
+      const seqA = a.sequence ?? 0;
+      const seqB = b.sequence ?? 0;
+      return seqA - seqB;
     });
   }
 
@@ -175,13 +181,18 @@ function flattenNodesFromRuntime(
     if (!nodeMap.has(parentId)) topLevel.push(uuid);
   }
 
-  // Sort top-level by runtime orderIndex
+  // Sort top-level by runtime orderIndex, falling back to API sequence
   topLevel.sort((a, b) => {
     const ga = runtime.getNode(a);
     const gb = runtime.getNode(b);
     const na = nodeMap.get(a);
     const nb = nodeMap.get(b);
-    return (ga?.orderIndex ?? na?.sequence ?? 0) - (gb?.orderIndex ?? nb?.sequence ?? 0);
+    const orderA = ga?.orderIndex ?? na?.sequence ?? 0;
+    const orderB = gb?.orderIndex ?? nb?.sequence ?? 0;
+    if (orderA !== orderB) return orderA - orderB;
+    const seqA = na?.sequence ?? 0;
+    const seqB = nb?.sequence ?? 0;
+    return seqA - seqB;
   });
 
   return flatten(topLevel, 0);
@@ -227,7 +238,14 @@ export function BlockList({
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
+    const result = flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
+    console.log('[BlockList/flatNodes]', {
+      count: result.length,
+      uuids: result.map((r) => r.node.uuid),
+      sequences: result.map((r) => r.node.sequence),
+      runtimeOrderIndexes: result.map((r) => runtime.getNode(r.node.uuid)?.orderIndex ?? null),
+    });
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, maxDepth, pagesOnly, skipPages, structureVersion]);
 
@@ -241,7 +259,9 @@ export function BlockList({
 
   // Sync nodes to runtime so structural ops (drag, indent, outdent) and
   // content saves have the graph data they need.
-  useEffect(() => {
+  // Using useLayoutEffect so the sync happens before paint — eliminating
+  // the race where a fast Enter press runs before the runtime is populated.
+  useLayoutEffect(() => {
     const runtime = getNodeGraphRuntime();
     const allNodes: Node[] = [];
     const collect = (n: Node) => {
@@ -250,9 +270,27 @@ export function BlockList({
     };
     for (const n of nodes) collect(n);
 
+    console.log('[BlockList/useLayoutEffect] syncing', {
+      nodeCount: allNodes.length,
+      nodeId,
+      nodeUuid,
+      topLevelUuids: nodes.map((n) => n.uuid),
+    });
+
     if (allNodes.length > 0) {
       const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
+      console.log('[BlockList/useLayoutEffect] graphNodes sample', {
+        first: graphNodes[0]?.blockId,
+        firstParentId: graphNodes[0]?.parentId,
+        firstOrderIndex: graphNodes[0]?.orderIndex,
+        total: graphNodes.length,
+      });
       runtime.upsertNodes(graphNodes);
+      console.log('[BlockList/useLayoutEffect] runtime after upsert', {
+        sampleNode: runtime.getNode(nodes[0]?.uuid)?.blockId ?? null,
+        sampleParentId: runtime.getNode(nodes[0]?.uuid)?.parentId ?? null,
+        sampleChildrenCount: nodeUuid ? runtime.getChildren(nodeUuid).length : null,
+      });
     }
 
     if (nodeId != null && nodeUuid) {
@@ -341,6 +379,17 @@ export function BlockList({
         if (!parentId && nodeUuid) {
           parentId = nodeUuid;
         }
+        const siblings = runtime.getChildren(parentId);
+        const afterIndex = siblings.findIndex((s) => s.blockId === blockId);
+        console.log('[BlockList/handleEnter] create_block', {
+          blockId,
+          parentId,
+          nodeUuid,
+          afterBlockId: blockId,
+          siblingCount: siblings.length,
+          afterIndex,
+          runtimeParentId: currentRuntimeNode?.parentId ?? null,
+        });
         runtime.applyIntent({
           type: 'create_block',
           parentId,

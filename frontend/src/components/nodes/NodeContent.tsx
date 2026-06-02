@@ -374,9 +374,8 @@ export function NodeContent({
     runtime.registerParentServerId(node.uuid, node.id);
 
     // Find the last child's blockId to insert after it
-    const lastChild = children.length > 0
-      ? children.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
-      : null;
+    // The API orders children by sequence, so the last array element is the rightmost block.
+    const lastChild = children.length > 0 ? children[children.length - 1] : null;
 
     console.log('[NodeContent] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
     runtime.requestFocus(newBlockId);

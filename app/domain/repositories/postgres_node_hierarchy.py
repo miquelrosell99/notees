@@ -18,10 +18,10 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
         self,
         node_id: int,
         new_parent_id: int | None = None,
-        new_sequence: int | None = None,
+        new_sequence: float | None = None,
         user_id: int | None = None,
     ) -> object | None:
-        """Move a node to a new parent and/or position with proper sibling resequencing."""
+        """Move a node to a new parent and/or position."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
             node = await self.get_by_id(node_id)
             if not node:
@@ -43,41 +43,8 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
             else:
                 new_page_id = await self._compute_page_id(effective_parent_id) if effective_parent_id else None
 
-            if old_parent_id == effective_parent_id:
-                if old_sequence == effective_sequence:
-                    return node
-
-                if old_sequence < effective_sequence:
-                    await conn.execute(
-                        """
-                            UPDATE node SET sequence = sequence - 1
-                            WHERE parent_id = $1 AND sequence > $2 AND sequence <= $3
-                            AND id != $4 AND workspace_id = $5
-                        """,
-                        effective_parent_id,
-                        old_sequence,
-                        effective_sequence,
-                        node_id,
-                        self._workspace_id,
-                    )
-                else:
-                    await conn.execute(
-                        """
-                            UPDATE node SET sequence = sequence + 1
-                            WHERE parent_id = $1 AND sequence >= $2 AND sequence < $3
-                            AND id != $4 AND workspace_id = $5
-                        """,
-                        effective_parent_id,
-                        effective_sequence,
-                        old_sequence,
-                        node_id,
-                        self._workspace_id,
-                    )
-            else:
-                if old_parent_id is not None:
-                    await self._close_sequence_gap(conn, old_parent_id, old_sequence)
-                if effective_parent_id is not None:
-                    await self._shift_siblings_for_insert(conn, effective_parent_id, effective_sequence)
+            if old_parent_id == effective_parent_id and old_sequence == effective_sequence:
+                return node
 
             await conn.execute(
                 """

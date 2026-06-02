@@ -180,9 +180,8 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
     runtime.registerParentServerId(node.uuid, node.id);
 
     const nodeChildren = node.children ?? [];
-    const lastChild = nodeChildren.length > 0
-      ? nodeChildren.reduce((a, b) => ((a.sequence ?? 0) >= (b.sequence ?? 0) ? a : b))
-      : null;
+    // The API orders children by sequence, so the last array element is the rightmost block.
+    const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
 
     console.log('[NodeView/FocusedBlock] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
     runtime.requestFocus(newBlockId);
