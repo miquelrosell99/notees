@@ -827,7 +827,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       // ── Group resize (multi-select via selection card handles) ─────
       if (state.isGroupResize && state.startSelectionBounds) {
         const sb = state.startSelectionBounds;
-        let newSB = { ...sb };
+        const newSB = { ...sb };
 
         if (isShift) {
           const cx = sb.x + sb.width / 2;
@@ -863,7 +863,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       const startBounds = state.startElementBounds;
       if (!selectedId || !startBounds) return;
 
-      let newBounds = { ...startBounds };
+      const newBounds = { ...startBounds };
 
       if (isShift) {
         const cx = startBounds.x + startBounds.width / 2;

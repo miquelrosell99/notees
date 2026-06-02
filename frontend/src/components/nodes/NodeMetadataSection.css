@@ -12,3 +12,23 @@
   display: flex;
   align-items: center;
 }
+
+.visibility-select {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-0-5) var(--spacing-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  outline: none;
+}
+
+.visibility-select:focus {
+  border-color: var(--border-focus);
+}
+
+.visibility-readonly {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

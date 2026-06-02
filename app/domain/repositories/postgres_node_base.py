@@ -100,6 +100,7 @@ class _PostgresNodeBase(BasePostgresRepository):
             collapsed=row.get("collapsed", False),
             active=row.get("active", True),
             is_shared=row.get("is_shared", False),
+            visibility=row.get("visibility", "workspace"),
             is_deleted=row.get("is_deleted", False),
             deleted_at=deleted_at,
             is_class=row.get("is_class", False),

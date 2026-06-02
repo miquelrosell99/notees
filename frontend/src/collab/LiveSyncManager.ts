@@ -25,21 +25,43 @@ export type LiveSyncMessage =
   | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
+type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error') => void;
 
 class LiveSyncManager {
   private ws: WebSocket | null = null;
   private nodeUuid: string | null = null;
   private listeners = new Set<MessageListener>();
+  private statusListeners = new Set<StatusListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: object[] = [];
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private status: 'connected' | 'disconnected' | 'connecting' | 'error' = 'disconnected';
 
   /** Subscribe to incoming server messages. */
   onMessage(cb: MessageListener): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  /** Subscribe to connection status changes. */
+  onStatusChange(cb: StatusListener): () => void {
+    this.statusListeners.add(cb);
+    cb(this.status); // emit current status immediately
+    return () => this.statusListeners.delete(cb);
+  }
+
+  private _setStatus(newStatus: typeof this.status): void {
+    if (this.status === newStatus) return;
+    this.status = newStatus;
+    for (const cb of this.statusListeners) {
+      try {
+        cb(newStatus);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   private _emit(msg: LiveSyncMessage): void {
@@ -63,6 +85,7 @@ class LiveSyncManager {
     this.disconnect();
     this.intentionalClose = false;
     this.nodeUuid = nodeUuid;
+    this._setStatus('connecting');
     this._open();
   }
 
@@ -89,6 +112,7 @@ class LiveSyncManager {
     this.nodeUuid = null;
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
+    this._setStatus('disconnected');
   }
 
   private _open(): void {
@@ -113,6 +137,7 @@ class LiveSyncManager {
     this.ws = ws;
 
     ws.onopen = () => {
+      this._setStatus('connected');
       this.reconnectAttempts = 0;
       // Start heartbeat
       this.heartbeatTimer = setInterval(() => {
@@ -142,11 +167,15 @@ class LiveSyncManager {
         this.heartbeatTimer = null;
       }
       if (!this.intentionalClose) {
+        this._setStatus('disconnected');
         this._scheduleReconnect();
+      } else {
+        this._setStatus('disconnected');
       }
     };
 
     ws.onerror = () => {
+      this._setStatus('error');
       if (this.ws === ws) {
         ws.close();
       }

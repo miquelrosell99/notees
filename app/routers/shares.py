@@ -10,6 +10,7 @@ from ..domain.repositories import PostgresNodeRepository, PostgresShareRepositor
 from ..domain.services.share_service import ShareService
 from ..logging_config import get_logger
 from ..models import User
+from ..node_export import delete_share_html
 from .auth import get_current_user
 from .nodes.helpers import _name_text, _resolve_referenced_display_names
 
@@ -80,6 +81,10 @@ async def delete_share(
         raise HTTPException(status_code=403, detail=str(e)) from e
     if not success:
         raise HTTPException(status_code=404, detail="Share not found")
+
+    # Clean up static HTML file
+    delete_share_html(share_uuid)
+
     return {"success": True}
 
 

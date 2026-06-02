@@ -23,8 +23,8 @@ from .constants import (
     generate_month_uuid,
     generate_year_uuid,
     parse_date_uuid,
-    utc_now_iso,
 )
+from ...utils.datetime_utils import utc_now_iso
 from .init import (
     create_workspace_for_user,
     get_or_create_user_workspace,

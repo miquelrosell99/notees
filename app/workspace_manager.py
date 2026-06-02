@@ -34,24 +34,40 @@ async def list_workspaces(user_id: str) -> list[dict[str, Any]]:
     async with get_connection() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared
+            SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared,
+                            g.create_uid = $1 as is_owner,
+                            gs.can_read as s_can_read,
+                            gs.can_write as s_can_write,
+                            gs.can_create as s_can_create,
+                            gs.can_delete as s_can_delete
             FROM workspace g
-            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
+            LEFT JOIN workspace_share gs ON g.id = gs.workspace_id AND gs.user_id = $1 AND gs.active = TRUE
             WHERE g.create_uid = $1 OR gs.user_id = $1
             ORDER BY g.create_date DESC
             """,
             numeric_user_id,
         )
-        return [
-            {
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "created_at": row["create_date"].isoformat() if row["create_date"] else None,
-                "updated_at": row["write_date"].isoformat() if row["write_date"] else None,
-                "is_shared": row["is_shared"],
-            }
-            for row in rows
-        ]
+        result = []
+        for row in rows:
+            if row["is_owner"]:
+                role = "owner"
+            elif row["s_can_delete"]:
+                role = "admin"
+            elif row["s_can_write"]:
+                role = "editor"
+            else:
+                role = "viewer"
+            result.append(
+                {
+                    "uuid": str(row["uuid"]),
+                    "name": row["name"],
+                    "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+                    "updated_at": row["write_date"].isoformat() if row["write_date"] else None,
+                    "is_shared": row["is_shared"],
+                    "role": role,
+                }
+            )
+        return result
 
 
 def get_active_workspace_id(user_id: str) -> str | None:

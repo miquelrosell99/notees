@@ -55,6 +55,7 @@ from .domain.errors import (
     PermissionDeniedError,
 )
 from .logging_config import get_logger, setup_logging
+from .node_export import get_static_share_path
 from .routers import (
     assets_router,
     auth_router,
@@ -514,6 +515,22 @@ async def service_worker():
     if fallback_path.exists():
         return FileResponse(fallback_path, media_type="application/javascript")
     raise HTTPException(status_code=404, detail="Service worker not found. Build React app first.")
+
+
+# ============ Public share HTML (before SPA fallback) ============
+
+
+@app.get("/s/{share_uuid}", response_class=HTMLResponse, include_in_schema=False)
+async def serve_share_html(share_uuid: str):
+    """Serve pre-generated static HTML for a public share, or fall back to SPA."""
+    html_path = get_static_share_path(share_uuid)
+    if html_path.exists():
+        return FileResponse(html_path, media_type="text/html")
+    # Fall back to SPA - the React app will render PublicShareView
+    index_path = dist_path / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return HTMLResponse("<h1>Notees - Build React app first: cd frontend && npm run build</h1>")
 
 
 # ============ SPA Fallback (must be last) ============

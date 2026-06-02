@@ -80,6 +80,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Ensure Inbox pages use the fixed system UUID (migration for existing DBs)
     await _ensure_inbox_system_uuid(conn)
 
+    # Ensure visibility column exists on node (migration for existing DBs)
+    await _ensure_node_visibility_column(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -417,6 +420,51 @@ async def _ensure_inbox_system_uuid(conn: asyncpg.Connection) -> None:
                 inbox_row["id"],
             )
             logger.info(f"Created Inbox for workspace {ws_id}")
+
+
+async def _ensure_node_visibility_column(conn: asyncpg.Connection) -> None:
+    """Ensure the visibility column exists on the node table.
+
+    Idempotent migration for existing databases.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    # Check if column exists
+    col_exists = await conn.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node' AND column_name = 'visibility'
+        )
+        """
+    )
+
+    if not col_exists:
+        await conn.execute(
+            "ALTER TABLE node ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'workspace'"
+        )
+        logger.info("Added visibility column to node table")
+
+    # Ensure index exists
+    idx_exists = await conn.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM pg_indexes
+            WHERE indexname = 'idx_node_visibility'
+        )
+        """
+    )
+
+    if not idx_exists:
+        await conn.execute(
+            """
+            CREATE INDEX idx_node_visibility ON node(workspace_id, visibility)
+            WHERE active = TRUE AND is_deleted = FALSE
+            """
+        )
+        logger.info("Created idx_node_visibility index")
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:

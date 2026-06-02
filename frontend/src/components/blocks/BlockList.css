@@ -10,3 +10,9 @@
   padding: 8px 0;
   outline: none;
 }
+
+.block-list.drag-over {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+  background: var(--color-primary-container);
+}

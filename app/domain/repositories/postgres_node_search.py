@@ -21,7 +21,18 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             ELSE COALESCE({alias}.name, '')
         END)"""
 
-    async def search(self, query: str, limit: int = 50) -> list[object]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 50,
+        offset: int = 0,
+        class_filters: list[int] | None = None,
+        is_page: bool | None = None,
+        is_class: bool | None = None,
+        is_daily: bool | None = None,
+        sort_by: str = "write_date",
+        order: str = "desc",
+    ) -> list[object]:
         """Additive multi-token search across own text, link targets, and labels.
 
         Splits the query into tokens.  For each candidate node, a combined
@@ -38,21 +49,41 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
              and node_link indexes.
           2. *Full-text filter* — for candidates only, build the combined
              text via an indexed LATERAL join and verify ALL tokens match.
+
+        Additional filters (class_ids, boolean flags) and sorting are applied
+        in the final SELECT so PostgreSQL can limit the result set directly.
         """
         pt_n = self._plain_text_expr("n")
         pt_tn = self._plain_text_expr("tn")
 
+        order_dir = "DESC" if order == "desc" else "ASC"
+        if sort_by == "name":
+            order_clause = f"ORDER BY LOWER({pt_n}) {order_dir}"
+        elif sort_by == "create_date":
+            order_clause = f"ORDER BY n.create_date {order_dir} NULLS LAST"
+        else:
+            order_clause = f"ORDER BY n.write_date {order_dir} NULLS LAST"
+
         async with acquire_connection(self._pool) as conn:
             if not query or not query.strip():
                 rows = await conn.fetch(
-                    """
+                    f"""
                     SELECT n.* FROM node n
                     WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
-                    ORDER BY n.write_date DESC NULLS LAST
-                    LIMIT $2
+                      AND ($3::int[] IS NULL OR n.class_ids && $3::int[])
+                      AND ($4::boolean IS NULL OR n.is_page = $4)
+                      AND ($5::boolean IS NULL OR n.is_class = $5)
+                      AND ($6::boolean IS NULL OR n.is_day = $6)
+                    {order_clause}
+                    LIMIT $2 OFFSET $7
                 """,
                     self._workspace_id,
                     limit,
+                    class_filters,
+                    is_page,
+                    is_class,
+                    is_daily,
+                    offset,
                 )
             else:
                 tokens = query.split()
@@ -61,6 +92,9 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 # Params: $1=workspace_id  $2=limit  $3=full query  $4‥=token ILIKE patterns
                 tp = 4  # index of first token param
                 nt = len(tokens)
+
+                # Filter params come after token params
+                fp = tp + nt
 
                 any_own = " OR ".join(f"{pt_n}  ILIKE ${tp + i}" for i in range(nt))
                 any_tgt = " OR ".join(f"{pt_tn} ILIKE ${tp + i}" for i in range(nt))
@@ -112,15 +146,19 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     FROM node n
                     JOIN node_full_text nft ON nft.id = n.id
                     WHERE {all_full}
-                    ORDER BY
-                        (LOWER({pt_n}) = LOWER($3)) DESC,
-                        (LOWER({pt_n}) LIKE LOWER($3) || '%') DESC,
-                        rank DESC,
-                        n.write_date DESC
-                    LIMIT $2
+                      AND (${fp}::int[] IS NULL OR n.class_ids && ${fp})
+                      AND (${fp + 1}::boolean IS NULL OR n.is_page = ${fp + 1})
+                      AND (${fp + 2}::boolean IS NULL OR n.is_class = ${fp + 2})
+                      AND (${fp + 3}::boolean IS NULL OR n.is_day = ${fp + 3})
+                    {order_clause}
+                    LIMIT $2 OFFSET ${fp + 4}
                 """
 
-                params = [self._workspace_id, limit, query] + token_patterns
+                params = (
+                    [self._workspace_id, limit, query]
+                    + token_patterns
+                    + [class_filters, is_page, is_class, is_daily, offset]
+                )
                 rows = await conn.fetch(sql, *params)
 
             return [self._row_to_node(row) for row in rows]

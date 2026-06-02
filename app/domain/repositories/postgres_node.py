@@ -302,6 +302,11 @@ class PostgresNodeRepository(
             params.append(data.collapsed)
             param_idx += 1
 
+        if data.visibility is not None:
+            set_clauses.append(f"visibility = ${param_idx}")
+            params.append(data.visibility)
+            param_idx += 1
+
         if data.classes is not None:
             from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 
@@ -457,8 +462,15 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT * FROM node
-                WHERE (page_id = $1 OR id = $1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
+                SELECT
+                    id, uuid, workspace_id, name, icon, color, parent_id, page_id,
+                    sequence, collapsed, active, is_shared, version, is_deleted,
+                    deleted_at, is_class, is_page, is_day, is_month, is_year,
+                    is_asset, is_template, is_comment, parent_locked, visibility,
+                    class_ids, classes_path, open_date, create_date, write_date,
+                    create_uid, write_uid, aliased_id
+                FROM node
+                WHERE page_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
                 ORDER BY sequence
             """,
                 page_id,

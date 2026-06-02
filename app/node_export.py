@@ -58,6 +58,7 @@ async def export_nodes(
     highlight_syntax: bool = True,
     link_target_brackets: bool = True,
     frontmatter: bool = False,
+    workspace_id: int | None = None,
 ) -> tuple:
     """Export nodes to Markdown, HTML, PDF, Text, or JSON.
 
@@ -65,6 +66,8 @@ async def export_nodes(
         asset_path_map: Optional dict mapping asset node UUIDs to relative
             file paths (e.g. './assets/uuid/filename.ext'). When provided,
             markdown export rewrites asset node links to use these paths.
+        workspace_id: Optional workspace ID to bypass user/workspace resolution.
+            When provided, user_id is ignored for workspace lookup.
 
     Returns:
         Tuple of (content: bytes, filename: str, mime_type: str)
@@ -74,14 +77,17 @@ async def export_nodes(
     """
     from .models import ExportFormat
 
-    numeric_user_id = await _get_numeric_user_id(user_id)
-    if not numeric_user_id:
-        raise ValueError(f"User not found: {user_id}")
+    if workspace_id is None:
+        numeric_user_id = await _get_numeric_user_id(user_id)
+        if not numeric_user_id:
+            raise ValueError(f"User not found: {user_id}")
 
-    active_uuid = _active_workspaces.get(user_id)
+        active_uuid = _active_workspaces.get(user_id)
+
+        async with get_connection() as conn:
+            workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
 
     async with get_connection() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
 
         nodes_data = []
         seen_uuids: set[str] = set()
@@ -1488,3 +1494,67 @@ async def _fetch_page_metadata(
         metadata["icon"] = node_row["icon"]
 
     return metadata
+
+
+# ---------------------------------------------------------------------------
+# Static share HTML generation
+# ---------------------------------------------------------------------------
+
+
+def get_static_share_path(share_uuid: str) -> Path:
+    """Get the file path for a static share HTML file."""
+    shares_dir = get_data_dir() / "static-shares"
+    shares_dir.mkdir(parents=True, exist_ok=True)
+    return shares_dir / f"{share_uuid}.html"
+
+
+async def generate_share_html(workspace_id: int, node_uuid: str) -> str:
+    """Generate a static HTML export for a shared node.
+
+    Args:
+        workspace_id: The integer workspace ID.
+        node_uuid: The UUID of the node to export.
+
+    Returns:
+        HTML document as a string.
+    """
+    from .models import ExportFormat
+
+    content_bytes, _filename, _mime = await export_nodes(
+        "",
+        [node_uuid],
+        ExportFormat.HTML,
+        include_children=True,
+        layout="outline",
+        formatting=True,
+        properties="main",
+        density="comfortable",
+        numbering="none",
+        measure="full",
+        doctype="none",
+        section_break=False,
+        link_style="text",
+        theme_mode="light",
+        cover_page=False,
+        workspace_id=workspace_id,
+    )
+    return content_bytes.decode("utf-8")
+
+
+async def write_share_html(share_uuid: str, workspace_id: int, node_uuid: str) -> Path:
+    """Generate and write static HTML for a share to disk.
+
+    Returns:
+        Path to the written file.
+    """
+    html = await generate_share_html(workspace_id, node_uuid)
+    path = get_static_share_path(share_uuid)
+    path.write_text(html, encoding="utf-8")
+    return path
+
+
+def delete_share_html(share_uuid: str) -> None:
+    """Delete the static HTML file for a share, if it exists."""
+    path = get_static_share_path(share_uuid)
+    if path.exists():
+        path.unlink()

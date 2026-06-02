@@ -13,6 +13,7 @@ from ...domain.repositories import PostgresNodeRepository, PostgresShareReposito
 from ...domain.services.share_service import ShareService
 from ...logging_config import get_logger
 from ...models import User
+from ...node_export import write_share_html
 from ..auth import get_current_user
 
 logger = get_logger(__name__)
@@ -62,6 +63,15 @@ async def create_share(
         share = await service.create_share(node_id, expiry_date=expiry_date)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+    # Generate static HTML for the share
+    try:
+        node = await service._node_repo.get_by_id(node_id)
+        if node is not None:
+            await write_share_html(share.uuid, share.workspace_id, node.uuid)
+    except Exception:
+        logger.exception(f"Failed to generate static HTML for share {share.uuid}")
+
     return _share_to_response(share, request)
 
 

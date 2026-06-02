@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, useWorkspaceRole, nodeNameToText } from '@/hooks';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
@@ -43,7 +43,7 @@ import { NodeContent } from '../components/nodes/NodeContent';
 import { NodeCollection } from '../components/nodes/NodeCollection';
 
 import { PageContextMenu, BlockContextMenu } from '../components/nodes/NodeContextMenu';
-import { QuerySection } from '../components/nodes';
+import { QuerySection, NodeActivityLogSection } from '../components/nodes';
 import { PropertiesSection } from '../components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '../components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '../components/properties/ClassPropertiesEditor';
@@ -118,9 +118,11 @@ interface FocusedBlockContentProps {
   node: Node;
   onAddSidebarCard: (nodeId: number) => void;
   displayMode?: 'bullet' | 'document' | 'card';
+  editable?: boolean;
+  canCreate?: boolean;
 }
 
-function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }: FocusedBlockContentProps) {
+function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', editable = true, canCreate = true }: FocusedBlockContentProps) {
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -210,7 +212,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           nodes={[node]}
           viewMode="list"
           availableViewModes={['list']}
-          editable={true}
+          editable={editable}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
           onContentChange={handleContentChange}
@@ -225,7 +227,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           nodes={node.children ?? []}
           viewMode="card"
           availableViewModes={['list', 'card']}
-          editable={true}
+          editable={editable}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
           onContentChange={handleContentChange}
@@ -235,9 +237,11 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
           onAddClass={handleAddClass}
         />
         <div className="focused-block-content-add">
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-            Add block
-          </Button>
+          {canCreate && (
+            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+              Add block
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -250,7 +254,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
         nodes={[node]}
         viewMode="list"
         availableViewModes={['list', 'card']}
-        editable={true}
+        editable={editable}
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
@@ -260,9 +264,11 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet' }:
         onAddClass={handleAddClass}
       />
       <div className="focused-block-content-add">
-        <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-          Add block
-        </Button>
+        {canCreate && (
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+            Add block
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -373,6 +379,7 @@ export function NodeView({
   const { addSidebarCard, openNode } = useNavigationStore();
   const { contentDisplayMode } = useAppStore();
   const isMobile = useIsMobile();
+  const { canWrite: workspaceCanWrite, canCreate: workspaceCanCreate, isOwner } = useWorkspaceRole();
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -671,7 +678,7 @@ export function NodeView({
   const [isCoverHovered, setIsCoverHovered] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   // Auto-enable lightweight live sync when viewing a page
-  useLivePageSync({ nodeUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
+  const liveSyncStatus = useLivePageSync({ nodeUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
   
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
@@ -1240,6 +1247,10 @@ export function NodeView({
             onRemoveExtends={handleRemoveExtends}
             onAddExtends={handleAddExtends}
             onCreateExtends={handleCreateExtends}
+            onVisibilityChange={(visibility) => {
+              updateNode.mutate({ id: node.id, data: { visibility } });
+            }}
+            canChangeVisibility={!!isOwner}
             defaultExpanded={!isMobile}
           />
           </>)}
@@ -1293,6 +1304,8 @@ export function NodeView({
             children={blockChildren}
             displayMode={contentDisplayMode}
             totalChildrenCount={node.children?.length || 0}
+            editable={workspaceCanWrite}
+            canCreate={workspaceCanCreate}
           />
         </>
       ) : (
@@ -1302,6 +1315,8 @@ export function NodeView({
           node={node}
           onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
           displayMode={contentDisplayMode}
+          editable={workspaceCanWrite}
+          canCreate={workspaceCanCreate}
         />
       )}
       
@@ -1425,6 +1440,12 @@ export function NodeView({
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
             />
           )}
+          
+          {/* Activity Log — chronological history of edits, links, property changes */}
+          <NodeActivityLogSection
+            nodeId={node.id}
+            defaultExpanded={false}
+          />
         </>
       )}
       
@@ -1434,6 +1455,11 @@ export function NodeView({
           <div className="node-view-metadata">
             <span>Created: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
             <span>Updated: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
+            {liveSyncStatus !== 'connected' && node?.is_page && (
+              <span className={`live-sync-status live-sync-status--${liveSyncStatus}`} title={`Live sync ${liveSyncStatus}`}>
+                {liveSyncStatus === 'connecting' ? 'Connecting…' : liveSyncStatus === 'error' ? 'Sync error' : 'Offline'}
+              </span>
+            )}
           </div>
           <WordCount node={node} />
         </footer>

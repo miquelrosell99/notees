@@ -182,8 +182,19 @@ class NodeSearchRepository(ABC):
     """Repository interface for Node search and class-related queries."""
 
     @abstractmethod
-    async def search(self, query: str, limit: int = 50) -> list[Node]:
-        """Search nodes by name."""
+    async def search(
+        self,
+        query: str,
+        limit: int = 50,
+        offset: int = 0,
+        class_filters: list[int] | None = None,
+        is_page: bool | None = None,
+        is_class: bool | None = None,
+        is_daily: bool | None = None,
+        sort_by: str = "write_date",
+        order: str = "desc",
+    ) -> list[Node]:
+        """Search nodes by name with optional filters, sorting and pagination."""
         pass
 
     @abstractmethod

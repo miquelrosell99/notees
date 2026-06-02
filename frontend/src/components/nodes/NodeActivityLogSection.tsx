@@ -14,16 +14,19 @@ import { splitTextWithLinks } from '@/lib/noteesUri';
 import { getNodeByUuid } from '@/api/nodes';
 import { useNavigationStore } from '@/stores';
 import { Bullet } from '@/components/blocks/Bullet';
+import { NodeViewSection } from './NodeViewSection';
+import { ClockIcon } from '@/components/core/icons';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
   nodeId: number;
+  defaultExpanded?: boolean;
 }
 
-export interface NodeActivity {
+interface NodeActivity {
   id: number;
   node_id: number;
-  action: 'created' | 'edited' | 'link_added' | 'link_removed' | 'link_inserted' | 'archived' | 'unarchived' | 'type_added' | 'type_removed' | 'property_changed' | 'moved';
+  action: 'created' | 'edited' | 'link_inserted' | 'archived' | 'unarchived' | 'type_added' | 'type_removed' | 'property_changed' | 'moved' | 'deleted';
   details?: string;
   target_node_id?: number;
   target_node_name?: string;
@@ -34,8 +37,6 @@ export interface NodeActivity {
 const ACTION_LABELS: Record<string, string> = {
   created: 'Created',
   edited: 'Edited',
-  link_added: 'Added link to',
-  link_removed: 'Removed link to',
   link_inserted: 'Linked from',
   archived: 'Archived',
   unarchived: 'Unarchived',
@@ -43,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
   type_removed: 'Removed type',
   property_changed: 'Property changed',
   moved: 'Moved',
+  deleted: 'Deleted',
 };
 
 function formatDate(dateStr: string): string {
@@ -145,19 +147,8 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
   );
 }
 
-/**
- * Hook to get activity count for section metadata
- */
-export function useActivityCount(nodeId: number) {
-  const { data: activities, isLoading, refetch } = useNodeActivity(nodeId);
-  return {
-    count: activities?.length ?? 0,
-    isLoading,
-    refetch,
-  };
-}
 
-export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) {
+export function NodeActivityLogSection({ nodeId, defaultExpanded = false }: NodeActivityLogSectionProps) {
   const { data: activities, isLoading } = useNodeActivity(nodeId);
   const deleteActivity = useDeleteNodeActivity();
   
@@ -189,34 +180,44 @@ export function NodeActivityLogSection({ nodeId }: NodeActivityLogSectionProps) 
     },
   ] : [];
 
+  const count = activities?.length ?? 0;
+
   return (
-    <div className="node-activity-log">
-      <div className="node-activity-list">
-        {isLoading ? (
-          <div className="node-activity-loading"><Spinner size="sm" /></div>
-        ) : !activities || activities.length === 0 ? (
-          <div className="node-activity-empty">No activity recorded</div>
-        ) : (
-          activities.map(activity => (
-            <div
-              key={activity.id}
-              className="node-activity-item"
-              onContextMenu={(e) => handleContextMenu(activity.id, e)}
-            >
-              <ActivityMessage activity={activity} />
-            </div>
-          ))
+    <NodeViewSection
+      title="Activity Log"
+      icon={<ClockIcon size="sm" />}
+      count={count}
+      defaultExpanded={defaultExpanded}
+      hideWhenEmpty={false}
+    >
+      <div className="node-activity-log">
+        <div className="node-activity-list">
+          {isLoading ? (
+            <div className="node-activity-loading"><Spinner size="sm" /></div>
+          ) : count === 0 || !activities ? (
+            <div className="node-activity-empty">No activity recorded</div>
+          ) : (
+            activities.map(activity => (
+              <div
+                key={activity.id}
+                className="node-activity-item"
+                onContextMenu={(e) => handleContextMenu(activity.id, e)}
+              >
+                <ActivityMessage activity={activity} />
+              </div>
+            ))
+          )}
+        </div>
+        
+        {contextMenu && (
+          <ContextMenu
+            items={contextMenuItems}
+            position={contextMenu.position}
+            onClose={() => setContextMenu(null)}
+          />
         )}
       </div>
-      
-      {contextMenu && (
-        <ContextMenu
-          items={contextMenuItems}
-          position={contextMenu.position}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-    </div>
+    </NodeViewSection>
   );
 }
 

@@ -46,6 +46,7 @@ interface BlockRowProps {
   onOpenInSidebar?: (blockId: string) => void;
   onAddClass?: (blockServerId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   templateClassFilters?: number[];
   onEnter?: (blockId: string) => void;
@@ -75,6 +76,7 @@ export const BlockRow = memo(
       onOpenInSidebar,
       onAddClass,
       onSlashCommand,
+      onPasteImage,
       onTemplateInstantiate,
       templateClassFilters,
       onEnter,
@@ -229,6 +231,7 @@ export const BlockRow = memo(
                 onPillRemove={onPillRemove}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
                 onEnter={handleEnter}

@@ -14,6 +14,7 @@ export interface WorkspaceInfo {
   size_bytes?: number;
   is_active?: boolean;
   is_shared?: boolean;
+  role?: 'owner' | 'admin' | 'editor' | 'viewer';
 }
 
 export interface WorkspaceListResponse {

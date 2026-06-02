@@ -173,7 +173,7 @@ class PermissionChecker:
             if active_only:
                 row = await conn.fetchrow(
                     """
-                    SELECT workspace_id, create_uid, is_shared FROM node
+                    SELECT workspace_id, create_uid, is_shared, visibility FROM node
                     WHERE id = $1 AND active = TRUE
                 """,
                     node_id,
@@ -181,7 +181,7 @@ class PermissionChecker:
             else:
                 row = await conn.fetchrow(
                     """
-                    SELECT workspace_id, create_uid, is_shared FROM node
+                    SELECT workspace_id, create_uid, is_shared, visibility FROM node
                     WHERE id = $1
                 """,
                     node_id,
@@ -195,10 +195,18 @@ class PermissionChecker:
                 return perms
 
             workspace_id = row["workspace_id"]
+            visibility = row.get("visibility", "workspace")
 
             # Check if user is node owner
             if row["create_uid"] == self._user_id:
                 perms = Permissions.owner()
+                if active_only:
+                    self._node_cache[node_id] = perms
+                return perms
+
+            # Private nodes are only visible to their owner
+            if visibility == "private":
+                perms = Permissions.none()
                 if active_only:
                     self._node_cache[node_id] = perms
                 return perms

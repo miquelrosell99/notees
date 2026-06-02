@@ -609,7 +609,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       renderer.destroy();
       rendRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []); // run once on mount
 
   // ─── Canvas resize observer ─────────────────────────────────────────────────
@@ -753,7 +753,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const idArr = new Int32Array(nodes.map(n => n.id));
     renderer.setNodeVisuals(idArr, visuals);
     dirtyRef.current.positions = true;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [nodes, baseNodeRadius, sizeByConnections]);
 
   // ─── Label canvas resize observer ─────────────────────────────────────────
@@ -804,7 +804,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
       // Re-register: the current MQL no longer matches after DPR changed,
       // so we need a fresh query at the new DPR to catch the *next* change.
-      register(); // eslint-disable-line @typescript-eslint/no-use-before-define
+      register();  
     };
 
     const register = () => {
@@ -816,7 +816,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     register();
     return () => { if (mql && listener) mql.removeEventListener('change', listener); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // ─── Pointer interaction ────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1019,7 +1019,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     camRef.current.y    = cy;
     camRef.current.zoom = Math.max(0.02, Math.min(zoom, 40));
     dirtyRef.current.camera = true;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   const screenToWorld = useCallback((sx: number, sy: number) => {

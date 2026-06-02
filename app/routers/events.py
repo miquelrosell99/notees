@@ -78,7 +78,6 @@ async def workspace_events(
     user_id = int(user.id)
 
     # Resolve active workspace
-    from ..dependencies import _get_workspace_context_cached
 
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     if not workspace_id:

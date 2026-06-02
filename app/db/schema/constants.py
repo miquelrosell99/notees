@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import date
 
 # Import from shared utility for consistency
-from ...utils import utc_now_iso
 
 # Schema version for migrations
 SCHEMA_VERSION = 1

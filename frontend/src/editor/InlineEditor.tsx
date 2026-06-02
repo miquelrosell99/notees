@@ -90,6 +90,8 @@ interface InlineEditorProps {
   onAddClass?: (blockServerId: number, classId: number) => void;
   /** Called when a slash command is selected. */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  /** Called when an image is pasted into the block. */
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   /** Called when a template is selected. */
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   /** Class IDs to pre-filter template picker. */
@@ -124,6 +126,7 @@ export const InlineEditor = memo(
       onPillRemove,
       onAddClass,
       onSlashCommand,
+      onPasteImage,
       onTemplateInstantiate,
       templateClassFilters,
       onEnter,
@@ -345,6 +348,7 @@ export const InlineEditor = memo(
           onPillRemove={onPillRemove}
           onAddClass={onAddClass}
           onSlashCommand={onSlashCommand}
+          onPasteImage={onPasteImage}
           onTemplateInstantiate={onTemplateInstantiate}
           templateClassFilters={templateClassFilters}
           onEnter={onEnter}
@@ -374,6 +378,7 @@ interface InlineEditorInnerProps {
   onPillRemove?: InlineEditorProps['onPillRemove'];
   onAddClass?: InlineEditorProps['onAddClass'];
   onSlashCommand?: InlineEditorProps['onSlashCommand'];
+  onPasteImage?: InlineEditorProps['onPasteImage'];
   onTemplateInstantiate?: InlineEditorProps['onTemplateInstantiate'];
   templateClassFilters?: InlineEditorProps['templateClassFilters'];
   onEnter?: InlineEditorProps['onEnter'];
@@ -397,6 +402,7 @@ function InlineEditorInner({
   onPillRemove,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
   onEnter,
@@ -456,7 +462,7 @@ function InlineEditorInner({
       )}
       <EditablePlugin readOnly={readOnly} />
       {!readOnly && <FloatingToolbarPlugin />}
-      {!readOnly && <InlineCopyPastePlugin blockId={blockId} onContentChange={onContentChange} />}
+      {!readOnly && <InlineCopyPastePlugin blockId={blockId} onContentChange={onContentChange} onPasteImage={onPasteImage} />}
       {!readOnly && <CustomCaretPlugin readOnly={readOnly} />}
       {!readOnly && (
         <TriggerPlugin

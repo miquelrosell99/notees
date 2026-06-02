@@ -12,6 +12,7 @@
   position: sticky;
   top: 0;
   z-index: var(--z-toast, 100);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .offline-banner__icon {
@@ -23,4 +24,25 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Warning state — WS disconnected while browser online */
+.offline-banner--warning {
+  background-color: var(--color-error-container, #ffebee);
+  color: var(--color-on-error-container, #c62828);
+  border-bottom-color: var(--color-error, #ef4444);
+}
+
+/* Syncing state */
+.offline-banner--syncing {
+  background-color: var(--color-primary-container, #e3f2fd);
+  color: var(--color-on-primary-container, #1565c0);
+  border-bottom-color: var(--color-primary, #2196f3);
+}
+
+/* Synced state */
+.offline-banner--synced {
+  background-color: var(--color-success-container, #e8f5e9);
+  color: var(--color-on-success-container, #2e7d32);
+  border-bottom-color: var(--color-success, #4caf50);
 }
