@@ -18,15 +18,39 @@ import { isApiError } from '@/api/client';
 
 const QUEUE_KEY = 'notees-offline-queue';
 
-export interface QueuedMutation {
-  id: string;
+interface ContentMutation {
   type: 'content';
   blockId: number;
   blockUuid: string;
   data: { name: string };
+}
+
+interface CreateBlockMutation {
+  type: 'create_block';
+  parentBlockUuid: string;
+  name: string;
+  sequence?: number;
+}
+
+interface DeleteBlockMutation {
+  type: 'delete_block';
+  blockUuid: string;
+}
+
+interface MoveBlockMutation {
+  type: 'move_block';
+  blockUuid: string;
+  parentBlockUuid: string | null;
+  sequence?: number;
+}
+
+export type QueuedMutation = {
+  id: string;
   timestamp: number;
   retryCount: number;
-}
+} & (ContentMutation | CreateBlockMutation | DeleteBlockMutation | MoveBlockMutation);
+
+export type QueuedMutationInput = ContentMutation | CreateBlockMutation | DeleteBlockMutation | MoveBlockMutation;
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -52,7 +76,7 @@ export const offlineQueue = {
    * for the same block (deduplication).
    */
   async enqueue(
-    mutation: Omit<QueuedMutation, 'id' | 'timestamp' | 'retryCount'>,
+    mutation: QueuedMutationInput,
   ): Promise<void> {
     const item: QueuedMutation = {
       ...mutation,
@@ -62,13 +86,16 @@ export const offlineQueue = {
     };
 
     const queue = await _getQueue();
+    let filtered = queue;
 
-    // Deduplicate content mutations for the same block
-    const filtered = queue.filter(
-      (q) => !(q.type === 'content' && q.blockId === item.blockId),
-    );
+    if (item.type === 'content') {
+      // Deduplicate content mutations for the same block
+      filtered = queue.filter(
+        (q) => !(q.type === 'content' && q.blockId === item.blockId),
+      );
+    }
+
     filtered.push(item);
-
     await _setQueue(filtered);
   },
 
