@@ -28,3 +28,45 @@
   margin-left: 2px;
   opacity: 0.85;
 }
+
+/* Presence avatars — small colored initials for remote users on this block */
+.block-ui__presence {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.block-ui__presence-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  line-height: 1;
+}
+
+/* Typing indicator — ephemeral dots for remote users typing in this block */
+.block-ui__typing {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+}
+
+.block-ui__typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: typing-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes typing-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}

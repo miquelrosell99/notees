@@ -101,6 +101,14 @@ export const BlockRow = memo(
     const lockedBy = lockOwner && Number(lockOwner.id) !== Number(currentUserId) ? [lockOwner] : undefined;
     const isLocked = lockedBy != null && lockedBy.length > 0;
 
+    // Show remote presence and typing indicators
+    const presenceUsers = useLivePresenceStore(
+      (s) => (nodeUuid ? s.getUsersOnBlock(nodeUuid, node.uuid) : []),
+    ).filter((u) => u.id !== currentUserId);
+    const typingUsers = useLivePresenceStore(
+      (s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid) : []),
+    ).filter((u) => u.id !== currentUserId);
+
     // Lazy-mount editor based on viewport visibility to reduce DOM weight
     const [isInViewport, setIsInViewport] = useState(true);
     const rowRef = useRef<HTMLDivElement>(null);
@@ -216,6 +224,8 @@ export const BlockRow = memo(
           onOpenInSidebar={onOpenInSidebar}
           onContextMenu={handleBulletContextMenu}
           lockedBy={lockedBy}
+          presenceUsers={presenceUsers}
+          typingUsers={typingUsers}
         />
         <div className="block-row__body">
           <div className="block-row__content">
