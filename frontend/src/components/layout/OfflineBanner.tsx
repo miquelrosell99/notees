@@ -8,6 +8,7 @@ import React from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useOfflineQueue } from '@/hooks/useOfflineQueue';
 import { useLiveSyncStatus } from '@/hooks/useLiveSyncStatus';
+import { useNavigationStore } from '@/stores/navigationStore';
 import { Icon } from '@/components/core/Icon';
 import './OfflineBanner.css';
 
@@ -15,12 +16,17 @@ export function OfflineBanner(): React.ReactNode {
   const isOnline = useOnlineStatus();
   const { pendingCount, isDraining } = useOfflineQueue();
   const liveSyncStatus = useLiveSyncStatus();
+  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
 
   // Show banner when:
   // - Browser is offline
   // - REST mutations are pending / draining
   // - Browser is online but WS live sync is disconnected/error
-  const wsDisconnected = isOnline && (liveSyncStatus === 'disconnected' || liveSyncStatus === 'error');
+  //   AND we are actually viewing a page (live sync only applies to open pages)
+  const wsDisconnected =
+    isOnline &&
+    currentNodeId != null &&
+    (liveSyncStatus === 'disconnected' || liveSyncStatus === 'error');
 
   if (isOnline && pendingCount === 0 && !wsDisconnected) return null;
 
