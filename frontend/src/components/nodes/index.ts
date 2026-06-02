@@ -5,7 +5,7 @@
  */
 
 export { NodeActivityLogSection } from './NodeActivityLogSection';
-export type { NodeActivity } from './NodeActivityLogSection';
+export type { NodeActivity } from '@/api/activity';
 
 export { NodeBreadcrumbs } from './NodeBreadcrumbs';
 export type { BreadcrumbItem } from './NodeBreadcrumbs';

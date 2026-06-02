@@ -112,7 +112,7 @@ export type { ContextMenuItem } from './core/ContextMenu';
 
 // Activity log
 export { NodeActivityLogSection } from './nodes/NodeActivityLogSection';
-export type { NodeActivity } from './nodes/NodeActivityLogSection';
+export type { NodeActivity } from '@/api/activity';
 
 // NodeCollection - Universal node collection system
 export { NodeCollection } from './nodes/NodeCollection';

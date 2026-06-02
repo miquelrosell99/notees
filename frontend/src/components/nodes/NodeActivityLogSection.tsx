@@ -16,6 +16,7 @@ import { useNavigationStore } from '@/stores';
 import { Bullet } from '@/components/blocks/Bullet';
 import { NodeViewSection } from './NodeViewSection';
 import { ClockIcon } from '@/components/core/icons';
+import type { NodeActivity } from '@/api/activity';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
@@ -23,25 +24,15 @@ interface NodeActivityLogSectionProps {
   defaultExpanded?: boolean;
 }
 
-interface NodeActivity {
-  id: number;
-  node_id: number;
-  action: 'created' | 'edited' | 'link_inserted' | 'archived' | 'unarchived' | 'type_added' | 'type_removed' | 'property_changed' | 'moved' | 'deleted';
-  details?: string;
-  target_node_id?: number;
-  target_node_name?: string;
-  target_node_uuid?: string;
-  create_date: string;
-}
-
+// Note: link_inserted is intentionally omitted because the backend provides
+// a full sentence in details (e.g. "Link to [Node](notees:uuid) inserted").
 const ACTION_LABELS: Record<string, string> = {
   created: 'Created',
   edited: 'Edited',
-  link_inserted: 'Linked from',
   archived: 'Archived',
   unarchived: 'Unarchived',
-  type_added: 'Added type',
-  type_removed: 'Removed type',
+  type_added: 'Added class',
+  type_removed: 'Removed class',
   property_changed: 'Property changed',
   moved: 'Moved',
   deleted: 'Deleted',
