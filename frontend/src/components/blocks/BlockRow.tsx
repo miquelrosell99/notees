@@ -19,6 +19,7 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
 import { useLivePresenceStore } from '@/stores/livePresenceStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useTaskActions } from '@/hooks/useTaskActions';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
@@ -102,12 +103,13 @@ export const BlockRow = memo(
     const isLocked = lockedBy != null && lockedBy.length > 0;
 
     // Show remote presence and typing indicators
+    // Use useShallow so identical arrays don't trigger re-renders.
     const presenceUsers = useLivePresenceStore(
-      (s) => (nodeUuid ? s.getUsersOnBlock(nodeUuid, node.uuid) : []),
-    ).filter((u) => u.id !== currentUserId);
+      useShallow((s) => (nodeUuid ? s.getUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.id !== currentUserId) : [])),
+    );
     const typingUsers = useLivePresenceStore(
-      (s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid) : []),
-    ).filter((u) => u.id !== currentUserId);
+      useShallow((s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.id !== currentUserId) : [])),
+    );
 
     // Lazy-mount editor based on viewport visibility to reduce DOM weight
     const [isInViewport, setIsInViewport] = useState(true);

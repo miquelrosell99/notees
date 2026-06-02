@@ -54,7 +54,9 @@ interface LivePresenceState {
   getTypingUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
 }
 
-export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
+const EMPTY_USERS: PresenceUser[] = [];
+
+export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
   presence: {},
   locks: {},
   typing: {},
@@ -121,7 +123,7 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
   },
 
   getUsersOnBlock(nodeUuid, blockUuid) {
-    return get().presence[nodeUuid]?.[blockUuid] ?? [];
+    return get().presence[nodeUuid]?.[blockUuid] ?? EMPTY_USERS;
   },
 
   getLocalFocus(nodeUuid) {
@@ -199,7 +201,10 @@ export const useLivePresenceStore = create<LivePresenceState>()((set, get) => ({
 
   getTypingUsersOnBlock(nodeUuid, blockUuid) {
     const now = Date.now();
-    const entries = get().typing[nodeUuid]?.[blockUuid] ?? [];
-    return entries.filter((e) => e.expiresAt > now).map((e) => e.user);
+    const entries = get().typing[nodeUuid]?.[blockUuid];
+    if (!entries || entries.length === 0) return EMPTY_USERS;
+    const active = entries.filter((e) => e.expiresAt > now);
+    if (active.length === 0) return EMPTY_USERS;
+    return active.map((e) => e.user);
   },
 }));
