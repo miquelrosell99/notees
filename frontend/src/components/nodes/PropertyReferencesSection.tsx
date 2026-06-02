@@ -205,6 +205,7 @@ export function PropertyReferencesSection({
                 onContentChange={handleContentChange}
                 onAddClass={onAddClass}
                 nodeUuid={pageNode.uuid}
+                nodeId={pageNode.id}
               />
             </div>
           );

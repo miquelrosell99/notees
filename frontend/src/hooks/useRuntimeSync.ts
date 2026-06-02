@@ -128,6 +128,7 @@ export function apiNodesToGraphNodes(
   pageId?: number,
   nodeUuid?: string,
 ): { graphNodes: GraphNode[]; rootBlockId: string } {
+  console.log('[apiNodesToGraphNodes] called', { nodeCount: nodes.length, pageId, nodeUuid, topLevelUuids: nodes.map((n) => n.uuid) });
   const idToUuidMap = new Map<number, string>();
   const nodeIdSet = new Set<number>();
   const classIdToUuidMap = buildClassIdToUuidMap();
@@ -168,6 +169,14 @@ export function apiNodesToGraphNodes(
       gn.blockId = runtimeBlockId;
     }
     return gn;
+  });
+
+  console.log('[apiNodesToGraphNodes] output', {
+    firstGraphNode: graphNodes[0]?.blockId,
+    firstParentId: graphNodes[0]?.parentId,
+    firstOrderIndex: graphNodes[0]?.orderIndex,
+    idToUuidMapSize: idToUuidMap.size,
+    idToUuidMapHasPageId: pageId != null ? idToUuidMap.has(pageId) : null,
   });
 
   // Determine rootBlockId — the parent ID used for project() traversal

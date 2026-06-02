@@ -15,7 +15,7 @@ class TestAuthFlow:
         """Test user registration followed by login."""
         import secrets
         email = f"testuser_{secrets.token_hex(4)}@example.com"
-        password = "testpass123"
+        password = "Testpass123!"
         
         # Register
         response = await client.post(

@@ -104,7 +104,7 @@ class NodeHierarchyRepository(ABC):
         self,
         node_id: int,
         new_parent_id: int | None = None,
-        new_sequence: int | None = None,
+        new_sequence: float | None = None,
         user_id: int | None = None,
     ) -> Node | None:
         """Move a node to a new parent and/or sequence position."""
@@ -161,19 +161,19 @@ class NodeHierarchyRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_max_sequence(self, parent_id: int) -> int:
+    async def get_max_sequence(self, parent_id: int) -> float:
         """Get the maximum sequence among children of a parent."""
         pass
 
     @abstractmethod
     async def reparent_nodes(
-        self, node_ids: list[int], new_parent_id: int, new_page_id: int, start_sequence: int
+        self, node_ids: list[int], new_parent_id: int, new_page_id: int, start_sequence: float
     ) -> None:
         """Reparent multiple nodes to a new parent with sequential ordering."""
         pass
 
     @abstractmethod
-    async def shift_sequences(self, parent_id: int, from_sequence: int, amount: int) -> None:
+    async def shift_sequences(self, parent_id: int, from_sequence: float, amount: float) -> None:
         """Shift sequences of children at or after from_sequence by amount."""
         pass
 

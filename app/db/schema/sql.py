@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS node (
     color VARCHAR(50),
     parent_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     page_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
-    sequence INTEGER DEFAULT 0,
+    sequence DOUBLE PRECISION DEFAULT 0.0,
     collapsed BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
     is_shared BOOLEAN DEFAULT FALSE,
@@ -1195,4 +1195,16 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_key_revoked ON api_key(revoked) WHERE revoked = FALSE;
 CREATE INDEX IF NOT EXISTS idx_api_key_expires_at ON api_key(expires_at) WHERE expires_at IS NOT NULL;
+
+-- Migration: Change node.sequence from INTEGER to DOUBLE PRECISION for fractional ordering
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'sequence'
+          AND data_type = 'integer'
+    ) THEN
+        ALTER TABLE node ALTER COLUMN sequence TYPE DOUBLE PRECISION USING sequence::double precision;
+    END IF;
+END $$;
 """
